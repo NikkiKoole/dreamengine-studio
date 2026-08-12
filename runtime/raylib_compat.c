@@ -3,6 +3,7 @@
 // Real bodies (timing + the software text path) are hand-written at the bottom.
 #include "raylib_compat.h"
 #include <math.h>   // cosf/sinf — the Camera2D transforms below are REAL, not stubs
+#include <stdatomic.h>   // host→engine input ring: main (producer) ↔ the thread running de_frame
 
 double de_host_time = 0.0; float de_host_dt = 1.0f/60.0f;
 
@@ -143,7 +144,8 @@ FilePathList LoadDroppedFiles(void) { FilePathList r = {0}; return r; }
 bool IsKeyDown(int key)     { return (unsigned)key < DE_NKEY &&  de_key_now[key]; }
 bool IsKeyPressed(int key)  { return (unsigned)key < DE_NKEY &&  de_key_now[key] && !de_key_was[key]; }
 bool IsKeyReleased(int key) { return (unsigned)key < DE_NKEY && !de_key_now[key] &&  de_key_was[key]; }
-void de_key_event(int key, int down) { if ((unsigned)key < DE_NKEY) de_key_now[key] = down ? 1 : 0; }
+// de_key_event itself lives down with the input RING: like touch, it is called from the host's
+// thread, so it appends an event rather than writing de_key_now directly.
 bool IsMouseButtonDown(int button)     { return button == MOUSE_BUTTON_LEFT &&  de_mouse_down; }
 bool IsMouseButtonPressed(int button)  { return button == MOUSE_BUTTON_LEFT &&  de_mouse_down && !de_mouse_prev; }
 bool IsMouseButtonReleased(int button) { return button == MOUSE_BUTTON_LEFT && !de_mouse_down &&  de_mouse_prev; }
@@ -230,11 +232,71 @@ Color GetImageColor(Image image, int x, int y) {
 // The host (iOS CanvasView, UIKit touches) feeds contacts in framebuffer pixels; the
 // engine reads them next frame via GetTouchPointCount/GetTouchPosition above. Keyed by
 // `id` so multitouch tracks per finger. A begin on a live id just updates it.
+//
+// ══ THE HOST→ENGINE EVENT RING ══════════════════════════════════════════════════════════════
+// The host thread does NOT touch this state. It appends events; the engine applies them at the
+// top of the frame (de_input_beginframe). That indirection exists because of the AUv3:
+//
+//   · standalone app  — UIKit delivers touches on the main thread, and de_frame() runs there too
+//                       (CADisplayLink). Same thread, so direct writes were always safe.
+//   · AUv3 plug-in    — de_frame() is driven by the render block, i.e. on the AUDIO THREAD, while
+//                       touches still arrive on the main thread. Direct writes are a data race.
+//
+// Not a theoretical one. The pool is walked by index (de_touch_nth compacts over `active`), so a
+// finger released between a cart's GetTouchPointCount() and its GetTouchPosition(i) shifted the
+// compact view underneath the loop and ui.h hit-tested a stale slot — a tap landing on the wrong
+// widget, with no error anywhere. An x could also be published from one event and its y from the
+// next, putting a contact on a diagonal it never crossed.
+//
+// Atomic acquire/release, the same idiom as sound.h's request queue: the consumer must see a
+// fully-written entry before it sees the advanced index, and `volatile` alone is NOT a barrier.
+// See design/audio-threading.md. Latency is unchanged in the case that matters — an event arriving
+// mid-frame was already only visible to the NEXT frame; now that is true consistently.
+#define DE_IN_RING 512
+#define DE_IN_RESERVE 48   // slots only a RELEASE may spend (> DE_MAX_TOUCH + held keys) — see de_in_push
+enum { DE_IN_TOUCH_BEGIN = 1, DE_IN_TOUCH_MOVED, DE_IN_TOUCH_ENDED, DE_IN_KEY };
+typedef struct { int kind, id; float x, y; } DeInEvent;
+static DeInEvent  de_in_ring[DE_IN_RING];
+static atomic_int de_in_head = 0;      // producer: the host's input thread (main, on iOS)
+static atomic_int de_in_tail = 0;      // consumer: the engine, in de_input_beginframe
+static atomic_int de_in_dropped = 0;   // ring full: the host outran the frame rate by 512 events
+
+static void de_in_push(int kind, int id, float x, float y) {
+    int h = atomic_load_explicit(&de_in_head, memory_order_relaxed);   // producer owns head
+    int t = atomic_load_explicit(&de_in_tail, memory_order_acquire);
+    int next = (h + 1) % DE_IN_RING;
+    // Under pressure, WHICH event gets dropped is the whole design. A ring only fills when nobody is
+    // draining it (a host that paused our render block, a stalled frame), and the three kinds are not
+    // equally important:
+    //   · a lost MOVE is invisible — the next move re-states the position
+    //   · a lost BEGIN is a tap that never happened: annoying, self-correcting
+    //   · a lost ENDED (or key-up) is a finger held down FOREVER: a stuck note, a knob that keeps
+    //     tracking, a key that repeats. It never self-corrects, and the probe caught exactly this.
+    // So: shed moves first, then begins, and keep a reserve that ONLY lifts may spend. With the
+    // reserve larger than DE_MAX_TOUCH plus any plausible number of held keys, every input that is
+    // currently down can always enqueue its release. That is a guarantee, not a hope.
+    int depth = (h - t + DE_IN_RING) % DE_IN_RING;
+    int shed = (kind == DE_IN_TOUCH_MOVED && depth > DE_IN_RING * 3 / 4) ||
+               (kind == DE_IN_TOUCH_BEGIN && depth > DE_IN_RING - DE_IN_RESERVE);
+    if (shed || next == t) {   // shed by policy, or genuinely full
+        atomic_fetch_add_explicit(&de_in_dropped, 1, memory_order_relaxed); return;
+    }
+    de_in_ring[h].kind = kind; de_in_ring[h].id = id; de_in_ring[h].x = x; de_in_ring[h].y = y;
+    atomic_store_explicit(&de_in_head, next, memory_order_release);   // publish AFTER the writes
+}
+
+// The host side: append only. Cheap enough to call from a UIKit touch handler with 10 fingers.
+void de_touch_begin(int id, float x, float y) { de_in_push(DE_IN_TOUCH_BEGIN, id, x, y); }
+void de_touch_moved(int id, float x, float y) { de_in_push(DE_IN_TOUCH_MOVED, id, x, y); }
+void de_touch_ended(int id, float x, float y) { de_in_push(DE_IN_TOUCH_ENDED, id, x, y); }
+void de_key_event(int key, int down)          { de_in_push(DE_IN_KEY, key, down ? 1.0f : 0.0f, 0); }
+
+// The engine side: everything below runs on the thread that calls de_frame, and owns the pool.
 static DeTouchPoint *de_touch_find(int id) {
     for (int i = 0; i < DE_MAX_TOUCH; i++) if (de_touch[i].active && de_touch[i].id == id) return &de_touch[i];
     return 0;
 }
-void de_touch_begin(int id, float x, float y) {
+static void de_apply_touch_begin(int id, float x, float y) {
     DeTouchPoint *p = de_touch_find(id);
     if (!p) for (int i = 0; i < DE_MAX_TOUCH; i++) if (!de_touch[i].active) { p = &de_touch[i]; break; }
     if (!p) return;                       // pool full — drop the contact
@@ -243,13 +305,59 @@ void de_touch_begin(int id, float x, float y) {
         de_mouse_id = id; de_mouse_x = x; de_mouse_y = y; de_mouse_down = true;
     }
 }
-void de_touch_moved(int id, float x, float y) {
+static void de_apply_touch_moved(int id, float x, float y) {
     DeTouchPoint *p = de_touch_find(id);
     if (p) { p->x = x; p->y = y; }
     if (id == de_mouse_id) { de_mouse_x = x; de_mouse_y = y; }
 }
-void de_touch_ended(int id, float x, float y) {
+static void de_apply_touch_ended(int id, float x, float y) {
     DeTouchPoint *p = de_touch_find(id);
     if (p) { p->x = x; p->y = y; p->active = false; }
     if (id == de_mouse_id) { de_mouse_x = x; de_mouse_y = y; de_mouse_down = false; de_mouse_id = -999; }
+}
+
+// Called at the TOP of de_frame (studio.c), before the cart reads any input.
+void de_input_beginframe(void) {
+    // What went DOWN during this drain: touch ids, and key codes. Both need the rule below.
+    int began[DE_MAX_TOUCH], nbegan = 0;
+    int keyed[16], nkeyed = 0;
+    for (;;) {
+        int t = atomic_load_explicit(&de_in_tail, memory_order_relaxed);   // consumer owns tail
+        if (t == atomic_load_explicit(&de_in_head, memory_order_acquire)) break;   // empty
+        DeInEvent e = de_in_ring[t];
+        // ── THE ONE-FRAME PRESS RULE ────────────────────────────────────────────────────────
+        // A release that ends a press applied in this same drain is left for NEXT frame. A quick
+        // tap can otherwise begin and end between two frames, and applying both here would set
+        // `active` and clear it again before the cart ever looked: the contact never existed, and
+        // de_mouse_down goes true→false inside one frame so IsMouseButtonPressed and
+        // IsMouseButtonReleased are BOTH never true. That is the oldest "my tap did nothing" bug
+        // there is, and on a phone it is common — 60 Hz is 16ms and fingers are faster than that.
+        // Deferring cannot starve: the press was consumed, so every drain makes progress.
+        //
+        // KEYS NEED IT TOO, which is not obvious and cost a red check to notice: a host that
+        // synthesises a keystroke as down-then-up back to back (an on-screen keyboard, a test
+        // harness, a MIDI-to-key bridge) hits precisely the same window, and IsKeyPressed never
+        // fires. Same rule, separate list.
+        if (e.kind == DE_IN_TOUCH_ENDED) {
+            int fresh = 0;
+            for (int i = 0; i < nbegan; i++) if (began[i] == e.id) { fresh = 1; break; }
+            if (fresh) break;
+        }
+        if (e.kind == DE_IN_KEY && e.x <= 0.5f) {
+            int fresh = 0;
+            for (int i = 0; i < nkeyed; i++) if (keyed[i] == e.id) { fresh = 1; break; }
+            if (fresh) break;
+        }
+        switch (e.kind) {
+            case DE_IN_TOUCH_BEGIN: de_apply_touch_begin(e.id, e.x, e.y);
+                                    if (nbegan < DE_MAX_TOUCH) began[nbegan++] = e.id; break;
+            case DE_IN_TOUCH_MOVED: de_apply_touch_moved(e.id, e.x, e.y); break;
+            case DE_IN_TOUCH_ENDED: de_apply_touch_ended(e.id, e.x, e.y); break;
+            case DE_IN_KEY:
+                if ((unsigned)e.id < DE_NKEY) de_key_now[e.id] = e.x > 0.5f ? 1 : 0;
+                if (e.x > 0.5f && nkeyed < 16) keyed[nkeyed++] = e.id;
+                break;
+        }
+        atomic_store_explicit(&de_in_tail, (t + 1) % DE_IN_RING, memory_order_release);
+    }
 }

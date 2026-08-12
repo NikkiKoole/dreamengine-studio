@@ -293,6 +293,14 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
              webrtc-spike/   PASSED probe (multiplayer rung 5b): browser WebRTC P2P DataChannel, Mac↔iPhone at
                              ~12ms over wifi (index.html — open on both peers). The relay-free twin of net-relay;
                              design/multiplayer-research.md
+             input-ring-check/  THREAD-SAFETY gate for the host→engine INPUT RING (`de_touch_*`/`de_key_event`
+                             → `de_input_beginframe`, in runtime/raylib_compat.c). `bash run.sh` · `-tsan` (the
+                             real gate: ThreadSanitizer sees the race even on a run that wins) · `-bypass` (the
+                             NEGATIVE CONTROL — rebuilds with the producer writing engine state directly, the
+                             pre-ring design, and FAILS as it must). #includes raylib_compat.c so it gates the
+                             shipping code, and plays host + engine on two real threads because the race only
+                             exists where de_frame runs off the input thread = the AUv3. Also pins the
+                             ONE-FRAME PRESS rule (a tap arriving between two frames must still be visible)
              ui-audit.js     UI bug finder (off-screen text, overlaps, dead widgets, hidden panels).
                              `--selfcheck` = known-answer fixture (31 assertions, runs NO cart: the
                              analyzer is pure, so it judges synthetic draw records) covering every

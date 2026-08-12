@@ -53,9 +53,16 @@ a broken doc link or `#section`).
 > *absolute* (they state both). `sync_beats()` is the common currency and a cart DERIVES its step counter
 > from it. That is why AUv3 transport needed **zero cart changes**: it was the other shape of the same seam.
 > **Next, in order:** the AUv3 **VIEW** (phase 3, and the bulk of what is left — an `AUViewController`
-> sharing the already-cart-agnostic `Sources/CanvasView.swift`, a tick-ownership split so the view blits
-> without advancing the engine, and an input event RING because touches arrive on the main thread while
-> `de_frame` runs on the audio thread and `de_touch_*` writes a shared pool unsynchronised) · **Ableton
+> sharing the already-cart-agnostic `Sources/CanvasView.swift`, and a tick-ownership split so the view
+> blits without advancing the engine. **The input event RING is DONE** (2026-08-12): `de_touch_*` and
+> `de_key_event` append to an SPSC ring and `de_input_beginframe()` applies them on the frame's own
+> thread, so an AUv3 frame running on the AUDIO thread no longer races the main thread's touches. It
+> also fixed a bug the standalone app has always had — a press+release arriving between two frames was
+> applied and undone before the cart looked, so `mouse_pressed` and `mouse_released` were BOTH never
+> true. Design: [`audio-threading.md`](design/audio-threading.md) → "the INPUT ring"; gate:
+> `bash tools/input-ring-check/run.sh` (`-tsan` is the real one, `-bypass` is the negative control —
+> and note the plain run is NOT enough: with the safety removed the tear check still passed on arm64,
+> because two adjacent float stores rarely interleave) · **Ableton
 > Link** (the same `sync_push_pos()` call as the host path, so small — but the lib is dual-licensed, check
 > that first) · MIDI clock **on iOS** + background audio (what ReBirth for iPad actually shipped) · clock
 > **OUT** ([`midi-out.md`](design/midi-out.md)).

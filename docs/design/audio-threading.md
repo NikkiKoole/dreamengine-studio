@@ -87,6 +87,41 @@ once, correctly, serves every parallel-audio platform — so it's a down-payment
 native ambition, not web-only busywork. (Wasm's shared-memory model in particular wants
 real atomics; `volatile` is the most fragile there.)
 
+## The same queue, pointing the other way: the INPUT ring (2026-08-12)
+
+Everything above is engine → audio. The AUv3 forced the mirror image, because it **inverts which
+thread is which**: the plug-in's render block drives `de_frame()`, so the *frame* runs on the audio
+thread while the host still delivers touches on the main thread. Every host input entry point was
+writing engine state directly, which was safe for a decade of standalone builds (UIKit touches and
+`CADisplayLink` are both the main thread) and is a data race in a plug-in.
+
+So `de_touch_begin/moved/ended` and `de_key_event` no longer touch engine state. They append to an
+SPSC event ring (`runtime/raylib_compat.c`, same acquire/release idiom as `sound.h`'s request queue),
+and `de_input_beginframe()` — called first in `de_frame()` — applies the events on the thread that
+owns the frame. Three things worth knowing:
+
+- **The race had a specific victim.** The touch pool is read *by index* through a compaction over
+  `active`, so a finger released between a cart's `GetTouchPointCount()` and its
+  `GetTouchPosition(i)` shifted every later index down by one, and `ui.h` hit-tested a stale slot: a
+  tap landing on the wrong widget, silently. The probe's negative control reproduces it, thousands of
+  bad reads per run.
+- **Under pressure, shed moves first, then presses, never releases.** A ring only fills when nobody
+  is draining it (a host that paused our render block). A lost move is invisible, a lost press is a
+  tap that didn't happen, but a lost *release* strands a finger down forever: a stuck note, a knob
+  that keeps tracking. A reserve of slots only a release may spend makes "every input that is down
+  can always enqueue its lift" a guarantee rather than a hope.
+- **The ONE-FRAME PRESS rule.** A press and release that both arrive between two frames must not be
+  applied in the same drain, or the contact never existed as far as the cart is concerned and
+  `mouse_pressed`/`mouse_released` are *both* never true. 60 Hz is 16 ms and fingers are faster than
+  that, so this is the ordinary case on a phone, not an edge. Keys need the identical rule, which is
+  less obvious and took a red check to notice.
+
+Gate: `bash tools/input-ring-check/run.sh` (plus `-tsan`, and `-bypass` for the negative control).
+It includes `raylib_compat.c` and plays both threads itself. Worth copying if another host seam ever
+goes cross-thread: **ThreadSanitizer is the gate, not the plain run** — with the safety removed, the
+tear check still came back clean on arm64, because two adjacent float stores rarely interleave. A
+race that shy will not show up in testing; it shows up in a review.
+
 ## Web's *extra* tax: shared memory (a web-only wrinkle)
 
 On web the game thread and the AudioWorklet are separate JS realms, so to share the one

@@ -3015,8 +3015,13 @@ void de_init(DeRenderer renderer) {
     init();                                      // the cart's init()
     last_time = GetTime();
 }
-void de_input_endframe(void);   // raylib_compat.c — snapshots mouse button state for next frame's edge detect
-void de_frame(double t) { de_host_time = t; loop_step(); if (sw_rot_active) sw_rot_composite(); de_input_endframe(); }   // loop_step draws (sw_cbuf or the rotated world buffer) + advances the sequencer; composite any rotated world a cart didn't close with camera()
+void de_input_endframe(void);     // raylib_compat.c — snapshots mouse button state for next frame's edge detect
+void de_input_beginframe(void);   // raylib_compat.c — applies the host's queued touch/key EVENTS (the input ring)
+// de_input_beginframe FIRST: the host appends input events from ITS thread (on iOS the main thread,
+// where UIKit delivers touches) and they are applied here, on the thread that runs the frame. That
+// matters in the AUv3, where this function is driven by the audio render block — see the ring's
+// header comment in raylib_compat.c.
+void de_frame(double t) { de_host_time = t; de_input_beginframe(); loop_step(); if (sw_rot_active) sw_rot_composite(); de_input_endframe(); }   // loop_step draws (sw_cbuf or the rotated world buffer) + advances the sequencer; composite any rotated world a cart didn't close with camera()
 // pulled by the host audio backend (CoreAudio on iOS) — fills `frames` interleaved
 // stereo floats in [-1,1] @ SOUND_SAMPLE_RATE. The same mixer the Raylib AudioStream
 // drives; reentrant/lock-free, safe from the audio thread while de_frame runs on main.

@@ -281,11 +281,24 @@ void tn_econ_selfcheck(void) {
     expect(tn_house[0].money == 0, tne_sp);
     expect(tn_econ_arrears(0) == short_by,
            "econ C: the part that could not be paid is RECORDED as owed, not quietly forgiven");
-    expect(tn_econ_sunk() == paid + tn_house[1].rent,
-           "econ C: only coins that actually MOVED are in the ledger, not the amount that was due");
+    {   // Sum over EVERY other household, not just household 1. These three assertions originally
+        // hardcoded a two-household world and broke the moment the `world` agent grew the level to
+        // four flats — both modules correct alone, coupled through a shared fixture. Deriving from
+        // tn_house_n is what `work` did for the same reason, and it makes the case survive the next
+        // layout change too.
+        int others = 0;
+        for (int h = 1; h < tn_house_n; h++) others += tn_house[h].rent;
+        snprintf(tne_sp, sizeof tne_sp,
+                 "econ C: only coins that actually MOVED are in the ledger, not the amount that was "
+                 "due (%d paid + %d from %d other households)", paid, others, tn_house_n - 1);
+        expect(tn_econ_sunk() == paid + others, tne_sp);
+    }
 
     {   // ~4000 unpaid rent days: the arrears must saturate, never wrap to a negative debt.
-        const int sunk_before = tn_econ_sunk(), h1_before = tn_house[1].money;
+        const int sunk_before = tn_econ_sunk();
+        int others_before = 0;                     // every purse that still has anything to drain
+        for (int h = 1; h < tn_house_n; h++) others_before += tn_house[h].money;
+        const int h1_before = tn_house[1].money;
         for (int i = 2; i < 4000; i++) tne_at(TNE_RENT_EVERY * i, TNE_RENT_MINUTE);
         snprintf(tne_sp, sizeof tne_sp,
                  "econ C: after ~4000 unpaid rent days the debt SATURATES at %d and never wraps negative",
@@ -294,8 +307,10 @@ void tn_econ_selfcheck(void) {
         expect(tn_house[0].money == 0, "econ C: an empty purse stays at 0 across thousands of charges");
         expect(tn_house[1].money == 0 && h1_before > 0,
                "econ C: the solvent household drained to exactly 0 as well, and stopped there");
-        expect(tn_econ_sunk() == sunk_before + h1_before,
-               "econ C: the ledger holds every coin household 1 had and not one more (an empty purse pays nothing)");
+        snprintf(tne_sp, sizeof tne_sp,
+                 "econ C: the ledger holds every coin the other %d households had and not one more "
+                 "(an empty purse pays nothing)", tn_house_n - 1);
+        expect(tn_econ_sunk() == sunk_before + others_before, tne_sp);
     }
 
     // ── ECON D: NOTHING CREATES MONEY EXCEPT tn_sell() ──────────────────────
@@ -368,8 +383,13 @@ void tn_econ_selfcheck(void) {
     tne_at(TNE_RENT_EVERY, TNE_RENT_MINUTE);
     expect(tn_house[0].money == m0 - r0,
            "econ F: a rebuilt world's first rent day is NOT silently free (the stale watermark cleared)");
-    expect(tn_econ_sunk() == r0 + tn_house[1].rent && tn_econ_arrears(0) == 0,
-           "econ F: and the new world starts on a clean ledger, not the last scenario's debt");
+    {   // Same fix as econ C: sum every household's rent rather than assuming there are two.
+        int all_rent = 0;
+        for (int h = 0; h < tn_house_n; h++) all_rent += tn_house[h].rent;
+        snprintf(tne_sp, sizeof tne_sp, "econ F: and the new world starts on a clean ledger, not the "
+                 "last scenario's debt (%d households, %d rent)", tn_house_n, all_rent);
+        expect(tn_econ_sunk() == all_rent && tn_econ_arrears(0) == 0, tne_sp);
+    }
 
     tn_world_init(); tn_econ_reset();              // leave the world as we found it
 }

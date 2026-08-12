@@ -24,7 +24,7 @@ void tn_agents_tick(void) {
 
         switch (a->activity) {
         case TN_ACT_USE:
-            if (tn_clock.minute >= a->until || a->until < 0) {
+            if (tn_now() >= a->until || a->until < 0) {
                 if (a->target_obj >= 0) {
                     const TnOffer *of = tno_offer_of(a->target_obj, a->bid_tag);
                     if (of && of->strength > 0) {
@@ -48,7 +48,7 @@ void tn_agents_tick(void) {
                     if (of && tn_obj[a->target_obj].users < of->capacity) {
                         tn_obj[a->target_obj].users++;
                         a->activity = TN_ACT_USE;
-                        a->until = (short)((tn_clock.minute + of->minutes) % 1440);
+                        a->until = tn_now() + of->minutes;   // absolute: cannot wrap
                     } else { a->target_obj = -1; a->activity = TN_ACT_IDLE; }
                 }
             }

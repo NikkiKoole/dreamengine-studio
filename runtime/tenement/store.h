@@ -464,17 +464,18 @@ void tn_store_selfcheck(void) {
                "store S5: desperate, the detour collapses and the near fridge wins again. BOTH "
                "directions, so the term is a gradient and not a ban");
 
-        // KNOWN GAP, asserted as CURRENT behaviour (the pattern case 8 established): the contract
-        // says tn_find_store() returns the nearest store "that the household may use", but offer.h
-        // ranks by travel alone and never asks whether the thing is full, so it hands an h1 tenant
-        // the h0 fridge one tile away. tn_store_pick() is the answer; REPORT has offer.h's one line.
+        // GAP NOW CLOSED, and this assertion was flipped by the integrator, deliberately, which is
+        // what "flip when the one-line fix lands" meant. tn_find_store() used to rank by travel
+        // alone and hand an h1 tenant the h0 fridge one tile away, contradicting its own contract
+        // comment ("that the household may use"). It now delegates to tn_store_pick, so the two
+        // MUST agree: one API, one answer.
         const int it = tn_item_new(TN_STORE_FOOD, 4, 1, 2);
         tn_item_pick_up(who, it);
         snprintf(tns_sp, sizeof tns_sp,
-                 "store S5 (KNOWN GAP): offer.h's tn_find_store still picks the nearest container, "
-                 "the neighbour's (%d); tn_store_pick picks the tenant's own (%d). Flip when the "
-                 "one-line fix lands", tn_find_store(who, it), tn_store_pick(who, it));
-        expect(tn_find_store(who, it) == f0 && tn_store_pick(who, it) == f1, tns_sp);
+                 "store S5: tn_find_store and tn_store_pick now agree (%d), because the former "
+                 "delegates to the latter instead of ranking by travel alone",
+                 tn_store_pick(who, it));
+        expect(tn_find_store(who, it) == tn_store_pick(who, it), tns_sp);
     }
 
     // ── S6: A NEW ITEM IS A TABLE ROW, NOT A CODE PATH ──────────────────────

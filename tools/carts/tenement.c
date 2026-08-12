@@ -40,14 +40,25 @@ de:meta */
 
 int tnc_show_bids = 0;          // owner: cart. hud reads it.
 
-#include "tenement/world.h"     // the globals + spawning + the level
+// ORDER IS A HARD REQUIREMENT, and every constraint here was discovered by a module author
+// rather than designed by me:
+//   world  before path   — path routes over world's edge walls (tn_can_step)
+//   path   before offer  — offer prices a bid by tn_path_len, not by a straight line
+//   econ   before build  — build spends through econ's single debit path, so econ's
+//                          money-destroyed ledger stays conserved
+//   art    before build  — build reads art's camera to turn a click into a tile
+// The offer<->store cycle (offer needs the ownership penalty, store needs tn_find_store) is
+// broken by forward declarations in the contract, not by include order.
+#include "tenement/world.h"     // globals, spawning, EDGE walls, rooms, the level
+#include "tenement/path.h"      // BFS distance field over those walls
 #include "tenement/offer.h"     // THE index
 #include "tenement/agents.h"    // decay + the state machine
-#include "tenement/work.h"      // STUB — the `work` agent owns it
-#include "tenement/econ.h"      // STUB — the `econ` agent owns it
-#include "tenement/store.h"     // STUB — the `store` agent owns it
+#include "tenement/work.h"      // orders, shifts, the sell seam
+#include "tenement/econ.h"      // households, rent, bills, buying
+#include "tenement/store.h"     // items, containers, ownership
 #include "tenement/art.h"       // the isometric view
 #include "tenement/hud.h"       // the panels
+#include "tenement/build.h"     // the player's verb
 
 // ── input ───────────────────────────────────────────────────────────────────
 static int tnc_paused = 0, tnc_speed = 1;
@@ -55,6 +66,7 @@ static int tnc_paused = 0, tnc_speed = 1;
 void init(void) { colorkey(-1); tn_world_init(); }
 
 void update(void) {
+    tn_build_input();
     if (keyp('Q')) tn_rot = (tn_rot + 3) & 3;
     if (keyp('E')) tn_rot = (tn_rot + 1) & 3;
     if (keyp(KEY_TAB)) tnc_show_bids = !tnc_show_bids;
@@ -74,7 +86,7 @@ void update(void) {
 #endif
 }
 
-void draw(void) { cls(CLR_DARK_BLUE); tn_draw_world(); tn_draw_hud(); }
+void draw(void) { cls(CLR_DARK_BLUE); tn_draw_world(); tn_build_draw(); tn_draw_hud(); }
 
 #ifdef DE_SPEC
 static char sp[160];
@@ -104,9 +116,16 @@ void spec(void) {
                                 "(picked %s, score %d)", TAG_NAME[tag], score);
         expect(o == 0 && tag == TN_SERVE_BLADDER, sp);
     }
-    // And the converse, so the test cannot pass by always preferring the toilet: move the fridge
-    // next door and it must win, because now its bigger deficit is not paying a travel penalty.
-    tn_obj[1].tx = 1; tn_obj[1].ty = 3;
+    // And the converse, so the test cannot pass by always preferring the toilet: put the fridge
+    // just as close and it must win, because now its bigger deficit pays no travel penalty.
+    //
+    // (1,3) USED to be the "equalised" spot and it was wrong the moment travel became a real walk:
+    // on the level world.h ships, (1,3) sits in the hall behind flat A's party wall, so it is three
+    // steps, not one. The fixture was only equal to a straight line that could not see walls, which
+    // is exactly the lie the path module was built to remove. Predicted by the path agent before it
+    // broke, and it broke on cue.
+    tn_obj[1].tx = 2; tn_obj[1].ty = 2;
+    tn_path_dirty();                               // the field is cached; moving an object dirties it
     {
         TnTag tag; int score;
         const int o = tn_best_action(0, &tag, &score);
@@ -234,6 +253,60 @@ void spec(void) {
                "case 8 (KNOWN GAP): a household-1 resident helps itself to household-0's fridge, "
                "because ownership is not yet a term in the score. Flip this when §6 lands.");
     }
+
+    // ── CASE 9: A LONG ACTIVITY SURVIVES MIDNIGHT ───────────────────────────
+    // Found by the `work` agent reading agents.h, not by any of the 21 assertions above, and that
+    // is the point of the case. `until` was a WRAPPED minute-of-day tested with `minute >= until`,
+    // so a 480-minute sleep started at 20:00 gave until=240 and completed on the very first tick.
+    // Beds did not work in the evening, which is the only time anyone sleeps.
+    //
+    // Every case above ran from 08:00, where 480 minutes lands at 16:00 and never wraps, so the
+    // whole suite was green while the most common action in the game was broken. A test that only
+    // exercises the easy half of a range is worse than no test, because it buys confidence.
+    tn_obj_n = 0; tn_agent_n = 0;
+    tn_add_obj(TN_OBJ_BED, 1, 1, 0);
+    tn_add_agent(0, 1, 2);
+    for (int n = 0; n < TN_NEED_COUNT; n++) tn_agent[0].need[n] = 255;
+    tn_agent[0].need[TN_SERVE_REST] = 10;          // desperate for the bed, and only the bed
+    tn_clock.minute = 20 * 60;                     // 20:00, so 480 minutes crosses midnight
+    tn_clock.day = 1;
+    {
+        int started = 0;
+        for (int i = 0; i < 30 && !started; i++) { tn_agents_tick(); if (tn_agent[0].activity == TN_ACT_USE) started = 1; }
+        snprintf(sp, sizeof sp, "case 9: the resident got into bed at %02d:%02d",
+                 tn_clock.minute / 60, tn_clock.minute % 60);
+        expect(started, sp);
+        const int until = tn_agent[0].until;
+        for (int i = 0; i < 240; i++) tn_agents_tick();   // run past midnight
+        snprintf(sp, sizeof sp, "case 9: STILL asleep 4 hours later, past midnight (day %d %02d:%02d, "
+                                "until=%d, now=%d)", tn_clock.day, tn_clock.minute / 60,
+                 tn_clock.minute % 60, until, tn_now());
+        expect(tn_agent[0].activity == TN_ACT_USE, sp);
+        expect(until > 1440, "case 9: `until` is an ABSOLUTE minute, so it can exceed a day");
+        // And it must still COMPLETE. A clock that never comes due is the opposite bug, and it
+        // would look identical from the outside for a while.
+        //
+        // Do not test this as "no longer in bed": the resident finishes, rest is still the best
+        // thing on offer (everything else is sated), and it climbs straight back in. That is
+        // correct behaviour and the first version of this assertion called it a failure. The
+        // observable proof of a COMPLETION is that the need was restored, which only happens on
+        // the completion branch.
+        for (int i = 0; i < 300; i++) tn_agents_tick();
+        expect(tn_agent[0].need[TN_SERVE_REST] > 10,
+               "case 9: the sleep COMPLETED and restored rest, so the clock does come due");
+        expect(tn_agent[0].until != until,
+               "case 9: and the activity clock moved on, rather than being stuck on the old one");
+    }
+
+    // ── every module's own assertions, per spec.h's "SPECS ON AN INCLUDEABLE" ────────────────
+    // Each module wrote and verified these against its own file; wiring them is the integrator's
+    // job, and until this line existed none of them ran in the real build.
+    tn_world_selfcheck();
+    tn_path_selfcheck();
+    tn_work_selfcheck();
+    tn_econ_selfcheck();
+    tn_store_selfcheck();
+    tn_build_selfcheck();
 
     tn_world_init();
 }

@@ -53,12 +53,22 @@ static const TnOffer *tno_offer_of(int obj, TnTag tag) {
     return NULL;
 }
 
-// Straight-line tile distance. A PATH would be correct; see de:meta.todo. It is enough to prove the
-// decision mechanism, and swapping it for a path changes only this function.
 static int tno_travel(int agent, int obj) {
-    const int dx = tn_agent[agent].tx - tn_obj[obj].tx;
-    const int dy = tn_agent[agent].ty - tn_obj[obj].ty;
-    return (int)(sqrtf((float)(dx * dx + dy * dy)) + 0.5f);
+    // A REAL WALK over world's edge walls, not a crow's flight. The straight line was the biggest
+    // lie in the simulation: it made corridors and party walls free, so the design's central claim
+    // (a badly planned building shows up as a traffic pattern) could not be judged at all.
+    //
+    // It costs nothing measurable. path floods ONCE per agent and answers every object from the
+    // same field, and the per-object loop here already costs more than the flood: 0.133 -> 0.138
+    // ms/tick at the arrays' worst case, 0.002 on today's building. One caveat, and it is why this
+    // stays a one-liner: the field cache is keyed on the source tile, so callers must stay
+    // AGENT-major. tn_best_action is. An object-major caller re-floods per query and measures 138x
+    // worse.
+    //
+    // Unreachable comes back as TN_UNREACHABLE, a large number, never -1: this function's result is
+    // a DIVISOR below, so a negative would be far worse than a big one. At 100000 an unreachable
+    // object scores 0 and simply never wins, with no guard needed at any call site.
+    return tn_path_len(tn_agent[agent].tx, tn_agent[agent].ty, tn_obj[obj].tx, tn_obj[obj].ty);
 }
 
 // THE SCORE, in one place so no module invents its own (contract, offer-index block).
@@ -72,7 +82,12 @@ static int tno_score(int agent, int obj, const TnOffer *of, TnTag tag) {
     int queue = 0;
     if (tn_obj[obj].users >= of->capacity) queue = QUEUE_FULL;
     else queue = tn_obj[obj].users * 4;                    // sharing is worse than being alone
-    return deficit * of->strength / (tno_travel(agent, obj) + 1 + queue);
+    // Ownership is a TERM, not a filter, and that distinction is design §6. A comfortable tenant
+    // walks across the floor to its OWN fridge; a bottomed-out one raids the neighbour's. A hard ban
+    // would kill the comedy the design is built on AND re-introduce exactly the pre-filter the
+    // slice existed to remove. The penalty is in tiles so it lands in the same unit as travel.
+    const int detour = tn_ownership_penalty(agent, obj, tag);
+    return deficit * of->strength / (tno_travel(agent, obj) + 1 + detour + queue);
 }
 
 // ONE argmax over EVERY (object, need) pair. Not "most urgent need, then an object for it".
@@ -109,7 +124,10 @@ int tn_best_offer(int agent, TnTag tag, int *out_score) {
 int tn_find_workspot(int agent, TnTag cap) { return tn_best_offer(agent, cap, NULL); }
 
 int tn_find_store(int agent, int item) {
-    return tn_best_offer(agent, (TnTag)tn_item[item].store_tag, NULL);
+    // Delegates to store, which ranks by travel AND ownership AND asks whether the container will
+    // physically take the thing. Ranking by travel alone (the slice's version) contradicted this
+    // function's own contract comment: it would happily send someone to a full fridge.
+    return tn_store_pick(agent, item);
 }
 
 void tn_sell(int household, int item) {                    // TN_SEAM_EXTERNAL (design §5)

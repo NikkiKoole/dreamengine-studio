@@ -194,7 +194,7 @@ void tn_work_tick(void) {
                     //
                     // +2, not +1: the agents module advances the clock at the top of its own tick,
                     // before its `minute >= until` test, so +1 would come due immediately.
-                    a->until = (short)(tn_clock.minute + 2);
+                    a->until = tn_now() + 2;   // absolute now; see model.h on `until`
                 }
                 continue;
             }

@@ -39,6 +39,7 @@
 //        world  → tnw_    offer  → tno_    agents → tna_
 //        work   → tnk_    econ   → tne_    store  → tns_
 //        art    → tnr_    hud    → tnh_    cart   → tnc_
+//        path   → tnp_    build  → tnb_
 //     Public functions keep the `tn_` prefix used below.
 //  3. Never rename or re-type anything here without saying so. It is FROZEN for
 //     the duration of parallel construction. Need something added? Add it at the
@@ -214,8 +215,13 @@ typedef struct {
     TnIdx         target_obj;             // what it is walking to / using, or TN_NONE
     TnIdx         carrying;               // item index, or TN_NONE
     short         tx, ty;                 // tile position
-    short         until;                  // minute-of-day the current activity ends
-    short         return_at;              // OFF_LOT only: minute-of-day it returns
+    // ABSOLUTE minutes since day 0, not minute-of-day, and `int` not `short`. It was a wrapped
+    // minute-of-day tested with `minute >= until`, which made a 480-minute sleep started at 20:00
+    // give until=240 and complete INSTANTLY: beds did not work in the evening, which is when people
+    // sleep. 21 assertions missed it because they all ran from 08:00 and never crossed midnight.
+    // Absolute cannot wrap, so the bug class is gone rather than patched. Use tn_now().
+    int           until;                  // absolute minute the current activity ends
+    int           return_at;              // OFF_LOT only: ABSOLUTE minute it returns
     unsigned char facing;                 // 0..3, indexes the same baked ring
     // The bid this agent last WON. Lives here rather than in a module-private array because two
     // modules need it: `agents` writes it, `hud` draws it. Showing the winning bid is a design
@@ -319,6 +325,10 @@ int   tn_find_store(int agent, int item);
 #define TN_SEAM_EXTERNAL 1
 void  tn_sell(int household, int item);
 
+// Absolute minutes since day 0. The ONLY correct way to compare against `until`/`return_at`:
+// tn_clock.minute wraps at 1440 and a duration longer than the rest of the day does not.
+int  tn_now(void);                        // owner: world
+
 // ── spawning (owner: world). Public because spec() builds scenarios with them, and a
 // scenario built by the same code the game uses cannot drift from the game. ──
 int  tn_add_obj(int kind, int tx, int ty, int household);   // returns the index, or -1 if full
@@ -327,6 +337,20 @@ int  tn_add_agent(int household, int tx, int ty);
 // One offer's score for one agent. Public so the HUD can show every bid an agent considered
 // rather than only the winner, which is the whole legibility argument (design §1).
 int  tn_score_offer(int agent, int obj, TnTag tag);
+
+// ── cross-module symbols the integration pass had to declare here ────────────
+// Declared in the contract rather than left to include order, because two of these are a genuine
+// CYCLE: `offer` needs the ownership penalty to price a bid, and `store` needs tn_find_store to
+// choose a container. One of them has to be a forward declaration and this is the honest place.
+int  tn_ownership_penalty(int agent, int obj, TnTag tag);   // owner: store
+int  tn_store_pick(int agent, int item);                     // owner: store
+bool tn_can_afford(int household, int kind);                 // owner: econ
+int  tn_buy_obj(int household, int kind, int tx, int ty);   // owner: econ
+
+// Owner: path. Returns TN_UNREACHABLE (a LARGE number, never -1) when there is no route: `offer`
+// divides by travel, so -1 would be a divide-by-zero in the core of the sim.
+#define TN_UNREACHABLE 100000
+int  tn_path_len(int fromx, int fromy, int tox, int toy);
 
 // ── module entry points ─────────────────────────────────────────────────────
 void tn_world_init(void);                 // world

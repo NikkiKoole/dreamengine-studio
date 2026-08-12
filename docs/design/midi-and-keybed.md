@@ -205,8 +205,12 @@ incremental and independently shippable.
   Add `keybed.h` to the cart-land library-header shelf in
   [`../guides/cart-authoring.md`](../guides/cart-authoring.md) and the `runtime/*.h`
   table in `CLAUDE.md` so the agent *finds* it instead of hand-rolling again.
-- **Scope discipline:** CC→knob mapping, MPE, and MIDI clock are explicitly **out**
-  for now. Notes + velocity + pitch-bend only.
+- **Scope discipline:** CC→knob mapping and MPE are explicitly **out** for now. Notes +
+  velocity + pitch-bend only. **MIDI clock ✓ SHIPPED (2026-08-12)** — it was out here too,
+  but it turned out not to belong in this doc at all: a clock is not note input, and the same
+  cart-facing API has to serve an AUv3 host and Ableton Link, so it got its own seam
+  (`runtime/sync.h`). `midi_input.h` parses the clock bytes and pushes them there. See
+  [`external-clock-sync.md`](external-clock-sync.md).
 - **`keybed.h` is a singleton (file-global state) — one keybed per cart.** Every cart
   we have is fine with this (and martenot's dual ribbon+manual is a different family),
   but a **split keyboard** (different instrument slots left/right, or stacked manuals)

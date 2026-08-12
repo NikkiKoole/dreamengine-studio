@@ -137,6 +137,7 @@ const sections = [
   { title: 'mouse',         keys: ['mouse_x', 'mouse_y', 'mouse_world_x', 'mouse_world_y', 'mouse_down', 'mouse_pressed', 'mouse_released', 'mouse_wheel', 'mouse_wheel_x', 'MOUSE_LEFT', 'MOUSE_RIGHT', 'MOUSE_MIDDLE', 'mouse_cursor', 'CURSOR_DEFAULT', 'CURSOR_HAND', 'CURSOR_CROSSHAIR', 'CURSOR_MOVE', 'CURSOR_TEXT', 'CURSOR_NO', 'CURSOR_RESIZE_H', 'mouse_hide', 'mouse_show'] },
   { title: 'keyboard',  keys: ['key', 'keyp', 'keyr', 'text_input', 'paste', 'KEY_SPACE', 'KEY_ENTER', 'KEY_BACKSPACE', 'KEY_ESCAPE', 'KEY_TAB', 'KEY_LEFT', 'KEY_RIGHT', 'KEY_UP', 'KEY_DOWN'] },
   { title: 'midi',         keys: ['midi_get', 'midi_held', 'midi_bend', 'midi_present', 'midi_name'] },
+  { title: 'sync',         keys: ['sync_active', 'sync_playing', 'sync_beats', 'sync_bpm'] },
   { title: 'patterns',     keys: ['fillp', 'fillp_reset', 'fillp_anchor', 'FILL_SOLID', 'FILL_CHECKER', 'FILL_DOTS', 'FILL_HLINES', 'FILL_VLINES', 'FILL_DIAG', 'FILL_GRID'] },
   { title: 'blend',        keys: ['blend', 'blend_reset', 'BLEND_NONE', 'BLEND_AVG', 'BLEND_ADD', 'BLEND_MUL', 'BLEND_SUB'] },
   { title: 'map',          keys: ['map', 'map_scale', 'mget', 'mset', 'MAP_W', 'MAP_H'] },

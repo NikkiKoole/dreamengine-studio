@@ -6856,6 +6856,19 @@
     "teaches": []
   },
   {
+    "title": "sync check",
+    "description": "Shows and clicks along to an EXTERNAL clock — a DAW's MIDI sync, a drum machine's clock out, or the synthetic harness clock. The whole cart is one question: is something outside driving our tempo, and is our step counter on ITS grid? The readout gives sync_active/sync_playing/sync_bpm/sync_beats plus the bar:beat:16th they imply, next to the MIDI device we're listening to. A 16-step playhead runs off sync_beats() when a clock is present and off the cart's own accumulator when it isn't (the panel says which), and each 16th clicks — accented on the downbeat — so the lock is audible, not just visible. Two ways to drive it: press PLAY in a DAW whose MIDI sync output is routed to the IAC bus, or run it headless with --midi-clock <bpm>. FALLBACK is the interesting state: pull the cable and it keeps playing at the last tempo it heard, because sync.h hands control back after a 2s silence. Nothing to press — it follows whatever clock it is given. SPACE toggles the internal fallback transport (for when no clock is present).",
+    "file": "synccheck.cart.png",
+    "created": "2026-08-12",
+    "kind": [
+      "tech-demo"
+    ],
+    "teaches": [
+      "algorithm-visualization"
+    ],
+    "lineage": "The external-clock self-test cart, the sync.h twin of soundcheck: it shows and sounds whatever clock is driving the engine (MIDI clock from a DAW or hardware today; an AUv3 host or Ableton Link later) so 'is the clock reaching us, and is my step counter locked to it' is one look and one listen instead of a guess."
+  },
+  {
     "title": "tabla",
     "description": "INSTR_MEMBRANE showcase - the seventh modeled ENGINE: a struck drumhead. Six decaying sine modes at a circular membrane's vibration ratios plus a slap contact click, buffer-free. One id covers tabla / conga / bongo / djembe / tom - hand percussion the analog 808/909 recipes structurally can't reach, because it's REAL membrane modes plus a pitch bend, not one sine plus a pitch envelope. The three engine macros: instrument_harmonics = head character (0 = tuned harmonic tabla, pitched and longer-ringing; 1 = inharmonic djembe/conga thud), instrument_timbre = strike position (0 = center thump; 1 = edge ring plus slap click - open/slap/mute in one knob, navkit's live circular-membrane weighting), instrument_morph = pitch bend (0 = flat; up = the membrane chirp / tabla bayan gliss - pitch starts raised off the strike and settles, bending all six modes together). A struck engine self-decays, so it has no ADSR (unlike fm/pd, which hold); the cart's fourth slider is instead a cart-side RING control (mute to open) - the hit() gate length, a tight palm-damped thwack to a stroke left to ring out, which is how hand percussion is actually played. The drumhead on the left shows the syahi tuning patch on the tabla side, a marker for where timbre strikes (center to edge), and ripples on every hit; the panel prints the exact instrument() call to copy into your cart. Five presets (1 tabla, 2 conga, 3 bongo, 4 djembe, 5 tom). A S D F G H J K strike a tuned low ladder, Z/X tune, 1..5 kits, drag a slider (or LEFT/RIGHT + UP/DOWN), SPACE roll, M autoplay groove on/off. Multitouch: drum with several fingers, sweep the pads for a roll.",
     "file": "tabla.cart.png",

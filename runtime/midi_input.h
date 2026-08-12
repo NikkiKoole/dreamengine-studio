@@ -16,8 +16,11 @@
 //   int  midi_bend(void)                last pitch-bend, -8192..8191 (0 = centre)
 //   bool midi_present(void)             any MIDI source connected?
 //
-// Scope (v1): note-on/off + velocity + pitch-bend only. CC (knobs), MIDI-learn,
-// aftertouch, and clock are deliberately out — see docs/design/midi-and-keybed.md.
+// Scope: note-on/off + velocity + pitch-bend, plus the CLOCK/TRANSPORT bytes, which
+// this file only PARSES — the state they drive lives in sync.h (which must be included
+// first), because a host clock and Ableton Link feed the same cart-facing API from
+// somewhere else entirely. CC (knobs), MIDI-learn and aftertouch are still out — see
+// docs/design/midi-and-keybed.md.
 
 #ifndef DE_MIDI_INPUT_H
 #define DE_MIDI_INPUT_H
@@ -85,11 +88,28 @@ static MIDIPortRef      midi_port;
 static MIDIEndpointRef  midi_connected[32];   // sources we've already wired (avoid double-connect on hot-plug)
 static int              midi_nconnected = 0;
 
-// parse one packet's raw bytes — handles 0x80/0x90 (note) and 0xE0 (bend); skips the
-// rest by message length. Best-effort on running status (a stray data byte is skipped).
+// parse one packet's raw bytes — handles 0x80/0x90 (note), 0xE0 (bend) and the clock/
+// transport messages (0xF8/0xFA/0xFB/0xFC/0xF2 → sync.h); skips the rest by message
+// length. Best-effort on running status (a stray data byte is skipped).
 static void midi_parse(const uint8_t *d, unsigned n) {
     unsigned k = 0;
     while (k < n) {
+        // SYSTEM REALTIME (0xF8..0xFF) first: these are single bytes with no channel
+        // nibble, so `& 0xF0` can't tell them apart from each other (they all read as
+        // 0xF0). They also arrive INTERLEAVED inside a packet, between the bytes of
+        // other messages, which is why they're checked before anything else.
+        if (d[k] >= 0xF8) {
+            if      (d[k] == 0xF8) sync_push_tick();      // clock, 24 per quarter note
+            else if (d[k] == 0xFA) sync_push_start(1);    // START    = rewind to the top
+            else if (d[k] == 0xFB) sync_push_start(0);    // CONTINUE = resume where we stopped
+            else if (d[k] == 0xFC) sync_push_stop();      // STOP
+            k += 1; continue;                             // 0xFE active-sensing / 0xFF reset: ignored
+        }
+        if (d[k] == 0xF2 && k + 2 < n) {                  // song position pointer: 14-bit, in 16ths
+            unsigned spp = ((unsigned)d[k + 2] << 7) | d[k + 1];
+            sync_push_seek(spp * (SYNC_PPQN / 4));
+            k += 3; continue;
+        }
         uint8_t status = d[k] & 0xF0;
         if ((status == 0x90 || status == 0x80) && k + 2 < n) {
             uint8_t note = d[k + 1], vel = d[k + 2];

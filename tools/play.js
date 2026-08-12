@@ -50,6 +50,10 @@
 //   --det              force fixed timestep + seeded RNG in `run` mode (reproducible; script/replay imply it)
 //   --no-det           opt OUT of the auto --det that --wav turns on (true wall-clock timing)
 //   --bpm <n>          tempo used to convert `beat` directives to frames (default 120)
+//   --midi-clock <bpm> drive the cart from a SYNTHETIC external clock at <bpm> — sync_active()/
+//                      sync_playing()/sync_beats()/sync_bpm() come alive with no DAW and no MIDI
+//                      cable, so a "does my sequencer lock to the host" gate runs headless and
+//                      deterministically (fixed timestep ⇒ same ticks every run). runtime/sync.h
 //   --screen WxH       screen dims (default from cart settings / 320x200)
 //
 // `beats` script format (compiled here to the runtime's frame events):
@@ -341,6 +345,7 @@ if (mode === 'run' && !hasFlag('--net-echo')) {
     if (autoDet && !hasFlag('--det')) console.log('  ↳ --wav ⇒ --det (fixed timestep = reproducible render; pass --no-det for wall-clock timing)')
   }
 }
+if (opt('--midi-clock', null)) runArgs.push('--midi-clock', opt('--midi-clock'))   // synthetic EXTERNAL clock at <bpm> → sync_active/sync_beats/sync_bpm, no DAW needed (runtime/sync.h)
 if (opt('--solo-slot', null))  runArgs.push('--solo-slot', opt('--solo-slot'))   // stem render: mute all but these instrument slot(s), e.g. 6 or 5,6 (docs/design/audio-voice-debugging.md)
 if (opt('--uiaudit', null))    runArgs.push('--uiaudit', path.resolve(opt('--uiaudit')))   // per-frame draw bounding boxes → JSONL (tools/ui-audit.js)
 

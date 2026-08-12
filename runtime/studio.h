@@ -389,6 +389,14 @@ int  midi_bend(void);                                     // last pitch-bend whe
 bool midi_present(void);                                  // is any MIDI keyboard connected? (false = no device / web Safari / not macOS)
 const char *midi_name(void);                              // name of the connected MIDI keyboard (e.g. "Arturia KeyStep"), or "" if none — for a "connected to …" readout
 
+// EXTERNAL CLOCK — follow someone else's tempo, so your sequencer plays in time with a DAW,
+// a drum machine or another app. One API for every source (MIDI clock now; an AUv3 host and
+// Ableton Link push into the same state later), so a cart never learns which one it's on.
+bool  sync_active(void);                                  // is an external clock driving us? (false = nothing plugged in, use your own tempo)
+bool  sync_playing(void);                                 // has that clock pressed PLAY? (start/continue seen, no stop since)
+float sync_beats(void);                                   // beats since the clock started — 0.25 = one 16th note. drive your step counter FROM this, don't count your own
+float sync_bpm(void);                                     // the external clock's tempo (0 if none) — show it, or feed your tempo-synced delay
+
 // instruments — give a slot a waveform + ADSR envelope, then play it like any wave: note(midi, slot, vol)
 void instrument(int slot, int wave, int attack_ms, int decay_ms, int sustain, int release_ms); // define slot 5..47: ms timings, sustain 0..7. pluck = fast attack+short release; pad = slow attack+long release
 void wave_set(int which, const float *samples, int n);    // fill custom wave INSTR_USER0+which (which 0..3) with one drawn cycle: n samples in -1..1, resampled to 64. Live — a ringing note morphs as you redraw

@@ -15,6 +15,31 @@ _Last updated: 2026-07-30 — **Synth Secrets phases 1 + 2**: PIANO's dispersion
 
 ## Shipped ✓
 
+- **EXTERNAL CLOCK SYNC — a cart can follow someone else's tempo** (2026-08-12). Came out of "does Tiny
+  Acid Jam do AUv3 or MIDI in?" (no to both), where the cheapest useful yes turned out to be the one
+  **ReBirth for iPad actually shipped**: be a MIDI clock slave, not a plugin. New **`runtime/sync.h`**
+  (engine-internal, compiled inside studio.c like sound.h) + four API functions —
+  `sync_active`/`sync_playing`/`sync_beats`/`sync_bpm`. **ONE cart-facing API for three sources that
+  arrive in two different shapes**: MIDI clock is *incremental* (24 ppqn ticks + start/continue/stop,
+  tempo must be measured), while an AUv3 host and Ableton Link are *absolute* (they hand you a beat
+  position) — so a cart that wired MIDI clock directly would need rewriting twice. `sync_beats()` is the
+  common currency, and **a cart DERIVES its step counter from it rather than accumulating its own**,
+  because an accumulator only knows how *fast*, never *where*, and so can't follow a re-start or a loop
+  jump. Shipped: the CoreMIDI clock/transport parse in `midi_input.h` (`0xF8`/`0xFA`/`0xFB`/`0xFC`/`0xF2`,
+  checked before the channel switch since `& 0xF0` can't tell system-realtime bytes apart);
+  **`--midi-clock <bpm>`**, a synthetic clock pushed through the real producer API so the gate needs no
+  DAW and no cable (the `--net-echo` trick) and is deterministic on the fixed timestep; **`synccheck`**,
+  the probe cart that shows AND clicks the clock (a playhead that looks right and drifts 30ms is the bug
+  it exists to catch); and **acidcandy following it** (tempo, transport and position all handed over,
+  knob and play button read-only while slaved — the ReBirth model of being a proper slave). **Verified in
+  Ableton Live** by the maker over the IAC bus, swing included (a tick-derived phase moves in 1/6-of-a-16th
+  steps, so shuffle was the predicted casualty and turned out fine). Two real bugs
+  found by the harness clock reading back wrong, both in tempo *measurement*: a short window is BIASED not
+  noisy (122 for a true 120), and counting the dead time before the first tick made a long window converge
+  only from below over ten seconds. Position was exact throughout — that asymmetry is the design.
+  Now within ~0.5 BPM; sub-0.1 wants the CoreMIDI packet timestamps. **Open: Ableton Link and AUv3 host
+  transport** (both just call `sync_push_pos()`), MIDI clock on iOS, and clock OUT. Design:
+  [`design/external-clock-sync.md`](design/external-clock-sync.md).
 - **FLOAT DETERMINISM — the audio engine now computes the same BITS on arm64, x86-64 and wasm**
   (2026-07-30). IEEE 754 pins down `+ - * /` and `sqrt` but says nothing about `sin`/`exp`/`pow`/`tanh`,
   so every libm rounds them differently; and native fuses `a*b+c` into an FMA where wasm, having no

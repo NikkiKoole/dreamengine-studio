@@ -192,7 +192,13 @@ typedef struct {
 // Owner: offer module. Defined once, in tno_*.c.
 extern const TnOffer TN_OFFERS[TN_OBJ_KIND_COUNT][TN_MAX_OFFERS];
 extern const unsigned char TN_OFFER_N[TN_OBJ_KIND_COUNT];
-extern const short TN_OBJ_PRICE[TN_OBJ_KIND_COUNT];   // money sink (design §5)
+extern const short TN_OBJ_PRICE[TN_OBJ_KIND_COUNT];
+
+// Footprint in TILES. Asked for independently by build (which hand-copied it), path (which treated
+// every object as one tile, so a walker clipped through half a bed) and world. It lives here because
+// WHICH TILES AN OBJECT CLAIMS IS A SIM FACT, not a picture fact: the art atlas happens to know the
+// same numbers in voxels, but placement, collision and routing are not allowed to depend on the art.
+extern const unsigned char TN_OBJ_FOOTPRINT[TN_OBJ_KIND_COUNT][2];   // money sink (design §5)
 
 // ── ITEMS — a good, a meal, a bolt of cloth. Tagged, never enumerated. ──────
 // Storage accepts a TAG SET, so a new item with TN_STORE_FOOD is accepted by

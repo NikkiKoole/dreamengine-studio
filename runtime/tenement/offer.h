@@ -29,6 +29,19 @@ const short TN_OBJ_PRICE[TN_OBJ_KIND_COUNT] = {
     [TN_OBJ_SOFA] = 140, [TN_OBJ_LOOM] = 300, [TN_OBJ_WARDROBE] = 80,
 };
 
+// Footprint in TILES (see model.h). Derived from tools/voxel-models/tenement.js at 6 voxels per
+// tile, but stated here as sim data so nothing has to reach into the art to find out what a bed
+// covers. A mismatch with the models is a legitimate bug for a critic to look for.
+const unsigned char TN_OBJ_FOOTPRINT[TN_OBJ_KIND_COUNT][2] = {
+    [TN_OBJ_BED]      = { 1, 2 },   // 6x12 voxels
+    [TN_OBJ_FRIDGE]   = { 1, 1 },
+    [TN_OBJ_COUNTER]  = { 1, 1 },
+    [TN_OBJ_TOILET]   = { 1, 1 },
+    [TN_OBJ_SOFA]     = { 2, 1 },   // 12x6 voxels
+    [TN_OBJ_LOOM]     = { 1, 1 },
+    [TN_OBJ_WARDROBE] = { 1, 1 },
+};
+
 // v1 recipes: a dumb machine turns TIME into a GOOD. in_n == 0 is the marked open loop (design §5).
 const TnRecipe TN_RECIPES[] = {
     { TN_CAP_WORK, 0, 0, TN_STORE_GOODS, 12, 480 },

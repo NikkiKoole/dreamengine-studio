@@ -205,6 +205,11 @@ typedef struct {
     short         until;                  // minute-of-day the current activity ends
     short         return_at;              // OFF_LOT only: minute-of-day it returns
     unsigned char facing;                 // 0..3, indexes the same baked ring
+    // The bid this agent last WON. Lives here rather than in a module-private array because two
+    // modules need it: `agents` writes it, `hud` draws it. Showing the winning bid is a design
+    // feature (design §1: the interesting half of this sim is invisible), not debug output.
+    unsigned char bid_tag;                // TnTag, or TN_SERVE_COUNT for "nothing on offer"
+    int           bid_score;
 } TnAgent;
 
 // OFF_LOT IS A PLACEHOLDER, NOT THE ECONOMY (design §5). It is the degenerate
@@ -302,11 +307,22 @@ int   tn_find_store(int agent, int item);
 #define TN_SEAM_EXTERNAL 1
 void  tn_sell(int household, int item);
 
+// ── spawning (owner: world). Public because spec() builds scenarios with them, and a
+// scenario built by the same code the game uses cannot drift from the game. ──
+int  tn_add_obj(int kind, int tx, int ty, int household);   // returns the index, or -1 if full
+int  tn_add_agent(int household, int tx, int ty);
+
+// One offer's score for one agent. Public so the HUD can show every bid an agent considered
+// rather than only the winner, which is the whole legibility argument (design §1).
+int  tn_score_offer(int agent, int obj, TnTag tag);
+
 // ── module entry points ─────────────────────────────────────────────────────
 void tn_world_init(void);                 // world
 void tn_agents_tick(void);                // agents: decay, choose, act
 void tn_work_tick(void);                  // work:   orders, claims, production
 void tn_econ_tick(void);                  // econ:   rent, bills, purchases
+void tn_store_tick(void);                 // store:  hauling, containers, ownership
+void tn_camera(void);                     // art: recentre for the current rotation
 void tn_draw_world(void);                 // art
 void tn_draw_hud(void);                   // hud
 
@@ -324,6 +340,10 @@ extern int         tn_house_n;                  // owner: econ
 extern TnOrder     tn_order[TN_MAX_ORDERS];     // owner: work
 extern int         tn_order_n;                  // owner: work
 extern TnClock     tn_clock;                    // owner: world
+// The building ACTUALLY in use, in tiles. TN_MW/TN_MH above are array bounds; these are the
+// current extent, and they are variables rather than #defines because the `build` agent needs the
+// player to be able to grow the place. Read by art (the camera and the floor) and by path.
+extern int         tn_bw, tn_bh;                // owner: world
 extern int         tn_rot;                      // owner: cart — 0..3 view rotation
 
 #endif // TENEMENT_MODEL_H

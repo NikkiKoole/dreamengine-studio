@@ -1,11 +1,11 @@
 # iso-rooms — can we do a rotating isometric room at 2D-only runtime cost?
 
-STATUS: BUILDING (2026-08-12) — a **probe, not a product**. Bench cart `tools/carts/isoroom.c`
-plus a build-time baker `tools/voxel-bake.js`. Gates the question of whether a Sims-style life sim
-is buildable here at all; the game itself is deliberately not started until this returns a verdict.
-Method is the builder/critic loop of
-[ADR-0034](../decisions/0034-contract-first-parallel-authoring.md), run single-builder this time
-for reasons given in §6.
+STATUS: SHIPPED (2026-08-12) — the probe returned a **yes**, and the game it gates is now unblocked.
+Bench cart `tools/carts/isoroom.c` (33/33 `spec()`) plus the build-time baker
+`tools/voxel-bake.js` (34/34 `--check`). One thing still open, in §8. Method was the
+builder/critic loop of [ADR-0034](../decisions/0034-contract-first-parallel-authoring.md), run
+single-builder for the reasons in §6 — and the honest record of what that loop did and did not catch
+is in §7.
 
 > **Homage:** The Sims (Maxis, 2000) for the room grammar, RollerCoaster Tycoon 2 (Chris Sawyer,
 > 2002) for the baked-sprite pipeline, Theme Hospital (Bullfrog, 1997) for the low-wall alternative
@@ -466,18 +466,50 @@ rather than a correctness one: grey-topped counters and white-goods fridges stan
 grey wall do not separate from it well, so they read as part of the architecture. That is the same
 value-separation problem that caused the earlier lavender-wall fix, resurfacing one step further on.
 
-## 8. The verdict this doc must end with
+## 8. The verdict
 
-Written back into this file and the cart's `de:meta`:
+**Does the baked-voxel-sprite path hold? Yes.** One ASCII model supplies every rotation, the runtime
+never touches a triangle, and the whole render is `sspr()` plus a painter's sort.
 
-- Does the baked-voxel-sprite path hold?
-- At what ms/frame, on what hardware?
-- At what atlas cost per object?
-- 8 rotations, or 4 with the cardinal views cut? Which wall strategy from §3b?
-- What it cannot do.
+**At what cost?** ~**0.68 ms/frame** on a Mac, about **4%** of a 60fps budget, measured as the slope
+of two det-turbo runs so the compile-and-load intercept cancels. For scale, ADR-0024 measured 2D at
+~5.6ms and `tritex` at ~89ms on an iPhone SE — this sits firmly in the fast lane, which was the whole
+point.
 
-Then bake the cart (`make-cart.js` then `--run`) so the maker can load it in the editor and rotate
-the room by hand. A "no" with a number attached is a successful probe.
+**Atlas cost:** 19,456px of cells for 9 objects × 4 rotations, packing to 128×169. Scale-sensitive
+enough to be worth restating: at 4 voxels per tile the same set was 8,224px and fitted a standard
+128×128 sheet; at 6 it does not. Budget per object is roughly 2,200px at this scale.
+
+**How many rotations? FOUR**, the 45° diagonals. The cardinal four were built, looked at, and cut:
+with no X/Y mixing there is no depth cue left, so objects flatten into slabs and edge-on walls
+survive as 1–2px bars. **Which wall strategy? FULL height with the near side cut away**, which beat
+Theme Hospital's low stubs plainly — stubs read as a picture frame around a floor rather than as a
+room. Both remain implemented behind `W`.
+
+**Settled geometry for anything built on this:** 6 voxels per tile · `--tw 4 --zh 2` · 24px tiles ·
+a 24px figure · light fixed in screen space · a one-voxel-inset contact shadow under every object.
+
+**What it cannot do.**
+- **The scale ladder is coarse and each rung is a re-authoring job.** `tw` must be a multiple of 4
+  for the 2:1 diamond to stay on the pixel grid, so a 4×2px voxel is the floor. Size is set by voxel
+  COUNT, giving 16px / 24px / 32px figures and nothing between. The set has been re-authored three
+  times.
+- **No detail, only silhouette.** At 24px per tile a modelled feature is invisible; objects must
+  differ in outline and height. A sofa and a bed were briefly indistinguishable until the sofa got a
+  tall back.
+- **A turned non-square object's footprint does not follow its art.** `cell = (r + facing) & 3` picks
+  the right art, but the depth centre and shadow still use the unrotated footprint. Walls dodge this
+  with per-orientation models; a game that lets the player rotate a 2-tile sofa must solve it.
+- **No multi-storey.** A second floor changes both the depth sort and the wall-cut rules.
+- **Objects and architecture fight for value.** Grey-topped furniture against a grey wall does not
+  separate; this bit twice (lavender walls, then furniture reading as architecture).
+
+**STILL OPEN, and it should be closed before building on this:** the **on-device** frame number.
+`./ios/measure-device.sh isoroom 10` needs a signing cert, `ios-deploy` and a connected iPhone. Every
+number above is from a Mac, and iOS is the constraint that motivated the whole probe.
+
+**A "no" with a number attached would have been a successful probe too.** This one happens to be a
+yes.
 
 ## See also
 

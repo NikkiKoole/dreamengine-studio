@@ -15,6 +15,26 @@ _Last updated: 2026-07-30 — **Synth Secrets phases 1 + 2**: PIANO's dispersion
 
 ## Shipped ✓
 
+- **ISO ROOMS — a rotating isometric view at 2D-only cost, and the verdict is FOUR rotations** (2026-08-12).
+  The renderer probe gating whether a Sims-style life sim is buildable here. The question was never "can we
+  draw isometric" — it was whether ONE model can supply every view rotation *without* paying triangles at
+  runtime, since hand-drawn iso costs a drawing per object per rotation and `tritex` costs ~89ms/frame on an
+  iPhone ([ADR-0024](decisions/0024-software-canvas-is-canonical-for-2d.md)). **Answer: yes, at ~0.68ms/frame
+  on a Mac (~4% of a 60fps budget).** Objects are authored once as ASCII voxel layers in
+  `tools/voxel-models/room.js` and **baked at BUILD time** into every rotation by new **`tools/voxel-bake.js`**
+  (34/34 `--check`); the runtime is `sspr()` plus a painter's sort and never touches a triangle. This is the
+  pipeline RollerCoaster Tycoon and The Sims 1 both shipped. Bench cart **`isoroom`** (33/33 `spec()`),
+  4 diagonal rotations, 6 voxels per tile, a 24px figure, full walls with the near side cut away, contact
+  shadows, exact screen→tile picking. **The four CARDINAL views were cut** after being built and looked at:
+  with no X/Y mixing there is no depth cue left, so objects flatten into slabs. Light is shaded in SCREEN
+  space, so it cannot swing as the room turns — an invariant that holds by construction rather than by test.
+  Side effects: `make-cart.js` now takes a declared **sheet size** or a raw **atlas** (the 128×128/64-slot cap
+  was only ever in the tool — the runtime derives cols from the real sheet width), and one shared
+  `mk.sheetBufFor()` now serves `play.js`, the editor and `make-cart`, which fixed a cart's sheet being
+  **silently cropped to 128×128 on every editor run**. Open: the **on-device** frame number
+  (`ios/measure-device.sh`) before anything is built on top. Design, findings and the four rounds of
+  maker-found faults the oracles could not see: [`design/iso-rooms.md`](design/iso-rooms.md).
+
 - **EXTERNAL CLOCK SYNC — a cart can follow someone else's tempo** (2026-08-12). Came out of "does Tiny
   Acid Jam do AUv3 or MIDI in?" (no to both), where the cheapest useful yes is the one **ReBirth for iPad
   actually shipped**: be a MIDI clock slave, not a plugin. New **`runtime/sync.h`** (engine-internal, like

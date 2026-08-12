@@ -194,14 +194,24 @@ another agent may be building in this shared tree.
 (`Sources/CanvasView.swift`) and the AU extension already exists: Catalyst reuses both, a native
 AppKit target would mean a second host view to maintain forever.
 
-**Status: it BUILDS and EMBEDS (`TinyjamMacAU.appex`), but macOS does not REGISTER it.** The
-signature is the blocker, diagnosed not guessed: `codesign -dv` on the .appex reports
-`Signature=adhoc` / `TeamIdentifier=not set`, and `pluginkit -m -p com.apple.AudioUnit` doesn't list
-it. **macOS refuses to register an app extension from an ad-hoc-signed app.** Ad-hoc was chosen to
-sidestep provisioning and that was the wrong trade — it builds happily and the system then ignores
-the plug-in. Next step: sign with the real Apple Development identity + `DEVELOPMENT_TEAM`, and fix
-the extension/app version mismatch xcodebuild warns about (`1.0` vs `0.1`), which Apple also
-sometimes rejects registration over.
+**Status: WORKING in GarageBand on macOS (confirmed by the maker, 2026-08-12).** `zsh ios/mac.sh`
+builds, signs, installs, registers, and `auval -v aumu tacj Mpla` reports **AU VALIDATION
+SUCCEEDED**. In GarageBand the plug-in loads on a software-instrument track, plays, **stops when the
+host stops, and follows the host's tempo** (phase 2, below). What it does NOT have is a view: the
+host shows its generic panel, which is phase 3 and the bulk of the remaining work.
+
+Getting from "builds" to "loads" was three separate gates, each of which reported a different
+symptom, and none of which was a code bug:
+
+| symptom | cause |
+|---|---|
+| registers nowhere; `pluginkit` lists nothing; `codesign` says `Signature=adhoc` / `TeamIdentifier=not set` | **macOS will not register an app extension from an ad-hoc-signed app.** Ad-hoc was chosen to sidestep provisioning and that was the wrong trade: it builds happily and the system silently ignores the plug-in. Fixed with `DEVELOPMENT_TEAM` + `CODE_SIGN_STYLE=Automatic` |
+| registers, appears in GarageBand's instrument list, then fails to open with an orange **!** and NO crash report — `OpenAComponent: result 4` | **an app extension only loads if it is SANDBOXED.** The only entitlement present was `com.apple.security.get-task-allow`, a debug flag. Fixed by adding `com.apple.security.app-sandbox` to the extension AND its carrier app |
+| `OpenAComponent: result 4097` (0x1001 = the XPC "couldn't launch the helper" error), now WITH a crash report: `EXC_BREAKPOINT` in `libsystem_secinit` `_libsecinit_appsandbox`, during dyld initializers | **`com.apple.security.inherit` must NOT be set on an app extension.** It is for XPC *services* that adopt their parent's sandbox; an extension gets its own, so `inherit` makes the sandbox invalid and the process traps before `main`. That is what 4097 looks like from the host's side |
+
+Lesson worth keeping: for a plug-in that registers but won't open, the useful evidence is
+`codesign -d --entitlements -` on the `.appex` and `~/Library/Logs/DiagnosticReports/`. The absence
+of a crash report is itself a signal — it means refused-at-load rather than crashing.
 
 ### Four platform findings, all fixed, all of which would bite anyone repeating this
 
@@ -230,7 +240,7 @@ sometimes rejects registration over.
 | | |
 |---|---|
 | **register it** | sign properly (above), then `auval -v aumu tacj Mpla` — Apple's own validator, which exercises the plug-in harder than a DAW and is the gate before GarageBand is ever opened |
-| **host transport** | read `musicalContextBlock` + `transportStateBlock` in the render block → `sync_push_pos()`. The engine seam already exists and is proven ([`external-clock-sync.md`](external-clock-sync.md)); this is ~20 lines of Swift, gated headlessly in `Tests/AUHostTests.swift` by faking the blocks |
+| ~~**host transport**~~ | ✅ **DONE 2026-08-12.** The render block reads `musicalContextBlock` + `transportStateBlock` → `de_sync_position()` → `sync.h`. **The cart needed ZERO changes** — acidcandy already derived its step counter from `sync_beats()` and surrendered its transport on `sync_transport()`, from the MIDI-clock work; a host is just the ABSOLUTE half of the same seam, so there is nothing to measure. Two traps: capture `Unmanaged.passUnretained(self)` rather than the host blocks (the host assigns them AFTER fetching the render block, so capturing them gets nil forever), and handle a host that supplies neither (push nothing, free-run — the path `auval` exercises). **Gate gap:** nothing headless asserts the transport arrives, because that needs a host that SETS those blocks; `Tests/AUHostTests.swift` can fake them and that test is not written yet |
 | **the plug-in view** | an `AUViewController` sharing `Sources/CanvasView.swift` (already cart-agnostic), plus a tick-ownership split (the render block advances the engine, so the view must blit only) and an input event ring (touches arrive on the main thread, `de_frame` runs on the audio thread, and `de_touch_*` writes a shared pool with no synchronisation) |
 | **multi-instance** | spike 9. **Worse on macOS than iOS**: `.loadInProcess` is macOS-only, so a Mac host may load several instances in ONE process, where they would share `studio.c`'s file-scope globals. iOS gets one-per-process for free |
 

@@ -41,8 +41,16 @@ _Last updated: 2026-07-30 — **Synth Secrets phases 1 + 2**: PIANO's dispersion
   while every CLI test passed. The engine now asks "is anyone sitting in front of this run", not "is the
   timestep fixed"; known cost is that a `--record` take made while slaved won't replay identically.
   **Swing is deliberately NOT claimed** (he couldn't tell a difference, which is evidence not a verdict; the
-  doc carries the mechanism, the experiment and the fix instead). **Open: Ableton Link and AUv3 host
-  transport** (both just call `sync_push_pos()`), MIDI clock on iOS, clock OUT. Design:
+  doc carries the mechanism, the experiment and the fix instead). **AUv3 HOST TRANSPORT now SHIPPED too**
+  (2026-08-12, same day): acidcandy runs as an Audio Unit in GarageBand on macOS, stopping and
+  following the tempo of the host — and **the cart needed zero changes**, because a host is the
+  absolute half of the same seam (`de_sync_position` → `sync_push_pos`). That is the payoff for
+  designing the seam around two shapes instead of one. Getting the plug-in to LOAD was three
+  signing/entitlement gates, none of them code bugs (ad-hoc signing never registers · an extension
+  must be sandboxed · `com.apple.security.inherit` must NOT be set on an extension or it traps before
+  main) — all in [`design/ios-plan.md`](design/ios-plan.md) → "macOS: hosting the AUv3". **Still open:
+  Ableton Link** (the same `sync_push_pos` call), MIDI clock on iOS, clock OUT, and the AUv3 **view**
+  (phase 3, the bulk of the work). Design:
   [`design/external-clock-sync.md`](design/external-clock-sync.md).
 - **FLOAT DETERMINISM — the audio engine now computes the same BITS on arm64, x86-64 and wasm**
   (2026-07-30). IEEE 754 pins down `+ - * /` and `sqrt` but says nothing about `sin`/`exp`/`pow`/`tanh`,

@@ -423,6 +423,49 @@ It was verified by reintroducing the bug — it reports exactly 2 offenders at r
 `ui-audit` found independently — and it shares `item_rect()` with the drawing code, so it asserts
 against the same rect that actually gets blitted.
 
+### The stray-pixel round, and a lesson about integers
+
+The maker's next look: "the triangles are now gone, we do have a loose pixel and hidden furnitures."
+Fair on both counts — and fair too on the process complaint behind it, which was that a 2× tiled
+contact sheet is not enough resolution to check for a one-pixel defect, and that stopping as soon as
+the reported bug is gone is not the same as looking.
+
+**The loose pixel was real.** Detector: scan the frame for pixels with no 4-neighbour of their own
+colour. Four of them at one rotation, stepping 2 across and 1 down — the 2:1 diamond slope. Cause: a
+**contact shadow's edge is rasterized by the engine's `quadfill`, while the object's edge came out of
+the BAKER's `fillPoly`.** Along a diagonal the two disagree about which pixel owns the boundary, so a
+shadow ending flush against neighbouring art opens a 1px staircase of floor.
+
+**The fix was measured, and the first attempt made it worse.** Inflating the shadow by half a voxel
+took it from 4 strays to 8. Sweeping the pad and counting strays over all four rotations:
+
+| pad (voxels) | −1.0 | −0.5 | −0.25 | 0.0 | +0.25 | +0.5 | +1.0 |
+|---|---|---|---|---|---|---|---|
+| stray px | **1** | 18 | 54 | 4 | **176** | 8 | 3 |
+
+**The lesson is not "inset a bit" — it is that the pad must be a WHOLE number of voxels.** A
+fractional pad puts the quad's corners between lattice points, where the two rasterizers disagree
+*everywhere* instead of occasionally; +0.25 is forty times worse than 0. A one-voxel inset wins
+outright because the shadow then stops short of the boundary and there is no shared edge left to
+argue about. Final count: **0 real strays.** (The one remaining hit is the detector's own false
+positive — a floor pixel between the figure's two legs, which are modelled with a deliberate gap.)
+
+**A second fix found on the way, also integer-related:** the camera was centred with a `0.5f`
+multiply, so `cam_x`/`cam_y` landed on half-pixels whenever the room's bounding box was an odd width,
+and `(int)(sx + cam_x)` then rounded adjacent sprites opposite ways. That is a seam generator waiting
+to happen and it changes with the rotation, since the bounding box's parity does. Now floored. It did
+**not** fix the reported strays — worth recording, because it looked like an obvious culprit and
+wasn't.
+
+**"Hidden furniture" could not be reproduced.** Evidence: the draw list is 40 sprites = 24 walls + 15
+furniture + 1 figure, which is exactly the expected count; a bounding-box coverage pass found no
+furniture more than 60% covered by later draws (every heavily-covered sprite is a wall overlapping
+its neighbour in a run, which is normal); and with `TAB` order labels on, all 15 items are
+individually identifiable at the rotations checked. The most likely reading is a LEGIBILITY one
+rather than a correctness one: grey-topped counters and white-goods fridges standing against the warm
+grey wall do not separate from it well, so they read as part of the architecture. That is the same
+value-separation problem that caused the earlier lavender-wall fix, resurfacing one step further on.
+
 ## 8. The verdict this doc must end with
 
 Written back into this file and the cart's `de:meta`:

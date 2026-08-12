@@ -145,8 +145,15 @@ static void iso_camera(int r) {
         if (sx < minx) minx = sx; if (sx > maxx) maxx = sx;
         if (sy < miny) miny = sy; if (sy > maxy) maxy = sy;
     }
-    cam_x = (SCREEN_W - (maxx - minx)) * 0.5f - minx;
-    cam_y = (SCREEN_H - 14 - (maxy - miny)) * 0.5f - miny + 10;
+    // FLOORED TO WHOLE PIXELS, and this is load-bearing rather than tidiness. Centring produces a
+    // .5 offset whenever the room's bounding box is an odd number of pixels wide, and every cell is
+    // then placed with (int)(sx + cam_x), which truncates. Two adjacent objects whose sx differ by
+    // an odd amount round OPPOSITE ways, and a one-pixel seam of floor opens along the tile edge
+    // between them — visible at some rotations and not others, because the bounding box's parity
+    // changes with the rotation. An integer camera puts every sprite on the same subpixel phase and
+    // removes the whole class.
+    cam_x = floorf((SCREEN_W - (maxx - minx)) * 0.5f - minx);
+    cam_y = floorf((SCREEN_H - 14 - (maxy - miny)) * 0.5f - miny + 10);
 }
 
 // ── the draw list ─────────────────────────────────────────────
@@ -261,8 +268,25 @@ static void draw_floor(void) {
 // one flat dark quad is the lo-fi version of the same cue.
 static void draw_shadow(const Item *it) {
     const short *fp = ISO_FOOTPRINT[it->model];
-    const float x0 = it->vx, y0 = it->vy;
-    const float x1 = x0 + fp[0], y1 = y0 + fp[1];
+    // INSET by exactly ONE VOXEL, and both the direction and the integer-ness were measured rather
+    // than guessed.
+    //
+    // The problem: a shadow's edge is rasterized by the engine's quadfill, while the object's edge
+    // came out of the BAKER's fillPoly. Along a 2:1 diagonal the two disagree about which pixel owns
+    // the boundary, so a shadow ending flush against neighbouring art opens a 1px staircase of floor
+    // between them — which reads as a rendering glitch.
+    //
+    // Sweeping the pad and counting stray pixels over all four rotations:
+    //     -1.0  ->   1        0.0  ->   4        +1.0 ->   3
+    //     -0.5  ->  18       +0.25 -> 176       +0.5  ->   8
+    // The lesson is not "inset a bit", it is that the pad must be a WHOLE number of voxels. A
+    // fractional pad puts the quad's corners between lattice points, where the two rasterizers
+    // disagree *everywhere* rather than occasionally — hence +0.25 being forty times worse than 0.
+    // Of the integer options a one-voxel inset wins: the shadow stops short of the boundary, so
+    // there is no shared edge left to disagree about.
+    const float pad = -1.0f;
+    const float x0 = it->vx - pad, y0 = it->vy - pad;
+    const float x1 = it->vx + fp[0] + pad, y1 = it->vy + fp[1] + pad;
     float c[4][2];
     iso_project(rot, x0, y0, 0, &c[0][0], &c[0][1]);
     iso_project(rot, x1, y0, 0, &c[1][0], &c[1][1]);

@@ -184,7 +184,7 @@ gates Path B and must be settled (by measuring, on desktop AND device) before th
 Deferred and noted by the maker: **fluid/responsive layout** (a CSS-like positioning experiment in one
 cart) — Phase 2 just letterboxes the fixed canvas as the spikes do; revisit responsive later.
 
-## macOS: hosting the AUv3 in GarageBand / Logic (2026-08-12, IN PROGRESS)
+## macOS: hosting the AUv3 in GarageBand and Logic
 
 Phase 1 of "run our plug-in on the Mac". Driven by **`ios/mac.sh`** off **`ios/project-mac.yml`** —
 a SEPARATE xcodegen spec producing `TinyjamMac.xcodeproj`, so it cannot clobber the iOS project that

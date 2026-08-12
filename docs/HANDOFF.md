@@ -42,6 +42,35 @@ a broken doc link or `#section`).
 > What a reader needs to *choose* a lane is in the front-door output; what they need to *resume*
 > one is in the lane itself. A summary in between is a third copy, and it is the copy nobody
 > updates. If you find yourself writing one again, teach `handoff.js` to print it instead.
+> **▶ ACTIVE THREAD (2026-08-12) — EXTERNAL CLOCK + the AUv3 on macOS: a cart can be slaved, and acidcandy is a GarageBand plug-in.**
+> Started from "does Tiny Acid Jam do AUv3 or MIDI in?" (it did neither). **SHIPPED, both verified by the
+> maker on real gear:** `runtime/sync.h` + the five `sync_*` API functions (an external clock a cart
+> FOLLOWS — MIDI clock from Ableton over the IAC bus, *and* an AUv3 host's transport), and **acidcandy
+> loaded as an Audio Unit in GarageBand on macOS**, stopping and tempo-following the host. `zsh ios/mac.sh`
+> is the whole Mac build (Catalyst, own spec `ios/project-mac.yml`, own staging dirs, `auval` PASSES).
+> **The design point worth not re-deriving:** one cart-facing API for three clock sources that arrive in
+> TWO shapes — MIDI clock is *incremental* (measure the tempo, infer the transport), a host and Link are
+> *absolute* (they state both). `sync_beats()` is the common currency and a cart DERIVES its step counter
+> from it. That is why AUv3 transport needed **zero cart changes**: it was the other shape of the same seam.
+> **Next, in order:** the AUv3 **VIEW** (phase 3, and the bulk of what is left — an `AUViewController`
+> sharing the already-cart-agnostic `Sources/CanvasView.swift`, a tick-ownership split so the view blits
+> without advancing the engine, and an input event RING because touches arrive on the main thread while
+> `de_frame` runs on the audio thread and `de_touch_*` writes a shared pool unsynchronised) · **Ableton
+> Link** (the same `sync_push_pos()` call as the host path, so small — but the lib is dual-licensed, check
+> that first) · MIDI clock **on iOS** + background audio (what ReBirth for iPad actually shipped) · clock
+> **OUT** ([`midi-out.md`](design/midi-out.md)).
+> **Three known gaps, deliberately recorded rather than fixed:** the carrier app HANGS at launch under
+> Catalyst (CoreAudio on the main thread; harmless to the plug-in, still wrong) · nothing headless asserts
+> the host transport arrives, because `auval` sets no transport blocks and the `AUHostTests.swift` fake
+> isn't written · the engine is **compile-time 44.1 kHz**, so a host at another rate plays sharp and fast
+> (fix = a resampler in the render block, never an engine refactor).
+> **Hot files:** `runtime/sync.h`, `runtime/midi_input.h`, `ios/AU/TinyjamAU.swift`, and note that
+> `ios/project.yml` (iOS) and `ios/project-mac.yml` (Mac) are SEPARATE on purpose — don't merge them, and
+> don't let a Mac build stage into `gen/app`/`gen/au`.
+> **Resume-at:** [ios-plan.md → macOS: hosting the AUv3 in GarageBand and Logic](design/ios-plan.md#macos-hosting-the-auv3-in-garageband-and-logic)
+> for the AU arc (incl. the three signing/entitlement gates and their symptoms), and
+> [external-clock-sync.md](design/external-clock-sync.md) for the clock seam itself.
+
 > **▶ ACTIVE THREAD (2026-07-30) — `pedalboard`: the guitar rig, and an APP IN REVIEW.**
 > **This lane did not exist until 2026-07-30, and it should have.** A handoff audit found `pedalboard` was
 > the single most active thread in the repo — 18 commits since 07-28 (fret wires warmed into the board, the

@@ -374,6 +374,7 @@ void spec(void) {
     tn_econ_selfcheck();
     tn_store_selfcheck();
     tn_build_selfcheck();
+    tn_hud_selfcheck();
 
     tn_world_init();
 }

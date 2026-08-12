@@ -50,9 +50,32 @@ public final class TinyjamAU: AUAudioUnit {
     public override var internalRenderBlock: AUInternalRenderBlock {
         let scratch = self.scratch, cap = self.scratchCap, acc = self.acc, frame = self.frame
         let spf = TinyjamAU.SAMPLES_PER_FRAME
+        // Capture SELF unretained, not the two host blocks themselves. The host assigns
+        // musicalContextBlock / transportStateBlock AFTER it fetches this render block, so reading
+        // them out here would capture nil forever — the documented AUv3 trap. takeUnretainedValue()
+        // adds no retain/release, so it is safe on the audio thread.
+        let unownedSelf = Unmanaged.passUnretained(self)
         return { _, _, frameCount, _, outputData, eventListHead, _ in
             let n = Int(frameCount)
             if n * 2 > cap { return kAudioUnitErr_TooManyFramesToProcess }
+            let me = unownedSelf.takeUnretainedValue()
+
+            // 0) HOST TRANSPORT → runtime/sync.h, before the frame below ticks so the cart's
+            //    sequencer sees this block's position. The host states its playhead ABSOLUTELY
+            //    (tempo + beat), which is the easy half of the sync seam: nothing to measure.
+            //    Both blocks are nullable and a host may supply neither — then we push nothing and
+            //    the cart free-runs on its own clock exactly as before.
+            if let ctx = me.musicalContextBlock {
+                var tempo = 0.0, beat = 0.0
+                if ctx(&tempo, nil, nil, &beat, nil, nil), tempo > 0 {
+                    var playing = true          // no transport block = "if it renders, it plays"
+                    if let ts = me.transportStateBlock {
+                        var flags = AUHostTransportStateFlags()
+                        if ts(&flags, nil, nil, nil) { playing = flags.contains(.moving) }
+                    }
+                    de_sync_position(beat, tempo, playing ? 1 : 0)
+                }
+            }
             // 1) feed host MIDI into the engine ring FIRST, so the frame ticked below sees it.
             //    Walk the realtime event list; handle note-on/off (0x90/0x80) + pitch-bend (0xE0).
             var ev = eventListHead

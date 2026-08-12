@@ -54,4 +54,9 @@ void de_touch_ended(int id, float x, float y);
 void de_midi_event(int type, int note, int vel);
 void de_midi_bend(int v);
 
+// HOST TRANSPORT (runtime/sync.h) — the AUv3 render block pushes the host's playhead here every
+// block, and a cart reads it through sync_active()/sync_playing()/sync_beats()/sync_bpm(). beats =
+// the host's absolute beat position, bpm = its tempo, playing = its transport state.
+void de_sync_position(double beats, double bpm, int playing);
+
 #endif

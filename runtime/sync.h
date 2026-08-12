@@ -187,6 +187,15 @@ static void sync_frame(float dt, int automated) {
     }
 }
 
+#ifdef DE_NO_RAYLIB
+// HOST TRANSPORT feed for portable backends — the AUv3 render block (iOS + Mac Catalyst), and
+// Ableton Link later. The absolute-position twin of midi_input.h's de_midi_event: the host states
+// exactly where its playhead is, every render block, so there is nothing to measure or infer.
+// Called from the AUDIO thread, which is also where de_frame() runs in the AU, so the producer and
+// the consumer are the same thread there — no cross-thread window at all.
+void de_sync_position(double beats, double bpm, int playing) { sync_push_pos(beats, bpm, playing); }
+#endif
+
 // ── public API (declared in studio.h — the sound.h pattern) ───────────────────
 bool  sync_active(void)  { return sync_c_active; }
 bool  sync_playing(void) { return sync_c_active && sync_c_playing; }

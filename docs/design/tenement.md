@@ -70,6 +70,20 @@ offers `serve_hunger` slowly and `capability_heat`. Nothing needs to know that a
 **The payoff:** a new object, a new recipe, a new item or a whole expansion is a **table row**. Never
 a new code path, never a new checkbox, never a new keyboard key.
 
+**One argmax, not two levels.** This is the easiest part of the design to get subtly wrong, and the
+first draft of the contract got it wrong. An agent does **not** pick its most urgent need and then
+look for an object: that is urgency-sort, it is what `sims` already does, and it is the thing being
+inverted. Instead there is a single argmax over every (object, need) pair, with the deficit as one
+*term* in the score rather than a pre-filter:
+
+    score = deficit(need) * offer.strength / (travel + queue_penalty)
+
+The difference is observable, which is why it matters. Under urgency-sort a hungry resident walks
+past a free toilet to reach a distant fridge. Here an adjacent nearly-free toilet can outbid the
+fridge, which is the behaviour people recognise as Sims-like. And because every term is a number, the
+choice is **oracle-able**: given this building and these needs, the agent MUST pick X. That is the
+`spec()` this cart carries.
+
 ## 3. Why: three navkit mistakes, all the same mistake
 
 The maker's sibling project `navkit` (a Dwarf Fortress-lineage colony sim) has this written down

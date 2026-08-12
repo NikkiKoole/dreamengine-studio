@@ -259,9 +259,32 @@ typedef struct {
 // Owner: offer module.
 // ─────────────────────────────────────────────────────────────────────────────
 
-// Best object offering `tag` for this agent, by argmax of strength against
-// travel and queue cost. Returns -1 if nothing offers it. THE core of the sim:
-// the agent does not choose what to do, it takes the best offer going.
+// ── THE CORE OF THE SIM, and read this before touching it ───────────────────
+//
+// ONE argmax over EVERY (object, need) pair at once. Not "pick the most urgent
+// need, then find an object for it" — that is urgency-sort, it is what `sims`
+// already does, and it is the thing this design claims to invert. The whole
+// point of smart objects is that the agent never decides what it wants; it
+// takes the single best offer on the table, and the deficit is one term in the
+// score rather than a pre-filter.
+//
+// The difference is observable, which is what makes it worth the distinction: a
+// sim with high hunger passes a free toilet to reach a distant fridge under
+// urgency-sort, whereas here an adjacent nearly-free toilet can outbid the
+// fridge. That is the behaviour people recognise as Sims-like.
+//
+// SCORING lives in ONE function so no module invents its own. Sketch:
+//     score = deficit(need) * offer.strength / (travel + queue_penalty)
+// Every term is a number, so the choice is oracle-able: given this building and
+// these needs, the agent MUST pick X. That is the spec() this cart will carry.
+//
+// Returns the object index and writes which tag won, or -1 if nothing offers
+// anything (a legitimate answer the caller must handle).
+int   tn_best_action(int agent, TnTag *out_tag, int *out_score);
+
+// Secondary: best object offering a KNOWN tag. For consumers that legitimately
+// have one already — a work order needs a capability, an item needs a store —
+// never for deciding what an agent wants. Use tn_best_action for that.
 int   tn_best_offer(int agent, TnTag tag, int *out_score);
 
 // Does this object offer `tag`, and how strongly? `strength` may be NULL.

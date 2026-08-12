@@ -280,11 +280,41 @@ extract `runtime/isoview.h` when a second consumer proves the shape, per
 Asked for by the maker: interactions and communication between residents, and **eventually** children.
 Written down rather than built, because the "eventually" is doing real work in that sentence.
 
-**The satisfying part: this is not a new system.** The offer index already matches a need against
-whoever can serve it. Relationships mean the population of **offerers** grows from *objects* to
-*objects and people*. A social need is served by another resident, so `tn_best_action` ranges over
-(offerer, need) pairs where an offerer may be either. The tag vocabulary gains `TN_SERVE_SOCIAL`;
-`tno_score` gains nothing. That is the payoff of §2 arriving on schedule.
+**The claim was: this is not a new system.** The offer index already matches a need against whoever
+can serve it, so relationships mean the population of **offerers** grows from *objects* to *objects
+and people*. The tag vocabulary gains `TN_SERVE_SOCIAL`; `tno_score` gains nothing.
+
+**That claim was then tested by building it (`runtime/tenement/social.h`), and it is mostly true and
+wrong in three specific ways.** The correction matters more than the original claim, so it is recorded
+here rather than quietly fixed:
+
+- The **score** held completely. The bond feeds `strength` plus a shyness term measured in tiles,
+  exactly the shape `store`'s ownership detour established. No new scoring.
+- But **growing the offerer population changes the TYPE of the answer.** `tn_best_action` returns an
+  index into `tn_obj[]`, and no table row lets it name a *person*. A contract change, not data.
+- And **`TN_OFFERS` is keyed by object KIND, while a person's offer depends on the PAIR**, so it must
+  be computed rather than looked up. Same struct, different provenance: the "one lookup" becomes a
+  lookup and a function.
+- **The real one, which this section originally missed entirely: two-sidedness makes the argmax
+  RECURSIVE.** "Will the host agree" means "would the host's argmax pick this", and the host's argmax
+  ranges over people, including the asker.
+
+**The cut is the interesting part.** The host's alternative is its best *object* bid: an interaction
+must beat the furniture, not out-negotiate a third party. That is principled rather than arbitrary,
+and it is free, because the host's published `bid_score` is already exactly that number. A fresh
+argmax per candidate pair would instead thrash `path`'s single-slot distance cache, measured at
+**138x** worse.
+
+Consequence for the contract: **`tn_best_action` must stay objects-only**, and now for a load-bearing
+reason rather than for backward compatibility. It is the recursion break that consent depends on. The
+combined query becomes a second function, `tn_best_bid`, ranging over both populations.
+
+**One silent failure this uncovered, worth generalising.** `TNA_DECAY` in `agents.h` is a *positional*
+initialiser, so adding a need to the tag run without adding a sixth element means the new need never
+decays: nobody ever gets lonely, and the feature reads as implemented while never firing. Seam 1 says
+"needs are data", and this is the fine print on it. A positional table is data that fails **silently**
+when the enum grows; designated initialisers, or a `_Static_assert` on the row count, would make it
+fail loudly instead.
 
 **The one genuinely new mechanic: an interaction is two-sided.** A fridge does not have to want you
 back. A person does. So a social bid needs a commitment from both ends, which objects never needed,

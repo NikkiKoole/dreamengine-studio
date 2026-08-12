@@ -1,7 +1,8 @@
 # External clock sync — playing in time with something outside the cart
 
-> **Status: MIDI clock SHIPPED 2026-08-12** (`runtime/sync.h` + the four `sync_*` API
-> functions + `--midi-clock` in the harness + `synccheck` + acidcandy following it).
+> **Status: MIDI clock SHIPPED 2026-08-12** (`runtime/sync.h` + the five `sync_*` API
+> functions + `--midi-clock` in the harness + `tools/sync-spike/` + `synccheck` + acidcandy
+> following it).
 > **Ableton Link and AUv3 host transport are the two open backends**, both of which push
 > into the same seam. Came out of the question "does Tiny Acid Jam do AUv3 or MIDI in?",
 > where the honest answer was no to both, and the cheapest useful yes turned out to be the
@@ -26,7 +27,7 @@ Three things could hand a cart someone else's tempo, and the trap is that they a
 | **Ableton Link** | session tempo + beat phase | **absolute**, same shape as the host |
 
 A cart that wired MIDI clock directly into its sequencer would have to be rewritten for the
-other two. So the engine owns a seam instead, and every cart reads the same four functions
+other two. So the engine owns a seam instead, and every cart reads the same five functions
 without learning which clock it is on.
 
 ## The seam
@@ -35,10 +36,11 @@ without learning which clock it is on.
 `midi_input.h` (its API is declared in `studio.h`). Producers push, one consumer derives.
 
 ```c
-bool  sync_active(void);    // is an external clock driving us at all?
-bool  sync_playing(void);   // has it pressed PLAY? (start/continue seen, no stop since)
-float sync_beats(void);     // beats since it started — 0.25 = one 16th in 4/4
-float sync_bpm(void);       // its tempo (0 = none)
+bool  sync_active(void);     // is an external clock driving us at all?
+bool  sync_playing(void);    // has it pressed PLAY? (start/continue seen, no stop since)
+bool  sync_transport(void);  // does it drive start/stop, or is it TEMPO-ONLY?
+float sync_beats(void);      // beats since it started — 0.25 = one 16th in 4/4
+float sync_bpm(void);        // its tempo (0 = none)
 ```
 
 `sync_beats()` is the **common currency**: an incremental source accumulates into it, an
@@ -49,6 +51,13 @@ is the whole design, in one line. An accumulator only ever knows *how fast*; it 
 *where*. So an accumulating cart cannot follow a re-START, a loop wrap, or a playhead scrub,
 and it drifts against the clock forever with no way to notice. acidcandy's hookup is
 literally `g_phase = sync_beats() * 4.0f` in place of its `g_phase += dt * rate`.
+
+**A clock can drive tempo without driving transport,** which is why `sync_transport()` exists.
+An AUv3 host and Link always state their transport; a bare MIDI clock may never send START/STOP
+at all, and even when it does, **you miss it if the DAW was already playing when your cart
+booted** — the overwhelmingly common real-world case. A cart must therefore surrender its play
+button only when `sync_transport()` is true, and merely borrow the tempo otherwise. Getting this
+wrong is not a cosmetic bug: see "the unstartable rack" below.
 
 **Opt-in.** This does not hijack the engine's own `bpm()`/`beat()` clock. A cart that never
 calls `sync_*` behaves exactly as before, tempo knob and all. That was deliberate: silently
@@ -112,6 +121,29 @@ i.e. that we are not running our own clock while claiming to follow theirs. `syn
 clicks on every 16th, accented on the downbeat, because a playhead that *looks* right and
 drifts 30ms is exactly the bug this cart exists to catch.
 
+### The unstartable rack (the first real session, and what it taught)
+
+The first time a DAW actually drove acidcandy, the report was *"now i cant start stop the acidjam
+from live"*. Measured with `synccheck` in `run` mode: `act=1, play=0`, beats climbing. So the clock
+**was** arriving and no START ever did — Live had been playing before the cart booted, so we joined
+mid-flow.
+
+Two of my decisions then combined into a dead rack, and neither was wrong alone:
+
+1. the cart read `sync_playing()` literally and pinned `playing = false` every frame;
+2. the cart also handed its play button over while slaved (so a tap couldn't override).
+
+Either one alone is survivable. Together they mean **no clock message can ever start it and neither
+can you.** The lesson generalises past sync: *when you hand a local control over to a remote
+authority, prove the authority is actually driving that control before disabling the local one.*
+
+The fixes: transport is now **inferred** as running until the clock proves it speaks transport
+(bare MIDI clock only flows while the master runs, so ticks alone mean "running"), and
+`sync_transport()` tells a cart which world it is in so it can keep its own play button on a
+tempo-only clock. `synccheck` shows the third state explicitly as an orange **EXT TEMPO** badge,
+which is also the fastest diagnosis when a DAW seems half-connected. Stopping and re-starting the
+DAW's transport sends a fresh START and flips it green.
+
 ### The ambient clock: a DAW on your machine leaks into harness runs
 
 Worth reading even if you never touch sync, because it is a general hazard for any host-fed input.
@@ -134,6 +166,18 @@ never in a deterministic one. Three identical `--midi-clock` runs now hash ident
 add another host-fed input, copy this shape:** ambient hardware state must not be able to reach a
 deterministic run. Also in [`../guides/debug-harness.md`](../guides/debug-harness.md), where someone
 debugging a flaky gate will actually look.
+
+**No DAW, but the REAL CoreMIDI path** (the gap `--midi-clock` cannot cover, since a deterministic
+run ignores real MIDI by design):
+
+```bash
+zsh tools/sync-spike/run.sh
+```
+
+It generates a clock onto the IAC bus and asserts the whole arc through `synccheck`'s trace: clock
+arrives → START seen → runs → STOP followed → control handed back. `tools/sync-spike/midisend 128 6`
+(no `start`) reproduces the unstartable-rack case on demand. See
+[`../../tools/sync-spike/README.md`](../../tools/sync-spike/README.md).
 
 **Against a real DAW on the Mac**, no plugin work needed:
 

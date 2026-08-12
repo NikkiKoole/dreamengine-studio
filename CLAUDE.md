@@ -569,6 +569,15 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
              build-box2d.sh  build the vendored Box2D v3 (runtime/box2d/) into build/box2d/<target>/libbox2d.a per platform (--mac/--win/--wasm/--ios, --check runs a drop-box smoke test). Pure-C rigid-body lib for the physics experiment; opt-in, not in the default cart build. See docs/design/box2d-integration.md
              mac-app.sh      bundle an exported cart binary into a signed + notarized + stapled .app that opens on ANY Mac (Gatekeeper-clean); needs a Developer ID cert + a notarytool cred profile (header has the one-time setup)
              bundle-spike/   PASSED probe: TWO carts in ONE binary (per-TU -Ddraw=<slug>_draw renames + a dispatcher shim; carts unmodified) — the Tinyjam multi-cart app shape (design/share-panel.md §spike); proof-sound.sh = the de_switch_cart round-trip oracle
+             sync-spike/     the two MIDI-CLOCK probes + the end-to-end gate for external sync
+                             (runtime/sync.h): midimon = LISTEN, naming every transport byte on the wire ·
+                             midisend = SEND a clock to the IAC bus, and `midisend <bpm> <secs>` WITHOUT
+                             `start` reproduces the case that shipped broken (a DAW already playing, so the
+                             cart joins mid-flow and never sees a START → tempo-only, see sync_transport).
+                             `run.sh` bare = builds both + asserts the whole arc (arrive → START → run →
+                             STOP → hand back) through synccheck's trace, so the REAL CoreMIDI path has a
+                             gate too — the synthetic --midi-clock one can't cover it, since a deterministic
+                             run ignores real MIDI by design. Needs IAC online; macOS only
              mic-spike/      SPIKE (audio-input frontier): can the engine HEAR? miniaudio mic capture → live mic_level()/mic_pitch() (Tier-1, docs/design/mic-and-sampling.md). run.sh fetches miniaudio.h + builds; CONFIRMED LIVE on Mac (webcam mic, peak −17 dBFS — level clean, zero-crossing pitch is octave-noisy)
              build-app.js    build a MULTI-CART app from apps/<name>/app.json: per-TU renames + generated dispatcher + per-cart sound/video/sheet contexts (de_switch_cart umbrella) — adding a rack = one manifest line. Bare = a native binary; --mac wraps it signed+notarized via mac-app.sh; --ios stages the set for the Xcode build (ios/device.sh|build.sh APP=<name>)
              profile-fleet.js batch CPU-profile a set of carts → which engine primitive is hottest

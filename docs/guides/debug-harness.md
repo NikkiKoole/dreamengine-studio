@@ -229,6 +229,14 @@ display went off in between). All three tools now fire **`caffeinate -u -t 1` fi
 then run under `-dims`. Driving the binary by hand? Do the same: `caffeinate -u -t 2; sleep 2`
 before your command, not just `-dims` around it.
 
+### Gotcha: trace values are STRINGS
+
+`watch()` takes a printf format, so every value in a `--trace` line is a JSON **string**: `"act":"1"`,
+`"beats":"8.5000"`. An assertion written as `r.w.act === 1` therefore never fires — and it fails
+*silently*, reporting "not seen" for something that happened on every frame. Coerce with `+r.w.act`
+(or compare loosely). Arithmetic like `r.w.beats > 2` happens to work by coercion, which is what makes
+this so confusing: half your checks pass. It bit `tools/sync-spike/run.sh` on its first run.
+
 ### Gotcha: a DAW playing on your machine leaks into harness runs
 
 The engine reads real MIDI (CoreMIDI on macOS), and since 2026-08-12 that includes **MIDI clock**

@@ -394,6 +394,7 @@ const char *midi_name(void);                              // name of the connect
 // Ableton Link push into the same state later), so a cart never learns which one it's on.
 bool  sync_active(void);                                  // is an external clock driving us? (false = nothing plugged in, use your own tempo)
 bool  sync_playing(void);                                 // has that clock pressed PLAY? (start/continue seen, no stop since)
+bool  sync_transport(void);                               // does that clock drive START/STOP, or only tempo? hand your play button over only when this is true
 float sync_beats(void);                                   // beats since the clock started — 0.25 = one 16th note. drive your step counter FROM this, don't count your own
 float sync_bpm(void);                                     // the external clock's tempo (0 if none) — show it, or feed your tempo-synced delay
 

@@ -49,7 +49,24 @@ _Last updated: 2026-07-30 — **Synth Secrets phases 1 + 2**: PIANO's dispersion
   into the same producer state the CoreMIDI thread was feeding, so real ticks added on top (+1 tick over
   300 frames, +3 over 600, varying per run). Fixed with an explicit three-case guard in `sync_frame`:
   `--midi-clock` is the ONLY source when given, a deterministic run never consults the real clock at all,
-  and a plain `run` (the editor) still follows a real DAW. Three identical runs now hash identically. **Open: Ableton Link and AUv3 host
+  and a plain `run` (the editor) still follows a real DAW. Three identical runs now hash identically.
+  **THE UNSTARTABLE RACK — the fourth bug, and the one a user actually hit** (fixed same day): the first
+  real Live session ended with *"now i cant start stop the acidjam from live"*. Measured with `synccheck` in
+  `run` mode: `act=1, play=0`, beats climbing — the clock WAS arriving and a START never did, because Live
+  had been playing before the cart booted, so we joined mid-flow. Two decisions then combined into a dead
+  rack, neither wrong alone: the cart read `sync_playing()` literally and pinned `playing=false` every frame,
+  AND it had handed its play button over while slaved, so nothing local could override. **The generalisable
+  lesson: when you hand a local control to a remote authority, prove the authority actually drives that
+  control before disabling the local one.** Fixed by INFERRING transport as running until the clock proves it
+  speaks transport (bare MIDI clock only flows while the master runs), plus a fifth API function
+  **`sync_transport()`** so a cart knows whether it is on a transport-driving clock or a TEMPO-ONLY one and
+  keeps its own play/stop on the latter; `synccheck` shows it as an orange **EXT TEMPO** badge, which is also
+  the fastest diagnosis for a half-connected DAW. Gated for real now, not just synthetically: new
+  **`tools/sync-spike/`** (midimon = name every transport byte on the wire · midisend = generate a clock, and
+  WITHOUT `start` it reproduces the mid-flow case on demand) whose `run.sh` asserts the whole arc through a
+  trace — arrive → START → run → STOP → hand back — all seven checks green against real CoreMIDI. Those two
+  probes are also what settled "is it the wire or the engine?" in one command each, after three rounds of
+  guessing. **Open: Ableton Link and AUv3 host
   transport** (both just call `sync_push_pos()`), MIDI clock on iOS, and clock OUT. Design:
   [`design/external-clock-sync.md`](design/external-clock-sync.md).
 - **FLOAT DETERMINISM — the audio engine now computes the same BITS on arm64, x86-64 and wasm**

@@ -14,13 +14,19 @@
 //   Ableton Link    session tempo + beat phase. ABSOLUTE, same shape as the host.
 //
 // A cart that wired MIDI clock directly would have to be rewritten for the other
-// two. So all three push into the state below and every cart reads the SAME four
+// two. So all three push into the state below and every cart reads the SAME five
 // functions, never learning which clock it's following:
 //
-//   bool  sync_active(void)   is an external clock driving us at all?
-//   bool  sync_playing(void)  has it STARTED (and not stopped since)?
-//   float sync_beats(void)    beats since it started — 0.25 = one 16th in 4/4
-//   float sync_bpm(void)      its tempo
+//   bool  sync_active(void)    is an external clock driving us at all?
+//   bool  sync_playing(void)   has it STARTED (and not stopped since)?
+//   bool  sync_transport(void) does it drive start/stop, or is it TEMPO-ONLY?
+//   float sync_beats(void)     beats since it started — 0.25 = one 16th in 4/4
+//   float sync_bpm(void)       its tempo
+//
+// sync_transport() exists because the three sources are not equally talkative: a host
+// and Link always state their transport, while a bare MIDI clock may never send one
+// (or we joined mid-flow). A cart hands over its play button only when it's true —
+// getting this wrong made the rack unstartable, see the note in sync_frame.
 //
 // sync_beats() is the common currency: an incremental source accumulates into it,
 // an absolute source overwrites it. A cart drives its own step counter FROM that
@@ -48,6 +54,7 @@
 static volatile uint32_t sync_p_ticks = 0;   // 24-ppqn ticks since the last START
 static volatile uint32_t sync_p_msgs  = 0;   // ANY transport message — liveness only
 static volatile int      sync_p_run   = 0;   // 1 between START/CONTINUE and STOP
+static volatile int      sync_p_tseen = 0;   // has this clock EVER sent start/stop? (see sync_transport)
 static volatile int      sync_p_abs   = 0;   // 1 = an absolute source owns the position
 static volatile double   sync_p_beats = 0;   // absolute sources only (host / Link)
 static volatile double   sync_p_bpm   = 0;   // absolute sources only
@@ -55,19 +62,19 @@ static volatile double   sync_p_bpm   = 0;   // absolute sources only
 // ── producer API ─────────────────────────────────────────────────────────────
 // INCREMENTAL (MIDI clock). from_zero: START rewinds to bar 1, CONTINUE resumes.
 static void sync_push_tick (void)          { sync_p_ticks++; sync_p_msgs++; }
-static void sync_push_start(int from_zero) { if (from_zero) sync_p_ticks = 0; sync_p_run = 1; sync_p_msgs++; }
-static void sync_push_stop (void)          { sync_p_run = 0; sync_p_msgs++; }
+static void sync_push_start(int from_zero) { if (from_zero) sync_p_ticks = 0; sync_p_run = 1; sync_p_msgs++; sync_p_tseen = 1; }
+static void sync_push_stop (void)          { sync_p_run = 0; sync_p_msgs++; sync_p_tseen = 1; }
 // MIDI song-position pointer: jump the tick counter (so CONTINUE from bar 5 lands on bar 5).
 static void sync_push_seek (uint32_t ticks) { sync_p_ticks = ticks; sync_p_msgs++; }
 // ABSOLUTE (AUv3 musicalContextBlock, Ableton Link) — the whole position, every block.
 static void sync_push_pos(double beats, double bpm, int playing) {
     sync_p_beats = beats; sync_p_bpm = bpm; sync_p_run = playing;
-    sync_p_abs = 1; sync_p_msgs++;
+    sync_p_abs = 1; sync_p_msgs++; sync_p_tseen = 1;   // a host/Link ALWAYS knows its transport
 }
 
 // ── consumer state (main thread, all of it derived in sync_frame) ─────────────
 static double   sync_c_beats = 0, sync_c_bpm = 0;
-static bool     sync_c_active = false, sync_c_playing = false;
+static bool     sync_c_active = false, sync_c_playing = false, sync_c_tseen = false;
 static uint32_t sync_c_last_msgs = 0, sync_c_last_ticks = 0;
 static float    sync_c_quiet = SYNC_TIMEOUT * 2;      // seconds since the last message
 static double   sync_c_win_t = 0;                     // tempo-measure span: seconds…
@@ -99,16 +106,25 @@ static void sync_frame(float dt, int det) {
     // deterministic run never consults the real one. A plain `run` (the editor) still follows a
     // real DAW, which is the entire point of the feature.
     uint32_t msgs, ticks;
-    int      run, absolute;
+    int      run, absolute, tseen;
     if (sync_synth_bpm > 0) {
         sync_synth_acc += (double)dt * (sync_synth_bpm / 60.0) * SYNC_PPQN;
         while (sync_synth_acc >= 1.0) { sync_synth_acc -= 1.0; sync_synth_ticks++; }
-        ticks = sync_synth_ticks; msgs = sync_synth_ticks + 1; run = 1; absolute = 0;
+        ticks = sync_synth_ticks; msgs = sync_synth_ticks + 1; run = 1; absolute = 0; tseen = 1;
     } else if (det) {
-        sync_c_active = false; sync_c_playing = false; sync_c_bpm = 0;
+        sync_c_active = false; sync_c_playing = false; sync_c_tseen = false; sync_c_bpm = 0;
         return;
     } else {
-        ticks = sync_p_ticks; msgs = sync_p_msgs; run = sync_p_run; absolute = sync_p_abs;
+        ticks = sync_p_ticks; msgs = sync_p_msgs; absolute = sync_p_abs; tseen = sync_p_tseen;
+        // TRANSPORT INFERENCE, and this one shipped as a bug first. A clock that has never sent
+        // START/STOP still means "the master is running" — bare MIDI clock only flows while it
+        // does. Reading sync_p_run literally instead pins a slaved cart to STOPPED forever, and
+        // since a well-behaved cart also hands its play button over while slaved, the rack
+        // becomes UNSTARTABLE: the maker's first real session with a DAW ended with "now i cant
+        // start stop the acidjam from live". Measured on his machine: act=1, play=0, beats
+        // climbing. So: infer running until the clock proves it speaks transport, and let a cart
+        // ask which world it is in via sync_transport().
+        run = sync_p_tseen ? sync_p_run : 1;
     }
 
     if (msgs != sync_c_last_msgs) { sync_c_last_msgs = msgs; sync_c_quiet = 0; sync_c_active = true; }
@@ -118,11 +134,12 @@ static void sync_frame(float dt, int det) {
     // its own tempo knob is dead. After SYNC_TIMEOUT we hand control back; the next
     // tick re-slaves instantly.
     if (sync_c_quiet > SYNC_TIMEOUT) {
-        sync_c_active = false; sync_c_playing = false;
+        sync_c_active = false; sync_c_playing = false; sync_c_tseen = false;
         sync_c_bpm = 0; sync_c_win_t = 0; sync_c_win_n = 0;
         return;
     }
     sync_c_playing = run != 0;
+    sync_c_tseen   = tseen != 0;
 
     if (absolute) { sync_c_beats = sync_p_beats; sync_c_bpm = sync_p_bpm; return; }
 
@@ -166,6 +183,11 @@ static void sync_frame(float dt, int det) {
 // ── public API (declared in studio.h — the sound.h pattern) ───────────────────
 bool  sync_active(void)  { return sync_c_active; }
 bool  sync_playing(void) { return sync_c_active && sync_c_playing; }
+// Does this clock drive START/STOP, or only tempo? A bare MIDI clock may never send a transport
+// message (or we joined mid-flow), and then its "playing" is an INFERENCE, not a statement. A cart
+// should surrender its transport button only when this is true; on tempo-only it keeps its own
+// play/stop and just borrows the tempo. An AUv3 host and Link always report their transport.
+bool  sync_transport(void) { return sync_c_active && sync_c_tseen; }
 float sync_beats(void)   { return (float)sync_c_beats; }
 float sync_bpm(void)     { return (float)sync_c_bpm; }
 

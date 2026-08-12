@@ -6967,6 +6967,21 @@
     "lineage": "Implements nadako's roguelike energy-scheduler (next-event-time priority queue); the timeline ribbon at the top is the explicit teaching artifact, showing the scheduling order rewrite live as you change speed."
   },
   {
+    "title": "tenement",
+    "description": "A few residents, some furniture, and one question: does the best offer on the table beat picking your worst need first? Watch the scores and see. The thin vertical slice of a bigger sim about several households sharing one building. Every object advertises what it offers, how strongly, for how long, and for how many people at once. Every resident does no thinking at all beyond taking the single best offer available, where a need's deficit is one term in the score rather than a filter applied first. That distinction is the whole point: the usual way to write this is to sort needs by urgency and then look for an object, which sends a hungry person past an empty toilet to a fridge on the far side of the building. Here the near thing can win. The HUD shows each resident's current winning bid and its score, because the interesting part of this simulation is invisible otherwise. Q/E turn the building. TAB shows every bid the winning resident considered, not just the winner. SPACE pauses. 1/2/4 set speed.",
+    "file": "tenement.cart.png",
+    "created": "2026-08-12",
+    "kind": [
+      "probe",
+      "tech-demo"
+    ],
+    "teaches": [
+      "isometric-projection",
+      "finite-state-ai"
+    ],
+    "lineage": "Thin vertical slice of the tenement sim: proves ONE claim, that a single argmax over every (object, need) pair produces different, better behaviour than the urgency-sort every other needs sim here uses. sims sorts needs then finds an object; this lets an adjacent nearly-free toilet outbid a distant fridge at higher hunger, which is what people recognise as Sims-like. Built against the frozen contract runtime/tenement/model.h before any fan-out, because that contract's centrepiece had never been exercised by a line of code."
+  },
+  {
     "title": "Tentacle",
     "description": "Five tentacles sway in the current, each in a different skin — scales, candy stripes, a checkerboard — so you can watch the affine texture warp as they bend. Each is a chain of verlet bones (runtime/physics.h) wearing textured triangles (tritex) stretched between the bones; the skin bends and shears with the motion. Grab any tentacle and fling it; it whips and settles back into the drift. R resets. The point of the spike: physics points make the skeleton, tritex makes the deformable skin — that's all skinning is.",
     "file": "tentacle.cart.png",

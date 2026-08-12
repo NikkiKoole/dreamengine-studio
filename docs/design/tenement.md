@@ -1,6 +1,8 @@
 # tenement — several households, one building, and not enough of anything
 
-STATUS: READY (2026-08-12) — designed, contract frozen, nobody building it yet. The renderer it
+STATUS: BUILDING (2026-08-12) — the THIN VERTICAL SLICE is in and the contract's centrepiece is
+proven (`tools/carts/tenement.c`, `spec()` 21/21). No fan-out yet; see §10 for what the slice found.
+Originally READY, designed, contract frozen. The renderer it
 needs is done and measured ([`iso-rooms.md`](iso-rooms.md), SHIPPED). Contract:
 `runtime/tenement/model.h`. Method: [ADR-0034](../decisions/0034-contract-first-parallel-authoring.md),
 contract first, then fan out.
@@ -236,6 +238,42 @@ those are table rows or layers on the seams above, and none of them is v1.
 
 **Four or five needs, not nine.** `lockup` has nine and they blur. Needs that visibly compete for the
 same objects and the same floor read better than needs that each own an appliance.
+
+## 10. What the thin slice proved, and what it found
+
+Built before any fan-out, on purpose: the contract's centrepiece had never been exercised by a line
+of code, and ADR-0034's own ledger says the contract is the whole trick. Eight agents building
+against a subtly wrong contract is the expensive failure mode.
+
+**It was already subtly wrong, twice, and neither compiler nor linter could see it.**
+
+1. **`tn_best_offer(agent, tag)` was urgency-sort in disguise**, found by tracing how the first
+   module would call it. Requiring the caller to pick a need first *is* the thing this design claims
+   to invert. Replaced by `tn_best_action()`, one argmax over every (object, need) pair.
+2. **`minutes` was `unsigned char`**, so 480 wrapped to 224 and both an 8-hour shift and a night's
+   sleep were silently impossible. Caught by *compiling* the contract rather than only writing it.
+
+**What the slice proves (`spec()` 21/21).** Case 1 is the whole argument in one assertion: with
+hunger the more urgent need but the fridge across the building, the near toilet wins, and with travel
+equalised the hungrier need wins again. Both directions, so it cannot pass by accident. Case 2 shows
+contention living in the *score* rather than in queue-handling code (an occupied capacity-1 object
+stops attracting anyone; a half-full capacity-2 object still does). Case 4 pins the boundary that
+lets one index serve three consumers: a loom and a wardrobe never bid for attention even at zero
+needs, but both remain findable by tag.
+
+**What it found by running, which is the part worth having.** Residents from household 1 walk across
+the building and eat out of household 0's fridge, because `household` is not a term in the score.
+§6 treats "whose fridge is it" as a *feature*, the engine of the comedy this game is supposed to
+generate, so this is a real gap in the model rather than a bug in the code. It is now asserted in
+`spec()` case 8 as **current** behaviour with a note to flip it, because a gap a test describes is a
+work item and a gap in a comment is folklore.
+
+**Still deliberately absent from the slice:** households as anything but a number, money, work
+orders, storage, rent, building, and pathfinding (distance is straight-line, which is enough to prove
+the decision mechanism but not enough to judge §1's claim that corridors jam). One file, so the
+contract's per-module owner comments are unfulfilled. The iso projection is copied from `isoroom`;
+extract `runtime/isoview.h` when a second consumer proves the shape, per
+[ADR-0006](../decisions/0006-library-carts-not-engine.md).
 
 ## See also
 

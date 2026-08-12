@@ -220,3 +220,10 @@ spec- and knowledge-based, and says so.
 | phone playability | `node tools/mobile-lint.js lockup` |
 
 See [checks-and-oracles.md](../guides/checks-and-oracles.md) for the reverse index.
+
+## See also
+
+- [`tenement.md`](tenement.md) — the closest sibling, and deliberately a different VERB: lockup's
+  player writes the timetable, tenement's shapes the space. Worth reading side by side, because
+  tenement's design leans on lockup's ledger twice: nine needs blur (it uses four or five), and a
+  harsh critic is not an oracle ([ADR-0034](../decisions/0034-contract-first-parallel-authoring.md)).

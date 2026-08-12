@@ -249,6 +249,12 @@ runtime/   studio.h (public API: constants + declarations), studio.c (Raylib imp
                       prefix every static (lkg_/lkp_/lka_/lke_/lkr_/lks_/lkh_) because it is all one
                       translation unit. Written by 8 parallel agents; the pattern is ADR-0034.
                       Don't #include these from another cart — copy what you need.
+           tenement/  same pattern, NOT shelf: the frozen contract for the `tenement` sim (several
+                      households in one building), specced + compile-checked, cart not written yet.
+                      Its ONE rule: nothing enumerates instances, everything matches on TAGS —
+                      no place owns a recipe, nothing switches on an object kind. docs/design/tenement.md
+           isoroom/   generated (tools/voxel-bake.js --emit-c), not hand-edited: the baked rotation
+                      cell table for the `isoroom` probe. docs/design/iso-rooms.md
 editor/    electron/ (main.cjs compiles+runs carts; preload.cjs exposes window.studio.*),
            src/ (shell.js IDE chrome, main.js CodeMirror+cmd-click, navigate.js engine-source
            viewer, outline.js, sprite-editor.js, map-editor.js, studioDocs.js = single source for

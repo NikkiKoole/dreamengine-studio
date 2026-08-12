@@ -513,6 +513,8 @@ yes.
 
 ## See also
 
+- [`tenement.md`](tenement.md) — the game this probe existed to gate, now designed against its
+  settled geometry: several households in one building, smart objects, contention for space
 - [ADR-0034](../decisions/0034-contract-first-parallel-authoring.md) — the method, and the ledger of
   what did and did not work on lockup
 - [ADR-0024](../decisions/0024-software-canvas-is-canonical-for-2d.md) — why `tritex` is off the

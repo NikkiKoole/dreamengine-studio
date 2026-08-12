@@ -110,4 +110,9 @@ fi
 echo "▸ host-transport gate (ios/au-transport-check.swift)"
 xcrun swiftc -O -o au-transport-check au-transport-check.swift -framework AVFoundation
 ./au-transport-check
+# Again at 48k. The engine is compile-time 44.1k, so this is NOT a duplicate run: it guards the
+# property that the sequencer stays on the HOST's grid at any rate (the step comes from sync_beats,
+# which the rate never touches). Both runs pass; what 48k DOES break is pitch, measured separately by
+# ./au-transport-check --pitch — deliberately not run here, see ios-plan.md "the sample-rate risk".
+./au-transport-check --rate 48000
 echo "  (negative control: ./au-transport-check --free must FAIL the tempo check — ratio ~0.5)"

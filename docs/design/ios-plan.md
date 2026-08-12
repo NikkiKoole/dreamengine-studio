@@ -244,15 +244,38 @@ of a crash report is itself a signal — it means refused-at-load rather than cr
 | **the plug-in view** | an `AUViewController` sharing `Sources/CanvasView.swift` (already cart-agnostic), plus a tick-ownership split (the render block advances the engine, so the view must blit only) and an input event ring (touches arrive on the main thread, `de_frame` runs on the audio thread, and `de_touch_*` writes a shared pool with no synchronisation) |
 | **multi-instance** | spike 9. **Worse on macOS than iOS**: `.loadInProcess` is macOS-only, so a Mac host may load several instances in ONE process, where they would share `studio.c`'s file-scope globals. iOS gets one-per-process for free |
 
-### Known risk not yet exercised
+### The sample-rate risk, now MEASURED: the plug-in is rate-blind
 
 **The engine is compile-time 44.1 kHz** (`SOUND_SAMPLE_RATE` in `sound.h` sizes delay lines and
 envelopes; the render block hardcodes 735 samples per frame). The standalone app gets away with it by
 feeding an `AVAudioEngine` source node that converts to the device rate — **an AUv3 has no such
-buffer, the host calls us at the host's rate.** GarageBand usually defaults to 44.1k so this may
-never bite, and `auval` renders at several rates so it will surface there first. If it does bite, the
-fix is a resampler in the render block, NOT an engine refactor: every audio gate in the repo assumes
-44.1k and the bit-determinism work (`demath.h`) depends on a fixed rate.
+buffer, the host calls us at the host's rate.** This sat here as "not yet exercised" for a day. It is
+now measured, by `ios/au-transport-check --pitch`:
+
+| | |
+|---|---|
+| does the host actually move our bus? | **yes.** `AVAudioEngine` connected at 48 kHz and the plug-in's own output bus reports 48000. Nothing rejects it and nothing converts for us; `auval` renders us at 192k and 11025 and passes |
+| what breaks | **pitch, and every envelope / delay / LFO time.** At 48 kHz the rack plays **+147 cents sharp** (a semitone and a half) and 8.8% fast, against a predicted `1200·log2(48000/44100)` = 146.6 |
+| what does NOT break | **the sequencer.** All three transport checks PASS at 48 kHz (`--rate 48000`): the notes stay exactly on the host's grid, because acidcandy derives its step from `sync_beats()` and a host states its playhead ABSOLUTELY. The rate never enters that path |
+
+That split is the useful part. It means the defect is confined to the SOUND, not to timing or sync,
+so the fix stays where the risk note always said it should: **a resampler in the render block, NOT an
+engine refactor.** Every audio gate in the repo assumes 44.1k and the bit-determinism work
+(`demath.h`) depends on a fixed rate, so the engine keeps running at 44.1k internally and the render
+block converts to whatever the host asked for.
+
+How exposed we are: GarageBand, Logic and Live all default to 44.1k, but a host follows its audio
+INTERFACE, and plenty of interfaces sit at 48k out of the box. So this is a real share of users
+hearing the whole rack a semitone and a half sharp, not an exotic edge.
+
+**The gate is opt-in on purpose.** `mac.sh` runs the transport checks at 44.1k AND at 48k (both pass,
+so the "stays on the host grid at any rate" property is now guarded), but it does **not** run
+`--pitch`, which correctly reports the known defect and would fail every build. Wire `--pitch` into
+`mac.sh` the day the resampler lands: it is already a two-sided known-answer check (rate-invariant vs
+sharp by exactly the rate ratio), and it carries an **A/A null** — the base rate measured a second
+time, after the same rewind history — because the first version of it reported +676 cents where the
+largest possible defect is +147, purely by measuring "how much of this span was loud" instead of
+pitch. A verdict is refused outright if that null is not well under the effect.
 
 ## The reusable loop (what "add an app" becomes)
 

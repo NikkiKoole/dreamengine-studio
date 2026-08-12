@@ -64,6 +64,18 @@ a broken doc link or `#section`).
 > control): the carrier app HANGS at launch under
 > Catalyst (CoreAudio on the main thread; harmless to the plug-in, still wrong) · the engine is **compile-time 44.1 kHz**, so a host at another rate plays sharp and fast
 > (fix = a resampler in the render block, never an engine refactor).
+> **The rate gap is now MEASURED** (2026-08-12, `./au-transport-check --pitch`): a host really does move
+> our bus (48k accepted, nothing converts for us) and the rack plays **+147 cents sharp** = exactly
+> `1200·log2(48000/44100)`, while all three transport checks **still pass at 48k** (`--rate 48000`, now
+> run by `mac.sh`) because the step comes from `sync_beats()` and the rate never enters that path. So the
+> defect is confined to the SOUND, not to sync — which is what makes "a resampler in the render block"
+> the whole fix. `--pitch` stays opt-in until that lands, since it correctly fails today. Two things
+> worth not re-learning from building it: measuring the same bars twice is only possible because the
+> host playhead is ABSOLUTE (rewind `hostBeat`, the cart replays those steps), and the first estimator
+> read **+676 cents** where the maximum possible defect is 147, because dividing total zero-crossings by
+> total seconds measures *how much of the span was loud* as much as pitch. Per-window medians over the
+> loud windows plus an **A/A null** (the base rate again, with the same rewind history) fixed it, and the
+> check now refuses a verdict if that null is not well under the effect.
 > **Hot files:** `runtime/sync.h`, `runtime/midi_input.h`, `ios/AU/TinyjamAU.swift`, and note that
 > `ios/project.yml` (iOS) and `ios/project-mac.yml` (Mac) are SEPARATE on purpose — don't merge them, and
 > don't let a Mac build stage into `gen/app`/`gen/au`.

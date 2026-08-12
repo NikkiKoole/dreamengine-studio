@@ -87,31 +87,38 @@ static float    sync_synth_bpm = 0;
 static double   sync_synth_acc = 0;
 static uint32_t sync_synth_ticks = 0;
 
-// once per frame, before the cart's update(). dt = the frame delta the rest of the
-// engine clock uses (fixed under --det, so a traced run is reproducible). det = the
-// harness's deterministic mode.
-static void sync_frame(float dt, int det) {
+// once per frame, before the cart's update(). dt = the frame delta the rest of the engine clock
+// uses. `automated` = nobody is sitting in front of this run (studio.c computes it: headless,
+// screenshot, scripted/replayed/ui-audited input).
+static void sync_frame(float dt, int automated) {
     // ── WHICH CLOCK ARE WE ON? Exactly three cases, in this order, and the order is the guard:
     //   1. --midi-clock given → the SYNTHETIC clock, and it is the ONLY source.
-    //   2. otherwise a deterministic run (--det, script, replay) → NO external clock at all.
+    //   2. otherwise an AUTOMATED run → NO external clock at all.
     //   3. otherwise → the real one (CoreMIDI now, an AUv3 host or Link later).
     //
-    // Both guards exist because a real DAW on the dev machine leaks into the harness. Found the
+    // Cases 1 and 2 exist because a real DAW on the dev machine leaks into the harness. Found the
     // hard way, twice: first a ui-audit run with no --midi-clock reported a string that only
     // draws while slaved (Ableton was playing), then two identical --midi-clock runs produced
     // DIFFERENT traces, because the synthetic clock was pushing into the same producer state the
     // CoreMIDI thread was feeding, so the real ticks simply added on top (+1 tick over 300
     // frames, +3 over 600, varying per run). A gate whose result depends on whether someone has
-    // a DAW open is worse than no gate. Hence: the synthetic clock is a separate counter, and a
-    // deterministic run never consults the real one. A plain `run` (the editor) still follows a
-    // real DAW, which is the entire point of the feature.
+    // a DAW open is worse than no gate. Hence: the synthetic clock is a separate counter, and an
+    // automated run never consults the real one.
+    //
+    // ⚠ `automated` is NOT det_mode, and getting that wrong broke the feature where it matters
+    // most. The editor's ▶ Run passes --det (the flight recorder wants a replayable take), so
+    // guarding on det_mode killed live DAW sync in the editor — the only place a person actually
+    // plays — while every CLI test still passed. The cost of the current rule is that a --record
+    // take made while slaved will NOT replay identically (a .rec stores inputs, not the incoming
+    // clock). That is the right trade: a broken replay of a take is recoverable, a cart that
+    // cannot follow a DAW is the feature not existing.
     uint32_t msgs, ticks;
     int      run, absolute, tseen;
     if (sync_synth_bpm > 0) {
         sync_synth_acc += (double)dt * (sync_synth_bpm / 60.0) * SYNC_PPQN;
         while (sync_synth_acc >= 1.0) { sync_synth_acc -= 1.0; sync_synth_ticks++; }
         ticks = sync_synth_ticks; msgs = sync_synth_ticks + 1; run = 1; absolute = 0; tseen = 1;
-    } else if (det) {
+    } else if (automated) {
         sync_c_active = false; sync_c_playing = false; sync_c_tseen = false; sync_c_bpm = 0;
         return;
     } else {

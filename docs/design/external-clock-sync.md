@@ -158,14 +158,28 @@ CoreMIDI thread was writing, so real ticks added on top (+1 tick over 300 frames
 | you ran | the clock the cart sees |
 |---|---|
 | `--midi-clock <bpm>` | the **synthetic** one, and only it. Real MIDI ignored |
-| any deterministic mode (`script` / `replay` / `--det`) without that flag | **none**. Real MIDI ignored |
-| plain `run` | the **real** one, which is the point of the feature |
+| an **automated** run without that flag: `--headless`, `--screenshot`, or scripted / replayed / ui-audited input | **none**. Real MIDI ignored |
+| anything else, including the editor's ▶ Run | the **real** one, which is the point of the feature |
 
-So gates are insulated by construction, and "does it follow a real DAW" is checked in `run` mode,
-never in a deterministic one. Three identical `--midi-clock` runs now hash identically. **If you
-add another host-fed input, copy this shape:** ambient hardware state must not be able to reach a
-deterministic run. Also in [`../guides/debug-harness.md`](../guides/debug-harness.md), where someone
-debugging a flaky gate will actually look.
+**"Automated" is deliberately not `det_mode`, and getting that wrong broke the feature where it
+matters most.** The first cut guarded on `det_mode` — which reads as the obvious choice, since that
+is "the deterministic harness". But the editor's ▶ Run passes `--det` for the flight recorder
+(`editor/electron/main.cjs`, so a take is replayable), so the guard silently killed live DAW sync
+**in the editor: the only place a person actually plays.** Every CLI test still passed. It shipped
+that way for an hour and the report was *"acidcandy doesnt respond to play/pause also not to bpm
+changes"*. The rule is now about whether anyone is *sitting in front of the run*, not about whether
+the timestep is fixed.
+
+The cost of the current rule, stated plainly: **a `--record` take made while slaved will not replay
+identically**, because a `.rec` stores inputs and not the incoming clock. That is the right trade —
+a take that replays wrong is recoverable, a cart that cannot follow a DAW is the feature not
+existing.
+
+So gates are insulated by construction, and "does it follow a real DAW" is checked in a normal run.
+Three identical `--midi-clock` runs hash identically. **If you add another host-fed input, copy this
+shape** — ambient hardware state must not reach an automated run — **but copy the corrected version
+of it.** Also in [`../guides/debug-harness.md`](../guides/debug-harness.md), where someone debugging
+a flaky gate will actually look.
 
 **No DAW, but the REAL CoreMIDI path** (the gap `--midi-clock` cannot cover, since a deterministic
 run ignores real MIDI by design):

@@ -16,58 +16,33 @@ _Last updated: 2026-07-30 — **Synth Secrets phases 1 + 2**: PIANO's dispersion
 ## Shipped ✓
 
 - **EXTERNAL CLOCK SYNC — a cart can follow someone else's tempo** (2026-08-12). Came out of "does Tiny
-  Acid Jam do AUv3 or MIDI in?" (no to both), where the cheapest useful yes turned out to be the one
-  **ReBirth for iPad actually shipped**: be a MIDI clock slave, not a plugin. New **`runtime/sync.h`**
-  (engine-internal, compiled inside studio.c like sound.h) + four API functions —
-  `sync_active`/`sync_playing`/`sync_beats`/`sync_bpm`. **ONE cart-facing API for three sources that
-  arrive in two different shapes**: MIDI clock is *incremental* (24 ppqn ticks + start/continue/stop,
-  tempo must be measured), while an AUv3 host and Ableton Link are *absolute* (they hand you a beat
-  position) — so a cart that wired MIDI clock directly would need rewriting twice. `sync_beats()` is the
-  common currency, and **a cart DERIVES its step counter from it rather than accumulating its own**,
-  because an accumulator only knows how *fast*, never *where*, and so can't follow a re-start or a loop
-  jump. Shipped: the CoreMIDI clock/transport parse in `midi_input.h` (`0xF8`/`0xFA`/`0xFB`/`0xFC`/`0xF2`,
-  checked before the channel switch since `& 0xF0` can't tell system-realtime bytes apart);
-  **`--midi-clock <bpm>`**, a synthetic clock pushed through the real producer API so the gate needs no
-  DAW and no cable (the `--net-echo` trick) and is deterministic on the fixed timestep; **`synccheck`**,
-  the probe cart that shows AND clicks the clock (a playhead that looks right and drifts 30ms is the bug
-  it exists to catch); and **acidcandy following it** (tempo, transport and position all handed over,
-  knob and play button read-only while slaved — the ReBirth model of being a proper slave), with the TEMPO knob wearing an
-  EXTERNAL-CLOCK skin (green chassis, needle at THEIR bpm since `bpm01` is frozen, no widget registered so a
-  drag can't move a control that does nothing) in both the phone and roomy layouts. **Verified in Ableton
-  Live** by the maker over the IAC bus. **Swing is deliberately NOT claimed**: he could not tell a
-  difference, which is evidence and not a verdict, so the doc carries the mechanism instead — slaving
-  coarsens the 303's swing resolution from `900/bpm` steps per 16th (frames) to 6 (ticks), about 12% at
-  132 BPM, widening on a 120Hz display — plus the experiment that would settle it and the ~10-line fix
-  if it ever needs one. **Three** real bugs
-  found by the harness clock reading back wrong, both in tempo *measurement*: a short window is BIASED not
-  noisy (122 for a true 120), and counting the dead time before the first tick made a long window converge
-  only from below over ten seconds. Position was exact throughout — that asymmetry is the design.
-  Now within ~0.5 BPM; sub-0.1 wants the CoreMIDI packet timestamps. The third bug is a HARNESS hazard
-  worth knowing generally: **a real DAW on the dev machine leaks into harness runs.** CoreMIDI fed clock
-  into a `ui-audit` run that never asked for it (it reported a string that only draws while slaved), and
-  then two identical `--midi-clock` runs produced DIFFERENT traces because the synthetic clock was pushing
-  into the same producer state the CoreMIDI thread was feeding, so real ticks added on top (+1 tick over
-  300 frames, +3 over 600, varying per run). Fixed with an explicit three-case guard in `sync_frame`:
-  `--midi-clock` is the ONLY source when given, a deterministic run never consults the real clock at all,
-  and a plain `run` (the editor) still follows a real DAW. Three identical runs now hash identically.
-  **THE UNSTARTABLE RACK — the fourth bug, and the one a user actually hit** (fixed same day): the first
-  real Live session ended with *"now i cant start stop the acidjam from live"*. Measured with `synccheck` in
-  `run` mode: `act=1, play=0`, beats climbing — the clock WAS arriving and a START never did, because Live
-  had been playing before the cart booted, so we joined mid-flow. Two decisions then combined into a dead
-  rack, neither wrong alone: the cart read `sync_playing()` literally and pinned `playing=false` every frame,
-  AND it had handed its play button over while slaved, so nothing local could override. **The generalisable
-  lesson: when you hand a local control to a remote authority, prove the authority actually drives that
-  control before disabling the local one.** Fixed by INFERRING transport as running until the clock proves it
-  speaks transport (bare MIDI clock only flows while the master runs), plus a fifth API function
-  **`sync_transport()`** so a cart knows whether it is on a transport-driving clock or a TEMPO-ONLY one and
-  keeps its own play/stop on the latter; `synccheck` shows it as an orange **EXT TEMPO** badge, which is also
-  the fastest diagnosis for a half-connected DAW. Gated for real now, not just synthetically: new
-  **`tools/sync-spike/`** (midimon = name every transport byte on the wire · midisend = generate a clock, and
-  WITHOUT `start` it reproduces the mid-flow case on demand) whose `run.sh` asserts the whole arc through a
-  trace — arrive → START → run → STOP → hand back — all seven checks green against real CoreMIDI. Those two
-  probes are also what settled "is it the wire or the engine?" in one command each, after three rounds of
-  guessing. **Open: Ableton Link and AUv3 host
-  transport** (both just call `sync_push_pos()`), MIDI clock on iOS, and clock OUT. Design:
+  Acid Jam do AUv3 or MIDI in?" (no to both), where the cheapest useful yes is the one **ReBirth for iPad
+  actually shipped**: be a MIDI clock slave, not a plugin. New **`runtime/sync.h`** (engine-internal, like
+  sound.h) + five API functions — `sync_active`/`sync_playing`/`sync_transport`/`sync_beats`/`sync_bpm`.
+  **ONE cart-facing API for three sources arriving in two shapes**: MIDI clock is *incremental* (24 ppqn
+  ticks, tempo must be measured), an AUv3 host and Ableton Link are *absolute* (they hand you a beat
+  position) — so a cart wiring MIDI clock directly would need rewriting twice. `sync_beats()` is the common
+  currency and **a cart DERIVES its step counter from it** rather than accumulating, because an accumulator
+  knows how *fast* and never *where*, so it can't follow a re-start or a loop jump. Shipped: the CoreMIDI
+  clock/transport parse in `midi_input.h`; **`--midi-clock <bpm>`** (a synthetic clock, so a gate needs no
+  DAW, deterministic on the fixed timestep); **`synccheck`** (the probe cart — shows AND clicks the clock);
+  **`tools/sync-spike/`** (midimon = name every byte on the wire · midisend = generate a clock, and without
+  `start` it reproduces "a DAW already playing"; `run.sh` asserts the whole arc, the only gate covering the
+  REAL CoreMIDI path); and **acidcandy following it**, tempo knob wearing an external-clock skin.
+  **Verified in Ableton Live** by the maker. **FIVE bugs, and the last three are the interesting ones**
+  (all written up in the design doc): tempo measured from a short window is *biased not noisy* (122 for a
+  true 120) · counting the dead time before the first tick made a long window converge only from below ·
+  **a DAW on the dev machine leaked into harness runs** (ambient clock; two identical `--midi-clock` runs
+  produced different traces) · **the unstartable rack** — a clock that never sends START, plus a cart that
+  surrendered its play button, meant *nothing* could start it, giving the rule **prove the remote authority
+  drives a control before disabling the local one** (hence `sync_transport()`: a clock can drive tempo
+  without driving transport) · and the guard for the ambient clock keyed on `det_mode`, **which the editor's
+  ▶ Run sets** for the flight recorder, so it silently killed live DAW sync in the one place a person plays
+  while every CLI test passed. The engine now asks "is anyone sitting in front of this run", not "is the
+  timestep fixed"; known cost is that a `--record` take made while slaved won't replay identically.
+  **Swing is deliberately NOT claimed** (he couldn't tell a difference, which is evidence not a verdict; the
+  doc carries the mechanism, the experiment and the fix instead). **Open: Ableton Link and AUv3 host
+  transport** (both just call `sync_push_pos()`), MIDI clock on iOS, clock OUT. Design:
   [`design/external-clock-sync.md`](design/external-clock-sync.md).
 - **FLOAT DETERMINISM — the audio engine now computes the same BITS on arm64, x86-64 and wasm**
   (2026-07-30). IEEE 754 pins down `+ - * /` and `sqrt` but says nothing about `sin`/`exp`/`pow`/`tanh`,

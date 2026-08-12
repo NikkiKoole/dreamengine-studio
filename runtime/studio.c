@@ -1123,6 +1123,12 @@ static int        uiaudit_n = 0;
 static FILE       *uiaudit_file = NULL;   // --uiaudit JSONL output (native only; NULL elsewhere)
 static const char *uiaudit_path = NULL;   // set by --uiaudit <file>
 
+// Is nobody sitting in front of this run? Set in main() once the flags are parsed; sync.h uses it
+// to keep a REAL external clock (a DAW on the dev machine) out of automated runs. This is
+// deliberately NOT det_mode — see the note where it's assigned. The harness flags are locals in
+// main(), so the answer has to live out here for loop_step to see it.
+static int sync_automated = 0;
+
 static void uiaudit_box(char kind, int x, int y, int w, int h, const char *text) {
     if (!uiaudit_file || uiaudit_n >= UIAUDIT_MAX) return;
     UiAuditRec *r = &uiaudit_recs[uiaudit_n++];
@@ -2397,7 +2403,7 @@ static void loop_step(void) {
         // lurching the sequence forward and skipping beats. See design/audio-timing.md.
         if (frame_dt > 0.1f) frame_dt = 0.1f; if (frame_dt < 0) frame_dt = 0;
     }
-    sync_frame(frame_dt, det_mode);   // external clock: derive beats/tempo from whatever is feeding us (det = ignore an ambient DAW clock)
+    sync_frame(frame_dt, 0);   // external clock (web: no CoreMIDI, the JS bridge is a user action)
     sound_tick(frame_dt);
 #else
     // delta time for dt()/the musical clock. det_mode pins it to a fixed step so
@@ -2409,7 +2415,7 @@ static void loop_step(void) {
         double tn = GetTime(); frame_dt = (float)(tn - last_time); last_time = tn;
         if (frame_dt > 0.1f) frame_dt = 0.1f; if (frame_dt < 0) frame_dt = 0;
     }
-    sync_frame(frame_dt, det_mode);        // external clock: derive beats/tempo from whatever is feeding us (det = ignore an ambient DAW clock)
+    sync_frame(frame_dt, sync_automated);  // external clock; automated runs ignore a real one (see above)
     sound_tick(frame_dt);
     int fno = frame_count;                 // 0-based index of the frame we're about to run
     harness_input(fno);                    // apply replay/script keys + record live keys
@@ -3265,6 +3271,14 @@ int main(int argc, char **argv) {
 #endif
 #ifdef DE_SPEC
     if (spec_mode) { inject_input = true; det_mode = true; hide_window = 1; }   // headless, deterministic
+    // Which runs must IGNORE a real external clock (runtime/sync.h)? The ones nobody is playing:
+    // headless, a screenshot bake, and scripted/replayed/ui-audited input. NOT det_mode, which was
+    // the first cut and was WRONG — the editor's ▶ Run passes --det for the flight recorder
+    // (main.cjs), so guarding on it silently killed live DAW sync in the editor, which is the one
+    // place a person actually plays. It shipped that way for an hour and the report was "acidcandy
+    // doesnt respond to play/pause also not to bpm changes".
+    sync_automated = hide_window || screenshot_mode
+                  || script_path != NULL || replay_path != NULL || uiaudit_path != NULL;
 #endif
     if (rec_path) { rec_file = fopen(rec_path, "w");
                     if (rec_file) fprintf(rec_file, "# seed %u\n", seed); }   // self-seeding header — load_replay reads it back (skipped by every other .rec consumer)

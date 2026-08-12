@@ -252,12 +252,18 @@ run is even measuring:
 | you ran | the clock the cart sees |
 |---|---|
 | `--midi-clock <bpm>` | the **synthetic** one, and **only** it. Real MIDI is ignored |
-| any deterministic mode (`script`, `replay`, `--det`) without that flag | **none**. Real MIDI is ignored |
-| plain `run` | the **real** one, which is the whole point of the feature |
+| an **automated** run without that flag: `--headless`, `--screenshot`, or scripted / replayed / ui-audited input | **none**. Real MIDI is ignored |
+| anything else, including the editor's ▶ Run | the **real** one, which is the whole point of the feature |
 
-So a gate is insulated by construction, and "does it follow a real DAW" is something you check in
-`run` mode (or with `synccheck`), never in a deterministic one. If you ever add another host-fed
-input, copy this shape: **ambient hardware state must not be able to reach a deterministic run.**
+**The trap: "automated" is NOT `det_mode`.** Guarding on `det_mode` looks right and is wrong — the
+editor's ▶ Run passes `--det` for the flight recorder, so that guard kills live DAW sync in the
+editor while every CLI test keeps passing. The question the engine asks is "is anyone sitting in
+front of this run", not "is the timestep fixed". Consequence to know: **a `--record` take made while
+slaved to a DAW will not replay identically**, since a `.rec` stores inputs, not the incoming clock.
+
+So a gate is insulated by construction, and "does it follow a real DAW" is something you check in a
+normal run (or with `synccheck`). If you ever add another host-fed input, copy this shape:
+**ambient hardware state must not be able to reach an automated run.**
 
 ---
 

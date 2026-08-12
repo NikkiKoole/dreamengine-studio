@@ -32,8 +32,21 @@ command -v xcodegen >/dev/null || { echo "✗ need xcodegen (brew install xcodeg
 # whatever iOS build another agent is running in this tree, and gen/app can legitimately hold a
 # MULTI-cart staging (app_main.c + per-cart TUs) that a lone cart.c duplicate-symbols against.
 echo "▸ staging cart '$CART' → gen/mac + gen/macau…"
-( cd .. && node tools/play.js "$CART" run --headless --frames 1 >/dev/null 2>&1 ) \
-  || { echo "✗ cart '$CART' generation failed"; exit 1; }
+# The generate-then-copy is a RACE, and it has already bitten: play.js writes ../build/cart.c, that
+# path is shared with every other agent in this tree, and a sibling compiling its own cart in the gap
+# leaves us copying THEIRS. It cost a baffling red gate (the plug-in rendered silence at 44.1k because
+# it was hosting `tenement`), and unnoticed it would sign the wrong cart into a shipping bundle. So:
+# generate, VERIFY the slug we got is the cart we asked for, and retry a few times before giving up.
+staged=0
+for attempt in 1 2 3; do
+  ( cd .. && node tools/play.js "$CART" run --headless --frames 1 >/dev/null 2>&1 ) \
+    || { echo "  attempt $attempt: cart '$CART' generation failed"; sleep 2; continue; }
+  got=$(grep -m1 '"slug"' ../build/cart.c | sed 's/.*"slug"[^"]*"\([^"]*\)".*/\1/')
+  if [ "$got" = "$CART" ]; then staged=1; break; fi
+  echo "  attempt $attempt: build/cart.c holds '$got', not '$CART' — another agent won the race; retrying"
+  sleep 2
+done
+[ "$staged" = "1" ] || { echo "✗ could not stage '$CART' (build/cart.c kept coming back as someone else's)"; exit 1; }
 for d in gen/mac gen/macau; do
   mkdir -p "$d"
   # `find -delete`, not `rm -f "$d"/*.c`: this file is invoked as `zsh ios/mac.sh`, and zsh ABORTS
@@ -107,6 +120,13 @@ fi
 
 # HOST TRANSPORT gate. auval cannot cover this: it never SETS musicalContextBlock, so it only ever
 # exercises the "host supplies no transport" path. This is a tiny AUv3 HOST that does set it.
+# SAMPLE-RATE gate. Runs first because it needs no plug-in, no host and no cart: a 220 Hz sine
+# straight through the real AU/RateConvert.swift. The engine is compile-time 44.1k and an AUv3 gets
+# called at the HOST's rate, so this is what keeps the rack in tune at 48k. See ios-plan.md.
+echo "▸ rate-converter gate (ios/rate-convert-check.swift)"
+xcrun swiftc -O -o rate-convert-check rate-convert-check.swift AU/RateConvert.swift
+./rate-convert-check | tail -3
+
 echo "▸ host-transport gate (ios/au-transport-check.swift)"
 xcrun swiftc -O -o au-transport-check au-transport-check.swift -framework AVFoundation
 ./au-transport-check

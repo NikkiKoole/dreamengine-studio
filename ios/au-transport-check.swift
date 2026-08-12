@@ -11,7 +11,7 @@
 //   ./au-transport-check            # the transport checks at 44.1k; exits 0 = PASS
 //   ./au-transport-check --free     # NEGATIVE CONTROL: no transport blocks, the tempo check must fail
 //   ./au-transport-check --rate 48000   # the same transport checks, host rendering at 48k
-//   ./au-transport-check --pitch    # the RATE-INVARIANCE A/B (44.1k vs 48k). See "the pitch check".
+//   ./au-transport-check --wav /tmp/x   # also dump what it rendered → /tmp/x-<rate>.wav, to LISTEN
 //
 // Requires the plug-in registered (zsh ios/mac.sh). Run from ios/; mac.sh runs it for you.
 //
@@ -21,25 +21,33 @@
 //   3. with the host STOPPED, it goes quiet                            ("when i press stop it doesnt
 //                                                                        stop" — the bug this fixed)
 // The fake host advances its beat position from the RENDERED SAMPLE COUNT, not a wall clock, so the
-// whole run is deterministic and independent of machine speed.
+// whole run is deterministic and independent of machine speed. --rate runs all three at another host
+// rate, which guards a property worth guarding: the sequencer is RATE-IMMUNE, because the step comes
+// from sync_beats() and a host states its playhead absolutely.
 //
-// ── the pitch check (--pitch) ────────────────────────────────────────────────────────────────────
-// A SEPARATE question from transport, and the one that needed a new tool: the engine is compile-time
-// 44.1 kHz (SOUND_SAMPLE_RATE sizes every delay line and envelope; the render block ticks one frame
-// per 735 samples), but an AUv3 has no converter in front of it, so the host calls us at the HOST's
-// rate. What that breaks is NOT the sequencer: acidcandy derives its step from sync_beats() and a
-// host states its playhead absolutely, so the notes stay on the host's grid at any rate. What breaks
-// is PITCH, plus every envelope and delay time, because an oscillator adding a fixed phase increment
-// per sample runs (hostRate / 44100) too fast. At 48k that is +147 cents, a semitone and a half sharp.
+// ── why there is no pitch check in this file, and where the pitch oracle actually lives ───────────
+// There WAS one, and it was wrong in a way worth keeping written down, because the wrongness is the
+// generic trap: A BROKEN ANALYSER AND THE REAL DEFECT PRINT THE SAME NUMBER.
 //
-// So --pitch renders the SAME BARS twice, once at 44.1k and once at the alternate rate, and compares
-// the pitch of the low band. Rendering the same bars is possible only because the host playhead is
-// ABSOLUTE: rewind hostBeat to where it started and the cart replays those steps, no matter what the
-// sample rate did in between. Two known answers, so the check cannot be vacuous:
-//   · rate-invariant  → the two pitches match       (what a resampler in the render block would buy)
-//   · rate-blind      → they differ by exactly 1200·log2(altRate/44100)  (today's engine)
-// It is OPT-IN and mac.sh does not run it, because today it correctly reports the known defect and
-// so would fail every build. Wire it into mac.sh the day the resampler lands.
+// It rendered the same 8 bars at 44.1k and at 48k and compared the pitch of the low band, estimated
+// from per-window zero crossings. At ~50 Hz a 2048-sample window holds only 4 or 5 crossings, so the
+// reading was quantized to a coarse grid — and the grid's POSITIONS are (crossings / 2 / window
+// seconds), so they move with the sample rate. 5 crossings in a 46.4 ms window reads 53.83 Hz; 5 in a
+// 42.7 ms window reads 58.59 Hz. Their ratio is 48000/44100 EXACTLY. So the tool reported "+147 cents
+// sharp at 48k, exactly the predicted 1200·log2(48000/44100)" — a number that looked like a
+// confirmed diagnosis and was in fact the sample-rate ratio wearing a costume. ANY signal would have
+// produced it. The check even carried an A/A null, which passed at 0 cents: a same-rate null cannot
+// see a rate-dependent estimator, so it certified nothing.
+//
+// What caught it was the control that should have existed first: resample a 44.1k render to 48k with a
+// KNOWN-GOOD converter (afconvert -f WAVE -d LEI16@48000) and re-measure. Same music, same pitch, and
+// the estimator moved 53.83 → 46.88. That is a measurement of the rate, not of the instrument.
+//
+// So the pitch oracle is ios/rate-convert-check.swift instead: a 220 Hz SINE through the real
+// AU/RateConvert.swift, where the answer is 220.000 Hz at every rate and there is nothing to argue
+// with. The lesson generalises past this file — a statistic over a musical mix from a cart with
+// per-step probability and noise drums is not a reference signal, and picking the reference signal is
+// most of the work in an oracle.
 
 import AVFoundation
 
@@ -58,9 +66,14 @@ func flagValue(_ flag: String, _ fallback: Double) -> Double {
     guard let i = argv.firstIndex(of: flag), i + 1 < argv.count, let v = Double(argv[i + 1]) else { return fallback }
     return v
 }
-let freeRun   = argv.contains("--free")
-let pitchMode = argv.contains("--pitch")
-let hostRate  = flagValue("--rate", pitchMode ? 48000.0 : ENGINE_SR)
+let freeRun  = argv.contains("--free")
+let hostRate = flagValue("--rate", ENGINE_SR)
+// --wav <prefix> dumps what was rendered → <prefix>-<rate>.wav. Not a check, a listening aid: the
+// fastest way to answer "does 48k sound in tune" is still to play the file.
+let wavPrefix: String? = {
+    guard let i = argv.firstIndex(of: "--wav"), i + 1 < argv.count else { return nil }
+    return argv[i + 1]
+}()
 
 // ── instantiate the plug-in (out of process, as a real host does) ──
 var au: AVAudioUnit?
@@ -101,53 +114,9 @@ if !freeRun { avAU.auAudioUnit.transportStateBlock = { flags, samplePos, cycleSt
     return true
 } }
 
-// ── the low band's pitch, by Schmitt-triggered zero crossings ────────────────────────────────────
-// Why not autocorrelation, and why the low band: the rack is a mix of two 303s and two drum machines,
-// and NOISE is the trap. A hat is white-ish noise generated one sample at a time, so its crossing
-// count scales with the SAMPLE RATE whether or not the engine is rate-blind — measure the full mix
-// and both known answers produce the same number, which is a tool that cannot tell them apart. Three
-// cascaded one-poles at 200 Hz (-18 dB/oct, so a hat at 8k is ~85 dB down) leave the kick and the two
-// basslines, all of them OSCILLATORS, which is exactly the population whose pitch the rate moves.
-// The Schmitt trigger (cross +thr, then -thr) is what keeps a decaying tail from ringing up a count.
-//
-// Measured per WINDOW and then MEDIANED over the loud windows, not averaged over the whole span. A
-// first version divided total crossings by total seconds, which silently measures "how much of this
-// span was loud" as much as it measures pitch: the same bars with shorter reverb tails score lower
-// with every note identical. It read +676 cents where the largest defect possible is +147. Per-window
-// medians drop the silence entirely and are immune to a stray window.
-final class LowPitch {
-    private var p1: Float = 0, p2: Float = 0, p3: Float = 0
-    private var sign = 1
-    private let a: Float
-    private let thr: Float = 0.02
-    private let sr: Double
-    private let win = 2048                      // ~46ms at 44.1k: a fraction of a 16th note at 90 BPM
-    private var winCross = 0, winN = 0
-    private var winPeak: Float = 0
-    private(set) var rates: [Double] = []       // crossings/sec, one entry per LOUD window
-    init(sr: Double) { self.sr = sr; a = Float(1.0 - exp(-2.0 * Double.pi * 200.0 / sr)) }
-    func push(_ x: Float) {
-        p1 += (x - p1) * a; p2 += (p1 - p2) * a; p3 += (p2 - p3) * a
-        winPeak = max(winPeak, abs(p3))
-        if sign < 0, p3 > thr { sign = 1; winCross += 1 }
-        else if sign > 0, p3 < -thr { sign = -1; winCross += 1 }
-        winN += 1
-        if winN >= win {
-            if winPeak > 0.05 { rates.append(Double(winCross) / 2.0 / (Double(winN) / sr)) }
-            winCross = 0; winN = 0; winPeak = 0
-        }
-    }
-    var hz: Double {
-        guard !rates.isEmpty else { return 0 }
-        let s = rates.sorted()
-        return s.count % 2 == 1 ? s[s.count / 2] : (s[s.count / 2 - 1] + s[s.count / 2]) / 2
-    }
-    var loudWindows: Int { rates.count }
-}
-
 // ── one offline render rig at one sample rate ────────────────────────────────────────────────────
-// A rig owns an AVAudioEngine; the AU INSTANCE is shared across rigs so that a --pitch A/B keeps one
-// plug-in (and so one cart state) across the rate change, the way a host switching device rate does.
+// A rig owns an AVAudioEngine and takes the AU INSTANCE, so a run can tear one rig down and build
+// another at a different rate around the same plug-in, the way a host switching device rate does.
 final class Rig {
     let sr: Double
     private let engine = AVAudioEngine()
@@ -173,9 +142,9 @@ final class Rig {
         hostSR = sr
     }
 
-    // What the PLUG-IN's own output bus ended up at. Load-bearing for --pitch: if AVAudioEngine had
-    // quietly kept the AU at 44.1k and converted downstream, the A/B would be measuring the
-    // converter and would report "rate-invariant" for a rate-blind engine. Assert, never assume.
+    // What the PLUG-IN's own output bus ended up at, which is the fact --rate exists to establish:
+    // if AVAudioEngine had quietly kept the AU at 44.1k and converted downstream, a run at "48k"
+    // would be exercising AVFoundation's converter and not ours. Assert, never assume.
     var auRate: Double { au.auAudioUnit.outputBusses[0].format.sampleRate }
 
     // Count note ONSETS with an ADAPTIVE threshold, and count them over a span of BEATS rather than
@@ -192,17 +161,21 @@ final class Rig {
     // smoothing |x| throws away waveform detail (a 303 saw's flyback is a huge per-sample delta and would
     // swamp any first-difference detector — the same trap click-check.js documents), and a FIXED lookback
     // makes the test rate-independent, which the previous two attempts were not.
-    func render(beats: Double, pitch: LowPitch? = nil) -> (peak: Float, onsets: Int) {
+    // Set to dump what this rig rendered, at its OWN rate, for any tool (or ear) outside this file.
+    // This is how the bogus pitch estimator was caught: dump, convert with afconvert, re-measure.
+    var wav: AVAudioFile?
+
+    func render(beats: Double) -> (peak: Float, onsets: Int) {
         var peak: Float = 0, onsets = 0
         let until = hostBeat + beats
         while hostBeat < until {
             guard (try? engine.renderOffline(2048, to: buf)) == .success else { break }
             let n = Int(buf.frameLength)
+            if let w = wav { try? w.write(from: buf) }
             if let ch = buf.floatChannelData {
                 for i in 0..<n {
                     let a = abs(ch[0][i])
                     peak = max(peak, a)
-                    pitch?.push(ch[0][i])
                     env += (a - env) * 0.02                 // ~3ms envelope follower
                     let then = envRing[ringIdx]             // the envelope 6ms ago
                     envRing[ringIdx] = env; ringIdx = (ringIdx + 1) % look
@@ -226,70 +199,20 @@ func check(_ name: String, _ ok: Bool, _ detail: String) {
 }
 func cents(_ ratio: Double) -> Double { 1200.0 * log2(ratio) }
 
-// ═══ MODE A: the pitch / sample-rate A/B ═════════════════════════════════════════════════════════
-if pitchMode {
-    if freeRun { print("  (--free with --pitch is meaningless: the A/B rewinds the HOST playhead)"); exit(2) }
-    print("▸ rate invariance: the same 8 bars at \(Int(ENGINE_SR)) Hz vs \(Int(hostRate)) Hz")
-
-    func measure(_ sr: Double) -> (hz: Double, peak: Float, auRate: Double, windows: Int) {
-        hostBeat = 0; hostTempo = 90; hostMoving = true
-        let rig = try! Rig(au: avAU, sr: sr)
-        _ = rig.render(beats: 2.0)                      // settle: let the first notes and tails start
-        let p = LowPitch(sr: sr)
-        let r = rig.render(beats: 8.0, pitch: p)
-        let out = (p.hz, r.peak, rig.auRate, p.loudWindows)
-        rig.teardown()
-        return out
-    }
-
-    // THREE measurements, not two. The third is an A/A NULL: the base rate again, at the END, so it
-    // carries the same "this plug-in has already played and been rewound" history the alt-rate one
-    // does. Without it a difference cannot be attributed — the A/B and "the second pass simply plays
-    // something else" produce the same number, and the first version of this check fell into exactly
-    // that hole (+676 cents, where the largest possible defect is +147). The null is the noise floor,
-    // and a verdict is refused if the noise floor is not well under the effect being judged.
-    let a  = measure(ENGINE_SR)
-    let b  = measure(hostRate)    // REWIND is inside measure(): an absolute playhead replays the bars
-    let a2 = measure(ENGINE_SR)
-
-    check("the host really moved the plug-in's own bus to \(Int(hostRate)) Hz",
-          abs(b.auRate - hostRate) < 1.0,
-          "AU output bus reports \(Int(b.auRate)) Hz (at \(Int(ENGINE_SR)) it reported \(Int(a.auRate)))")
-
-    let ratio = a.hz > 0 ? b.hz / a.hz : 0
-    let blind = hostRate / ENGINE_SR              // the known answer for a rate-blind engine
-    let off   = cents(ratio)
-    let null  = a2.hz > 0 && a.hz > 0 ? abs(cents(a2.hz / a.hz)) : 9999
-    print(String(format: "    low-band pitch: %.2f Hz at %d  →  %.2f Hz at %d   (%+.0f cents)",
-                 a.hz, Int(ENGINE_SR), b.hz, Int(hostRate), off))
-    print(String(format: "    A/A null: %.2f Hz on a repeat at %d  (%.0f cents of run-to-run noise)",
-                 a2.hz, Int(ENGINE_SR), null))
-    print(String(format: "    peaks %.3f / %.3f / %.3f  ·  loud windows %d / %d / %d  ·  rate-blind would be %+.0f cents (ratio %.4f)",
-                 a.peak, b.peak, a2.peak, a.windows, b.windows, a2.windows, cents(blind), blind))
-
-    // The null has to be small relative to the effect, or nothing below it means anything.
-    let trustworthy = null < abs(cents(blind)) / 3.0
-    check("the measurement repeats (A/A null well under the effect)", trustworthy,
-          trustworthy ? "\(String(format: "%.0f", null)) cents of noise vs a \(String(format: "%.0f", abs(cents(blind)))) cent effect"
-                      : "\(String(format: "%.0f", null)) cents of noise — the same bars do NOT replay identically, so no verdict is possible")
-
-    if trustworthy {
-        let invariant = abs(off) < 20.0
-        let isBlind   = abs(cents(ratio / blind)) < 20.0
-        check("pitch is invariant to the host's sample rate", invariant,
-              invariant ? "within 20 cents"
-              : isBlind ? "RATE-BLIND: sharp by the sample-rate ratio itself, exactly as ios-plan.md predicted"
-                        : "off by \(String(format: "%.0f", off)) cents, which matches NEITHER known answer — look at the numbers above")
-    }
-
-    print(failures == 0 ? "\nPASS — the plug-in sounds the same at any host rate."
-                        : "\n\(failures) check(s) FAILED")
-    exit(failures == 0 ? 0 : 1)
-}
-
-// ═══ MODE B: the three transport checks (the default gate) ═══════════════════════════════════════
+// ═══ the three transport checks ══════════════════════════════════════════════════════════════════
 if hostRate != ENGINE_SR { print("▸ host rendering at \(Int(hostRate)) Hz (engine is compiled for \(Int(ENGINE_SR)))") }
 let rig = try! Rig(au: avAU, sr: hostRate)
+if let p = wavPrefix {
+    let url = URL(fileURLWithPath: "\(p)-\(Int(hostRate)).wav")
+    try? FileManager.default.removeItem(at: url)
+    rig.wav = try? AVAudioFile(forWriting: url,
+                               settings: [AVFormatIDKey: kAudioFormatLinearPCM,
+                                          AVSampleRateKey: hostRate,
+                                          AVNumberOfChannelsKey: 2,
+                                          AVLinearPCMBitDepthKey: 16,
+                                          AVLinearPCMIsFloatKey: false])
+    print("▸ dumping → \(url.path)")
+}
 if hostRate != ENGINE_SR {
     check("the host really moved the plug-in's own bus to \(Int(hostRate)) Hz",
           abs(rig.auRate - hostRate) < 1.0, "AU output bus reports \(Int(rig.auRate)) Hz")

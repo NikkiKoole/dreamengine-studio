@@ -244,38 +244,58 @@ of a crash report is itself a signal — it means refused-at-load rather than cr
 | **the plug-in view** | an `AUViewController` sharing `Sources/CanvasView.swift` (already cart-agnostic), plus a tick-ownership split (the render block advances the engine, so the view must blit only) and an input event ring (touches arrive on the main thread, `de_frame` runs on the audio thread, and `de_touch_*` writes a shared pool with no synchronisation) |
 | **multi-instance** | spike 9. **Worse on macOS than iOS**: `.loadInProcess` is macOS-only, so a Mac host may load several instances in ONE process, where they would share `studio.c`'s file-scope globals. iOS gets one-per-process for free |
 
-### The sample-rate risk, now MEASURED: the plug-in is rate-blind
+### The sample rate: the plug-in was rate-blind, and now converts
 
 **The engine is compile-time 44.1 kHz** (`SOUND_SAMPLE_RATE` in `sound.h` sizes delay lines and
-envelopes; the render block hardcodes 735 samples per frame). The standalone app gets away with it by
-feeding an `AVAudioEngine` source node that converts to the device rate — **an AUv3 has no such
-buffer, the host calls us at the host's rate.** This sat here as "not yet exercised" for a day. It is
-now measured, by `ios/au-transport-check --pitch`:
+envelopes; a frame is 735 samples). The standalone app gets away with it by feeding an
+`AVAudioEngine` source node that converts to the device rate — **an AUv3 has no such buffer, the host
+calls us at the host's rate**, and a host follows its audio INTERFACE, so 48k is common even though
+GarageBand, Logic and Live all default to 44.1.
+
+Three facts, and the middle one is where a first attempt went wrong:
 
 | | |
 |---|---|
-| does the host actually move our bus? | **yes.** `AVAudioEngine` connected at 48 kHz and the plug-in's own output bus reports 48000. Nothing rejects it and nothing converts for us; `auval` renders us at 192k and 11025 and passes |
-| what breaks | **pitch, and every envelope / delay / LFO time.** At 48 kHz the rack plays **+147 cents sharp** (a semitone and a half) and 8.8% fast, against a predicted `1200·log2(48000/44100)` = 146.6 |
-| what does NOT break | **the sequencer.** All three transport checks PASS at 48 kHz (`--rate 48000`): the notes stay exactly on the host's grid, because acidcandy derives its step from `sync_beats()` and a host states its playhead ABSOLUTELY. The rate never enters that path |
+| does the host actually move our bus? | **yes.** `AVAudioEngine` connected at 48 kHz and the plug-in's own output bus reports 48000. Nothing rejects it and nothing converts for us; `auval` renders us at 192k, 96k, 48k, 22050 and 11025 |
+| what broke | **pitch, and every envelope / delay / LFO time**, by the rate ratio: an oscillator adding a fixed phase increment per sample runs `hostRate/44100` too fast. This is certain from the code, not from a measurement — see the retraction below |
+| what did NOT break | **the sequencer.** All three transport checks PASS at 48 kHz (`--rate 48000`): the notes stay on the host's grid, because acidcandy derives its step from `sync_beats()` and a host states its playhead ABSOLUTELY. The rate never enters that path |
 
-That split is the useful part. It means the defect is confined to the SOUND, not to timing or sync,
-so the fix stays where the risk note always said it should: **a resampler in the render block, NOT an
-engine refactor.** Every audio gate in the repo assumes 44.1k and the bit-determinism work
-(`demath.h`) depends on a fixed rate, so the engine keeps running at 44.1k internally and the render
-block converts to whatever the host asked for.
+That split is why the fix is **a converter in the render block, not an engine refactor**: the defect
+was confined to the sound, never to sync. The engine still runs at 44.1k in 735-sample frames (every
+audio gate in the repo assumes it, and `demath.h`'s bit-determinism depends on it) and
+**`ios/AU/RateConvert.swift`** converts on the way out: 4-point Catmull-Rom, plus a four-pole
+anti-alias cascade at 0.45·host engaged only when the host is BELOW our rate. At exactly 44100 the
+old code path runs untouched and bit-identical, so the common case pays nothing and every existing
+gate keeps its meaning. Gate: **`ios/rate-convert-check.swift`** (in `mac.sh`), a 220 Hz sine through
+the real struct — 220.000 Hz at every rate, level held, the 11025 case rejecting a 15 kHz tone
+instead of folding it down to 3.9 kHz, and a nonsense rate falling back to passthrough rather than
+hanging the audio thread in a pull loop that never terminates.
 
-How exposed we are: GarageBand, Logic and Live all default to 44.1k, but a host follows its audio
-INTERFACE, and plenty of interfaces sit at 48k out of the box. So this is a real share of users
-hearing the whole rack a semitone and a half sharp, not an exotic edge.
+#### Retracted: the "+147 cents at 48k" measurement
 
-**The gate is opt-in on purpose.** `mac.sh` runs the transport checks at 44.1k AND at 48k (both pass,
-so the "stays on the host grid at any rate" property is now guarded), but it does **not** run
-`--pitch`, which correctly reports the known defect and would fail every build. Wire `--pitch` into
-`mac.sh` the day the resampler lands: it is already a two-sided known-answer check (rate-invariant vs
-sharp by exactly the rate ratio), and it carries an **A/A null** — the base rate measured a second
-time, after the same rewind history — because the first version of it reported +676 cents where the
-largest possible defect is +147, purely by measuring "how much of this span was loud" instead of
-pitch. A verdict is refused outright if that null is not well under the effect.
+Worth keeping, because the failure is the generic one and it fooled a whole round of work: **a broken
+analyser and the real defect print the same number.** The first gate measured pitch out of the running
+plug-in, comparing the same 8 bars at 44.1k and 48k via per-window zero crossings of the low band. At
+~50 Hz a 2048-sample window holds 4 or 5 crossings, so the estimate was quantized to a grid whose
+positions are `crossings / 2 / windowSeconds` — and those positions move with the sample rate. Five
+crossings in 46.4 ms reads 53.83 Hz; five in 42.7 ms reads 58.59 Hz; the ratio is `48000/44100`
+exactly. So it printed "+147 cents, matching the predicted 146.6" and looked like a confirmed
+diagnosis, when **any** signal would have produced that figure. It even carried an A/A null that
+passed at 0 cents, which certified nothing: a same-rate null is blind to a rate-dependent estimator.
+
+Two things caught it, both cheap and both skipped the first time round:
+
+1. **A cross-rate control.** Dump a 44.1k render, convert it with a known-good converter
+   (`afconvert -f WAVE -d LEI16@48000`), re-measure. Same music, same pitch, and the estimator moved
+   53.83 → 46.88. It was reading the rate, not the instrument.
+2. **A reference signal with an exact answer.** A cart with per-step drum probability and noise voices
+   does not render the same audio twice (a same-rate A/A correlated at **0.045**), so it can never be
+   the reference for a converter. A sine can. That is the whole reason the pitch oracle is a unit gate
+   on `RateConvert` and not a statistic over the rack.
+
+The independent end-to-end evidence that the fix landed is in the transport gate's own onset counts:
+at 48k, **86 onsets before the fix vs 128 after**, against 124 at 44.1k, while the 44.1k numbers never
+moved (124/108, byte-identical across both builds). Agreement went from 31% off to 3% off.
 
 ## The reusable loop (what "add an app" becomes)
 

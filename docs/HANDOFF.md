@@ -64,18 +64,29 @@ a broken doc link or `#section`).
 > control): the carrier app HANGS at launch under
 > Catalyst (CoreAudio on the main thread; harmless to the plug-in, still wrong) · the engine is **compile-time 44.1 kHz**, so a host at another rate plays sharp and fast
 > (fix = a resampler in the render block, never an engine refactor).
-> **The rate gap is now MEASURED** (2026-08-12, `./au-transport-check --pitch`): a host really does move
-> our bus (48k accepted, nothing converts for us) and the rack plays **+147 cents sharp** = exactly
-> `1200·log2(48000/44100)`, while all three transport checks **still pass at 48k** (`--rate 48000`, now
-> run by `mac.sh`) because the step comes from `sync_beats()` and the rate never enters that path. So the
-> defect is confined to the SOUND, not to sync — which is what makes "a resampler in the render block"
-> the whole fix. `--pitch` stays opt-in until that lands, since it correctly fails today. Two things
-> worth not re-learning from building it: measuring the same bars twice is only possible because the
-> host playhead is ABSOLUTE (rewind `hostBeat`, the cart replays those steps), and the first estimator
-> read **+676 cents** where the maximum possible defect is 147, because dividing total zero-crossings by
-> total seconds measures *how much of the span was loud* as much as pitch. Per-window medians over the
-> loud windows plus an **A/A null** (the base rate again, with the same rewind history) fixed it, and the
-> check now refuses a verdict if that null is not well under the effect.
+> **The rate gap is CLOSED** (2026-08-12): a host really does move our bus (48k accepted, nothing
+> converts for us), so a compile-time-44.1k engine played sharp by the rate ratio — while all three
+> transport checks **pass at 48k** (`--rate 48000`, now run by `mac.sh`), because the step comes from
+> `sync_beats()` and the rate never enters that path. That is what confined the defect to the SOUND and
+> kept the fix out of the engine: new **`ios/AU/RateConvert.swift`** (4-point Catmull-Rom + a four-pole
+> anti-alias cascade engaged only when the host is BELOW 44.1k; **bit-identical at 44100**, where the
+> original render path still runs), gated by **`ios/rate-convert-check.swift`** — a 220 Hz sine through
+> the real struct: 220.000 Hz at 48k/96k/192k/22050/11025, level held, a 15 kHz tone REJECTED at 11025
+> instead of folding to 3.9 kHz, and a nonsense host rate falling back to passthrough (`ratio = inf`
+> would hang the audio thread in the caller's pull loop and take the host with it).
+> **⚠ Read this before writing another audio oracle.** The first gate here measured pitch out of the
+> RUNNING PLUG-IN and was wrong in the generic way: **a broken analyser and the real defect print the
+> same number.** Per-window zero crossings of a ~50 Hz low band quantize to a grid at
+> `crossings / 2 / windowSeconds`, and those grid positions MOVE WITH THE SAMPLE RATE — five crossings
+> in 46.4 ms reads 53.83 Hz, five in 42.7 ms reads 58.59 Hz, ratio `48000/44100` exactly. So it printed
+> "+147 cents, matching the prediction", which was the rate ratio in a costume; any signal gives it. Its
+> A/A null passed at 0 cents and certified nothing (a same-rate null cannot see a rate-dependent
+> estimator). What caught it: convert a 44.1k dump with `afconvert` and re-measure — same music, same
+> pitch, estimator moved 53.83 → 46.88. **That figure is retracted** (ios-plan.md → "Retracted"), and
+> the lesson is about REFERENCE SIGNALS: a cart with per-step probability and noise drums does not
+> render the same audio twice (same-rate A/A correlated at 0.045), so it cannot be a converter's
+> reference. A sine can. End-to-end corroboration that the fix landed, from the transport gate itself:
+> at 48k, **86 onsets before vs 128 after** against 124 at 44.1k, with the 44.1k numbers unmoved.
 > **Hot files:** `runtime/sync.h`, `runtime/midi_input.h`, `ios/AU/TinyjamAU.swift`, and note that
 > `ios/project.yml` (iOS) and `ios/project-mac.yml` (Mac) are SEPARATE on purpose — don't merge them, and
 > don't let a Mac build stage into `gen/app`/`gen/au`.

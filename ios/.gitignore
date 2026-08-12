@@ -20,3 +20,4 @@ AU/Info-mac.plist
 Mac.entitlements
 MacAU.entitlements
 au-transport-check
+rate-convert-check

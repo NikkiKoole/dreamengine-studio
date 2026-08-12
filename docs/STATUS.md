@@ -69,11 +69,16 @@ _Last updated: 2026-07-30 — **Synth Secrets phases 1 + 2**: PIANO's dispersion
   signing/entitlement gates, none of them code bugs (ad-hoc signing never registers · an extension
   must be sandboxed · `com.apple.security.inherit` must NOT be set on an extension or it traps before
   main) — all in [`design/ios-plan.md`](design/ios-plan.md) → "macOS: hosting the AUv3". The
-  **sample-rate hazard is now measured, not guessed** (`au-transport-check --pitch`): a host really does
-  move our bus (48k accepted, nothing converts for us) and the rack plays **+147 cents sharp** there,
-  while all three transport checks still PASS at 48k — the sequencer is rate-immune because the step
-  comes from `sync_beats()`, so the defect is confined to the SOUND and the fix stays a resampler in the
-  render block. **Still open:
+  **sample-rate hazard is now FIXED**: a host really does move our bus (48k accepted, nothing converts
+  for us), so a compile-time-44.1k engine played sharp by the rate ratio — while the sequencer stayed
+  rate-immune (the step comes from `sync_beats()`), which is what confined the defect to the SOUND and
+  kept the fix out of the engine. New **`ios/AU/RateConvert.swift`** (Catmull-Rom + an anti-alias
+  cascade only when the host is below us; **bit-identical at 44100**, where the old path still runs),
+  gated by **`ios/rate-convert-check.swift`** — a 220 Hz sine through the real struct, 220.000 Hz at
+  every rate. ⚠ The cents figure first published here was **retracted**: it came from a per-window
+  zero-crossing estimator quantized to a grid that moves with the sample rate, so it reported the rate
+  ratio itself and looked exactly like the defect (ios-plan.md → "Retracted"). A nondeterministic cart
+  can't be a converter's reference signal; a sine can. **Still open:
   Ableton Link** (the same `sync_push_pos` call), MIDI clock on iOS, clock OUT, and the AUv3 **view**
   (phase 3, the bulk of the work). Design:
   [`design/external-clock-sync.md`](design/external-clock-sync.md).

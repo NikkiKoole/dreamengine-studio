@@ -16,3 +16,4 @@ snap*.png
 project-store.yml
 # xcodebuild output for the Mac Catalyst variant (ios/mac.sh)
 build-mac/
+AU/Info-mac.plist

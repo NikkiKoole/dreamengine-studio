@@ -55,13 +55,17 @@ echo "▸ cart dims ${SW}x${SH}"
 echo "▸ generating TinyjamMac.xcodeproj…"
 xcodegen generate --spec project-mac.yml >/dev/null
 
-echo "▸ building for Mac Catalyst (ad-hoc signed — local use, no provisioning profile needed)…"
+# REAL signing, not ad-hoc. macOS refuses to REGISTER an app extension from an ad-hoc-signed app:
+# the build succeeds, the .appex embeds, and the system then silently ignores it (codesign shows
+# Signature=adhoc / TeamIdentifier=not set, and pluginkit lists nothing). That cost a whole round.
+TEAM="${TEAM:-JH2ZCZH58D}"
+echo "▸ building for Mac Catalyst, signed (team $TEAM)…"
 xcodebuild -project TinyjamMac.xcodeproj -scheme TinyjamMac \
   -destination 'platform=macOS,variant=Mac Catalyst' -configuration Debug \
-  -derivedDataPath build-mac \
+  -derivedDataPath build-mac -allowProvisioningUpdates \
   GCC_PREPROCESSOR_DEFINITIONS="$DEFS" \
-  CODE_SIGN_IDENTITY="-" CODE_SIGN_STYLE=Manual PROVISIONING_PROFILE_SPECIFIER="" \
-  build 2>&1 | tail -5
+  DEVELOPMENT_TEAM="$TEAM" CODE_SIGN_STYLE=Automatic \
+  build 2>&1 | tail -6
 
 APP="$(ls -d build-mac/Build/Products/Debug-maccatalyst/TinyjamMac.app 2>/dev/null || true)"
 [ -n "$APP" ] || { echo "✗ no .app produced — see the build output above"; exit 1; }

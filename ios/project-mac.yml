@@ -57,7 +57,7 @@ targets:
         # iOS never hit it: there is no curses in the iOS SDK. Renaming our API is not an option
         # (it is in hundreds of carts), and textual includes never reach curses.h at all.
         OTHER_CFLAGS: [-fno-modules]
-        MARKETING_VERSION: "0.1"
+        MARKETING_VERSION: "1.0"   # MUST match the extension's, or registration can be refused
         CURRENT_PROJECT_VERSION: "1"
   TinyjamMacAU:
     type: app-extension
@@ -77,10 +77,14 @@ targets:
         HEADER_SEARCH_PATHS: [$(SRCROOT)/../runtime, $(SRCROOT)/gen/macau, $(SRCROOT)/Sources]
         GCC_PREPROCESSOR_DEFINITIONS: [$(inherited), DE_NO_RAYLIB=1, SCALE=1]
         OTHER_CFLAGS: [-fno-modules]   # the curses echo()/filter() collision — see the app target
-        MARKETING_VERSION: "0.1"
+        MARKETING_VERSION: "1.0"   # MUST match the extension's, or registration can be refused
         CURRENT_PROJECT_VERSION: "1"
     info:
-      path: AU/Info.plist
+      # Its OWN generated plist. project.yml generates AU/Info.plist for the iOS extension, and both
+      # are xcodegen output (ios/.gitignore:12), so sharing the path means whichever spec ran last
+      # wins — harmless while every build runs xcodegen first, a silent wrong-identity bug the moment
+      # one doesn't.
+      path: AU/Info-mac.plist
       properties:
         CFBundleDisplayName: Tiny Acid Jam
         NSExtension:

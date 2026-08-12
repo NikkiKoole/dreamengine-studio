@@ -14,3 +14,5 @@ AU/Info.plist
 snap*.png
 # derived store spec (testflight.sh output)
 project-store.yml
+# xcodebuild output for the Mac Catalyst variant (ios/mac.sh)
+build-mac/

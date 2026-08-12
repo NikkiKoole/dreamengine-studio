@@ -1,4 +1,7 @@
 import AVFoundation
+// CoreAudio explicitly for UnsafeMutableAudioBufferListPointer: AVFoundation re-exports it on iOS
+// but not under Mac Catalyst (see the same note in AU/TinyjamAU.swift). Harmless on both.
+import CoreAudio
 
 // CoreAudio render: an AVAudioSourceNode pulls from the REAL engine mixer (de_audio_render,
 // = sound.h's sound_callback) once per audio quantum and feeds the main mixer. de_audio_render

@@ -1,4 +1,9 @@
 import AVFoundation
+// CoreAudio explicitly: UnsafeMutableAudioBufferListPointer is declared in the CoreAudio Swift
+// overlay (confirmed by grepping both SDKs' .swiftinterface files, rather than guessing imports one
+// build at a time). `import AVFoundation` re-exports it on iOS but NOT under Mac Catalyst, which is
+// why the iOS build never needed this line. Harmless on both.
+import CoreAudio
 
 // The AUv3 instrument extension — hosting the REAL dreamengine (not the spike arpeggio), played
 // by host MIDI. It runs the same engine the standalone app does. Each render block, in order:

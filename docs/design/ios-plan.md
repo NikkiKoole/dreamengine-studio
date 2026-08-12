@@ -184,6 +184,66 @@ gates Path B and must be settled (by measuring, on desktop AND device) before th
 Deferred and noted by the maker: **fluid/responsive layout** (a CSS-like positioning experiment in one
 cart) — Phase 2 just letterboxes the fixed canvas as the spikes do; revisit responsive later.
 
+## macOS: hosting the AUv3 in GarageBand / Logic (2026-08-12, IN PROGRESS)
+
+Phase 1 of "run our plug-in on the Mac". Driven by **`ios/mac.sh`** off **`ios/project-mac.yml`** —
+a SEPARATE xcodegen spec producing `TinyjamMac.xcodeproj`, so it cannot clobber the iOS project that
+another agent may be building in this shared tree.
+
+**Mac Catalyst, not a native macOS target**, because all of our UI is UIKit
+(`Sources/CanvasView.swift`) and the AU extension already exists: Catalyst reuses both, a native
+AppKit target would mean a second host view to maintain forever.
+
+**Status: it BUILDS and EMBEDS (`TinyjamMacAU.appex`), but macOS does not REGISTER it.** The
+signature is the blocker, diagnosed not guessed: `codesign -dv` on the .appex reports
+`Signature=adhoc` / `TeamIdentifier=not set`, and `pluginkit -m -p com.apple.AudioUnit` doesn't list
+it. **macOS refuses to register an app extension from an ad-hoc-signed app.** Ad-hoc was chosen to
+sidestep provisioning and that was the wrong trade — it builds happily and the system then ignores
+the plug-in. Next step: sign with the real Apple Development identity + `DEVELOPMENT_TEAM`, and fix
+the extension/app version mismatch xcodebuild warns about (`1.0` vs `0.1`), which Apple also
+sometimes rejects registration over.
+
+### Four platform findings, all fixed, all of which would bite anyone repeating this
+
+1. **`echo()` and `filter()` collide with curses on the macOS SDK.** `studio.c` includes
+   `<sys/stat.h>`, which imports the Darwin **Clang module**, and on macOS that module includes
+   `curses.h`, which declares `int echo(void)` and `int filter(void)`. Both are `studio.h` public
+   API. iOS never hit it: there is no curses in the iOS SDK. Renaming ours is not an option (it is
+   in hundreds of carts), so the spec sets **`OTHER_CFLAGS: [-fno-modules]`** — textual includes
+   never reach `curses.h`. C only; Swift keeps modules because it needs them
+   (`CLANG_ENABLE_MODULES: NO` breaks Swift's AVFoundation import).
+2. **`UnsafeMutableAudioBufferListPointer` needs an explicit `import CoreAudio` under Catalyst.**
+   `import AVFoundation` re-exports it on iOS but not on Catalyst. Added to `AU/TinyjamAU.swift` and
+   `Sources/AudioEngine.swift`; both still type-check against the **iOS** SDK, so the iOS build is
+   unaffected. Found by grepping both SDKs' `.swiftinterface` files rather than guessing an import
+   per two-minute build — worth copying as a technique.
+3. **Don't borrow the iOS staging dirs.** Using `gen/app` gave `ld: 3 duplicate symbols`, because it
+   legitimately holds a MULTI-cart staging (`app_main.c` + per-cart TUs) that a lone `cart.c`
+   collides with — and it is shared with other agents' builds. The Mac spec stages into its own
+   `gen/mac` + `gen/macau`.
+4. **zsh aborts on an empty glob.** `rm -f "$d"/*.c` killed the script on the first run, with the
+   directory freshly created; `find -delete` is shell-agnostic. (The `zsh` word-splitting note in
+   CLAUDE.md's "Key things to know" has the same root cause: this repo's scripts are run with zsh.)
+
+### Still ahead, in order
+
+| | |
+|---|---|
+| **register it** | sign properly (above), then `auval -v aumu tacj Mpla` — Apple's own validator, which exercises the plug-in harder than a DAW and is the gate before GarageBand is ever opened |
+| **host transport** | read `musicalContextBlock` + `transportStateBlock` in the render block → `sync_push_pos()`. The engine seam already exists and is proven ([`external-clock-sync.md`](external-clock-sync.md)); this is ~20 lines of Swift, gated headlessly in `Tests/AUHostTests.swift` by faking the blocks |
+| **the plug-in view** | an `AUViewController` sharing `Sources/CanvasView.swift` (already cart-agnostic), plus a tick-ownership split (the render block advances the engine, so the view must blit only) and an input event ring (touches arrive on the main thread, `de_frame` runs on the audio thread, and `de_touch_*` writes a shared pool with no synchronisation) |
+| **multi-instance** | spike 9. **Worse on macOS than iOS**: `.loadInProcess` is macOS-only, so a Mac host may load several instances in ONE process, where they would share `studio.c`'s file-scope globals. iOS gets one-per-process for free |
+
+### Known risk not yet exercised
+
+**The engine is compile-time 44.1 kHz** (`SOUND_SAMPLE_RATE` in `sound.h` sizes delay lines and
+envelopes; the render block hardcodes 735 samples per frame). The standalone app gets away with it by
+feeding an `AVAudioEngine` source node that converts to the device rate — **an AUv3 has no such
+buffer, the host calls us at the host's rate.** GarageBand usually defaults to 44.1k so this may
+never bite, and `auval` renders at several rates so it will surface there first. If it does bite, the
+fix is a resampler in the render block, NOT an engine refactor: every audio gate in the repo assumes
+44.1k and the bit-determinism work (`demath.h`) depends on a fixed rate.
+
 ## The reusable loop (what "add an app" becomes)
 
 `ios/` is a toolkit, not a per-app project. Today it's the hello-world; the durable shape is:

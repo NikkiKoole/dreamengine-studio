@@ -1,0 +1,108 @@
+# xcodegen spec — the MAC CATALYST variant, for hosting our AUv3 in GarageBand/Logic on macOS.
+# A SEPARATE spec (and a separate project NAME, so it generates TinyjamMac.xcodeproj and cannot
+# clobber the iOS TinyjamHello.xcodeproj) because several agents build the iOS project in this one
+# shared tree — an in-place platform edit to project.yml would break them. Driven by ./mac.sh.
+#
+# WHY Catalyst rather than a native macOS target: every pixel of UI we have is UIKit
+# (Sources/CanvasView.swift), and the AUv3 extension already exists and works. Catalyst reuses both
+# as-is; a native AppKit target would mean a second host view to maintain forever. The AU itself is
+# platform-agnostic C + a render block.
+#
+# The app is only a CARRIER here. On macOS an AUv3 lives inside an app bundle's PlugIns/ and the
+# system registers it when that app is launched once — so "run the app" is a REGISTRATION step, not
+# the point. The point is the extension showing up in GarageBand.
+name: TinyjamMac
+options:
+  bundleIdPrefix: com.tinyjam
+  deploymentTarget:
+    iOS: "15.0"
+targets:
+  TinyjamMac:
+    type: application
+    platform: iOS          # + SUPPORTS_MACCATALYST below == build for "My Mac (Mac Catalyst)"
+    sources:
+      - path: Sources
+        excludes: [canvas.c, canvas.h, audio.c, audio.h, Tinyjam.storekit]
+      - path: ../runtime/studio.c
+      - path: ../runtime/raylib_compat.c
+      # gen/mac + gen/macau are OUR OWN staging dirs. The iOS spec uses gen/app + gen/au, and those
+      # are shared with whatever iOS build another agent is running in this same tree — borrowing
+      # them gave "ld: 3 duplicate symbols" the first time, because gen/app held a multi-cart
+      # staging (app_main.c + per-cart TUs) that a single cart.c collides with.
+      - path: gen/mac
+      - path: gen/Assets.xcassets
+        optional: true
+    dependencies:
+      - target: TinyjamMacAU
+        embed: true
+    settings:
+      base:
+        SUPPORTS_MACCATALYST: YES
+        # Catalyst-only: don't also try to satisfy the iPhone/iPad destinations here.
+        SUPPORTED_PLATFORMS: macosx
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: com.tinyjam.mac
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        INFOPLIST_KEY_ITSAppUsesNonExemptEncryption: NO
+        INFOPLIST_KEY_NSMicrophoneUsageDescription: "Lets you play your guitar, voice, or any sound live through the effects."
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        SWIFT_OBJC_BRIDGING_HEADER: Sources/Bridging-Header.h
+        HEADER_SEARCH_PATHS: [$(SRCROOT)/../runtime, $(SRCROOT)/gen/mac, $(SRCROOT)/Sources]
+        # SCALE=1 keeps UIKit points 1:1 with framebuffer pixels (same reasoning as the iOS spec).
+        # Cart dims come from mac.sh on the command line, never baked here.
+        GCC_PREPROCESSOR_DEFINITIONS: [$(inherited), DE_NO_RAYLIB=1, SCALE=1]
+        # -fno-modules for the C compiles ONLY (Swift keeps modules, it needs them). On the macOS
+        # SDK the Darwin CLANG MODULE pulls in curses.h, which declares echo() and filter() — and
+        # so does our public API (studio.h), so studio.c failed with "conflicting types for 'echo'".
+        # iOS never hit it: there is no curses in the iOS SDK. Renaming our API is not an option
+        # (it is in hundreds of carts), and textual includes never reach curses.h at all.
+        OTHER_CFLAGS: [-fno-modules]
+        MARKETING_VERSION: "0.1"
+        CURRENT_PROJECT_VERSION: "1"
+  TinyjamMacAU:
+    type: app-extension
+    platform: iOS
+    sources:
+      - AU
+      - ../runtime/studio.c
+      - ../runtime/raylib_compat.c
+      - gen/macau/cart.c
+    settings:
+      base:
+        SUPPORTS_MACCATALYST: YES
+        SUPPORTED_PLATFORMS: macosx
+        GENERATE_INFOPLIST_FILE: NO
+        PRODUCT_BUNDLE_IDENTIFIER: com.tinyjam.mac.AU
+        SWIFT_OBJC_BRIDGING_HEADER: AU/AU-Bridging-Header.h
+        HEADER_SEARCH_PATHS: [$(SRCROOT)/../runtime, $(SRCROOT)/gen/macau, $(SRCROOT)/Sources]
+        GCC_PREPROCESSOR_DEFINITIONS: [$(inherited), DE_NO_RAYLIB=1, SCALE=1]
+        OTHER_CFLAGS: [-fno-modules]   # the curses echo()/filter() collision — see the app target
+        MARKETING_VERSION: "0.1"
+        CURRENT_PROJECT_VERSION: "1"
+    info:
+      path: AU/Info.plist
+      properties:
+        CFBundleDisplayName: Tiny Acid Jam
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.AudioUnit
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).TinyjamAUFactory
+          NSExtensionAttributes:
+            AudioComponentBundle: $(PRODUCT_BUNDLE_IDENTIFIER)
+            AudioComponents:
+              # DISTINCT 4-char codes from the iOS spec's tnyj/Tnyj: the two can be registered on
+              # one machine and a collision would make the host pick whichever it saw first.
+              # auval addresses the AU by exactly this triple: `auval -v aumu tacj Mpla`.
+              - type: aumu
+                subtype: tacj
+                manufacturer: Mpla
+                name: "Mipolai: Tiny Acid Jam"
+                version: 1
+                sandboxSafe: true
+                tags:
+                  - Synthesizer
+schemes:
+  TinyjamMac:
+    build:
+      targets:
+        TinyjamMac: all
+    run: {}

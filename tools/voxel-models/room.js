@@ -21,7 +21,14 @@ module.exports = {
     m: 6,          // white goods / metal, light grey
     p: 7,          // porcelain, white
     k: 5,          // dark trim
-    W: 6,          // wall
+    // The wall gets EXPLICIT tones, warm plaster, and must not share a colour with the white
+    // goods above. It did (both were index 6) and the fridge dissolved into the wall behind it:
+    // architecture and objects need separate value families or the room reads as one mass.
+    // Tones are [top, screen-right, screen-left]. The dark end is 21 rather than 16 on purpose:
+    // at 16 the two visible inner faces came out 142 vs 29 luminance, a 5x jump that read as two
+    // walls made of DIFFERENT materials instead of one wall lit from one side. 142/88/58 still
+    // separates lit from shaded while keeping them obviously the same plaster.
+    W: [22, 5, 21],
     b: 8,          // shirt, red
     j: 1,          // trousers, dark blue
     h: 15,         // skin, peach
@@ -113,35 +120,30 @@ module.exports = {
        '........'],
     ]},
 
-    // ── toilet: fits inside a tile with clearance. Tank at y=0. ──
+    // ── toilet: tank at y=0, bowl in front. ──
+    // Rebuilt chunkier. The first cut spread thin 2-voxel detail across the whole tile and
+    // baked to an unidentifiable white blob: at 8 voxels per tile there is no room for
+    // fine detail, so the read has to come from the SILHOUETTE (a tall tank behind a low
+    // bowl) rather than from any modelled feature.
     toilet: { layers: [
-      ['..pppp..',
+      ['..pppp..',              // one solid base block: tank footprint + bowl
        '..pppp..',
        '..pppp..',
        '..pppp..',
-       '..pppp..',
-       '........',
-       '........',
-       '........'],
-      2,
-      ['pppppppp',
-       'pppppppp',
-       'pppppppp',
-       'pp....pp',
-       'pp....pp',
-       'pppppppp',
-       '........',
-       '........'],
-      1,
-      ['pppppppp',
-       'pppppppp',
-       '........',
-       '........',
        '........',
        '........',
        '........',
        '........'],
       3,
+      ['..pppp..',              // the bowl stops here; the tank keeps going
+       '..pppp..',
+       '........',
+       '........',
+       '........',
+       '........',
+       '........',
+       '........'],
+      4,
     ]},
 
     // ── fridge: a full-height white box, the tallest object in the room. ──
@@ -212,27 +214,27 @@ module.exports = {
     ]},
 
     // ── the figure: 16 voxels tall = 32px, the fixed character height. ──
+    // FIVE voxels wide, not four, and with the arms held out at torso level. The first cut was
+    // 4 wide with no shoulders, which at 16px across against 32px tall read as a lamp rather
+    // than a person — the maker could not find him in the room. A human silhouette needs a
+    // shoulder line wider than its head; that contrast is what makes it read at this size.
     person: { layers: [
-      ['.jj.',
-       '.jj.',
-       '....',
-       '....'],
+      ['.j.j.',                 // legs, two of them, with daylight between
+       '.j.j.',
+       '.....'],
       5,
-      ['.jj.',
-       '.jj.',
-       '.jj.',
-       '....'],
+      ['bbbbb',                 // shoulders + arms out: the widest part of the silhouette
+       '.bbb.',
+       '.....'],
+      5,
+      ['.bbb.',                 // neck / upper chest, narrower again
+       '.bbb.',
+       '.....'],
       1,
-      ['bbbb',
-       'bbbb',
-       'bbbb',
-       '....'],
-      4,
-      ['.hh.',
-       '.hh.',
-       '.hh.',
-       '....'],
-      2,
+      ['.hhh.',                 // head
+       '.hhh.',
+       '.....'],
+      1,
     ]},
   },
 }

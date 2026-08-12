@@ -63,7 +63,9 @@ static const Placed PLACED[] = {
 
 // ── state ─────────────────────────────────────────────────────
 static int   rot       = 1;           // 0..7. EVEN = cardinal, ODD = diagonal
-static int   full_wall = 0;           // 0 = low stubs (no cutaway), 1 = full + cutaway
+// FULL is the default because it plainly won the comparison: low stubs read as a picture frame
+// around a floor, while full walls with the near side cut away read as an interior. W toggles.
+static int   full_wall = 1;           // 0 = low stubs (no cutaway), 1 = full + cutaway
 static int   show_order = 0;
 static int   walk_paused = 0;         // NOT `paused` — studio.h already has a paused() built-in
 static float walk_t    = 0;
@@ -225,11 +227,34 @@ static void draw_floor(void) {
     }
 }
 
+// A CONTACT SHADOW under one object's footprint, drawn just before the object itself so it
+// cannot paint over anything nearer. Without it every piece of furniture looks pasted onto
+// the floor rather than standing on it — the first build had none, and the whole room read
+// as a collage. The reference does this too (Sims 1 puts a soft shadow under everything);
+// one flat dark quad is the lo-fi version of the same cue.
+static void draw_shadow(const Item *it) {
+    const short *fp = ISO_FOOTPRINT[it->model];
+    const float x0 = it->vx, y0 = it->vy;
+    const float x1 = x0 + fp[0], y1 = y0 + fp[1];
+    float c[4][2];
+    iso_project(rot, x0, y0, 0, &c[0][0], &c[0][1]);
+    iso_project(rot, x1, y0, 0, &c[1][0], &c[1][1]);
+    iso_project(rot, x1, y1, 0, &c[2][0], &c[2][1]);
+    iso_project(rot, x0, y1, 0, &c[3][0], &c[3][1]);
+    quadfill((int)(c[0][0] + cam_x), (int)(c[0][1] + cam_y),
+             (int)(c[1][0] + cam_x), (int)(c[1][1] + cam_y),
+             (int)(c[2][0] + cam_x), (int)(c[2][1] + cam_y),
+             (int)(c[3][0] + cam_x), (int)(c[3][1] + cam_y), CLR_BROWNISH_BLACK);
+}
+
 static void draw_items(void) {
     drawn_cells = 0;
     for (int i = 0; i < n_items; i++) {
         const Item *it = &items[i];
         const IsoCell *c = &ISO_CELLS[it->model][it->cell_r];
+        // Walls sit ON the perimeter rather than on the floor, so a footprint shadow under one
+        // would just smear along the room's edge.
+        if (it->model != ISO_WALL_LOW && it->model != ISO_WALL_FULL) draw_shadow(it);
         float sx, sy; iso_project(rot, it->vx, it->vy, 0, &sx, &sy);
         // The cell's own origin marker tells us where its voxel (0,0,0) lives inside it, so
         // placing it is a subtraction rather than a per-model fudge factor.

@@ -42,13 +42,12 @@ de:meta */
 #include "isoroom/atlas.h"
 
 // ── the room ──────────────────────────────────────────────────
-#define TILE_VOX  4                  // voxels per floor tile — the scale the models assume
-// At 16px tiles a 9x7 room used barely a third of the canvas — the whole point of halving the
-// scale is seeing MORE room, so the flat grew to fill it. The diamond spans
-// (ROOM_W + ROOM_H) * TILE_PX/2 across, which at 18+13 is 248 of the 320 available.
-#define ROOM_W    18
-#define ROOM_H    13
-#define TILE_PX   (TILE_VOX * ISO_TW / 2)   // a tile's screen width: 16px
+#define TILE_VOX  6                  // voxels per floor tile — the scale the models assume
+// Sized to the canvas: the room's diamond spans (ROOM_W + ROOM_H) * TILE_PX/2 across and half
+// that down, plus the wall height. At 24px tiles and 14+10 that is 288 of the 320 available.
+#define ROOM_W    14
+#define ROOM_H    10
+#define TILE_PX   (TILE_VOX * ISO_TW / 2)   // a tile's screen width: 24px
 
 typedef struct { unsigned char model, tx, ty, facing; } Placed;
 
@@ -56,25 +55,24 @@ typedef struct { unsigned char model, tx, ty, facing; } Placed;
 // multi-tile objects and facing.
 static const Placed PLACED[] = {
     // kitchen run along the north wall
-    { ISO_FRIDGE,   1,  1, 0 },
-    { ISO_COUNTER,  2,  1, 0 },
-    { ISO_COUNTER,  3,  1, 0 },
-    { ISO_COUNTER,  4,  1, 0 },
+    { ISO_FRIDGE,   0,  0, 0 },
+    { ISO_COUNTER,  1,  0, 0 },
+    { ISO_COUNTER,  2,  0, 0 },
+    { ISO_COUNTER,  3,  0, 0 },
     // living end
-    { ISO_SOFA,     7,  2, 0 },
-    { ISO_SOFA,    12,  2, 0 },
-    { ISO_COUNTER, 10,  5, 0 },
+    { ISO_SOFA,     6,  1, 0 },
+    { ISO_SOFA,     9,  5, 0 },
+    { ISO_COUNTER,  7,  4, 0 },
     // bedroom, south-west
-    { ISO_BED,      1,  6, 0 },
-    { ISO_BED,      3,  6, 0 },
-    { ISO_COUNTER,  5,  7, 0 },
+    { ISO_BED,      1,  4, 0 },
+    { ISO_BED,      3,  4, 0 },
+    { ISO_COUNTER,  0,  7, 0 },
     // bathroom, south-east
-    { ISO_TOILET,  16, 10, 0 },
-    { ISO_TOILET,  15, 10, 0 },
-    { ISO_COUNTER, 16,  7, 1 },
-    { ISO_FRIDGE,  16,  1, 0 },
-    { ISO_BED,     13,  9, 0 },
-    { ISO_SOFA,     2, 10, 0 },
+    { ISO_TOILET,  12,  8, 0 },
+    { ISO_TOILET,  11,  8, 0 },
+    { ISO_COUNTER, 13,  5, 1 },
+    { ISO_FRIDGE,  13,  0, 0 },
+    { ISO_BED,      6,  8, 0 },
 };
 #define N_PLACED ((int)(sizeof PLACED / sizeof PLACED[0]))
 
@@ -140,7 +138,7 @@ static float cam_x, cam_y;
 static void iso_camera(int r) {
     float minx = 1e9f, maxx = -1e9f, miny = 1e9f, maxy = -1e9f;
     const float W = ROOM_W * TILE_VOX, H = ROOM_H * TILE_VOX;
-    const float TOP = full_wall ? 8.0f : 3.0f;     // tallest thing that needs to fit, in voxels
+    const float TOP = full_wall ? 12.0f : 4.0f;    // tallest thing that needs to fit, in voxels
     for (int c = 0; c < 8; c++) {
         float vx = (c & 1) ? W : 0, vy = (c & 2) ? H : 0, vz = (c & 4) ? TOP : 0;
         float sx, sy; iso_project(r, vx, vy, vz, &sx, &sy);

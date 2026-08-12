@@ -370,10 +370,28 @@ stays, because it is correct and guarded, and because the editor-crop fix it exp
 either way; but the cart no longer depends on it, and a wide-sheet cart's editor limitations no
 longer apply here.
 
-**New legibility question at this size, for the record:** a sofa and a bed are now nearly
-indistinguishable (both read as a pale slab with a coloured band). At 32px they were clearly
-different objects. That is the cost of the smaller scale and it wants either stronger colour
-separation per object class or a silhouette that differs in height, not just in footprint.
+**New legibility question at this size:** a sofa and a bed became nearly indistinguishable, both
+reading as a pale slab with a coloured band. At 32px they were clearly different objects.
+
+### Then settled up again: 150%, a 24px figure
+
+Half turned out to be a step too far, so the scale went back up by half: **6 voxels per tile, a
+24px figure, 24px tiles.** Third re-authoring of the model set, and worth noting that the ladder of
+available sizes is coarse *by construction* — with `tw` pinned at 4, the only knob is the voxel
+count, so the set has now been through 8 per tile (32px), 4 (16px) and 6 (24px). **The scale is a
+data decision, not a flag**, and each move is a re-authoring job.
+
+Two things fell out of it:
+
+**The sofa-vs-bed confusion is fixed, and not by adding detail.** The extra height was spent on
+making them differ in OUTLINE: the sofa got a tall cushioned back and arms, the bed stayed low and
+flat. At this size detail is invisible but silhouette is not, which is the general rule for the whole
+object set.
+
+**The atlas is back over a standard sheet** — 19,456px of cells, packing to 128×169 against the
+16,384px a 128×128 sheet holds. So the declared-sheet-size change earns its keep after all, and so
+does the editor-crop fix (169 > 128, so the sprite editor would silently truncate it). Worth
+recording as a near-miss: one intermediate scale made that whole capability look unnecessary.
 
 ## 8. The verdict this doc must end with
 

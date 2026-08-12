@@ -264,6 +264,33 @@ module.exports = {
       1,
     ]},
 
+    // ── the figure, LYING DOWN. ──
+    // Posture is a property of the OFFER, not a special case in the renderer: a bed says "using me
+    // means lying down" and the art follows. Standing on a bed was the giveaway that the sim had no
+    // notion of posture at all.
+    //
+    // Head at y=0 so the model lies along +y, the same axis a bed's headboard sits on. Two voxels
+    // tall, because a person on a mattress is a low silhouette and at 24px per tile the read comes
+    // from the OUTLINE (long, with a head at one end), never from detail.
+    person_lie: { layers: [
+      ['.h.',
+       'bbb',
+       'bbb',
+       '.b.',
+       '.j.',
+       '.j.',
+       'j.j',
+       'j.j'],
+      ['.h.',
+       'bbb',
+       '.b.',
+       '...',
+       '...',
+       '...',
+       '...',
+       '...'],
+    ]},
+
     // ── the figure: 12 voxels tall = 24px. ──
     // Arms out at torso level so the shoulder line is wider than the head. That contrast is what
     // makes a small figure read as a person; the 32px first cut had none and read as a lamp.

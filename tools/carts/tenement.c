@@ -298,6 +298,37 @@ void spec(void) {
                "case 9: and the activity clock moved on, rather than being stuck on the old one");
     }
 
+    // ── CASE 10: POSTURE IS DATA, AND THE BODY FOLLOWS THE OBJECT ───────────
+    // The maker's observation: residents were STANDING on their beds. The cause was not a drawing
+    // bug, it was that nothing in the model had any notion of posture, so the renderer had only one
+    // figure to draw. The fix is a field on the OFFER, which means a new posture for a new object is
+    // a table row (contract rule 3) and the draw loop never asks what an object is.
+    tn_obj_n = 0; tn_agent_n = 0;
+    tn_add_obj(TN_OBJ_BED,    1, 1, 0);
+    tn_add_obj(TN_OBJ_TOILET, 3, 1, 0);
+    tn_add_agent(0, 1, 2);
+    {
+        // The table itself: every offer declares a pose, and the three that matter differ.
+        expect(TN_OFFERS[TN_OBJ_BED][0].pose    == TN_POSE_LIE,   "case 10: a bed says LIE");
+        expect(TN_OFFERS[TN_OBJ_TOILET][0].pose == TN_POSE_SIT,   "case 10: a toilet says SIT");
+        expect(TN_OFFERS[TN_OBJ_LOOM][0].pose   == TN_POSE_STAND, "case 10: a loom says STAND");
+
+        // And the body follows it in the running sim, which is the part that was broken.
+        for (int n = 0; n < TN_NEED_COUNT; n++) tn_agent[0].need[n] = 255;
+        tn_agent[0].need[TN_SERVE_REST] = 20;
+        expect(tn_agent[0].pose == TN_POSE_STAND, "case 10: a resident starts on its feet");
+        int lay = 0;
+        for (int i = 0; i < 40 && !lay; i++) {
+            tn_agents_tick();
+            if (tn_agent[0].activity == TN_ACT_USE && tn_agent[0].pose == TN_POSE_LIE) lay = 1;
+        }
+        expect(lay, "case 10: a resident sent to bed is LYING DOWN, not standing on it");
+        // Finishing must put it back on its feet, or it walks around horizontally forever.
+        for (int i = 0; i < 600; i++) tn_agents_tick();
+        expect(tn_agent[0].pose == TN_POSE_STAND || tn_agent[0].activity == TN_ACT_USE,
+               "case 10: and it stands up again when it is done");
+    }
+
     // ── every module's own assertions, per spec.h's "SPECS ON AN INCLUDEABLE" ────────────────
     // Each module wrote and verified these against its own file; wiring them is the integrator's
     // job, and until this line existed none of them ran in the real build.

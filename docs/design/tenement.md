@@ -275,6 +275,50 @@ contract's per-module owner comments are unfulfilled. The iso projection is copi
 extract `runtime/isoview.h` when a second consumer proves the shape, per
 [ADR-0006](../decisions/0006-library-carts-not-engine.md).
 
+## 11. Relationships, and why they are the same thing as §8b
+
+Asked for by the maker: interactions and communication between residents, and **eventually** children.
+Written down rather than built, because the "eventually" is doing real work in that sentence.
+
+**The satisfying part: this is not a new system.** The offer index already matches a need against
+whoever can serve it. Relationships mean the population of **offerers** grows from *objects* to
+*objects and people*. A social need is served by another resident, so `tn_best_action` ranges over
+(offerer, need) pairs where an offerer may be either. The tag vocabulary gains `TN_SERVE_SOCIAL`;
+`tno_score` gains nothing. That is the payoff of §2 arriving on schedule.
+
+**The one genuinely new mechanic: an interaction is two-sided.** A fridge does not have to want you
+back. A person does. So a social bid needs a commitment from both ends, which objects never needed,
+and it is the first thing in this design that cannot be expressed as a one-way offer. That is where
+the work is, and it is worth doing carefully rather than bolting a hand-written "find a friend" pass
+onto the argmax, which is the shape §10 spent a slice removing.
+
+**State: a pair matrix.** Relationship strength is per-pair, so `TN_MAX_AGENTS²` = 576 entries at
+today's bounds. Small enough to be a plain array and to stay in the contract.
+
+**Children arrive on seam 3, which already exists.** A child is an agent with a different `species`,
+a different needs vector, a different gait, and no wallet. The matcher already asks "does this offer
+serve *this* agent", so a toddler who cannot use a loom is a table row rather than a code path.
+Reproduction is then a two-agent interaction with a delayed effect that calls `tn_add_agent`, and it
+wants household membership, which is now populated (the `econ` agent found it never was, and `world`
+fixed it).
+
+**And here is the connection worth making explicitly, because it reframes the whole thing.** §8b asked
+what the *reclaimed hours* are for, on the observation that The Sims accidentally becomes
+anti-consumerist: objects buy back TIME, and the late game empties out because nothing consumes the
+hours that money bought. Relationships **are** the answer to that question. Time is the only thing
+that can be spent on another person, and in a building full of households the hours only mean
+anything in relation to the neighbours.
+
+So relationships are not a feature sitting beside the economy. They are the **sink** the economy has
+been missing, in exactly the source/sink/feedback sense §3's gate demands. A furnished flat that
+meets four needs quickly is not the end of the game; it is the beginning of having time.
+
+That also settles the sequencing without needing a win condition: build the economy until residents
+have spare hours, then give the hours somewhere to go. Neither half is interesting alone.
+
+**Not in v1.** Recorded so the contract leaves room, and so the next person does not invent a
+separate social system beside the offer index.
+
 ## See also
 
 - [`iso-rooms.md`](iso-rooms.md) — the renderer this is built on, its settled geometry, and the

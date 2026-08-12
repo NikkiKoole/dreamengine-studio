@@ -149,6 +149,14 @@ typedef enum {
 #define TN_NEED_COUNT TN_SERVE_COUNT
 _Static_assert(TN_SERVE_HUNGER == 0, "needs must be the leading run of TnTag");
 
+// ── POSTURE: what using a thing does to your BODY ───────────────────────────
+// On the OFFER, because it is a property of the thing, not of the renderer and not of the person.
+// A bed says "using me means lying down"; the art follows. The alternative is a special case in the
+// draw loop keyed on object kind, which is contract rule 2 and the exact thing this design refuses.
+// Note it sits on the OFFER rather than the object: a sofa is SIT for its FUN offer and would be LIE
+// if it ever offered REST, and those are two different rows.
+typedef enum { TN_POSE_STAND = 0, TN_POSE_SIT, TN_POSE_LIE, TN_POSE_COUNT } TnPose;
+
 // ── one OFFER: what an object gives, how well, at what cost ─────────────────
 // `strength` and `cost` are what make the agent's choice an ARGMAX over numbers
 // rather than a hand-written priority list, which is what makes it oracle-able.
@@ -160,6 +168,7 @@ typedef struct {
                                           // silently wrap to 224 in a byte. The compiler
                                           // caught this before anyone built against it.
     unsigned char capacity;               // simultaneous users; 1 = the queue-former
+    unsigned char pose;                   // TnPose the user adopts. Art reads it; nothing branches.
 } TnOffer;
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -226,6 +235,7 @@ typedef struct {
     // The bid this agent last WON. Lives here rather than in a module-private array because two
     // modules need it: `agents` writes it, `hud` draws it. Showing the winning bid is a design
     // feature (design §1: the interesting half of this sim is invisible), not debug output.
+    unsigned char pose;                   // TnPose right now, set from the offer being used
     unsigned char bid_tag;                // TnTag, or TN_SERVE_COUNT for "nothing on offer"
     int           bid_score;
 } TnAgent;

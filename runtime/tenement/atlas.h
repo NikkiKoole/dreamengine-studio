@@ -3,9 +3,9 @@
 // Baked rotation cells for an isometric room. See docs/design/iso-rooms.md.
 #pragma once
 
-#define ISO_SIG      "660fe8d2"   // guard: the .cart.js re-derives this
+#define ISO_SIG      "5bcd2bc6"   // guard: the .cart.js re-derives this
 #define ISO_ATLAS_W  128
-#define ISO_ATLAS_H  249
+#define ISO_ATLAS_H  261
 #define ISO_TW       4    // diagonal tile width, px per voxel unit
 #define ISO_TH       2
 #define ISO_CW       4    // cardinal tile width (== ISO_TW keeps the footprint equal)
@@ -28,11 +28,12 @@ typedef enum {
     ISO_WALL_FULL_EW = 8,
     ISO_LOOM = 9,
     ISO_WARDROBE = 10,
-    ISO_PERSON = 11,
-    ISO_MODEL_COUNT = 12
+    ISO_PERSON_LIE = 11,
+    ISO_PERSON = 12,
+    ISO_MODEL_COUNT = 13
 } IsoModel;
 
-static const char *ISO_NAMES[ISO_MODEL_COUNT] = { "sofa", "bed", "toilet", "fridge", "counter", "wall_low_ns", "wall_low_ew", "wall_full_ns", "wall_full_ew", "loom", "wardrobe", "person" };
+static const char *ISO_NAMES[ISO_MODEL_COUNT] = { "sofa", "bed", "toilet", "fridge", "counter", "wall_low_ns", "wall_low_ew", "wall_full_ns", "wall_full_ew", "loom", "wardrobe", "person_lie", "person" };
 
 // [model][rotation]. Rotation is 0..7; EVEN = cardinal, ODD = diagonal.
 static const IsoCell ISO_CELLS[ISO_MODEL_COUNT][ISO_ROTS] = {
@@ -47,6 +48,7 @@ static const IsoCell ISO_CELLS[ISO_MODEL_COUNT][ISO_ROTS] = {
     /* wall_full_ew */ { {0,70,16,32,12,24}, {16,70,16,32,16,30}, {32,70,16,32,4,32}, {48,70,16,32,0,26} },
     /* loom       */ { {96,0,20,34,8,24}, {0,36,20,34,20,28}, {20,36,20,34,12,34}, {40,36,20,34,0,30} },
     /* wardrobe   */ { {36,102,20,30,8,20}, {56,102,20,30,20,24}, {76,102,20,30,12,30}, {96,102,20,30,0,26} },
+    /* person_lie */ { {64,233,20,14,16,3}, {104,233,20,12,22,10}, {0,249,20,12,4,13}, {84,233,20,14,-2,6} },
     /* person     */ { {96,132,12,28,2,23}, {72,132,12,29,12,25}, {84,132,12,29,10,30}, {108,132,12,28,0,28} },
 };
 
@@ -63,5 +65,6 @@ static const short ISO_FOOTPRINT[ISO_MODEL_COUNT][3] = {
     /* wall_full_ew */ {2,6,12},
     /* loom       */ {6,4,12},
     /* wardrobe   */ {6,4,10},
+    /* person_lie */ {3,8,2},
     /* person     */ {5,3,12},
 };

@@ -34,6 +34,7 @@ void tn_agents_tick(void) {
                     if (tn_obj[a->target_obj].users > 0) tn_obj[a->target_obj].users--;
                 }
                 a->target_obj = -1; a->activity = TN_ACT_IDLE;
+                a->pose = TN_POSE_STAND;   // done: back on your feet
             }
             break;
         case TN_ACT_WALK:
@@ -48,6 +49,7 @@ void tn_agents_tick(void) {
                     if (of && tn_obj[a->target_obj].users < of->capacity) {
                         tn_obj[a->target_obj].users++;
                         a->activity = TN_ACT_USE;
+                        a->pose = of->pose;   // the OBJECT decides what your body does
                         a->until = tn_now() + of->minutes;   // absolute: cannot wrap
                     } else { a->target_obj = -1; a->activity = TN_ACT_IDLE; }
                 }

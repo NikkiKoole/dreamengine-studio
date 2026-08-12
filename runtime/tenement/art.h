@@ -44,8 +44,9 @@ void tn_camera(void) {
     cam_y = floorf((SCREEN_H - 26 - (maxy - miny)) * 0.5f - miny + 12);
 }
 
-typedef struct { float depth; int cell, rot; float vx, vy; int fp0, fp1; } Draw;
-static Draw tnr_dl[TN_MAX_OBJECTS + TN_MAX_AGENTS];
+typedef struct { float depth; int cell, rot; float vx, vy, vz; int fp0, fp1; int shadow; } Draw;
+// + 2*TN_N because every tile can carry a north AND a west edge wall.
+static Draw tnr_dl[TN_MAX_OBJECTS + TN_MAX_AGENTS + 2 * TN_N];
 static int tnr_dl_n;
 static int tnr_cmp_draw(const void *a, const void *b) {
     const float d = ((const Draw*)a)->depth - ((const Draw*)b)->depth;
@@ -70,30 +71,86 @@ void tn_draw_world(void) {
         tnr_dl[tnr_dl_n++] = (Draw){ tnr_iso_depth(tn_rot, tn_obj[o].tx*TN_TILE_VOX + fp[0]*0.5f,
                                                tn_obj[o].ty*TN_TILE_VOX + fp[1]*0.5f),
                              cell, tn_rot, (float)tn_obj[o].tx*TN_TILE_VOX,
-                             (float)tn_obj[o].ty*TN_TILE_VOX, fp[0], fp[1] };
+                             (float)tn_obj[o].ty*TN_TILE_VOX, 0.0f, fp[0], fp[1], 1 };
     }
     for (int i = 0; i < tn_agent_n; i++) {
-        const short *fp = ISO_FOOTPRINT[ISO_PERSON];
-        tnr_dl[tnr_dl_n++] = (Draw){ tnr_iso_depth(tn_rot, tn_agent[i].tx*TN_TILE_VOX + fp[0]*0.5f,
-                                               tn_agent[i].ty*TN_TILE_VOX + fp[1]*0.5f),
-                             ISO_PERSON, (tn_rot + tn_agent[i].facing) & 3,
-                             (float)tn_agent[i].tx*TN_TILE_VOX,
-                             (float)tn_agent[i].ty*TN_TILE_VOX, fp[0], fp[1] };
+        // The cell comes from the agent's POSE, which came from the offer it is using. No branch on
+        // object kind anywhere: a bed does not tell the renderer it is a bed, it tells the sim that
+        // using it means lying down (contract rule 2). Standing on a mattress was the symptom of
+        // there being no notion of posture at all.
+        const int pcell = (tn_agent[i].pose == TN_POSE_LIE) ? ISO_PERSON_LIE : ISO_PERSON;
+        const short *fp = ISO_FOOTPRINT[pcell];
+        // A resident who is not standing is ON the thing it is using, not on the floor beside it.
+        // Position comes from the OBJECT and height from that object's own voxel depth (ISO_FOOTPRINT
+        // carries nx,ny,NZ), so a taller bed lifts the sleeper without anyone hardcoding a number.
+        // Lying beside the bed was the second half of the standing-on-the-bed bug: posture without
+        // placement just moves the wrongness.
+        float ax = (float)tn_agent[i].tx * TN_TILE_VOX, ay = (float)tn_agent[i].ty * TN_TILE_VOX;
+        float az = 0.0f;
+        int   arot = (tn_rot + tn_agent[i].facing) & 3;
+        if (tn_agent[i].pose != TN_POSE_STAND && tn_agent[i].target_obj >= 0) {
+            const TnObject *ob = &tn_obj[tn_agent[i].target_obj];
+            const short *ofp = ISO_FOOTPRINT[OBJ_CELL[ob->kind]];
+            // CENTRED on the furniture, not parked at its corner: a bed is 6x12 voxels and a lying
+            // figure is 3x8, so using the object's origin puts the sleeper half off the mattress.
+            ax = (float)ob->tx * TN_TILE_VOX + (ofp[0] - fp[0]) * 0.5f;
+            ay = (float)ob->ty * TN_TILE_VOX + (ofp[1] - fp[1]) * 0.5f;
+            az = (float)ofp[2];                       // stand ON its surface, whatever height it is
+            arot = tn_rot;                            // align with the furniture, not with the walk
+        }
+        tnr_dl[tnr_dl_n++] = (Draw){ tnr_iso_depth(tn_rot, ax + fp[0]*0.5f, ay + fp[1]*0.5f) + 0.5f,
+                             pcell, arot, ax, ay, az, fp[0], fp[1], az == 0.0f };
     }
+    // ── EDGE WALLS ──────────────────────────────────────────────────────────
+    // world.h stores walls on tile EDGES, not tiles, and only each tile's north and west edge (the
+    // south edge IS the next tile's north). So iterating N and W per tile visits every wall exactly
+    // once, with no double-draw to guard against.
+    //
+    // Orientation needs no `facing` field and cannot be got wrong: the DIRECTION is the orientation,
+    // so a north/south edge takes the *_NS model and an east/west edge the *_EW one. That was the
+    // world agent's reason for choosing edges, and it makes iso-rooms §8's turned-footprint bug
+    // unrepresentable here rather than merely avoided.
+    //
+    // A wall model is 6 voxels long and 2 thick, so it straddles the boundary: offset by half its
+    // thickness so it sits ON the edge rather than inside one of the two tiles.
+    for (int ty = 0; ty < tn_bh; ty++) {
+        for (int tx = 0; tx < tn_bw; tx++) {
+            const float vx = tx * TN_TILE_VOX, vy = ty * TN_TILE_VOX;
+            const int en = tn_edge_at(tx, ty, TN_DIR_N);
+            if (en != TN_WALL_NONE) {
+                const int cell = (en == TN_WALL_DOOR) ? ISO_WALL_LOW_NS : ISO_WALL_FULL_NS;
+                const short *fp = ISO_FOOTPRINT[cell];
+                tnr_dl[tnr_dl_n++] = (Draw){ tnr_iso_depth(tn_rot, vx + fp[0] * 0.5f, vy),
+                                             cell, tn_rot, vx, vy - 1.0f, 0.0f, fp[0], fp[1], 0 };
+            }
+            const int ew = tn_edge_at(tx, ty, TN_DIR_W);
+            if (ew != TN_WALL_NONE) {
+                const int cell = (ew == TN_WALL_DOOR) ? ISO_WALL_LOW_EW : ISO_WALL_FULL_EW;
+                const short *fp = ISO_FOOTPRINT[cell];
+                tnr_dl[tnr_dl_n++] = (Draw){ tnr_iso_depth(tn_rot, vx, vy + fp[1] * 0.5f),
+                                             cell, tn_rot, vx - 1.0f, vy, 0.0f, fp[0], fp[1], 0 };
+            }
+        }
+    }
+
     qsort(tnr_dl, tnr_dl_n, sizeof tnr_dl[0], tnr_cmp_draw);
     for (int i = 0; i < tnr_dl_n; i++) {
         const IsoCell *c = &ISO_CELLS[tnr_dl[i].cell][tnr_dl[i].rot];
-        float sx, sy; tnr_iso_project(tn_rot, tnr_dl[i].vx, tnr_dl[i].vy, 0, &sx, &sy);
-        // one-voxel-INSET contact shadow: an integer inset, because a fractional pad puts the quad
-        // between lattice points and strays everywhere (iso-rooms.md §7's measured table)
-        float q[4][2]; const float pad = 1.0f;
-        const float x0 = tnr_dl[i].vx+pad, y0 = tnr_dl[i].vy+pad;
-        const float x1 = tnr_dl[i].vx+tnr_dl[i].fp0-pad, y1 = tnr_dl[i].vy+tnr_dl[i].fp1-pad;
-        tnr_iso_project(tn_rot, x0,y0,0,&q[0][0],&q[0][1]); tnr_iso_project(tn_rot, x1,y0,0,&q[1][0],&q[1][1]);
-        tnr_iso_project(tn_rot, x1,y1,0,&q[2][0],&q[2][1]); tnr_iso_project(tn_rot, x0,y1,0,&q[3][0],&q[3][1]);
-        quadfill((int)(q[0][0]+cam_x),(int)(q[0][1]+cam_y),(int)(q[1][0]+cam_x),(int)(q[1][1]+cam_y),
-                 (int)(q[2][0]+cam_x),(int)(q[2][1]+cam_y),(int)(q[3][0]+cam_x),(int)(q[3][1]+cam_y),
-                 CLR_BROWNISH_BLACK);
+        float sx, sy; tnr_iso_project(tn_rot, tnr_dl[i].vx, tnr_dl[i].vy, tnr_dl[i].vz, &sx, &sy);
+        // A contact shadow, but only for things that stand on a TILE. A wall stands on an EDGE, so
+        // its footprint quad would smear a dark stripe along the boundary between two rooms.
+        if (tnr_dl[i].shadow) {
+            // one-voxel-INSET: an integer inset, because a fractional pad puts the quad between
+            // lattice points and strays pixels everywhere (iso-rooms.md §7's measured table)
+            float q[4][2]; const float pad = 1.0f;
+            const float x0 = tnr_dl[i].vx+pad, y0 = tnr_dl[i].vy+pad;
+            const float x1 = tnr_dl[i].vx+tnr_dl[i].fp0-pad, y1 = tnr_dl[i].vy+tnr_dl[i].fp1-pad;
+            tnr_iso_project(tn_rot, x0,y0,0,&q[0][0],&q[0][1]); tnr_iso_project(tn_rot, x1,y0,0,&q[1][0],&q[1][1]);
+            tnr_iso_project(tn_rot, x1,y1,0,&q[2][0],&q[2][1]); tnr_iso_project(tn_rot, x0,y1,0,&q[3][0],&q[3][1]);
+            quadfill((int)(q[0][0]+cam_x),(int)(q[0][1]+cam_y),(int)(q[1][0]+cam_x),(int)(q[1][1]+cam_y),
+                     (int)(q[2][0]+cam_x),(int)(q[2][1]+cam_y),(int)(q[3][0]+cam_x),(int)(q[3][1]+cam_y),
+                     CLR_BROWNISH_BLACK);
+        }
         sspr(c->x, c->y, c->w, c->h, (int)(sx+cam_x)-c->ox, (int)(sy+cam_y)-c->oy, c->w, c->h);
     }
 }

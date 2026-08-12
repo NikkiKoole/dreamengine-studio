@@ -10,15 +10,15 @@
 #define TENEMENT_OFFER_H
 
 const TnOffer TN_OFFERS[TN_OBJ_KIND_COUNT][TN_MAX_OFFERS] = {
-    [TN_OBJ_BED]      = { { TN_SERVE_REST,    120, 480, 1 } },   // 8 hours; short, not char
-    [TN_OBJ_FRIDGE]   = { { TN_SERVE_HUNGER,  100,  30, 1 },
-                          { TN_STORE_FOOD,     -1,   0, 8 } },
-    [TN_OBJ_COUNTER]  = { { TN_SERVE_HUNGER,   40,  20, 1 },     // a snack, worse than the fridge
-                          { TN_CAP_WORK,       -1,   0, 1 } },
-    [TN_OBJ_TOILET]   = { { TN_SERVE_BLADDER, 110,  10, 1 } },
-    [TN_OBJ_SOFA]     = { { TN_SERVE_FUN,      90,  60, 2 } },   // the only shareable thing here
-    [TN_OBJ_LOOM]     = { { TN_CAP_WORK,       -1, 480, 1 } },   // the dumb machine, design §4
-    [TN_OBJ_WARDROBE] = { { TN_STORE_CLOTHES,  -1,   0, 6 } },
+    [TN_OBJ_BED]      = { { TN_SERVE_REST,    120, 480, 1, TN_POSE_LIE } },   // 8h; you LIE on a bed
+    [TN_OBJ_FRIDGE]   = { { TN_SERVE_HUNGER,  100,  30, 1, TN_POSE_STAND },
+                          { TN_STORE_FOOD,     -1,   0, 8, TN_POSE_STAND } },
+    [TN_OBJ_COUNTER]  = { { TN_SERVE_HUNGER,   40,  20, 1, TN_POSE_STAND },  // a snack, worse than the fridge
+                          { TN_CAP_WORK,       -1,   0, 1, TN_POSE_STAND } },
+    [TN_OBJ_TOILET]   = { { TN_SERVE_BLADDER, 110,  10, 1, TN_POSE_SIT } },
+    [TN_OBJ_SOFA]     = { { TN_SERVE_FUN,      90,  60, 2, TN_POSE_SIT } },   // the only shareable thing
+    [TN_OBJ_LOOM]     = { { TN_CAP_WORK,       -1, 480, 1, TN_POSE_STAND } },  // the dumb machine, §4
+    [TN_OBJ_WARDROBE] = { { TN_STORE_CLOTHES,  -1,   0, 6, TN_POSE_STAND } },
 };
 const unsigned char TN_OFFER_N[TN_OBJ_KIND_COUNT] = {
     [TN_OBJ_BED] = 1, [TN_OBJ_FRIDGE] = 2, [TN_OBJ_COUNTER] = 2, [TN_OBJ_TOILET] = 1,

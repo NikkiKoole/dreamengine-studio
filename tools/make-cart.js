@@ -71,6 +71,33 @@ function makePng(w, h, drawPixel) {
   ])
 }
 
+// RGBA twin of makePng, for sheets that need REAL transparency rather than a colorkey.
+// drawPixel returns [r,g,b,a]. The engine treats alpha < 128 as a hole on BOTH paths (the
+// software canvas tests the packed pixel's top bit; the GPU shader discards texel.a < 0.5),
+// so an alpha sheet needs no reserved palette index and no colorkey() call in the cart.
+// Used by the atlas path below, where cells are arbitrary rects with genuine gaps between
+// them — a colorkey would have to burn a palette entry that a model might legitimately want.
+function makePngRGBA(w, h, drawPixel) {
+  const scanlines = Buffer.alloc(h * (1 + w * 4))
+  for (let y = 0; y < h; y++) {
+    scanlines[y * (1 + w * 4)] = 0  // filter: None
+    for (let x = 0; x < w; x++) {
+      const [r, g, b, a] = drawPixel(x, y)
+      const i = y * (1 + w * 4) + 1 + x * 4
+      scanlines[i] = r; scanlines[i + 1] = g; scanlines[i + 2] = b; scanlines[i + 3] = a
+    }
+  }
+  const ihdr = Buffer.alloc(13)
+  ihdr.writeUInt32BE(w, 0); ihdr.writeUInt32BE(h, 4)
+  ihdr[8] = 8; ihdr[9] = 6  // 8-bit RGBA
+  return Buffer.concat([
+    PNG_SIG,
+    makeChunk('IHDR', ihdr),
+    makeChunk('IDAT', zlib.deflateSync(scanlines)),
+    makeChunk('IEND', Buffer.alloc(0)),
+  ])
+}
+
 // pico-8 palette (the base 16)
 const P = [
   [0x00,0x00,0x00], [0x1d,0x2b,0x53], [0x7e,0x25,0x53], [0x00,0x87,0x51],
@@ -146,39 +173,99 @@ function parseSprite(src, charMap = DEFAULT_CHAR_MAP) {
 // Parse a cart's { slot: pixelArrayOrString } sprites into per-slot palette-index
 // arrays ({ slotIndex: [256 indices] }) — the generator's pristine output, which
 // the sprite-patch core fingerprints + composites against (Gap 2, Option D).
-function genSlots(sprites, charMap) {
+// ── sheet size ────────────────────────────────────────────────
+// A cart's sheet defaults to 128×128 — an 8×8 grid of 16×16 slots, 64 of them — which is
+// what the in-editor sprite canvas draws and what every cart shipped before 2026-08.
+//
+// A `.cart.js` may declare a BIGGER one (`sheet: { w, h }`, or `sheet: 256` for square).
+// The runtime never cared: `spr()` derives its column count from the loaded sheet's real
+// width, and `sspr()` addresses any sub-rect. The 128 was only ever baked into this tool.
+// It became a blocker for baked-rotation art, where one object costs eight cells and a
+// realistic set runs past 64,000 pixels (docs/design/iso-rooms.md §7).
+//
+// THE COST, and it is why this is opt-in rather than the new default: the sprite editor
+// assumes the 8×8/16×16 grid, so a wide-sheet cart cannot be pixel-edited in the editor and
+// is generator-only. That is already the standing rule for `.cart.js` generator carts
+// (CLAUDE.md, "two sources of truth that don't know about each other"), so it costs nothing
+// new — but it does mean you should not declare a big sheet unless you need one.
+const SLOT = 16, DEFAULT_SHEET = 128
+
+function resolveSheet(sheet) {
+  if (sheet == null) return { w: DEFAULT_SHEET, h: DEFAULT_SHEET }
+  const s = typeof sheet === 'number' ? { w: sheet, h: sheet } : sheet
+  const w = s.w | 0, h = s.h | 0
+  if (w % SLOT || h % SLOT || w <= 0 || h <= 0) {
+    throw new Error(`sheet must be positive multiples of ${SLOT}, got ${w}x${h}`)
+  }
+  return { w, h }
+}
+
+function genSlots(sprites, charMap, sheet) {
   // a cart's charMap EXTENDS the defaults (so it only needs to declare the extra
   // chars it uses, e.g. {M:28}); it does not replace them. Cart entries win on conflict.
   const map = charMap ? { ...DEFAULT_CHAR_MAP, ...charMap } : DEFAULT_CHAR_MAP
+  const { w, h } = resolveSheet(sheet)
+  const cap = (w / SLOT) * (h / SLOT)                 // 64 on the default sheet
   const slots = {}
   for (const [slot, src] of Object.entries(sprites)) {
     const idx = parseInt(slot)
-    if (idx >= 0 && idx < 64) slots[idx] = parseSprite(src, map)
+    if (idx >= 0 && idx < cap) slots[idx] = parseSprite(src, map)
   }
   return slots
 }
 
-// Render per-slot palette-index arrays ({ slot: [256] }) to a 128×128 sprite sheet
-// PNG (8×8 slot grid, 16×16 each). The one place slot pixels become an image, so
-// the generator output and the patched-composite output take the identical path.
-function slotsToSheetPng(slots) {
-  const COLS = 8, SIZE = 16, SHEET = 128
-  const pixels = new Array(SHEET * SHEET).fill(0)
+// Render per-slot palette-index arrays ({ slot: [256] }) to a sprite sheet PNG
+// (16×16 slots, row-major, columns = sheet.w/16). The one place slot pixels become an
+// image, so the generator output and the patched-composite output take the identical path.
+function slotsToSheetPng(slots, sheet) {
+  const { w: SW, h: SH } = resolveSheet(sheet)
+  const COLS = SW / SLOT
+  const pixels = new Array(SW * SH).fill(0)
   for (const [slot, parsed] of Object.entries(slots)) {
     const idx = parseInt(slot)
-    const ox  = (idx % COLS) * SIZE
-    const oy  = Math.floor(idx / COLS) * SIZE
-    for (let py = 0; py < SIZE; py++) {
-      for (let px = 0; px < SIZE; px++) {
-        pixels[(oy + py) * SHEET + (ox + px)] = parsed[py * SIZE + px] || 0
+    const ox  = (idx % COLS) * SLOT
+    const oy  = Math.floor(idx / COLS) * SLOT
+    for (let py = 0; py < SLOT; py++) {
+      for (let px = 0; px < SLOT; px++) {
+        pixels[(oy + py) * SW + (ox + px)] = parsed[py * SLOT + px] || 0
       }
     }
   }
-  return makePng(SHEET, SHEET, (x, y) => PAL32[pixels[y * SHEET + x]] || [0,0,0])
+  return makePng(SW, SH, (x, y) => PAL32[pixels[y * SW + x]] || [0,0,0])
 }
 
-function buildSpriteSheet(sprites, charMap) {
-  return slotsToSheetPng(genSlots(sprites, charMap))
+// Render a RAW ATLAS to the sheet PNG: { w, h, px } where px is a flat array of palette
+// indices and anything < 0 (or null/undefined) is TRANSPARENT. This is the escape from the
+// slot grid — cells are arbitrary rects the cart addresses with sspr(), which is what baked
+// rotation sets need, since a sofa's cell is 64×32 at one angle and 48×40 at another.
+// Written with alpha rather than a colorkey so no palette index has to be sacrificed.
+function atlasToSheetPng(atlas) {
+  const { w, h, px } = atlas
+  if (!Number.isInteger(w) || !Number.isInteger(h) || w <= 0 || h <= 0) {
+    throw new Error(`atlas needs positive integer w/h, got ${w}x${h}`)
+  }
+  if (!px || px.length < w * h) throw new Error(`atlas px must hold w*h = ${w * h} entries, got ${px ? px.length : 0}`)
+  return makePngRGBA(w, h, (x, y) => {
+    const v = px[y * w + x]
+    if (v == null || v < 0) return [0, 0, 0, 0]
+    const c = PAL32[v] || [0, 0, 0]
+    return [c[0], c[1], c[2], 255]
+  })
+}
+
+function buildSpriteSheet(sprites, charMap, sheet) {
+  return slotsToSheetPng(genSlots(sprites, charMap, sheet), sheet)
+}
+
+// The ONE place a .cart.js config becomes a sheet PNG: raw atlas, else slot grid, else blank.
+// Every consumer that stages build/sprites.png must go through this — play.js, the editor and
+// make-cart each used to re-derive it, and the moment `atlas` arrived play.js silently shipped
+// a BLANK (all-black) sheet, which renders as black furniture rather than as an error.
+function sheetBufFor(cfg) {
+  if (!cfg) return makeBlankSpritePng()
+  if (cfg.atlas)   return atlasToSheetPng(cfg.atlas)
+  if (cfg.sprites) return buildSpriteSheet(cfg.sprites, cfg.charMap, cfg.sheet)
+  return makeBlankSpritePng()
 }
 
 // ── map builder ───────────────────────────────────────────────
@@ -222,7 +309,9 @@ function embedCartChunks(pngBuf, data) {
 
 // ── config loader ─────────────────────────────────────────────
 // looks for a .cart.js file alongside the .c source
-// exports: { sprites, map, charMap, mapW, mapH }
+// exports: { sprites, map, charMap, mapW, mapH, sheet?, atlas? }
+//   sheet: { w, h } | n   — sheet size, multiples of 16, default 128×128 (see resolveSheet)
+//   atlas: { w, h, px }   — a RAW atlas of palette indices, bypassing the slot grid
 function loadConfig(srcFile) {
   const cfgFile = srcFile.replace(/\.c$/, '.cart.js')
   if (!fs.existsSync(cfgFile)) return {}
@@ -241,10 +330,14 @@ function loadConfig(srcFile) {
 // and the surviving patch is returned so the caller can mirror it into the
 // .cart.png as a de:spritepatch chunk. Returns { pngBuf, patchJson|null }.
 function bakeSprites(srcFile, cfg) {
+  // A raw atlas bypasses the slot grid entirely (and therefore the hand-patch subsystem,
+  // which is slot-addressed by definition — there is nothing to patch when cells are
+  // arbitrary rects). Generator-only by construction.
+  if (cfg.atlas) return { pngBuf: atlasToSheetPng(cfg.atlas), patchJson: null }
   if (!cfg.sprites) return { pngBuf: makeBlankSpritePng(), patchJson: null }
-  const gen   = genSlots(cfg.sprites, cfg.charMap)
+  const gen   = genSlots(cfg.sprites, cfg.charMap, cfg.sheet)
   const patch = spritePatch.readPatch(srcFile)
-  if (!patch) return { pngBuf: slotsToSheetPng(gen), patchJson: null }
+  if (!patch) return { pngBuf: slotsToSheetPng(gen, cfg.sheet), patchJson: null }
 
   const { slots, patch: surviving, warnings, changed } = spritePatch.applyPatch(gen, patch)
   for (const w of warnings) console.log(`⚠ sprite patch: ${w}`)
@@ -254,7 +347,7 @@ function bakeSprites(srcFile, cfg) {
   // clean re-bake is git-silent; a fully-stale patch prunes to nothing → deleted.
   if (changed) spritePatch.writePatch(srcFile, surviving)
   return {
-    pngBuf:   slotsToSheetPng(slots),
+    pngBuf:   slotsToSheetPng(slots, cfg.sheet),
     patchJson: nSurv > 0 ? spritePatch.serializePatch(surviving) : null,
   }
 }
@@ -303,9 +396,11 @@ module.exports = {
   buildSpriteSheet, buildMap, makeBlankSpritePng, makePlaceholderPng,
   loadConfig, extractCartChunks, embedCartChunks, box2dArgs,
   // primitives reused by tools/sprite-preview.js (shared palette + encoder)
-  makePng, parseSprite, PAL32, DEFAULT_CHAR_MAP,
+  makePng, makePngRGBA, parseSprite, PAL32, DEFAULT_CHAR_MAP,
   // Gap-2 sprite-patch machinery (make-cart is the bake-side consumer)
   genSlots, slotsToSheetPng, bakeSprites,
+  // declared sheet size + the raw-atlas escape from the slot grid
+  resolveSheet, atlasToSheetPng, sheetBufFor,
 }
 
 // After a bake, regenerate index.json so baking a cart auto-registers it (no manual

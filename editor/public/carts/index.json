@@ -3600,6 +3600,20 @@
     "lineage": "The indoor sibling of lotfill: fills a building footprint with a recursive BSP room tree, emergent room labeling (label falls from area/frontage/adjacency rules, no type list), door circulation ensuring every room is reachable, and deterministic hash-seeded generation — extends lotfill's open-world scatter into bounded recursive subdivision."
   },
   {
+    "title": "isoroom",
+    "description": "A rotating isometric room, drawn entirely from sprite cells that were pre-rendered from voxel models at build time. Turn it eight ways and nothing is a triangle. The probe behind a possible Sims-style sim. An isometric view that ROTATES normally costs one drawing per object per rotation, which is where such a project dies; rendering the voxels live instead costs ~89ms/frame on an iPhone (ADR-0024), which is where the other version dies. So every object here is authored ONCE as ASCII voxel layers and baked into all eight rotations at build time, and the runtime is nothing but sspr() and a painter's sort. The eight rotations are two different projections sharing one data model: the four 45-degree steps give the familiar 2:1 diamond, the four cardinal steps give an axis-aligned view, and those eight are the complete set of angles that land on the pixel grid. Light is fixed in SCREEN space rather than world space, so it does not swing around as you turn the room. Walls can be low stubs that never occlude, or full height with the near side cut away. Q/E turn the room one step (eight in total). W switches walls between LOW and FULL+cutaway. Move the mouse to pick a floor tile; the readout names the tile and the rotation family. TAB shows the depth-sort order. SPACE pauses the walker.",
+    "file": "isoroom.cart.png",
+    "created": "2026-08-12",
+    "kind": [
+      "probe",
+      "tech-demo"
+    ],
+    "teaches": [
+      "isometric-projection"
+    ],
+    "lineage": "A renderer probe, not a game: gates whether a Sims-style life sim is buildable here by testing whether one voxel model can supply EIGHT view rotations without paying triangles at runtime. The pipeline (author once, pre-render every rotation to sprites at build time) is the one RollerCoaster Tycoon and The Sims 1 both shipped; the novelty is doing it at 320x200 in 32 colours, and carrying BOTH projection families (the 2:1 diamond and the axis-aligned cardinal) in one data model."
+  },
+  {
     "title": "italo disco radio",
     "description": "Endless Italo disco - spaghetti disco, the lovelorn machine-pop of early-80s Italy (Gazebo, Den Harrow, Ryan Paris, the Moroder lineage). Citypop's machine cousin, but neon-at-midnight MINOR instead of sunlit major: dramatic, desperate, unashamedly cheesy. PURE RECOMBINATION (the parking-lot prediction: 0 new brains, dessert) - ymo's arp + house's pump + the citypop gear change + FM keys + new minor templates. THE SEQUENCER BASS is the spine: a relentless 16th-note synth bass that bounces octaves (root low, root high, forever - the Moroder pulse) with seeded chord-tone spice, a resonant lowpass + per-note cutoff env giving each note an analog-sequencer blip. Harmony is a stolen playbook of five dramatic minor formulas - i-bVI-bVII-V, the descending i-bVII-bVI-V, i-iv-bVI-V (the harmonic-minor V, the tear) - all with the borrowed dominant that makes Italo weep. FM BRASS STABS (INSTR_FM, bright integer ratio) punctuate the offbeats; EPIANO KEYS (INSTR_EPIANO, the 'FM keys') comp the bed; a PD soaring lead (INSTR_PD, glided, minor-pentatonic) owns the chorus. THE SIMMONS TOM FILL - the unmistakable descending electronic-tom roll into every chorus - is the genre's signature gesture, and THE TRUCK DRIVER'S GEAR CHANGE lifts the final chorus + outro up a semitone (of course). 808 kit + sidechain pump on loan from house.c / tr808.c. Seed on display (ITALO_SEED / R / [ ] history), LEFT/RIGHT feel, UP/DOWN tempo, T tone, M power, H help.",
     "file": "italo.cart.png",

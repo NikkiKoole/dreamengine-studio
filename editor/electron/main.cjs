@@ -1010,7 +1010,7 @@ ipcMain.handle('cart:discard-sprite-patch', async (_event, { slug }) => {
     if (fs.existsSync(patchPath)) fs.unlinkSync(patchPath)   // kill the patch (idempotent)
     try { delete require.cache[require.resolve(cartJs)] } catch {}
     const cfg    = mc.loadConfig(cPath)
-    const pngBuf = cfg.sprites ? mc.buildSpriteSheet(cfg.sprites, cfg.charMap) : mc.makeBlankSpritePng()
+    const pngBuf = mc.sheetBufFor(cfg)   // atlas | slot grid | blank — one shared resolver
     const spritesDataUrl = 'data:image/png;base64,' + pngBuf.toString('base64')
     // re-embed: keep the existing source/map/settings, rebuild sprites, DROP the
     // de:spritepatch chunk (embedCartChunks strips all de:* then writes only what we pass).

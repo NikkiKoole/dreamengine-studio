@@ -117,7 +117,7 @@ const CW = cfg.cellW ?? 16, CH = cfg.cellH ?? 16, MW = cfg.mapW ?? 128, MH = cfg
 
 fs.mkdirSync(mk.BUILD_DIR, { recursive: true })
 fs.copyFileSync(SRC, path.join(mk.BUILD_DIR, 'cart.c'))
-const spritesBuf = cfg.sprites ? mk.buildSpriteSheet(cfg.sprites, cfg.charMap) : mk.makeBlankSpritePng()
+const spritesBuf = mk.sheetBufFor(cfg)   // atlas | slot grid | blank — one shared resolver
 fs.writeFileSync(path.join(mk.BUILD_DIR, 'sprites.png'), spritesBuf)
 const mapBytes = cfg.map ? mk.buildMap(cfg.map.layout || cfg.map, cfg.map.tiles, MW, MH) : new Uint8Array(8192)
 fs.writeFileSync(path.join(mk.BUILD_DIR, 'map.dat'), Buffer.from(mapBytes))

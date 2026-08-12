@@ -489,6 +489,15 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
              pixelsnap.js    clean up "AI pixel art": snap soft/off-grid pixels onto a real grid + posterize
                              to a small palette (median-cut / --palette pico32 / --two ink,paper), OKLab match,
                              FS or ordered/diagonal dither, --clean despeckle; never overwrites the input
+             voxel-bake.js   bake tiny ASCII VOXEL models (`tools/voxel-models/*.js`) into ROTATED sprite
+                             cells + a packed atlas. Solves the art wall under a rotating isometric view:
+                             8 rotations hand-drawn is 8 drawings per sofa, and rendering voxels with
+                             tritex every frame is the one thing measured too slow on device (ADR-0024).
+                             So author once, bake all rotations at BUILD time, runtime is sspr() + a
+                             painter's sort. LIGHT IS FIXED IN SCREEN SPACE (shade by world normal and it
+                             appears to rotate with the room). Reports TOTAL ATLAS PIXELS, because
+                             make-cart.js caps a cart sheet at 128×128/64 slots. `--check` = 32 known
+                             answers. docs/design/iso-rooms.md
              font-bake.js    bake real-TTF text into sprite-draw canvases at build time
              gen-rom-font.js bake the "extra" bitmap fonts (ROM dumps + EPX) into the shared atlas
              build-cart-index.js  GENERATE editor/public/carts/index.json from each cart's de:meta block

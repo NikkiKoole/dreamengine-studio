@@ -93,3 +93,6 @@ its `project()` reads a different state struct). Graduation is now a build item 
 - [`field-based-road-rendering.md`](field-based-road-rendering.md) — the three-layer contract (geometry / render rules / longitudinal) this view is an adapter for.
 - [`big-game-backlog.md`](big-game-backlog.md) — seam #2, the cityscape renderer this bench serves.
 - [`road-program-state.md`](road-program-state.md) — authoritative road-tier status (where roadlab's `z(s)` lives).
+- [`iso-rooms.md`](iso-rooms.md) — the rotating-isometric-room probe borrows this view's
+  parallel-oblique projection as its CARDINAL family (and found it does not carry interior objects:
+  with no X/Y mixing there is no depth cue left, so that half was cut).

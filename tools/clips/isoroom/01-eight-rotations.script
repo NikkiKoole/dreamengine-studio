@@ -1,0 +1,12 @@
+# isoroom — walk all EIGHT rotations, one per dumped frame (--dump-every 10).
+# Frame 0 starts on rot 1 (a diagonal view); each tap of E advances one 45-degree step,
+# so the filmstrip shows the complete set: diag, card, diag, card ...
+# The point of the seed is the pair of go/no-go questions in docs/design/iso-rooms.md:
+# do the CARDINAL (even) views read as a room, and does the light stay put as you turn?
+tap 6 E 2
+tap 16 E 2
+tap 26 E 2
+tap 36 E 2
+tap 46 E 2
+tap 56 E 2
+tap 66 E 2

@@ -6,6 +6,7 @@
 // here the copy and screenshots are derivable artifacts of the cart, not opaque files.
 //
 //   node tools/asc-push.js <app> --check                 # OFFLINE self-test (no key/network needed)
+//   node tools/asc-push.js <app> --new-version           # create the next App Store version (manifest `version`)
 //   node tools/asc-push.js <app> --metadata --dry-run    # GET live listing, diff vs manifest, show plan
 //   node tools/asc-push.js <app> --metadata              # PATCH title/subtitle/keywords/… live
 //   node tools/asc-push.js <app> --metadata --dry-run --json      # structured PLAN (feeds the editor panel)
@@ -38,6 +39,13 @@
 //   Resolution order: env -> ~/.appstoreconnect/config.json -> the single AuthKey_*.p8 in the dir
 //   (keyId derived from its filename). Same key shape testflight.sh's AUTH_KEY/AUTH_ISSUER uses.
 //   NEVER commit the .p8 or the IDs — the repo .gitignore blocks *.p8 as a backstop.
+//
+// UPDATING A LIVE APP: once a version is READY_FOR_SALE nothing is editable, so every other action
+//   here dies with "no editable App Store version". The fix is a NEW version, and --new-version is
+//   it: bump the manifest `version`, run `--new-version` (idempotent — an existing editable version
+//   is reported, not duplicated), then push metadata/screenshots as usual. Give listing.whatsNew a
+//   value: Apple requires "What's New" on an update, and it is empty on a fresh version. The build
+//   you upload must carry the SAME version string (see testflight.sh's MARKETING_VERSION).
 //
 // The maker reviews the diff before pushing (share-panel rule 2): --dry-run first, always.
 
@@ -96,7 +104,7 @@ const FILE_TO_FIELD = {
 
 // ── args ──────────────────────────────────────────────────────────────────────────────────────
 const argv = process.argv.slice(2)
-const opt = { app: '', metadata: false, screenshots: false, iap: false, promote: false, category: false, ageRating: false, price: false, contentRights: false, reviewContact: false, dryRun: false, check: false, locale: 'en-US', version: '', json: false, only: null, reprice: false }
+const opt = { app: '', metadata: false, screenshots: false, iap: false, promote: false, category: false, ageRating: false, price: false, contentRights: false, reviewContact: false, newVersion: false, dryRun: false, check: false, locale: 'en-US', version: '', json: false, only: null, reprice: false }
 for (let i = 0; i < argv.length; i++) {
   const a = argv[i]
   if (a === '--metadata') opt.metadata = true
@@ -108,6 +116,7 @@ for (let i = 0; i < argv.length; i++) {
   else if (a === '--price') opt.price = true            // set the paid-app price schedule (manifest `price`; base USA)
   else if (a === '--content-rights') opt.contentRights = true  // declare third-party content usage (default: does not)
   else if (a === '--review-contact') opt.reviewContact = true  // set the App Review contact (manifest `review`)
+  else if (a === '--new-version') opt.newVersion = true // create the next App Store version (manifest `version`, or --version)
   else if (a === '--dry-run') opt.dryRun = true
   else if (a === '--check') opt.check = true
   else if (a === '--json') opt.json = true          // machine-readable plan/result (metadata channel; for the editor panel)
@@ -119,10 +128,10 @@ for (let i = 0; i < argv.length; i++) {
   else { console.error(`unknown arg: ${a}`); process.exit(2) }
 }
 if (!opt.app) {
-  console.error('usage: node tools/asc-push.js <app> [--metadata] [--screenshots] [--category] [--age-rating] [--price] [--iap] [--reprice] [--promote] [--dry-run] [--check] [--locale en-US]')
+  console.error('usage: node tools/asc-push.js <app> [--new-version] [--metadata] [--screenshots] [--category] [--age-rating] [--price] [--iap] [--reprice] [--promote] [--dry-run] [--check] [--locale en-US]')
   process.exit(2)
 }
-if (!opt.check && !opt.metadata && !opt.screenshots && !opt.iap && !opt.promote && !opt.category && !opt.ageRating && !opt.price && !opt.contentRights && !opt.reviewContact) opt.metadata = true // default action
+if (!opt.check && !opt.metadata && !opt.screenshots && !opt.iap && !opt.promote && !opt.category && !opt.ageRating && !opt.price && !opt.contentRights && !opt.reviewContact && !opt.newVersion) opt.metadata = true // default action
 
 // ── manifest + copy assembly ────────────────────────────────────────────────────────────────
 const appDir = path.join(ROOT, 'apps', opt.app)
@@ -273,6 +282,59 @@ async function editableInfo(appId) {
   const info = infos.data.find(i => EDITABLE.has(i.attributes.appStoreState)) || infos.data[0]
   if (!info) die('no appInfo record on this app')
   return info
+}
+
+// ── new App Store version (the UPDATE runbook's step 1) ──────────────────────────────────────
+// A READY_FOR_SALE app has nothing editable: the store copy, the screenshots and the build slot
+// all hang off a version, and the live one is frozen. So an update starts by creating the next
+// version. Idempotent by design — re-running it on an already-created version reports the state
+// instead of POSTing a duplicate, so it is safe as the first line of a release script.
+const PLATFORM = 'IOS'
+
+async function createVersion() {
+  const want = opt.version || manifest.version
+  if (!want) die('no version to create — set manifest `version`, or pass --version 1.1')
+  const app = await resolveApp()
+  const versions = (await api('GET', `/v1/apps/${app.id}/appStoreVersions?limit=50`)).data || []
+  console.log(`\n▸ new App Store version → app ${app.id}`)
+  console.log(`  existing: ${versions.map(v => `${v.attributes.versionString} (${v.attributes.appStoreState})`).join(', ') || 'none'}`)
+
+  const existing = versions.find(v => v.attributes.versionString === want)
+  if (existing) {
+    const state = existing.attributes.appStoreState
+    if (EDITABLE.has(state)) { console.log(`  ✓ ${want} already exists and is editable (${state}) — nothing to create`); return existing }
+    die(`${want} already exists but is ${state} — not editable. Bump the manifest version.`)
+  }
+  console.log(`  + create ${want} (${PLATFORM})`)
+  if (opt.dryRun) { console.log('  (--dry-run: no changes sent)'); return null }
+
+  const created = await api('POST', '/v1/appStoreVersions', {
+    data: {
+      type: 'appStoreVersions',
+      attributes: { platform: PLATFORM, versionString: want },
+      relationships: { app: { data: { type: 'apps', id: app.id } } },
+    },
+  })
+  const v = created.data
+  console.log(`  ✓ created ${want} (${v.attributes.appStoreState})`)
+
+  // ASC usually clones the previous version's localizations onto a new version, but not always —
+  // and every later action here resolves the locale by name, so a missing one dies downstream with
+  // a confusing "version 1.1 has no en-US localization". Create it now if it isn't there.
+  const locs = (await api('GET', `/v1/appStoreVersions/${v.id}/appStoreVersionLocalizations?limit=50`)).data || []
+  if (!locs.some(l => l.attributes.locale === opt.locale)) {
+    await api('POST', '/v1/appStoreVersionLocalizations', {
+      data: {
+        type: 'appStoreVersionLocalizations',
+        attributes: { locale: opt.locale },
+        relationships: { appStoreVersion: { data: { type: 'appStoreVersions', id: v.id } } },
+      },
+    })
+    console.log(`  ✓ created the ${opt.locale} localization (ASC did not clone one)`)
+  }
+  if (!collectFields().whatsNew) console.log(`  ⚠ no whatsNew in the manifest — Apple requires "What's New" on an update`)
+  console.log(`  → next: --metadata --screenshots, and upload a build with MARKETING_VERSION ${want}`)
+  return v
 }
 
 // ── category (appInfo primary/secondary; manifest listing.category, default MUSIC) ────────────
@@ -935,6 +997,7 @@ function die(msg) { console.error('✗ ' + msg); process.exit(1) }
   const auth = loadAuth()
   if (auth.problems.length) die('auth not configured — ' + auth.problems.join('; ') + '\n  See the file header for the ~2-min ASC API-key setup, or run --check offline first.')
   TOKEN = mintJWT(auth)
+  if (opt.newVersion) await createVersion()   // first: everything below needs an EDITABLE version
   if (opt.metadata) await pushMetadata()
   if (opt.category) await pushCategory()
   if (opt.ageRating) await pushAgeRating()

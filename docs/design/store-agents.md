@@ -307,6 +307,32 @@ two by API; App Privacy is the lone manual one.
 - **Network:** the ASC API blips `fetch failed` intermittently from some sandboxes — `asc-push`'s
   `api()` now retries network-level failures (never HTTP errors).
 
+<a id="update-runbook"></a>
+### Update runbook — shipping 1.N over a LIVE app (VERIFIED 2026-08-12, Tiny Pedalboard 1.0 → 1.1)
+
+The first submission's runbook does not survive contact with a shipped app: once a version is
+`READY_FOR_SALE`, **nothing is editable**. The store copy, the screenshots and the build slot all
+hang off a version, so `asc-push` dies on every action with *"no editable App Store version"*. That
+is not a bug, it is Apple's model, and the update path is shorter than the first ship:
+
+1. **Bump `apps/<app>/app.json` `version`** (1.0 → 1.1) and **write `listing.whatsNew`.** Apple
+   requires "What's New" on an update, and it is the one field a cloned version does NOT inherit.
+   Cover only what shipped *since the last build* — check dates against the last `testflight.sh`
+   commit, not against the tag, or you will announce features the buyer already has.
+2. **`asc-push <app> --new-version`** — creates the version, and the locale localization if ASC did
+   not clone one. Idempotent: re-running on an existing editable version reports it, never
+   duplicates. This replaced the web-UI step.
+3. **`asc-push <app> --metadata --dry-run`, then for real.** ASC clones the previous version's copy
+   forward, so the diff is usually just `whatsNew` + `promotionalText` (both land empty on a fresh
+   version, even though the rest is inherited).
+4. **`cd ios && APP=<app> ./testflight.sh`** — `MARKETING_VERSION` comes from the manifest, so the
+   bump in #1 is what makes the build attachable. The version-must-match gotcha below is the one
+   that bites here.
+5. **Screenshots + App Privacy carry over.** No re-upload needed unless the UI actually changed;
+   App Privacy is answered once per app, not per version. Re-shoot when a headline change is
+   visible in a hero frame (the 1.1 chord row went from one row to two, which dated all six shots).
+6. **Add for Review → Submit.** The build must finish processing (5–30 min) before it will attach.
+
 ### Post-launch — deployment doesn't end at submit
 
 **7. Rejection triage + appeal drafting.**

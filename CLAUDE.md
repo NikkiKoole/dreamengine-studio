@@ -374,7 +374,9 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
                              (create→localize→price→availability→review-shot→1024² promo image → READY_TO_SUBMIT,
                              idempotent; images from apps/<app>/iap-images/<slug>.png) · --promote (mark IAPs
                              promoted purchases → product-page + search surface; pairs with Store.swift PurchaseIntent) ·
-                             --dry-run GETs live + diffs · --check offline gate. Auth: ~/.appstoreconnect/ (.p8 + config.json), never git.
+                             --new-version (a LIVE app has nothing editable, so an UPDATE starts by creating the
+                             next version; idempotent) · --dry-run GETs live + diffs · --check offline gate.
+                             Auth: ~/.appstoreconnect/ (.p8 + config.json), never git.
                              Design: docs/design/store-agents.md §"ASC upload + TestFlight tool"
              leads.js        the local MARKETEER (demand GENERATION, the twin of the aso-* capture tools): maps a
                              cart's de:meta to its TRIBE(s) + the venues where that tribe gathers (`match`), hunts

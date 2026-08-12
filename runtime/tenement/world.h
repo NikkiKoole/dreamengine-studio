@@ -259,6 +259,7 @@ int tn_add_obj(int kind, int tx, int ty, int household) {
     if (tn_obj_n >= TN_MAX_OBJECTS) return -1;
     tn_obj[tn_obj_n] = (TnObject){ (unsigned char)kind, (unsigned char)tx, (unsigned char)ty,
                                      0, (signed char)household, 0 };
+    tn_path_dirty();          // furniture blocks movement, so the cached distance field is now wrong
     return tn_obj_n++;
 }
 int tn_add_agent(int household, int tx, int ty) {

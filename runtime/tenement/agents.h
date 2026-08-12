@@ -41,9 +41,24 @@ void tn_agents_tick(void) {
             if (a->target_obj < 0) { a->activity = TN_ACT_IDLE; break; }
             {
                 const int ox = tn_obj[a->target_obj].tx, oy = tn_obj[a->target_obj].ty;
-                if (a->tx != ox) a->tx += (a->tx < ox) ? 1 : -1;
-                else if (a->ty != oy) a->ty += (a->ty < oy) ? 1 : -1;
-                a->facing = (unsigned char)((a->tx < ox) ? 1 : (a->tx > ox) ? 3 : (a->ty < oy) ? 2 : 0);
+                // FOLLOW THE ROUTE. This used to be two lines of unconditional axis-stepping with no
+                // wall test at all, which made the whole simulation dishonest in the worst possible
+                // way: tno_travel already PRICED the real BFS route, so a bid was costed over a walk
+                // nobody ever took. Measured before this fix, 11.8% of all steps crossed a
+                // TN_WALL_SOLID edge, the first one straight through flat A and B's party wall, and
+                // a trip priced at 11 tiles completed in 5 minutes.
+                //
+                // It also falsified the design's central claim. §1 says a badly planned building
+                // becomes visible as a traffic pattern; residents who ignore walls never enter a
+                // corridor, so a corridor can never jam, so the player's verb (shape space) was
+                // disconnected from the only thing that reports on it. path.h existed, was correct,
+                // was measured free, and had ZERO consumers outside its own selfcheck.
+                // ARRIVAL IS TESTED FIRST, and the order is the whole trick. A resident already
+                // standing beside its target must not ask for a route: the goal tile is BLOCKED by
+                // the object itself, so tn_path_next honestly answers "no route onto it" and the
+                // first version of this code took that as "give up", which left everyone idling
+                // beside the thing they wanted, forever. Step only when there is still ground to
+                // cover.
                 if (abs(a->tx - ox) + abs(a->ty - oy) <= 1) {
                     const TnOffer *of = tno_offer_of(a->target_obj, a->bid_tag);
                     if (of && tn_obj[a->target_obj].users < of->capacity) {
@@ -52,6 +67,15 @@ void tn_agents_tick(void) {
                         a->pose = of->pose;   // the OBJECT decides what your body does
                         a->until = tn_now() + of->minutes;   // absolute: cannot wrap
                     } else { a->target_obj = -1; a->activity = TN_ACT_IDLE; }
+                } else {
+                    int nx, ny;
+                    if (!tn_path_next(a->tx, a->ty, ox, oy, &nx, &ny)) {
+                        a->target_obj = -1; a->activity = TN_ACT_IDLE;   // genuinely unreachable
+                    } else {
+                        a->facing = (unsigned char)(nx > a->tx ? 1 : nx < a->tx ? 3
+                                                  : ny > a->ty ? 2 : 0);
+                        a->tx = (short)nx; a->ty = (short)ny;
+                    }
                 }
             }
             break;
@@ -59,7 +83,9 @@ void tn_agents_tick(void) {
             TnTag tag; int score;
             const int o = tn_best_action(i, &tag, &score);
             a->bid_tag = tag; a->bid_score = score;
-            if (o >= 0) { a->target_obj = (signed char)o; a->activity = TN_ACT_WALK; }
+            // TnIdx, not signed char: the contract widened these and the casts had to follow, or an
+            // object index above 127 truncates negative and negative already means "none".
+            if (o >= 0) { a->target_obj = (TnIdx)o; a->activity = TN_ACT_WALK; }
             break;
         }
         }

@@ -329,6 +329,42 @@ void spec(void) {
                "case 10: and it stands up again when it is done");
     }
 
+    // ── CASE 11: NOBODY WALKS THROOUGH A WALL ───────────────────────────────
+    // The worst bug this cart has had, found by a critic and not by any of the 213 other
+    // assertions. tno_travel already priced a bid over the real BFS route, but the MOVEMENT was two
+    // lines of unconditional axis-stepping with no wall test, so the sim charged for a walk nobody
+    // took: 11.8% of all steps crossed a TN_WALL_SOLID edge, the first straight through a party wall,
+    // and a trip priced at 11 tiles finished in 5 minutes.
+    //
+    // It also falsified the design's central claim: residents who ignore walls never enter a
+    // corridor, so a corridor can never jam, so §1's "a badly planned building becomes visible as a
+    // traffic pattern" was unreachable. path.h was correct, measured free, and had no consumers.
+    //
+    // This asserts the property directly over the REAL level rather than a fixture, because the bug
+    // was invisible in every fixture: every step must be one tile and must be a step tn_can_step
+    // permits.
+    tn_world_init();
+    {
+        short px[TN_MAX_AGENTS], py[TN_MAX_AGENTS];
+        for (int i = 0; i < tn_agent_n; i++) { px[i] = tn_agent[i].tx; py[i] = tn_agent[i].ty; }
+        long steps = 0, illegal = 0;
+        for (int t = 0; t < 4000; t++) {
+            tn_agents_tick(); tn_work_tick(); tn_econ_tick(); tn_store_tick();
+            for (int i = 0; i < tn_agent_n; i++) {
+                const int dx = tn_agent[i].tx - px[i], dy = tn_agent[i].ty - py[i];
+                if (dx || dy) {
+                    steps++;
+                    const int dir = dx > 0 ? TN_DIR_E : dx < 0 ? TN_DIR_W : dy > 0 ? TN_DIR_S : TN_DIR_N;
+                    if (abs(dx) + abs(dy) != 1 || !tn_can_step(px[i], py[i], dir)) illegal++;
+                }
+                px[i] = tn_agent[i].tx; py[i] = tn_agent[i].ty;
+            }
+        }
+        snprintf(sp, sizeof sp, "case 11: %ld walk steps and NONE crossed a wall or teleported "
+                                "(%ld illegal)", steps, illegal);
+        expect(steps > 100 && illegal == 0, sp);
+    }
+
     // ── every module's own assertions, per spec.h's "SPECS ON AN INCLUDEABLE" ────────────────
     // Each module wrote and verified these against its own file; wiring them is the integrator's
     // job, and until this line existed none of them ran in the real build.

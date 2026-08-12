@@ -84,8 +84,14 @@ static const TnOffer *tns_offer_of(int obj, TnTag tag) {
 // Straight-line tile distance, the same measure offer.h scores travel with. When that becomes a
 // real path, both change together and nothing else here moves.
 static int tns_dist(int ax, int ay, int bx, int by) {
-    const int dx = ax - bx, dy = ay - by;
-    return (int)(sqrtf((float)(dx * dx + dy * dy)) + 0.5f);
+    // A REAL PATH, not a crow's flight. This function's own comment used to promise "when that
+    // becomes a real path, both change together and nothing else here moves" — the path landed and
+    // this did not follow, which made the module's founding sentence ("ownership is a cost in the
+    // same unit as travel") false: it was adding a tile-denominated detour to a straight line.
+    // Measured consequence: with two communal fridges at crow 2 (path 18) and crow 4 (path 4),
+    // tn_store_pick chose the 18-tile one. TN_UNREACHABLE is large, so an unroutable container
+    // loses the argmin without needing a guard.
+    return tn_path_len(ax, ay, bx, by);
 }
 
 // ── containers ──────────────────────────────────────────────────────────────
@@ -245,10 +251,15 @@ static int tns_loose_for(int agent) {
 // than shared, because the alternative is this module reaching into a sibling's internals. Returns
 // true once the agent is on or beside the target tile (the same arrival test agents.h uses).
 static bool tns_step_to(int agent, int tx, int ty) {
+    // Follows the BFS route, for the same reason agents.h now does: the blind axis-step walked
+    // through party walls, and a hauler carrying a meal through a wall to a container that was
+    // chosen by crow-flight is two lies compounding.
     TnAgent *a = &tn_agent[agent];
-    if (a->tx != tx) a->tx += (a->tx < tx) ? 1 : -1;
-    else if (a->ty != ty) a->ty += (a->ty < ty) ? 1 : -1;
-    a->facing = (unsigned char)((a->tx < tx) ? 1 : (a->tx > tx) ? 3 : (a->ty < ty) ? 2 : 0);
+    int nx, ny;
+    if (tn_path_next(a->tx, a->ty, tx, ty, &nx, &ny)) {
+        a->facing = (unsigned char)(nx > a->tx ? 1 : nx < a->tx ? 3 : ny > a->ty ? 2 : 0);
+        a->tx = (short)nx; a->ty = (short)ny;
+    }
     return abs(a->tx - tx) + abs(a->ty - ty) <= 1;
 }
 

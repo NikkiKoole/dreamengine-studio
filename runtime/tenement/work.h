@@ -109,7 +109,7 @@ static int tnk_open_order(int agent) {
 // owner for capacity means work can never leak a count, however this function is reached.
 static void tnk_release(int agent) {
     TnkShift *sh = &tnk_shift[agent];
-    if (sh->order >= 0 && sh->order < tn_order_n && tn_order[sh->order].claimed_by == (signed char)agent) {
+    if (sh->order >= 0 && sh->order < tn_order_n && tn_order[sh->order].claimed_by == (TnIdx)agent) {
         tn_order[sh->order].claimed_by = -1;
         tn_order[sh->order].at_obj     = -1;
     }
@@ -128,9 +128,9 @@ static void tnk_release(int agent) {
 static int tnk_deliver(int agent, const TnRecipe *rc, int household) {
     if (tn_item_n >= TN_MAX_ITEMS) return 0;                        // full is an answer, not a crash
     const int it = tn_item_n++;
-    tn_item[it] = (TnItem){ rc->out_store_tag, rc->out_value, (signed char)agent, -1,
+    tn_item[it] = (TnItem){ rc->out_store_tag, rc->out_value, (TnIdx)agent, -1,
                             (unsigned char)tn_agent[agent].tx, (unsigned char)tn_agent[agent].ty };
-    tn_agent[agent].carrying = (signed char)it;
+    tn_agent[agent].carrying = (TnIdx)it;
     tnk_goods_made++;
 
     tn_sell(household, it);        // ←── TN_SEAM_EXTERNAL. The ONE place money enters (design §5).
@@ -167,7 +167,7 @@ void tn_work_tick(void) {
         if (sh->phase != TNK_PH_NONE) {
             const int live = sh->order >= 0 && sh->order < tn_order_n &&
                              sh->obj   >= 0 && sh->obj   < tn_obj_n   &&
-                             tn_order[sh->order].claimed_by == (signed char)i;
+                             tn_order[sh->order].claimed_by == (TnIdx)i;
             if (!live) { tnk_release(i); continue; }
 
             const TnRecipe *rc = &TN_RECIPES[tn_order[sh->order].recipe];
@@ -176,7 +176,7 @@ void tn_work_tick(void) {
             // design §1 — visible labour that a stranger can read without a tooltip.
             a->bid_tag = (unsigned char)rc->needs_cap;
 
-            if (a->activity == TN_ACT_USE && a->target_obj == (signed char)sh->obj) {
+            if (a->activity == TN_ACT_USE && a->target_obj == sh->obj) {
                 sh->phase = TNK_PH_SHIFT;
                 if (sh->logged < 32000) sh->logged++;
                 a->bid_score = rc->minutes - sh->logged;          // minutes left, on the HUD
@@ -198,7 +198,7 @@ void tn_work_tick(void) {
                 }
                 continue;
             }
-            if (a->activity == TN_ACT_WALK && a->target_obj == (signed char)sh->obj) continue;  // commuting
+            if (a->activity == TN_ACT_WALK && a->target_obj == sh->obj) continue;  // commuting
 
             // Anything else means the stand ended early or never began: the spot filled up before
             // arrival, or the world moved. Give the order back, somebody else can have it.
@@ -231,11 +231,11 @@ void tn_work_tick(void) {
 
         tnk_claims++;
         tn_order[ord].claimed_by = (signed char)i;
-        tn_order[ord].at_obj     = (signed char)spot;   // NOTE: signed char in the contract — see report
+        tn_order[ord].at_obj     = (TnIdx)spot;   // TnIdx: the contract widened these, see model.h
         *sh = (TnkShift){ (signed char)ord, (short)spot, TNK_PH_TRAVEL, 0 };
         a->bid_tag    = (unsigned char)cap;
         a->bid_score  = rc->minutes;
-        a->target_obj = (signed char)spot;
+        a->target_obj = (TnIdx)spot;
         a->activity   = TN_ACT_WALK;               // the agents module owns the walking from here
     }
 }

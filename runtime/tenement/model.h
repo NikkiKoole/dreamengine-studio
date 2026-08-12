@@ -367,6 +367,11 @@ int  tn_buy_obj(int household, int kind, int tx, int ty);   // owner: econ
 // divides by travel, so -1 would be a divide-by-zero in the core of the sim.
 #define TN_UNREACHABLE 100000
 int  tn_path_len(int fromx, int fromy, int tox, int toy);
+// Objects need the change seam WALLS already have. path caches a distance field keyed on the source
+// tile; walls invalidate it through tn_walls_on_change, and until now nothing invalidated it when
+// FURNITURE moved. The symptom is nasty: a bid priced against a stale field, so a resident walks to
+// where a fridge used to be. Called by tn_add_obj, and by anything that moves or removes an object.
+void tn_path_dirty(void);                                   // owner: path
 
 // ── module entry points ─────────────────────────────────────────────────────
 void tn_world_init(void);                 // world

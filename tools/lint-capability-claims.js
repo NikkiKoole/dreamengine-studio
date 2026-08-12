@@ -46,7 +46,7 @@
 //      bare form is ignored — only "no X engine|bus|effect|insert|pedal|stage".
 //   4. ALREADY-ANNOTATED lines are skipped: `was "no reverb engine"`,
 //      `[SUPERSEDED …]`, "no longer true". Correcting in place must not re-fire.
-//   5. Fenced code blocks and docs/archive/ are skipped.
+//   5. Fenced code blocks, docs/archive/ and docs/notes/ (the scratchpad) are skipped.
 //   6. REAL-WORLD statements ("a real clav has no reverb") are musicology, not us.
 //   7. QUOTED claims are being discussed, not asserted: `It closed the "waiting on the
 //      sidechain path" wait`. Quoted spans are blanked before matching. The general form
@@ -253,7 +253,7 @@ const unquote = (s) => s.replace(/"[^"]*"|“[^”]*”/g, " ");
 
 function walk(dir, out = []) {
   for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
-    if (e.name === "archive" || e.name.startsWith(".")) continue;
+    if (e.name === "archive" || e.name === "notes" || e.name.startsWith(".")) continue;
     const p = path.join(dir, e.name);
     if (e.isDirectory()) walk(p, out);
     else if (e.name.endsWith(".md")) out.push(p);

@@ -48,7 +48,8 @@
 //          the set.
 //
 // Companion to lint-docs.js (broken links / §-refs / tool-index). Scope: docs/
-// (archive/ skipped — staleness there is the point). Advisory by default
+// (archive/ skipped — staleness there is the point; notes/ skipped — it's the
+// editor's scratchpad, see lint-docs.js). Advisory by default
 // (exit 0); `--strict` exits 1 on any finding — the 2026-07-10 sweep took both
 // tiers to ZERO (58 backlinks / 203 mentions → 0/0 via the exempt classes above
 // + ~140 added links), so repo-doctor now runs it --strict as a GATE. Keep it
@@ -118,7 +119,7 @@ const OUT_HUB_OUTDEGREE = 15;
 function walk(dir, out = []) {
   for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
     const p = path.join(dir, e.name);
-    if (e.isDirectory()) { if (e.name === "archive") continue; walk(p, out); }
+    if (e.isDirectory()) { if (e.name === "archive" || e.name === "notes") continue; walk(p, out); }
     else if (e.name.endsWith(".md")) out.push(p);
   }
   return out;

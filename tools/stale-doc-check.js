@@ -135,11 +135,12 @@ const gitDate = new Map();
 const dateOf = rel => gitDate.get(rel) || null; // YYYY-MM-DD, lexically = chronologically comparable
 const daysBetween = (a, b) => Math.round((Date.parse(b) - Date.parse(a)) / 86400000);
 
-// ---- collect docs (skip archive/ — staleness there is the point) ----
+// ---- collect docs (skip archive/ — staleness there is the point — and notes/,
+//      the editor scratchpad, where a rotting draft is not a finding) ----
 function walk(dir, out = []) {
   for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
     const p = path.join(dir, e.name);
-    if (e.isDirectory()) { if (e.name === "archive") continue; walk(p, out); }
+    if (e.isDirectory()) { if (e.name === "archive" || e.name === "notes") continue; walk(p, out); }
     else if (e.name.endsWith(".md")) out.push(p);
   }
   return out;

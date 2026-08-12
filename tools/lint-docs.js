@@ -28,6 +28,10 @@
 //     point at the sibling file (see instrument-engines.md's provenance note).
 //     They are counted in the summary for transparency.
 //   - docs/archive/ — superseded notes kept for history; staleness is the point.
+//   - docs/notes/ — the editor's free-form SCRATCHPAD (Docs tab → notes → ✎ edit):
+//     marketing drafts and half-formed thinking. Holding a scratchpad to link/§-ref
+//     rules would defeat the point of having one. Same carve-out the four doc
+//     linters share (stale-doc-check / lint-xrefs / lint-capability-claims).
 //   - external URLs.
 //
 // Run after any doc reorg/split/rename:  node tools/lint-docs.js
@@ -86,7 +90,7 @@ function walk(dir, out = []) {
   for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
     const p = path.join(dir, e.name);
     if (e.isDirectory()) {
-      if (e.name === 'archive') continue;
+      if (e.name === 'archive' || e.name === 'notes') continue;
       walk(p, out);
     } else if (e.name.endsWith('.md')) out.push(p);
   }

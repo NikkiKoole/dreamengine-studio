@@ -196,6 +196,63 @@ function serveDocs() {
           return
         }
 
+        // PUT /docs/<rel>.md — write a doc back to disk. This is what makes the
+        // Docs tab an EDITOR and not just a reader: the pane's ✎ edit toggle saves
+        // through here, and docs/notes/ is the free-form scratchpad it was built for
+        // (marketing drafts, anything non-code) — git-tracked, so it syncs across
+        // machines, and the docs search indexes it like any other doc.
+        //
+        // Three guards, all load-bearing:
+        //   · markdown only, resolved inside DOCS — no escaping the folder, no
+        //     overwriting the GENERATED .html pages (history/compendium/…).
+        //   · X-Doc-Base-Mtime: the mtime the pane loaded. If the file moved on
+        //     disk since, answer 409 instead of writing. SEVERAL AGENTS SHARE THIS
+        //     WORKING TREE — a blind full-file overwrite is exactly the silent
+        //     clobber CLAUDE.md warns about. Send 0 to force (the client's
+        //     "overwrite anyway" button, after it has told you what happened).
+        //   · missing parent dirs are created, so "new note" is just a PUT.
+        if (req.method === 'PUT' && url.startsWith('/docs/')) {
+          const rel = url.slice('/docs/'.length)
+          const abs = path.resolve(DOCS, rel)
+          const reply = (code, obj) => {
+            res.statusCode = code
+            res.setHeader('Content-Type', 'application/json')
+            res.end(JSON.stringify(obj))
+          }
+          if (!abs.startsWith(DOCS + path.sep) || !abs.endsWith('.md')) {
+            reply(400, { ok: false, error: 'markdown files inside docs/ only' })
+            return
+          }
+          let body = ''
+          req.setEncoding('utf8')
+          req.on('data', c => { body += c })
+          req.on('end', () => {
+            try {
+              const base = Number(req.headers['x-doc-base-mtime'] || 0)
+              const onDisk = fs.existsSync(abs) ? Math.round(fs.statSync(abs).mtimeMs) : 0
+              // X-Doc-Create-Only: "new note" — refuse if it's already there, so a
+              // title that slugs onto an existing note opens it instead of eating it.
+              // The client can NOT check this with a GET: vite's SPA fallback answers
+              // 200 + index.html for a path that doesn't exist, which reads as "yes".
+              if (req.headers['x-doc-create-only'] && onDisk) {
+                reply(409, { ok: false, exists: true, mtime: onDisk })
+                return
+              }
+              // base 0 = "create, or force-overwrite" (the client asked for it explicitly)
+              if (base && onDisk && onDisk !== base) {
+                reply(409, { ok: false, conflict: true, mtime: onDisk })
+                return
+              }
+              fs.mkdirSync(path.dirname(abs), { recursive: true })
+              fs.writeFileSync(abs, body, 'utf8')
+              reply(200, { ok: true, mtime: Math.round(fs.statSync(abs).mtimeMs) })
+            } catch (e) {
+              reply(500, { ok: false, error: String(e.message || e) })
+            }
+          })
+          return
+        }
+
         if (url.startsWith('/docs/')) {
           // resolve safely inside DOCS — reject any path that escapes it
           const rel = url.slice('/docs/'.length)
@@ -205,6 +262,10 @@ function serveDocs() {
             // else is markdown served raw for the in-editor wiki renderer.
             const html = abs.endsWith('.html')
             res.setHeader('Content-Type', html ? 'text/html; charset=utf-8' : 'text/plain; charset=utf-8')
+            // the editor round-trips this on save (see the PUT above) to detect a
+            // parallel edit — so every GET carries the version it handed out
+            res.setHeader('X-Doc-Mtime', String(Math.round(fs.statSync(abs).mtimeMs)))
+            res.setHeader('Access-Control-Expose-Headers', 'X-Doc-Mtime')
             fs.createReadStream(abs).pipe(res)
             return
           }

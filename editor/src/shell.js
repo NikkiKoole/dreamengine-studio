@@ -210,6 +210,21 @@ let docsContent          // right-hand content pane
 let currentDocPath = ''  // relative path of the markdown doc shown ('' = API reference)
 let docsSidebarCollapsed = localStorage.getItem('docsSidebar') === 'closed'
 
+// — writing, not just reading — the content pane has an ✎ edit mode that saves
+// straight back to docs/ (PUT /docs/<rel>.md, see editor/vite.config.js). The
+// scratchpad this exists for is docs/notes/: free-form writing (marketing copy,
+// half-formed notes) that is git-tracked, so it travels between machines, and
+// falls in the docs search like everything else. The doc linters skip notes/.
+let docsEditBar          // the ✎ edit / save / cancel strip floating over the pane
+let docsEditArea         // the <textarea> while editing (null otherwise)
+let docEditPath = ''     // which doc that textarea belongs to — a save/flush must never
+                         // follow currentDocPath, which has already moved on by then
+let docsEditStatus       // the "saved · 12:04" / conflict line in the bar
+let docSource = ''       // the markdown exactly as loaded — cancel restores this
+let docBaseMtime = 0     // the file version we loaded; sent on save to catch a parallel edit
+let docSaveTimer = null  // notes/ autosaves; every other doc needs an explicit save
+const isNote = p => p.startsWith('notes/')
+
 // — find-in-docs (Ctrl/Cmd+F) — highlights matches in whatever the content pane shows —
 let findBar, findInput, findCount   // the find UI (built in buildDocsTab)
 let findMatches = []                // the <mark> elements for the current query
@@ -242,6 +257,11 @@ function runFind(query) {
   clearFind()
   findQuery = query
   if (!query) { updateFindCount(); return }
+  // nothing to highlight inside a <textarea> either (edit mode owns the pane)
+  if (docsEditArea) {
+    if (findCount) findCount.textContent = 'n/a while editing'
+    return
+  }
   // the engine-source view is a CodeMirror instance — injecting <mark>s would
   // corrupt its managed DOM, so find-in-docs sits this one out
   if (currentDocPath.startsWith('engine:')) {
@@ -322,6 +342,10 @@ function reapplyFind() {
 }
 
 function setActiveNav(key) {
+  // every pane switch routes through here (API ref, a generated page, engine
+  // source, a doc), so it's the one place to close an open editor + resync the bar
+  leaveDocEdit()
+  syncEditBar()
   if (!docsSidebar) return
   docsSidebar.querySelectorAll('[data-docnav]').forEach(el =>
     el.classList.toggle('active', el.dataset.docnav === key))
@@ -541,19 +565,162 @@ window.addEventListener('message', (e) => {
 
 // — render a markdown doc from docs/ into the content pane —
 async function showDoc(relPath) {
+  leaveDocEdit()          // navigating away from an open editor drops it (a pending save has already flushed)
   currentDocPath = relPath
   setActiveNav(relPath)
   docsContent.classList.remove('docs-history', 'docs-engine')
   let md
   try {
-    md = await (await fetch('/docs/' + relPath)).text()
+    const r = await fetch('/docs/' + relPath)
+    // the docs route stamps X-Doc-Mtime on every hit; its ABSENCE means we fell
+    // through to vite's SPA fallback, i.e. the file isn't there — and the body is
+    // index.html, which must never be shown as a doc (let alone saved back as one)
+    docBaseMtime = Number(r.headers.get('X-Doc-Mtime') || 0)
+    if (!r.ok || !docBaseMtime) throw new Error('not found')
+    md = await r.text()
   } catch {
+    docSource = ''
     docsContent.innerHTML = `<p class="docs-empty">couldn’t load ${relPath}</p>`
+    currentDocPath = ''            // nothing editable is on screen
+    syncEditBar()
     return
   }
+  docSource = md
   docsContent.innerHTML = `<div class="docs-md">${marked.parse(md)}</div>`
   docsContent.scrollTop = 0
+  syncEditBar()
   reapplyFind()
+}
+
+// ── edit mode ────────────────────────────────────────────────────────────────
+// A plain <textarea>, deliberately: this is a prose surface, and a textarea gets
+// native spellcheck, undo and wrapping for free (CodeMirror would need a markdown
+// mode dependency and buys nothing for writing). Preview = leave edit mode.
+
+// show/hide + relabel the floating bar for whatever the pane currently shows
+function syncEditBar() {
+  if (!docsEditBar) return
+  const editable = currentDocPath.endsWith('.md')
+  docsEditBar.classList.toggle('shown', editable)
+  docsEditBar.classList.toggle('editing', !!docsEditArea)
+  if (!editable) { docsEditStatus.textContent = ''; docsEditStatus.className = 'docs-edit-status' }
+}
+
+function enterDocEdit() {
+  if (docsEditArea || !currentDocPath.endsWith('.md')) return
+  closeFind()             // the find machinery injects <mark>s; nothing to mark in a textarea
+  docsContent.innerHTML = ''
+  const ta = document.createElement('textarea')
+  ta.className = 'docs-edit-area'
+  ta.spellcheck = true
+  ta.value = docSource
+  docsContent.appendChild(ta)
+  docsEditArea = ta
+  docEditPath = currentDocPath
+  ta.focus()
+  ta.setSelectionRange(docSource.length, docSource.length)
+  ta.addEventListener('input', () => {
+    setEditStatus('unsaved', 'dirty')
+    // notes/ is a scratchpad — losing what you typed because you forgot cmd-S
+    // would defeat the point, so it autosaves a beat after you stop. Real docs
+    // are someone's committed prose: those save only when you say so.
+    if (!isNote(docEditPath)) return
+    clearTimeout(docSaveTimer)
+    docSaveTimer = setTimeout(() => saveDoc({ auto: true }), 1200)
+  })
+  // cmd-S is claimed by the window-level capture handler at the bottom of this
+  // file (it routes to saveDoc while this textarea is open) — handling it here
+  // too would save twice.
+  ta.addEventListener('keydown', e => {
+    if (e.key === 'Escape') { e.preventDefault(); ta.blur() }
+  })
+  syncEditBar()
+}
+
+function setEditStatus(text, cls = '') {
+  if (!docsEditStatus) return
+  docsEditStatus.textContent = text
+  docsEditStatus.className = 'docs-edit-status' + (cls ? ' ' + cls : '')
+}
+
+// leave the textarea without touching disk — used when navigating away and by
+// "cancel". A pending autosave is flushed first so a scratch note can't lose text.
+function leaveDocEdit() {
+  if (!docsEditArea) return
+  clearTimeout(docSaveTimer)
+  const typed = docsEditArea.value
+  const path = docEditPath
+  docsEditArea = null
+  docEditPath = ''
+  // flush an un-run autosave to the doc it was typed into (currentDocPath may
+  // already point at wherever you clicked). Only notes/ autosaves; leaving an
+  // edited real doc discards, same as cancel.
+  if (typed !== docSource && isNote(path)) { docSource = typed; putDoc(typed, false, path) }
+  syncEditBar()
+}
+
+// render whatever docSource now holds, back in read mode
+function showDocEditResult() {
+  docsEditArea = null
+  docEditPath = ''
+  docsContent.innerHTML = `<div class="docs-md">${marked.parse(docSource)}</div>`
+  docsContent.scrollTop = 0
+  syncEditBar()
+}
+
+// the bare write — resolves to the server's JSON reply
+async function putDoc(text, force = false, path = docEditPath || currentDocPath, createOnly = false) {
+  const headers = {
+    'Content-Type': 'text/plain; charset=utf-8',
+    'X-Doc-Base-Mtime': String(force ? 0 : docBaseMtime),
+  }
+  if (createOnly) headers['X-Doc-Create-Only'] = '1'
+  const r = await fetch('/docs/' + path, { method: 'PUT', headers, body: text })
+  const out = await r.json().catch(() => ({ ok: false, error: 'bad reply' }))
+  if (out.ok) docBaseMtime = out.mtime || 0
+  return out
+}
+
+async function saveDoc({ auto = false, force = false } = {}) {
+  if (!docsEditArea) return
+  clearTimeout(docSaveTimer)
+  const text = docsEditArea.value
+  setEditStatus('saving…')
+  const out = await putDoc(text, force)
+  if (out.ok) {
+    docSource = text
+    const t = new Date().toTimeString().slice(0, 5)
+    setEditStatus(`saved ${t}`, 'ok')
+    if (!auto) showDocEditResult()      // an explicit save also drops you back to the rendered view
+    return
+  }
+  if (out.conflict) {
+    // someone (another agent, another window) wrote this file while you were typing
+    setEditStatus('changed on disk — save again to overwrite', 'warn')
+    docBaseMtime = 0                    // the next save force-writes, deliberately
+    return
+  }
+  setEditStatus(out.error || 'save failed', 'warn')
+}
+
+// create docs/notes/<slug>.md and open it, ready to type. Electron has no
+// window.prompt, so the name comes from an inline input in the sidebar.
+async function createNote(title) {
+  const name = String(title || '').trim()
+  if (!name) return
+  const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'note'
+  const rel = `notes/${slug}.md`
+  const today = new Date().toISOString().slice(0, 10)
+  docBaseMtime = 0                      // new file: no version to conflict with
+  // create-only: the SERVER decides whether this note already exists. A title that
+  // slugs onto one just opens it (see the X-Doc-Create-Only note in vite.config.js —
+  // the client can't test this itself, the dev server 200s every unknown path).
+  const out = await putDoc(`# ${name}\n\n_${today}_\n\n`, false, rel, true)
+  if (out.exists) { await showDoc(rel); enterDocEdit(); return }
+  if (!out.ok) { showToast(out.error || 'could not create the note', 4000); return }
+  await buildDocsSidebar()
+  await showDoc(rel)
+  enterDocEdit()
 }
 
 // resolve a relative markdown link against the doc it appears in (doc-root-relative)
@@ -712,9 +879,41 @@ async function buildDocsSidebar() {
     const grp = navGroup(head)
     list.forEach(f => grp.appendChild(docNavItem(prettyDocLabel(f), f, () => showDoc(f))))
     docsNav.appendChild(grp)
+    return grp
   }
   if (top.length) addGroup('guide', top)
-  Object.keys(folders).sort().forEach(dir => addGroup(dir, folders[dir].sort()))
+  Object.keys(folders).sort().forEach(dir => {
+    if (dir === 'notes') return          // notes/ is pinned up top, next to the ★ items
+    addGroup(dir, folders[dir].sort())
+  })
+
+  // ── the scratchpad ──
+  // docs/notes/ sits directly under the ★ items rather than alphabetically among
+  // the reference folders: it's the one group you come here to WRITE in, and it
+  // exists even when empty (the "+ new note" row is how the first note is made).
+  const notesGrp = navGroup('notes')
+  ;(folders['notes'] || []).sort().forEach(f =>
+    notesGrp.appendChild(docNavItem(prettyDocLabel(f), f, () => showDoc(f))))
+  const newBtn = document.createElement('button')
+  newBtn.className = 'docs-nav-item docs-nav-new'
+  newBtn.textContent = '+ new note'
+  const nameInput = document.createElement('input')
+  nameInput.className = 'docs-nav-newinput'
+  nameInput.placeholder = 'note title…'
+  nameInput.spellcheck = false
+  nameInput.hidden = true
+  newBtn.addEventListener('click', () => {   // Electron has no window.prompt — ask inline
+    newBtn.hidden = true; nameInput.hidden = false
+    nameInput.value = ''; nameInput.focus()
+  })
+  const closeNew = () => { nameInput.hidden = true; newBtn.hidden = false }
+  nameInput.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); const v = nameInput.value; closeNew(); createNote(v) }
+    else if (e.key === 'Escape') { e.preventDefault(); closeNew() }
+  })
+  nameInput.addEventListener('blur', closeNew)
+  notesGrp.append(newBtn, nameInput)
+  docsNav.insertBefore(notesGrp, docsNav.querySelector('.docs-nav-group'))   // above "engine source"
 }
 
 async function buildDocsTab() {
@@ -758,6 +957,28 @@ async function buildDocsTab() {
   })
   helpPanel.appendChild(toggleBtn)
   syncToggle()
+
+  // edit bar — floats over the content pane whenever it shows a markdown doc.
+  // Read mode: one ✎ edit button. Edit mode: save / cancel + a status line.
+  docsEditBar = document.createElement('div')
+  docsEditBar.id = 'docs-edit'
+  docsEditBar.innerHTML = `
+    <span class="docs-edit-status"></span>
+    <button id="docs-edit-start" title="edit this doc (saves to docs/)">✎ edit</button>
+    <button id="docs-edit-save" title="save (⌘S)">✓ save</button>
+    <button id="docs-edit-cancel" title="discard changes">✕</button>
+  `
+  helpPanel.appendChild(docsEditBar)
+  docsEditStatus = docsEditBar.querySelector('.docs-edit-status')
+  docsEditBar.querySelector('#docs-edit-start').addEventListener('click', () => enterDocEdit())
+  docsEditBar.querySelector('#docs-edit-save').addEventListener('click', () => saveDoc())
+  docsEditBar.querySelector('#docs-edit-cancel').addEventListener('click', () => {
+    if (!docsEditArea) return
+    docsEditArea = null; docEditPath = ''      // drop the typing, keep the last saved text
+    clearTimeout(docSaveTimer)
+    showDocEditResult()
+    setEditStatus('')
+  })
 
   // find-in-docs bar (Ctrl/Cmd+F) — floats over the content pane, searches whatever it shows
   findBar = document.createElement('div')
@@ -3226,6 +3447,10 @@ if (!settings.showCartButtons) {
 window.addEventListener('keydown', e => {
   if ((e.metaKey || e.ctrlKey) && (e.key === 's' || e.key === 'S')) {
     e.preventDefault()
+    // the docs pane's editor owns cmd-S while it's open. This listener is CAPTURE
+    // phase, so without this the shortcut would save the CART out from under
+    // someone writing a note.
+    if (docsEditArea) { saveDoc(); return }
     saveCart(e.shiftKey)
   }
   // F5 → run the cart (skip if a compile is already in flight)

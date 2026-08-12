@@ -240,6 +240,7 @@ docs/
 ├── history.html       GENERATED project-history timeline (tools/build-history.js) — a neo-brutalist magazine read, grouped week by week; opened via the Docs tab's "★ history" item. Covers weeks 1–3; how-to + add-a-week → guides/history-page.md
 ├── learn-you-a-dreamengine.html  GENERATED "Learn You a Haskell"-style illustrated field guide to the studio.h API (tools/build-book.js) — chatty chapters where EVERY illustration is real console output baked from a cart in tools/carts/book/ (stills via play.js, gifs via make-gif). opened via the Docs tab's "★ book" item. COMPLETE — all 15 chapters (draw → ship-it), two playable games + a shooter, sound you can hear, on-screen touch controls; how-to + resume state → design/book.md. book-assets/ = its generated images
 ├── field-notes/       the research JOURNAL — append-only notes (000-…) on *what changed our understanding* (explicitly NOT docs/specs/decisions); FIELD-NOTES.md = generated index (tools/build-field-notes.js), README.md = the charter
+├── notes/             the SCRATCHPAD: free-form writing that isn't code and isn't yet a doc (marketing drafts, blurbs, thinking out loud). Written IN the editor: Docs tab → notes → "+ new note" (or ✎ edit on any doc); notes autosave, other docs need ⌘S. Git-tracked so drafts follow you between machines, searchable like any doc, and DELIBERATELY skipped by the four doc linters, so a draft can be bad. Graduate it to its real home when it stops being a draft: notes/README.md
 └── archive/           superseded / done notes, kept for history
 ```
 

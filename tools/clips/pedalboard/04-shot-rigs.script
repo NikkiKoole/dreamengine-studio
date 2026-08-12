@@ -1,0 +1,6 @@
+# pedalboard — App Store hero 3: THE RIGS LIST.
+# Same pan, then tap "RIGS". Caption: "One-tap legendary rigs". Grab frame 120.
+# Full recipe + the device canvas sizes: 02-shot-board.script.
+# frames 160
+wheel 30 -3
+click 60 80 8

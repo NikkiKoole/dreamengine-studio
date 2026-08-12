@@ -1,0 +1,7 @@
+# pedalboard — App Store hero 2: THE EFFECT TRAY.
+# Pan the rack first (no-op at 433 wide; on the iPad's 320 it clears the last pedal), then
+# tap "= PEDALS" top-left. Caption: "Effects in any order = your tone". Grab frame 120.
+# Full recipe + the device canvas sizes: 02-shot-board.script.
+# frames 160
+wheel 30 -3
+click 60 32 8

@@ -11,7 +11,8 @@
 //   node tools/asc-push.js <app> --metadata              # PATCH title/subtitle/keywords/… live
 //   node tools/asc-push.js <app> --metadata --dry-run --json      # structured PLAN (feeds the editor panel)
 //   node tools/asc-push.js <app> --metadata --only description,supportUrl   # push ONLY these fields
-//   node tools/asc-push.js <app> --screenshots           # upload apps/<app>/screenshots/*.png
+//   node tools/asc-push.js <app> --screenshots           # upload apps/<app>/screenshots/*.png (APPENDS)
+//   node tools/asc-push.js <app> --screenshots --replace # ... after deleting the set's inherited images
 //   node tools/asc-push.js <app> --metadata --screenshots
 //   node tools/asc-push.js <app> --category              # set primary category (manifest listing.category, default MUSIC)
 //   node tools/asc-push.js <app> --age-rating            # set the age-rating declaration (4+ unless listing.ageRating overrides)
@@ -104,7 +105,7 @@ const FILE_TO_FIELD = {
 
 // ── args ──────────────────────────────────────────────────────────────────────────────────────
 const argv = process.argv.slice(2)
-const opt = { app: '', metadata: false, screenshots: false, iap: false, promote: false, category: false, ageRating: false, price: false, contentRights: false, reviewContact: false, newVersion: false, dryRun: false, check: false, locale: 'en-US', version: '', json: false, only: null, reprice: false }
+const opt = { app: '', metadata: false, screenshots: false, iap: false, promote: false, category: false, ageRating: false, price: false, contentRights: false, reviewContact: false, newVersion: false, replace: false, dryRun: false, check: false, locale: 'en-US', version: '', json: false, only: null, reprice: false }
 for (let i = 0; i < argv.length; i++) {
   const a = argv[i]
   if (a === '--metadata') opt.metadata = true
@@ -121,6 +122,7 @@ for (let i = 0; i < argv.length; i++) {
   else if (a === '--check') opt.check = true
   else if (a === '--json') opt.json = true          // machine-readable plan/result (metadata channel; for the editor panel)
   else if (a === '--reprice') opt.reprice = true    // --iap: overwrite an existing IAP price schedule (default leaves it)
+  else if (a === '--replace') opt.replace = true    // --screenshots: delete the set's inherited images before uploading
   else if (a === '--only') opt.only = argv[++i].split(',').map(s => s.trim()).filter(Boolean)  // push only these fields
   else if (a === '--locale') opt.locale = argv[++i]
   else if (a === '--version') opt.version = argv[++i]
@@ -514,23 +516,33 @@ async function pushScreenshots() {
   const app = await resolveApp()
   const { version, loc: verLoc } = await editableVersionLoc(app.id)
   console.log(`\n▸ screenshots → version ${version.attributes.versionString} · ${opt.locale} (${total} files)`)
-  if (opt.dryRun) {
-    for (const [dt, files] of Object.entries(groups))
-      console.log(`  ${dt}: ${files.map(f => path.basename(f.file)).join(', ')}`)
-    console.log('\n  (--dry-run: no upload)')
-    return
-  }
   for (const [dt, files] of Object.entries(groups)) {
-    const set = await ensureScreenshotSet(verLoc.id, dt)
-    console.log(`  ${dt} (set ${set.id})`)
+    // An UPDATE inherits the previous version's screenshots, and uploading APPENDS — so without
+    // --replace a reshoot silently ends up as old-set + new-set, oldest first, which is what the
+    // store page would then lead with. Report the existing count either way.
+    const set = await ensureScreenshotSet(verLoc.id, dt, opt.dryRun)
+    const existing = set ? await listScreenshots(set.id) : []
+    const note = existing.length
+      ? (opt.replace ? `  (replacing ${existing.length} existing)` : `  ⚠ ${existing.length} already there — they are KEPT; pass --replace to swap them out`)
+      : ''
+    console.log(`  ${dt}${set ? ` (set ${set.id})` : ' (set will be created)'}: ${files.map(f => path.basename(f.file)).join(', ')}${note}`)
+    if (opt.dryRun) continue
+    if (opt.replace) for (const s of existing) await api('DELETE', `/v1/appScreenshots/${s.id}`)
     for (const f of files) await uploadScreenshot(set.id, f.file)
   }
+  if (opt.dryRun) console.log('\n  (--dry-run: no upload)')
 }
 
-async function ensureScreenshotSet(verLocId, displayType) {
+async function listScreenshots(setId) {
+  const r = await apiOrNull('GET', `/v1/appScreenshotSets/${setId}/appScreenshots?limit=50`)
+  return r?.data || []
+}
+
+async function ensureScreenshotSet(verLocId, displayType, peekOnly) {
   const sets = await api('GET', `/v1/appStoreVersionLocalizations/${verLocId}/appScreenshotSets?limit=50`)
   const found = sets.data.find(s => s.attributes.screenshotDisplayType === displayType)
   if (found) return found
+  if (peekOnly) return null   // --dry-run must not create the set it is only reporting on
   const r = await api('POST', '/v1/appScreenshotSets', {
     data: {
       type: 'appScreenshotSets',

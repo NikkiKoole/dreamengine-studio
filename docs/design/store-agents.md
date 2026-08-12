@@ -328,9 +328,15 @@ is not a bug, it is Apple's model, and the update path is shorter than the first
 4. **`cd ios && APP=<app> ./testflight.sh`** — `MARKETING_VERSION` comes from the manifest, so the
    bump in #1 is what makes the build attachable. The version-must-match gotcha below is the one
    that bites here.
-5. **Screenshots + App Privacy carry over.** No re-upload needed unless the UI actually changed;
-   App Privacy is answered once per app, not per version. Re-shoot when a headline change is
-   visible in a hero frame (the 1.1 chord row went from one row to two, which dated all six shots).
+5. **Screenshots + App Privacy carry over.** App Privacy is answered once per app, not per version.
+   Re-shoot when a headline change is visible in a hero frame (1.1's quality row went from 5
+   buttons to 7, which dated all six shots) — and then **`--screenshots --replace`**, because
+   uploading APPENDS: without it the inherited set stays and the store page leads with the old
+   images. A bare `--screenshots --dry-run` reports how many are already in each set.
+   Shoot each device at the canvas the cart REFLOWS to (`fit_canvas()`), not one console reused
+   for both: pedalboard is 433x200 on the 6.9" phone and 320x240 on the 4:3 iPad, which fills the
+   iPad frame instead of leaving the bottom third empty the way 1.0's did. Park the input as a
+   committed clip (`tools/clips/<cart>/NN-shot-*.script`) so the shot is reproducible.
 6. **Add for Review → Submit.** The build must finish processing (5–30 min) before it will attach.
 
 ### Post-launch — deployment doesn't end at submit

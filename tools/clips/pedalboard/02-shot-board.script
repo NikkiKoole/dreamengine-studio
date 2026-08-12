@@ -1,0 +1,24 @@
+# pedalboard — App Store hero 1: THE BOARD + THE CHORD ROW (the 1.1 headline).
+#
+# Pick the root G, then min + 7 + add9 on the multi-selecting quality row => Gm9, named in
+# the strum zone. Autoplay is left running so the strings are caught mid-strum and the shot
+# is alive; it keeps YOUR shape instead of yanking it back on the next bar, which is the
+# whole point of the 1.1 change. The wheel pans the rack so the last pedal clears the
+# cabinet on a 320-wide (iPad) canvas — it CLAMPS TO A NO-OP at 433 wide, so one script
+# serves both devices.
+#
+# THE RECIPE (both device shots, 1.1):
+#   node tools/play.js pedalboard script tools/clips/pedalboard/02-shot-board.script \
+#     --screen 433x200 --headless --frames 300 --dump /tmp/b   # iPhone 6.9" reflow
+#   node tools/play.js pedalboard script … --screen 320x240 …  # iPad 13" reflow
+#   node tools/store-shots.js --in /tmp/b/frame_00148.png --device 2796x1290 \
+#     --out … --caption "Build your pedalboard" --bg 2b2038
+# frame 148 is the one with the strings visibly vibrating. The canvas sizes are what the
+# cart's fit_canvas() ACTUALLY reflows to on each device (wide locks height 200; the iPad's
+# 4:3 locks width 320), so the shot is the real layout, not a stand-in.
+# frames 300
+tap 30 c
+tap 50 a
+tap 70 g
+tap 90 j
+wheel 110 -3

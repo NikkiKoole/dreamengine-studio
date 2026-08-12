@@ -341,6 +341,40 @@ returned a plausible-looking profile that was not this cart's at all (141,793 fr
 draw calls this cart does not make). CLAUDE.md documents the `pid:` line for exactly this; the trap
 is that the wrong answer looks completely valid.
 
+### Settled by the maker: four rotations, and half the scale
+
+Two calls after playing it, both now in the cart:
+
+**Four rotations, diagonals only.** Confirms the §7 verdict. The cardinal family is gone rather than
+disabled — `iso_project` lost its branch entirely, a rotation is now just a quarter turn of the
+world, and the cart carries 4 cells per object instead of 8.
+
+**Half the scale: a 16px figure, 16px tiles.** This one is NOT a parameter change, and the reason is
+worth keeping:
+
+> A crisp 2:1 diamond needs one voxel step to be a whole number of pixels both across and down.
+> `sx` steps `tw/2` and `sy` steps `tw/4`, so **`tw` must be a multiple of 4** — a 4×2px voxel is
+> the FLOOR. At `tw=2` the rows land on half-pixels and voxels start disappearing.
+
+So the picture cannot be shrunk by shrinking the voxels; it shrinks by using **fewer** of them.
+Every model was re-authored at **4 voxels per tile** instead of 8, and the figure went from 16
+voxels tall to 8. `spec()` now pins the integer-grid property directly, so nobody can quietly set
+`tw=6` later. At 16px per tile there is no room for modelled detail anyway, so each object reads by
+silhouette alone.
+
+**Two consequences, one of them significant.** The room grew from 9×7 to 18×13 tiles, because at
+16px tiles the old flat used barely a third of the canvas and the whole point of a smaller scale is
+seeing more room. And the atlas fell from 67,780px of cells to **8,224px, packing to 128×77 — inside
+a standard cart sheet.** So the declared-sheet-size change is no longer *required* by this cart. It
+stays, because it is correct and guarded, and because the editor-crop fix it exposed is a real bug
+either way; but the cart no longer depends on it, and a wide-sheet cart's editor limitations no
+longer apply here.
+
+**New legibility question at this size, for the record:** a sofa and a bed are now nearly
+indistinguishable (both read as a pale slab with a coloured band). At 32px they were clearly
+different objects. That is the cost of the smaller scale and it wants either stronger colour
+separation per object class or a silhouette that differs in height, not just in footprint.
+
 ## 8. The verdict this doc must end with
 
 Written back into this file and the cart's `de:meta`:

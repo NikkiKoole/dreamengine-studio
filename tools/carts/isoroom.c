@@ -5,18 +5,18 @@
   "kind": ["probe", "tech-demo"],
   "teaches": ["isometric-projection"],
   "created": "2026-08-12",
-  "lineage": "A renderer probe, not a game: gates whether a Sims-style life sim is buildable here by testing whether one voxel model can supply EIGHT view rotations without paying triangles at runtime. The pipeline (author once, pre-render every rotation to sprites at build time) is the one RollerCoaster Tycoon and The Sims 1 both shipped; the novelty is doing it at 320x200 in 32 colours, and carrying BOTH projection families (the 2:1 diamond and the axis-aligned cardinal) in one data model.",
+  "lineage": "A renderer probe, not a game: gates whether a Sims-style life sim is buildable here by testing whether ONE voxel model can supply every view rotation without paying triangles at runtime. The pipeline (author once, pre-render each rotation to sprites at build time) is the one RollerCoaster Tycoon and The Sims 1 both shipped; the novelty is doing it at 320x200 in 32 colours, with a 16px figure, and with the whole object set inside a single 128x128 sheet.",
   "todo": [
-    "VERDICT NOT YET WRITTEN. The probe answers five things and only some are in: the atlas measurement is done (67,780px of cells, which is why make-cart.js now takes a declared sheet size), the light-does-not-rotate invariant holds by construction, and the projection round-trips. Still open: the ms/frame number, the on-device number, and the cardinal-views-readability go/no-go.",
-    "Objects turned by a FACING that spans more than one tile do not move their footprint with them: cell = (r + 2*facing) & 7 picks the right ART, but a 2-tile sofa turned 90 degrees still claims its original two tiles. Fine for a shape test, wrong for a game.",
-    "fridge and wall_full bake to indistinguishable grey slabs; the fridge's door is a single near-invisible voxel line. The toilet is mush at 8-voxels-per-tile.",
+    "The on-device frame number is still unmeasured (ios/measure-device.sh). On a Mac the full render is ~0.68ms, about 4% of a 60fps frame, but iOS is the number that decides anything.",
+    "Objects turned by a FACING that span more than one tile do not move their footprint with them: cell = (r + facing) & 3 picks the right ART, but a 2-tile sofa turned 90 degrees still claims its original two tiles. Fine for a shape test, wrong for a game.",
     "No multi-storey. Deferred on purpose: a second floor changes both the depth sort and the wall-cut rules.",
-    "The character walks a fixed patrol, not a path. Occlusion is what is being tested, not navigation."
+    "The character walks a fixed patrol, not a path. Occlusion is what is being tested, not navigation.",
+    "At 4 voxels per tile the objects are very coarse and several read only by silhouette. That is forced, not lazy: a crisp 2:1 diamond needs ISO_TW to be a multiple of 4, so a 4x2px voxel is the floor and a smaller picture means fewer voxels, not smaller ones."
   ],
   "description": {
-    "summary": "A rotating isometric room, drawn entirely from sprite cells that were pre-rendered from voxel models at build time. Turn it eight ways and nothing is a triangle.",
-    "detail": "The probe behind a possible Sims-style sim. An isometric view that ROTATES normally costs one drawing per object per rotation, which is where such a project dies; rendering the voxels live instead costs ~89ms/frame on an iPhone (ADR-0024), which is where the other version dies. So every object here is authored ONCE as ASCII voxel layers and baked into all eight rotations at build time, and the runtime is nothing but sspr() and a painter's sort. The eight rotations are two different projections sharing one data model: the four 45-degree steps give the familiar 2:1 diamond, the four cardinal steps give an axis-aligned view, and those eight are the complete set of angles that land on the pixel grid. Light is fixed in SCREEN space rather than world space, so it does not swing around as you turn the room. Walls can be low stubs that never occlude, or full height with the near side cut away.",
-    "controls": "Q/E turn the room one step (eight in total). W switches walls between LOW and FULL+cutaway. Move the mouse to pick a floor tile; the readout names the tile and the rotation family. TAB shows the depth-sort order. SPACE pauses the walker."
+    "summary": "A rotating isometric room, drawn entirely from sprite cells pre-rendered from voxel models at build time. Turn it four ways and nothing is a triangle.",
+    "detail": "The probe behind a possible Sims-style sim. A rotating isometric view normally costs one drawing per object per rotation, which is where such a project dies; rendering the voxels live instead costs ~89ms/frame on an iPhone (ADR-0024), which is where the other version dies. So every object here is authored ONCE as ASCII voxel layers and baked into all four rotations at build time, and the runtime is nothing but sspr() and a painter's sort. Light is fixed in SCREEN space rather than world space, so it does not swing around as you turn the room, and every object carries a contact shadow so it stands on the floor instead of being pasted onto it. Walls are full height with the near side cut away, or low stubs that never occlude. An earlier cut also carried the four CARDINAL views, for eight in total; they were removed because with no X/Y mixing there is no depth cue left, so objects flattened into slabs and edge-on walls survived as 1-2px bars.",
+    "controls": "Q/E turn the room one step (four in total). W switches walls between FULL+cutaway and LOW. Move the mouse to pick a floor tile; the readout names it. TAB shows the depth-sort order. SPACE pauses the walker."
   }
 }
 de:meta */
@@ -42,27 +42,44 @@ de:meta */
 #include "isoroom/atlas.h"
 
 // ── the room ──────────────────────────────────────────────────
-#define TILE_VOX  8                  // voxels per floor tile — the scale the models assume
-#define ROOM_W    9
-#define ROOM_H    7
-#define TILE_PX   (TILE_VOX * ISO_TW / 2)   // a tile's screen width: 32px
+#define TILE_VOX  4                  // voxels per floor tile — the scale the models assume
+// At 16px tiles a 9x7 room used barely a third of the canvas — the whole point of halving the
+// scale is seeing MORE room, so the flat grew to fill it. The diamond spans
+// (ROOM_W + ROOM_H) * TILE_PX/2 across, which at 18+13 is 248 of the 320 available.
+#define ROOM_W    18
+#define ROOM_H    13
+#define TILE_PX   (TILE_VOX * ISO_TW / 2)   // a tile's screen width: 16px
 
 typedef struct { unsigned char model, tx, ty, facing; } Placed;
 
 // A one-room flat. Facing is in quarter turns; see the note in de:meta.todo about
 // multi-tile objects and facing.
 static const Placed PLACED[] = {
-    { ISO_SOFA,    1, 1, 0 },
-    { ISO_COUNTER, 6, 1, 0 },
-    { ISO_FRIDGE,  7, 1, 0 },
-    { ISO_BED,     1, 4, 0 },
-    { ISO_TOILET,  7, 5, 0 },
-    { ISO_COUNTER, 4, 5, 1 },
+    // kitchen run along the north wall
+    { ISO_FRIDGE,   1,  1, 0 },
+    { ISO_COUNTER,  2,  1, 0 },
+    { ISO_COUNTER,  3,  1, 0 },
+    { ISO_COUNTER,  4,  1, 0 },
+    // living end
+    { ISO_SOFA,     7,  2, 0 },
+    { ISO_SOFA,    12,  2, 0 },
+    { ISO_COUNTER, 10,  5, 0 },
+    // bedroom, south-west
+    { ISO_BED,      1,  6, 0 },
+    { ISO_BED,      3,  6, 0 },
+    { ISO_COUNTER,  5,  7, 0 },
+    // bathroom, south-east
+    { ISO_TOILET,  16, 10, 0 },
+    { ISO_TOILET,  15, 10, 0 },
+    { ISO_COUNTER, 16,  7, 1 },
+    { ISO_FRIDGE,  16,  1, 0 },
+    { ISO_BED,     13,  9, 0 },
+    { ISO_SOFA,     2, 10, 0 },
 };
 #define N_PLACED ((int)(sizeof PLACED / sizeof PLACED[0]))
 
 // ── state ─────────────────────────────────────────────────────
-static int   rot       = 1;           // 0..7. EVEN = cardinal, ODD = diagonal
+static int   rot       = 0;           // 0..3 — FOUR views, all of them 45-degree diagonals
 // FULL is the default because it plainly won the comparison: low stubs read as a picture frame
 // around a floor, while full walls with the near side cut away read as an interior. W toggles.
 static int   full_wall = 1;           // 0 = low stubs (no cutaway), 1 = full + cutaway
@@ -73,8 +90,8 @@ static int   pick_tx = -1, pick_ty = -1;
 static int   drawn_cells = 0;         // per-frame sspr count, for the budget question
 
 // ── projection ────────────────────────────────────────────────
-// Mirrors tools/voxel-bake.js projector(). Quarter-turn of the world plane, then one of
-// two linear maps depending on the family.
+// Mirrors tools/voxel-bake.js projector() for its DIAGONAL family. A rotation is a quarter turn
+// of the world plane, then the fixed 2:1 diamond map.
 static void iso_turn(int q, float x, float y, float *X, float *Y) {
     switch (q & 3) {
         case 0: *X =  x; *Y =  y; break;
@@ -93,37 +110,27 @@ static void iso_unturn(int q, float X, float Y, float *x, float *y) {
     }
 }
 
-// Voxel-space point -> screen offset (before the camera shift).
+// Voxel-space point -> screen offset (before the camera shift). Always the 2:1 diamond: the
+// cardinal family was cut (iso-rooms.md §7), so a rotation is just a quarter turn of the world.
 static void iso_project(int r, float vx, float vy, float vz, float *sx, float *sy) {
-    float X, Y; iso_turn(r >> 1, vx, vy, &X, &Y);
-    if (r & 1) {                                   // DIAGONAL: the 2:1 diamond
-        *sx = (X - Y) * (ISO_TW * 0.5f);
-        *sy = (X + Y) * (ISO_TH * 0.5f) - vz * ISO_ZH;
-    } else {                                       // CARDINAL: axis-aligned
-        *sx =  X * ISO_CW;
-        *sy =  Y * (ISO_CW * 0.5f) - vz * ISO_ZH;
-    }
+    float X, Y; iso_turn(r, vx, vy, &X, &Y);
+    *sx = (X - Y) * (ISO_TW * 0.5f);
+    *sy = (X + Y) * (ISO_TH * 0.5f) - vz * ISO_ZH;
 }
 
 // Screen offset -> voxel-space point on the FLOOR (z = 0). The exact inverse of the above,
 // which is what makes picking land on the tile you are pointing at.
 static void iso_unproject(int r, float sx, float sy, float *vx, float *vy) {
-    float X, Y;
-    if (r & 1) {
-        float d = sx / (ISO_TW * 0.5f);            // X - Y
-        float s = sy / (ISO_TH * 0.5f);            // X + Y
-        X = (s + d) * 0.5f; Y = (s - d) * 0.5f;
-    } else {
-        X = sx / ISO_CW;
-        Y = sy / (ISO_CW * 0.5f);
-    }
-    iso_unturn(r >> 1, X, Y, vx, vy);
+    float d = sx / (ISO_TW * 0.5f);                // X - Y
+    float s = sy / (ISO_TH * 0.5f);                // X + Y
+    float X = (s + d) * 0.5f, Y = (s - d) * 0.5f;
+    iso_unturn(r, X, Y, vx, vy);
 }
 
 // Larger = nearer the camera. Mirrors the baker's depth().
 static float iso_depth(int r, float vx, float vy, float vz) {
-    float X, Y; iso_turn(r >> 1, vx, vy, &X, &Y);
-    return (r & 1) ? (X + Y + vz * 0.001f) : (Y + vz * 0.001f);
+    float X, Y; iso_turn(r, vx, vy, &X, &Y);
+    return X + Y + vz * 0.001f;
 }
 
 // ── camera ────────────────────────────────────────────────────
@@ -133,7 +140,7 @@ static float cam_x, cam_y;
 static void iso_camera(int r) {
     float minx = 1e9f, maxx = -1e9f, miny = 1e9f, maxy = -1e9f;
     const float W = ROOM_W * TILE_VOX, H = ROOM_H * TILE_VOX;
-    const float TOP = full_wall ? 16.0f : 6.0f;    // tallest thing that needs to fit
+    const float TOP = full_wall ? 8.0f : 3.0f;     // tallest thing that needs to fit, in voxels
     for (int c = 0; c < 8; c++) {
         float vx = (c & 1) ? W : 0, vy = (c & 2) ? H : 0, vz = (c & 4) ? TOP : 0;
         float sx, sy; iso_project(r, vx, vy, vz, &sx, &sy);
@@ -175,28 +182,28 @@ static void build_list(void) {
     // same 8 baked cells.
     for (int t = 0; t < ROOM_W; t++) {
         if (!(full_wall && wall_hidden(0, -1)))                    // north edge
-            push_item(wall_model, t * TILE_VOX, -2.0f, rot);
+            push_item(wall_model, t * TILE_VOX, -1.0f, rot);
         if (!(full_wall && wall_hidden(0, 1)))                     // south edge
             push_item(wall_model, t * TILE_VOX, ROOM_H * TILE_VOX, rot);
     }
     for (int t = 0; t < ROOM_H; t++) {
         if (!(full_wall && wall_hidden(-1, 0)))                    // west edge
-            push_item(wall_model, -2.0f, t * TILE_VOX, (rot + 2) & 7);
+            push_item(wall_model, -1.0f, t * TILE_VOX, (rot + 1) & 3);
         if (!(full_wall && wall_hidden(1, 0)))                     // east edge
-            push_item(wall_model, ROOM_W * TILE_VOX, t * TILE_VOX, (rot + 2) & 7);
+            push_item(wall_model, ROOM_W * TILE_VOX, t * TILE_VOX, (rot + 1) & 3);
     }
 
     for (int i = 0; i < N_PLACED; i++) {
         const Placed *p = &PLACED[i];
-        push_item(p->model, p->tx * TILE_VOX, p->ty * TILE_VOX, (rot + 2 * p->facing) & 7);
+        push_item(p->model, p->tx * TILE_VOX, p->ty * TILE_VOX, (rot + p->facing) & 3);
     }
 
     // The walker: a fixed patrol of the room's long axis. Its FACING re-indexes the same
     // ring of 8 cells that the view rotation does, which is the collapse the probe wanted
     // to confirm: 8 views x 8 facings is one ring, not 64 bakes.
     float px = 1.0f + walk_t, py = 3.0f;
-    int   face = (walk_t < (ROOM_W - 2)) ? 2 : 6;
-    push_item(ISO_PERSON, px * TILE_VOX, py * TILE_VOX, (rot + face) & 7);
+    int   face = (walk_t < (ROOM_W - 2)) ? 1 : 3;
+    push_item(ISO_PERSON, px * TILE_VOX, py * TILE_VOX, (rot + face) & 3);
 }
 
 static int cmp_depth(const void *a, const void *b) {
@@ -270,10 +277,9 @@ static void draw_items(void) {
 }
 
 static void draw_hud(void) {
-    const char *fam = (rot & 1) ? "DIAG" : "CARD";
     char hud_txt[64];   // NOT `line` or `hud` — studio.h claims both
-    snprintf(hud_txt, sizeof hud_txt, "rot %d/8 %s  walls %s  cells %d",
-             rot, fam, full_wall ? "FULL" : "LOW", drawn_cells);
+    snprintf(hud_txt, sizeof hud_txt, "rot %d/4  walls %s  cells %d",
+             rot + 1, full_wall ? "FULL" : "LOW", drawn_cells);
     rectfill(0, SCREEN_H - 14, SCREEN_W, 14, CLR_BLACK);
     print(hud_txt, 3, SCREEN_H - 11, CLR_LIGHT_GREY);
     if (pick_tx >= 0) {
@@ -300,8 +306,8 @@ void init(void) {
 }
 
 void update(void) {
-    if (keyp('Q')) rot = (rot + 7) & 7;
-    if (keyp('E')) rot = (rot + 1) & 7;
+    if (keyp('Q')) rot = (rot + 3) & 3;
+    if (keyp('E')) rot = (rot + 1) & 3;
     if (keyp('W')) full_wall = !full_wall;
     if (keyp(KEY_TAB)) show_order = !show_order;
     if (keyp(KEY_SPACE)) walk_paused = !walk_paused;
@@ -339,7 +345,7 @@ void spec(void) {
     // 1. PROJECTION ROUND-TRIP, the load-bearing one. The whole cart rests on iso_project and
     // iso_unproject being exact inverses at every rotation. If they are not, picking lands on
     // the wrong tile and furniture floats off the floor, and BOTH failures are silent.
-    for (int r = 0; r < 8; r++) {
+    for (int r = 0; r < ISO_ROTS; r++) {
         int bad = 0;
         for (int ty = 0; ty < ROOM_H; ty++) {
             for (int tx = 0; tx < ROOM_W; tx++) {
@@ -352,8 +358,8 @@ void spec(void) {
             }
         }
         snprintf(sp_msg, sizeof sp_msg,
-                 "rot %d (%s): all %d tile centres round-trip to their own tile",
-                 r, (r & 1) ? "diag" : "card", ROOM_W * ROOM_H);
+                 "rot %d: all %d tile centres round-trip to their own tile",
+                 r, ROOM_W * ROOM_H);
         expect(bad == 0, sp_msg);
     }
 
@@ -367,43 +373,44 @@ void spec(void) {
         expect(fabsf(x - 3.0f) < 1e-4f && fabsf(y - 5.0f) < 1e-4f, sp_msg);
     }
 
-    // 3. NO ZOOM POP between the two families. A tile must cover the same screen footprint in
-    // both, or rotating from a diagonal to a cardinal view reads as a zoom. This is the
-    // finding that de-risked carrying 8 rotations instead of 4 (docs/design/iso-rooms.md §7).
+    // 3. THE VOXEL GRID IS INTEGER, which is the reason the scale cannot simply be halved. A
+    // crisp 2:1 diamond needs one voxel step to be a whole number of pixels both across and
+    // down; ISO_TW must be a multiple of 4 for that (sx steps TW/2, sy steps TW/4). At TW=2 the
+    // rows land on half-pixels and voxels start vanishing, which is why going to a 16px figure
+    // meant re-authoring the models coarser rather than turning a knob (iso-rooms.md §7).
     {
-        float ax, ay, bx, by;
-        iso_project(1, 0, 0, 0, &ax, &ay);
-        iso_project(1, TILE_VOX, TILE_VOX, 0, &bx, &by);
-        float diag_h = by - ay, diag_w = bx - ax;
+        float ax, ay, bx, by, cx, cy;
         iso_project(0, 0, 0, 0, &ax, &ay);
-        iso_project(0, TILE_VOX, TILE_VOX, 0, &bx, &by);
-        float card_h = by - ay, card_w = bx - ax;
-        expect(spec_close(diag_h, card_h, 0.01f), "a tile is the same screen HEIGHT in both families");
-        // The widths differ by construction (the diagonal's spans the diamond), so what has to
-        // match is the tile's total screen DIAGONAL extent, checked as height above.
-        expect(diag_w != card_w || diag_w == 0, "the two families really are different projections");
+        iso_project(0, 1, 0, 0, &bx, &by);
+        iso_project(0, 0, 1, 0, &cx, &cy);
+        float stepx = bx - ax, stepy = cy - ay;
+        expect(stepx == (float)(int)stepx && stepx != 0, "one voxel step across is a whole number of pixels");
+        expect(stepy == (float)(int)stepy && stepy != 0, "one voxel step down is a whole number of pixels");
+        expect(ISO_TW % 4 == 0, "ISO_TW is a multiple of 4, so the 2:1 diamond stays on the grid");
+        // And the diamond really is 2:1, the shape the whole look depends on.
+        expect(spec_close(stepx / stepy, 2.0f, 0.001f), "the tile diamond is exactly 2:1");
     }
 
-    // 4. THE RING COLLAPSE. 8 view rotations x 8 facings must resolve to the SAME 8 baked
-    // cells. If they did not, an object would need 64 bakes and 8 rotations would be
-    // unaffordable — so this assertion is the one guarding the project's whole premise.
+    // 4. THE RING COLLAPSE. Every (view rotation, object facing) pair must resolve to one of the
+    // SAME four baked cells. If it did not, an object would need a bake per pair and rotation
+    // would be unaffordable — so this is the assertion guarding the project's whole premise.
     {
-        int in_range = 1, covers = 0, seen[8] = {0};
-        for (int r = 0; r < 8; r++)
-            for (int f = 0; f < 8; f++) {
-                int cell = (r + f) & 7;
+        int in_range = 1, covers = 0, seen[4] = {0};
+        for (int r = 0; r < ISO_ROTS; r++)
+            for (int f = 0; f < 4; f++) {
+                int cell = (r + f) & 3;
                 if (cell < 0 || cell >= ISO_ROTS) in_range = 0;
                 seen[cell] = 1;
             }
-        for (int i = 0; i < 8; i++) covers += seen[i];
+        for (int i = 0; i < 4; i++) covers += seen[i];
         expect(in_range, "every (view, facing) pair indexes an already-baked cell");
-        expect(covers == 8, "the 64 pairs need exactly 8 cells, no 9th");
-        expect(ISO_ROTS == 8, "the atlas carries all 8 rotations");
+        expect(covers == 4, "the 16 pairs need exactly 4 cells, no 5th");
+        expect(ISO_ROTS == 4, "the atlas carries the four diagonal rotations and nothing else");
     }
 
     // 5. DEPTH SORT. The painter's order must put nearer things later, at every rotation.
-    for (int r = 0; r < 8; r++) {
-        rot = r; full_wall = 0; walk_t = 1.0f;
+    for (int r = 0; r < ISO_ROTS; r++) {
+        rot = r; full_wall = 1; walk_t = 1.0f;
         iso_camera(r);
         build_list();
         qsort(items, n_items, sizeof items[0], cmp_depth);
@@ -415,19 +422,17 @@ void spec(void) {
     }
 
     // 6. WALL CUTAWAY. In full-wall mode exactly the NEAR walls must drop: hide none and you
-    // cannot see in, hide too many and the room stops reading as a box. A diagonal view faces
-    // two perimeter edges, a cardinal view faces one.
-    for (int r = 0; r < 8; r++) {
+    // cannot see in, hide too many and the room stops reading as a box. Every view here is a
+    // diagonal, and a diagonal faces exactly TWO of the four perimeter edges.
+    for (int r = 0; r < ISO_ROTS; r++) {
         rot = r;
         int hidden = 0;
         if (wall_hidden(0, -1)) hidden++;
         if (wall_hidden(0,  1)) hidden++;
         if (wall_hidden(-1, 0)) hidden++;
         if (wall_hidden(1,  0)) hidden++;
-        int want = (r & 1) ? 2 : 1;
-        snprintf(sp_msg, sizeof sp_msg, "rot %d (%s): %d of 4 wall edges cut, wanted %d",
-                 r, (r & 1) ? "diag" : "card", hidden, want);
-        expect(hidden == want, sp_msg);
+        snprintf(sp_msg, sizeof sp_msg, "rot %d: %d of 4 wall edges cut, wanted 2", r, hidden);
+        expect(hidden == 2, sp_msg);
     }
 
     // 7. EVERY BAKED CELL IS INSIDE THE SHEET, with its origin inside itself. A packing bug
@@ -457,7 +462,7 @@ void spec(void) {
 
     // 8. THE ROOM IS ON SCREEN at every rotation. The camera is recomputed per rotation, and
     // a sign slip there parks the room off-canvas, which the other checks would not notice.
-    for (int r = 0; r < 8; r++) {
+    for (int r = 0; r < ISO_ROTS; r++) {
         rot = r; full_wall = 1;
         iso_camera(r);
         float sx, sy; iso_project(r, ROOM_W * TILE_VOX * 0.5f, ROOM_H * TILE_VOX * 0.5f, 0, &sx, &sy);
@@ -466,6 +471,6 @@ void spec(void) {
         expect(cx > 0 && cx < SCREEN_W && cy > 0 && cy < SCREEN_H, sp_msg);
     }
 
-    rot = 1; full_wall = 0; walk_t = 0;
+    rot = 0; full_wall = 1; walk_t = 0;
 }
 #endif

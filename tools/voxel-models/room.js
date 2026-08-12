@@ -1,17 +1,27 @@
 // room.js — the isoroom probe's object set, as ASCII voxel layers.
-// Baked by tools/voxel-bake.js into 8 rotations each. See docs/design/iso-rooms.md.
+// Baked by tools/voxel-bake.js into the four 45-degree rotations. docs/design/iso-rooms.md
 //
-// SCALE. 8 voxels = one floor tile. With --tw 4 --zh 2 that makes a tile 32x16px and a
-// voxel a 4x2px cube, so a 16-voxel-tall figure stands 32px — the height the maker fixed
-// for characters. Every model below is sized in those voxel units.
+// SCALE: 4 voxels = one floor tile. With --tw 4 --zh 2 a tile is 16x8px and a voxel is a 4x2px
+// cube, so an 8-voxel figure stands 16px — the height the maker settled on after seeing 32.
 //
-// These are PLACEHOLDERS for a shape test, deliberately generic: the probe is measuring
-// whether the pipeline works, not designing a furniture catalogue. Nothing here is copied
-// from any reference game.
+// WHY THE MODELS ARE THIS COARSE, since it looks like a mistake next to the first cut: the
+// on-screen scale cannot be halved by halving the voxel SIZE. A crisp 2:1 diamond needs the voxel
+// width to be a multiple of 4 (sx steps tw/2, sy steps tw/4), so tw=4 — a 4x2px voxel — is the
+// floor; below it the rows land on half-pixels and voxels start disappearing. Halving the picture
+// therefore means halving the voxel COUNT, which is what happened here: every model was re-authored
+// at 4 voxels per tile instead of 8. At 16px per tile there is no room for modelled detail anyway,
+// so every object has to read from its SILHOUETTE.
 //
-// FLOORS ARE NOT BAKED. A floor tile is a flat diamond the cart draws with primitives.
-// Baking one would waste atlas AND look wrong, because each baked cell is independent, so
-// a floor cell's side faces would draw even where a neighbouring tile should hide them.
+// ONLY THE FOUR DIAGONAL VIEWS ARE BAKED. The four cardinal ones were cut: with no X/Y mixing
+// there is no depth cue left, objects flattened into slabs, and edge-on walls survived as 1-2px
+// bars. See iso-rooms.md §7.
+//
+// These are PLACEHOLDERS for a shape test, deliberately generic. Nothing is copied from any
+// reference game.
+//
+// FLOORS ARE NOT BAKED. A floor tile is a flat diamond the cart draws with primitives. Baking one
+// would waste atlas AND look wrong: each baked cell is independent, so a floor cell's side faces
+// would draw even where a neighbouring tile should hide them.
 
 module.exports = {
   materials: {
@@ -21,13 +31,11 @@ module.exports = {
     m: 6,          // white goods / metal, light grey
     p: 7,          // porcelain, white
     k: 5,          // dark trim
-    // The wall gets EXPLICIT tones, warm plaster, and must not share a colour with the white
-    // goods above. It did (both were index 6) and the fridge dissolved into the wall behind it:
-    // architecture and objects need separate value families or the room reads as one mass.
-    // Tones are [top, screen-right, screen-left]. The dark end is 21 rather than 16 on purpose:
+    // Tones are [top, screen-right, screen-left]. The wall gets EXPLICIT ones for two reasons:
+    // it must not share a colour with the white goods (it did — both were index 6 — and the
+    // fridge dissolved into the wall behind it), and the dark end is 21 rather than 16 because
     // at 16 the two visible inner faces came out 142 vs 29 luminance, a 5x jump that read as two
-    // walls made of DIFFERENT materials instead of one wall lit from one side. 142/88/58 still
-    // separates lit from shaded while keeping them obviously the same plaster.
+    // DIFFERENT materials instead of one wall lit from one side.
     W: [22, 5, 21],
     b: 8,          // shirt, red
     j: 1,          // trousers, dark blue
@@ -37,204 +45,124 @@ module.exports = {
   models: {
     // ── seating: 2 tiles wide, 1 deep. y=0 is the BACK row. ──
     sofa: { layers: [
-      ['wwwwwwwwwwwwwwww',
-       'wwwwwwwwwwwwwwww',
-       'wwwwwwwwwwwwwwww',
-       'wwwwwwwwwwwwwwww',
-       'wwwwwwwwwwwwwwww',
-       'wwwwwwwwwwwwwwww',
-       'wwwwwwwwwwwwwwww',
-       'wwwwwwwwwwwwwwww'],
-      1,
-      ['wwwwwwwwwwwwwwww',
-       'wwssssssssssssww',
-       'wwssssssssssssww',
-       'wwssssssssssssww',
-       'wwssssssssssssww',
-       'wwssssssssssssww',
-       'wwssssssssssssww',
-       'wwwwwwwwwwwwwwww'],
-      2,
-      ['cccccccccccccccc',
-       'cccccccccccccccc',
-       'ww............ww',
-       'ww............ww',
-       'ww............ww',
-       'ww............ww',
-       'ww............ww',
-       '................'],
-      2,
+      ['wwwwwwww',
+       'wwwwwwww',
+       'wwwwwwww',
+       'wwwwwwww'],
+      ['wwwwwwww',
+       'wssssssw',
+       'wssssssw',
+       'wwwwwwww'],
+      ['cccccccc',
+       'w......w',
+       'w......w',
+       '........'],
+      ['cccccccc',
+       '........',
+       '........',
+       '........'],
     ]},
 
     // ── bed: 1 tile wide, 2 deep. Headboard at y=0. ──
     bed: { layers: [
-      ['wwwwwwww',
-       'wwwwwwww',
-       'wwwwwwww',
-       'wwwwwwww',
-       'wwwwwwww',
-       'wwwwwwww',
-       'wwwwwwww',
-       'wwwwwwww',
-       'wwwwwwww',
-       'wwwwwwww',
-       'wwwwwwww',
-       'wwwwwwww',
-       'wwwwwwww',
-       'wwwwwwww',
-       'wwwwwwww',
-       'wwwwwwww'],
-      1,
-      ['wwwwwwww',
-       'pppppppp',
-       'pppppppp',
-       'pppppppp',
-       'pppppppp',
-       'pppppppp',
-       'pppppppp',
-       'pppppppp',
-       'pppppppp',
-       'pppppppp',
-       'pppppppp',
-       'pppppppp',
-       'pppppppp',
-       'pppppppp',
-       'pppppppp',
-       'wwwwwwww'],
-      1,
-      ['wwwwwwww',
-       'cccccccc',
-       'cccccccc',
-       'cccccccc',
-       '........',
-       '........',
-       '........',
-       '........',
-       '........',
-       '........',
-       '........',
-       '........',
-       '........',
-       '........',
-       '........',
-       '........'],
+      ['wwww',
+       'wwww',
+       'wwww',
+       'wwww',
+       'wwww',
+       'wwww',
+       'wwww',
+       'wwww'],
+      ['wwww',
+       'pppp',
+       'pppp',
+       'pppp',
+       'pppp',
+       'pppp',
+       'pppp',
+       'wwww'],
+      ['wwww',
+       'cccc',
+       'cccc',
+       '....',
+       '....',
+       '....',
+       '....',
+       '....'],
     ]},
 
-    // ── toilet: tank at y=0, bowl in front. ──
-    // Rebuilt chunkier. The first cut spread thin 2-voxel detail across the whole tile and
-    // baked to an unidentifiable white blob: at 8 voxels per tile there is no room for
-    // fine detail, so the read has to come from the SILHOUETTE (a tall tank behind a low
-    // bowl) rather than from any modelled feature.
+    // ── toilet: tank at y=0, low bowl in front of it. Reads by silhouette only. ──
     toilet: { layers: [
-      ['..pppp..',              // one solid base block: tank footprint + bowl
-       '..pppp..',
-       '..pppp..',
-       '..pppp..',
-       '........',
-       '........',
-       '........',
-       '........'],
-      3,
-      ['..pppp..',              // the bowl stops here; the tank keeps going
-       '..pppp..',
-       '........',
-       '........',
-       '........',
-       '........',
-       '........',
-       '........'],
-      4,
+      ['.pp.',
+       '.pp.',
+       '....',
+       '....'],
+      1,
+      ['.pp.',
+       '....',
+       '....',
+       '....'],
+      1,
     ]},
 
-    // ── fridge: a full-height white box, the tallest object in the room. ──
+    // ── fridge: full-height white box, as tall as the figure. ──
     fridge: { layers: [
-      ['mmmmmmmm',
-       'mmmmmmmm',
-       'mmmmmmmm',
-       'mmmmmmmm',
-       'mmmmmmmm',
-       'mmmmmmmm',
-       'mmmmmmmm',
-       'mmmmmmmm'],
-      7,
-      ['mmmmmmmm',
-       'mmmmmmmm',
-       'mmmmmmmm',
-       'mmmmmmmm',
-       'mmmmmmmm',
-       'mmmmmmmm',
-       'kkkkkkkk',
-       'mmmmmmmm'],
-      ['mmmmmmmm',
-       'mmmmmmmm',
-       'mmmmmmmm',
-       'mmmmmmmm',
-       'mmmmmmmm',
-       'mmmmmmmm',
-       'mmmmmmmm',
-       'mmmmmmmm'],
-      6,
+      ['mmmm',
+       'mmmm',
+       'mmmm',
+       'mmmm'],
+      3,
+      ['mmmm',
+       'mmmm',
+       'kkkk',
+       'mmmm'],
+      ['mmmm',
+       'mmmm',
+       'mmmm',
+       'mmmm'],
+      2,
     ]},
 
     // ── counter: waist-high, metal top. ──
     counter: { layers: [
-      ['wwwwwwww',
-       'wwwwwwww',
-       'wwwwwwww',
-       'wwwwwwww',
-       'wwwwwwww',
-       'wwwwwwww',
-       'wwwwwwww',
-       'wwwwwwww'],
-      6,
-      ['mmmmmmmm',
-       'mmmmmmmm',
-       'mmmmmmmm',
-       'mmmmmmmm',
-       'mmmmmmmm',
-       'mmmmmmmm',
-       'mmmmmmmm',
-       'mmmmmmmm'],
-      1,
+      ['wwww',
+       'wwww',
+       'wwww',
+       'wwww'],
+      2,
+      ['mmmm',
+       'mmmm',
+       'mmmm',
+       'mmmm'],
     ]},
 
-    // ── wall segment: one tile long, 2 voxels thick. LOW (Theme Hospital strategy):
-    // a stub that never occludes, so there is no cutdown problem to solve. ──
+    // ── wall segment, one tile long. LOW = a stub that never occludes. ──
     wall_low: { layers: [
-      ['WWWWWWWW',
-       'WWWWWWWW'],
-      5,
+      ['WWWW'],
+      2,
     ]},
 
-    // ── wall segment: FULL height (the Sims strategy, which needs cutdown). ──
+    // ── wall segment, FULL height: needs the near side cut away. ──
     wall_full: { layers: [
-      ['WWWWWWWW',
-       'WWWWWWWW'],
-      15,
+      ['WWWW'],
+      7,
     ]},
 
-    // ── the figure: 16 voxels tall = 32px, the fixed character height. ──
-    // FIVE voxels wide, not four, and with the arms held out at torso level. The first cut was
-    // 4 wide with no shoulders, which at 16px across against 32px tall read as a lamp rather
-    // than a person — the maker could not find him in the room. A human silhouette needs a
-    // shoulder line wider than its head; that contrast is what makes it read at this size.
+    // ── the figure: 8 voxels tall = 16px. ──
+    // Arms out at torso level so the shoulder line is wider than the head. At 32px the first cut
+    // was 4 voxels wide with no shoulders and read as a lamp; at 16px there is even less room, so
+    // the shoulder-vs-head contrast is doing all the work.
     person: { layers: [
-      ['.j.j.',                 // legs, two of them, with daylight between
-       '.j.j.',
-       '.....'],
-      5,
-      ['bbbbb',                 // shoulders + arms out: the widest part of the silhouette
-       '.bbb.',
-       '.....'],
-      5,
-      ['.bbb.',                 // neck / upper chest, narrower again
-       '.bbb.',
-       '.....'],
-      1,
-      ['.hhh.',                 // head
-       '.hhh.',
-       '.....'],
-      1,
+      ['j.j',
+       '...'],
+      2,
+      ['bbb',
+       '.b.'],
+      2,
+      ['.b.',
+       '...'],
+      ['.h.',
+       '...'],
     ]},
   },
 }

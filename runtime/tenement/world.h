@@ -35,11 +35,10 @@
 //    The building's outer shell is IMPLICIT: any edge with the building on one side and nothing on
 //    the other reports _SOLID without being stored, so growing tn_bw/tn_bh moves the shell for free.
 //
-//    NAMED `tn_edge_*` AND NOT `tn_wall_*` BECAUSE OF A LIVE COLLISION, not out of preference:
-//    the `path` module landed `tn_wall_at(x,y)` / `tn_wall_set(x,y,solid)` over a TILE-based wall
-//    layer of its own while this file was being written. Two wall models cannot both be true and
-//    the names would not even compile together. The fork, and the evidence, is item 1 of the report
-//    at the bottom of this header. Read that before wiring either.
+//    NAMED `tn_edge_*` AND NOT `tn_wall_*` FOR A REASON: `path` briefly owned a rival TILE-based
+//    wall layer under `tn_wall_at(x,y)` / `tn_wall_set(x,y,solid)`, which would not even have
+//    compiled beside this one. It reads tn_can_step() now. Item 1 of the report at the bottom of
+//    this header keeps the argument that settled it, because it decides how walls are drawn too.
 //
 // ── ROOMS ARE DERIVED, NEVER DECLARED ───────────────────────────────────────
 // A room is a connected run of tiles with NO wall segment at all between them: a door still BOUNDS

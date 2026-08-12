@@ -9,7 +9,20 @@ import SwiftUI
 //
 // Touch: UIKit gives us points in the VIEW's coordinate space; we map them through the
 // same aspect-fit rect the layer uses, into framebuffer pixels, and feed de_touch_*.
+//
+// TWO MODES, and `hosted` is the whole difference. Standalone (hosted: false) this view owns the
+// world: it calls de_init, starts CoreAudio, and ticks de_frame from the display link. Inside the
+// AUv3 (hosted: true) the PLUG-IN owns all three — de_init in its init, audio from the host's render
+// block, and the frame ticked there too, SAMPLE-CLOCKED so the sequencer survives an offline bounce.
+// A hosted view therefore only ever BLITS, and it must read a snapshot (de_copy_frame) rather than
+// the live canvas, because the engine is drawing on the audio thread while we draw here on main.
 final class CanvasView: UIView {
+    private let hosted: Bool
+    // hosted only: a bottom-up snapshot of the last published frame. A manual allocation rather than
+    // a Swift Array because the flip below needs a pointer that OUTLIVES the access — escaping one out
+    // of withUnsafeMutableBufferPointer is undefined behaviour, however well it seems to work.
+    private var snap: UnsafeMutablePointer<UInt32>? = nil
+    private var snapCap = 0
     private var link: CADisplayLink?
     private var start: CFTimeInterval = 0
     // Phase 2: the active canvas size is DYNAMIC — a resizable cart reflows to the device via
@@ -40,20 +53,26 @@ final class CanvasView: UIView {
         return u
     }()
 
-    override init(frame: CGRect) {
+    init(frame: CGRect, hosted: Bool = false) {
+        self.hosted = hosted
         flipped = [UInt32](repeating: 0, count: w * h)
         super.init(frame: frame)
         backgroundColor = .black
         isMultipleTouchEnabled = true
         layer.magnificationFilter = .nearest
         layer.contentsGravity = .resizeAspect
-        de_init(DE_RENDERER_SOFTWARE)
+#if !AU_EXT
+        if !hosted {
+            de_init(DE_RENDERER_SOFTWARE)
+            AudioEngine.shared.start()       // CoreAudio pulls de_audio_render on its own thread
+        }                                    // hosted: TinyjamAU already did de_init; the host owns audio
+#endif
         start = CACurrentMediaTime()
-        AudioEngine.shared.start()           // CoreAudio pulls de_audio_render on its own thread
         let l = CADisplayLink(target: self, selector: #selector(tick))
         l.add(to: .main, forMode: .common)
         link = l
     }
+    override convenience init(frame: CGRect) { self.init(frame: frame, hosted: false) }
     required init?(coder: NSCoder) { fatalError("not used") }
 
     // A resizable cart fills the device: hand the engine our bounds (points; SCALE=1 on iOS → they
@@ -88,15 +107,42 @@ final class CanvasView: UIView {
     }
 
     @objc private func tick() {
-        AudioEngine.shared.pollMic()   // open/close the mic to match the cart's mic_start()/mic_stop()
-        syncSize()
         let t0 = CACurrentMediaTime()
-        de_frame(t0 - start)
-        // A resizable cart can de_resize the canvas DURING de_frame (e.g. acidcandy's chunky reflow
-        // shrinks 426×196 → 217×100). Re-sync dims + the flip scratch AFTER de_frame, or the blit
-        // below memcpy's the OLD (larger) w×h out of the NEW (smaller) framebuffer → SIGSEGV over-read.
-        syncSize()
-        guard let base = de_framebuffer() else { return }
+        var base: UnsafePointer<UInt32>
+        if hosted {
+            // BLIT ONLY. The plug-in's render block already ticked the engine on the audio thread, so
+            // all we do is take a snapshot. de_copy_frame reports the size it has even when it refuses
+            // to copy, which is how the buffer grows: ask, resize, get it next tick.
+            var pw: Int32 = 0, ph: Int32 = 0
+            var ok = snap != nil && de_copy_frame(snap, Int32(snapCap), &pw, &ph) == 1
+            if !ok {
+                _ = de_copy_frame(nil, 0, &pw, &ph)         // dst == nil: report the size, copy nothing
+                let need = Int(pw) * Int(ph)
+                if need > snapCap, need > 0 {
+                    snap?.deallocate()                      // main thread owns this buffer alone
+                    snap = UnsafeMutablePointer<UInt32>.allocate(capacity: need)
+                    snapCap = need
+                    ok = de_copy_frame(snap, Int32(snapCap), &pw, &ph) == 1
+                }
+            }
+            guard ok, let s = snap, pw > 0, ph > 0 else { return }   // nothing yet: keep the last image
+            if Int(pw) != w || Int(ph) != h {               // the engine reflowed; resize our scratch
+                w = Int(pw); h = Int(ph); flipped = [UInt32](repeating: 0, count: w * h)
+            }
+            base = UnsafePointer(s)
+        } else {
+#if !AU_EXT
+            AudioEngine.shared.pollMic()   // open/close the mic to match the cart's mic_start()/mic_stop()
+#endif
+            syncSize()
+            de_frame(t0 - start)
+            // A resizable cart can de_resize the canvas DURING de_frame (e.g. acidcandy's chunky reflow
+            // shrinks 426×196 → 217×100). Re-sync dims + the flip scratch AFTER de_frame, or the blit
+            // below memcpy's the OLD (larger) w×h out of the NEW (smaller) framebuffer → SIGSEGV over-read.
+            syncSize()
+            guard let live = de_framebuffer() else { return }
+            base = live
+        }
         let t1 = CACurrentMediaTime()
         // flip bottom-up sw_cbuf → top-down (row y ↔ h-1-y)
         flipped.withUnsafeMutableBufferPointer { dst in
@@ -142,7 +188,7 @@ final class CanvasView: UIView {
     #endif
     }
 
-    deinit { link?.invalidate() }
+    deinit { link?.invalidate(); snap?.deallocate() }
 
     // ---- touch → framebuffer pixels ----------------------------------------
     // The layer aspect-fits a w×h image into bounds. Recreate that rect to invert a
@@ -183,7 +229,9 @@ final class CanvasView: UIView {
     override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) { end(touches) }
 }
 
+#if !AU_EXT   // the app's SwiftUI wrapper; the extension builds its view in TinyjamAUViewController
 struct CanvasViewRep: UIViewRepresentable {
     func makeUIView(context: Context) -> CanvasView { CanvasView(frame: .zero) }
     func updateUIView(_ uiView: CanvasView, context: Context) {}
 }
+#endif

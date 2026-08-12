@@ -78,18 +78,18 @@ _Last updated: 2026-07-30 — **Synth Secrets phases 1 + 2**: PIANO's dispersion
   every rate. ⚠ The cents figure first published here was **retracted**: it came from a per-window
   zero-crossing estimator quantized to a grid that moves with the sample rate, so it reported the rate
   ratio itself and looked exactly like the defect (ios-plan.md → "Retracted"). A nondeterministic cart
-  can't be a converter's reference signal; a sine can. The **host input seam is now an SPSC EVENT
-  RING** too (`de_touch_*`/`de_key_event` append; `de_input_beginframe()` applies on the frame's own
-  thread), because an AUv3 inverts the threads — the render block drives `de_frame` on the AUDIO thread
-  while UIKit delivers touches on main, and the pool is read *by index* through a compaction, so a
-  release mid-walk shifted every later index and `ui.h` hit-tested the wrong widget. It also fixed a
-  standalone-app bug of long standing: a press+release between two frames was applied AND undone before
-  the cart looked, so `mouse_pressed`/`mouse_released` were both never true (the ONE-FRAME PRESS rule;
-  keys needed it too). Gate `tools/input-ring-check/run.sh` — `-tsan` is the real one and `-bypass` the
-  negative control, because the plain run passed even with the safety removed. **Still open:
-  Ableton Link** (the same `sync_push_pos` call), MIDI clock on iOS, clock OUT, and the AUv3 **view**
-  (phase 3, the bulk of the work). Design:
-  [`design/external-clock-sync.md`](design/external-clock-sync.md).
+  can't be a converter's reference signal; a sine can. And the **AUv3 VIEW is WIRED**
+  (`AU/TinyjamAUViewController.swift` + the app's own `CanvasView` in a new `hosted: true` blit-only
+  mode) — a plug-in a host can only show generic sliders for is, for a groovebox, the same as not
+  working. That took **three host→engine seams**, because a plug-in inverts which thread is which
+  (`de_frame` on the AUDIO thread, UIKit on main) and two of the three were crash classes: an **input
+  event RING**, a **DEFERRED resize** (`de_resize` reallocs the framebuffer), and **`de_copy_frame()`**
+  (the view blits a seqlock SNAPSHOT, never the live canvas). Gates
+  `tools/input-ring-check/run.sh` + `tools/present-race-check/run.sh` (`-tsan` is the real one in both,
+  `-bypass` the negative control) + `au-transport-check --view`. ⚠ Wired ≠ judged: nobody has LOOKED at
+  the panel in a DAW yet. **Still open: Ableton Link** (the same `sync_push_pos` call), MIDI clock on
+  iOS, and clock OUT. Design: [`design/external-clock-sync.md`](design/external-clock-sync.md),
+  [`design/audio-threading.md`](design/audio-threading.md) (the thread split).
 - **FLOAT DETERMINISM — the audio engine now computes the same BITS on arm64, x86-64 and wasm**
   (2026-07-30). IEEE 754 pins down `+ - * /` and `sqrt` but says nothing about `sin`/`exp`/`pow`/`tanh`,
   so every libm rounds them differently; and native fuses `a*b+c` into an FMA where wasm, having no

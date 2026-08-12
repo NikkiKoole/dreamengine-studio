@@ -241,7 +241,7 @@ of a crash report is itself a signal — it means refused-at-load rather than cr
 |---|---|
 | **register it** | sign properly (above), then `auval -v aumu tacj Mpla` — Apple's own validator, which exercises the plug-in harder than a DAW and is the gate before GarageBand is ever opened |
 | ~~**host transport**~~ | ✅ **DONE 2026-08-12.** The render block reads `musicalContextBlock` + `transportStateBlock` → `de_sync_position()` → `sync.h`. **The cart needed ZERO changes** — acidcandy already derived its step counter from `sync_beats()` and surrendered its transport on `sync_transport()`, from the MIDI-clock work; a host is just the ABSOLUTE half of the same seam, so there is nothing to measure. Two traps: capture `Unmanaged.passUnretained(self)` rather than the host blocks (the host assigns them AFTER fetching the render block, so capturing them gets nil forever), and handle a host that supplies neither (push nothing, free-run — the path `auval` exercises). **Gated** by `ios/au-transport-check.swift` (run by `mac.sh`): a ~130-line AUv3 HOST that sets both blocks, advances its fake playhead from the RENDERED SAMPLE COUNT (so it is deterministic), and asserts the rack plays while moving · fires the same notes over the same 8 BEATS at 90 and 180 BPM · goes silent when the host stops. `--free` is the negative control (no blocks installed → ratio ~0.5 instead of ~0.87, and it keeps playing through the stop), because a gate that cannot fail is decoration. Two earlier onset detectors had to be thrown away first, both TEMPO-SENSITIVE and so unable to measure tempo: a fixed quiet-gate re-arm that the reverb tails defeated, then an adaptive threshold whose 57ms average never settled between notes at 180 BPM. The one that works compares the envelope against itself a FIXED 6ms earlier |
-| **the plug-in view** | ~~an input event ring~~ ✅ **DONE 2026-08-12** — `de_touch_*`/`de_key_event` now append to an SPSC ring that `de_input_beginframe()` drains on the frame's own thread, so the AUv3's audio-thread frame and the main thread's touches stop racing ([`audio-threading.md`](audio-threading.md) → "the INPUT ring", gate `tools/input-ring-check/run.sh`). Still ahead: an `AUViewController` sharing `Sources/CanvasView.swift` (already cart-agnostic) and the tick-ownership split (the render block advances the engine, so the view must blit only) |
+| ~~**the plug-in view**~~ | ✅ **WIRED 2026-08-12** — `AU/TinyjamAUViewController.swift` (an `AUViewController` that is also the `AUAudioUnitFactory`) hosting the same `Sources/CanvasView.swift` the app uses, via a new `hosted: true` mode. See "the plug-in view" below for the three seams it needed and the one thing still unverified |
 | **multi-instance** | spike 9. **Worse on macOS than iOS**: `.loadInProcess` is macOS-only, so a Mac host may load several instances in ONE process, where they would share `studio.c`'s file-scope globals. iOS gets one-per-process for free |
 
 ### The sample rate: the plug-in was rate-blind, and now converts
@@ -270,6 +270,46 @@ gate keeps its meaning. Gate: **`ios/rate-convert-check.swift`** (in `mac.sh`), 
 the real struct — 220.000 Hz at every rate, level held, the 11025 case rejecting a 15 kHz tone
 instead of folding it down to 3.9 kHz, and a nonsense rate falling back to passthrough rather than
 hanging the audio thread in a pull loop that never terminates.
+
+### The plug-in view (phase 3)
+
+`AU/TinyjamAUViewController.swift`. Wired and gated 2026-08-12; **not yet judged by eye in a DAW**,
+which is the honest remaining step — a gate can prove a host receives our view, not that the picture
+is right.
+
+**The plumbing that is easy to get wrong, because none of it fails loudly.** An audio-only AUv3
+declares `NSExtensionPointIdentifier = com.apple.AudioUnit` with any NSObject factory. One with a view
+must declare **`com.apple.AudioUnit-UI`** and hand the system a principal class that is *both* an
+`AUViewController` and the `AUAudioUnitFactory`. Get it wrong and the plug-in still builds, still
+registers, still passes `auval`, still plays — every DAW just quietly shows its own generic sliders,
+which for a groovebox is the same as not working. So the view controller **replaces**
+`TinyjamAUFactory` rather than sitting beside it: two factories would let a host instantiate through
+the one with no view.
+
+**The view never ticks the engine.** That settles the "tick-ownership split" this plan used to list as
+open work: the render block keeps the frame, sample-clocked at one per 735 samples, because that is
+what keeps the sequencer on the host's grid *and* correct through an offline bounce, where no view is
+even on screen. `CanvasView(hosted: true)` therefore skips `de_init`, skips CoreAudio, skips
+`de_frame`, and only blits. `AU_EXT` keeps the app's `AVAudioEngine`/mic plumbing out of the extension.
+
+**Three engine seams it needed**, all in [`audio-threading.md`](audio-threading.md): the input event
+ring, the deferred resize, and `de_copy_frame()`'s frame snapshot. The common cause is that a plug-in
+inverts which thread is which, so every host call that used to touch engine state directly is now a
+race — and two of the three were crashes rather than glitches.
+
+**Two traps worth remembering**, both of which misdirected:
+
+- `AVAudioUnit.instantiate` began "failing" the moment the extension gained a view, with a message
+  blaming registration. A `-UI` extension does part of its loading on the **main queue**, and the
+  checker was blocking the main thread on a semaphore. `auval`, which has a real run loop, loaded the
+  same plug-in happily. Pump the run loop instead.
+- `requestViewControllerWithCompletionHandler` is declared in **CoreAudioKit**, as a category on
+  `AUAudioUnit` — not in AudioToolbox. Without that import the compiler just says `AUAudioUnit` "has
+  no member", which reads like an OS-version problem. Found by grepping the SDK headers, the same
+  technique that settled the `import CoreAudio` question under Catalyst.
+
+Gate: `ios/au-transport-check --view` (run by `mac.sh`) — the host is handed an
+`AUAudioUnitRemoteViewController`, and its view loads and reports a size (492×308).
 
 #### Retracted: the "+147 cents at 48k" measurement
 

@@ -72,6 +72,10 @@ targets:
     platform: iOS
     sources:
       - AU
+      # The plug-in's VIEW is the SAME CanvasView the standalone app uses (hosted: true switches it to
+      # blit-only). AU_EXT keeps the app's AVAudioEngine/mic plumbing out of the extension, which never
+      # owns audio — the host does.
+      - Sources/CanvasView.swift
       - ../runtime/studio.c
       - ../runtime/raylib_compat.c
       - gen/macau/cart.c
@@ -84,6 +88,7 @@ targets:
         SWIFT_OBJC_BRIDGING_HEADER: AU/AU-Bridging-Header.h
         HEADER_SEARCH_PATHS: [$(SRCROOT)/../runtime, $(SRCROOT)/gen/macau, $(SRCROOT)/Sources]
         GCC_PREPROCESSOR_DEFINITIONS: [$(inherited), DE_NO_RAYLIB=1, SCALE=1]
+        SWIFT_ACTIVE_COMPILATION_CONDITIONS: [$(inherited), AU_EXT]
         OTHER_CFLAGS: [-fno-modules]   # the curses echo()/filter() collision — see the app target
         MARKETING_VERSION: "1.0"   # MUST match the extension's, or registration can be refused
         CURRENT_PROJECT_VERSION: "1"
@@ -104,8 +109,11 @@ targets:
       properties:
         CFBundleDisplayName: Tiny Acid Jam
         NSExtension:
-          NSExtensionPointIdentifier: com.apple.AudioUnit
-          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).TinyjamAUFactory
+          # -UI, not plain com.apple.AudioUnit: that is what tells the system this extension HAS a
+          # view, and the principal class must then be the AUViewController that also implements
+          # AUAudioUnitFactory. With the plain identifier a host shows its own generic sliders.
+          NSExtensionPointIdentifier: com.apple.AudioUnit-UI
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).TinyjamAUViewController
           NSExtensionAttributes:
             AudioComponentBundle: $(PRODUCT_BUNDLE_IDENTIFIER)
             AudioComponents:

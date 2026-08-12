@@ -3017,11 +3017,120 @@ void de_init(DeRenderer renderer) {
 }
 void de_input_endframe(void);     // raylib_compat.c — snapshots mouse button state for next frame's edge detect
 void de_input_beginframe(void);   // raylib_compat.c — applies the host's queued touch/key EVENTS (the input ring)
-// de_input_beginframe FIRST: the host appends input events from ITS thread (on iOS the main thread,
-// where UIKit delivers touches) and they are applied here, on the thread that runs the frame. That
-// matters in the AUv3, where this function is driven by the audio render block — see the ring's
-// header comment in raylib_compat.c.
-void de_frame(double t) { de_host_time = t; de_input_beginframe(); loop_step(); if (sw_rot_active) sw_rot_composite(); de_input_endframe(); }   // loop_step draws (sw_cbuf or the rotated world buffer) + advances the sequencer; composite any rotated world a cart didn't close with camera()
+
+// ══ THE HOST/ENGINE THREAD SPLIT (what the AUv3 forced) ═════════════════════════════════════════
+// In the standalone app the host calls de_frame() from its display link on the MAIN thread, and every
+// other host call (touches, layout, the blit) is on that same thread. A plug-in inverts it: the AUv3
+// render block drives de_frame() from the AUDIO thread — which it must, because the frame is
+// SAMPLE-CLOCKED (one per 735 rendered samples), and that is what makes the sequencer follow a host
+// exactly and stay correct through an offline bounce, where no display link ticks at all.
+//
+// So three things the host does from ITS thread cannot touch engine state directly. Input was the
+// first (an event ring, in raylib_compat.c). These are the other two:
+//
+//   1. RESIZE — de_resize/de_set_safe_area/de_set_backing_scale. de_resize REALLOCS the framebuffer,
+//      so a layout pass landing mid-draw is a use-after-free, not a race you can shrug at. They are
+//      recorded as PENDING here and applied at the top of the frame. Idempotent state rather than
+//      events, so last-writer-wins and a few atomics beat a queue.
+//   2. THE BLIT — the host must not read sw_cbuf while the engine draws into it. de_copy_frame()
+//      below hands out a SNAPSHOT of the last completed frame instead.
+static atomic_int de_pend      = 0;   // bit 0 = canvas, 1 = safe area, 2 = backing scale
+static atomic_int de_pend_w    = 0, de_pend_h  = 0;
+static atomic_int de_pend_sl   = 0, de_pend_st = 0, de_pend_sr = 0, de_pend_sb = 0;
+static atomic_int de_pend_bs   = 0;   // backing scale × 256 (an int keeps it lock-free everywhere)
+
+static void de_apply_pending(void) {
+    int f = atomic_exchange_explicit(&de_pend, 0, memory_order_acquire);
+    if (!f) return;
+    // Canvas FIRST: de_set_safe_area records the canvas its insets are relative to (safe_ref_w/h),
+    // so applying it before a pending resize would pin the insets to the old size.
+    if (f & 1) de_set_canvas(atomic_load_explicit(&de_pend_w, memory_order_relaxed),
+                             atomic_load_explicit(&de_pend_h, memory_order_relaxed));
+    if (f & 2) {
+        int l = atomic_load_explicit(&de_pend_sl, memory_order_relaxed);
+        int t = atomic_load_explicit(&de_pend_st, memory_order_relaxed);
+        int r = atomic_load_explicit(&de_pend_sr, memory_order_relaxed);
+        int b = atomic_load_explicit(&de_pend_sb, memory_order_relaxed);
+        safe_l = l < 0 ? 0 : l; safe_t = t < 0 ? 0 : t;
+        safe_r = r < 0 ? 0 : r; safe_b = b < 0 ? 0 : b;
+        safe_ref_w = de_sw; safe_ref_h = de_sh;
+    }
+    if (f & 4) {
+        float k = atomic_load_explicit(&de_pend_bs, memory_order_relaxed) / 256.0f;
+        de_backing = (k > 0.1f) ? k : 2.0f;
+    }
+}
+
+// ── the published frame snapshot ────────────────────────────────────────────────────────────────
+// A SEQLOCK, because the two critical sections are wildly different sizes: the engine's draw takes
+// most of a frame (far too long to hold a reader off), but the memcpy that PUBLISHES it takes
+// microseconds. So the engine draws freely into sw_cbuf, then copies the finished frame here inside
+// an odd/even sequence, and a reader retries only if it collided with that copy. The audio thread
+// never waits for the UI; the UI may briefly retry, which is the only correct direction.
+//
+// The present buffer is GROW-ONLY and the old allocation is deliberately LEAKED: a reader on another
+// thread may be mid-copy out of it, and there is no cheap way to know it isn't. Bounded by the number
+// of distinct canvas sizes a session reaches (a handful), so a few MB at worst — against a
+// use-after-free in the host's blit, that is the right trade.
+// The POINTER is part of the seqlock's protected data, not just the pixels. Getting that wrong is
+// subtle and ThreadSanitizer caught it: publishing a grown buffer before entering the odd/even window
+// lets a reader pair the OLD (smaller) pointer with the NEW (larger) dimensions and read past its end.
+// Nothing is freed, so it is not a use-after-free — it is an out-of-bounds read, which is no better.
+// So the growth happens INSIDE the window, and the reader loads the pointer inside it too.
+static uint32_t * _Atomic de_pres_buf = NULL;
+static size_t      de_pres_cap = 0;          // in pixels; engine thread only
+static atomic_int  de_pres_seq = 0;          // odd = a publish is in progress
+static atomic_int  de_pres_w   = 0, de_pres_h = 0;
+
+static void de_publish_frame(void) {
+    size_t need = (size_t)de_sw * (size_t)de_sh;
+    if (need == 0 || !sw_cbuf) return;
+    atomic_fetch_add_explicit(&de_pres_seq, 1, memory_order_release);          // → odd: writing
+    if (need > de_pres_cap) {
+        // A malloc on the engine thread, which in a plug-in is the AUDIO thread. Deliberate, and the
+        // narrowest option available: it fires only when the canvas grows past every previous size —
+        // a handful of times per session, always because someone is dragging a window, which is
+        // already the one moment audio glitching goes unnoticed. The alternative is preallocating
+        // DE_MAX_DIM² (67 MB) for a plug-in that usually needs 64 KB.
+        uint32_t *nb = (uint32_t *)malloc(need * sizeof(uint32_t));
+        if (nb) {
+            atomic_store_explicit(&de_pres_buf, nb, memory_order_relaxed);
+            de_pres_cap = need;              // old buffer intentionally not freed (see above)
+        }
+    }
+    uint32_t *buf = atomic_load_explicit(&de_pres_buf, memory_order_relaxed);
+    if (buf && need <= de_pres_cap) {
+        memcpy(buf, sw_cbuf, need * sizeof(uint32_t));
+        atomic_store_explicit(&de_pres_w, de_sw, memory_order_relaxed);
+        atomic_store_explicit(&de_pres_h, de_sh, memory_order_relaxed);
+    }                                        // else: out of memory, keep serving the previous frame
+    atomic_fetch_add_explicit(&de_pres_seq, 1, memory_order_release);          // → even: readable
+}
+
+// Copy the last COMPLETED frame out, for a host that blits from a different thread than de_frame
+// (the AUv3 view). Bottom-up rows, exactly like de_framebuffer(). Returns 1 and sets *w/*h on
+// success; 0 if no frame has been published yet or `cap_px` is too small to hold it — in which case
+// *w/*h still report the size needed, so the host can grow its buffer and ask again.
+int de_copy_frame(uint32_t *dst, int cap_px, int *w, int *h) {
+    for (int attempt = 0; attempt < 8; attempt++) {
+        int s1 = atomic_load_explicit(&de_pres_seq, memory_order_acquire);
+        if (s1 & 1) continue;                                     // a publish is mid-flight
+        int pw = atomic_load_explicit(&de_pres_w, memory_order_relaxed);
+        int ph = atomic_load_explicit(&de_pres_h, memory_order_relaxed);
+        uint32_t *src = atomic_load_explicit(&de_pres_buf, memory_order_relaxed);   // inside the window
+        if (pw <= 0 || ph <= 0 || !src) return 0;                  // nothing published yet
+        if (w) *w = pw;
+        if (h) *h = ph;
+        if (!dst || cap_px < pw * ph) return 0;                    // caller must grow and retry
+        memcpy(dst, src, (size_t)pw * ph * sizeof(uint32_t));
+        if (atomic_load_explicit(&de_pres_seq, memory_order_acquire) == s1) return 1;   // clean read
+    }
+    return 0;   // pathologically unlucky (or the engine is publishing far faster than we read)
+}
+
+// de_apply_pending FIRST (a queued resize must land before the cart lays out for it), then the input
+// ring, then the frame, then publish what was drawn.
+void de_frame(double t) { de_host_time = t; de_apply_pending(); de_input_beginframe(); loop_step(); if (sw_rot_active) sw_rot_composite(); de_input_endframe(); de_publish_frame(); }   // loop_step draws (sw_cbuf or the rotated world buffer) + advances the sequencer; composite any rotated world a cart didn't close with camera()
 // pulled by the host audio backend (CoreAudio on iOS) — fills `frames` interleaved
 // stereo floats in [-1,1] @ SOUND_SAMPLE_RATE. The same mixer the Raylib AudioStream
 // drives; reentrant/lock-free, safe from the audio thread while de_frame runs on main.
@@ -3033,14 +3142,28 @@ int de_screen_h(void) { return de_sh; }
 // cart reflows to fill the real screen. de_resize reallocs the framebuffer + republishes de_sw/de_sh
 // (screen_w()/screen_h()); the next de_frame lays out for it. de_is_resizable tells the host whether
 // the cart opted in (-DDE_RESIZABLE) — a fixed cart returns 0 so the host leaves it letterboxed.
-void de_resize(int w, int h) { de_set_canvas(w, h); }
+// All three are called from the HOST's layout pass, so they only RECORD the request; de_apply_pending
+// (top of de_frame) applies it on the engine's own thread. See "THE HOST/ENGINE THREAD SPLIT" above —
+// de_resize reallocs the framebuffer, which is fatal to a frame being drawn on another thread.
+// Deferral is invisible to the standalone app: CanvasView already re-reads de_screen_w/h AFTER
+// de_frame (a cart can resize itself mid-frame), which is exactly when a pending resize lands.
+void de_resize(int w, int h) {
+    atomic_store_explicit(&de_pend_w, w, memory_order_relaxed);
+    atomic_store_explicit(&de_pend_h, h, memory_order_relaxed);
+    atomic_fetch_or_explicit(&de_pend, 1, memory_order_release);
+}
 int  de_is_resizable(void)   { return de_reflow ? 1 : 0; }
 void de_set_safe_area(int l, int t, int r, int b) {   // host reports notch/home-bar insets (px)
-    safe_l = l < 0 ? 0 : l; safe_t = t < 0 ? 0 : t;
-    safe_r = r < 0 ? 0 : r; safe_b = b < 0 ? 0 : b;
-    safe_ref_w = de_sw; safe_ref_h = de_sh;   // remember the canvas these px are relative to (safe_rect rescales)
+    atomic_store_explicit(&de_pend_sl, l, memory_order_relaxed);
+    atomic_store_explicit(&de_pend_st, t, memory_order_relaxed);
+    atomic_store_explicit(&de_pend_sr, r, memory_order_relaxed);
+    atomic_store_explicit(&de_pend_sb, b, memory_order_relaxed);
+    atomic_fetch_or_explicit(&de_pend, 2, memory_order_release);
 }
-void de_set_backing_scale(float k) { de_backing = (k > 0.1f) ? k : 2.0f; }   // host reports pt-per-logical-px (iOS pixelChunk); feeds finger_px()
+void de_set_backing_scale(float k) {   // host reports pt-per-logical-px (iOS pixelChunk); feeds finger_px()
+    atomic_store_explicit(&de_pend_bs, (int)(k * 256.0f), memory_order_relaxed);
+    atomic_fetch_or_explicit(&de_pend, 4, memory_order_release);
+}
 // Host points persistence at a writable app dir (Android internalDataPath, iOS Documents). Call
 // BEFORE de_init so the cart's init() can load_int(). Twin of the desktop --save-dir flag; if the
 // host never sets it, save_dir stays "." (the cwd) and saves silently no-op on a sandboxed OS.

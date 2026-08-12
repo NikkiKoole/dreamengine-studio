@@ -7,11 +7,12 @@
 // and no device: it IS a host. auval cannot cover it — auval never SETS musicalContextBlock, so it
 // only ever exercises the "host supplies no transport" path.
 //
-//   swiftc -O -o au-transport-check au-transport-check.swift -framework AVFoundation
+//   swiftc -O -o au-transport-check au-transport-check.swift -framework AVFoundation -framework CoreAudioKit
 //   ./au-transport-check            # the transport checks at 44.1k; exits 0 = PASS
 //   ./au-transport-check --free     # NEGATIVE CONTROL: no transport blocks, the tempo check must fail
 //   ./au-transport-check --rate 48000   # the same transport checks, host rendering at 48k
 //   ./au-transport-check --wav /tmp/x   # also dump what it rendered → /tmp/x-<rate>.wav, to LISTEN
+//   ./au-transport-check --view      # is the UI extension wired? (the picture still needs eyes)
 //
 // Requires the plug-in registered (zsh ios/mac.sh). Run from ios/; mac.sh runs it for you.
 //
@@ -50,6 +51,12 @@
 // most of the work in an oracle.
 
 import AVFoundation
+import AppKit
+// CoreAudioKit, not AudioToolbox: requestViewControllerWithCompletionHandler is declared there, as a
+// CATEGORY on AUAudioUnit (CoreAudioKit/AUViewController.h). Without this import the method simply does
+// not exist and the compiler says AUAudioUnit "has no member" — found by grepping the SDK headers
+// rather than guessing an import per build, the same technique that settled the CoreAudio one.
+import CoreAudioKit
 
 // ── the component we built (must match project-mac.yml's AudioComponents entry) ──
 func fourCC(_ s: String) -> OSType { s.utf8.reduce(0) { ($0 << 8) | OSType($1) } }
@@ -76,10 +83,18 @@ let wavPrefix: String? = {
 }()
 
 // ── instantiate the plug-in (out of process, as a real host does) ──
+// PUMP THE MAIN RUN LOOP instead of blocking on a semaphore. This used to be a semaphore wait, and it
+// worked right up until the extension gained a VIEW: a `com.apple.AudioUnit-UI` extension does part of
+// its loading on the main queue, so blocking the main thread here deadlocks and instantiation "fails"
+// after the timeout with a message blaming registration — while auval, which has a real run loop,
+// loads the same plug-in happily. That misdirection cost a confused minute; worth the comment.
 var au: AVAudioUnit?
-let sem = DispatchSemaphore(value: 0)
-AVAudioUnit.instantiate(with: desc, options: []) { u, _ in au = u; sem.signal() }
-_ = sem.wait(timeout: .now() + 20)
+var instantiated = false
+AVAudioUnit.instantiate(with: desc, options: []) { u, _ in au = u; instantiated = true }
+let deadline = Date().addingTimeInterval(20)
+while !instantiated, Date() < deadline {
+    RunLoop.main.run(mode: .default, before: Date().addingTimeInterval(0.05))
+}
 guard let avAU = au else {
     print("✗ could not instantiate aumu/tacj/Mpla — is it registered? run: zsh ios/mac.sh")
     exit(1)
@@ -198,6 +213,37 @@ func check(_ name: String, _ ok: Bool, _ detail: String) {
     if !ok { failures += 1 }
 }
 func cents(_ ratio: Double) -> Double { 1200.0 * log2(ratio) }
+
+// ═══ --view: can a host actually GET our plug-in view? ═══════════════════════════════════════════
+// The narrow question this can answer headlessly: is the UI extension wired up — `com.apple.AudioUnit-UI`
+// as the extension point, an AUViewController that is also the AUAudioUnitFactory as the principal
+// class, and the view actually loading when asked. Get any of that wrong and the plug-in still passes
+// auval and still plays; the host just quietly shows its own generic sliders forever, which is the
+// failure this mode exists to catch early.
+// What it CANNOT answer is whether the picture looks right — that needs eyes in a DAW. The pixel path
+// itself (de_copy_frame → the blit) is gated separately by tools/present-race-check.
+if argv.contains("--view") {
+    print("▸ plug-in view: can a host obtain it?")
+    var vc: NSViewController?
+    var answered = false
+    avAU.auAudioUnit.requestViewController { controller in vc = controller; answered = true }
+    let vdl = Date().addingTimeInterval(15)
+    while !answered, Date() < vdl { RunLoop.main.run(mode: .default, before: Date().addingTimeInterval(0.05)) }
+    check("the host is handed a view controller", answered && vc != nil,
+          answered ? "got \(vc.map { String(describing: type(of: $0)) } ?? "nil — the host would fall back to generic sliders")"
+                   : "requestViewController never answered within 15s")
+    if let v = vc {
+        // Reading `view` forces the controller to load, which is where our CanvasView is built and its
+        // display link starts. If that fails or the view is empty, a DAW gets a blank panel.
+        let loaded = v.view.frame
+        let size = v.preferredContentSize
+        check("its view loads and asks for a size", size.width > 0 && size.height > 0,
+              "view frame \(Int(loaded.width))x\(Int(loaded.height)), preferredContentSize \(Int(size.width))x\(Int(size.height))")
+    }
+    print(failures == 0 ? "\nPASS — the UI extension is wired; LOOK at it in a DAW to judge the picture."
+                        : "\n\(failures) check(s) FAILED")
+    exit(failures == 0 ? 0 : 1)
+}
 
 // ═══ the three transport checks ══════════════════════════════════════════════════════════════════
 if hostRate != ENGINE_SR { print("▸ host rendering at \(Int(hostRate)) Hz (engine is compiled for \(Int(ENGINE_SR)))") }

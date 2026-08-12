@@ -16,7 +16,13 @@ typedef enum { DE_RENDERER_SOFTWARE = 0, DE_RENDERER_GPU = 1 } DeRenderer;
 
 void            de_init(DeRenderer renderer);
 void            de_frame(double t);
-const uint32_t *de_framebuffer(void);
+const uint32_t *de_framebuffer(void);   // the LIVE canvas — only safe on the thread calling de_frame
+// The same frame as a SNAPSHOT, for a view that blits from a different thread than the one ticking
+// the engine. That is the AUv3: its render block drives de_frame on the AUDIO thread (the frame is
+// sample-clocked, which is what survives an offline bounce) while the view draws on main. Copies the
+// last completed frame into `dst` and returns 1, setting *w/*h; returns 0 if nothing is published yet
+// or cap_px is too small — *w/*h still report the size needed, so grow and ask again.
+int             de_copy_frame(uint32_t *dst, int cap_px, int *w, int *h);
 int             de_screen_w(void);
 int             de_screen_h(void);
 // Device-adaptive (Phase 2): the host hands the engine the device viewport (in framebuffer px;

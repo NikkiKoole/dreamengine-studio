@@ -63,7 +63,16 @@ void de_frame(double t);
 
 // SOFTWARE renderer: pointer to the finished frame, RGBA8888, de_screen_w()*
 // de_screen_h() pixels, row-major top-left origin. Returns NULL under DE_RENDERER_GPU.
+// ONLY SAFE ON THE THREAD THAT CALLS de_frame — it is the engine's live canvas, not a snapshot.
 const uint32_t *de_framebuffer(void);
+
+// The same frame, for a host that blits from a DIFFERENT thread than the one calling de_frame — an
+// AUv3, where the render block drives the frame on the audio thread while the view draws on main.
+// Copies the last COMPLETED frame into `dst` (same layout as de_framebuffer) and returns 1, setting
+// *w/*h. Returns 0 if no frame exists yet or `cap_px` is too small — *w/*h still report the size
+// needed, so grow the buffer and call again. Internally a seqlock: it may briefly retry, and it never
+// makes the audio thread wait. A single-threaded host can keep using de_framebuffer().
+int de_copy_frame(uint32_t *dst, int cap_px, int *w, int *h);
 
 // Active framebuffer dimensions (== SCREEN_W / SCREEN_H at boot; a resizable cart
 // grows past them via de_resize — always read these, never the compile-time macros).

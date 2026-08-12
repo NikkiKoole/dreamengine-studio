@@ -301,6 +301,13 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
                              shipping code, and plays host + engine on two real threads because the race only
                              exists where de_frame runs off the input thread = the AUv3. Also pins the
                              ONE-FRAME PRESS rule (a tap arriving between two frames must still be visible)
+             present-race-check/  THREAD-SAFETY gate for the other half of that split: `de_copy_frame`
+                             (the published frame SNAPSHOT) + the DEFERRED resize path in studio.c. Builds the
+                             REAL engine like build-nr.sh, then blits + resizes from a second thread while the
+                             engine draws. `-tsan` (the real gate — it caught a pointer published outside the
+                             seqlock) · `-bypass` (negative control: the naive host reading the LIVE canvas,
+                             which tears). WHY: de_resize reallocs the framebuffer, so a plug-in view doing
+                             the obvious thing is a use-after-free in the HOST, blamed on us
              ui-audit.js     UI bug finder (off-screen text, overlaps, dead widgets, hidden panels).
                              `--selfcheck` = known-answer fixture (31 assertions, runs NO cart: the
                              analyzer is pure, so it judges synthetic draw records) covering every

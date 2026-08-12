@@ -52,9 +52,19 @@ a broken doc link or `#section`).
 > TWO shapes — MIDI clock is *incremental* (measure the tempo, infer the transport), a host and Link are
 > *absolute* (they state both). `sync_beats()` is the common currency and a cart DERIVES its step counter
 > from it. That is why AUv3 transport needed **zero cart changes**: it was the other shape of the same seam.
-> **Next, in order:** the AUv3 **VIEW** (phase 3, and the bulk of what is left — an `AUViewController`
-> sharing the already-cart-agnostic `Sources/CanvasView.swift`, and a tick-ownership split so the view
-> blits without advancing the engine. **The input event RING is DONE** (2026-08-12): `de_touch_*` and
+> **▶ NEXT ACTION: open GarageBand and LOOK at the plug-in's panel.** The AUv3 **VIEW is WIRED**
+> (2026-08-12, `ios/AU/TinyjamAUViewController.swift` + `CanvasView(hosted: true)`, gated by
+> `ios/au-transport-check --view`: the host is handed an `AUAudioUnitRemoteViewController` whose view
+> loads at 492×308). What no gate can answer is whether the PICTURE is right — size, scaling, whether
+> touches land where they look like they should. That eyeball is the next step, and everything below is
+> behind it. Traps recorded in [`ios-plan.md → The plug-in view`](design/ios-plan.md#the-plug-in-view-phase-3):
+> `com.apple.AudioUnit-UI` + a principal class that is BOTH the view controller and the factory (get it
+> wrong and everything passes while the host shows generic sliders), a `-UI` extension loading on the
+> MAIN QUEUE (a semaphore wait there deadlocks and blames registration), and
+> `requestViewControllerWithCompletionHandler` living in **CoreAudioKit**, not AudioToolbox.
+> **The three engine seams the view needed are all done and gated** — a plug-in inverts which thread is
+> which, so every host call that touched engine state directly became a race, and two were crashes:
+> **(1) the input event RING** (2026-08-12): `de_touch_*` and
 > `de_key_event` append to an SPSC ring and `de_input_beginframe()` applies them on the frame's own
 > thread, so an AUv3 frame running on the AUDIO thread no longer races the main thread's touches. It
 > also fixed a bug the standalone app has always had — a press+release arriving between two frames was
@@ -62,7 +72,18 @@ a broken doc link or `#section`).
 > true. Design: [`audio-threading.md`](design/audio-threading.md) → "the INPUT ring"; gate:
 > `bash tools/input-ring-check/run.sh` (`-tsan` is the real one, `-bypass` is the negative control —
 > and note the plain run is NOT enough: with the safety removed the tear check still passed on arm64,
-> because two adjacent float stores rarely interleave) · **Ableton
+> because two adjacent float stores rarely interleave). **(2) RESIZE IS DEFERRED** — `de_resize` reallocs
+> the framebuffer, so a layout pass landing mid-draw was a use-after-free; the host now records the
+> request and `de_apply_pending()` applies it at the top of the frame. **(3) `de_copy_frame()`** — the
+> view blits a SNAPSHOT of the last completed frame through a seqlock, never the live canvas (the
+> seqlock exists because the draw is far too long to hold a reader off but the publishing memcpy is
+> microseconds). Gate: `bash tools/present-race-check/run.sh`, and **TSan earned its keep on the first
+> run**: the original published a grown buffer's pointer OUTSIDE the seqlock, so a reader could pair the
+> old pointer with the new dimensions and read past the end. Nothing freed, so not a use-after-free, an
+> out-of-bounds read instead — which no amount of running the plain probe would have caught.
+> Known costs, deliberately: the present buffer is grow-only and leaks the old allocation (a reader may
+> be mid-copy), and growing it mallocs on the audio thread (only when the canvas exceeds every previous
+> size, i.e. while someone drags a window) · **Ableton
 > Link** (the same `sync_push_pos()` call as the host path, so small — but the lib is dual-licensed, check
 > that first) · MIDI clock **on iOS** + background audio (what ReBirth for iPad actually shipped) · clock
 > **OUT** ([`midi-out.md`](design/midi-out.md)).

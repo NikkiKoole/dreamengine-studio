@@ -122,6 +122,44 @@ goes cross-thread: **ThreadSanitizer is the gate, not the plain run** — with t
 tear check still came back clean on arm64, because two adjacent float stores rarely interleave. A
 race that shy will not show up in testing; it shows up in a review.
 
+### The other two: RESIZE and THE BLIT (2026-08-12)
+
+Input was the first of three host calls that could not stay direct. The AUv3 **view** brought the
+other two, and both are in `studio.c` under "THE HOST/ENGINE THREAD SPLIT":
+
+- **Resize is deferred.** `de_resize`/`de_set_safe_area`/`de_set_backing_scale` now only *record* the
+  request; `de_apply_pending()` applies it at the top of the frame. `de_resize` REALLOCS the
+  framebuffer, so a layout pass landing mid-draw is a use-after-free rather than a race you can shrug
+  at. These are idempotent *state* rather than events, so last-writer-wins and a few atomics beat a
+  queue. Deferral is invisible to the standalone app, because `CanvasView` already re-read
+  `de_screen_w/h` *after* `de_frame` (a cart can resize itself mid-frame) — which is exactly when a
+  pending resize lands.
+- **The blit reads a snapshot.** `de_copy_frame()` hands out a copy of the last *completed* frame.
+  The obvious alternative — the view reading `de_framebuffer()` — tears, and the `-bypass` control
+  proves it (99 torn frames in a 20k-frame run, and it can also read a buffer being realloc'd).
+
+The snapshot is a **seqlock**, chosen because the two critical sections are wildly different sizes:
+the engine's draw takes most of a frame, far too long to hold a reader off, but the memcpy that
+*publishes* it takes microseconds. So the engine draws freely, then copies inside an odd/even
+sequence, and a reader retries only if it collided with that copy. The audio thread never waits for
+the UI; the UI may briefly retry, which is the only correct direction.
+
+Two costs recorded honestly rather than hidden:
+
+- The present buffer is **grow-only and the old allocation is leaked**, because a reader on another
+  thread may be mid-copy out of it. Bounded by the number of distinct canvas sizes a session reaches.
+- Growing it **mallocs on the audio thread**. It fires only when the canvas exceeds every previous
+  size, which always means someone is dragging a window — already the one moment audio glitching goes
+  unnoticed. The alternative is preallocating `DE_MAX_DIM²` = 67 MB for a plug-in that usually needs
+  64 KB.
+
+Gate: `bash tools/present-race-check/run.sh` (`-tsan`, `-bypass`). It builds the real engine and races
+a blitting/resizing host thread against a drawing engine thread. **TSan earned its keep immediately**:
+the first version published a grown buffer's pointer *outside* the seqlock, so a reader could pair the
+old pointer with the new dimensions and read past the end. Nothing was freed, so it was not a
+use-after-free — it was an out-of-bounds read, which is no better, and no amount of running the plain
+probe would have found it.
+
 ## Web's *extra* tax: shared memory (a web-only wrinkle)
 
 On web the game thread and the AudioWorklet are separate JS realms, so to share the one

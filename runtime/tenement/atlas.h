@@ -3,7 +3,7 @@
 // Baked rotation cells for an isometric room. See docs/design/iso-rooms.md.
 #pragma once
 
-#define ISO_SIG      "5bcd2bc6"   // guard: the .cart.js re-derives this
+#define ISO_SIG      "2003ec58"   // guard: the .cart.js re-derives this
 #define ISO_ATLAS_W  128
 #define ISO_ATLAS_H  261
 #define ISO_TW       4    // diagonal tile width, px per voxel unit

@@ -47,7 +47,11 @@ module.exports = {
     // fridge dissolved into the wall behind it), and the dark end is 21 rather than 16 because
     // at 16 the two visible inner faces came out 142 vs 29 luminance, a 5x jump that read as two
     // DIFFERENT materials instead of one wall lit from one side.
-    W: [22, 5, 21],
+    // OFF THE NEUTRAL RAMP, because a critic measured the earlier "fix" as cosmetic: it changed the
+    // wall's TOP tone only, and both of its side faces stayed byte-identical to the fridge's
+    // (#49333b and #5f574f, delta luminance 0.0 — not "similar"). Third time this has bitten. A warm
+    // violet gives the architecture its own identity and leaves the neutral greys to the white goods.
+    W: [22, 29, 21],
     b: 8,          // shirt, red
     j: 1,          // trousers, dark blue
     h: 15,         // skin, peach

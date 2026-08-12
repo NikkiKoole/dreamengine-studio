@@ -93,8 +93,12 @@ void tn_draw_world(void) {
             const short *ofp = ISO_FOOTPRINT[OBJ_CELL[ob->kind]];
             // CENTRED on the furniture, not parked at its corner: a bed is 6x12 voxels and a lying
             // figure is 3x8, so using the object's origin puts the sleeper half off the mattress.
-            ax = (float)ob->tx * TN_TILE_VOX + (ofp[0] - fp[0]) * 0.5f;
-            ay = (float)ob->ty * TN_TILE_VOX + (ofp[1] - fp[1]) * 0.5f;
+            // WHOLE voxels. `* 0.5f` gave +1.5 for a bed, and iso-rooms.md §7 measured exactly this:
+            // a fractional offset puts corners between lattice points and the two rasterizers then
+            // disagree everywhere (+0.25 was forty times worse than 0). A critic traced the remaining
+            // stray pixels on occupied beds back to this line.
+            ax = (float)(ob->tx * TN_TILE_VOX + (ofp[0] - fp[0]) / 2);
+            ay = (float)(ob->ty * TN_TILE_VOX + (ofp[1] - fp[1]) / 2);
             az = (float)ofp[2];                       // stand ON its surface, whatever height it is
             arot = tn_rot;                            // align with the furniture, not with the walk
         }
@@ -113,22 +117,45 @@ void tn_draw_world(void) {
     //
     // A wall model is 6 voxels long and 2 thick, so it straddles the boundary: offset by half its
     // thickness so it sits ON the edge rather than inside one of the two tiles.
-    for (int ty = 0; ty < tn_bh; ty++) {
-        for (int tx = 0; tx < tn_bw; tx++) {
+    // NEAR WALLS ARE CUT, and the far shell is drawn. Both were missing and a critic measured the
+    // cost: across 64 object-by-rotation samples, mean visibility 52%, twenty-one under 25%, and two
+    // beds at exactly 0% — with 89% of all occluded furniture pixels covered by a wall colour. The
+    // one shared toilet, which design §1's soul is literally about, showed ZERO of its 136 bright
+    // pixels at three of the four rotations.
+    //
+    // This is not a new idea: iso-rooms.md §8 settled it ("FULL height with the near side cut away,
+    // which beat Theme Hospital's low stubs plainly"). It simply was never implemented here, because
+    // the first pass drew every edge unconditionally.
+    //
+    // Nearness is DERIVED from the projection, not hardcoded per rotation, so it survives a change to
+    // the turn: step along the edge's outward normal and see whether depth rises. And the loops run
+    // to <= so the far shell exists at all — tn_edge_at already reports the outside ring SOLID, so
+    // this needs no new data.
+    const float d0 = tnr_iso_depth(tn_rot, 0.0f, 0.0f);
+    const int near_n = tnr_iso_depth(tn_rot, 0.0f, -1.0f) > d0;   // a north edge faces the camera
+    const int near_w = tnr_iso_depth(tn_rot, -1.0f, 0.0f) > d0;   // a west edge faces the camera
+    for (int ty = 0; ty <= tn_bh; ty++) {
+        for (int tx = 0; tx <= tn_bw; tx++) {
             const float vx = tx * TN_TILE_VOX, vy = ty * TN_TILE_VOX;
-            const int en = tn_edge_at(tx, ty, TN_DIR_N);
-            if (en != TN_WALL_NONE) {
-                const int cell = (en == TN_WALL_DOOR) ? ISO_WALL_LOW_NS : ISO_WALL_FULL_NS;
-                const short *fp = ISO_FOOTPRINT[cell];
-                tnr_dl[tnr_dl_n++] = (Draw){ tnr_iso_depth(tn_rot, vx + fp[0] * 0.5f, vy),
-                                             cell, tn_rot, vx, vy - 1.0f, 0.0f, fp[0], fp[1], 0 };
+            if (tx < tn_bw) {
+                const int en = tn_edge_at(tx, ty, TN_DIR_N);
+                if (en != TN_WALL_NONE) {
+                    // A door already draws low. A NEAR wall draws low for the same reason: you have to
+                    // see past it. Costs no atlas and no new art, because both models exist.
+                    const int cell = (en == TN_WALL_DOOR || near_n) ? ISO_WALL_LOW_NS : ISO_WALL_FULL_NS;
+                    const short *fp = ISO_FOOTPRINT[cell];
+                    tnr_dl[tnr_dl_n++] = (Draw){ tnr_iso_depth(tn_rot, vx + fp[0] * 0.5f, vy),
+                                                 cell, tn_rot, vx, vy - 1.0f, 0.0f, fp[0], fp[1], 0 };
+                }
             }
-            const int ew = tn_edge_at(tx, ty, TN_DIR_W);
-            if (ew != TN_WALL_NONE) {
-                const int cell = (ew == TN_WALL_DOOR) ? ISO_WALL_LOW_EW : ISO_WALL_FULL_EW;
-                const short *fp = ISO_FOOTPRINT[cell];
-                tnr_dl[tnr_dl_n++] = (Draw){ tnr_iso_depth(tn_rot, vx, vy + fp[1] * 0.5f),
-                                             cell, tn_rot, vx - 1.0f, vy, 0.0f, fp[0], fp[1], 0 };
+            if (ty < tn_bh) {
+                const int ew = tn_edge_at(tx, ty, TN_DIR_W);
+                if (ew != TN_WALL_NONE) {
+                    const int cell = (ew == TN_WALL_DOOR || near_w) ? ISO_WALL_LOW_EW : ISO_WALL_FULL_EW;
+                    const short *fp = ISO_FOOTPRINT[cell];
+                    tnr_dl[tnr_dl_n++] = (Draw){ tnr_iso_depth(tn_rot, vx, vy + fp[1] * 0.5f),
+                                                 cell, tn_rot, vx - 1.0f, vy, 0.0f, fp[0], fp[1], 0 };
+                }
             }
         }
     }

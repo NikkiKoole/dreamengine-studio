@@ -41,33 +41,49 @@ public final class TinyjamAUViewController: AUViewController, AUAudioUnitFactory
     // skipped is not a diagnostic. It now runs on whichever call completes the pair, once.
     private var panelConnected = false
     private func connectPanel() {
-        guard !panelConnected, let a = au, let c = canvas else { return }
+        guard !panelConnected, au != nil, canvas != nil else { return }
         panelConnected = true
-        let mypid = Int(ProcessInfo.processInfo.processIdentifier)
-        guard #available(macCatalyst 16.0, iOS 16.0, macOS 13.0, *) else {
-            NSLog("[tinyjam] PANEL no channel — AUMessageChannel needs 16.0+ · this UI process pid %d", mypid)
-            return
-        }
-        let ch = a.messageChannel(for: "com.tinyjam.canvas")
-        guard let call = ch.callAudioUnit, !call(["op": "nonce"]).isEmpty else {
-            NSLog("[tinyjam] PANEL no channel — host wired none; blitting THIS process's own engine · pid %d", mypid)
-            return
-        }
-        let who = call(["op": "nonce"])
-        let theirpid = (who["pid"] as? Int) ?? -1
-        let connected = theirpid > 0 && theirpid != mypid
-        NSLog("[tinyjam] PANEL %@ — channel engine pid %d nonce %@ · this UI process pid %d",
-              connected ? "CONNECTED to another process (the audio one)"
-                        : "TALKING TO ITSELF (same process = still the wrong engine)",
-              theirpid, String(describing: who["nonce"] ?? "?"), mypid)
-        if connected {
-            c.remoteFrame = {
-                let r = call(["op": "frame"])
-                guard let px = r["px"] as? Data,
-                      let w = r["w"] as? Int, let h = r["h"] as? Int else { return nil }
-                return (px: px, w: w, h: h)
+        // Read the verdict NOW and again later. Not politeness: the only orphan signal available is
+        // "nothing in this process has rendered", and a host whose transport is stopped looks
+        // identical at the moment a panel opens. Press play and the ambiguity resolves itself — which
+        // it can only do if somebody looks twice. The old single-shot line could not tell those apart
+        // and did not try.
+        // `canvas.remoteFrame` is deliberately left nil, i.e. the panel blits its own process's engine.
+        // It used to be wired inside `if connected`, a branch that could never be taken; leaving that
+        // in would read as a live cross-process pixel path when it is dead code. The frame transport
+        // itself is written and measured (0.32ms for a real 160x100 frame) and stays available — what
+        // is missing is any API that hands this view controller the RENDERING instance's channel.
+        reportAudibility("on open")
+        for delay in [2.0, 8.0, 20.0] {
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+                self?.reportAudibility(String(format: "+%.0fs", delay))
             }
         }
+    }
+
+    // ── the ONE line to read in a host's Console, and it can now go red ─────────────────────────
+    // Superseding a diagnostic that could not: it compared the message channel's pid against this
+    // process's pid, and the channel is fetched from our OWN local audio unit, so those two were
+    // equal by construction and the "connected" branch was unreachable. See the long note at
+    // "WHICH INSTANCE IS THE AUDIBLE ONE" in TinyjamAU.swift — the GarageBand reading that closed
+    // both bridging routes was that unreachable branch's default, not a measurement.
+    private var lastVerdict = ""
+    private func reportAudibility(_ when: String) {
+        guard let a = au else { return }
+        let r = a.audibilityReport
+        let verdict: String
+        if r.rendering == 0 {
+            verdict = "NO AUDIO HAS RENDERED IN THIS PROCESS — either the host is stopped (press play and read the next line) or this panel is in a different process from the DSP, which is the orphan"
+        } else if r.rendering == r.mine {
+            verdict = "CONNECTED — this panel's own audio unit is the one being rendered"
+        } else {
+            verdict = "CONNECTED through the shared per-process engine — instance \(r.rendering) renders, this panel holds \(r.mine); one engine per process, so the picture is the audible one"
+        }
+        guard verdict != lastVerdict else { return }        // only when it CHANGES, so play/stop reads clean
+        lastVerdict = verdict
+        NSLog("[tinyjam] PANEL %@ · %@ · %d instance(s) in this process · pid %d",
+              verdict, when, Int(r.instances),
+              Int(ProcessInfo.processInfo.processIdentifier))
     }
 
     public override func viewDidLoad() {

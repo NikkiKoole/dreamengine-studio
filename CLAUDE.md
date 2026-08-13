@@ -948,6 +948,9 @@ profiler JSON has `workMsAvg/Max`, `calls[]`, `work[]`. Both work in any native 
   whole string as ONE argument (e.g. `profile-fleet.js $SET` → one bogus "cart"; a multi-file `clang
   $FLAGS` → "no such file"). Fix: inline the words, build an **array** `args=(a b c)` + `"${args[@]}"`,
   or force-split with `${=VAR}`. (A recurring agent trip-up — it bit this repo's profiling loops.)
+  **zsh also SHADOWS some commands as builtins:** `log show …` hits zsh's `log` builtin, which prints
+  "too many arguments" on *stderr* and nothing on stdout — indistinguishable from "nothing was logged",
+  which is how it cost two wrong conclusions in one afternoon. Use `/usr/bin/log`.
 - `node_modules` requires Node 22 — `nvm use 22` before any npm commands.
 - `main.cjs`/`preload.cjs` are CommonJS (`.cjs`) because `package.json` is `"type": "module"`;
   editing them needs an Electron restart (`npm start`); Vite hot-reloads everything else.

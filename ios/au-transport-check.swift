@@ -13,6 +13,7 @@
 //   ./au-transport-check --rate 48000   # the same transport checks, host rendering at 48k
 //   ./au-transport-check --wav /tmp/x   # also dump what it rendered → /tmp/x-<rate>.wav, to LISTEN
 //   ./au-transport-check --view      # is the UI extension wired? (the picture still needs eyes)
+//   ./au-transport-check --panel     # is the panel attached to the unit that RENDERS? (see --panel below)
 //   ./au-transport-check --realtime  # pace to the wall clock: exercises the FRAME WORKER path
 //
 // Requires the plug-in registered (zsh ios/mac.sh). Run from ios/; mac.sh runs it for you.
@@ -261,6 +262,85 @@ if argv.contains("--view") {
     }
     print(failures == 0 ? "\nPASS — the UI extension is wired; LOOK at it in a DAW to judge the picture."
                         : "\n\(failures) check(s) FAILED")
+    exit(failures == 0 ? 0 : 1)
+}
+
+// ═══ --panel: is the PANEL looking at the engine you can HEAR? ═══════════════════════════════════
+// The gate that should have existed before anyone concluded the panel was orphaned. --view above
+// proves a host can OBTAIN the view; this proves the view is attached to the RENDERING audio unit,
+// which is a different question and the one the whole "out-of-process wall" fork turned on.
+//
+// It cannot ask the extension directly — there is no API for "which instance renders" across the
+// boundary, and inventing one was the trap: the previous diagnostic asked the view controller's OWN
+// local audio unit for its pid and compared it against the view controller's own pid, two numbers
+// that are equal by construction. So instead the extension stamps the renderer's identity in its own
+// process (TinyjamAU.audibilityReport) and NSLogs a verdict, and this reads that verdict back out of
+// the unified log — the same line a person reads in Console, now asserted.
+//
+// THE CONTROL IS BUILT IN, and it is why the check wants BOTH lines: the panel opens before the host
+// renders anything, so it must first report the orphan-shaped verdict and only then flip to
+// CONNECTED. A run that shows only one of the two is a reporter stuck on one branch, which is exactly
+// the failure being corrected here.
+if argv.contains("--panel") {
+    print("▸ panel: is it attached to the audio unit that RENDERS?")
+    // WHICH PROCESS is the audio in? The channel answers from wherever the AU's code actually lives.
+    var enginePid = -1
+    if #available(macOS 13.0, macCatalyst 16.0, *) {
+        let ch = avAU.auAudioUnit.messageChannel(for: "com.tinyjam.canvas")
+        if let call = ch.callAudioUnit { enginePid = (call(["op": "nonce"])["pid"] as? Int) ?? -1 }
+    }
+    check("the host can locate the process the audio unit lives in", enginePid > 0,
+          enginePid > 0 ? "audio unit code is in pid \(enginePid)" : "no message channel — cannot tell")
+
+    var vc: NSViewController?
+    var answered = false
+    avAU.auAudioUnit.requestViewController { c in vc = c; answered = true }
+    let pdl = Date().addingTimeInterval(15)
+    while !answered, Date() < pdl { RunLoop.main.run(mode: .default, before: Date().addingTimeInterval(0.05)) }
+    if let v = vc { _ = v.view.frame }          // forces the real view controller to load and report
+
+    // Render for real, so ONE instance stamps itself as the audible one. Without this every verdict
+    // stays at "nothing has rendered", which is indistinguishable from the orphan — deliberately, and
+    // it is the reason this mode renders instead of just opening a view.
+    let prig = try! Rig(au: avAU, sr: ENGINE_SR)
+    hostMoving = true; hostTempo = 120
+    _ = prig.render(beats: 4.0)
+    prig.teardown()
+    // Give the extension's own +2s/+8s re-reads time to fire, then let the log daemon settle.
+    let wait = Date().addingTimeInterval(10)
+    while Date() < wait { RunLoop.main.run(mode: .default, before: Date().addingTimeInterval(0.1)) }
+
+    func panelLines() -> [String] {
+        let p = Process()
+        // /usr/bin/log by absolute path: `log` is a zsh BUILTIN, and calling it by name from a shell
+        // gets "too many arguments" on stderr and nothing on stdout — which reads as "the extension
+        // logged nothing" and cost a wrong conclusion twice in one afternoon.
+        p.executableURL = URL(fileURLWithPath: "/usr/bin/log")
+        p.arguments = ["show", "--last", "120s", "--style", "compact",
+                       "--predicate", "eventMessage CONTAINS \"[tinyjam] PANEL\""]
+        let out = Pipe(); p.standardOutput = out; p.standardError = Pipe()
+        do { try p.run() } catch { return [] }
+        let d = out.fileHandleForReading.readDataToEndOfFile()
+        p.waitUntilExit()
+        return (String(data: d, encoding: .utf8) ?? "")
+            .split(separator: "\n").map(String.init)
+            .filter { $0.contains("pid \(enginePid)") }     // THIS run's audio process, not an old one
+    }
+    let lines = panelLines()
+    let connected = lines.filter { $0.contains("PANEL CONNECTED") }
+    let notYet   = lines.filter { $0.contains("NO AUDIO HAS RENDERED") }
+
+    check("the panel reports from the same process as the audio unit", !lines.isEmpty,
+          lines.isEmpty ? "no [tinyjam] PANEL line mentioning pid \(enginePid) — the view loaded somewhere else, or never loaded"
+                        : "\(lines.count) verdict line(s) from pid \(enginePid)")
+    check("its verdict is CONNECTED once audio is rendering", !connected.isEmpty,
+          connected.last?.components(separatedBy: "PANEL ").last ?? "never reported CONNECTED")
+    check("and it reported the OTHER verdict first (so the check can go red)", !notYet.isEmpty,
+          notYet.isEmpty ? "only ever printed one verdict — the reporter may be stuck on a branch"
+                         : "saw the pre-render verdict too, \(notYet.count) time(s)")
+
+    print(failures == 0 ? "\nPASS — the panel is attached to the audio unit that renders."
+                        : "\n\(failures) check(s) FAILED — the panel may be driving an engine nobody hears.")
     exit(failures == 0 ? 0 : 1)
 }
 

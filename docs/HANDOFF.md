@@ -100,7 +100,7 @@ a broken doc link or `#section`).
 > **Resume-at:** [`design/tenement.md` → The building does not contend, and the four reasons are stacked](design/tenement.md#12-the-building-does-not-contend-and-the-four-reasons-are-stacked),
 > plus the cart's own punch list, `node tools/cart-todos.js tenement` (12 items, the D/R decision first).
 
-> **▶ ACTIVE THREAD (2026-08-12) — EXTERNAL CLOCK + the AUv3 on macOS: a cart can be slaved, and acidcandy is a GarageBand plug-in.**
+> **▶ ACTIVE THREAD (2026-08-13) — EXTERNAL CLOCK + the AUv3 on macOS: a cart can be slaved, and acidcandy is a GarageBand plug-in.**
 > Started from "does Tiny Acid Jam do AUv3 or MIDI in?" (it did neither). **SHIPPED, both verified by the
 > maker on real gear:** `runtime/sync.h` + the five `sync_*` API functions (an external clock a cart
 > FOLLOWS — MIDI clock from Ableton over the IAC bus, *and* an AUv3 host's transport), and **acidcandy
@@ -200,8 +200,38 @@ a broken doc link or `#section`).
 > processes stay two processes. Scale if ever taken: ~204 engine statics (58 studio.c, 146 sound.h)
 > plus each cart's own (acidcandy ~120); `de_switch_cart` does not help — it is a config-log replay
 > that switches one cart at a time, not concurrent instances.
-> **▶▶ START HERE IN A FRESH SESSION (written 2026-08-13). GOAL: a well-behaved macOS AUv3.**
-> There is no iPad — macOS IS the target, so no "maybe it's fine on iOS" escape hatch.
+> **▶▶ START HERE IN A FRESH SESSION (rewritten 2026-08-13, later the same day — the block below it
+> is now WRONG and kept only for the trail). GOAL: a well-behaved macOS AUv3.** There is no iPad —
+> macOS IS the target.
+> **DEFECT (A) — "the panel is orphaned" — DOES NOT EXIST as characterised. The measurement that
+> found it was a tautology.** The old `[tinyjam] PANEL …` line compared the pid in a message-channel
+> reply against the view controller's own pid, and the channel was fetched from the view controller's
+> OWN local audio unit — so the call never left the process and those two numbers were equal by
+> construction. `PANEL TALKING TO ITSELF` was the only string that code could print; its "connected"
+> branch was unreachable. The parameter probe fails the same way: a write from the UI observed in the
+> UI process is *exactly* what a correctly connected AUv3 does. Both rows of the closing evidence are
+> consistent with a panel that works.
+> **What is true, now measured with a diagnostic that CAN go red:** the view controller loads in the
+> same process as the host's audio unit and holds the instance being rendered
+> (`PANEL CONNECTED — this panel's own audio unit is the one being rendered`). Gated by
+> `ios/au-transport-check --panel`, the sixth gate in `mac.sh`; it reads the extension's own verdict
+> out of the unified log and demands BOTH verdicts in one run as its control.
+> **The `AudioComponentBundle` + `factoryFunction` lead is also CLOSED, by measurement.** It is
+> implemented (the AU code now lives in a real `TinyjamAUKernel` framework, Apple's shape, six gates
+> green) and it changes nothing: `.loadInProcess` is still answered from another process, before and
+> after. An `.appex` is a process the system launches, not a bundle a host dlopens. Kept as correct
+> packaging, NOT as a fix.
+> **So the only live defect is (B), and it is the one worth the effort:** engine state is
+> process-global (~204 statics in studio.c/sound.h plus acidcandy's ~120), `mac.sh` itself now prints
+> `2 instance(s) in this process`, and two GarageBand tracks are two front-ends over one rack.
+> **The one thing our own host cannot rule out:** a DAW that loads the *view* into a different
+> process from the *audio*. That is now a one-minute check instead of an inference — load it in
+> GarageBand and read the single `[tinyjam] PANEL …` line (`/usr/bin/log stream --predicate
+> 'eventMessage CONTAINS "[tinyjam] PANEL"'`, and note `log` is a **zsh builtin**, so the absolute
+> path matters). Full arc, the twelfth wrong turn, and why each item above is a measurement:
+> [`ios-plan.md → UNPARKED 2026-08-13`](design/ios-plan.md#-unparked-2026-08-13-later-the-same-day-the-panel-was-never-orphaned-and-the-diagnostic-that-said-it-was-could-not-have-said-anything-else).
+>
+> **▼ superseded, kept for the trail (written earlier on 2026-08-13):**
 > **TWO SEPARATE DEFECTS, do not conflate them:**
 > **(A) THE PANEL IS ORPHANED.** It draws an engine nobody hears, and touches drive that same wrong
 > engine. Measured in GarageBand: BOTH the message channel AND the parameter tree stayed inside the
@@ -237,7 +267,7 @@ a broken doc link or `#section`).
 > A probe PARAMETER was deliberately REMOVED (a stray "Bridge Probe" shows in every host's automation
 > list, and this app is on the store).
 > Full arc + the 11 wrong turns:
-> [`ios-plan.md` → PARKED 2026-08-13](design/ios-plan.md#-parked-2026-08-13-both-routes-measured-both-closed-as-configured--and-the-wrong-turns).
+> [`ios-plan.md` → PARKED 2026-08-13](design/ios-plan.md#-superseded-see-the-section-above--parked-2026-08-13-both-routes-measured-both-closed-as-configured--and-the-wrong-turns).
 >
 > **⛔ PARKED 2026-08-13 — both routes measured in GarageBand, both closed AS CONFIGURED.** The
 > message channel AND the parameter tree (Apple's own supported route) each stayed inside the UI
@@ -284,7 +314,7 @@ a broken doc link or `#section`).
 > view pulling at display rate, and iPad (this is all Mac Catalyst).
 >
 > Full table + the three corrections the spike made to its own author:
-> [`ios-plan.md` → MEASURED 2026-08-13](design/ios-plan.md#-parked-2026-08-13-both-routes-measured-both-closed-as-configured--and-the-wrong-turns).
+> [`ios-plan.md` → MEASURED 2026-08-13](design/ios-plan.md#-superseded-see-the-section-above--parked-2026-08-13-both-routes-measured-both-closed-as-configured--and-the-wrong-turns).
 >
 > **Smaller open items, all recorded, none started:** a HOVER seam (a Catalyst mouse-move is not a
 > touch, so the cart only learns the pointer on click and `cursor.h` never sees a mouse — the pixel

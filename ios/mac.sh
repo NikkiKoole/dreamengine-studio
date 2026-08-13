@@ -154,4 +154,12 @@ echo "▸ frame-worker gate (--realtime, ~12s)"
 echo "▸ plug-in view gate (--view)"
 ./au-transport-check --view
 
+# PANEL gate. --view proves a host can OBTAIN the view; this proves the view is attached to the audio
+# unit that RENDERS — the question the whole "out-of-process wall" fork turned on, and which was
+# previously answered by a diagnostic whose "connected" branch was unreachable. Reads the extension's
+# own verdict back out of the unified log, and requires BOTH verdicts in one run so the check is known
+# to be able to go red. ~15s (it waits for the extension's re-reads).
+echo "▸ panel-is-the-audible-engine gate (--panel, ~15s)"
+./au-transport-check --panel
+
 echo "  (negative control: ./au-transport-check --free must FAIL the tempo check — ratio ~0.5)"

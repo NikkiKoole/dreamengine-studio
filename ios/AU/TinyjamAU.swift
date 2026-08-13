@@ -78,6 +78,10 @@ public final class TinyjamAU: AUAudioUnit {
         acc.pointee = 0
         rate.initialize(to: RateState())
         TinyjamAU.bootEngineOnce()
+        TinyjamAU.bootLock.lock()
+        TinyjamAU.instanceCount += 1
+        instanceID = TinyjamAU.instanceCount        // 1-based, so 0 stays free to mean "nobody"
+        TinyjamAU.bootLock.unlock()
     }
 
     // ══ ONE ENGINE PER PROCESS ══════════════════════════════════════════════════════════════════
@@ -101,6 +105,36 @@ public final class TinyjamAU: AUAudioUnit {
         de_init(DE_RENDERER_SOFTWARE)               // sound_init() + the cart's init()
         startWorker()                               // BEFORE any render: a view can open while the
     }                                               // host is stopped and still needs frames
+
+    // ══ WHICH INSTANCE IS THE AUDIBLE ONE ═══════════════════════════════════════════════════════
+    // The one question the panel needs answered, and the reason it needs a new mechanism: the OLD
+    // diagnostic compared the message channel's pid against the view controller's own pid and called
+    // a match "talking to itself, still the wrong engine". Those two pids are the same BY
+    // CONSTRUCTION — the channel is fetched from the view controller's own local audio unit, so the
+    // call never leaves the process and can only ever report that process. The "connected" branch was
+    // unreachable, which means the reading taken in GarageBand ("PANEL TALKING TO ITSELF") was
+    // guaranteed output carrying no information, and the conclusion drawn from it — that the panel is
+    // orphaned and both routes are closed — was never actually measured. A diagnostic whose other
+    // branch cannot be reached is the same failure as a gate that cannot go red.
+    //
+    // What CAN be measured, without any cross-process API: audio is rendered by exactly one instance,
+    // and an engine is per-process. So stamp the renderer's identity where the view can read it. Then
+    // "the panel is orphaned" has a falsifiable form — NOTHING in this process has ever rendered —
+    // and "the panel is fine" has one too, in two flavours worth telling apart.
+    private var instanceID: UInt64 = 0
+    private static var instanceCount: UInt64 = 0    // also the honest measure of how many front-ends
+                                                    // are fighting over the one engine (defect B)
+    // Written on the audio thread, so a plain pointer rather than a `static var` (no swift_once on the
+    // hot path) and a UInt64 rather than a reference (no ARC). Read on main. A torn read is
+    // impossible for an aligned 64-bit store and would only misname a diagnostic anyway. 0 = nobody.
+    private static let renderedBy = UnsafeMutablePointer<UInt64>.allocate(capacity: 1)
+
+    /// DIAGNOSTIC ONLY. `rendering == 0` means no instance in this process has ever rendered audio,
+    /// which is what an orphaned panel looks like — and also what a host that has not started looks
+    /// like, so it is read over time rather than once.
+    public var audibilityReport: (mine: UInt64, rendering: UInt64, instances: UInt64) {
+        (instanceID, TinyjamAU.renderedBy.pointee, TinyjamAU.instanceCount)
+    }
 
     public override var outputBusses: AUAudioUnitBusArray { _outputBusArray }
     public override var inputBusses: AUAudioUnitBusArray { _inputBusArray }
@@ -224,9 +258,13 @@ public final class TinyjamAU: AUAudioUnit {
         // them out here would capture nil forever — the documented AUv3 trap. takeUnretainedValue()
         // adds no retain/release, so it is safe on the audio thread.
         let unownedSelf = Unmanaged.passUnretained(self)
+        // Resolved HERE, off the audio thread, for the same reason as everything else in this capture
+        // list: a `static let` touched inside the block would run swift_once on the render path.
+        let myID = self.instanceID, renderedBy = TinyjamAU.renderedBy
         return { _, _, frameCount, _, outputData, eventListHead, _ in
             let n = Int(frameCount)
             if n * 2 > cap { return kAudioUnitErr_TooManyFramesToProcess }
+            renderedBy.pointee = myID       // "this is the instance you can hear" — see audibilityReport
             let me = unownedSelf.takeUnretainedValue()
 
             // 0) HOST TRANSPORT → runtime/sync.h, before the frame below ticks so the cart's

@@ -325,7 +325,84 @@ default:
 **Do not start 2, 3 or 4 without deciding which product the plug-in is for.** They are different
 plug-ins.
 
-#### ⛔ PARKED 2026-08-13: BOTH routes measured, both closed AS CONFIGURED — and the wrong turns
+#### ↩ UNPARKED 2026-08-13 (later the same day): the panel was never orphaned, and the diagnostic that said it was could not have said anything else
+
+**The finding this whole fork rested on does not survive.** The panel is attached to the audio unit
+that renders — measured, and now gated. What follows supersedes the ⛔ PARKED section below; that
+section's *observations* are still accurate, its *conclusion* is not.
+
+**1. The `AudioComponentBundle` / `factoryFunction` lead: implemented, measured, CLOSED.** The AU's
+code now lives in a real framework (`TinyjamAUKernel`, `ios/project-mac.yml`) with both keys declared
+exactly as Apple's AUv3 samples declare them. It changes nothing about how the AU loads: a host asking
+for `kAudioComponentInstantiation_LoadInProcess` is still answered from another process, before *and*
+after the change.
+
+| request | before the framework | after |
+|---|---|---|
+| `.loadInProcess` | instantiates, engine in another pid | instantiates, engine in another pid |
+| `.loadOutOfProcess` | another pid | another pid |
+| `[]` (host's choice) | another pid | another pid |
+
+So an AUv3 delivered as an **app extension** appears not to be in-process-loadable at all on this
+machine, whatever the plist says — which is coherent, since an `.appex` is a process the system
+launches, not a bundle a host dlopens. **The framework is KEPT** anyway: it is the shape Apple's own
+samples use, all six `mac.sh` gates pass with it, and it is the prerequisite for in-process loading if
+that route ever opens (e.g. shipping the AU as a `.component` alongside the appex). It is not a fix,
+and nothing should be built on the belief that it was.
+
+**2. The measurement that closed both routes was a tautology.** The old `[tinyjam] PANEL …` line asked
+the view controller's own local `TinyjamAU` for a message-channel nonce and compared the pid in the
+reply against the view controller's own pid — then called a match *"talking to itself, still the wrong
+engine"*. Those two pids are equal **by construction**: the channel is fetched from a local object, so
+the call never leaves the process and can only ever report that process. **The "connected" branch was
+unreachable.** `PANEL TALKING TO ITSELF` was not a reading, it was the only string the code could
+print.
+
+The parameter probe fails the same way in the other direction. `PARAM writing 0.75 from UI pid 98759`
+→ `PARAM observed … in pid 98759` is *exactly what a correctly connected AUv3 does*: if the view
+controller's AU is the rendering AU, and both are in the extension process, then of course the write is
+observed there. Both rows of the PARKED table are equally consistent with a panel that works.
+
+**3. What is actually true, measured with a diagnostic that can go red.** The extension now stamps
+which instance last rendered audio (`TinyjamAU.audibilityReport` — a per-instance id plus a
+process-global "rendered by", written on the audio thread through a plain pointer) and the view
+controller reports a verdict against it, re-reading at +2s/+8s/+20s because a panel opens *before* a
+stopped host renders anything. Run against our own host:
+
+```
+TinyjamMacAU[3901]  PANEL NO AUDIO HAS RENDERED IN THIS PROCESS …  · on open · 1 instance(s) · pid 3901
+PanelProbe[3899]    HOST's audio unit → engine pid 3901
+TinyjamMacAU[3901]  PANEL CONNECTED — this panel's own audio unit is the one being rendered · +2s · pid 3901
+```
+
+The view controller loads **in the same process as the host's audio unit**, and the instance it holds
+is the one being rendered. This is AUv3 working as designed: the system uses our view controller as
+the factory, so the AU it makes *is* the host's AU, and `requestViewController` hands back that same
+controller.
+
+Gated by **`ios/au-transport-check --panel`**, wired into `mac.sh` as the sixth gate. It reads the
+extension's verdict back out of the unified log — the same line a person reads in Console — and
+**requires both verdicts in one run**, which is its control: a run showing only `CONNECTED` would be a
+reporter stuck on a branch, the precise failure being corrected here.
+
+**4. What is still genuinely open.** Our host is not GarageBand. The one thing it cannot rule out is a
+host that loads the *view* into a different process from the *audio* — so the GarageBand look is still
+worth one minute, and now costs one line instead of an inference. **And defect (B) is untouched and
+real:** engine state is process-global, `mac.sh`'s own run shows `2 instance(s) in this process`, and
+two GarageBand tracks are two front-ends over one rack. That is the defect to spend effort on.
+
+**5. Wrong turn #12, and it is the generic one.** *A diagnostic whose other branch is unreachable is
+not a diagnostic* — the same defect as a gate that cannot go red (`tools/gate-controls.js` exists for
+this class), except a diagnostic gets *believed* rather than checked, and this one redirected a day of
+work and got written into three documents as fact. The tell was available for free: the two numbers
+being compared came from the same object.
+
+**6. And a shell trap that cost the same conclusion twice in one afternoon.** `log` is a **zsh
+builtin**. `log show --predicate …` from the Bash tool prints `log: too many arguments` on *stderr* and
+nothing on stdout — so with stderr redirected it reads exactly like "the extension logged nothing",
+which is what made the panel look like it never loaded. Always `/usr/bin/log`.
+
+#### ⛔ superseded (see the section above) — PARKED 2026-08-13: BOTH routes measured, both closed AS CONFIGURED — and the wrong turns
 
 **Outcome: the plug-in is parked.** It works as a sound source (plays, follows host tempo and
 transport, stops, restarts, survives a loop, converts sample rates; five gates cover it). It does not

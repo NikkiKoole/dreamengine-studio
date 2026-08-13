@@ -53,7 +53,7 @@ and GET YOUR TRACK OUT.** Two of those four we do not have:
 
 ### What export would actually take (and what `acidrack` really does)
 
-Worth stating precisely, because `rebirth-classic.md` says "WAV export via the engine's live capture"
+Worth stating precisely, because [`rebirth-classic.md`](rebirth-classic.md) says "WAV export via the engine's live capture"
 and that oversells it. What `acidrack` does is poke a **debug-harness request file**:
 
 ```c

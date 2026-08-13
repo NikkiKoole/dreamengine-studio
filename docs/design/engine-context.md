@@ -116,19 +116,35 @@ instance costs 1–2 MB rather than 6.
 
 ## Open questions
 
-Four, all in [`ctx-classification.json`](../../tools/ctx-classification.json) with what breaks if each
-is guessed wrong. **None block the first batch.** The sharpest:
+All four are recorded in [`ctx-classification.json`](../../tools/ctx-classification.json). **Three are
+now closed by reading the code, and none of them blocks work.**
 
-**The mic input path.** Does host audio arrive per instance (each AU render block's input bus) or from
-one process-wide capture device? If process-wide, the ring stays shared and becomes one-producer /
-N-consumer, and `extin_on` has to become "any instance wants the mic" — a refcount, not a bool. A
-naive per-instance copy means the capture thread reads whichever copy the linker picked, and the mic
-is silently dead on every other instance.
+**The mic path — CLOSED, and the answer is "not applicable yet".** The plug-in has no mic path at
+all: the mic host is `ios/Sources/AudioEngine.swift` + `CanvasView.swift`, which are the STANDALONE
+app, and nothing in `ios/AU/TinyjamAU.swift` opens or pushes a mic. Nor could it be per-instance if
+it did — we register as **`aumu`, an instrument**, and an instrument AU is a generator that the host
+hands no audio, so there is no per-instance input bus; and `mic.h` is *device-free by design* (its own
+header says the engine never opens a capture device), so the engine could not open N of them. Mic
+permission is granted per host APP, not per instance. **So the `extin_*` group stays shared, which is
+the status quo.** If it ever arrives it will be one process-wide capture: shared ring and write
+cursor, per-instance read cursor, and `extin_on` as a REFCOUNT rather than a bool.
+*The real question hiding behind it is a product one:* should the rack also PROCESS host audio (an
+`aufx` effect) rather than only generate? That is the only thing that would create a per-instance
+input bus, and it is not a refactor decision.
 
-The others: whether two instances may hold different carts (decides where the 288 KB context log
-lives), whether "harness" means debug-by-purpose or debug-by-build-guard (decides whether four
-diagnostic counters ship inside the context), and whether the AUv3 build ever has a device stream at
-all (may make `sound_synth_mode` a build-time constant).
+**`sound_synth_mode` — CLOSED.** `de_init()`, the platform seam the plug-in and iOS both enter, sets
+it `true` unconditionally (`studio.c:3015`) and never creates a stream; the host pulls
+`de_audio_render` on its own thread. It is a constant in that build, identical for every instance, and
+`sound_stream` is dead code there. Stays shared, correctly.
+
+**The diagnostic counters — DECIDED, per-instance** (already moved). Low stakes: a few bytes, and each
+instance reporting its own dropped notes beats a shared tally. Their siblings (`bow_body_overflow`,
+`rvb_bus_overflow`, `grain_overflow`) are already per-instance pool bookkeeping reset in `sound_init`.
+
+**Still genuinely open: cart switching.** Can two instances hold two DIFFERENT carts and switch
+independently? The 288 KB `ctx_log` has already moved to per-instance, which assumes yes. If cart
+choice belongs to the umbrella app instead, that log belongs to the shell and we are paying 288 KB per
+instance for nothing. Not blocking; revisit before the memory-trimming pass.
 
 ## Verification
 

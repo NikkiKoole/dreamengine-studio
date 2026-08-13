@@ -73,13 +73,20 @@
     "_why": "Real forks that a measurement cannot settle. Each names what breaks if it is guessed wrong. NONE of them block the first batch of work — they are all in code paths the first pass can leave alone.",
 
     "mic_input_path": {
-      "vars": ["sound_extin", "extin_w", "extin_on"], "lines": [1846, 1847, 1849],
-      "question": "In the AUv3 build, does host/mic audio arrive PER INSTANCE (each AU render block's own input bus) or from ONE process-wide capture device?",
-      "if_per_instance": "all three are per-instance, and mic.h's push must become instance-scoped",
-      "if_process_wide": "the ring and extin_w stay SHARED and become one-producer/N-consumer (each instance keeps its own extin_r), and extin_on must become 'ANY instance wants the mic' — a refcount, not a bool",
-      "hazard": "A naive per-instance copy of extin_on means the capture thread reads whichever copy the linker picked: silently dead mic on every other instance."
+      "_status": "ANSWERED 2026-08-13 by reading the code — do not re-open, and do not make these per-instance.",
+      "vars": ["sound_extin", "extin_w", "extin_r", "extin_on"], "lines": [1846, 1847, 1848, 1849],
+      "question": "In the AUv3 build, does host/mic audio arrive PER INSTANCE or from ONE process-wide capture device?",
+      "answer": "NEITHER, yet: the plug-in has no mic path at all. The mic host is ios/Sources/AudioEngine.swift + CanvasView.swift, which are the STANDALONE app; nothing in ios/AU/TinyjamAU.swift opens or pushes a mic. So the extin_* group is never exercised multi-instance today.",
+      "why_it_cannot_be_per_instance": [
+        "We register as `aumu` (a music DEVICE / instrument). An instrument AU is a generator — the host hands it no audio, so there is no per-instance input bus to receive.",
+        "mic.h is DEVICE-FREE BY DESIGN (its own header says so): the engine never opens a capture device, each platform host pushes frames in. The engine could not open N devices even if we wanted it to.",
+        "Mic permission is granted per HOST APP, not per plug-in instance."
+      ],
+      "decision": "Leave all four SHARED — which is the status quo, so nothing changes. They stay in the `defer` group only so a future batch does not sweep them in by default.",
+      "shape_when_it_arrives": "One process-wide capture pushed to every instance: the ring and extin_w stay SHARED, extin_r becomes PER-INSTANCE (each consumes at its own rate), and extin_on becomes a REFCOUNT ('any instance wants the mic'), never a bool.",
+      "hazard_if_ignored": "A naive per-instance copy of extin_on means the capture thread reads whichever copy the linker picked: silently dead mic on every other instance.",
+      "the_real_question_behind_it": "Should the rack also PROCESS host audio (an `aufx` effect) rather than only generate? That is a product decision about what the plug-in is, not a refactor one, and it is the only thing that would create a per-instance input bus."
     },
-
     "cart_switching": {
       "vars": ["ctx_log", "ctx_log_n", "ctx_active"], "lines": [2520, 2521, 2522],
       "question": "Can two AUv3 instances hold two DIFFERENT carts and switch independently?",
@@ -93,9 +100,17 @@
     },
 
     "synth_mode": {
+      "_status": "ANSWERED 2026-08-13 by reading the code — closed.",
       "vars": ["sound_synth_mode"], "line": 450,
-      "question": "In the AUv3 build is there a device stream at all, or is sound_init always entered in synth mode? If always, this is a build-time constant and the classification stops mattering.",
-      "note": "Reads like a per-instance mode; actually means 'this process does not own an audio device'."
+      "question": "In the AUv3 build is there a device stream at all?",
+      "answer": "No. de_init() — the platform seam the plug-in and iOS both enter — sets sound_synth_mode = true UNCONDITIONALLY (studio.c:3015) and never creates a stream; the host pulls de_audio_render on its own thread. The value is therefore a constant, identical for every instance in that build, and sound_stream is dead code there.",
+      "decision": "Stays SHARED. Correct as-is, no per-instance copy needed."
+    },
+    "diagnostics_definition": {
+      "_status": "DECIDED 2026-08-13 — low stakes either way.",
+      "vars": ["sound_dropped", "ctx_overflow", "shim_overflow", "fx_bus_overflow"],
+      "question": "Is HARNESS defined by PURPOSE (debug-only) or by BUILD GUARD (#ifdef DE_TRACE)? These four ship unguarded and are read only by warning prints.",
+      "decision": "PER-INSTANCE (already moved). They cost a few bytes, each instance reporting its OWN dropped notes is more useful than a shared tally, and their siblings (bow_body_overflow, rvb_bus_overflow, grain_overflow) are already per-instance pool bookkeeping reset in sound_init. Revisit only if debug state should be kept out of the shipping struct on principle."
     }
   },
 

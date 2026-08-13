@@ -312,6 +312,21 @@ a broken doc link or `#section`).
 >    only thing that catches a silent drop — `refactor-guard` cannot, because a variable that did not
 >    move cannot change the output.
 >
+> **✅ THREE OF THE FOUR OPEN QUESTIONS ARE CLOSED (2026-08-13), by reading the code.**
+> · **MIC PATH — not applicable, leave `extin_*` SHARED.** The plug-in has no mic path at all (the mic
+>   host is the STANDALONE app's `ios/Sources/AudioEngine.swift`; `ios/AU/TinyjamAU.swift` never
+>   touches it). And it could not be per-instance anyway: we are **`aumu`, an instrument**, so the host
+>   hands us no audio and there IS no per-instance input bus — and `mic.h` is device-free by design, so
+>   the engine cannot open N capture devices. If it ever arrives: shared ring + per-instance read
+>   cursor + `extin_on` as a REFCOUNT, never a bool. ⚠ The product question behind it, unanswered and
+>   NOT a refactor decision: should the rack also PROCESS host audio (an `aufx` effect)?
+> · **`sound_synth_mode` — SHARED, closed.** `de_init` sets it true unconditionally (studio.c:3015);
+>   the AUv3 build has no device stream and `sound_stream` is dead code there.
+> · **The four diagnostic counters — PER-INSTANCE, decided** (already moved; low stakes).
+> · **STILL OPEN, not blocking: cart switching.** May two instances hold DIFFERENT carts? The 288 KB
+>   `ctx_log` already moved per-instance assuming yes; if cart choice belongs to the umbrella app it
+>   belongs to the shell. Settle it before the memory-trimming pass.
+>
 > **Order — do NOT take both engine files at once:**
 > 1. **`runtime/sound.h` ALONE** (293 statics / 29 non-zero initialisers, self-contained, strongest
 >    oracle in the repo). Prove the pattern here; if it does not work you have lost an afternoon on one

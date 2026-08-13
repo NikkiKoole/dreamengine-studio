@@ -7,6 +7,7 @@
   "created": "2026-08-13",
   "lineage": "A look probe for tenement, whose maker's verdict was that the picture reads as an architectural diagram with a caption. Asks one question: does the same flat, rendered as low-poly flat-shaded triangles instead of baked voxel sprites, read as FOUR PEOPLE IN A BUILDING? Renderer chassis from solid3d (rot/cull/light/sort/trifill + the fillp checker half-shade); shapes transcribed from tools/voxel-models/tenement.js so the comparison is of RENDERINGS, not of two different object sets.",
   "todo": [
+    "THE HEX MODE IS THE OPEN QUESTION, and it is bigger than this cart. D's third setting abandons the dither and writes real ramps into palette slots 32-63, which are free (PALETTE_SIZE is 64 and only 0-31 are named). That is not off-grain: palette-and-color.md already carries a release gate that no paid app ships on the borrowed PICO-8 set. But the BUDGET is the finding — 32 slots buys six materials four shades each plus four households two each, and nothing for skin, trim, trousers or the floor. If the answer is 'real shades, always', the next question is not this cart's: it is whether the console's palette stops being 32 fixed entries, which is blend-tables and dynamic-palettes territory.",
     "PERSPECTIVE is not implemented and the seam is marked in pr_project: this is a stylized shear (the ground squash and the height scale are two independent numbers, inherited from the voxel bake's 2px-per-voxel convention, which no single orthographic elevation can produce). A real perspective divide is a different projection and a different question; add it only if the ortho look wins first.",
     "Instance yaw is not implemented — every object is placed in its authored orientation, and the room was laid out to suit that. The voxel set solves this by baking NS and EW wall variants; a poly set would rotate the mesh, which is one of the things this probe exists to prove is cheaper.",
     "Tri count is reported but frame cost is not. If the look wins, measure before wiring it in: node tools/profile-fleet.js polyroom, and canvas-diff for GPU-vs-software agreement (the 3D path is the one place they have historically diverged).",
@@ -15,7 +16,7 @@
   "description": {
     "summary": "One flat, two renderers, one key between them: low-poly triangles against the baked voxel sprites. Which one looks like people live there?",
     "detail": "tenement's problem is not its simulation, it is that you cannot see who lives in the building: at 24 pixels a resident is a one-tile blob in the same colour family as the furniture. This probe rebuilds the identical scene as flat-shaded low-poly triangles and puts the two renderings one keypress apart, so the comparison is a picture rather than an argument. Both halves walk the SAME item list at the SAME scale through the SAME projection, and at yaw 45 degrees the polygon projection reproduces the voxel one exactly, which is what makes TAB a fair test. What triangles buy: any camera angle instead of four baked ones, diagonals (a sofa back rakes, a torso widens into shoulders, a loom is skeletal), and lighting that can be pinned to the screen or left in the world. What they cost: crisp snapped edges, which crawl once the angle is not one the sprites were baked at.",
-    "controls": "TAB flips POLY / VOXEL. Q and E orbit (the voxel half snaps to its nearest baked angle, because it only has four). W and S raise and lower the camera. Z cycles zoom 1x 2x 3x. D toggles the dither half-shades, L moves the light between world-fixed and screen-fixed, H toggles per-household colour on the residents, SPACE resets the camera."
+    "controls": "TAB flips POLY / VOXEL. Q and E turn: a free orbit in POLY, a quarter-turn step in VOXEL, because the sprites exist at four angles and nowhere in between. W and S raise and lower the camera (POLY only, for the same reason). Z cycles zoom 1x 2x 3x. D cycles the shading three ways: dithered half-shades, flat, or real hex ramps written into the palette's unused upper 32 slots. L moves the light between screen-fixed (what the voxel bake does) and world-fixed. H toggles per-household colour on the residents. SPACE resets the camera."
   }
 }
 de:meta */
@@ -100,7 +101,74 @@ static const unsigned char HH_RAMP[HH_COUNT][4] = {
     { CLR_DARKER_PURPLE,CLR_DARK_PURPLE,  CLR_INDIGO,      CLR_PINK        },  // violet
     { CLR_DARK_BROWN,   CLR_BROWN,        CLR_ORANGE,      CLR_YELLOW      },  // amber
 };
-static const unsigned char HH_KEY[HH_COUNT] = { CLR_RED, CLR_GREEN, CLR_INDIGO, CLR_ORANGE };
+// RECOLOURING A BAKED SPRITE TAKES THREE pal() CALLS, NOT ONE, and finding that out is worth more
+// than the feature. voxel-bake shades in SCREEN SPACE, so one material becomes a TRIPLE of palette
+// indices — [top, screen-right, screen-left] — auto-derived down a luminance ramp. The shirt (a
+// bare `b: 8`) bakes to [8, 24, 20], so pal(CLR_RED, …) alone recolours a third of a person and the
+// tint reads as almost nothing. Re-derive with:
+//     node -e "console.log(require('./tools/voxel-bake.js').materialTones(8))"
+// The polygon half has no equivalent problem — a mesh takes its colour at draw time — and that
+// asymmetry is a genuine point in the mesh's favour rather than an artefact of this cart.
+static const unsigned char SHIRT_TONE[3] = { CLR_RED, CLR_DARK_RED, CLR_DARK_BROWN };
+static const unsigned char HH_TONE[HH_COUNT][3] = {          // top, right, left — per household
+    { CLR_DARK_PEACH, CLR_RED,          CLR_DARK_RED       },
+    { CLR_GREEN,      CLR_MEDIUM_GREEN, CLR_BLUE_GREEN     },
+    { CLR_INDIGO,     CLR_DARK_PURPLE,  CLR_DARKER_PURPLE  },
+    { CLR_ORANGE,     CLR_BROWN,        CLR_DARK_BROWN     },
+};
+
+// ── the third way to shade: REAL colours, out of the palette's unused half ──
+// The dither fakes in-between shades because a 32-colour palette has no room for them. But the
+// palette is 64 slots wide (`PALETTE_SIZE 64`, studio.c) and only 0-31 are used — "only
+// palette_hex() writes the upper half today". So the whole upper half is free, and a material can
+// simply HAVE its shades instead of faking them.
+//
+// This is not off-grain. palette-and-color.md carries a release gate — no paid app ships on the
+// borrowed PICO-8 set — so an original palette is already a prerequisite. What this mode probes is
+// the follow-on question that gate does not answer: given our own palette, is a lo-fi look better
+// served by dithered fake shades or by real ones? D cycles all three so it is a look, not a debate.
+//
+// THE BUDGET IS THE INTERESTING PART, and it is why the split below is uneven: 32 slots buys six
+// materials four shades each (24) plus four households two each (8), and NOT a shade for every
+// material. Skin, trim, trousers and the floor keep their base-palette entries — they are small or
+// flat, and something always has to lose when the budget is a fixed 32.
+#define PR_SLOT0    32                 // first free palette slot
+#define PR_MAT_SH   4                  // shades per material group
+#define PR_HH_SH    2                  // shades per household shirt
+enum { SG_WOOD, SG_WALL, SG_METAL, SG_PORC, SG_UPH, SG_CUSH, SG_COUNT };
+static const int SG_BASE[SG_COUNT] = {              // seeded from the pico32 entry each replaces,
+    0xab5236, 0x754665, 0xc2c3c7, 0xfff1e8,         // so identity survives the change of technique
+    0x29adff, 0xff77a8,
+};
+static const int HH_BASE[HH_COUNT] = { 0xff004d, 0x00e436, 0x83769c, 0xffa300 };
+static signed char SG_OF[M_COUNT];     // material -> smooth group, or -1
+
+// Shades are NOT a multiply. A flat scale toward black is what makes cheap 3D look like plastic;
+// real shadow goes cool and real highlight goes warm, so the ramp bends through a violet dark and a
+// warm white. Same trick a painter uses, and the reason four shades can carry a whole material.
+static int pr_mix(int a, int b, float t) {
+    const int ar = (a>>16)&255, ag = (a>>8)&255, ab = a&255;
+    const int br = (b>>16)&255, bg = (b>>8)&255, bb = b&255;
+    const int r = (int)(ar + (br-ar)*t), g = (int)(ag + (bg-ag)*t), bl = (int)(ab + (bb-ab)*t);
+    return (r<<16) | (g<<8) | bl;
+}
+static void pr_build_palette(void) {
+    const int SHADOW = 0x1a1420, LIGHT = 0xfff1e8;   // cool dark, warm light
+    for (int g = 0; g < SG_COUNT; g++)
+        for (int s = 0; s < PR_MAT_SH; s++) {
+            const float t = (float)s / (PR_MAT_SH - 1);       // 0 = darkest, 1 = lightest
+            const int hex = (t < 0.5f) ? pr_mix(SG_BASE[g], SHADOW, (0.5f - t) * 1.5f)
+                                       : pr_mix(SG_BASE[g], LIGHT,  (t - 0.5f) * 1.1f);
+            palette_hex(PR_SLOT0 + g * PR_MAT_SH + s, hex);
+        }
+    for (int h = 0; h < HH_COUNT; h++)
+        for (int s = 0; s < PR_HH_SH; s++)
+            palette_hex(PR_SLOT0 + SG_COUNT * PR_MAT_SH + h * PR_HH_SH + s,
+                        s ? pr_mix(HH_BASE[h], LIGHT, 0.30f) : pr_mix(HH_BASE[h], SHADOW, 0.40f));
+    for (int m = 0; m < M_COUNT; m++) SG_OF[m] = -1;
+    SG_OF[M_WOOD] = SG_WOOD;   SG_OF[M_WALL]  = SG_WALL;   SG_OF[M_METAL] = SG_METAL;
+    SG_OF[M_PORC] = SG_PORC;   SG_OF[M_UPH]   = SG_UPH;    SG_OF[M_CUSH]  = SG_CUSH;
+}
 
 // ── the authoring primitive ─────────────────────────────────────────────────
 // A PRISM: a bottom rectangle, a height, and four offsets that move the TOP rectangle's corners.
@@ -321,8 +389,10 @@ static void pr_scene(void) {
 #define PR_SY 1.4142136f      // sqrt(2)
 #define PR_SZ 2.0f            // px per voxel of height
 
+enum { SH_DITHER, SH_FLAT, SH_SMOOTH, SH_COUNT };   // D cycles these
+static const char *SH_NAME[SH_COUNT] = { "dither", "flat", "hex" };
 static float pr_yaw = 45.0f, pr_squash = 1.0f;
-static int   pr_zoom = 1, pr_poly = 1, pr_dither = 1, pr_lightcam = 1, pr_tint = 1;
+static int   pr_zoom = 1, pr_poly = 1, pr_shade = SH_DITHER, pr_lightcam = 1, pr_tint = 1;
 static float pr_cx, pr_cy;    // camera offset, in pixels
 
 static void pr_project(float vx, float vy, float vz, float *sx, float *sy) {
@@ -502,8 +572,28 @@ static void pr_shade_fill(const Tri *t) {
         trifill(t->x[0], t->y[0], t->x[1], t->y[1], t->x[2], t->y[2], RAMP[t->mat][2]);
         return;
     }
-    const unsigned char *ramp = (t->hh < HH_COUNT && pr_tint && t->mat == M_SHIRT)
-                              ? HH_RAMP[t->hh] : RAMP[t->mat];
+    const int is_shirt = (t->hh < HH_COUNT && pr_tint && t->mat == M_SHIRT);
+
+    // HEX mode: the material simply has its shades, out of the palette's free upper half. No
+    // pattern, no ramp-hopping between unrelated hues — just the colour, darker and lighter.
+    if (pr_shade == SH_SMOOTH) {
+        int slot = -1;
+        if (is_shirt) {
+            const int s = t->bright > 0.62f ? 1 : 0;
+            slot = PR_SLOT0 + SG_COUNT * PR_MAT_SH + t->hh * PR_HH_SH + s;
+        } else if (SG_OF[t->mat] >= 0) {
+            int s = (int)(t->bright * (PR_MAT_SH - 0.001f));
+            if (s > PR_MAT_SH - 1) s = PR_MAT_SH - 1;  if (s < 0) s = 0;
+            slot = PR_SLOT0 + SG_OF[t->mat] * PR_MAT_SH + s;
+        }
+        if (slot >= 0) {
+            trifill(t->x[0], t->y[0], t->x[1], t->y[1], t->x[2], t->y[2], slot);
+            return;
+        }
+        // No slot in the budget (skin, trim, trousers) — fall through to the flat base ramp.
+    }
+
+    const unsigned char *ramp = is_shirt ? HH_RAMP[t->hh] : RAMP[t->mat];
     // THE DITHER HAS A SIZE LIMIT, and finding it is one of the things this cart is for. A 50%
     // checker of two palette colours reads as a SHADE on a small face and as WALLPAPER on a big
     // one — the wall and fridge faces came out visibly chequered, which looked like a texture
@@ -512,7 +602,7 @@ static void pr_shade_fill(const Tri *t) {
     // scale with the zoom, so a face that grows past it genuinely does start showing the weave.
     const long area2 = labs((long)(t->x[1]-t->x[0]) * (t->y[2]-t->y[0])
                           - (long)(t->x[2]-t->x[0]) * (t->y[1]-t->y[0]));   // 2x the triangle area
-    if (!pr_dither || area2 > 400) {
+    if (pr_shade != SH_DITHER || area2 > 400) {
         int s = (int)(t->bright * 3.999f); if (s > 3) s = 3; if (s < 0) s = 0;
         trifill(t->x[0], t->y[0], t->x[1], t->y[1], t->x[2], t->y[2], ramp[s]);
         return;
@@ -599,8 +689,11 @@ static void pr_draw_voxel(void) {
         }
         // Per-household colour on the voxel half too, via pal() on the shirt index — so the A/B
         // stays about SHAPE and not about who is allowed a palette (ADR-0007: pal recolors sprites).
+        // Undone with pal(c,c) rather than pal_reset(), deliberately: pal_reset() restores the
+        // SHIPPED palette, which would wipe the hex ramps written into slots 32-63 the moment you
+        // visited voxel mode and came back.
         const int tinted = pr_tint && it->hh >= 0 && it->hh < HH_COUNT;
-        if (tinted) pal(CLR_RED, HH_KEY[it->hh]);
+        if (tinted) for (int k = 0; k < 3; k++) pal(SHIRT_TONE[k], HH_TONE[it->hh][k]);
         // The DESTINATION rect scales with the zoom, and the cell's origin offset with it. Drawing
         // a baked cell 1:1 while its POSITION scales pulls the room apart into floating pillars —
         // it looked like a rendering finding and was a bug in this cart. Integer upscale only,
@@ -608,7 +701,7 @@ static void pr_draw_voxel(void) {
         sspr(c->x, c->y, c->w, c->h,
              (int)(sx + pr_cx) - c->ox * pr_zoom, (int)(sy + pr_cy) - c->oy * pr_zoom,
              c->w * pr_zoom, c->h * pr_zoom);
-        if (tinted) pal_reset();
+        if (tinted) for (int k = 0; k < 3; k++) pal(SHIRT_TONE[k], SHIRT_TONE[k]);
     }
     pr_tri_drawn = 0;
 }
@@ -651,6 +744,7 @@ static void pr_selfcheck(void) {
 // ── entry points ────────────────────────────────────────────────────────────
 void init(void) {
     colorkey(-1);
+    pr_build_palette();
     pr_scene();
     pr_selfcheck();
     pr_camera();
@@ -663,10 +757,20 @@ void update(void) {
     // so a scripted clip could not land on a chosen angle. A fixed step makes every dump
     // reproducible. It also means the orbit runs at the refresh rate, which for a probe is fine.
     const float SPIN = 1.5f, TILT = 0.02f;
-    if (key('Q')) pr_yaw -= SPIN;
-    if (key('E')) pr_yaw += SPIN;
-    if (key('W')) { pr_squash += TILT; if (pr_squash > 1.35f) pr_squash = 1.35f; }
-    if (key('S')) { pr_squash -= TILT; if (pr_squash < 0.30f) pr_squash = 0.30f; }
+    if (pr_poly) {
+        if (key('Q')) pr_yaw -= SPIN;
+        if (key('E')) pr_yaw += SPIN;
+        if (key('W')) { pr_squash += TILT; if (pr_squash > 1.35f) pr_squash = 1.35f; }
+        if (key('S')) { pr_squash -= TILT; if (pr_squash < 0.30f) pr_squash = 0.30f; }
+    } else {
+        // THE VOXEL HALF TURNS IN QUARTERS, and this is not a courtesy — it is the only thing it
+        // can do. Letting Q/E run the yaw continuously here put the LAYOUT at 67 degrees while
+        // every sprite was still the 45-degree bake: the walls staircased apart, the furniture
+        // faced a direction the room did not, and the whole flat came to pieces. That is what the
+        // four baked angles MEAN, and the honest way to show it is to make the camera step.
+        if (keyp('Q')) pr_yaw -= 90.0f;
+        if (keyp('E')) pr_yaw += 90.0f;
+    }
     if (keyp(KEY_TAB)) {
         pr_poly = !pr_poly;
         // Leaving POLY snaps to a baked angle, because the sprites have exactly four and there is
@@ -674,7 +778,7 @@ void update(void) {
         if (!pr_poly) { pr_yaw = 45.0f + 90.0f * pr_rot_index(); pr_squash = 1.0f; }
     }
     if (keyp('Z')) pr_zoom = pr_zoom % 3 + 1;
-    if (keyp('D')) pr_dither = !pr_dither;
+    if (keyp('D')) pr_shade = (pr_shade + 1) % SH_COUNT;
     if (keyp('L')) pr_lightcam = !pr_lightcam;
     if (keyp('H')) pr_tint = !pr_tint;
     if (keyp(KEY_SPACE)) { pr_yaw = 45.0f; pr_squash = 1.0f; pr_zoom = 1; }
@@ -703,8 +807,8 @@ void draw(void) {
     print(pr_poly ? "POLY" : "VOXEL", 3, SCREEN_H - 17, pr_poly ? CLR_LIGHT_PEACH : CLR_BLUE);
     print(str("yaw %3.0f  %dx  tris %d", pr_yaw, pr_zoom, pr_tri_drawn),
           32, SCREEN_H - 17, CLR_LIGHT_GREY);
-    print(str("TAB a/b  QE orbit  WS tilt  Z zoom  D dith:%s  L light:%s  H hh:%s",
-              pr_dither ? "on" : "off", pr_lightcam ? "screen" : "world", pr_tint ? "on" : "off"),
+    print(str("TAB a/b  QE turn  WS tilt  Z zoom  D shade:%s  L light:%s  H hh:%s",
+              SH_NAME[pr_shade], pr_lightcam ? "screen" : "world", pr_tint ? "on" : "off"),
           3, SCREEN_H - 9, CLR_DARK_GREY);
     if (!pr_selfcheck_ok)
         print(str("SELFCHECK FAILED (%s) - the halves are not at the same scale", pr_selfcheck_why),

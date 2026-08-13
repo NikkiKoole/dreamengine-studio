@@ -89,6 +89,54 @@ static int tnr_cmp_draw(const void *a, const void *b) {
 // ═══════════════════════════════════════════════════════════════════════════════════════════════
 int tn_poly = 1;          // owner: art. The cart toggles it; 0 = the baked voxel sprites.
 
+// ── FREE ORBIT AND TILT, which only the polygon view can have ───────────────────────────────────
+// A baked sprite exists at four angles and nowhere between, so tn_rot stays an int 0..3 and keeps
+// driving the sprite view, the cell lookup, and — the load-bearing one — build.h's click-to-tile
+// picking, whose inverse transform only knows the four quarter turns. A mesh has no such limit, so
+// the polygon view reads these two instead.
+//
+// AT tn_yaw = 45 + 90*tn_rot AND tn_tilt = 1 THE TWO PROJECTIONS ARE IDENTICAL. That is not a
+// coincidence to be grateful for, it is the property that lets one draw list feed both views, and
+// polyroom's spec() asserts it. The cart keeps them in step and snaps back to a quarter turn before
+// build mode opens, because a click has to land on the tile you think you clicked.
+float tn_yaw  = 45.0f;    // degrees; 45 + 90*rot reproduces the baked view exactly
+float tn_tilt = 1.0f;     // ground squash; 1.0 is the classic 2:1 iso, lower is a flatter camera
+static float tnr_pcx, tnr_pcy;                 // the polygon view's own camera offset
+
+static void tnr_poly_project(float vx, float vy, float vz, float *sx, float *sy) {
+    const float a = tn_yaw * 3.14159265f / 180.0f, c = cosf(a), s = sinf(a);
+    const float Xr = vx*c - vy*s, Yr = vx*s + vy*c;
+    *sx = Xr * (ISO_TW * 0.5f) * 1.41421356f;
+    *sy = Yr * (ISO_TH * 0.5f) * 1.41421356f * tn_tilt - vz * ISO_ZH;
+}
+// The view ray, DERIVED from that projection rather than hardcoded, so it stays correct when the
+// tilt changes: a world offset leaves the screen position alone when Xr does not move and the ground
+// and height terms cancel. Larger dot = NEARER, matching the draw list's convention.
+static void tnr_viewdir(float *dx, float *dy, float *dz) {
+    const float a = tn_yaw * 3.14159265f / 180.0f;
+    *dx = sinf(a);  *dy = cosf(a);
+    *dz = (ISO_TH * 0.5f) * 1.41421356f * tn_tilt / (float)ISO_ZH;
+}
+// SCREEN-RIGHT is (cos a, -sin a), NOT the world x axis: sx = (x cos a - y sin a) * k, so world +y
+// moves screen-LEFT. Shading needs this and getting it wrong makes two faces tie.
+static float tnr_screen_right(const float n[3]) {
+    const float a = tn_yaw * 3.14159265f / 180.0f;
+    return n[0] * cosf(a) - n[1] * sinf(a);
+}
+static void tnr_poly_camera(void) {
+    float minx=1e9f, maxx=-1e9f, miny=1e9f, maxy=-1e9f;
+    const float W = tn_bw * TN_TILE_VOX, H = tn_bh * TN_TILE_VOX;
+    for (int c = 0; c < 8; c++) {
+        float sx, sy;
+        tnr_poly_project((c&1)?W:-2.0f, (c&2)?H:-2.0f, (c&4)?12.0f:0.0f, &sx, &sy);
+        if (sx<minx) minx=sx; if (sx>maxx) maxx=sx; if (sy<miny) miny=sy; if (sy>maxy) maxy=sy;
+    }
+    // Floored for the same reason tn_camera is: a half-pixel camera rounds adjacent shapes opposite
+    // ways and opens 1px seams (iso-rooms.md §7).
+    tnr_pcx = floorf((SCREEN_W - (maxx - minx)) * 0.5f - minx);
+    tnr_pcy = floorf((SCREEN_H - 26 - (maxy - miny)) * 0.5f - miny + 12);
+}
+
 enum { TNM_WOOD, TNM_UPH, TNM_CUSH, TNM_METAL, TNM_PORC, TNM_TRIM, TNM_WALL,
        TNM_SHIRT, TNM_TROUSER, TNM_SKIN, TNM_FLOOR_A, TNM_FLOOR_B, TNM_COUNT };
 
@@ -264,24 +312,33 @@ static const TnMesh TNR_MESHES[ISO_MODEL_COUNT] = {
 // ASCENDING so far draws first. Derived from the projection rather than assumed: a world offset
 // leaves the screen position unchanged when X==Y and (X+Y)*ISO_TH/2 == z*ISO_ZH, which for this
 // projection makes the view ray (1,1,1) in turned coords — so nearness is X + Y + z.
-typedef struct { int x[3], y[3]; float near; int seq; unsigned char col; } TnTri;
+// ── A DEPTH BUFFER, and why this path has NO SORT AT ALL ────────────────────────────────────────
+// Three separate defects here turned out to be one thing: two solids sharing space, which a
+// painter's sort cannot resolve at ANY granularity. Wall corners strobed because a north wall and a
+// west wall share a column. Furniture punches through walls because a wall straddles its edge and
+// intrudes a voxel into a tile the furniture fills. Both were "fixed" by shuffling geometry, and the
+// second fix made the first worse. A per-pixel depth test ends the whole class instead.
+//
+// It also DELETES constraints rather than adding them: no sort, so no stability trap (qsort is not
+// stable, and swapping the stable zsort for it is what made the corners strobe in the first place);
+// no need for parts to abut; and subdivision is no longer load-bearing for correctness. Measured in
+// the `polyroom` probe at slightly FASTER than sorting, because the sort draws every triangle in
+// full while the depth test only emits the runs that survive.
+//
+// Depth interpolates EXACTLY in screen space here rather than approximately: the projection is
+// orthographic, so there is no perspective divide and depth is affine in screen x/y. A perspective
+// renderer would have to interpolate 1/z instead.
+//
+// `zv` is per-VERTEX nearness, LARGER = NEARER (the draw list's own convention above).
+typedef struct { int x[3], y[3]; float zv[3]; unsigned char col; } TnTri;
 #define TNR_MAX_TRIS 8192
 static TnTri tnr_tri[TNR_MAX_TRIS];
 static int   tnr_tri_n;
-// `seq` EXISTS TO BREAK TIES, and without it the picture flickers. qsort is NOT a stable sort, so
-// two faces at equal depth may come out in either order — and worse, in an order that changes as
-// UNRELATED elements move, because the pivot choices change. Residents move every frame, so a tied
-// pair of wall faces swapped every frame and the corner strobed between two shades. A total order
-// makes the frame a function of the scene alone. (zsort's insertion pass happens to be stable, so
-// this trap is created by the very change that made the sort affordable at this scale.)
-static int   tnr_cmp_tri(const void *a, const void *b) {
-    const TnTri *p = (const TnTri*)a, *q = (const TnTri*)b;
-    if (p->near < q->near) return -1;
-    if (p->near > q->near) return  1;
-    return p->seq - q->seq;
-}
+static float tnr_zbuf[SCREEN_W * SCREEN_H];
+#define TNR_ZNEAR (-1e18f)
 static float tnr_near3(float vx, float vy, float vz) {
-    float X, Y; tnr_iso_turn(tn_rot, vx, vy, &X, &Y); return X + Y + vz;
+    float dx, dy, dz; tnr_viewdir(&dx, &dy, &dz);
+    return vx*dx + vy*dy + vz*dz;
 }
 
 // Brightness -> a palette index. Screen-space rule rather than a dot product against a light, and
@@ -292,8 +349,7 @@ static float tnr_near3(float vx, float vy, float vz) {
 // in-between values, and it cannot tie: the view direction bisects the two visible side faces, so
 // their screen-right-ness is always opposite in sign.
 static int tnr_shade(const float n[3], int mat, int hh) {
-    float NX, NY; tnr_iso_turn(tn_rot, n[0], n[1], &NX, &NY);
-    const float right = (NX - NY) * 0.70710678f;      // sx = (X-Y)*ISO_TW/2, so this IS screen-right
+    const float right = tnr_screen_right(n);
     const float up    = n[2] > 0.0f ? n[2] : 0.0f;
     float br = 0.20f + 0.38f * up + 0.40f * (0.5f + 0.5f * right);
     if (br > 1.0f) br = 1.0f;  if (br < 0.0f) br = 0.0f;
@@ -310,15 +366,16 @@ static int tnr_shade(const float n[3], int mat, int hh) {
     return TNR_RAMP[mat][s];
 }
 
-static void tnr_push(const float a[3], const float b[3], const float c[3], int col, float nr) {
+static void tnr_push(const float a[3], const float b[3], const float c[3], int col) {
     if (tnr_tri_n >= TNR_MAX_TRIS) return;
     TnTri *t = &tnr_tri[tnr_tri_n];
     const float *v[3] = { a, b, c };
     for (int i = 0; i < 3; i++) {
-        float sx, sy; tnr_iso_project(tn_rot, v[i][0], v[i][1], v[i][2], &sx, &sy);
-        t->x[i] = (int)(sx + cam_x);  t->y[i] = (int)(sy + cam_y);
+        float sx, sy; tnr_poly_project(v[i][0], v[i][1], v[i][2], &sx, &sy);
+        t->x[i] = (int)(sx + tnr_pcx);  t->y[i] = (int)(sy + tnr_pcy);
+        t->zv[i] = tnr_near3(v[i][0], v[i][1], v[i][2]);
     }
-    t->near = nr;  t->col = (unsigned char)col;  t->seq = tnr_tri_n;
+    t->col = (unsigned char)col;
     tnr_tri_n++;
 }
 
@@ -337,32 +394,20 @@ static void tnr_face(const float a[3], const float b[3], const float c[3], const
     const float len = sqrtf(n[0]*n[0] + n[1]*n[1] + n[2]*n[2]);
     if (len < 1e-6f) return;
     n[0] /= len; n[1] /= len; n[2] /= len;
-    // The view ray is (1,1,1) in TURNED coords, so a face is visible when its turned normal plus
-    // its z component points at the camera. Same derivation as tnr_near3.
-    float TNx, TNy; tnr_iso_turn(tn_rot, n[0], n[1], &TNx, &TNy);
-    if (TNx + TNy + n[2] <= 0.0f) return;          // backface: with no z-buffer this is correctness
+    // A face is visible when its normal points along the view ray. Same derivation as tnr_near3, so
+    // it stays correct at any yaw and tilt rather than only at the four baked angles.
+    float dx, dy, dz; tnr_viewdir(&dx, &dy, &dz);
+    if (n[0]*dx + n[1]*dy + n[2]*dz <= 0.0f) return;   // backface
     const int col = tnr_shade(n, mat, hh);
 
-    const float ux=b[0]-a[0], uy=b[1]-a[1], uz=b[2]-a[2];
-    const float vx=d[0]-a[0], vy=d[1]-a[1], vz=d[2]-a[2];
-    int nu = (int)(sqrtf(ux*ux+uy*uy+uz*uz) / (float)TN_TILE_VOX + 0.999f);
-    int nv = (int)(sqrtf(vx*vx+vy*vy+vz*vz) / (float)TN_TILE_VOX + 0.999f);
-    if (nu < 1) nu = 1;  if (nu > 6) nu = 6;
-    if (nv < 1) nv = 1;  if (nv > 6) nv = 6;
-    for (int j = 0; j < nv; j++) for (int i = 0; i < nu; i++) {
-        const float ss[4] = { (float)i/nu, (float)(i+1)/nu, (float)(i+1)/nu, (float)i/nu };
-        const float tt[4] = { (float)j/nv, (float)j/nv, (float)(j+1)/nv, (float)(j+1)/nv };
-        float q[4][3], cen[3] = { 0, 0, 0 };
-        for (int k = 0; k < 4; k++) for (int e = 0; e < 3; e++) {
-            const float top = a[e] + (b[e]-a[e]) * ss[k];
-            const float bot = d[e] + (c[e]-d[e]) * ss[k];
-            q[k][e] = top + (bot-top) * tt[k];
-            cen[e] += q[k][e];
-        }
-        const float nr = tnr_near3(cen[0]*0.25f, cen[1]*0.25f, cen[2]*0.25f);
-        tnr_push(q[0], q[1], q[2], col, nr);
-        tnr_push(q[0], q[2], q[3], col, nr);
-    }
+    // NO SUBDIVISION, and this is the depth buffer PAYING FOR ITSELF. Splitting every polygon down
+    // to about a tile was never wanted for its own sake — it existed because a painter's sort gives
+    // one depth per polygon, so a polygon spanning a large depth range is unsortable and a
+    // full-length wall face got drawn over furniture in front of it. A per-pixel test has no such
+    // limit, so the split is pure waste: it cost ~40% of the triangles and every one of them a
+    // rectfill run. Deleting it is what makes the depth test cheaper than the sort it replaced.
+    tnr_push(a, b, c, col);
+    tnr_push(a, c, d, col);
 }
 
 // A prism's six faces, wound counter-clockwise seen from OUTSIDE so the normal points out.
@@ -379,10 +424,56 @@ static void tnr_part(const TnPart *p, float ox, float oy, float oz, int hh) {
     tnr_face(b3,b0,u0,u3, m,hh);  tnr_face(b1,b2,u2,u1, m,hh);   // left, right
 }
 
+// Flat-shaded triangle with a depth test, edge functions stepped incrementally. Runs of surviving
+// pixels are emitted as ONE rectfill, because a flat triangle's passing pixels are contiguous until
+// something occludes them — that keeps the call count near the SCANLINE count rather than the pixel
+// count, which is the difference between this being usable and being a slideshow.
+static void tnr_raster(const TnTri *t) {
+    int x0=t->x[0], y0=t->y[0], x1=t->x[1], y1=t->y[1], x2=t->x[2], y2=t->y[2];
+    float z0=t->zv[0], z1=t->zv[1], z2=t->zv[2];
+    float area = (float)(x1-x0)*(y2-y0) - (float)(x2-x0)*(y1-y0);
+    if (area == 0.0f) return;
+    if (area < 0.0f) {                                  // one winding, so "inside" is one test
+        int tx=x1; x1=x2; x2=tx;  int ty=y1; y1=y2; y2=ty;
+        float tz=z1; z1=z2; z2=tz;  area = -area;
+    }
+    int lox = x0<x1 ? (x0<x2?x0:x2) : (x1<x2?x1:x2), hix = x0>x1 ? (x0>x2?x0:x2) : (x1>x2?x1:x2);
+    int loy = y0<y1 ? (y0<y2?y0:y2) : (y1<y2?y1:y2), hiy = y0>y1 ? (y0>y2?y0:y2) : (y1>y2?y1:y2);
+    if (lox < 0) lox = 0;  if (hix > SCREEN_W-1) hix = SCREEN_W-1;
+    if (loy < 0) loy = 0;  if (hiy > SCREEN_H-1) hiy = SCREEN_H-1;
+    if (lox > hix || loy > hiy) return;
+
+    const float inv = 1.0f / area;
+    const float a0 = -(float)(y2-y1), b0 = (float)(x2-x1);
+    const float a1 = -(float)(y0-y2), b1 = (float)(x0-x2);
+    const float a2 = -(float)(y1-y0), b2 = (float)(x1-x0);
+    const int col = t->col;
+    for (int y = loy; y <= hiy; y++) {
+        const float py = (float)y + 0.5f, px0 = (float)lox + 0.5f;
+        float w0 = a0*(px0-(float)x1) + b0*(py-(float)y1);
+        float w1 = a1*(px0-(float)x2) + b1*(py-(float)y2);
+        float w2 = a2*(px0-(float)x0) + b2*(py-(float)y0);
+        float *row = &tnr_zbuf[y * SCREEN_W];
+        int run_x = 0, run_n = 0;
+        for (int x = lox; x <= hix; x++, w0 += a0, w1 += a1, w2 += a2) {
+            int keep = 0;
+            if (w0 >= 0.0f && w1 >= 0.0f && w2 >= 0.0f) {
+                const float z = (w0*z0 + w1*z1 + w2*z2) * inv;
+                if (z > row[x]) { row[x] = z; keep = 1; }   // larger = nearer
+            }
+            if (keep) { if (!run_n) run_x = x;  run_n++; }
+            else if (run_n) { rectfill(run_x, y, run_n, 1, col); run_n = 0; }
+        }
+        if (run_n) rectfill(run_x, y, run_n, 1, col);
+    }
+}
+
 // Which household a draw-list entry belongs to, for the shirt colour. Only residents carry one; the
 // furniture's own `household` is ownership, not paint, so it is deliberately NOT read here.
 static void tnr_draw_poly(void) {
     tnr_tri_n = 0;
+    tnr_poly_camera();
+    for (int i = 0; i < SCREEN_W * SCREEN_H; i++) tnr_zbuf[i] = TNR_ZNEAR;
     // Floor. The outer tiles run 2 voxels UNDER the walls: the floor's edge and the wall's base are
     // the same line in space, and two polygons meeting exactly on a line leave the boundary pixel
     // unowned under pixel-centre coverage — which showed as a dashed dark seam all round the room.
@@ -399,32 +490,18 @@ static void tnr_draw_poly(void) {
     for (int i = 0; i < tnr_dl_n; i++) {
         const int cell = tnr_dl[i].cell;
         const TnMesh *m = &TNR_MESHES[cell];
-        // WALLS ARE NUDGED FULLY ONTO ONE SIDE OF THEIR EDGE, and this is a correctness fix rather
-        // than a taste one. The draw list STRADDLES them: a north wall is two voxels thick centred
-        // on the boundary (y-1 .. y+1) and a west wall likewise (x-1 .. x+1), so at every corner the
-        // two share a 1x1x12 COLUMN. Sprites did not care — both are the same opaque wall art — but
-        // meshes do: one wall's buried end face fights the other's surface, and since the two faces
-        // are lit as screen-right and screen-left they differ in shade, so the corner strobed between
-        // dark and light. Interpenetration is the one artifact a painter's sort cannot resolve at any
-        // granularity, so it has to go from the GEOMETRY.
-        // Shifting each family one voxel off the boundary makes corners TOUCH instead of overlap
-        // (verify: north spans y-2..y and west spans x-2..x, and those two boxes share zero volume),
-        // while consecutive walls along one edge still meet exactly. The cost is that a wall sits
-        // just inside the tile north/west of its edge rather than centred on it — a one-voxel
-        // asymmetry, invisible next to a strobing corner.
-        float ox = tnr_dl[i].vx, oy = tnr_dl[i].vy;
-        if (cell == ISO_WALL_LOW_NS || cell == ISO_WALL_FULL_NS) oy -= 1.0f;
-        if (cell == ISO_WALL_LOW_EW || cell == ISO_WALL_FULL_EW) ox -= 1.0f;
+        // WALLS KEEP THE DRAW LIST'S OWN STRADDLED PLACEMENT, centred on their edge, the same as the
+        // sprite view. An earlier pass nudged them a voxel off the boundary to stop corners
+        // interpenetrating, and that traded one overlap for a worse one: a wall intrudes into the
+        // adjacent tile, furniture FILLS its tile, so doubling the intrusion made furniture visibly
+        // punch through walls. The depth test resolves both without moving anything, which is the
+        // whole reason it is here.
         for (int p = 0; p < m->n; p++)
-            tnr_part(&m->p[p], ox, oy, tnr_dl[i].vz, tnr_dl[i].hh);
+            tnr_part(&m->p[p], tnr_dl[i].vx, tnr_dl[i].vy, tnr_dl[i].vz, tnr_dl[i].hh);
     }
-    // qsort, NOT zsort: zsort is an insertion sort, and this scene is thousands of triangles where
-    // that is millions of comparisons a frame. Same reason the draw list above qsorts.
-    qsort(tnr_tri, tnr_tri_n, sizeof tnr_tri[0], tnr_cmp_tri);
-    for (int i = 0; i < tnr_tri_n; i++) {
-        const TnTri *t = &tnr_tri[i];
-        trifill(t->x[0], t->y[0], t->x[1], t->y[1], t->x[2], t->y[2], t->col);
-    }
+    // NO SORT. Not a faster sort, not a stabler one — none. Draw order stops mattering entirely,
+    // which is the whole argument for a depth buffer in one line of code.
+    for (int i = 0; i < tnr_tri_n; i++) tnr_raster(&tnr_tri[i]);
 }
 
 void tn_draw_world(void) {
@@ -509,9 +586,14 @@ void tn_draw_world(void) {
     // the turn: step along the edge's outward normal and see whether depth rises. And the loops run
     // to <= so the far shell exists at all — tn_edge_at already reports the outside ring SOLID, so
     // this needs no new data.
-    const float d0 = tnr_iso_depth(tn_rot, 0.0f, 0.0f);
-    const int near_n = tnr_iso_depth(tn_rot, 0.0f, -1.0f) > d0;   // a north edge faces the camera
-    const int near_w = tnr_iso_depth(tn_rot, -1.0f, 0.0f) > d0;   // a west edge faces the camera
+    // The cutaway follows the CONTINUOUS view direction, so a wall cuts away at any orbit angle and
+    // not only at the four baked ones. Still derived from the projection rather than tabulated per
+    // rotation: stepping along an edge's outward normal and asking whether nearness rises is exactly
+    // the old test, and at tn_yaw = 45 + 90*tn_rot the two agree — which is why the sprite view sees
+    // no change. (Written out: north is near when cos(yaw) < 0, west when sin(yaw) < 0.)
+    float vdx, vdy, vdz; tnr_viewdir(&vdx, &vdy, &vdz);
+    const int near_n = (-vdy) > 0.0f;                   // a north edge faces the camera
+    const int near_w = (-vdx) > 0.0f;                   // a west edge faces the camera
     for (int ty = 0; ty <= tn_bh; ty++) {
         for (int tx = 0; tx <= tn_bw; tx++) {
             const float vx = tx * TN_TILE_VOX, vy = ty * TN_TILE_VOX;

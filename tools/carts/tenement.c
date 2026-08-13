@@ -29,7 +29,7 @@
   "description": {
     "summary": "A few residents, some furniture, and one question: does the best offer on the table beat picking your worst need first? Watch the scores and see.",
     "detail": "The thin vertical slice of a bigger sim about several households sharing one building. Every object advertises what it offers, how strongly, for how long, and for how many people at once. Every resident does no thinking at all beyond taking the single best offer available, where a need's deficit is one term in the score rather than a filter applied first. That distinction is the whole point: the usual way to write this is to sort needs by urgency and then look for an object, which sends a hungry person past an empty toilet to a fridge on the far side of the building. Here the near thing can win. The HUD shows each resident's current winning bid and its score, because the interesting part of this simulation is invisible otherwise.",
-    "controls": "Q/E turn the building. V flips the rendering between low-poly triangles (the default) and the baked voxel sprites, which is the same building drawn twice. TAB shows every bid the winning resident considered, not just the winner. SPACE pauses. 1/2/4 set speed. D and R are the two open design questions, off by default: D prices an action by how long it takes, R gives the day a shape and lets a resident decline a bad offer. Turn both on and the building starts fighting over the one toilet."
+    "controls": "Q/E turn the building a quarter at a time. ARROWS orbit and tilt freely, which only the polygon view can do — the sprites exist at four angles and nowhere between — and which switches off in build mode, because a click has to land on the tile you think you clicked. V flips the rendering between low-poly triangles (the default) and the baked voxel sprites, which is the same building drawn twice. TAB shows every bid the winning resident considered, not just the winner. SPACE pauses. 1/2/4 set speed. D and R are the two open design questions, off by default: D prices an action by how long it takes, R gives the day a shape and lets a resident decline a bad offer. Turn both on and the building starts fighting over the one toilet."
   }
 }
 de:meta */
@@ -94,8 +94,32 @@ void init(void) { colorkey(-1); tn_world_init(); }
 
 void update(void) {
     tn_build_input();
-    if (keyp('Q')) tn_rot = (tn_rot + 3) & 3;
-    if (keyp('E')) tn_rot = (tn_rot + 1) & 3;
+    // BUILD MODE FORCES A BAKED ANGLE. build.h picks a tile by inverting the projection, and that
+    // inverse only knows the four quarter turns — so at any other angle the player would click one
+    // tile and get another, silently. Snapping is unconditional rather than "only on entry" so no
+    // path can leave the camera and the picker disagreeing.
+    if (tnb_on) { tn_yaw = 45.0f + 90.0f * tn_rot; tn_tilt = 1.0f; }
+    if (keyp('Q')) { tn_rot = (tn_rot + 3) & 3; tn_yaw = 45.0f + 90.0f * tn_rot; tn_tilt = 1.0f; }
+    if (keyp('E')) { tn_rot = (tn_rot + 1) & 3; tn_yaw = 45.0f + 90.0f * tn_rot; tn_tilt = 1.0f; }
+    // FREE ORBIT AND TILT, arrows, POLYGON VIEW ONLY — and off in build mode, which is not a
+    // limitation to apologise for but the honest shape of the thing. The sprites exist at four angles
+    // and nowhere between, and build.h turns a click into a tile through an inverse that only knows
+    // those four; at any other angle you would be clicking one tile and getting another. So the free
+    // camera is a LOOKING tool, and Q/E (or opening build) snap back to a baked angle.
+    // Per frame rather than dt-scaled, so a scripted clip lands on a chosen angle: a headless run
+    // compresses elapsed time to nearly nothing, which makes dt-driven motion unrepeatable.
+    if (tn_poly && !tnb_on) {
+        if (key(KEY_LEFT))  tn_yaw -= 1.5f;
+        if (key(KEY_RIGHT)) tn_yaw += 1.5f;
+        if (key(KEY_UP))   { tn_tilt += 0.02f; if (tn_tilt > 1.35f) tn_tilt = 1.35f; }
+        if (key(KEY_DOWN)) { tn_tilt -= 0.02f; if (tn_tilt < 0.30f) tn_tilt = 0.30f; }
+        while (tn_yaw <   0.0f) tn_yaw += 360.0f;
+        while (tn_yaw >= 360.0f) tn_yaw -= 360.0f;
+        // tn_rot tracks the nearest quarter turn, so the sprite view and the cell lookup stay sane
+        // and flipping to V never lands on an angle the sprites do not have.
+        tn_rot = ((int)floorf((tn_yaw - 45.0f) / 90.0f + 0.5f)) & 3;
+        tn_camera();
+    }
     if (keyp(KEY_TAB)) tnc_show_bids = !tnc_show_bids;
     // V flips the two RENDERINGS of the same building: low-poly triangles (the default now) and the
     // baked voxel sprites this cart shipped with. Kept as a toggle rather than a replacement because

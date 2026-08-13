@@ -68,6 +68,15 @@ function loadStatics() {
   return JSON.parse(out).filter(v => v.file === TARGET);
 }
 
+// Names a `#define name (ctx->name)` would break: a local, a parameter, or a STRUCT FIELD. The
+// field case is the one that bites — the preprocessor does not know about `->`, so a same-named
+// field turns `ins->rvb_tank` into `ins->(de_snd->rvb_tank)`. Refusing to move these is what stops
+// the generator producing a file that cannot compile.
+function loadCollisions() {
+  const out = execFileSync('node', ['tools/engine-statics.js', '--json'], { cwd: ROOT, maxBuffer: 1 << 26 }).toString();
+  return new Set(Object.keys(JSON.parse(out).collisions || {}));
+}
+
 function loadExclusions() {
   const c = JSON.parse(fs.readFileSync(path.join(ROOT, 'tools', 'ctx-classification.json'), 'utf8'));
   const ex = new Map();
@@ -126,6 +135,7 @@ const ZERO = /^(0|0\.0f?|0u|0L|0x0u?|NULL|false|\{\s*0\s*\}|\{\s*\{\s*0\s*\}\s*\
 function plan(opts) {
   const statics = loadStatics();
   const exclusions = loadExclusions();
+  const collisions = loadCollisions();
   const src = fs.readFileSync(path.join(ROOT, TARGET), 'utf8').split('\n');
 
   const byLine = new Map();
@@ -144,6 +154,9 @@ function plan(opts) {
     // statement and splitting it is a guess
     const ex = names.filter(n => exclusions.has(n));
     if (ex.length) { skipped.push({ line, names, why: 'classified ' + exclusions.get(ex[0]) + ' (' + ex.join(' ') + ')' }); continue; }
+
+    const clash = names.filter(n => collisions.has(n));
+    if (clash.length) { skipped.push({ line, names, why: 'NAME COLLISION — the macro would rewrite another use of this identifier (' + clash.join(' ') + '); rename one side first' }); continue; }
 
     // batch filter: primitive base types only, no user-defined type => no type-hoist needed
     if (opts.primitive) {
@@ -183,6 +196,23 @@ function plan(opts) {
     byLine.get(line).decl = decl;
   }
 
+  // ── THE ACCOUNTING INVARIANT ────────────────────────────────────────────────────────────────
+  // Every static must be either MOVED or explicitly SKIPPED. Anything else has been silently
+  // dropped: left as a file-scope static while the report claims the batch is done, which is the
+  // one failure mode of a generator that no downstream gate can catch — refactor-guard stays green
+  // because a variable that did not move cannot change the output. Four `beat_*`/`sound_bpm`
+  // variables went missing exactly this way.
+  const movedNames = new Set(move.map(m => m.name));
+  const skippedNames = new Set(skipped.flatMap(s => s.names));
+  const unaccounted = statics.filter(v => !movedNames.has(v.name) && !skippedNames.has(v.name));
+  if (unaccounted.length) {
+    console.error('\nctx-gen: ACCOUNTING FAILURE — ' + unaccounted.length + ' static(s) neither moved nor skipped.');
+    console.error('These would be silently left behind while the report claims success:\n');
+    for (const v of unaccounted) console.error('   line ' + String(v.line).padStart(5) + '  ' + v.name + '   ' + v.type);
+    console.error('\nRefusing to continue. Fix the parser, or classify them.');
+    process.exit(3);
+  }
+
   return { move, skipped, byLine, src };
 }
 
@@ -196,6 +226,23 @@ function plan(opts) {
  * until it is expanded, so moving the definition earlier cannot break anything it references. The
  * closure is transitive because a macro body can name another macro. */
 function collectMacroHoist(move, src) {
+  // ── type definitions ────────────────────────────────────────────────────────────────────────
+  // Members of type `Voice`, `ReverbTank`, … need those types complete BEFORE the struct. In
+  // sound.h each type is defined immediately before the statics that use it, interleaved through
+  // the whole file, so they have to be hoisted too — transitively, because a type's body names
+  // other types and macros. Unlike a #define, moving a typedef earlier IS order-sensitive, which
+  // is why the closure is computed rather than hand-listed: it pulls in five more types than the
+  // obvious set (SoundReqKind, OctaveUp, SoundBiquad, ModState, GrainVoice).
+  const typeBlock = new Map();
+  for (let i = 0; i < src.length; i++) {
+    const m = src[i].match(/\}\s*([A-Za-z_]\w*)\s*;/);
+    if (!m || typeBlock.has(m[1])) continue;
+    if (/^\s*typedef\b/.test(src[i])) { typeBlock.set(m[1], { first: i, last: i }); continue; }  // one-liner
+    let s = -1;
+    for (let j = i; j >= 0; j--) if (/^\s*typedef\s+(struct|union|enum)\b/.test(src[j])) { s = j; break; }
+    if (s >= 0) typeBlock.set(m[1], { first: s, last: i });
+  }
+
   const defLine = new Map();
   for (let i = 0; i < src.length; i++) {
     const m = src[i].match(/^\s*#\s*define\s+([A-Za-z_]\w*)/);
@@ -214,11 +261,14 @@ function collectMacroHoist(move, src) {
     for (const id of (m[1].match(/[A-Za-z_]\w*/g) || [])) if (!defLine.has(id)) defLine.set(id, { first: i, last: i });
   }
 
+  // one namespace for the closure: a needed identifier is either a macro/enum or a type
+  for (const [name, span] of typeBlock) if (!defLine.has(name)) defLine.set(name, span);
+
   const want = new Set();
   const queue = [];
   const scan = (text) => { for (const id of (text.match(/[A-Za-z_]\w*/g) || [])) if (defLine.has(id)) queue.push(id); };
   for (const m of move) {
-    for (const d of (m.member.match(/\[([^\]]*)\]/g) || [])) scan(d);
+    scan(m.member);                                     // the WHOLE member: its type as well as its dims
     if (m.init) scan(m.init);
   }
   while (queue.length) {

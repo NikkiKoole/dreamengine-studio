@@ -9,9 +9,12 @@
  * reports the two facts that decide how hard the fix is:
  *
  *   · the NON-ZERO initialisers   — the only hand work (zero/NULL come free from a calloc)
- *   · the #define COLLISIONS      — a static whose name is reused as a local or a parameter
- *                                   somewhere in the translation unit, which is the one thing
- *                                   that makes `#define name (ctx->name)` miserable
+ *   · the #define COLLISIONS      — a static whose name is reused as a local, a parameter or a
+ *                                   STRUCT FIELD anywhere in the translation unit. The preprocessor
+ *                                   does not know about `->`, so a field of the same name turns
+ *                                   `ins->rvb_tank` into `ins->(de_snd->rvb_tank)` and will not
+ *                                   compile. Missing the field case made this report '2 collisions'
+ *                                   when the real answer was 3, and batch 2 of the refactor hit it.
  *
  * ⚠ WHY THIS IS A TOOL AND NOT A GREP. The figure this replaces (`91` statics in sound.h) came
  * from `grep -E '^static [^(]*;$'`, which requires the declaration to END at the semicolon —
@@ -67,8 +70,14 @@ function parseDump(text) {
   let curFile = '?';
   let curLine = 0;
   for (const L of text.split('\n')) {
-    if (!/(VarDecl|FunctionDecl)/.test(L)) continue;
-    const loc = L.match(/<([^>]*)>/);
+    if (!/(VarDecl|FunctionDecl|FieldDecl)/.test(L)) continue;
+    // ⚠ A FieldDecl must NOT update the current file/line. The dump only names a file when it
+    // CHANGES, and every later declaration inherits it — so letting struct fields (which live in
+    // whatever header defined the struct) move that cursor silently re-attributes the statics that
+    // follow. Doing exactly that dropped sound.h from 293 to 258. Fields are collected for the
+    // collision check only, so they need no location at all.
+    const isField = /FieldDecl/.test(L);
+    const loc = isField ? null : L.match(/<([^>]*)>/);
     if (loc) {
       const first = loc[1].split(',')[0];
       const m = first.match(/^(.*?):(\d+):(\d+)$/);
@@ -83,8 +92,8 @@ function parseDump(text) {
     const tail = L.slice(q);
     const indent = L.match(/^[^A-Za-z]*/)[0];
     rows.push({
-      file: relative(curFile), line: curLine, name, type,
-      kind: /ParmVarDecl/.test(L) ? 'parm' : /FunctionDecl/.test(L) ? 'fn' : 'var',
+      file: isField ? '(struct field)' : relative(curFile), line: isField ? 0 : curLine, name, type,
+      kind: /ParmVarDecl/.test(L) ? 'parm' : /FieldDecl/.test(L) ? 'field' : /FunctionDecl/.test(L) ? 'fn' : 'var',
       // a top-level decl starts the line; anything nested is indented with `| ` runs
       topLevel: /^[|`]-/.test(indent + L.trim()[0] === undefined ? L : L) && /^[|`]-/.test(L),
       isStatic: /\bstatic\b/.test(tail),
@@ -115,10 +124,10 @@ function dumpAst(cb) {
     buf += chunk;
     const lines = buf.split('\n');
     buf = lines.pop();
-    for (const L of lines) if (/(VarDecl|FunctionDecl)/.test(L)) kept += L + '\n';
+    for (const L of lines) if (/(VarDecl|FunctionDecl|FieldDecl)/.test(L)) kept += L + '\n';
   });
   p.on('close', (code) => {
-    if (buf && /(VarDecl|FunctionDecl)/.test(buf)) kept += buf + '\n';
+    if (buf && /(VarDecl|FunctionDecl|FieldDecl)/.test(buf)) kept += buf + '\n';
     if (!kept) { console.error('engine-statics: clang produced no AST (exit ' + code + ')'); process.exit(2); }
     cb(kept);
   });
@@ -170,8 +179,44 @@ function readSource(file) {
 
 /* ------------------------------------------------------------------- analysis */
 
+// ⚠ REPAIR THE FILE ATTRIBUTION BEFORE TRUSTING IT.
+//
+// clang's AST dump prints a filename only when it CHANGES; every following entry shows a bare
+// `<line:N:C>` and inherits the last one. That inheritance is not reliable across interleaved
+// headers, and when it goes stale a declaration is silently attributed to whatever file was last
+// named — `sound_bpm` came out as living in `stdbool.h`. The damage is invisible: the row simply
+// falls outside the engine file set, so the count looks fine and the variable is never processed.
+// That is how four `beat_*`/`sound_bpm` variables were left behind by a batch that reported success.
+//
+// So: for every row, CHECK the claim against the source. A declaration of `name` must actually
+// appear at that line in that file. If it does not, look for the engine file that does have it
+// there, and correct the attribution. This makes the line number the evidence rather than the
+// inherited filename.
+function repairAttribution(rows, files) {
+  let fixed = 0, dropped = 0;
+  for (const r of rows) {
+    if (r.kind !== 'var' || !r.topLevel || !r.isStatic) continue;
+    // Strict: the line must actually BE a file-scope static declaration naming this variable.
+    // Matching on the name alone would let a coincidental mention in an unrelated engine file
+    // claim the row, trading the old undercount for an overcount.
+    const claims = (f) => {
+      const src = readSource(f);
+      const l = src && src[r.line - 1];
+      if (!l) return false;
+      if (!/^\s*(static|_Thread_local)\b/.test(l)) return false;
+      return new RegExp('\\b' + r.name + '\\b').test(l);
+    };
+    if (files.includes(r.file) && claims(r.file)) continue;      // the claim checks out
+    const real = files.filter(claims);
+    if (real.length === 1) { if (r.file !== real[0]) fixed++; r.file = real[0]; }
+    else if (files.includes(r.file)) { r.file = '(unverifiable)'; dropped++; }
+  }
+  return { fixed, dropped };
+}
+
 function analyze(rows, only) {
   const files = only ? [only] : ENGINE_FILES;
+  const repair = repairAttribution(rows, files);
   const inScope = (r) => files.includes(r.file);
 
   const statics = rows.filter(r => r.kind === 'var' && r.topLevel && r.isStatic && !r.isConst && inScope(r));
@@ -183,12 +228,16 @@ function analyze(rows, only) {
 
   const names = new Set(uniq.map(r => r.name));
   // a collision = the same identifier used as a local var or a parameter ANYWHERE in the TU
+  // A collision is ANY other use of the identifier that a `#define name (ctx->name)` would rewrite:
+  // a local, a parameter — and a STRUCT FIELD, which an earlier version of this check missed.
+  // The preprocessor does not know about `->`, so a field of the same name turns `ins->rvb_tank`
+  // into `ins->(de_snd->rvb_tank)` and fails to compile. That is exactly what batch 2 hit.
   const collisions = {};
   for (const r of rows) {
     if (r.kind === 'fn') continue;
     if (r.topLevel && r.kind === 'var') continue;
     if (!names.has(r.name)) continue;
-    (collisions[r.name] = collisions[r.name] || []).push(r.file);
+    (collisions[r.name] = collisions[r.name] || []).push(r.kind + ' in ' + r.file);
   }
 
   const perFile = {};
@@ -203,7 +252,7 @@ function analyze(rows, only) {
   }
   for (const r of localStatics) if (perFile[r.file]) perFile[r.file].localStatics++;
 
-  return { perFile, collisions, files };
+  return { perFile, collisions, files, repair };
 }
 
 /* ---------------------------------------------------------------------- output */

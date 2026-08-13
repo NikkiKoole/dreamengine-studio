@@ -286,20 +286,31 @@ a broken doc link or `#section`).
 > `extin_on` means the capture thread reads whichever copy the linker picked and the mic is silently
 > dead on every other instance.
 >
-> **✅ BATCH 1 OF `sound.h` IS LANDED AND BYTE-IDENTICAL (2026-08-13).** `node tools/ctx-gen.js
-> --primitive --write` moved **269 of sound.h's 293 statics** into `runtime/sound_ctx.h`'s `DeSound`
-> struct; `engine-statics` now reads **23** for that file. Green on all of: `refactor-guard` (6/6
-> byte-identical), `spec.js` (1986/0), soundcheck (silent), `tune-check`, `build-all` (580/580),
-> `build-nr.sh`. **Remaining in sound.h: 13 typed declarations** (`voices`, `rvb_tank`, `instr_bank`
-> …) needing the type-hoist = batch 2, plus the deliberate exclusions. The move is pure because the
-> default instance is a `static` with DESIGNATED INITIALISERS — values still set at link time, so
-> there is no init function and no init-order risk; step B allocates by copying that template.
-> **Three silent failures batch 1 taught, all worth inheriting:** the generated include landed inside
-> an `#if defined(__SSE__)` block (never included on arm64) · **the probe passed four times without
-> compiling the generated file at all**, because a quoted `#include "sound.h"` resolves relative to
-> `studio.c`'s own directory before any `-I` — it now carries an `#error` sentinel · and the generator
-> swept in `sound_synth_mode` + the whole `extin_*` mic group because they were logged as *open
-> questions* rather than exclusions, hence the new **`defer`** group (no decision = do not move).
+> **✅ `sound.h` IS DONE — 327 of 340 statics moved, byte-identical (2026-08-13).** `node
+> tools/ctx-gen.js --write` put them in `runtime/sound_ctx.h`'s `DeSound`; `engine-statics` reads
+> **13** for that file and **every one is a recorded decision** (1 shared · 5 harness · 5 deferred ·
+> 2 dead-weight), not a leftover. Green on `refactor-guard` (6/6), `spec.js` (1986/0), soundcheck,
+> tune-check, dc-check, level-check, `build-all` (580/580), `build-nr`. Pure because the default
+> instance is a `static` with DESIGNATED INITIALISERS — values still set at link time, no init
+> function, no init-order risk; step B allocates by copying that template. **Next: `studio.c` (222).**
+>
+> ⚠ **FIVE silent failures on the way, every one of which produced a confident green. Read these
+> before touching `studio.c` — three of them will recur there.**
+> 1. The generated include landed inside `#if defined(__SSE__)`, so on arm64 it was never included.
+> 2. **The probe passed four times without compiling the generated file at all** — a quoted
+>    `#include "sound.h"` resolves relative to `studio.c`'s OWN directory before any `-I`. It now
+>    carries an `#error` sentinel that proves it got there.
+> 3. The generator swept in `sound_synth_mode` + the `extin_*` mic group because they were logged as
+>    *open questions* rather than exclusions → the **`defer`** group: no decision = do not move.
+> 4. **The collision check never looked at struct FIELDS.** The preprocessor does not know about
+>    `->`, so `ins->rvb_tank` became `ins->(de_snd->rvb_tank)`. **`band_x/y/w/h` and `palette` are
+>    the same trap waiting in `studio.c`** — rename one side first.
+> 5. **`engine-statics` mis-attributed 47 of sound.h's statics** (clang names a file only when it
+>    CHANGES; a stale cursor put `sound_bpm` in `stdbool.h`), so a batch reported success while
+>    leaving four behind. It now verifies each row against the source, and **ctx-gen refuses to run
+>    unless every static is either moved or explicitly skipped.** That accounting invariant is the
+>    only thing that catches a silent drop — `refactor-guard` cannot, because a variable that did not
+>    move cannot change the output.
 >
 > **Order — do NOT take both engine files at once:**
 > 1. **`runtime/sound.h` ALONE** (293 statics / 29 non-zero initialisers, self-contained, strongest

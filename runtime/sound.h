@@ -39,22 +39,15 @@ static inline float clamp01(float v)                     { return v < 0.0f ? 0.0
 static inline float clampf (float lo, float hi, float v) { return v < lo ? lo : v > hi ? hi : v; }
 // linear dry/wet blend — the `dry*(1-mix)+wet*mix` line every effect's *_process ends on.
 static inline float mix_wet(float dry, float wet, float mix) { return dry * (1.0f - mix) + wet * mix; }
-#define SOUND_SFX_STEPS    32
-#define SOUND_SFX_SLOTS    32
-#define SOUND_INSTR_SLOTS  48   // 0-4 = the raw waves; 5-47 cart-defined (rich patch carts like modrack want banks per wave + many macro engines). ~200B/slot
 
 // Waveform IDs (INSTR_*) come from studio.h.
 // Wave ids below INSTR_ENGINE_BASE are wavetable oscillators (sound_osc); at/above they are
 // modeled ENGINES — stateful per-note simulations that read the three macros (harm/timb/mor).
 #define INSTR_ENGINE_BASE  INSTR_PLUCK
-#define SOUND_KS_MAX       1024   // Karplus-Strong delay line cap (~4KB/voice) — bottoms out around 43Hz / MIDI 29
-#define ORGAN_SCAN         64     // INSTR_ORGAN scanner-chorus delay taps (~1.5ms; borrows ks_buf's head — organ never uses the Karplus path)
 // INSTR_BOWED body resonators (§M2). ONE BODY PER SLOT, not per voice — a violin has one box that all
 // four strings drive, so sharing it is the physically honest model AND the only one that fits: a
 // cello-sized set needs 401 samples per line (disp-model.js --body --lowest 110), which does NOT fit
 // the per-voice buffer the violin body borrowed. Pooled + claimed per slot like fx_bus_for.
-#define SOUND_BOW_BODIES   8      // pool size — a string-quartet cart wants 4 (2 violins/viola/cello); ~9KB each
-#define BOW_BODY_MAX       768    // longest line, in samples: DOUBLE BASS 16.67ms = 736 @ 44.1k, + headroom.
                                   // Sized for the biggest instrument BOWED actually covers, not the cello: the
                                   // engine's own bass carts (upright/walkbox/walkroll) are double basses, and
                                   // 736 > the 401 a cello needs. Affordable only because bodies are SHARED —
@@ -68,361 +61,23 @@ static inline float mix_wet(float dry, float wet, float mix) { return dry * (1.0
 #define BRASS_ONSET_SAMPLES ((int)(0.018f * (float)SOUND_SAMPLE_RATE))   // ~18ms breath/"tah" speak
 
 // One step in an SFX. pitch=0 means silence; vol 0..7.
-typedef struct {
-    uint8_t pitch;   // MIDI note (0 = silent)
-    uint8_t instr;   // waveform id
-    uint8_t vol;     // 0..7
-} SfxStep;
 
-typedef struct {
-    SfxStep steps[SOUND_SFX_STEPS];
-    uint8_t step_dur;   // 10ms units (e.g. 6 = 60ms per step)
-    uint8_t length;     // 1..32
-    uint8_t loop;       // 1 = repeat when SFX ends
-} Sfx;
 
 // deterministically-seeded modulation state (the modulation kit, Block B) — declared up here because
 // Voice/fx LFOs embed one per instance for the stateful LFO shapes (S&H / random walk). The kit's
 // mod_randwalk/mod_sh/mod_optical helpers (which operate on it) live further down near the effects.
-typedef struct { unsigned int seed; float val, target, phase; } ModState;
 
 // An instrument = a waveform + an ADSR envelope + pulse duty. `instr` ids in
 // note()/hit()/chord()/tone() index this bank. Slots 0..4 are pre-filled with the
 // five raw waves (near-instant envelope) so old carts keep working; carts define 5+.
-typedef struct {
-    int   wave;
-    int   a_samp, d_samp, r_samp;   // attack / decay / release, in samples
-    float sustain;                  // 0..1
-    float duty;                     // 0..1 pulse width (only used by INSTR_SQUARE)
-    float eng_p[7];                 // EXPERIMENTAL guitar/piano tuning: 0 = fundamental weight, 1 = attack click, 2 = piano double-decay scale, 3 = piano hammer-knock scale, 4 = piano stretched-tuning scale, 5 = piano stiff-string inharmonicity scale
-    int   lfo_dest[3];              // LFO_PITCH / LFO_DUTY / LFO_VOLUME / LFO_CUTOFF, per LFO
-    float lfo_rate[3];              // Hz
-    float lfo_depth[3];             // 0 = off; units depend on dest
-    int   lfo_shape[3];             // LFO_SHAPE_* per LFO (default SINE); set by lfo_shape(), copied to new voices
-    int   flt_mode;                 // FILTER_OFF / LOW / HIGH / BAND / NOTCH
-    float flt_cutoff;               // Hz — the cutoff AT THE REFERENCE PITCH when flt_keytrack != 0
-    float flt_keytrack;             // KEYBOARD TRACKING, octaves of cutoff per octave of pitch (audit §B2).
-                                    // 0 = absolute Hz (the shipped behaviour, and the default) · 1 = true
-                                    // 1V/oct, which is what lets a self-oscillating filter be PLAYED.
-    float flt_q;                    // damping coefficient (1/Q); small = resonant
-    int   env_dest[3];              // ENV_CUTOFF / ENV_PITCH / ENV_DUTY, per mod-envelope
-    int   env_a_samp[3];            // attack, in samples
-    int   env_d_samp[3];            // decay, in samples
-    float env_amount[3];            // 0 = off; bipolar; units depend on dest (Hz / semitones / 0..1)
-    int   flw_dest;                 // envelope FOLLOWER dest (LFO_CUTOFF/VOLUME/PITCH) — the 3rd mod source
-    float flw_atk, flw_rel;         // per-sample smoothing coeffs (from attack/release ms)
-    float flw_amount;               // 0 = off; Hz for cutoff, 0..1 for volume(duck), semitones for pitch
-    float harmonics, timbre, morph; // engine macros 0..1 (INSTR_PLUCK+) — meaning is per-engine; default 0.5
-    float drive;                    // post-filter saturation 0..1; 0 = clean bypass (default — old carts unchanged)
-    int   drive_mode;               // waveshaper flavour DRIVE_SOFT(0)/HARD/FOLD/ASYM; 0 = tanh (default — old carts unchanged)
-    int   bandlimit;                // 0 = raw naive saw (default — old carts byte-identical); 1 = PolyBLEP anti-aliased saw
-    float sync_ratio;               // oscillator hard sync: slave:master freq ratio (0 = off, default — old carts unchanged)
-    float echo;                     // send to THE echo bus 0..1; 0 = dry (default — old carts unchanged)
-    float reverb;                   // reverb send 0..1; 0 = dry (default — old carts unchanged). Target = rvb_tank below
-    int   rvb_tank;                 // which reverb tank the send feeds: -1 = the master send (default), 1.. = a reverb_bus() send-bus
-    int   sc_key;                   // sidechain trigger key this slot feeds (0..3), via sidechain_key()
-    float sc_send;                  // how much this slot drives that key 0..1; 0 = not a trigger (default)
-    float voc_send;                 // how much this slot feeds the vocoder MODULATOR 0..1; >0 = send-only (dry muted). vocoder_send()
-    int   fx_bus;                   // insert bus for chorus/flanger: 0 = master (default), 1.. = a private aux bus (instrument_chorus/flanger)
-    int   bow_body;                 // INSTR_BOWED shared body: 0 = unclaimed, 1.. = bow_bodies[] index+1 (same "0 = none" convention as fx_bus)
-    float pan;                      // stereo position -1 L .. 0 center .. +1 R; default 0 = center (linear law, stereo.md)
-    float level;                    // per-slot output level (instrument_level); read LIVE at mix. 1.0 = unity/byte-identical bypass, <1 trims — the mixer leg drive/echo/reverb/pan already had
-    float tune_mul;                 // slot detune as a freq factor (2^(semis/12)); read LIVE by every
-                                    // sounding voice each sample — fire-and-forget hits bend too. default 1
-    int   uni_voices;               // UNISON stack: 1 = off (default), 2..7 = N detuned wavetable copies summed (instrument_unison)
-    float uni_detune;               // unison spread in semitones (edge voices at ±this); read LIVE per sample like tune_mul. default 0
-    uint32_t choke_mask;            // bitmask: bit N set = a new note on this slot kills active voices on slot N
-    int   smp_idx;                  // INSTR_SAMPLE: which sound_samples[] slot to play; -1 = none (default). Set by instrument_sample()
-    float smp_root;                 // INSTR_SAMPLE: the buffer's root freq (Hz) — the pitch at playback speed 1.0
-    float smp_start, smp_end;       // INSTR_SAMPLE: the CHOP — play from start..end as fractions 0..1 (default 0,1 = whole). instrument_sample_region()
-    int   smp_mode;                 // INSTR_SAMPLE playback: SAMPLE_NORMAL(0)/REVERSE/LOOP/PINGPONG. instrument_sample_mode()
-    int   gl_ms;                    // PORTAMENTO for this patch (instrument_glide): slide time in ms; 0 = no glide (default)
-    float gl_scale;                 // GLIDE SCALE amount (instrument_glide_scale): 0 = constant time (default), 1 = per octave
-    int   trig;                     // TRIGGER POLICY (instrument_trigger), audit §L4: TRIG_MULTI (0, default —
-                                    // every note gets its onset transient) or TRIG_SINGLE (a note started while
-                                    // another key on this slot is still down does NOT). A property the
-                                    // INSTRUMENT declares, because the right answer differs per instrument:
-                                    // Hammond percussion must be single, a flute's chiff must be multi.
-} Instrument;
 
 #define SOUND_LFOS 3
 #define SOUND_ENVS 3   // routable mod-envelopes per instrument (the one-shot twin of the LFOs)
-#define SOUND_UNISON_MAX 7   // JP-8000 Super Saw = 7 detuned voices; the max unison stack per slot
 
 // An RBJ constant-skirt bandpass biquad — the body-resonator formant used by INSTR_GUITAR's
 // 4 body modes. Coeffs set by sound_biquad_set(), one sample run by sound_biquad_run().
-typedef struct { float b0, b1, b2, a1, a2, z1, z2; } SoundBiquad;
 
-typedef struct {
-    bool   active;
-    int    choke_fade;         // >0 = ramping out over a choke (counts down to 0, then deactivates) — a declick fade, not a hard cut
-    int    sfx_idx;            // -1 if standalone note
-    int    step;
-    int    step_samples;
-    int    step_len_samples;   // for a one-shot note this is the GATE length; release runs after it
-    float  phase;
-    float  freq;
-    float  vol;                // 0..1
-    int    wave;
-    int    noise_state;
-    // ADSR + LFO snapshot (one-shot notes only; copied from the instrument at note-on)
-    int    a_samp, d_samp, r_samp;
-    float  sustain;
-    float  duty;
-    float  rel_start;          // envelope level at the moment the gate ends (release fades from here)
-    int    lfo_dest[3];
-    float  lfo_rate[3], lfo_depth[3], lfo_phase[3];
-    int    lfo_shape[3];        // LFO_SHAPE_* per LFO (default SINE)
-    ModState lfo_mod[3];        // per-LFO state for the stateful shapes (S&H / random); seeded at note-on
-    int    env_dest[3];              // mod-envelopes (AD; timer = step_samples, retriggered at note-on)
-    int    env_a_samp[3], env_d_samp[3];
-    float  env_amount[3];
-    int    flw_dest;                 // envelope follower: tracks this voice's own amplitude → dest
-    float  flw_atk, flw_rel, flw_amount, flw_amp;   // attack/release coeffs, depth, + the running level
-    int    flt_mode;
-    float  flt_cutoff, flt_q;
-    float  flt_low, flt_band;   // SVF running state
-    float  lad_s[4];            // FILTER_LADDER: the 4 ladder-stage integrator states (ZDF)
-    // held-note (note_on) state + per-param slew (the live voice glides toward these targets)
-    bool   held;                   // sustained note_on voice — infinite gate until note_off
-    int    owner_slot, owner_gen;  // which handle owns this voice (for stale-handle rejection)
-    float  freq_target, vol_target, cutoff_target, duty_target, flt_q_target;
-    // PORTAMENTO as a fixed-duration eased ramp (see sound_glide_start). note_glide(ms) sets gl_ms and
-    // ms is the real duration: the ramp lands on the target and stops. gl_e/gl_r advance the ease-out
-    // curve incrementally so the per-sample cost is one exp2f, not an expf as well.
-    int    gl_ms;                  // note_glide() duration in ms; 0 = the short default declick ramp
-    float  gl_scale;               // GLIDE SCALE amount: 0 = constant time, 1 = per octave, ~0.2 = the analog law
-    int    gl_pos, gl_len;         // ramp position / length in samples. gl_pos >= gl_len means IDLE
-    float  gl_from, gl_d;          // start pitch (log2 Hz) and the signed distance to travel, in octaves
-    float  gl_e, gl_r;             // running e^(-SHAPE·t): multiply gl_e by gl_r once per sample
-    // engine macros (current + slew target, riding the same machinery as cutoff/duty)
-    float  harm, timb, mor;
-    float  harm_target, timb_target, mor_target;
-    float  drv, drv_target;        // post-filter drive (current + slew target, same machinery)
-    float  sync_ph;                // hard-sync SLAVE oscillator phase (reset when v->phase wraps)
-    float  sync_ratio, sync_ratio_target;  // oscillator hard sync: slave:master freq ratio (0 = off; current + slew target)
-    int    uni_voices;             // UNISON stack size snapshot at note-on (1 = off; 2..SOUND_UNISON_MAX)
-    float  uni_norm;               // 1/sqrt(voices) loudness normalize, precomputed at note-on
-    float  uni_ph[SOUND_UNISON_MAX - 1];  // phase accumulators for the detuned copies (copy 0 = v->phase, the center)
-    int    drv_mode;               // waveshaper flavour (DRIVE_*), copied from the instrument at note-on
-    int    aa;                     // band-limit the saw (PolyBLEP), copied from the instrument at note-on (0 = raw)
-    float  drv_dc_x1, drv_dc_y1;   // DC blocker on the drive output (tanh of an asymmetric wave = DC = a thump)
-    float  eko, eko_target;        // echo-bus send (current + slew target, same machinery — note_echo)
-    float  rvb, rvb_target;        // reverb-bus send (current + slew target, same machinery — note_reverb)
-    int    bus;                    // insert bus for chorus/flanger (snapshot of instr fx_bus at note-on); 0 = master
-    int    rvb_bus;                // reverb SEND target bus: 0 = the master parallel send (legacy), 1.. = a reverb_bus() send-bus
-    int    sc_key;                 // sidechain trigger key (0..3), snapshot of the instrument at note-on
-    float  sc_send;                // how much this voice drives that key 0..1 (0 = not a trigger)
-    float  voc_send;               // how much this voice feeds the vocoder modulator (0 = not a modulator; >0 = send-only)
-    float  pan, pan_target;        // stereo pan (current + slew target, same machinery — note_pan); -1..1, 0 = center
-    int    instr_slot;             // instrument slot this voice was started from (for choke matching)
-    float  last_outL, last_outR;   // this voice's previous PANNED contribution per channel — feeds the steal-declick tail
-    // spatial audio (spatial.md): world position + velocity → pan/gain/Doppler. sp_on=false →
-    // sp_gain=1 & doppler_mul=1 (true bypass), so a non-positioned voice is byte-identical.
-    bool   sp_on;                  // positioned in the world (note_pos/hit_at)
-    float  sp_x, sp_y, sp_vx, sp_vy;            // world position + velocity (units, units/sec)
-    float  sp_gain, sp_gain_target;             // distance attenuation (current + slew target); 1 = bypass
-    float  doppler_mul, doppler_target;         // Doppler pitch factor (current + slew target); 1 = bypass
-    // Karplus-Strong string state (INSTR_PLUCK): a write head + a FRACTIONAL read tap.
-    // Pitch = the tap distance, recomputed every sample from freq*pitch_mul — so vibrato,
-    // pitch envelopes, note_pitch and note_glide all bend the string live.
-    float  ks_buf[SOUND_KS_MAX];
-    int    ks_len, ks_widx;        // ks_len = ALLOCATED length (period*2 headroom for down-bends)
-    float  ks_last;                // previous read (the damping average runs across it)
-    // modal bar state (INSTR_MALLET): four decaying sine modes, buffer-free. Mode frequencies
-    // derive from freq*pitch_mul EVERY sample — the whole pitch machinery bends the bar too.
-    float  md_phase[4], md_amp[4]; // per-mode phase + decaying amplitude (the ring lives here)
-    float  md_trem_ph;             // vibe motor tremolo phase (morph's top end switches the motor on)
-    int    md_strike;              // strike-noise samples remaining (the mallet contact click)
-    bool   md_on;                  // struck this note — guards an engine id without a note-on init
-    // FM state (INSTR_FM): the carrier rides v->phase (advanced by the mix loop like any
-    // wave); only the inaudible modulator needs its own phase + the feedback memory.
-    // fm_tph is the DX tine ping (1:1 detent only — see sound_fm_sample).
-    float  fm_mph, fm_fb, fm_tph;
-    // tonewheel organ state (INSTR_ORGAN): 9 additive drawbar sines (buffer-free), plus a
-    // key-click burst, a percussion ping, and the scanner chorus — whose short delay line
-    // borrows the head of ks_buf (organ never touches the Karplus path), so it adds no buffer.
-    float  org_ph[9];              // per-drawbar phase accumulators
-    float  org_click;              // key-click noise-burst envelope (decays ~3ms)
-    float  org_perc, org_perc_ph;  // percussion ping envelope + its 2nd-harmonic phase
-    float  org_scan_ph;            // scanner LFO phase (6.9Hz, gear-locked to the motor)
-    float  org_lp;                 // pre-drive lowpass state — driven organ loses its top (amp/Leslie)
-    int    org_widx;               // scanner delay write index into ks_buf[0..ORGAN_SCAN)
-    bool   org_on;                 // struck this note — guards an engine id without a note-on init
-    // electric-piano state (INSTR_EPIANO): 12 decaying inharmonic sine modes through a pickup
-    // nonlinearity + DC blocker, buffer-free (mallet family). Struck/self-decaying like mallet.
-    float  ep_ph[12], ep_amp[12], ep_dec[12], ep_ratio[12]; // per-mode phase / amp / decay-frac / ratio
-    float  ep_dc_prev, ep_dc_state;  // DC blocker taps (the sum^2 nonlinearity injects DC)
-    float  ep_freqnorm;              // register position 0..1 (upper modes + bark fade out high up)
-    int    ep_click;                 // tangent-click burst: samples remaining (the percussive chink)
-    float  ep_click_amp;             // its peak amp (per-type base × strike velocity × hammer hardness)
-    int    ep_type;                  // 0 Rhodes / 1 Wurli / 2 Clav (from harmonics at note-on)
-    bool   ep_on;                    // struck this note — guards an engine id without a note-on init
-    // membrane-drum state (INSTR_MEMBRANE): six decaying sine modes at circular-membrane
-    // (Bessel) ratios, buffer-free (mallet family). Struck/self-decaying. The bayan pitch-bend
-    // (morph) is derived from step_samples per sample — no extra state, like PD's DCW.
-    float  mb_phase[6], mb_amp[6];   // per-mode phase + decaying amplitude (the head's ring)
-    int    mb_strike;                // strike-noise samples remaining (the finger/slap contact)
-    bool   mb_on;                    // struck this note — guards an engine id without a note-on init
-    // reed-waveguide state (INSTR_REED): a bore delay line (REUSES ks_buf — reed is a distinct
-    // wave id, never shares a voice with the Karplus pluck path) + a pressure-driven reed valve.
-    // The first SELF-OSCILLATING held voice; every macro clamps to navkit's oscillation window
-    // (it chokes/dies outside it — STEP-0, instrument-engines.md §8.8.7). Re-seeded on note-on.
-    float  rd_lp;                    // bore-loss 1-pole LP state (bell radiation + wall damping)
-    float  rd_dc_prev, rd_dc_state;  // DC blocker (steady blow pressure → large DC — essential)
-    float  rd_vib_ph;                // lip-vibrato LFO phase
-    float  rd_noise_lp;              // breath-turbulence noise LP (the "air" in the tone)
-    float  rd_drift_ph;              // slow LFO phase — humanizes vibrato rate/depth (not a clean LFO)
-    float  rd_drift;                 // slow breath-pressure random walk (kills the dead-flat steady state)
-    int    rd_attack;                // attack-chiff samples remaining (the noisy tonguing onset)
-    float  rd_tilt;                  // output-tilt LP (timbre brightness, built here — STEP-0)
-    float  rd_initfreq;              // freq at note-on (bore sized for it; pitch tracking glides off it)
-    int    rd_len;                   // bore delay length (half-wavelength); 0 = no note-on init
-    int    rd_idx;                   // bore write index into ks_buf
-    bool   rd_on;                    // note-on init guard (engine id hit without a strike → silent)
-    // pipe/flute state (INSTR_PIPE): STK jet-drive flute — a bore delay (REUSES ks_buf, distinct
-    // wave id from the Karplus/reed paths) + a short jet delay + a nonlinear jet deflection.
-    // Held/self-oscillating; reuses reed's realism (breath turbulence, humanized vibrato, chiff). §8.8.8.
-    float  pp_jet[64];               // jet delay line (lip→labium travel time)
-    int    pp_jet_idx;               // jet write index
-    int    pp_idx;                   // bore write index into ks_buf
-    int    pp_len;                   // bore delay length; 0 = no note-on init
-    float  pp_initfreq;              // freq at note-on (pitch tracking glides off it)
-    float  pp_lp;                    // open-end reflection LP state (radiation impedance)
-    float  pp_dc_prev, pp_dc_state;  // DC blocker
-    float  pp_vib_ph, pp_drift_ph, pp_drift, pp_noise_lp;  // humanized vibrato + breath turbulence/drift
-    int    pp_attack;                // attack-chiff samples remaining (the tongued "tu" onset)
-    bool   pp_on;                    // note-on init guard
-    // formant-voice state (INSTR_VOICE): navkit VoicForm port — a glottal pulse through four SVF
-    // formants with a continuous vowel morph. EXPERIMENTAL: the raw params live FLAT in vox_p[]
-    // (poked by note_aux() — the voxlab fat prototype) instead of riding the 3 macro knobs,
-    // so we can audition which three deserve to become harmonics/timbre/morph. vowels-only for now.
-    float  vox_p[20];                // raw param TARGETS 0..1 (note_aux idx, must hold VOX_NPARAM): vowel/size/breath/openQ/tilt/vibDepth/vibRate/nasality/openness/frontness + EXPERIMENTAL 10 buzz·11 jitter·12 shimmer·13 creak·14 nasalAF·15 reduce·16 measBW
-    float  vox_s[20];                // slewed copies (per-sample one-pole → no zipper on slider moves)
-    float  vox_glot_ph;              // glottal pulse phase
-    float  vox_tilt_lp;              // spectral-tilt 1-pole state
-    float  vox_vib_ph;               // vibrato LFO phase
-    float  vox_jit_mul;              // per-period pitch-jitter multiplier (1.0 = none); redrawn each glottal cycle
-    float  vox_shim_mul;             // per-period amplitude-shimmer multiplier (1.0 = none)
-    int    vox_creak_skip;           // diplophonia/creak: attenuate this glottal period (vocal fry)
-    float  vox_naf_low, vox_naf_band; // anti-formant nasality notch SVF state (navkit WAVE_VOICE model)
-    float  vox_f_low[4], vox_f_band[4]; // 4 formant SVF states (low, band) — high recomputed per sample
-    int    vox_cons;                 // consonant ONSET id (VC_*), -1 = none; set by voice_consonant()
-    float  vox_cons_t;               // seconds since the consonant onset began (counts up to its duration)
-    int    vox_coda;                 // consonant CODA id (VC_*), -1 = none; set by voice_coda() near release
-    float  vox_coda_t;               // seconds since the coda morph began (vowel → consonant at note end)
-    bool   vox_on;                   // note-on init guard (engine id hit without a start → silent)
-    // guitar state (INSTR_GUITAR): the bodied plucked string — PLUCK's Karplus-Strong string
-    // (REUSES ks_buf, distinct wave id from the bare pluck path) + 4 parallel body-resonator
-    // bandpass formants + an output DC blocker. macros: harmonics = body (open/clear → resonant/
-    // boxy — sets the formant voicing + dry/wet mix at note-on), timbre = string brightness (the
-    // excitation lowpass), morph = mute (per-sample feedback: long open ring → tight pizzicato).
-    // Buzz/jawari (sitar) deferred to a future preset. Design: instrument-engines.md §8.8.9.
-    SoundBiquad gt_body[4];          // body formants (parallel bandpass), voiced from harmonics
-    float  gt_bodymix;               // dry string ↔ wet body blend (from harmonics)
-    float  gt_dc_prev, gt_dc_state;  // output DC blocker (long-sustain bodies build DC)
-    bool   gt_on;                    // note-on init guard (engine id hit without a pluck → silent)
-    // piano state (INSTR_PIANO): StifKarp stiff string — our KS string (REUSES ks_buf) + a
-    // dispersion allpass chain (the inharmonic "stretched partial" piano shimmer, the engine's
-    // defining feature) + a baked grand-piano soundboard (4 body biquads) + an output DC blocker.
-    // macros: harmonics = stiffness (dispersion depth + stages), timbre = hammer (excitation
-    // lowpass: soft felt → hard), morph = pedal (decay length + high-freq retention: damped
-    // staccato → long open sustain). Double-string detune + prepared buzz deferred. §8.8.9.
-    float  pn_disp_c[4], pn_disp_s[4];  // dispersion allpass coeffs (set from stiffness) + states
-    int    pn_disp_n;                   // active dispersion stages (1..4, by stiffness)
-    SoundBiquad pn_body[4];             // per-voicing soundboard formants (set at note-on)
-    float  pn_bodymix;
-    float  pn_loop_lp, pn_loopco;       // output tone-filter (1-pole LP) state + coeff (per voicing)
-    float  pn_symp;                     // sympathetic-resonance level (per voicing)
-    float  pn_detune;                   // 2nd-string detune ratio (per voicing; 1.0 = no 2nd string)
-    float  pn_dc_prev, pn_dc_state;     // output DC blocker
-    // navkit-verbatim KS string: near-lossless loop (decay comes from the AMP ENVELOPE, not the
-    // loop — that's what keeps the upper harmonics alive), one-period buffer + fractional-delay
-    // allpass tuning, per-voicing brightness/damping.
-    float  pn_ksb, pn_ksd;              // ksBrightness (high-harmonic retention) + ksDamping (≈0.999)
-    float  pn_ksb_cur;                  // brightness ENVELOPE: strikes bright, settles to pn_ksb (the piano "bloom")
-    float  pn_apc, pn_aps;              // fractional-delay allpass coeff + state (pitch tuning)
-    float  pn_initf;                    // freq at note-on (pitch-tracking reference)
-    float  pn_dampg, pn_damps;          // damper gain (pedal) + slewed state
-    float  pn_dd;                       // DOUBLE-DECAY: extra per-period loss right after the strike, relaxes to 0 (~0.2s) — the fast initial drop into a long aftersound. ⚠ It does NOT mean "struck, not plucked" (the old comment claimed that): a PLUCKED guitar has two-rate decay too, from the string's two polarisation planes decaying at different rates (Synth Secrets Part 28), and the piano's own cause is different again — the pairs and tricords interacting so energy transfer to the soundboard slows (Part 42). Common to both families; only the proportions differ. GUITAR/PLUCK should probably borrow it (audit §H3)
-    float  pn_knock;                    // HAMMER KNOCK: default onset transient amount (broadband click over eng_click), ON for piano regardless of MODE_STRING_CLICK
-    float  pn_ks2[SOUND_KS_MAX];        // detuned 2nd string delay line (own loop)
-    int    pn_ks2_widx, pn_ks2_len;
-    float  pn_ks2_last, pn_ks2_apc, pn_ks2_aps;
-    float  pn_ks2_disp[4];              // 2nd string dispersion states (reuses pn_disp_c coeffs)
-    bool   pn_on;                       // note-on init guard
-    // bowed state (INSTR_BOWED): navkit's Smith/McIntyre bowed-string waveguide (line-for-line port).
-    // Two delay lines meet at the bow contact point — PACKED into ks_buf (distinct wave id, never
-    // shares a voice with the Karplus/reed/pipe paths): nut half = ks_buf[0..bw_nutlen), bridge half
-    // = ks_buf[bw_nutlen..bw_nutlen+bw_brlen). A hyperbolic stick-slip friction re-excites the
-    // string → self-oscillation; held like reed/pipe. STEP-0 (navkit-bowsweep.c) found the Helmholtz
-    // wedge — the macros are pinned inside it: harmonics = bow position β (note-on split), timbre =
-    // bow pressure (0.10–0.26, the narrow axis), morph = bow velocity/swell (wider wedge as it grows).
-    int    bw_nutlen, bw_brlen;         // delay-line split lengths (sum = full wavelength, ≤ KS_MAX-1)
-    int    bw_nutidx, bw_bridx;         // write indices within each half (bridge offset by bw_nutlen)
-    float  bw_nutrefl, bw_brrefl;       // reflection-filter states (nut end / bridge end)
-    float  bw_initfreq;                 // freq at note-on (bore sized for it; pitch tracking glides off it)
-    float  bw_vib_ph, bw_drift_ph, bw_drift, bw_noise_lp;  // humanized pitch-vibrato + bow-noise (rosin) + drift
-    int    bw_attack;                   // bow-bite onset samples (the catch at note start)
-    float  bw_dc_prev, bw_dc_state;     // output DC blocker (steady bow drives a large DC)
-    bool   bw_on;                       // note-on init guard
-    bool   bw_pizz;                     // PIZZICATO: seed the string with a pluck + bypass the bow
-                                        // friction, so the SAME waveguide (string + body) rings down
-                                        // instead of self-oscillating. Set from eng_p[0] >= 0.5 at note-on.
-    // ── BOWED BODY (§M2, plan 2.4) — opt-in, default OFF ──────────────────────────────────────
-    // §F4 found INSTR_BOWED shipping with NO body resonator at all; its output comment even names the
-    // body it does not model ("the bridge-side signal — what the body radiates"). Reid's Part 22 says an
-    // instrument body IS a small reverberant room, in "the delay range of about 1mS to 4mS", built as
-    // three short parallel lines. Both that and a bandpass-formant alternative were built and A/B'd (§M2
-    // asked for exactly that); the owner's ear liked the body but could not separate the two models, so the
-    // COMBS were kept on §M2's own argument — physically derived rather than hand-tuned, ~3x the colouring,
-    // and the mechanism that could also serve GUITAR's body and the piano tricord. The formant variant and
-    // its MODE_BOW_BODYTYPE knob were removed rather than carried forever (verdict: plan §2.4).
-    // THE BODY IS NOT HERE: it lives PER SLOT in the bow_bodies[] pool, because an instrument has ONE box
-    // that every string drives. See that pool for the model, the sizing, and the once-per-sample rule.
-    // Only the blend AMOUNT is per-voice — the voice reads the shared body's output and mixes it into its
-    // own signal, so the body still passes through this voice's filter/env/drive chain.
-    float  bw_bd_amt;                   // body blend (eng_p[1], MODE_BOW_BODY; 0 = off = the bare string)
-    int    bw_bd_slot;                  // which bow_bodies[] entry this voice feeds; -1 = none (body off)
-    // fundamental reinforcement (guitar + piano): a sub-oscillator at the note's pitch, envelope-
-    // following the string, mixed under it — adds the low-end WEIGHT a bare KS string lacks (the
-    // "thin" cure). Plus an onset noise CLICK (pick/hammer transient). Both amounts come from
-    // eng_p[] (set via instrument_mode, note-on — the permanent per-engine aux channel, decision 0017; NOT baked to constants).
-    float  eng_p[7];                    // copied from the instrument at note-on (0 weight · 1 attack · 2 piano decay-scale · 3 piano knock-scale · 4 piano stretch-scale · 5 piano stiff-scale)
-    float  eng_subph, eng_env;          // sub-osc phase + envelope follower
-    int    eng_click;                   // onset-click samples remaining
-    // brass state (INSTR_BRASS): STK BrassInstrument (Cook/Scavone) — a bore delay (REUSES ks_buf,
-    // distinct wave id, never shares a voice with the reed/pipe/bowed/Karplus paths) closed by an
-    // inverting bell reflection, driven by a LIP VALVE modeled as a 2-pole resonant biquad (the
-    // mass-spring lip; its resonance tracks just ABOVE the played pitch → lip-slur / harmonic lock).
-    // The defining timbre is pressure-driven BRASSINESS: high blow + high timbre steepens the
-    // circulating wave (a shockwave) → the overtones explode (quiet=round, loud=blatty). Held/
-    // self-oscillating like reed; the amp ADSR gates it. STEP-0 + macros: §8.8.10.
-    int    br_len;                      // bore delay length (half-wavelength one-way); 0 = no note-on init
-    int    br_idx;                      // bore write index into ks_buf
-    float  br_initfreq;                 // freq at note-on (bore sized for it; pitch tracking glides off it)
-    float  br_lip_y1, br_lip_y2;        // lip biquad output history (the normalized resonant bandpass)
-    float  br_lip_x1, br_lip_x2;        // lip biquad input history (b2 = -b0 bandpass needs x[n-2])
-    float  br_lp;                       // bell-radiation 1-pole LP state
-    float  br_dc_prev, br_dc_state;     // bore-return DC blocker (steady blow → large DC)
-    float  br_out_prev, br_out_state;   // OUTPUT DC blocker (the asymmetric brassiness shaper injects DC)
-    float  br_env;                      // bore-output amplitude follower (level → shock-wave brightness)
-    float  br_hp;                       // OUTPUT high-shelf 1-pole state (the level-coupled "blat" lift)
-    float  br_vib_ph, br_drift_ph, br_drift, br_noise_lp;  // humanized lip-vibrato + breath turbulence/drift
-    int    br_attack;                   // speak-transient samples remaining (the "tah" onset)
-    bool   br_on;                       // note-on init guard (engine id hit without a note-on → silent)
-    // sample-playback state (INSTR_SAMPLE, mic-and-sampling.md piece 2): read sound_samples[smp_idx].data
-    // at a fractional position; speed = (played freq)/smp_root. Minimal one-shot forward playback.
-    int    smp_idx;                     // sound_samples[] slot snapshot from the instrument; -1 = none/silent
-    float  smp_root;                    // root freq (Hz) snapshot — the pitch at playback speed 1.0
-    float  smp_start_f, smp_end_f;      // chop bounds snapshot (fractions 0..1); play smp_start_f*len .. smp_end_f*len
-    int    smp_mode;                    // SAMPLE_NORMAL/REVERSE/LOOP/PINGPONG snapshot
-    float  smp_dir;                     // playback direction for PINGPONG: +1 forward / -1 back
-    double smp_pos;                     // fractional read position into the buffer (double: no drift over long buffers)
-    bool   smp_on;                      // note-on init guard (engine id hit without a start → silent)
-} Voice;
 
-static Voice         voices[SOUND_VOICES];
 
 // held-note handles. A handle packs slot (low SOUND_HANDLE_BITS) + generation
 // (rest). The main thread owns hn_gen/hn_used (hands out handles); the audio
@@ -465,12 +120,9 @@ static char          wavcap_path[512];
 // The main thread snapshots the last N seconds into a sample slot via record_grab().
 // Piece 2: SOUND_SAMPLE_SLOTS PCM buffers an INSTR_SAMPLE voice plays back at pitch.
 #ifndef SOUND_SAMPLE_SLOTS
-#define SOUND_SAMPLE_SLOTS 8
 #endif
 #define SOUND_REC_SECONDS  8
 #define SOUND_REC_LEN      (SOUND_SAMPLE_RATE * SOUND_REC_SECONDS)
-typedef struct { float *data; int len; bool loaded; } SoundSample;  // data = malloc'd mono PCM -1..1
-static SoundSample   sound_samples[SOUND_SAMPLE_SLOTS];
 
 // ── voice debugging (docs/design/audio-voice-debugging.md) — DE_TRACE-only ───────────
 // Two harness tools for "a voice got cut off by another instrument". The whole block is
@@ -547,8 +199,6 @@ static void sound_wavcap_poll(void) {
     wavcap_buf   = NULL;
     wavcap_state = 0;
 }
-static Sfx           sfx_bank[SOUND_SFX_SLOTS];
-static Instrument    instr_bank[SOUND_INSTR_SLOTS];
 
 // ── INSTR_BOWED shared bodies (§M2, plan 2.4) — ONE BOX PER SLOT ──────────────────────────────
 // Reid Part 22: an instrument body IS a small reverberant room — three parallel lines in the 1-4 ms
@@ -565,18 +215,6 @@ static Instrument    instr_bank[SOUND_INSTR_SLOTS];
 // are set by how often it is clocked, so stepping it once per sounding VOICE would make the box's
 // pitch track the chord size — play a triad and the body would ring roughly a twelfth high. Voices
 // only ADD to `in` and READ `wet_share`; they never touch pos/len/lp/buf.
-typedef struct {
-    float buf[3][BOW_BODY_MAX];   // the three parallel delay lines
-    int   pos[3], len[3];         // read/write head + length, per line
-    float lp[3];                  // one-pole damping in each loop (a body's RT60 falls with frequency)
-    float in;                     // this sample's summed string input from every voice on the slot
-    float wet_share;              // last sample's output, divided by the number of voices reading it
-    int   readers;                // voices that fed it this sample (refilled every sample)
-    int   quiet;                  // consecutive unfed samples — the lines get zeroed when this runs out
-    float size;                   // the scale factor this box is currently BUILT at (see bow_body_scale)
-    bool  live;                   // claimed by a slot, so worth clocking
-} BowBody;
-static BowBody bow_bodies[SOUND_BOW_BODIES];
 
 // Reid's three delays. Deliberately incommensurate, so the resonance series interleave into a dense
 // modal family instead of stacking into one comb. At 1.0x these give 24 resonances in 80-4000 Hz, 19
@@ -774,13 +412,6 @@ static void echo_ins_set_coef(void) {
 // parallel comb filters + 2 series allpass + a pre-delay), the proven house pattern. Mono in v1
 // (stereo width is later §8.10, like the echo bus). Dormant until the first reverb API call ever
 // arrives (reverb_used), so old carts pay nothing and stay bytes-identical.
-#define REVERB_COMB_1 1559         // comb delay times in samples @44100 Hz, mutually prime (navkit)
-#define REVERB_COMB_2 1621
-#define REVERB_COMB_3 1493
-#define REVERB_COMB_4 1427
-#define REVERB_ALLPASS_1 223
-#define REVERB_ALLPASS_2 557
-#define REVERB_PREDELAY  882       // fixed 20ms pre-delay (SOUND_SAMPLE_RATE/50)
 #define REVERB_FEEDBACK_MIN   0.7f   // comb feedback at size 0 (short decay)
 #define REVERB_FEEDBACK_RANGE 0.25f  // + size → longer decay (max 0.95)
 #define REVERB_DAMP_SCALE     0.4f   // damping → comb-LP cutoff scale
@@ -794,8 +425,6 @@ static void echo_ins_set_coef(void) {
 // Each stage carries a modest, mutually-prime delay (no single resonance), so the chain's group delay
 // spans ~tens of ms across frequency → a long, audible chirp/"boing" (vs the tiny window a 1-sample
 // allpass gives). Uses the existing rvb_allpass() Schroeder section.
-#define SPRING_AP_STAGES 8
-#define SPRING_AP_MAX    128         // max per-stage delay (buffer size)
 #define SPRING_HP_COEF 0.010f        // ~75 Hz highpass (drop the lows)
 #define SPRING_LP_COEF 0.42f         // ~4 kHz lowpass (drop the highs → metallic mid focus)
 static const int SPRING_AP_LEN[SPRING_AP_STAGES] = { 89, 113, 67, 97, 127, 71, 107, 83 };
@@ -806,22 +435,6 @@ static const int SPRING_AP_LEN[SPRING_AP_STAGES] = { 89, 113, 67, 97, 127, 71, 1
 // reverb SEND-BUSES: reverb_bus() routes a slot's send onto a dedicated aux bus whose insert
 // chain starts with FX_REVERB, so a cart can run effects AFTER the space (reverb→bitcrush). One
 // tank ≈ 24KB of comb/allpass buffers; the whole struct is zero-init .bss (0 bytes of wasm).
-typedef struct {
-    float comb1[REVERB_COMB_1], comb2[REVERB_COMB_2], comb3[REVERB_COMB_3], comb4[REVERB_COMB_4];
-    float ap1[REVERB_ALLPASS_1], ap2[REVERB_ALLPASS_2];
-    float predelay[REVERB_PREDELAY];
-    int   cp1, cp2, cp3, cp4;        // comb write positions
-    int   ap_p1, ap_p2;              // allpass positions
-    int   pd_p;                      // predelay write position
-    float clp1, clp2, clp3, clp4;    // per-comb damping LP states
-    float spring_ap[SPRING_AP_STAGES][SPRING_AP_MAX];  // stretched-allpass dispersion delay lines (rvb_spring > 0)
-    int   spring_app[SPRING_AP_STAGES];                // their write positions
-    float spring_hp, spring_lp;                        // spring band-limit filter states
-    float fb, damp;                  // config from size/damping — set by reverb() (tank 0) / reverb_bus()
-    float mix;                       // dry/wet blend at the insert: 1 = wet-replace (a dedicated send-bus), <1 = in-line (reverb_insert)
-    bool  used;                      // per-tank dormancy: a dormant tank is skipped (costs zero)
-} ReverbTank;
-static ReverbTank rvb_tank[SOUND_REVERB_TANKS];
 
 // one comb filter with lowpass damping (navkit processCombFilter — darker tails as damping rises)
 static float rvb_comb(float input, float *buf, int *pos, int size, float *lp, float fb, float damp) {
@@ -834,8 +447,8 @@ static float rvb_comb(float input, float *buf, int *pos, int size, float *lp, fl
 }
 // one Schroeder allpass (navkit processAllpass): H(z) = (-g + z^-N)/(1 - g·z^-N), feedback from output
 static float rvb_allpass(float input, float *buf, int *pos, int size, float coef) {
-    float delayed = buf[*pos];
-    float output  = delayed - coef * input;
+    float tapped  = buf[*pos];   // not `delayed`: that is the scheduled-note pen, a context member
+    float output  = tapped - coef * input;
     buf[*pos] = input + coef * output;
     *pos = (*pos + 1) % size;
     return output;
@@ -1418,7 +1031,6 @@ static void fx_set_eq(int b, int i, float low_db, float mid_db, float high_db) {
 #define TREM_SHAPE_SINE   0   // = LFO_SHAPE_SINE (kept for the internal trem/pan code)
 #define TREM_SHAPE_SQUARE 1
 #define TREM_SHAPE_TRI    2
-static ModState trem_md[SOUND_FX_BUSES];   // state for the S&H/random shapes
 static void trem_process(int b, float *mixL, float *mixR) {
     // -1..1 wave from the shared dispatcher → 0..1 mod (sine/square/tri reproduce the old output exactly)
     float wave = lfo_eval(trem_shape[b], trem_phase[b], &trem_md[b], trem_rate[b], 1.0f / (float)SOUND_SAMPLE_RATE);
@@ -1445,7 +1057,6 @@ static void fx_set_tremolo(int b, float rate, float depth, int shape) {
 // isn't a mode of tremolo. Reuses the TREM_SHAPE_* shapes. Only attenuates (never boosts), so the
 // summed level never exceeds the dry input — no added clip risk. Dormant until autopan()/
 // instrument_autopan() with depth>0 → non-users byte-identical.
-static ModState pan_md[SOUND_FX_BUSES];   // state for the S&H/random shapes
 static void pan_process(int b, float *mixL, float *mixR) {
     float wave = lfo_eval(pan_shape[b], pan_phase[b], &pan_md[b], pan_rate[b], 1.0f / (float)SOUND_SAMPLE_RATE);
     float mod = 0.5f + 0.5f * wave;
@@ -1569,8 +1180,6 @@ static void fx_set_univibe(int b, float rate, float depth, float mix) {
 // sidechain / bus-compression DYNAMICS (studio.h sidechain()/sidechain_key()/glue()). A gain stage
 // on a victim bus driven by an envelope follower: keyed off a TRIGGER (sidechain_key → sc_key_lvl)
 // or, for glue, off the bus's OWN level. Dormant (used=false) until configured → byte-identical.
-typedef struct { bool used; int key; float amount, atk, rel, env; } SideChain;  // key<0 = glue (self-keyed)
-static SideChain sc[SOUND_FX_BUSES];      // one keyed comp per victim bus (bus 0 = master)
 // duck gain for victim bus b. Updates the envelope follower; reads its trigger key (or the bus's own
 // level when self-keyed/glue). Returns the gain to multiply the bus by (1 = open, <1 = ducked).
 static float sc_apply(int b, float curL, float curR) {
@@ -1765,24 +1374,6 @@ static void fx_set_leslie(int b, int speed, float drive, float balance, float do
 // tape; "write the technique once"). Big-buffer + many-grain, so it lives in a small POOL of tanks
 // (like the reverb tanks) mapped per-bus on demand, NOT one buffer per bus. Dormant until grains()/
 // instrument_grains() (mix>0) → byte-identical. Mono core (v1), like echo_insert / the reverb insert.
-#define SOUND_GRAIN_TANKS  2                          // pool size: master + one instrument bus at once (~1MB total)
-#define GRAIN_BUF_LEN      (SOUND_SAMPLE_RATE * 3)    // 3 s capture (navkit uses 5 s; 3 s is plenty of lookback, half the RAM)
-#define GRAIN_MAX_GRAINS   24                         // max simultaneous grains (navkit GRAN_DELAY_MAX_GRAINS)
-typedef struct {
-    float readPos, posInc, envPhase, envInc, amp;   // navkit GranDelayGrain: read cursor, speed, Hanning phase+inc, level
-    bool  active;
-} GrainVoice;
-typedef struct {
-    float buf[GRAIN_BUF_LEN];
-    GrainVoice grains[GRAIN_MAX_GRAINS];
-    int    writePos;
-    float  spawnTimer, lastOut;
-    unsigned int noiseSeed;
-    float  mix, feedback, grainSize, density, position, scatter;   // grainSize ms · density /s · position/scatter 0..1 · feedback 0..0.9
-    float  pitch, pitch_spread;    // grain transpose: semitones -24..24 (0 = unchanged) + random per-grain detune 0..1
-    bool   freeze, used, reverse;  // reverse = grains play backwards through the buffer
-} GrainTank;
-static GrainTank grain_pool[SOUND_GRAIN_TANKS];
 
 // assign a pool tank to bus b on first use; -1 = pool exhausted (caller bails → that bus stays dry)
 static int grain_tank_for_bus(int b) {
@@ -1902,16 +1493,6 @@ static void fx_set_grains_pitch(int b, float semitones, float spread, bool rever
 // fake. Then a LOW PASS GATE (Buchla-style vactrol): an envelope follower opens the cutoff AND the
 // level together, so quiet passages go dark + soft and bloom back as they swell — the "underwater"
 // close. Mono core (v1), reads through the shared moddel_hermite. Dormant until mix>0 → byte-identical.
-#define SHW_BUF_LEN  (SOUND_SAMPLE_RATE / 16)   // ~62 ms — room for a drifting short delay
-static float    shw_buf[SOUND_FX_BUSES][SHW_BUF_LEN];
-static int      shw_widx [SOUND_FX_BUSES];
-static ModState shw_mod  [SOUND_FX_BUSES];      // the K-field: a filtered random-walk delay-time source
-static float    shw_rate [SOUND_FX_BUSES];      // random-walk drift speed Hz (0.2..8)
-static float    shw_depth[SOUND_FX_BUSES];      // delay-mod depth 0..1 (warble amount)
-static float    shw_mix  [SOUND_FX_BUSES];      // dry/wet 0..1
-static float    shw_env  [SOUND_FX_BUSES];      // LPG envelope follower
-static float    shw_lp   [SOUND_FX_BUSES];      // LPG one-pole lowpass state
-static bool     shw_used [SOUND_FX_BUSES];
 static void shallow_process(int b, float *mixL, float *mixR) {
     const float dt = 1.0f / (float)SOUND_SAMPLE_RATE;
     float mono = (*mixL + *mixR) * 0.5f;
@@ -1947,12 +1528,6 @@ static void fx_set_shallow(int b, float rate, float depth, float mix) {
 // above it, OPENS. attack/release shape how fast. Tames hiss/hum tails on a noisy or driven part,
 // and — placed AFTER reverb in the chain — chops the tail for the iconic 80s GATED REVERB. A
 // per-bus reorderable insert (FX_GATE). threshold 0 = always open → not called → byte-identical.
-static float gate_thresh[SOUND_FX_BUSES];   // env level below which the gate closes (0 = bypass)
-static float gate_atk   [SOUND_FX_BUSES];   // open coefficient (fast)
-static float gate_rel   [SOUND_FX_BUSES];   // close coefficient (slower = smoother tail cut)
-static float gate_env   [SOUND_FX_BUSES];   // envelope follower
-static float gate_gain  [SOUND_FX_BUSES];   // current gate gain 0..1 (slewed)
-static bool  gate_used  [SOUND_FX_BUSES];
 static void gate_process(int b, float *mixL, float *mixR) {
     float in = fabsf(*mixL) > fabsf(*mixR) ? fabsf(*mixL) : fabsf(*mixR);   // peak follow (both channels)
     gate_env[b] += (in - gate_env[b]) * 0.02f;                             // ~fast envelope follower
@@ -1996,15 +1571,7 @@ static void fx_set_gate(int b, float threshold, int attack_ms, int release_ms) {
                                // makeup just sounds SMALLER, which is backwards for this effect (the
                                // whole point is "louder and always on") — tuned by fx-check render so
                                // the full wall lands a touch hotter than dry, not pinned on the limiter.
-static float sq_down[SOUND_FX_BUSES][3];   // per-band downward amount 0..1 (low / mid / high)
-static float sq_up  [SOUND_FX_BUSES];      // upward amount 0..1, shared by the three bands (OTT's one macro)
-static float sq_mix [SOUND_FX_BUSES];      // dry/wet 0..1 (0 = bypass)
-static float sq_mk  [SOUND_FX_BUSES];      // output makeup gain, derived from the mean down amount
-static float sq_env [SOUND_FX_BUSES][3];   // per-band peak follower
-static float sq_loL[SOUND_FX_BUSES], sq_loR[SOUND_FX_BUSES];   // low-crossover one-pole state
-static float sq_hiL[SOUND_FX_BUSES], sq_hiR[SOUND_FX_BUSES];   // mid/high-crossover one-pole state
 static float sq_atk = 0.0f, sq_rel = 0.0f;   // follower coefficients — FIXED times (OTT has no timing knobs)
-static bool  sq_used[SOUND_FX_BUSES];
 // the two-sided gain for one band, from its follower level
 static float sq_gain(int b, int k, float env) {
     if (env > SQ_PIVOT) {                                    // above the hinge: pull the excess in
@@ -2063,11 +1630,6 @@ static void fx_set_squash(int b, float low, float mid, float high, float up, flo
 // bus is byte-identical to the old hardcoded ladder. Each step still gates on its _used[b] flag,
 // so the default-order case is the same work as before.
 #define N_PEDALS  (FX_CRUSH + 1)            // the 8 reorderable PEDALS (FX_TREM..FX_CRUSH) — the default chain
-#define N_INSERTS (FX_MULTIBAND + 1)           // array size / kind validation cap: pedals + FORMANT/FILTER/PAN/RINGMOD (default) + FX_REVERB/ECHO/GRAINS/DRIVE/SHALLOW/GATE/SQUASH (placed via fx_order). Chain length is capped separately by FX_ORDER_SLOTS.
-#define FX_ORDER_SLOTS 16                   // fx_order packs 16 slots (4 ints × 4 bytes, 1 byte/slot: kind 5 bits | instance 3 bits). Kinds 0..31, instances 0..7. A chain longer than 16 is truncated.
-static int insert_order  [SOUND_FX_BUSES][N_INSERTS];   // per-bus visit list (kept distinct from the fx_order() API)
-static int insert_order_n[SOUND_FX_BUSES];  // populated slot count (default = 8 pedals + formant + filter + pan + ringmod; FX_REVERB only on a reverb-bus)
-static int insert_inst   [SOUND_FX_BUSES][N_INSERTS];   // Increment F: per-slot INSTANCE (which copy of the kind). 0 = the only/first instance = byte-identical to before.
 // dispatch ONE insert by kind on bus b, in place. The _used[b] gate keeps dormant inserts free.
 static void apply_insert(int kind, int inst, int b, float *L, float *R) {
     switch (kind) {
@@ -2094,9 +1656,9 @@ static void apply_insert(int kind, int inst, int b, float *L, float *R) {
         // (master / a pedalboard's bus, bus_tank[b] == -1) it's a no-op pass-through — never zeroes a real mix.
         case FX_REVERB: {
             int t = bus_tank[b];
-            if (t >= 0 && rvb_tank[t].used) {
-                float m = rvb_tank[t].mix;                                   // 1 = wet-replace (send-bus), <1 = in-line blend
-                float wet = reverb_process(&rvb_tank[t], (*L + *R) * 0.5f);   // MONO core, v1
+            if (t >= 0 && rvb_tanks[t].used) {
+                float m = rvb_tanks[t].mix;                                   // 1 = wet-replace (send-bus), <1 = in-line blend
+                float wet = reverb_process(&rvb_tanks[t], (*L + *R) * 0.5f);   // MONO core, v1
                 *L = *L * (1.0f - m) + wet * m;   // m=1 → *L = wet, byte-identical to the old wet-replace
                 *R = *R * (1.0f - m) + wet * m;
             }
@@ -2120,176 +1682,15 @@ static float sound_follow_coef(int ms) {
 // instrument slot AT FIRE TIME — so per-step instrument changes for scheduled notes need a
 // ROTATING slot per pending step (see the sfx editor cart's CUT lane), or the last define
 // wins for every queued note.
-typedef enum {
-    SR_SFX          = 0,
-    /* 1 retired — music track, cut 2026-06, see decisions/ */
-    SR_NOTE         = 2,
-    SR_INSTR        = 3,
-    SR_INSTR_DUTY   = 4,
-    SR_INSTR_LFO    = 5,
-    SR_INSTR_FILTER = 6,
-    SR_NOTE_ON      = 7,
-    SR_NOTE_OFF     = 8,
-    SR_NOTE_PITCH   = 9,
-    SR_NOTE_VOL     = 10,
-    SR_NOTE_CUTOFF  = 11,
-    SR_NOTE_DUTY    = 12,
-    SR_NOTE_OFF_ALL = 13,
-    SR_NOTE_RES     = 14,
-    SR_NOTE_LFO     = 15,
-    SR_NOTE_FILTER  = 16,
-    SR_NOTE_GLIDE   = 17,
-    SR_INSTR_ENV    = 18,
-    SR_NOTE_ENV     = 19,
-    SR_WAVE_SET     = 20,
-    SR_INSTR_MACRO  = 21,
-    SR_NOTE_MACRO   = 22,
-    SR_INSTR_CHOKE  = 23,
-    SR_INSTR_DRIVE  = 24,
-    SR_NOTE_DRIVE   = 25,
-    SR_ECHO         = 26,
-    SR_INSTR_ECHO   = 27,
-    SR_NOTE_ECHO    = 28,
-    SR_INSTR_TUNE   = 29,
-    SR_INSTR_FOLLOW = 30,
-    SR_NOTE_FOLLOW  = 31,
-    SR_VOICE_PARAM  = 32,   // EXPERIMENTAL INSTR_VOICE raw-param poke (voxlab): a=idx, b=val*1000
-    SR_VOICE_CONS   = 33,   // EXPERIMENTAL INSTR_VOICE consonant onset (voxlab): a=consonant id (VC_*), -1 = none
-    SR_VOICE_CODA   = 34,   // EXPERIMENTAL INSTR_VOICE consonant coda (voxlab): a=consonant id (VC_*), -1 = none
-    SR_VOICE_NASAL  = 39,   // INSTR_VOICE nasal color (public voice_nasal): a=amount*1000 → vox_p[7] (35-38 = the pan block)
-    SR_INSTR_PAN    = 35,   // a=slot, b=pan*1000 (signed) — per-instrument stereo position (stereo.md)
-    SR_NOTE_PAN     = 36,   // a=pan*1000 (signed, live/slewed), e0/e1=handle — live pan on a held note
-    SR_ENG_TUNE     = 37,   // EXPERIMENTAL guitar/piano tuning poke: a=slot, b=idx (0 weight·1 attack), c=val*1000
-    SR_PAN_LAW      = 38,   // a=law (PAN_LINEAR/PAN_POWER) — master pan law (stereo.md); gated, default LINEAR
-    SR_REVERB       = 40,   // a=size*1000, b=damping*1000 — configure THE reverb bus (40-42; 39 = voice_nasal above)
-    SR_INSTR_REVERB = 41,   // a=slot, b=send*1000 — per-slot reverb send
-    SR_NOTE_REVERB  = 42,   // a=val*1000 (live, slewed), e0/e1=handle — live reverb send on a held note
-    SR_CHORUS       = 43,   // a=rate*1000, b=depth*1000, c=mix*1000 — configure THE master chorus (mod-delay buffer)
-    SR_FLANGER      = 44,   // a=rate*1000, b=depth*1000, c=feedback*1000 (signed), e0=mix*1000 — THE master flanger
-    SR_INSTR_CHORUS = 45,   // a=slot, b=rate*1000, c=depth*1000, e0=mix*1000 — chorus on one instrument (auto-bus)
-    SR_INSTR_FLANGER= 46,   // a=slot, b=rate*1000, c=depth*1000, e0=fb*1000 (signed), e1=mix*1000 — flanger on one instrument (auto-bus)
-    SR_TAPE         = 47,   // a=wow*1000, b=flutter*1000, c=sat*1000 — THE master tape (bus 0)
-    SR_INSTR_TAPE   = 48,   // a=slot, b=wow*1000, c=flutter*1000, e0=sat*1000 — tape on one instrument (auto-bus)
-    SR_WAH          = 49,   // a=sens*1000, b=res*1000, c=mix*1000 — THE master auto-wah (bus 0)
-    SR_INSTR_WAH    = 50,   // a=slot, b=sens*1000, c=res*1000, e0=mix*1000 — auto-wah on one instrument (auto-bus)
-    SR_INSTR_DRIVE_MODE = 51,  // a=slot, b=mode (DRIVE_*) — set a slot's drive waveshaper
-    SR_NOTE_DRIVE_MODE  = 52,  // a=mode (DRIVE_*), e0/e1=handle — live waveshaper switch on a held note
-    SR_BITCRUSH     = 53,   // a=bits*100, b=rate*100, c=mix*1000 — THE master bitcrush (bus 0)
-    SR_INSTR_BITCRUSH = 54, // a=slot, b=bits*100, c=rate*100, e0=mix*1000 — bitcrush on one instrument (auto-bus)
-    SR_EQ           = 55,   // a=low_db*1000, b=mid_db*1000, c=high_db*1000 — THE master 3-band EQ (bus 0)
-    SR_INSTR_EQ     = 56,   // a=slot, b=low_db*1000, c=mid_db*1000, e0=high_db*1000 — EQ on one instrument (auto-bus)
-    SR_WAH_LFO      = 57,   // a=rate*1000, b=res*1000, c=mix*1000 — THE master LFO-wah (bus 0, navkit WAH_MODE_LFO)
-    SR_INSTR_WAH_LFO= 58,   // a=slot, b=rate*1000, c=res*1000, e0=mix*1000 — LFO-wah on one instrument (auto-bus)
-    SR_TREMOLO      = 59,   // a=rate*1000, b=depth*1000, c=shape — THE master tremolo (bus 0, navkit processTremolo)
-    SR_INSTR_TREMOLO= 60,   // a=slot, b=rate*1000, c=depth*1000, e0=shape — tremolo on one instrument (auto-bus)
-    SR_PHASER       = 61,   // a=rate*1000, b=depth*1000, c=fb*1000(signed), e0=mix*1000, e1=stages — THE master phaser (bus 0, navkit processPhaser)
-    SR_INSTR_PHASER = 62,   // a=slot, b=rate*1000, c=depth*1000, e0=fb*1000(signed), e1=mix*1000, e2=stages — phaser on one instrument (auto-bus)
-    SR_FX_ORDER     = 63,   // a=bus, b=packed lo (slots 0..7, 4 bits each, FX_*), c=count, e0=packed hi (slots 8..) — set a bus's insert visit order
-    SR_LESLIE       = 64,   // a=speed, b=drive*1000, c=balance*1000, e0=doppler*1000, e1=mix*1000 — THE master Leslie (bus 0, navkit processLeslie)
-    SR_INSTR_LESLIE = 65,   // a=slot, b=speed, c=drive*1000, e0=balance*1000, e1=doppler*1000, e2=mix*1000 — Leslie on one instrument (auto-bus)
-    SR_REVERB_BUS   = 66,   // a=tank(1..N-1), b=size*1000, c=damp*1000 — configure a reverb send-bus (claims an aux bus, chain = [FX_REVERB])
-    SR_INSTR_REVERB_BUS = 67, // a=slot, b=tank, c=mix*1000 — route a slot's reverb send into tank N's bus instead of the master send
-    SR_REVERB_BUS_FX = 68,  // a=tank, b=fx (FX_*), c/e0/e1 = params*1000 — add/configure an insert AFTER the reverb on tank N's bus
-    SR_REVERB_INSERT = 69,  // a=size*1000, b=damp*1000, c=mix*1000 — reverb as a dry/wet-MIX INSERT on the master bus (in the fx_order chain)
-    SR_FORMANT      = 70,   // a=vowel*1000, b=q*1000, c=mix*1000 — THE master formant/vowel filter (bus 0)
-    SR_INSTR_FORMANT= 71,   // a=slot, b=vowel*1000, c=q*1000, e0=mix*1000 — formant filter on one instrument (auto-bus)
-    SR_SIDECHAIN    = 72,   // a=victim_bus, b=key, c=amount*1000, e0=attack_ms, e1=release_ms — duck a bus on a trigger key
-    SR_SIDECHAIN_KEY= 73,   // a=slot, b=key, c=send*1000 — route a slot into a sidechain trigger key
-    SR_GLUE         = 74,   // a=victim_bus, b=amount*1000, c=attack_ms, e0=release_ms — bus comp (self-keyed, no trigger)
-    SR_FILTER       = 75,   // a=mode, b=cutoff_hz, c=resonance*1000 — THE master resonant filter (DJ filter), bus 0
-    SR_AUTOPAN      = 76,   // a=rate*1000, b=depth*1000, c=shape — THE master auto-pan (bus 0, antiphase tremolo)
-    SR_INSTR_AUTOPAN= 77,   // a=slot, b=rate*1000, c=depth*1000, e0=shape — auto-pan on one instrument (auto-bus)
-    SR_RINGMOD      = 78,   // a=freq_hz, b=mix*1000 — THE master ring modulator (bus 0)
-    SR_INSTR_RINGMOD= 79,   // a=slot, b=freq_hz, c=mix*1000 — ring mod on one instrument (auto-bus)
-    SR_ECHO_INSERT  = 80,   // a=time_ms, b=fb*1000, c=tone*1000, e0=mix*1000 — echo as a dry/wet INSERT on the master bus (in the fx_order chain)
-    SR_GRAINS       = 81,   // a=grain_ms, b=density*100, c=position*1000, e0=scatter*1000, e1=feedback*1000, e2=mix*1000 — THE master granular delay (bus 0)
-    SR_INSTR_GRAINS = 82,   // a=slot, b=grain_ms, c=density*100, e0=position*1000, e1=scatter*1000, e2=PACK(feedback*100·*1001 + mix*1000) — granular on one instrument (auto-bus)
-    SR_GRAINS_FREEZE       = 83,   // a=on (0/1) — freeze the master granular capture buffer (live toggle, no DSP reconfigure)
-    SR_INSTR_GRAINS_FREEZE = 84,   // a=slot, b=on (0/1) — freeze one instrument's granular buffer
-    SR_EQ_INST      = 85,   // a=instance, b=low_db*1000, c=mid_db*1000, e0=high_db*1000 — master EQ on a given INSTANCE (Increment F; instance 0 == SR_EQ)
-    SR_CRUSH_INST   = 86,   // a=instance, b=bits*100, c=rate*100, e0=mix*1000 — master bitcrush on a given INSTANCE
-    SR_TAPE_INST    = 87,   // a=instance, b=wow*1000, c=flut*1000, e0=sat*1000 — master tape on a given INSTANCE
-    SR_FILTER_INST  = 88,   // a=instance, b=mode, c=cutoff_hz, e0=res*1000 — master filter on a given INSTANCE
-    SR_DRIVE_INSERT = 89,   // a=amount*1000, b=mode (DRIVE_*), c=mix*1000 — mix-bus saturation INSERT on the master bus (FX_DRIVE in the fx_order chain)
-    SR_DRIVE_INST   = 90,   // a=instance, b=amount*1000, c=mode, e0=mix*1000 — mix-bus drive on a given INSTANCE (Increment F; instance 0 == SR_DRIVE_INSERT)
-    SR_GRAINS_PITCH       = 91,   // a=semitones*100, b=spread*1000, c=reverse(0/1) — transpose the master granular cloud
-    SR_INSTR_GRAINS_PITCH = 92,   // a=slot, b=semitones*100, c=spread*1000, e0=reverse(0/1) — transpose one instrument's granular cloud
-    SR_UNIVIBE       = 93,   // a=rate*1000, b=depth*1000, c=mix*1000 — THE master univibe (bus 0): the phaser swept by the optical LFO
-    SR_INSTR_UNIVIBE = 94,   // a=slot, b=rate*1000, c=depth*1000, e0=mix*1000 — univibe on one instrument (auto-bus)
-    SR_DROPOUT       = 95,   // a=amount*1000, b=depth*1000 — THE master tape-failure dropout (random level dips + HF loss)
-    SR_SHALLOW       = 96,   // a=rate*1000, b=depth*1000, c=mix*1000 — THE master shallow-water (bus 0): K-field delay + Low Pass Gate
-    SR_INSTR_SHALLOW = 97,   // a=slot, b=rate*1000, c=depth*1000, e0=mix*1000 — shallow water on one instrument (auto-bus)
-    SR_AMP_NOISE     = 98,   // a=hiss*1000, b=hum*1000, c=mains_hz — THE optional rig-noise floor (hiss + 50/60Hz hum)
-    SR_GATE          = 99,   // a=threshold*1000, b=attack_ms, c=release_ms — THE master noise gate (bus 0)
-    SR_INSTR_GATE    = 100,  // a=slot, b=threshold*1000, c=attack_ms, e0=release_ms — noise gate on one instrument (auto-bus)
-    SR_SHIMMER       = 101,  // a=size*1000, b=damp*1000, c=shimmer*1000, e0=mix*1000 — THE master shimmer reverb (octave-up feedback)
-    SR_LISTENER      = 102,  // a=x*1000, b=y*1000 — spatial listener (ears) position (spatial.md)
-    SR_LISTENER_VEL  = 103,  // a=vx*1000, b=vy*1000 — listener velocity for Doppler
-    SR_SPATIAL_MODEL = 104,  // a=ref*1000, b=max*1000, c=rolloff*1000 — distance-falloff model
-    SR_SPATIAL_SPEED = 105,  // a=c*1000 — speed of sound (units/sec); 0 = Doppler off
-    SR_NOTE_POS      = 106,  // a=x*1000, b=y*1000, e0/e1=handle — place a held voice in the world
-    SR_NOTE_MOTION   = 107,  // a=vx*1000, b=vy*1000, e0/e1=handle — held voice velocity (Doppler)
-    SR_HIT_AT        = 108,  // a=midi, b=instr, c=vol, e0=gate_samples, e1=x*1000, e2=y*1000 — positioned one-shot
-    SR_INSTR_SHIMMER = 109,  // a=slot, b=size*1000, c=damp*1000, e0=shimmer*1000, e1=mix*1000 — shimmer reverb on one instrument (pooled aux bus)
-    SR_VARISPEED     = 110,  // a=speed*1000 — THE master tape varispeed (1.0 = bypass; <1 slow/down, >1 fast/up)
-    SR_INSTR_MOTION  = 111,  // a=slot, b=vx*1000, c=vy*1000 — that emitter bus's velocity → bus Doppler
-    SR_INSTR_POS     = 112,  // a=slot, b=x*1000, c=y*1000 — position an instrument's whole effected bus (v2 emitter, spatial.md).
-                             // WAS 110 — collided with SR_VARISPEED (its handler ran first → instr_pos was shadowed/dead); renumbered 2026-06-15.
-    SR_FX_MOD        = 113,  // a=target(FXMOD_*), b=value*1000, c=bus — CV sink: ride a sweep-safe effect param (ADR 0018)
-    SR_FX_LFO        = 114,  // a=target(FXMOD_*), b=rate*100, c=bus, e0=depth*1000, e1=center*1000, e2=shape — engine LFO on a target (depth 0 = detach)
-    SR_LFO_SHAPE     = 115,  // a=which, b=shape(LFO_SHAPE_*), c=slot (>=0 → instrument) ; e0/e1=handle (c<0 → live held note) — set a voice LFO's waveform
-    SR_INSTR_SYNC    = 116,  // a=slot, b=ratio*1000 — oscillator hard-sync slave:master ratio (0 = off)
-    SR_NOTE_SYNC     = 117,  // a=ratio*1000 (live, slewed), e0/e1=handle — sweep a held note's hard-sync ratio
-    SR_CART_SWITCH   = 118,  // a=context id (0..SOUND_CART_CTX-1) — umbrella-app cart switch: reset + replay that context's config log (de_switch_cart, share-panel.md)
-    SR_BPM           = 119,  // a=rate — tempo. Queued like all config so it RECORDS into the cart context; a direct global write raced de_switch_cart (main thread wrote the new cart's bpm before the audio thread snapshotted the old one's — heard as tempo jumps in the bundle)
-    SR_INSTR_UNISON        = 120,  // a=slot, b=voices, c=detune*1000 — configure the unison stack (instrument_unison)
-    SR_INSTR_UNISON_DETUNE = 121,  // a=slot, b=detune*1000 — ride the unison spread alone (instrument_unison_detune), read LIVE like tune
-    SR_INSTR_LEVEL         = 122,  // a=slot, b=level*1000 — per-slot output level/gain (instrument_level), read LIVE at mix like tune_mul
-    SR_INSTR_SAMPLE        = 123,  // a=slot, b=sample slot, c=root freq(Hz)*1000 — bind an INSTR_SAMPLE slot to a recorded PCM buffer (instrument_sample); mic-and-sampling.md piece 2
-    SR_INSTR_SAMPLE_REGION = 124,  // a=slot, b=start*1e6, c=end*1e6 — the CHOP: play the buffer from start..end (fractions 0..1); instrument_sample_region()
-    SR_INSTR_SAMPLE_MODE   = 125,  // a=slot, b=mode — INSTR_SAMPLE playback mode (normal/reverse/loop/pingpong); instrument_sample_mode()
-    SR_VOCODER      = 126,  // a=mix*1000 — the master-stage N-band vocoder (carrier = master mix, modulator = voc_mod). vocoder(); docs/design/vocoder.md
-    SR_VOCODER_SEND = 127,  // a=slot, b=amount*1000 — route a slot into the vocoder MODULATOR (send-only: its dry is muted). vocoder_send()
-    SR_VOCODER_MIC  = 128,  // a=amount*1000 — route the LIVE mic into the vocoder modulator (Phase 2). vocoder_mic()
-    SR_VOCODER_UNVOICED = 129,  // a=amount*1000 — v2: how much to noise-substitute the top bands for unvoiced consonants. vocoder_unvoiced()
-    SR_AUTOTUNE_MIC = 130,  // a=amount*1000, b=root(0..11), c=scale — LIVE streaming auto-tune of the mic (transparent-autotune.md §live). autotune_mic()
-    SR_ECHO_INS_BBD = 131,  // a=amount*1000 — BBD analog voicing on the echo INSERT (echo_insert_bbd): clock wobble on the repeats + longer-delay-darkens
-    SR_REVERB_SPRING = 132, // a=amount*1000 — SPRING voicing on the reverb (reverb_spring): dispersion "boing" + mid-band limit
-    SR_REVERB_SPRING_TONE = 133, // a=x*1000 — spring dispersion coefficient (reverb_spring_tone): the "boing" character, live
-    SR_DRIVE_VOICE = 134,   // a=voice (DRIVE_VOICE_*), b=tone*1000 — famous-pedal shaping on the drive insert (drive_voice)
-    SR_INSTR_BANDLIMIT = 135, // a=slot, b=on — PolyBLEP anti-alias the slot's saw (0 = raw naive saw, default)
-    SR_INPUT_MONITOR = 136,   // a=gain*1000 — route the LIVE mic through the master fx chain (input_monitor); audio-input-frontier.md ★1
-    SR_MULTIBAND     = 137,   // a=low, b=mid, c=high, e0=up, e1=mix (×1000) — THE master multiband squash / OTT box (multiband)
-    SR_INSTR_MULTIBAND = 138, // a=slot, b=low, c=mid, e0=high, e1=up, e2=mix (×1000) — multiband squash on one instrument's bus (instrument_multiband)
-    SR_HARMONIZE_MIC = 139,   // a=semis*100, b=voices, c=formant*1000 — LIVE fixed-interval mic harmoniser (harmonize_mic); the AM_SHIFT face of the streaming corrector
-    SR_INSTR_KEYTRACK = 140,  // a=slot, b=amount*1000 — KEYBOARD TRACKING of the filter cutoff (instrument_keytrack), audit §B2
-    SR_NOTE_RETRIG  = 141,    // e0/e1=handle — RE-ARTICULATE a held voice (note_retrig): amp+mod envelopes jump back to
-                              // attack and the engine's onset transient re-arms, resonator untouched. Audit §B3/§K6
-    SR_NOTE_GLIDE_SCALE = 142,// a=amount*1000, e0/e1=handle — GLIDE SCALE on a held note: 0 = constant time,
-                              // 1000 = per octave, ~200 = the analog law. Audit §B1
-    SR_INSTR_GLIDE  = 143,    // a=slot, b=ms — PORTAMENTO as a patch property (instrument_glide); a new voice
-                              // inherits it, and note_glide still overrides per-voice
-    SR_INSTR_GLIDE_SCALE = 144,// a=slot, b=amount*1000 — GLIDE SCALE as a patch property (instrument_glide_scale)
-    SR_INSTR_TRIGGER = 145,   // a=slot, b=TRIG_MULTI/TRIG_SINGLE — whether a note started while another key on
-                              // this slot is down gets its ONSET TRANSIENT (instrument_trigger). Audit §L4
-} SoundReqKind;
-typedef struct { SoundReqKind kind; int a, b, c; int delay_samples; int dur_samples; int e0, e1, e2; } SoundReq;
-#define SOUND_REQ_QUEUE   512   // generous: live held-voice control pushes many setters/frame, and a patch cart's
                                 // init() can define dozens of slots + several wave_set tables in one burst
-#define SOUND_DELAYED_MAX 64    // pending delayed notes (strum/schedule/schedule_hit) — fast sfx steps queue several ahead
 
-static SoundReq      req_queue[SOUND_REQ_QUEUE];
 // Lock-free SPSC ring indices. The main (game) thread is the sole producer (advances
 // head); the audio thread is the sole consumer (advances tail). Atomic acquire/release
 // gives the cross-thread memory ordering a REAL audio thread needs — native today, the
 // web AudioWorklet later — so the consumer sees a fully-written entry before it sees the
 // advanced index. (`volatile` alone is NOT a barrier.) See design/audio-threading.md.
-static atomic_int    req_head = 0;   // produced by the main thread
-static atomic_int    req_tail = 0;   // consumed by the audio thread
 
 // audio-thread-owned holding pen for delayed requests (e.g. strum)
-static SoundReq      delayed[SOUND_DELAYED_MAX];
-static int           delayed_count = 0;
 
 // ── per-cart sound contexts — the umbrella-app seam (de_switch_cart, share-panel.md) ──────
 // A cart's sound world = the LOG of its set-and-hold config requests (instrument defines,
@@ -2298,12 +1699,6 @@ static int           delayed_count = 0;
 // drain loop and every FUTURE effect is covered automatically — there is no per-effect
 // snapshot struct to rot. Events (notes/sfx/live-handle rides) are transient: never recorded.
 // Everything below is audio-thread-owned (recorded at drain, replayed at switch).
-#define SOUND_CART_CTX 8      // bundle contexts (Tinyjam wants many racks; 8 × 1024 reqs ≈ 300KB BSS)
-#define SOUND_CTX_LOG  1024   // config entries per context (a rich patch cart's init() ≈ hundreds)
-static SoundReq ctx_log[SOUND_CART_CTX][SOUND_CTX_LOG];
-static int      ctx_log_n[SOUND_CART_CTX];
-static int      ctx_active   = 0;
-static int      ctx_overflow = 0;           // config calls NOT recorded (log full) — reported in sound_tick
 static void sound_reset_state(void);        // the boot/libtcc-hot-reload clean slate; defined with sound_init below
 
 // Transient kinds — they trigger or ride a LIVE voice, so replaying them later is wrong.
@@ -2398,7 +1793,6 @@ static void sound_ctx_record(SoundReq r) {
 // count means sound calls were LOST (a wave_set flood, an init() define burst, …) — exactly
 // the silent class of bug that once made every wav-knob position play the default square.
 // sound_tick() screams about it via printh so it shows in the editor log / bake output.
-static atomic_int sound_dropped = 0;   // incremented from BOTH threads → atomic RMW
 
 // ── dropout ("Failure" knob) — random tape-catch level dips + HF loss on the whole mix ──────────
 // The Generation Loss / VHS-failure move: a sample-&-hold clock (mod_sh) randomly TRIGGERS momentary
@@ -2409,10 +1803,6 @@ static atomic_int sound_dropped = 0;   // incremented from BOTH threads → atom
 // awaits the bus pitch-shifter, Primitive 2; v1 is level + tone, the recognisable core.)
 #define DROP_EVENT_HZ  8.0f     // S&H clock: up to 8 potential catches/sec
 #define DROP_DECAY     0.9991f  // per-sample envelope decay (~25 ms catch) — momentary, not a fade
-static float    drop_amount = 0.0f;   // 0..1: catch frequency (0 = off)
-static float    drop_depth  = 0.7f;   // 0..1: severity (how far level drops + how dull)
-static bool     drop_used   = false;
-static ModState drop_mod;             // the S&H trigger source
 static void dropout_process(float *mixL, float *mixR) {
     const float dt = 1.0f / (float)SOUND_SAMPLE_RATE;
     float sh = mod_sh(&drop_mod, DROP_EVENT_HZ, dt);   // sample-&-hold: a fresh random each step, held between
@@ -2473,9 +1863,7 @@ static void fx_set_amp_noise(float hiss, float hum, int mains_hz) {
 // grain; two grains a half-window apart with a constant-power sine crossfade hide the restart. Reads
 // through the shared moddel_hermite. Master-stage (a whole-mix space, like the reverb sends). Dormant
 // until mix>0 → byte-identical. The granular shimmer's gentle warble IS the sound.
-#define SHIM_PBUF   4096        // pitch-shift delay buffer (~93 ms)
 #define SHIM_GRAIN  2048.0f     // grain/window length in samples (~46 ms) — the crossfade period
-typedef struct { float buf[SHIM_PBUF]; int wpos; float ph; } OctaveUp;
 static float octaveup_process(OctaveUp *o, float in) {
     o->buf[o->wpos] = in;
     int wp = o->wpos;
@@ -2495,14 +1883,6 @@ static float octaveup_process(OctaveUp *o, float in) {
 // (instrument_shimmer, claimed per aux bus). All per-tank state lives in ShimVoice so two shimmers
 // don't cross-talk (the DC-blocker state especially). Master (tank 0) is processed by the identical
 // math/order as the old singleton → bit-exact (verified via --det md5).
-#define SOUND_SHIM_TANKS 2          // master + one instrument bus at once (~92KB; CPU is the real cap — a full reverb + octave-up per active tank)
-typedef struct {
-    ReverbTank tank;
-    OctaveUp   oct;
-    float mix, fb, prev, dcx, dcy;  // dcx/dcy = DC-blocker state on the recirculating loop
-    bool  used;
-} ShimVoice;
-static ShimVoice shim[SOUND_SHIM_TANKS];
 static int shim_tank_for_bus(int b) {
     if (shim_bus_of[b] >= 1) return shim_bus_of[b];
     if (shim_next >= SOUND_SHIM_TANKS) { shim_overflow++; return -1; }
@@ -2543,7 +1923,6 @@ static void fx_set_shimmer(int t, float size, float damp, float shimmer, float m
 // MODULATION RIDES, IT DOESN'T ENABLE: the cart configures the effect first (filter()/drive_insert()/…);
 // fx_mod only moves the param of an already-live effect (so a stray fx_mod on a silent bus stays silent —
 // matches the static/modulated split). Dormant until first use (fxmod_any gate) → byte-identical otherwise.
-static ModState fxlfo_mod[SOUND_FX_BUSES][FXMOD_N]; // per-target state for S&H/random shapes
 
 // normalized 0..1 → the target's natural param value, written into the live array (no enable side-effect).
 static void fxmod_apply(int b, int target, float v) {
@@ -2646,10 +2025,6 @@ static void sound_set_master_gain(float g) {
 #endif
 
 // musical clock (main-thread state, ticked once per frame from studio.c)
-static int   sound_bpm     = 120;
-static float beat_accum    = 0.0f;
-static int   beat_now      = 0;
-static bool  beat_just_advanced = false;
 
 // called once per frame from studio.c, before update()
 static void sound_tick(float dt) {
@@ -4129,7 +3504,6 @@ static inline float sound_brass_sample(Voice *v, float pitch_mul) {
 // to become the public harmonics/timbre/morph macros. navkit crib: processVoicFormOscillator /
 // vfPhonemeTable (navkit/soundsystem/engines/synth_oscillators.h). The formant SVF here is the
 // same Chamberlin topology as navkit's processFormantFilter and dreamengine's own filter().
-#define VOX_NPARAM 19   // 0 vowel·1 size·2 breath·3 openq·4 tilt·5 vibDepth·6 vibRate · 7 nasality·8 openness(F1)·9 frontness(F2) + EXPERIMENTAL 10 buzz·11 jitter·12 shimmer·13 creak·14 nasalAF·15 reduce·16 measBW·17 vow2(diphthong target 0..9)·18 glide(0=primary→1=at vow2)
 _Static_assert(VOX_NPARAM <= 20, "grow Voice.vox_p[]/vox_s[] (sized [20]) before raising VOX_NPARAM");
 // vowel table — navkit's full 10 vfPhonemeTable vowel rows (Klatt 1980 / Peterson-Barney 1952):
 // F1..F4 (Hz) + relative amps + measured bandwidths. Rows 0..4 are the U→O→A→E→I path the idx-0
@@ -6125,10 +5499,10 @@ static void sound_fire_req(SoundReq r) {
         reverb_used = true;
         float size = r.a / 1000.0f;
         size = clamp01(size);
-        rvb_tank[0].fb = REVERB_FEEDBACK_MIN + size * REVERB_FEEDBACK_RANGE;   // 0.7 .. 0.95
+        rvb_tanks[0].fb = REVERB_FEEDBACK_MIN + size * REVERB_FEEDBACK_RANGE;   // 0.7 .. 0.95
         float damp = r.b / 1000.0f;
         damp = clamp01(damp);
-        rvb_tank[0].damp = damp;
+        rvb_tanks[0].damp = damp;
     } break;
     case SR_INSTR_REVERB: { // a=slot, b=send*1000
         int slot = r.a;
@@ -6164,10 +5538,10 @@ static void sound_fire_req(SoundReq r) {
         }
         float size = r.b / 1000.0f; size = clamp01(size);
         float damp = r.c / 1000.0f; damp = clamp01(damp);
-        rvb_tank[tank].fb   = REVERB_FEEDBACK_MIN + size * REVERB_FEEDBACK_RANGE;
-        rvb_tank[tank].damp = damp;
-        rvb_tank[tank].mix  = 1.0f;   // a dedicated send-bus is full wet (wet-replace) — keeps reverbspace byte-identical
-        rvb_tank[tank].used = true;
+        rvb_tanks[tank].fb   = REVERB_FEEDBACK_MIN + size * REVERB_FEEDBACK_RANGE;
+        rvb_tanks[tank].damp = damp;
+        rvb_tanks[tank].mix  = 1.0f;   // a dedicated send-bus is full wet (wet-replace) — keeps reverbspace byte-identical
+        rvb_tanks[tank].used = true;
     } break;
     case SR_INSTR_REVERB_BUS: { // a=slot, b=tank, c=mix*1000 — route a slot's send into tank N's bus
         int slot = r.a;
@@ -6202,10 +5576,10 @@ static void sound_fire_req(SoundReq r) {
         float damp = r.b / 1000.0f; damp = clamp01(damp);
         float mix  = r.c / 1000.0f; mix = clamp01(mix);
         bus_tank[0] = 1;              // master bus runs FX_REVERB through tank 1 — the in-line insert tank
-        rvb_tank[1].fb   = REVERB_FEEDBACK_MIN + size * REVERB_FEEDBACK_RANGE;
-        rvb_tank[1].damp = damp;
-        rvb_tank[1].mix  = mix;       // <1 = dry+wet blend in the chain (an honest reverb pedal)
-        rvb_tank[1].used = true;
+        rvb_tanks[1].fb   = REVERB_FEEDBACK_MIN + size * REVERB_FEEDBACK_RANGE;
+        rvb_tanks[1].damp = damp;
+        rvb_tanks[1].mix  = mix;       // <1 = dry+wet blend in the chain (an honest reverb pedal)
+        rvb_tanks[1].used = true;
         // the cart places FX_REVERB in its fx_order(0, …) list to set the reverb's position in the master chain
     } break;
     case SR_ECHO_INSERT: {  // a=time_ms, b=fb*1000, c=tone*1000, e0=mix*1000 — master in-line delay INSERT
@@ -7109,7 +6483,7 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
 
         // SEND RETURN 2 — THE reverb bus (dormant until the first reverb API call)
         if (reverb_used) {
-            float wet = reverb_process(&rvb_tank[0], reverb_in);   // tank 0 = the master send; navkit Schroeder core, MONO in v1
+            float wet = reverb_process(&rvb_tanks[0], reverb_in);   // tank 0 = the master send; navkit Schroeder core, MONO in v1
             mixL += wet; mixR += wet;                // wet adds to both channels equally (centered)
         }
 
@@ -8142,9 +7516,9 @@ void instrument_tune(int slot, float semitones) {
 // ── unison: N detuned copies of one wavetable oscillator summed = the supersaw fat (ADR-0030,
 //    design/unison-primitive.md). voices snapshots at the next note; detune rides LIVE like tune. ──
 
-void instrument_unison(int slot, int voices, float detune) {
+void instrument_unison(int slot, int n_voices, float detune) {
     if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
-    sound_push_ctrl(SR_INSTR_UNISON, slot, voices, (int)(detune * 1000.0f), 0, 0, 0);
+    sound_push_ctrl(SR_INSTR_UNISON, slot, n_voices, (int)(detune * 1000.0f), 0, 0, 0);
 }
 
 void instrument_unison_detune(int slot, float detune) {
@@ -8318,9 +7692,9 @@ void input_monitor(float gain) {   // route the LIVE mic through the master fx c
 void autotune_mic(int root, int scale, float amount) {   // LIVE streaming auto-tune of the mic (needs mic_start)
     sound_push_ctrl(SR_AUTOTUNE_MIC, (int)(amount * 1000.0f), root, scale, 0, 0, 0);
 }
-void harmonize_mic(float semitones, int voices) {   // LIVE fixed-interval mic harmoniser (needs mic_start)
+void harmonize_mic(float semitones, int n_voices) {   // LIVE fixed-interval mic harmoniser (needs mic_start)
     if (semitones < -24.0f) semitones = -24.0f; if (semitones > 24.0f) semitones = 24.0f;
-    sound_push_ctrl(SR_HARMONIZE_MIC, (int)(semitones * 100.0f), voices, 0, 0, 0, 0);
+    sound_push_ctrl(SR_HARMONIZE_MIC, (int)(semitones * 100.0f), n_voices, 0, 0, 0, 0);
 }
 void glue(int victim_bus, float amount, int attack_ms, int release_ms) {
     sound_push_ctrl(SR_GLUE, victim_bus, (int)(amount * 1000.0f), attack_ms, release_ms, 0, 0);
@@ -8805,12 +8179,12 @@ static void sound_reset_state(void) {
     // reverb tank pool: clean slate (matters for libtcc hot-reload + --det reproducibility).
     // Every tank zeroed; each defaults to size-0.5 feedback / 0.5 damping so a reverb()-before-
     // config render matches the old single-tank default exactly (byte-identical).
-    memset(rvb_tank, 0, sizeof(rvb_tank));
+    memset(rvb_tanks, 0, sizeof(rvb_tanks));
     for (int t = 0; t < SOUND_REVERB_TANKS; t++) {
-        rvb_tank[t].fb   = REVERB_FEEDBACK_MIN + 0.5f * REVERB_FEEDBACK_RANGE;
-        rvb_tank[t].damp = 0.5f;
-        rvb_tank[t].mix  = 1.0f;   // full wet by default (wet-replace); reverb_insert lowers it for an in-line blend
-        rvb_tank[t].used = false;
+        rvb_tanks[t].fb   = REVERB_FEEDBACK_MIN + 0.5f * REVERB_FEEDBACK_RANGE;
+        rvb_tanks[t].damp = 0.5f;
+        rvb_tanks[t].mix  = 1.0f;   // full wet by default (wet-replace); reverb_insert lowers it for an in-line blend
+        rvb_tanks[t].used = false;
     }
     reverb_used = false;
     for (int i = 0; i < SOUND_REVERB_TANKS; i++) tank_bus[i] = 0;   // tank → aux bus, 0 = unallocated

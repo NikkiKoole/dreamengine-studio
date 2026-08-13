@@ -1,8 +1,9 @@
 # The engine context — giving `sound.h` and `studio.c` per-instance state
 
-> **STATUS: building.** Guardrail, classification, generator and **batch 1 of `sound.h` are DONE and
-> byte-identical** — 269 of its 293 statics now live in a context struct (`node tools/engine-statics.js`
-> reads 23 for `sound.h`, down from 293). Batch 2 is the 13 typed declarations that need the type-hoist. Lane: [`HANDOFF.md`](../HANDOFF.md) → the AUv3 thread.
+> **STATUS: building. `sound.h` IS DONE and byte-identical** — 327 of its 340 statics live in the
+> context struct; `node tools/engine-statics.js` reads **13** for that file, and every one of the 13
+> is a recorded decision (1 shared, 5 harness, 5 deferred, 2 dead-weight), not a leftover. Next:
+> `studio.c` (222). Lane: [`HANDOFF.md`](../HANDOFF.md) → the AUv3 thread.
 > Sibling docs: [`ios-plan.md`](ios-plan.md) (how the AUv3 got here),
 > [`external-clock-sync.md`](external-clock-sync.md) (the transport seam it rides on).
 
@@ -45,13 +46,24 @@ declaration with a trailing comment and undercounted 2.7×):
 
 | | statics | non-zero initialisers | function-local |
 |---|---|---|---|
-| `runtime/sound.h` | 293 | 29 | 3 |
-| `runtime/studio.c` | 213 | 40 | 2 |
+| `runtime/sound.h` | 340 | 31 | 3 |
+| `runtime/studio.c` | 222 | 43 | 2 |
 | others | 39 | 2 | 2 |
-| **total** | **545** | **71** | **7** |
+| **total** | **601** | **76** | **7** |
 
-`#define` collisions across the whole translation unit: **2** (`voices`, `palette`). That number is
-what makes the macro approach viable, and it should be re-checked before each file.
+⚠ **These figures replace an earlier 545 / 293, which this tool itself got wrong.** clang's AST dump
+prints a filename only when it CHANGES, so every later entry inherits the last one — and when that
+inheritance goes stale a declaration is attributed to whatever file was named last (`sound_bpm` came
+out living in `stdbool.h`). Such a row simply falls outside the engine file set: the count looks
+plausible and the variable is never processed. The tool now VERIFIES each row against the source
+before believing it, and an independent source-side count agrees (338 vs 340 for `sound.h`, where
+before it did not). **The third undercount of this refactor, after the original grep and the
+`#define` collision check.**
+
+`#define` collisions across the whole translation unit: **5** — `rvb_tank` and `delayed` (both since
+renamed), plus `band_x/y/w/h` and `palette` still ahead in `studio.c`. An earlier "2" missed the
+STRUCT FIELD case entirely: the preprocessor does not know about `->`, so a same-named field turns
+`ins->rvb_tank` into `ins->(de_snd->rvb_tank)` and will not compile. Re-check before each file.
 
 ## Layout: the type-hoist
 
@@ -67,7 +79,7 @@ compiles clean. The generator computes that closure rather than carrying a hand-
 ## The classification
 
 Machine-readable: [`tools/ctx-classification.json`](../../tools/ctx-classification.json). **The
-default is per-instance** — 250+ of the 293 are ordinary audio state — so only exceptions are
+default is per-instance** — the large majority of the 340 are ordinary audio state — so only exceptions are
 recorded. Produced by three parallel read-only audits, one per region of the file.
 
 **Why this needed judgement rather than a script.** A byte-exact gate cannot check any of it: a
@@ -129,7 +141,7 @@ cannot see a variable that should have been per-instance and was not. `lfo_seed_
 example. Those defects are caught by review and by the two-engine probe
 (`tools/engine-dylib-spike/probe.c`), not by the byte-exact gate.
 
-## What batch 1 taught (all three were silent failures)
+## What the `sound.h` pass taught (every one was a SILENT failure)
 
 - **The include landed inside `#if defined(__SSE__)`.** "After the last `#include` in the first 200
   lines" put it in an x86-only block, so on arm64 it was never included and every moved name became an
@@ -139,6 +151,13 @@ example. Those defects are caught by review and by the two-engine probe
   `runtime/studio.c` read `runtime/sound.h` no matter what `-I` said. `--probe` now compiles the COPY's
   `studio.c` and carries a `#error` sentinel proving it reached the generated header. **This is the
   same failure shape as a `sed` that silently fails to match** — a green that means nothing.
+- **The measurement tool undercounted, twice, in ways that hid work rather than invented it.** The
+  `#define` collision check never looked at struct FIELDS, so batch 2 hit `ins->rvb_tank` becoming
+  `ins->(de_snd->rvb_tank)`. And stale file attribution in the AST parse hid 47 of `sound.h`'s
+  statics, four of which a batch then reported as moved while leaving them behind. **The generator now
+  refuses to run unless every static is either moved or explicitly skipped** — that accounting
+  invariant is the only thing that can catch a silent drop, because `refactor-guard` cannot: a
+  variable that did not move cannot change the output, so the gate stays green.
 - **The generator swept in variables nobody had decided about.** `sound_synth_mode` and the whole
   `extin_*` mic group went into the struct because the classification listed them under
   *open questions* rather than as exclusions. Harmless in step A (one context) and wrong in step B.
@@ -146,8 +165,7 @@ example. Those defects are caught by review and by the two-engine probe
 
 ## Order
 
-1. **`sound.h` alone** — self-contained, strongest oracle, clean bail-out if the pattern is wrong.
-   **Batch 1 done** (269 primitive-typed statics, byte-identical); batch 2 = the 13 typed ones.
+1. **`sound.h` — DONE**, byte-identical, 327 moved and 13 deliberately left.
 2. `studio.c`.
 3. `acidcandy`'s own statics → `de_state()`.
 4. Thread the context through the platform seam; `TinyjamAU` makes one per instance and

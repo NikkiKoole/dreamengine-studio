@@ -44,7 +44,9 @@ void tn_camera(void) {
     cam_y = floorf((SCREEN_H - 26 - (maxy - miny)) * 0.5f - miny + 12);
 }
 
-typedef struct { float depth; int cell, rot; float vx, vy, vz; int fp0, fp1; int shadow; } Draw;
+// `hh` is the household whose colour a RESIDENT wears, or -1 for anything that is not a resident.
+// Furniture's own `household` field is OWNERSHIP, not paint, so it is deliberately not put here.
+typedef struct { float depth; int cell, rot; float vx, vy, vz; int fp0, fp1; int shadow; int hh; } Draw;
 // + 2*TN_N because every tile can carry a north AND a west edge wall.
 static Draw tnr_dl[TN_MAX_OBJECTS + TN_MAX_AGENTS + 2 * TN_N];
 static int tnr_dl_n;
@@ -53,7 +55,357 @@ static int tnr_cmp_draw(const void *a, const void *b) {
     return d < 0 ? -1 : (d > 0 ? 1 : 0);
 }
 
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// THE POLYGON VIEW — the same building, as flat-shaded low-poly triangles.
+//
+// WHY. The maker's 2026-08-13 verdict was that this cart reads as an architectural diagram with a
+// caption: in a game about people sharing a building the PEOPLE were the least visible thing on it,
+// 1-tile blobs in the same colour family as the furniture. That was proved out in the `polyroom`
+// probe rather than argued about here, and low-poly + real palette ramps won. This is that probe
+// landed. polyroom is kept as the A/B bench and as the place the findings are written down.
+//
+// WHAT IS DELIBERATELY UNCHANGED, because it is what keeps 242 assertions and the player's verb
+// working. The PROJECTION is untouched (tnr_iso_project), so build.h's tnb_unproject still turns a
+// click into the right tile — that inverse is byte-identical to the forward transform and would
+// break silently if the view moved. tn_rot stays 0..3, tn_camera() stays, and the DRAW LIST above
+// (depth order, near-wall cutaway, the arithmetic that puts a sleeper on a mattress) is reused
+// exactly as it is. Only the final step changes: a mesh per cell instead of a baked sprite.
+//
+// FOUR THINGS THE PROBE MEASURED, so nobody re-derives them here:
+//   · Sort per FACE, never per triangle: two triangles of one quad cannot occlude each other, and
+//     sorting them apart cut bright slivers across thin geometry.
+//   · One NORMAL per face (Newell): prisms with unequal top offsets have non-planar sides, and a
+//     per-triangle cross product puts a diagonal shading seam across them.
+//   · SUBDIVIDE to about a tile. A painter's sort gives one depth per polygon, so a polygon
+//     spanning a large depth range is unsortable by construction — a full-length wall face was
+//     drawn over furniture standing in front of it. Vertical splitting matters as much as
+//     horizontal, because height contributes to depth in this projection.
+//   · Parts must ABUT, never interpenetrate: a painter's sort has no answer for two solids passing
+//     through each other at any granularity. polyroom's spec() gates that rule on these meshes.
+//
+// AND ONE THING THAT IS NEW HERE, because tenement is 4x the scene: zsort() is an INSERTION sort,
+// so at a couple of thousand triangles it is millions of comparisons a frame. This path qsorts,
+// the same way the draw list above already does.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+int tn_poly = 1;          // owner: art. The cart toggles it; 0 = the baked voxel sprites.
+
+enum { TNM_WOOD, TNM_UPH, TNM_CUSH, TNM_METAL, TNM_PORC, TNM_TRIM, TNM_WALL,
+       TNM_SHIRT, TNM_TROUSER, TNM_SKIN, TNM_FLOOR_A, TNM_FLOOR_B, TNM_COUNT };
+
+// Base-palette ramps, dark -> light. Used for whatever the hex budget below cannot reach, and for
+// the floor (which is drawn as the literal two browns the sprite path uses, so the ground is the
+// same pixels in both views and every difference you see is furniture and people).
+static const unsigned char TNR_RAMP[TNM_COUNT][4] = {
+    [TNM_WOOD]    = { CLR_BROWNISH_BLACK, CLR_DARK_BROWN,  CLR_BROWN,       CLR_MEDIUM_GREY },
+    [TNM_UPH]     = { CLR_DARKER_BLUE,    CLR_TRUE_BLUE,   CLR_BLUE,        CLR_LIGHT_GREY  },
+    [TNM_CUSH]    = { CLR_DARKER_PURPLE,  CLR_DARK_PURPLE, CLR_PINK,        CLR_PEACH       },
+    [TNM_METAL]   = { CLR_DARKER_GREY,    CLR_DARK_GREY,   CLR_LIGHT_GREY,  CLR_WHITE       },
+    [TNM_PORC]    = { CLR_DARK_GREY,      CLR_LIGHT_GREY,  CLR_WHITE,       CLR_WHITE       },
+    [TNM_TRIM]    = { CLR_BLACK,          CLR_BROWNISH_BLACK, CLR_DARKER_GREY, CLR_DARK_GREY },
+    [TNM_WALL]    = { CLR_BROWNISH_BLACK, CLR_DARKER_GREY, CLR_MAUVE,       CLR_MEDIUM_GREY },
+    [TNM_SHIRT]   = { CLR_DARK_RED,       CLR_RED,         CLR_DARK_PEACH,  CLR_PEACH       },
+    [TNM_TROUSER] = { CLR_BLACK,          CLR_DARKER_BLUE, CLR_DARK_BLUE,   CLR_TRUE_BLUE   },
+    [TNM_SKIN]    = { CLR_DARK_PEACH,     CLR_PEACH,       CLR_LIGHT_PEACH, CLR_WHITE       },
+    [TNM_FLOOR_A] = { CLR_BROWNISH_BLACK, CLR_DARK_BROWN,  CLR_BROWN,       CLR_MEDIUM_GREY },
+    [TNM_FLOOR_B] = { CLR_BLACK,          CLR_BROWNISH_BLACK, CLR_DARK_BROWN, CLR_BROWN     },
+};
+
+// PER-HOUSEHOLD COLOUR, which is the punch-list item "so you can see whose flat someone is standing
+// in without reading the HUD". THE BUDGET DECIDED WHERE THESE LIVE: the palette's free upper half is
+// 32 slots, and tenement has EIGHT households, so eight hex ramps would eat 24 of them and leave
+// almost nothing for materials. Households therefore take base-palette triples (a shirt is small,
+// and pico32 has enough distinct hues) and the hex slots all go to materials, which cover the screen.
+static const unsigned char TNR_HH[TN_MAX_HOUSEHOLDS][3] = {
+    { CLR_DARK_RED,      CLR_RED,          CLR_DARK_PEACH  },   // 0 red
+    { CLR_BLUE_GREEN,    CLR_MEDIUM_GREEN, CLR_GREEN       },   // 1 green
+    { CLR_DARKER_PURPLE, CLR_DARK_PURPLE,  CLR_INDIGO      },   // 2 violet
+    { CLR_DARK_BROWN,    CLR_BROWN,        CLR_ORANGE      },   // 3 amber
+    { CLR_DARKER_BLUE,   CLR_TRUE_BLUE,    CLR_BLUE        },   // 4 blue
+    { CLR_DARK_PURPLE,   CLR_PINK,         CLR_PEACH       },   // 5 pink
+    { CLR_DARK_GREEN,    CLR_LIME_GREEN,   CLR_LIGHT_YELLOW},   // 6 lime
+    { CLR_DARKER_GREY,   CLR_MEDIUM_GREY,  CLR_WHITE       },   // 7 bone
+};
+
+// ── the hex ramps: real shades out of the palette's unused upper half ────────────────────────────
+// 7 material groups x 4 shades = 28 of the 32 free slots. Shadows bend COOL and highlights WARM
+// rather than scaling toward black, because a flat multiply is what makes cheap 3D look like plastic.
+#define TNR_SLOT0  32
+#define TNR_MAT_SH 4
+enum { TNG_WOOD, TNG_WALL, TNG_METAL, TNG_UPH, TNG_CUSH, TNG_PORC, TNG_SKIN, TNG_COUNT };
+static const int TNG_BASE[TNG_COUNT] = {
+    0xab5236, 0x754665, 0xc2c3c7, 0x29adff, 0xff77a8, 0xfff1e8, 0xffccaa,
+};
+static signed char TNG_OF[TNM_COUNT];
+
+static int tnr_mix(int a, int b, float t) {
+    const int ar=(a>>16)&255, ag=(a>>8)&255, ab=a&255, br=(b>>16)&255, bg=(b>>8)&255, bb=b&255;
+    return ((int)(ar+(br-ar)*t)<<16) | ((int)(ag+(bg-ag)*t)<<8) | (int)(ab+(bb-ab)*t);
+}
+static void tnr_build_palette(void) {
+    const int SHADOW = 0x1a1420, LIGHT = 0xfff1e8;
+    for (int g = 0; g < TNG_COUNT; g++)
+        for (int s = 0; s < TNR_MAT_SH; s++) {
+            const float t = (float)s / (TNR_MAT_SH - 1);
+            palette_hex(TNR_SLOT0 + g * TNR_MAT_SH + s,
+                        (t < 0.5f) ? tnr_mix(TNG_BASE[g], SHADOW, (0.5f - t) * 1.5f)
+                                   : tnr_mix(TNG_BASE[g], LIGHT,  (t - 0.5f) * 1.1f));
+        }
+    for (int m = 0; m < TNM_COUNT; m++) TNG_OF[m] = -1;
+    TNG_OF[TNM_WOOD] = TNG_WOOD;  TNG_OF[TNM_WALL] = TNG_WALL;  TNG_OF[TNM_METAL] = TNG_METAL;
+    TNG_OF[TNM_UPH]  = TNG_UPH;   TNG_OF[TNM_CUSH] = TNG_CUSH;  TNG_OF[TNM_PORC]  = TNG_PORC;
+    TNG_OF[TNM_SKIN] = TNG_SKIN;
+}
+
+// ── the authoring primitive: a PRISM ────────────────────────────────────────────────────────────
+// A bottom rectangle, a height, and four offsets moving the TOP rectangle's corners. Box, taper,
+// shear and wedge in one thing — which is the whole reason this look is not the voxel look: a sofa
+// back can rake, a torso can widen into shoulders, a bowl can flare. Units are VOXELS, the same
+// units tools/voxel-models/tenement.js uses, so a mesh lands on the footprint of the sprite it
+// replaces. polyroom's spec() asserts exactly that, plus the no-interpenetration rule.
+typedef struct {
+    float x0, y0, z0, x1, y1, z1;
+    float dx0, dy0, dx1, dy1;
+    unsigned char mat;
+} TnPart;
+#define TNR_BOX(x0,y0,z0,x1,y1,z1,m)           { x0,y0,z0,x1,y1,z1, 0,0,0,0, m }
+#define TNR_PRISM(x0,y0,z0,x1,y1,z1,a,b,c,d,m) { x0,y0,z0,x1,y1,z1, a,b,c,d, m }
+
+static const TnPart TNP_SOFA[] = {
+    TNR_PRISM(0,0,0, 12,6,2.4f,  0.4f,0.4f,-0.4f,-0.4f, TNM_WOOD),
+    TNR_PRISM(0,0,2.4f, 12,1.9f,6,  0,-0.9f,0,-0.9f,    TNM_UPH),      // back, RAKED
+    TNR_BOX  (1.35f,1.95f,2.4f, 10.65f,6,3.9f,          TNM_UPH),
+    TNR_PRISM(0,1.95f,2.4f, 1.3f,6,4.7f, 0.2f,0,-0.2f,0, TNM_UPH),     // arms
+    TNR_PRISM(10.7f,1.95f,2.4f, 12,6,4.7f, 0.2f,0,-0.2f,0, TNM_UPH),
+    TNR_BOX  (1.4f,2.05f,3.9f, 10.6f,5.4f,4.4f,         TNM_CUSH),
+};
+// Bed stays FOUR voxels tall — the voxel models file's rule, so its outline cannot be confused with
+// the sofa's. The diagonals have to earn their keep inside that.
+static const TnPart TNP_BED[] = {
+    TNR_PRISM(0,0,0, 6,1,4.0f,  0,0.5f,0,0.5f,          TNM_WOOD),     // headboard, RAKED
+    TNR_BOX  (0,1.6f,0, 6,12,1.8f,                      TNM_WOOD),
+    TNR_BOX  (0.4f,1.8f,1.8f, 5.6f,11.6f,2.6f,          TNM_PORC),
+    TNR_PRISM(0.9f,1.9f,2.6f, 5.1f,3.8f,3.3f, 0.3f,0.2f,-0.3f,-0.2f, TNM_PORC),   // pillow
+    // Duvet reaches 4.0, the bed's DECLARED height, because a sleeper is placed there: stopping at
+    // 3.7 left the figure floating a third of a voxel and the gap rasterized as a torn seam.
+    TNR_PRISM(0.3f,4,2.6f, 5.7f,11.8f,4.0f, 0.3f,0,-0.3f,-0.4f, TNM_CUSH),
+};
+static const TnPart TNP_TOILET[] = {
+    TNR_PRISM(1,0,0, 5,2,5.4f,  0.2f,0.1f,-0.2f,-0.1f,  TNM_PORC),     // cistern
+    TNR_PRISM(1.6f,2.05f,0, 4.4f,5.2f,2.4f, -0.5f,0,0.5f,0.3f, TNM_PORC),  // bowl, FLARED forward
+    TNR_PRISM(1,2.05f,2.4f, 5,5.5f,3.0f, 0.1f,0.1f,-0.1f,-0.1f, TNM_PORC),
+    TNR_BOX  (1.4f,0.4f,5.4f, 4.6f,1.8f,5.8f,           TNM_PORC),
+};
+// Two stacked doors with a recessed dark band, not a seam plate: a thin plate on one face projects
+// its top surface as a 1px diagonal (a scratch across the door) and only exists from one quarter of
+// the orbit. The band goes all the way round.
+static const TnPart TNP_FRIDGE[] = {
+    TNR_BOX  (0,0,0, 6,6,5.4f,                          TNM_METAL),
+    TNR_BOX  (0.2f,0.2f,5.4f, 5.8f,5.8f,5.8f,           TNM_TRIM),
+    TNR_BOX  (0,0,5.8f, 6,6,11.6f,                      TNM_METAL),
+    TNR_BOX  (4.4f,6.0f,6.2f, 5.3f,6.45f,9.8f,          TNM_TRIM),     // handle
+    TNR_PRISM(0,0,11.6f, 6,6,12, 0.15f,0.15f,-0.15f,-0.15f, TNM_TRIM),
+};
+static const TnPart TNP_COUNTER[] = {
+    TNR_PRISM(0.6f,0.8f,0, 5.4f,6,5.4f, -0.3f,-0.5f,0.3f,0, TNM_WOOD), // toe kick
+    TNR_BOX  (0,0,5.4f, 6,6,6.2f,                       TNM_METAL),
+    TNR_BOX  (0.5f,6.0f,2.4f, 5.5f,6.15f,2.7f,          TNM_TRIM),
+};
+// The loom must read as MACHINERY, not a second wardrobe (a punch-list item). Skeletal posts, a top
+// beam, and a RAKED WARP PLANE — a leaning plane is the shape a voxel grid cannot make.
+static const TnPart TNP_LOOM[] = {
+    TNR_BOX  (0.2f,0.2f,0, 1.2f,1.2f,11,                TNM_WOOD),
+    TNR_BOX  (4.8f,0.2f,0, 5.8f,1.2f,11,                TNM_WOOD),
+    TNR_BOX  (0.2f,2.8f,0, 1.2f,3.8f,9,                 TNM_WOOD),
+    TNR_BOX  (4.8f,2.8f,0, 5.8f,3.8f,9,                 TNM_WOOD),
+    TNR_BOX  (1.3f,1.3f,2.4f, 4.7f,3.1f,3.1f,           TNM_WOOD),
+    TNR_PRISM(1.3f,1.0f,3.2f, 4.7f,1.6f,10.4f, 0,2.0f,0,2.0f, TNM_CUSH),   // the warp, LEANING
+    TNR_BOX  (0,0.4f,11.0f, 6,3.6f,11.9f,               TNM_WOOD),
+};
+static const TnPart TNP_WARDROBE[] = {
+    TNR_PRISM(0.4f,0.4f,0, 5.6f,4.0f,9.4f, 0.1f,0.1f,-0.1f,-0.1f, TNM_WOOD),
+    TNR_BOX  (2.8f,4.0f,0.6f, 3.2f,4.25f,9.2f,          TNM_TRIM),
+    TNR_BOX  (0,0.2f,9.4f, 6,4.2f,10,                   TNM_WOOD),     // cornice
+};
+// THE FIGURE, and it is the whole point of this change. The voxel version needed literal arm voxels
+// to get a shoulder line wider than the head (its own comment says the armless cut "read as a lamp").
+// A prism gets it free: the torso is simply WIDER AT THE TOP. Four parts, 48 triangles, a person
+// rather than a 12-voxel column.
+static const TnPart TNP_PERSON[] = {
+    TNR_PRISM(1.0f,0.9f,0, 2.2f,2.1f,5.2f,  0.15f,0,-0.15f,0, TNM_TROUSER),
+    TNR_PRISM(2.8f,0.9f,0, 4.0f,2.1f,5.2f,  0.15f,0,-0.15f,0, TNM_TROUSER),
+    TNR_PRISM(1.1f,0.7f,5.2f, 3.9f,2.3f,9.3f, -0.7f,-0.1f,0.7f,0.1f, TNM_SHIRT),  // SHOULDERS
+    TNR_PRISM(1.6f,0.9f,9.3f, 3.4f,2.1f,11.6f, 0.25f,0.2f,-0.25f,-0.2f, TNM_SKIN),
+};
+static const TnPart TNP_PERSON_LIE[] = {
+    TNR_PRISM(0.5f,0,0.2f, 2.5f,1.3f,1.9f, 0.2f,0.15f,-0.2f,-0.15f, TNM_SKIN),
+    TNR_PRISM(0.2f,1.4f,0, 2.8f,7.6f,1.6f, 0.2f,0,-0.2f,-0.4f, TNM_SHIRT),
+};
+static const TnPart TNP_WALL_FULL_NS[] = { TNR_BOX(0,0,0, 6,2,12, TNM_WALL) };
+static const TnPart TNP_WALL_FULL_EW[] = { TNR_BOX(0,0,0, 2,6,12, TNM_WALL) };
+static const TnPart TNP_WALL_LOW_NS[]  = { TNR_PRISM(0,0,0, 6,2,4, 0.2f,0.2f,-0.2f,-0.2f, TNM_WALL) };
+static const TnPart TNP_WALL_LOW_EW[]  = { TNR_PRISM(0,0,0, 2,6,4, 0.2f,0.2f,-0.2f,-0.2f, TNM_WALL) };
+
+// cell -> mesh, indexed by the SAME enum the baked atlas uses, so one draw-list entry addresses
+// either renderer and the two views cannot drift apart on what a thing is.
+typedef struct { const TnPart *p; int n; } TnMesh;
+#define TNR_MESH(a) { a, (int)(sizeof(a)/sizeof((a)[0])) }
+static const TnMesh TNR_MESHES[ISO_MODEL_COUNT] = {
+    [ISO_SOFA]         = TNR_MESH(TNP_SOFA),         [ISO_BED]          = TNR_MESH(TNP_BED),
+    [ISO_TOILET]       = TNR_MESH(TNP_TOILET),       [ISO_FRIDGE]       = TNR_MESH(TNP_FRIDGE),
+    [ISO_COUNTER]      = TNR_MESH(TNP_COUNTER),      [ISO_LOOM]         = TNR_MESH(TNP_LOOM),
+    [ISO_WARDROBE]     = TNR_MESH(TNP_WARDROBE),     [ISO_PERSON]       = TNR_MESH(TNP_PERSON),
+    [ISO_PERSON_LIE]   = TNR_MESH(TNP_PERSON_LIE),
+    [ISO_WALL_FULL_NS] = TNR_MESH(TNP_WALL_FULL_NS), [ISO_WALL_FULL_EW] = TNR_MESH(TNP_WALL_FULL_EW),
+    [ISO_WALL_LOW_NS]  = TNR_MESH(TNP_WALL_LOW_NS),  [ISO_WALL_LOW_EW]  = TNR_MESH(TNP_WALL_LOW_EW),
+};
+
+// ── the triangle buffer ─────────────────────────────────────────────────────────────────────────
+// `near` is larger for NEARER, matching the draw list's own convention above, and is sorted
+// ASCENDING so far draws first. Derived from the projection rather than assumed: a world offset
+// leaves the screen position unchanged when X==Y and (X+Y)*ISO_TH/2 == z*ISO_ZH, which for this
+// projection makes the view ray (1,1,1) in turned coords — so nearness is X + Y + z.
+typedef struct { int x[3], y[3]; float near; unsigned char col; } TnTri;
+#define TNR_MAX_TRIS 8192
+static TnTri tnr_tri[TNR_MAX_TRIS];
+static int   tnr_tri_n;
+static int   tnr_cmp_tri(const void *a, const void *b) {
+    const float d = ((const TnTri*)a)->near - ((const TnTri*)b)->near;
+    return d < 0 ? -1 : (d > 0 ? 1 : 0);
+}
+static float tnr_near3(float vx, float vy, float vz) {
+    float X, Y; tnr_iso_turn(tn_rot, vx, vy, &X, &Y); return X + Y + vz;
+}
+
+// Brightness -> a palette index. Screen-space rule rather than a dot product against a light, and
+// that is a fix not a style: any single light direction TIES two perpendicular faces at whichever
+// rotation puts them symmetric about it, and then the corner between them vanishes (a fridge came
+// out as one flat pane). The voxel bake never has this because it assigns [top, screen-right,
+// screen-left] by DIRECTION. This is that rule made continuous, so rakes and tapers still get
+// in-between values, and it cannot tie: the view direction bisects the two visible side faces, so
+// their screen-right-ness is always opposite in sign.
+static int tnr_shade(const float n[3], int mat, int hh) {
+    float NX, NY; tnr_iso_turn(tn_rot, n[0], n[1], &NX, &NY);
+    const float right = (NX - NY) * 0.70710678f;      // sx = (X-Y)*ISO_TW/2, so this IS screen-right
+    const float up    = n[2] > 0.0f ? n[2] : 0.0f;
+    float br = 0.20f + 0.38f * up + 0.40f * (0.5f + 0.5f * right);
+    if (br > 1.0f) br = 1.0f;  if (br < 0.0f) br = 0.0f;
+
+    if (mat >= TNM_FLOOR_A) return TNR_RAMP[mat][2];   // floor: flat, and the sprite view's colour
+    if (mat == TNM_SHIRT && hh >= 0 && hh < TN_MAX_HOUSEHOLDS)
+        return TNR_HH[hh][br > 0.72f ? 2 : (br > 0.50f ? 1 : 0)];
+    if (TNG_OF[mat] >= 0) {
+        int s = (int)(br * (TNR_MAT_SH - 0.001f));
+        if (s > TNR_MAT_SH - 1) s = TNR_MAT_SH - 1;  if (s < 0) s = 0;
+        return TNR_SLOT0 + TNG_OF[mat] * TNR_MAT_SH + s;
+    }
+    int s = (int)(br * 3.999f);  if (s > 3) s = 3;  if (s < 0) s = 0;
+    return TNR_RAMP[mat][s];
+}
+
+static void tnr_push(const float a[3], const float b[3], const float c[3], int col, float nr) {
+    if (tnr_tri_n >= TNR_MAX_TRIS) return;
+    TnTri *t = &tnr_tri[tnr_tri_n];
+    const float *v[3] = { a, b, c };
+    for (int i = 0; i < 3; i++) {
+        float sx, sy; tnr_iso_project(tn_rot, v[i][0], v[i][1], v[i][2], &sx, &sy);
+        t->x[i] = (int)(sx + cam_x);  t->y[i] = (int)(sy + cam_y);
+    }
+    t->near = nr;  t->col = (unsigned char)col;
+    tnr_tri_n++;
+}
+
+// One face: Newell normal (correct for the non-planar sides a taper produces), backface cull, one
+// shade for the whole face, then subdivided to about a tile so the sort stays sound.
+static void tnr_face(const float a[3], const float b[3], const float c[3], const float d[3],
+                     int mat, int hh) {
+    const float *p[4] = { a, b, c, d };
+    float n[3] = { 0, 0, 0 };
+    for (int i = 0; i < 4; i++) {
+        const float *u = p[i], *w = p[(i + 1) & 3];
+        n[0] += (u[1]-w[1]) * (u[2]+w[2]);
+        n[1] += (u[2]-w[2]) * (u[0]+w[0]);
+        n[2] += (u[0]-w[0]) * (u[1]+w[1]);
+    }
+    const float len = sqrtf(n[0]*n[0] + n[1]*n[1] + n[2]*n[2]);
+    if (len < 1e-6f) return;
+    n[0] /= len; n[1] /= len; n[2] /= len;
+    // The view ray is (1,1,1) in TURNED coords, so a face is visible when its turned normal plus
+    // its z component points at the camera. Same derivation as tnr_near3.
+    float TNx, TNy; tnr_iso_turn(tn_rot, n[0], n[1], &TNx, &TNy);
+    if (TNx + TNy + n[2] <= 0.0f) return;          // backface: with no z-buffer this is correctness
+    const int col = tnr_shade(n, mat, hh);
+
+    const float ux=b[0]-a[0], uy=b[1]-a[1], uz=b[2]-a[2];
+    const float vx=d[0]-a[0], vy=d[1]-a[1], vz=d[2]-a[2];
+    int nu = (int)(sqrtf(ux*ux+uy*uy+uz*uz) / (float)TN_TILE_VOX + 0.999f);
+    int nv = (int)(sqrtf(vx*vx+vy*vy+vz*vz) / (float)TN_TILE_VOX + 0.999f);
+    if (nu < 1) nu = 1;  if (nu > 6) nu = 6;
+    if (nv < 1) nv = 1;  if (nv > 6) nv = 6;
+    for (int j = 0; j < nv; j++) for (int i = 0; i < nu; i++) {
+        const float ss[4] = { (float)i/nu, (float)(i+1)/nu, (float)(i+1)/nu, (float)i/nu };
+        const float tt[4] = { (float)j/nv, (float)j/nv, (float)(j+1)/nv, (float)(j+1)/nv };
+        float q[4][3], cen[3] = { 0, 0, 0 };
+        for (int k = 0; k < 4; k++) for (int e = 0; e < 3; e++) {
+            const float top = a[e] + (b[e]-a[e]) * ss[k];
+            const float bot = d[e] + (c[e]-d[e]) * ss[k];
+            q[k][e] = top + (bot-top) * tt[k];
+            cen[e] += q[k][e];
+        }
+        const float nr = tnr_near3(cen[0]*0.25f, cen[1]*0.25f, cen[2]*0.25f);
+        tnr_push(q[0], q[1], q[2], col, nr);
+        tnr_push(q[0], q[2], q[3], col, nr);
+    }
+}
+
+// A prism's six faces, wound counter-clockwise seen from OUTSIDE so the normal points out.
+static void tnr_part(const TnPart *p, float ox, float oy, float oz, int hh) {
+    const float bx0=p->x0+ox, by0=p->y0+oy, bx1=p->x1+ox, by1=p->y1+oy;
+    const float tx0=p->x0+p->dx0+ox, ty0=p->y0+p->dy0+oy;
+    const float tx1=p->x1+p->dx1+ox, ty1=p->y1+p->dy1+oy;
+    const float z0=p->z0+oz, z1=p->z1+oz;
+    const float b0[3]={bx0,by0,z0}, b1[3]={bx1,by0,z0}, b2[3]={bx1,by1,z0}, b3[3]={bx0,by1,z0};
+    const float u0[3]={tx0,ty0,z1}, u1[3]={tx1,ty0,z1}, u2[3]={tx1,ty1,z1}, u3[3]={tx0,ty1,z1};
+    const int m = p->mat;
+    tnr_face(u0,u1,u2,u3, m,hh);  tnr_face(b0,b3,b2,b1, m,hh);   // top, bottom
+    tnr_face(b0,b1,u1,u0, m,hh);  tnr_face(b2,b3,u3,u2, m,hh);   // front, back
+    tnr_face(b3,b0,u0,u3, m,hh);  tnr_face(b1,b2,u2,u1, m,hh);   // left, right
+}
+
+// Which household a draw-list entry belongs to, for the shirt colour. Only residents carry one; the
+// furniture's own `household` is ownership, not paint, so it is deliberately NOT read here.
+static void tnr_draw_poly(void) {
+    tnr_tri_n = 0;
+    // Floor. The outer tiles run 2 voxels UNDER the walls: the floor's edge and the wall's base are
+    // the same line in space, and two polygons meeting exactly on a line leave the boundary pixel
+    // unowned under pixel-centre coverage — which showed as a dashed dark seam all round the room.
+    for (int ty = 0; ty < tn_bh; ty++) for (int tx = 0; tx < tn_bw; tx++) {
+        float x0 = (float)(tx*TN_TILE_VOX), y0 = (float)(ty*TN_TILE_VOX);
+        float x1 = x0 + TN_TILE_VOX, y1 = y0 + TN_TILE_VOX;
+        if (tx == 0)          x0 -= 2.0f;
+        if (ty == 0)          y0 -= 2.0f;
+        if (tx == tn_bw - 1)  x1 += 2.0f;
+        if (ty == tn_bh - 1)  y1 += 2.0f;
+        const float a[3]={x0,y0,0}, b[3]={x1,y0,0}, c[3]={x1,y1,0}, d[3]={x0,y1,0};
+        tnr_face(a, b, c, d, ((tx+ty)&1) ? TNM_FLOOR_A : TNM_FLOOR_B, -1);
+    }
+    for (int i = 0; i < tnr_dl_n; i++) {
+        const TnMesh *m = &TNR_MESHES[tnr_dl[i].cell];
+        for (int p = 0; p < m->n; p++)
+            tnr_part(&m->p[p], tnr_dl[i].vx, tnr_dl[i].vy, tnr_dl[i].vz, tnr_dl[i].hh);
+    }
+    // qsort, NOT zsort: zsort is an insertion sort, and this scene is thousands of triangles where
+    // that is millions of comparisons a frame. Same reason the draw list above qsorts.
+    qsort(tnr_tri, tnr_tri_n, sizeof tnr_tri[0], tnr_cmp_tri);
+    for (int i = 0; i < tnr_tri_n; i++) {
+        const TnTri *t = &tnr_tri[i];
+        trifill(t->x[0], t->y[0], t->x[1], t->y[1], t->x[2], t->y[2], t->col);
+    }
+}
+
 void tn_draw_world(void) {
+    static int pal_done = 0;
+    if (!pal_done) { tnr_build_palette(); pal_done = 1; }   // lazy: the frozen contract gains no entry
+    if (!tn_poly)
     for (int ty = 0; ty < tn_bh; ty++) for (int tx = 0; tx < tn_bw; tx++) {
         float c[4][2]; const float vx = tx*TN_TILE_VOX, vy = ty*TN_TILE_VOX;
         tnr_iso_project(tn_rot, vx,             vy,             0, &c[0][0], &c[0][1]);
@@ -71,7 +423,7 @@ void tn_draw_world(void) {
         tnr_dl[tnr_dl_n++] = (Draw){ tnr_iso_depth(tn_rot, tn_obj[o].tx*TN_TILE_VOX + fp[0]*0.5f,
                                                tn_obj[o].ty*TN_TILE_VOX + fp[1]*0.5f),
                              cell, tn_rot, (float)tn_obj[o].tx*TN_TILE_VOX,
-                             (float)tn_obj[o].ty*TN_TILE_VOX, 0.0f, fp[0], fp[1], 1 };
+                             (float)tn_obj[o].ty*TN_TILE_VOX, 0.0f, fp[0], fp[1], 1, -1 };
     }
     for (int i = 0; i < tn_agent_n; i++) {
         // The cell comes from the agent's POSE, which came from the offer it is using. No branch on
@@ -103,7 +455,8 @@ void tn_draw_world(void) {
             arot = tn_rot;                            // align with the furniture, not with the walk
         }
         tnr_dl[tnr_dl_n++] = (Draw){ tnr_iso_depth(tn_rot, ax + fp[0]*0.5f, ay + fp[1]*0.5f) + 0.5f,
-                             pcell, arot, ax, ay, az, fp[0], fp[1], az == 0.0f };
+                             pcell, arot, ax, ay, az, fp[0], fp[1], az == 0.0f,
+                             (int)tn_agent[i].household };
     }
     // ── EDGE WALLS ──────────────────────────────────────────────────────────
     // world.h stores walls on tile EDGES, not tiles, and only each tile's north and west edge (the
@@ -145,7 +498,7 @@ void tn_draw_world(void) {
                     const int cell = (en == TN_WALL_DOOR || near_n) ? ISO_WALL_LOW_NS : ISO_WALL_FULL_NS;
                     const short *fp = ISO_FOOTPRINT[cell];
                     tnr_dl[tnr_dl_n++] = (Draw){ tnr_iso_depth(tn_rot, vx + fp[0] * 0.5f, vy),
-                                                 cell, tn_rot, vx, vy - 1.0f, 0.0f, fp[0], fp[1], 0 };
+                                                 cell, tn_rot, vx, vy - 1.0f, 0.0f, fp[0], fp[1], 0, -1 };
                 }
             }
             if (ty < tn_bh) {
@@ -154,13 +507,14 @@ void tn_draw_world(void) {
                     const int cell = (ew == TN_WALL_DOOR || near_w) ? ISO_WALL_LOW_EW : ISO_WALL_FULL_EW;
                     const short *fp = ISO_FOOTPRINT[cell];
                     tnr_dl[tnr_dl_n++] = (Draw){ tnr_iso_depth(tn_rot, vx, vy + fp[1] * 0.5f),
-                                                 cell, tn_rot, vx - 1.0f, vy, 0.0f, fp[0], fp[1], 0 };
+                                                 cell, tn_rot, vx - 1.0f, vy, 0.0f, fp[0], fp[1], 0, -1 };
                 }
             }
         }
     }
 
     qsort(tnr_dl, tnr_dl_n, sizeof tnr_dl[0], tnr_cmp_draw);
+    if (tn_poly) { tnr_draw_poly(); return; }
     for (int i = 0; i < tnr_dl_n; i++) {
         const IsoCell *c = &ISO_CELLS[tnr_dl[i].cell][tnr_dl[i].rot];
         float sx, sy; tnr_iso_project(tn_rot, tnr_dl[i].vx, tnr_dl[i].vy, tnr_dl[i].vz, &sx, &sy);

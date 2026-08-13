@@ -264,13 +264,21 @@ static const TnMesh TNR_MESHES[ISO_MODEL_COUNT] = {
 // ASCENDING so far draws first. Derived from the projection rather than assumed: a world offset
 // leaves the screen position unchanged when X==Y and (X+Y)*ISO_TH/2 == z*ISO_ZH, which for this
 // projection makes the view ray (1,1,1) in turned coords — so nearness is X + Y + z.
-typedef struct { int x[3], y[3]; float near; unsigned char col; } TnTri;
+typedef struct { int x[3], y[3]; float near; int seq; unsigned char col; } TnTri;
 #define TNR_MAX_TRIS 8192
 static TnTri tnr_tri[TNR_MAX_TRIS];
 static int   tnr_tri_n;
+// `seq` EXISTS TO BREAK TIES, and without it the picture flickers. qsort is NOT a stable sort, so
+// two faces at equal depth may come out in either order — and worse, in an order that changes as
+// UNRELATED elements move, because the pivot choices change. Residents move every frame, so a tied
+// pair of wall faces swapped every frame and the corner strobed between two shades. A total order
+// makes the frame a function of the scene alone. (zsort's insertion pass happens to be stable, so
+// this trap is created by the very change that made the sort affordable at this scale.)
 static int   tnr_cmp_tri(const void *a, const void *b) {
-    const float d = ((const TnTri*)a)->near - ((const TnTri*)b)->near;
-    return d < 0 ? -1 : (d > 0 ? 1 : 0);
+    const TnTri *p = (const TnTri*)a, *q = (const TnTri*)b;
+    if (p->near < q->near) return -1;
+    if (p->near > q->near) return  1;
+    return p->seq - q->seq;
 }
 static float tnr_near3(float vx, float vy, float vz) {
     float X, Y; tnr_iso_turn(tn_rot, vx, vy, &X, &Y); return X + Y + vz;
@@ -310,7 +318,7 @@ static void tnr_push(const float a[3], const float b[3], const float c[3], int c
         float sx, sy; tnr_iso_project(tn_rot, v[i][0], v[i][1], v[i][2], &sx, &sy);
         t->x[i] = (int)(sx + cam_x);  t->y[i] = (int)(sy + cam_y);
     }
-    t->near = nr;  t->col = (unsigned char)col;
+    t->near = nr;  t->col = (unsigned char)col;  t->seq = tnr_tri_n;
     tnr_tri_n++;
 }
 
@@ -389,9 +397,26 @@ static void tnr_draw_poly(void) {
         tnr_face(a, b, c, d, ((tx+ty)&1) ? TNM_FLOOR_A : TNM_FLOOR_B, -1);
     }
     for (int i = 0; i < tnr_dl_n; i++) {
-        const TnMesh *m = &TNR_MESHES[tnr_dl[i].cell];
+        const int cell = tnr_dl[i].cell;
+        const TnMesh *m = &TNR_MESHES[cell];
+        // WALLS ARE NUDGED FULLY ONTO ONE SIDE OF THEIR EDGE, and this is a correctness fix rather
+        // than a taste one. The draw list STRADDLES them: a north wall is two voxels thick centred
+        // on the boundary (y-1 .. y+1) and a west wall likewise (x-1 .. x+1), so at every corner the
+        // two share a 1x1x12 COLUMN. Sprites did not care — both are the same opaque wall art — but
+        // meshes do: one wall's buried end face fights the other's surface, and since the two faces
+        // are lit as screen-right and screen-left they differ in shade, so the corner strobed between
+        // dark and light. Interpenetration is the one artifact a painter's sort cannot resolve at any
+        // granularity, so it has to go from the GEOMETRY.
+        // Shifting each family one voxel off the boundary makes corners TOUCH instead of overlap
+        // (verify: north spans y-2..y and west spans x-2..x, and those two boxes share zero volume),
+        // while consecutive walls along one edge still meet exactly. The cost is that a wall sits
+        // just inside the tile north/west of its edge rather than centred on it — a one-voxel
+        // asymmetry, invisible next to a strobing corner.
+        float ox = tnr_dl[i].vx, oy = tnr_dl[i].vy;
+        if (cell == ISO_WALL_LOW_NS || cell == ISO_WALL_FULL_NS) oy -= 1.0f;
+        if (cell == ISO_WALL_LOW_EW || cell == ISO_WALL_FULL_EW) ox -= 1.0f;
         for (int p = 0; p < m->n; p++)
-            tnr_part(&m->p[p], tnr_dl[i].vx, tnr_dl[i].vy, tnr_dl[i].vz, tnr_dl[i].hh);
+            tnr_part(&m->p[p], ox, oy, tnr_dl[i].vz, tnr_dl[i].hh);
     }
     // qsort, NOT zsort: zsort is an insertion sort, and this scene is thousands of triangles where
     // that is millions of comparisons a frame. Same reason the draw list above qsorts.

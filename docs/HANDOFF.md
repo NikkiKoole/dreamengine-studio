@@ -136,22 +136,36 @@ a broken doc link or `#section`).
 > state in file-scope globals and is therefore a singleton by construction — fine for a fantasy console,
 > awkward for a plug-in. Every other option on this page is a workaround for that.
 >
-> ⚠ **An earlier version of this very block said DO NOT DO THIS, citing "~204 statics".** That figure was
-> never looked at, and it is misleading in three ways. Measured:
+> ⚠ **TWO earlier figures here were both wrong, in opposite directions.** "~204 statics" (which once
+> said DO NOT DO THIS) was never looked at. The 91/109 that replaced it came from
+> `grep -E '^static [^(]*;$'`, which requires the declaration to END at the semicolon — so it dropped
+> every declaration carrying a trailing `// comment`, i.e. most of them. **It undercounted by 2.7×.**
+> The real figures, from the compiler's own AST, and now a command you can re-run at any point to see
+> the refactor's progress — `node tools/engine-statics.js` (`--quiet` · `--check` = 13 known answers):
 >
-> | | mutable file-scope vars | of those, NON-ZERO initialisers |
-> |---|---|---|
-> | `runtime/sound.h` | 91 | **14** |
-> | `runtime/studio.c` | 109 | **20** |
-> | `acidcandy` | **20** (29 total, 9 const) | — |
+> | | mutable file-scope statics | NON-ZERO initialisers | function-local statics |
+> |---|---|---|---|
+> | `runtime/sound.h` | **293** | 29 | 3 |
+> | `runtime/studio.c` | **213** | 40 | 2 |
+> | `runtime/sync.h` | 21 | 1 | 0 |
+> | `runtime/mic.h` | 11 | 1 | 2 |
+> | `runtime/midi_output.h` | 7 | 0 | 0 |
+> | **TOTAL** | **545** | **71** | **7** |
 >
-> (`grep -E '^static [^(]*;$' <file> \| grep -vE '\(\|const'` — a LOWER bound; it misses multi-line decls.)
+> Cross-checked independently against the linker's view: `nm -m` on a compiled `studio.o` reports **639**
+> non-external mutable data symbols for the whole TU (the extra ~90 are the vendored headers, `stb_image`
+> and friends).
 >
-> **Why this is days, not a project:**
+> **It is still days rather than a project — but for a reason that had not been measured until now.**
 > · **The call sites do not change.** Move the declarations into one struct, add `#define name (ctx->name)`
->   per member, and every existing reference keeps compiling untouched. The only hand work is the 34
->   non-zero initialisers, which become an init function — the rest are zero/NULL and come free from a
->   calloc.
+>   per member, and every existing reference keeps compiling untouched. The hand work is only the **71**
+>   non-zero initialisers, which become an init function — the other 474 are zero/NULL/absent and come
+>   free from a calloc.
+> · **The thing that could have made this miserable is measured at nearly zero: `#define` COLLISIONS.**
+>   Across the entire translation unit only **2** static names are also used as a local or a parameter —
+>   `voices` (a parameter in `sound.h`) and `palette` (inside `stb_image.h`) — and only **7**
+>   function-local statics exist, which are the ones a `#define` cannot fix because the declaration
+>   itself has to move. `engine-statics.js` prints both lists; check it is still ~0 before each file.
 > · **The oracle is BYTE-EXACT, and that is the whole reason this is safe.** A pure state move MUST
 >   produce identical output, and this repo can prove it: `node tools/tune-check.js --quiet`, the golden
 >   WAVs, `canvas-diff --bytecheck`, `node tools/spec.js`, `tools/det-probes/run.sh`. Any semantic slip
@@ -162,10 +176,27 @@ a broken doc link or `#section`).
 >   hot-reload). Put that block inside the engine context and a cart's state duplicates with it. One
 >   mechanism covers engine and cart. acidcandy's 20 mutable statics move into `STATE`.
 >
+> **▶ THE ONE DESIGN DECISION TO SETTLE BEFORE WRITING ANY CODE: how does `ctx` get into scope?**
+> The `#define name (ctx->name)` trick needs an in-scope `ctx` in all **304** functions in `sound.h`
+> (and 303 in `studio.c`). Three shapes, and they are NOT equivalent:
+> · **(a) a plain global pointer** — `static DeSound *snd_ctx;` + `#define echo_fb (snd_ctx->echo_fb)`.
+>   Smallest possible diff, zero call-site changes. **But it is a data race by construction:** AUv3
+>   permits a host to render two audio units on two threads at once, and both would be writing the one
+>   "current instance" pointer. This just moves the shared-state bug from the engine to the pointer.
+> · **(b) the same pointer, `_Thread_local`.** Identical diff, race-free: each thread (each render
+>   thread, the frame worker) sets its own current context on entry. Costs a TLS load per access —
+>   which needs measuring in the per-sample DSP loops, not assuming.
+> · **(c) an explicit `ctx` first parameter through all 634 engine functions.** The textbook answer,
+>   race-free, no macros — and a diff touching every function and every internal call site.
+> **Recommended: (b), then measure.** It keeps the "call sites do not change" property that makes this
+> days rather than weeks, and unlike (a) it is correct under concurrent render. If the DSP loops
+> regress, promote only the hot functions to (c) — the byte-exact oracle makes that safe to do
+> incrementally, and the profiler (`profiler_request`) says which ones.
+>
 > **Order — do NOT take both engine files at once:**
-> 1. **`runtime/sound.h` ALONE** (91 vars / 14 initialisers, self-contained, strongest oracle in the repo).
->    Prove the pattern here; if it does not work you have lost an afternoon on one file with a clean
->    bail-out instead of holding the whole engine broken.
+> 1. **`runtime/sound.h` ALONE** (293 statics / 29 non-zero initialisers, self-contained, strongest
+>    oracle in the repo). Prove the pattern here; if it does not work you have lost an afternoon on one
+>    file with a clean bail-out instead of holding the whole engine broken.
 > 2. **`runtime/studio.c`.**
 > 3. **`acidcandy`'s statics → `STATE`.**
 > 4. **Thread the context through `engine.h`** — `de_ctx_create()` / `de_ctx_select()`, or a ctx argument.
@@ -187,6 +218,19 @@ a broken doc link or `#section`).
 > full-file `Write`, and re-check your change survived the commit).
 >
 > **▶ SETTLED BY MEASUREMENT — do NOT re-derive any of these.**
+> · **"Apple expects per-instance DSP state" is now SOURCED, not asserted** (checked 2026-08-13; it was
+>   previously on one agent's word, which is why it is written down here). Two primary sources, both read:
+>   **(1)** Apple's own shipped Xcode Audio Unit Extension template — on this Mac at
+>   `/Applications/Xcode26_6.app/Contents/Developer/Library/Xcode/Templates/Project Templates/MultiPlatform/Application Extension/Audio Unit Extension.xctemplate/Instrument`
+>   — declares `var kernel = ___DSPKernel()` as an **instance property of the `AUAudioUnit` subclass**,
+>   holds every piece of DSP state (sample rate, gain, note envelope, musical-context block, bypass,
+>   max frames) as **members of that kernel**, and contains **zero** file-scope statics
+>   (`grep -rn '^static' <that dir>` returns nothing). **(2)** An Apple engineer on the developer forums
+>   ([thread 65909](https://developer.apple.com/forums/thread/65909)) confirming the process model:
+>   *"there's no way to force a new extension process for each instance of the same audio unit being
+>   instantiated multiple times"*. So: one process is guaranteed, per-instance state is what Apple's own
+>   code does, and there is no "one engine per process" allowance to appeal to. **The non-conforming part
+>   is ours.** Do not re-open this.
 > · **The panel is connected.** `PANEL CONNECTED — this panel's own audio unit is the one being rendered`,
 >   in GarageBand. Defect (A) never existed; the finding that created it was a diagnostic whose
 >   "connected" branch was unreachable by construction. The four-way fork it spawned (park / per-instance
@@ -208,9 +252,15 @@ a broken doc link or `#section`).
 >
 > **⛔ DO NOT.**
 > · **Reach for the dylib route first.** It works and it is measured, but it is a WORKAROUND for an engine
->   that should not be a singleton: K is a hard cap, memory multiplies (~4.5 MB/engine), it rests on dyld
->   image-dedup behaviour rather than a contract, and it is unusual enough to draw a question in review.
->   Do the struct; keep this in your pocket.
+>   that should not be a singleton: K is a hard cap, it rests on dyld image-dedup behaviour rather than a
+>   contract, and it is unusual enough to draw a question in review. Do the struct; keep this in your pocket.
+>   ⚠ **Do NOT reuse the memory argument that used to sit in this bullet** ("~4.5 MB/engine"): it does not
+>   discriminate, because the struct route costs the SAME. `size -m` on a compiled `studio.o` puts the
+>   engine's mutable statics at **6.2 MB**, and a per-instance context is exactly that, calloc'd per
+>   instance. What it does buy is control the dylib route cannot give: **83% of those bytes are 10
+>   symbols** (`mic_rec` 1.4 MB · `grain_pool` 1 MB · the echo/varispeed buffers ~1.4 MB · `voices`
+>   323 KB · plus two debug-only buffers), so per-instance cost can be cut by leaving the shared or
+>   harness-only ones out of the context and allocating the big buffers lazily.
 > · Point `AudioComponentBundle` at a Catalyst framework. It breaks the plug-in in every DAW while every
 >   other gate stays green. `au-transport-check --loadable` (the FIRST gate in `mac.sh`) now catches it.
 > · Copy a dylib at runtime and load it. It fails, and it accuses the user of running malware.

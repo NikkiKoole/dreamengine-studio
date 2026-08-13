@@ -664,6 +664,16 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
                              `--selfcheck` = the KNOWN-ANSWER fixture (tools/fixtures/status-check/): asserts
                              the checker itself, incl. regression guards for the two false-positive shapes that
                              fooled v1. Gated in repo-doctor. Copy this pattern into any linter that JUDGES
+             engine-statics.js  how much PROCESS-GLOBAL MUTABLE STATE the engine still holds — the
+                             measurement the per-instance-context (AUv3 multi-instance) refactor is paced by,
+                             and its progress meter: every file-scope static is state two plug-in instances
+                             SHARE, so each number falling to 0 is a file made per-instance. Per engine file:
+                             statics · NON-ZERO initialisers (the only hand work — zero/NULL come free from a
+                             calloc) · function-local statics (a `#define` cannot fix those, the declaration
+                             must move) · and the `#define name (ctx->name)` COLLISIONS, the one thing that
+                             would make the technique miserable (measured: 2). Asks CLANG'S AST, not a grep —
+                             the figure it replaces missed every declaration with a trailing comment and
+                             undercounted 2.7×. `--quiet`/`--json`; `--check` = 13 known answers
              lint-aux-params.js  the per-engine AUX PARAM channel (`instrument_mode`/`eng_p[]`) writes its
                              width in FIVE places that must agree (both `eng_p[]` decls, BOTH `idx >= N`
                              bounds — the setter AND the SR_ENG_TUNE handler — the note-on copy, and every

@@ -263,10 +263,18 @@ static const Part P_TOILET[] = {
 // only showed up on screen: sinking them 0.15 into the body is an interpenetration, and +y is the
 // face you can actually SEE (the camera looks at each object's +x and +y sides), so details on the
 // -y face were both wrong and invisible.
+// THE DOOR DIVISION IS STRUCTURAL, NOT A PLATE STUCK ON THE FRONT, and that is the fix for the
+// "diagonal scratch". A thin seam plate on the +y face is correct geometry that reads wrong: its TOP
+// surface is 5.4 voxels long and a quarter deep, so it projects to a 1px line at the isometric
+// diagonal — a scratch across the door rather than a seam along it. Worse, it only exists on one
+// face, so three quarters of the orbit showed a fridge with no division at all.
+// Two stacked boxes with a recessed dark band between them is what the voxel model does (its `kkkkkk`
+// layer), and the band reads as a division from EVERY angle because it goes all the way round.
 static const Part P_FRIDGE[] = {
-    PRISM(0,0,0, 6,6,11.6f,  0.15f,0.15f,-0.15f,-0.15f, M_METAL),
-    BOX  (0.3f,6.0f,5.4f, 5.7f,6.25f,5.9f,           M_TRIM),       // door seam
-    BOX  (4.4f,6.0f,6.2f, 5.3f,6.45f,9.8f,           M_TRIM),       // handle, standing a little prouder
+    BOX  (0,0,0, 6,6,5.4f,                           M_METAL),      // lower door
+    BOX  (0.2f,0.2f,5.4f, 5.8f,5.8f,5.8f,            M_TRIM),       // the division, recessed 0.2
+    BOX  (0,0,5.8f, 6,6,11.6f,                       M_METAL),      // upper door
+    BOX  (4.4f,6.0f,6.2f, 5.3f,6.45f,9.8f,           M_TRIM),       // handle, on the door face
     PRISM(0,0,11.6f, 6,6,12,  0.15f,0.15f,-0.15f,-0.15f, M_TRIM),   // dark top, kills the box read
 };
 

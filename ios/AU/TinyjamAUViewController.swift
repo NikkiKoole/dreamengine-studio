@@ -54,8 +54,19 @@ public final class TinyjamAUViewController: AUViewController, AUAudioUnitFactory
             let ch = a.messageChannel(for: "com.tinyjam.canvas")
             if let call = ch.callAudioUnit, !call(["op": "nonce"]).isEmpty {
                 let who = call(["op": "nonce"])
-                NSLog("[tinyjam] panel channel live — engine nonce %@ pid %@",
-                      String(describing: who["nonce"] ?? "?"), String(describing: who["pid"] ?? "?"))
+                // ⚠ SELF-CONTAINED, and it has to be. The first version told the maker to compare
+                // this nonce against one printed by a host-side spike run — which is meaningless: the
+                // nonce is per PROCESS, and those are two different host sessions, so they would
+                // ALWAYS differ and "different" would have looked like proof of the bug. The only
+                // comparison that means anything is inside ONE session: is the engine the channel
+                // reached a DIFFERENT process from this panel's own?
+                let mypid = Int(ProcessInfo.processInfo.processIdentifier)
+                let theirpid = (who["pid"] as? Int) ?? -1
+                let connected = theirpid > 0 && theirpid != mypid
+                NSLog("[tinyjam] PANEL %@ — channel engine pid %d nonce %@ · this UI process pid %d",
+                      connected ? "CONNECTED to another process (the audio one)"
+                                : "TALKING TO ITSELF (same process = still the wrong engine)",
+                      theirpid, String(describing: who["nonce"] ?? "?"), mypid)
                 c.remoteFrame = {
                     let r = call(["op": "frame"])
                     guard let px = r["px"] as? Data,

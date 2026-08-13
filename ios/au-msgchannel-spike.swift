@@ -170,6 +170,15 @@ do {
     print("\n  ⚠ could not drive the plug-in (\(error.localizedDescription)) — a frame may not exist yet")
 }
 
+// WHICH ENGINE ANSWERED. Printed loudly because it is the number the maker compares against the
+// one the PANEL logs in a DAW: same nonce = the panel is connected to the engine making sound;
+// different = still two engines, and this whole route is closed.
+do {
+    let who = call(["op": "nonce"] as [AnyHashable: Any])
+    print("\n  ENGINE NONCE (host side): \(who["nonce"] ?? "?")   pid \(who["pid"] ?? "?")")
+    print("  ↳ compare with the panel's Console line in a DAW; SAME = connected, DIFFERENT = two engines")
+}
+
 print("\n  A LIVE FRAME (not an echo — includes de_copy_frame + the copy)")
 var frameOK = false
 var fw = 0, fh = 0, fbytes = 0, nonzero = 0

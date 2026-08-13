@@ -7,6 +7,7 @@
 #   CART=epiano zsh ios/mac.sh     # a different cart in the plug-in
 #   zsh ios/mac.sh --no-auval      # skip auval (still runs the host-transport gate)
 #   ios/au-transport-check --free  # the NEGATIVE CONTROL: no transport blocks, must fail
+#   ios/au-transport-check --loadable  # can a DAW load our code? (the gate GarageBand needed)
 #
 # WHAT "REGISTER" MEANS: on macOS an AUv3 lives in an app bundle's PlugIns/ and the system only
 # learns about it when that app is LAUNCHED ONCE. So this opens the app, waits, and quits it. The
@@ -131,6 +132,15 @@ fi
 echo "▸ rate-converter gate (ios/rate-convert-check.swift)"
 xcrun swiftc -O -o rate-convert-check rate-convert-check.swift AU/RateConvert.swift
 ./rate-convert-check | tail -3
+
+# LOADABILITY gate, and it runs FIRST because it is the cheapest and the only one that can see the
+# fatal class: on 2026-08-13 all five gates below were green while GarageBand refused to open the
+# plug-in entirely (orange !), because AudioComponentBundle named a Mac Catalyst framework and a native
+# host cannot dlopen Catalyst code. Everything else here instantiates through AVAudioUnit, which
+# SILENTLY FALLS BACK to out-of-process when in-process loading fails — so the plug-in kept working for
+# us and died in the DAW. This one instantiates nothing; it checks the declaration is honest.
+echo "▸ loadability gate (--loadable) — can a DAW load our code at all?"
+./au-transport-check --loadable
 
 echo "▸ host-transport gate (ios/au-transport-check.swift)"
 xcrun swiftc -O -o au-transport-check au-transport-check.swift -framework AVFoundation -framework CoreAudioKit

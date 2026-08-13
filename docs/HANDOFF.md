@@ -254,10 +254,15 @@ a broken doc link or `#section`).
 > kill it) · the Swift-side frame worker (one `static` per process today) · K same-named CoreMIDI
 > virtual sources · K instances sharing one `cart.blob` (`de_set_save_dir` exists). Detail + the
 > results table: [`ios-plan.md`](design/ios-plan.md#-and-per-instance-state-is-cheap-after-all--toolsengine-dylib-spike-passes-2026-08-13).
-> **ALSO DO FIRST, and it protects all 20 apps:** a real-host LOAD gate in `mac.sh`. Six gates passed
-> today on a plug-in GarageBand refused to open, because our test host silently falls back where a DAW
-> refuses — fail on a `dlopen`/load error in the log, not just on the resulting pid. Same shape as
-> `tools/build-nr.sh` sitting red for hours (CoreMIDI, now fixed): **the seams only humans exercise rot.**
+> **✅ DONE — the LOAD gate exists now** (`au-transport-check --loadable`, the FIRST gate in `mac.sh`,
+> 7 gates / 31 assertions green). It instantiates nothing: it reads what the extension DECLARES and
+> checks the declaration is honest — if `AudioComponentBundle` names a bundle other than the appex, that
+> bundle must be dlopen-able by a NATIVE macOS process, because that is exactly what a host does. Nothing
+> else could see this class, because everything else instantiates through AVAudioUnit, **which silently
+> falls back to out-of-process when in-process loading fails** — so the plug-in kept working for us and
+> died in the DAW. It carries a control (Catalyst code must fail to load: "wrong platform to load into
+> process") and was exercised RED against a hand-broken copy. Same shape as `tools/build-nr.sh` sitting
+> red for hours (CoreMIDI, now fixed): **the seams only humans exercise rot.**
 > The cheaper mitigation stays in the pocket if the sandbox kills the dylib route: elect one instance to
 > drive transport + the frame, making track 2 a second window on the SAME rack — coherent instead of
 > garbled, and an honest limitation. Read the panel verdict any time with

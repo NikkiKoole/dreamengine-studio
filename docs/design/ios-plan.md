@@ -485,7 +485,7 @@ a capability the app side has never had.
 
 | unknown | why it matters |
 |---|---|
-| `dlopen` from inside the sandboxed `.appex`, library validation on | the spike runs unsandboxed; this is the one that could kill the route |
+| `dlopen` from inside the sandboxed `.appex`, library validation on | the spike runs unsandboxed; this is the one that could kill the route — **do this next** |
 | the Swift-side frame worker | one `static` per process today (`TinyjamAU.worker`); needs one per instance |
 | K CoreMIDI virtual sources | `midi_output.h` publishes by NAME; K instances would collide |
 | K instances, one `cart.blob` | `save_bytes` per cart; `de_set_save_dir` already exists to scope it |
@@ -497,6 +497,16 @@ on macOS and iOS, so it is not gated and the script's "ZERO frameworks (only lib
 broke. Fixed (link `CoreMIDI` + `CoreFoundation`, header corrected). It sat red for hours because
 nothing runs that script in CI, which is the same shape as the six gates that passed on a plug-in
 GarageBand could not open: **the seams that only humans exercise are the ones that rot.**
+
+✅ **And that second one is now gated: `au-transport-check --loadable`, the FIRST check in `mac.sh`.**
+It instantiates nothing — it reads what the extension DECLARES and checks the declaration is honest: if
+`AudioComponentBundle` names a bundle other than the appex itself, that bundle must be dlopen-able by a
+NATIVE macOS process, because that is precisely what a host does. No other mode in that file can see the
+class, because they all instantiate through AVAudioUnit, **which silently falls back to out-of-process
+when in-process loading fails**. It carries a control (Catalyst code must fail: *"wrong platform to load
+into process"*) and was exercised RED against a hand-broken copy of the app — that red came back on
+"code signature invalid" rather than the platform, since copying a binary out of a signed bundle breaks
+its signature, so the gate demonstrably catches the SIGNATURE class too. 7 gates, 31 assertions, green.
 
 Incidentally all three verdict branches have now been observed in the wild, which is the strongest form
 of the control the `--panel` gate asserts synthetically.

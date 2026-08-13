@@ -12,6 +12,7 @@
 //   ./au-transport-check --free     # NEGATIVE CONTROL: no transport blocks, the tempo check must fail
 //   ./au-transport-check --rate 48000   # the same transport checks, host rendering at 48k
 //   ./au-transport-check --wav /tmp/x   # also dump what it rendered → /tmp/x-<rate>.wav, to LISTEN
+//   ./au-transport-check --loadable   # CAN A DAW LOAD OUR CODE AT ALL? (read its note first)
 //   ./au-transport-check --view      # is the UI extension wired? (the picture still needs eyes)
 //   ./au-transport-check --panel     # is the panel attached to the unit that RENDERS? (see --panel below)
 //   ./au-transport-check --realtime  # pace to the wall clock: exercises the FRAME WORKER path
@@ -89,6 +90,110 @@ let wavPrefix: String? = {
     guard let i = argv.firstIndex(of: "--wav"), i + 1 < argv.count else { return nil }
     return argv[i + 1]
 }()
+
+// ═══ --loadable: CAN A HOST LOAD OUR CODE AT ALL? ════════════════════════════════════════════════
+// The gate that was missing on 2026-08-13, when SIX green gates coexisted with a plug-in GarageBand
+// refused to open (orange !). The AU code had been factored into a framework and `AudioComponentBundle`
+// pointed at it — correct per Apple's samples — but the framework is a Mac Catalyst binary and
+// GarageBand is a native macOS process, so the host's dlopen failed:
+//
+//   dlopen(…TinyjamAUKernel): incompatible platform (have 'MacCatalyst', need 'macOS')
+//
+// NOTHING ELSE HERE CAN SEE THAT, and the reason is worth stating: every other mode in this file
+// instantiates through AVAudioUnit, which SILENTLY FALLS BACK to out-of-process when in-process
+// loading fails. So the plug-in kept working for us and died in the DAW. A DAW does not fall back.
+//
+// So this mode does not instantiate anything. It reads what the extension DECLARES and checks the
+// declaration is honest: if `AudioComponentBundle` names a bundle other than the appex itself, that
+// bundle must be dlopen-able by a native macOS process, because that is precisely what a host does.
+//
+// It runs BEFORE the instantiation below on purpose — the broken case is the one where instantiation
+// is the thing that fails, and a gate that needs a working plug-in to report a broken plug-in is no
+// gate at all.
+if argv.contains("--loadable") {
+    var bad = 0
+    func t(_ name: String, _ ok: Bool, _ detail: String) {
+        print("  \(ok ? "✓" : "✗") \(name)  — \(detail)"); if !ok { bad += 1 }
+    }
+    let appPath = { () -> String in
+        if let i = argv.firstIndex(of: "--app"), i + 1 < argv.count { return argv[i + 1] }
+        return ("~/Applications/TinyjamMac.app" as NSString).expandingTildeInPath
+    }()
+    print("▸ can a native macOS host load our code? (\(appPath))")
+    let plugIns = appPath + "/Contents/PlugIns"
+    let appexes = (try? FileManager.default.contentsOfDirectory(atPath: plugIns))?.filter { $0.hasSuffix(".appex") } ?? []
+    t("the app carries an app-extension", !appexes.isEmpty,
+      appexes.isEmpty ? "no .appex in \(plugIns) — run: zsh ios/mac.sh" : appexes.joined(separator: ", "))
+
+    for ax in appexes {
+        let axPath = plugIns + "/" + ax
+        guard let info = NSDictionary(contentsOfFile: axPath + "/Contents/Info.plist") else {
+            t("\(ax): Info.plist is readable", false, "could not read it"); continue
+        }
+        let ownID = info["CFBundleIdentifier"] as? String ?? "?"
+        let attrs = (info["NSExtension"] as? NSDictionary)?["NSExtensionAttributes"] as? NSDictionary
+        let declared = attrs?["AudioComponentBundle"] as? String
+        t("\(ax) declares AudioComponentBundle", declared != nil,
+          declared ?? "MISSING — a host has no way to find the AU's code")
+
+        guard let want = declared else { continue }
+        if want == ownID {
+            // Today's shape. The code is the appex, which the system launches as its own process; no
+            // host ever dlopens it, so there is nothing here that can fail the way the framework did.
+            t("\(ax): the AU code is the appex itself", true,
+              "\(want) — hosts load it OUT of process; no dlopen for a host to get wrong")
+            continue
+        }
+        // A SEPARATE bundle is named. This is the shape that broke: it only works if a native host can
+        // actually load it. Search where the system would — the appex's Frameworks, then the app's.
+        var found: String? = nil
+        for dir in [axPath + "/Contents/Frameworks", appPath + "/Contents/Frameworks"] {
+            for e in (try? FileManager.default.contentsOfDirectory(atPath: dir)) ?? [] {
+                let p = dir + "/" + e
+                let ids = [p + "/Resources/Info.plist", p + "/Info.plist"]        // versioned, then shallow
+                for ip in ids where NSDictionary(contentsOfFile: ip)?["CFBundleIdentifier"] as? String == want {
+                    found = p
+                }
+            }
+        }
+        t("\(ax): the named bundle \(want) is present", found != nil,
+          found ?? "not found in the appex's or the app's Frameworks/")
+        guard let fw = found, let b = Bundle(path: fw), let exe = b.executableURL?.path else { continue }
+        let h = dlopen(exe, RTLD_NOW | RTLD_LOCAL)
+        t("\(ax): and a NATIVE macOS process can dlopen it — what a host does", h != nil,
+          h != nil ? "loaded \((exe as NSString).lastPathComponent)"
+                   : "dlopen FAILED: \(String(cString: dlerror()))")
+        if h != nil { dlclose(h) }
+    }
+
+    // ── THE CONTROL, and this gate needs one badly: every assertion above passes VACUOUSLY in the
+    // shape we ship today (nothing separate is declared, so nothing is dlopened). Without a case that
+    // must fail, a green run here would be indistinguishable from a check that has gone blind.
+    // Catalyst code is the thing a native host cannot load, and the appex's own executable IS Catalyst,
+    // so loading it must fail. (It fails on /System/iOSSupport rather than the platform triple —
+    // different message, same wall.)
+    //
+    // ⚠ The dlopen assertion above was ALSO exercised red, against a hand-broken copy of the app that
+    // declared a Catalyst framework as its code bundle — and it failed on "code signature invalid"
+    // rather than the platform, because copying a binary out of a signed bundle breaks its signature.
+    // Both are legitimate reds (a DAW refuses either), and it is worth knowing this gate catches the
+    // signature class too — a nested code bundle whose signature does not survive packaging is an
+    // ordinary shipping bug. What has NOT been demonstrated red is the platform message specifically;
+    // the real GarageBand failure of 2026-08-13 is the record for that.
+    print("▸ CONTROL: Catalyst code must NOT load into this native process")
+    if let ax = appexes.first {
+        let exe = plugIns + "/" + ax + "/Contents/MacOS/" + (ax as NSString).deletingPathExtension
+        let h = dlopen(exe, RTLD_NOW | RTLD_LOCAL)
+        t("dlopen of the Catalyst appex binary fails, so the check above can go red", h == nil,
+          h == nil ? String(cString: dlerror()).components(separatedBy: ": ").suffix(2).joined(separator: ": ")
+                   : "IT LOADED — this probe cannot detect an unloadable bundle, treat every ✓ above as unproven")
+        if h != nil { dlclose(h) }
+    }
+
+    print(bad == 0 ? "\nPASS — nothing is declared that a host cannot load."
+                   : "\n\(bad) check(s) FAILED — a DAW will refuse this plug-in even if every other gate is green.")
+    exit(bad == 0 ? 0 : 1)
+}
 
 // WIPE THE PLUG-IN'S SAVED CART STATE FIRST. acidcandy persists its banks with save_bytes, and an
 // app-extension has its own container, so without this every run boots from whatever the LAST run

@@ -1,0 +1,98 @@
+{
+  "_doc": "Which of runtime/sound.h's file-scope statics must NOT simply become per-instance context members. Consumed by the context generator; explained in docs/design/engine-context.md. THE DEFAULT IS per_instance — only exceptions are listed here, because 250+ of the 293 statics are ordinary audio state with no special handling. Line numbers are as of commit 5712334b; the generator matches on NAME, not line, so they are documentation rather than lookup keys.",
+
+  "shared": {
+    "_why": "Process-global by necessity: tied to the audio hardware or to the OS. A per-instance copy would double-register a callback or duplicate a device.",
+    "sound_stream":     { "line": 442,  "note": "raylib device stream handle; LoadAudioStream/SetAudioStreamCallback/PlayAudioStream at 9185-9187" },
+    "sound_aw_stack":   { "line": 8913, "note": "web-only (PLATFORM_WEB+DE_AUDIO_WORKLET): the audio worklet thread's actual stack. Not compiled in the AUv3 build" },
+    "sound_aw_ctx":     { "line": 8914, "note": "web-only: the Web Audio context handle. Not compiled in the AUv3 build" }
+  },
+
+  "harness": {
+    "_why": "Debug/tooling only. Should not be in a shipping per-instance context at all.",
+    "wavcap_buf":        { "line": 451 }, "wavcap_total": { "line": 452 },
+    "wavcap_pos":        { "line": 453 }, "wavcap_state": { "line": 454 },
+    "wavcap_path":       { "line": 455, "note": "offline WAV capture, driven by the debug harness" },
+    "sve_ring":          { "line": 504, "note": "inside #ifdef DE_TRACE — voice-lifecycle trace ring" },
+    "sve_w":             { "line": 505 }, "sve_r": { "line": 506 },
+    "sound_solo_active": { "line": 515, "note": "DE_TRACE only: the --solo-slot stem gate" },
+    "sound_solo_mask":   { "line": 516 }
+  },
+
+  "looks_like_harness_but_is_public_api": {
+    "_why": "THE TRAP IN THIS FILE. These sit in the debug neighbourhood, right after the WAV capture, and read as tooling — but they are shipping cart API, so they are per-instance and two instances sharing them would each see the other's audio. Classifying them as harness would have quietly removed a feature.",
+    "scope_buf":    { "line": 464, "api": "scope_read — studio.h:498, exported to carts via studio_tcc_symbols.h:191" },
+    "scope_w":      { "line": 465 }, "scope_ever": { "line": 466 },
+    "scope2_bufL":  { "line": 469, "api": "scope_read2 — studio.h:499" },
+    "scope2_bufR":  { "line": 469 }, "scope2_w": { "line": 470 }, "scope2_ever": { "line": 471 },
+    "rec_ring":     { "line": 486, "api": "record_arm/record_grab — studio.h:424-425; feeds INSTR_SAMPLE playback. A real sampler, not a debug tap" },
+    "rec_w":        { "line": 487 }, "rec_total": { "line": 488 }, "rec_arm": { "line": 489 }
+  },
+
+  "function_local": {
+    "_why": "Declared INSIDE a function body. A `#define name (ctx->name)` cannot rewrite these — the declaration itself has to move. Only these seven exist, and one of them is load-bearing.",
+    "lfo_seed_ctr": {
+      "line": 5822, "fn": "sound_setup_note", "severity": "CRITICAL",
+      "note": "A per-voice-start LCG counter whose documented purpose is to be identical run-to-run so --det renders stay byte-reproducible. Left shared, two instances interleaving note starts BOTH lose determinism. This is the exact class of bug a single-instance byte-exact gate cannot see: tools/refactor-guard.js would sit green through it."
+    },
+    "dropped_reported":       { "line": 2911, "fn": "sound_tick", "note": "dedup latch for the queue-overflow warning; shared, instance B's drops silence instance A's warning" },
+    "ctx_overflow_reported":  { "line": 2920, "fn": "sound_tick", "note": "same latch, for the cart-context log" },
+    "itl":                    { "line": 8922, "fn": "sound_aw_process", "note": "web-only scratch, fully overwritten before read; static only to keep it off the 8KB worklet stack. Wants a per-callback buffer, not a context field" },
+    "rs_q":                   { "file": "runtime/mic.h", "line": 117, "fn": "mic_input_push", "note": "OUTSIDE sound.h but on the same mic path as the extin_* question below" },
+    "rs_prev":                { "file": "runtime/mic.h", "line": 117 }
+  },
+
+  "lazy": {
+    "_why": "Per-instance, but large. Allocating these on demand is what takes an idle instance from ~6.2 MB to ~1-2 MB. Sizes measured from the declarations; total here is ~3.4 MB of the 6.2 MB.",
+    "grain_pool":  { "line": 1999, "bytes": 1058000, "note": "2 x GrainTank, 3s granular capture — the single biggest win" },
+    "vari_bufL":   { "line": 2837, "bytes": 352800 }, "vari_bufR": { "line": 2837, "bytes": 352800 },
+    "echo_buf":    { "line": 724,  "bytes": 352800 }, "echo_ins_buf": { "line": 739, "bytes": 352800 },
+    "voices":      { "line": 426,  "bytes": 320000, "note": "the polyphony pool; ~10KB/voice incl. ks_buf+pn_ks2" },
+    "ctx_log":     { "line": 2520, "bytes": 294912, "note": "de_switch_cart config replay log — see open_questions.cart_switching" },
+    "emit_bufL":   { "line": 5746, "bytes": 98304 },  "emit_bufR": { "line": 5746, "bytes": 98304 },
+    "tape_bufL":   { "line": 1148, "bytes": 65536 },  "tape_bufR": { "line": 1149, "bytes": 65536 },
+    "rvb_tank":    { "line": 873,  "bytes": 105900 },
+    "shim":        { "line": 2730, "bytes": 103320 },
+    "shw_buf":     { "line": 2123, "bytes": 88192 },
+    "bow_bodies":  { "line": 598,  "bytes": 74400 },
+    "cho_buf":     { "line": 947,  "bytes": 65536 },
+    "am_inbuf":    { "line": 1881, "bytes": 32768 }, "am_outbuf": { "line": 1882, "bytes": 32768 },
+    "am_nrm":      { "line": 1883, "bytes": 32768 }
+  },
+
+  "open_questions": {
+    "_why": "Real forks that a measurement cannot settle. Each names what breaks if it is guessed wrong. NONE of them block the first batch of work — they are all in code paths the first pass can leave alone.",
+
+    "mic_input_path": {
+      "vars": ["sound_extin", "extin_w", "extin_on"], "lines": [1846, 1847, 1849],
+      "question": "In the AUv3 build, does host/mic audio arrive PER INSTANCE (each AU render block's own input bus) or from ONE process-wide capture device?",
+      "if_per_instance": "all three are per-instance, and mic.h's push must become instance-scoped",
+      "if_process_wide": "the ring and extin_w stay SHARED and become one-producer/N-consumer (each instance keeps its own extin_r), and extin_on must become 'ANY instance wants the mic' — a refcount, not a bool",
+      "hazard": "A naive per-instance copy of extin_on means the capture thread reads whichever copy the linker picked: silently dead mic on every other instance."
+    },
+
+    "cart_switching": {
+      "vars": ["ctx_log", "ctx_log_n", "ctx_active"], "lines": [2520, 2521, 2522],
+      "question": "Can two AUv3 instances hold two DIFFERENT carts and switch independently?",
+      "stake": "If yes, this 288 KB log is per-instance. If cart choice belongs to the umbrella app, it belongs to the shell instead."
+    },
+
+    "diagnostics_definition": {
+      "vars": ["sound_dropped", "ctx_overflow", "shim_overflow", "fx_bus_overflow"],
+      "question": "Is HARNESS defined by PURPOSE (debug-only, exclude from the shipping context) or by BUILD GUARD (#ifdef DE_TRACE)? These four ship unguarded in release builds and are read only by warning prints.",
+      "note": "Counter-argument from the first slice: bow_body_overflow, rvb_bus_overflow and grain_overflow are each reset in sound_init alongside their pool cursor, so they are per-instance pool bookkeeping rather than process diagnostics. The four above may be the same."
+    },
+
+    "synth_mode": {
+      "vars": ["sound_synth_mode"], "line": 450,
+      "question": "In the AUv3 build is there a device stream at all, or is sound_init always entered in synth mode? If always, this is a build-time constant and the classification stops mattering.",
+      "note": "Reads like a per-instance mode; actually means 'this process does not own an audio device'."
+    }
+  },
+
+  "dead_weight": {
+    "_why": "Not worth migrating. Fix instead of moving.",
+    "sq_atk": { "line": 2223, "note": "named like a live parameter, but fx_set_squash unconditionally reassigns it to gate_coef(1) on every call and nothing else writes it. A constant wearing a variable's clothes — make it const rather than giving every instance a copy" },
+    "sq_rel": { "line": 2223, "note": "same, gate_coef(120)" }
+  }
+}

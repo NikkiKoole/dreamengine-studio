@@ -42,7 +42,7 @@ a broken doc link or `#section`).
 > What a reader needs to *choose* a lane is in the front-door output; what they need to *resume*
 > one is in the lane itself. A summary in between is a third copy, and it is the copy nobody
 > updates. If you find yourself writing one again, teach `handoff.js` to print it instead.
-> **▶ ACTIVE THREAD (2026-08-13) — `tenement`: it is low-poly 3D now, and the open half is STAKES rather than looks.**
+> **▶ ACTIVE THREAD (2026-08-14) — `tenement`: the item economy is switched on, and storage finally COSTS something.**
 > The sim of several households sharing one building, built contract-first then fanned out to eight
 > agents (ADR-0034). **SHIPPED:** the frozen contract `runtime/tenement/model.h` plus twelve modules
 > (world/path/offer/agents/work/econ/store/social/art/hud/build/atlas), 242 `spec()` assertions,
@@ -96,24 +96,57 @@ a broken doc link or `#section`).
 > ui-audit clean, canvas-diff 0px**, and the projection was left untouched so `build.h`'s
 > click-to-tile inverse still lands where the player aimed.
 >
-> **▶ NEXT ACTION, and the ORDER CHANGED because the look is no longer the bottleneck.** The two
-> legibility items about IDENTITY are done — you can see whose flat someone is in and what they are
-> doing. The two about STATE and STAKES are not, and they are now the top: (a) **posture must carry the
-> worst need** — the HUD prints "filthy" and "bursting" while the figure stands there unbothered, and
-> everything needed is already in place, so this is a slump and a shade rather than new machinery;
-> (b) **let something be LOST**, the real design conversation, now unblocked because you can finally
-> see who lives there. Then the rim (two residents of the same household adjacent are still one
-> shape), events in the picture, and a HAUL pose. **The D/R decision stays PARKED, for a better reason
-> than before:** the old reason was that you could not see the residents, and you can now — the new
-> one is that contention with no CONSEQUENCE is still just traffic, so it belongs after (b). **Counter-intuitive, already
-> measured, do not re-derive:** a SHARPER day makes a QUIETER building (REST appeal amp 70 → 95 drops
-> contention 16.2% → 12.2%), because residents pinned into one narrow window stop overlapping at its
-> edges. The phase is also still wrong (they sleep late afternoon), which is tuning, not structure.
-> **Hot files:** `runtime/tenement/offer.h` (the score, `TN_APPEAL`, `TN_BORED`), `runtime/tenement/agents.h`
-> (the state machine), `tools/carts/tenement.c` (the toggles + the `DE_TRACE` contention instrument
-> that found all four findings and should be re-run after any score/decay/offer-table change).
+> **▶ THE ITEM ECONOMY WAS SWITCHED ON (2026-08-14), and it was two lines.** `store.h` had shipped a
+> full fetch/haul/put loop over BFS routes with thirty assertions, and NONE of it had ever run:
+> `work.h`'s `tnk_deliver` minted a good, sold it at the machine and DELETED it in the same breath,
+> under a comment reading "WHEN store.h CAN HAUL, DELETE THE TWO LINES BELOW". So no item ever
+> persisted, `TnAgent.carrying` was never once non-negative in a running game, and `TN_ACT_HAUL` was a
+> state nothing could enter. Deleting them, plus **one offer row** (the wardrobe also accepts
+> `TN_STORE_GOODS` — which `store.h`'s own catalogue had predicted as "a missing table row in offer.h,
+> not a missing code path") and **a BUYER in `econ.h`** that calls each day and takes only goods that
+> are SHELVED, turned the whole chain on: made → carried → hauled → shelved → bought. `tn_sell` is
+> still the one seam; only its caller moved.
+> **THE POINT IS WHAT STORAGE NOW COSTS YOU.** A household with no cupboard, or a full one, keeps
+> working and stops earning — `store.h` drops the bolt where it stands and the buyer only wants
+> shelved goods, so the evidence piles up in the hall where you can see it. Nobody wrote that rule.
+> It is the first thing in this sim that can go badly for you, which moves the "let something be LOST"
+> conversation off zero (work.h case **W5b** pins it). A second one fell out free: **W8 stopped being a
+> known gap** — two households now ALTERNATE at the one loom, because the finisher walks off to shelve
+> its good and the machine is free while it is gone. Turn-taking out of an errand, with nothing
+> scoring fairness.
+> **Also landed:** posture carries the WORST NEED (a slump — z-squash, shoulders un-flaring, a forward
+> shear, plus hollowed skin — scaled by how bad it is); the notable moments happen ABOVE THE HEAD as
+> 7px chips (`!` blocked · `…` nothing on offer · a crate for hauling) instead of scrolling past in the
+> news line; and a **person_haul** pose in both views. **Gates: spec 249/249 (was 242, six rewritten +
+> five new), ui-audit clean, canvas-diff 0px, 1.69ms avg / 2.33ms max (was 2.66 — no regression).**
+> **THREE FINDINGS WORTH NOT REDISCOVERING.** (1) **Hygiene was unserveable**, so every resident read
+> "filthy" from day one forever — meaning the worst need was the SAME need for everyone at every hour,
+> and posture keyed to it would have been a permanently stooped building. Fixed as one row: the WC
+> gained a weak slow cold tap, deliberately on the ONE shared fixture rather than a new washbasin, so
+> it aims more traffic at the scarcity the design is about. (2) **`TN_OFFER_N` is a second place the
+> offer count lives** and nothing checks it — adding the wardrobe's row without bumping its count cost
+> a debugging round in which goods were made, hauled, and then dropped on the floor because
+> `tn_find_store` could not see a cupboard sitting right there. (3) **The first cut of the slump moved
+> 15 pixels across an 1800-frame run**, because it was tuned for max distress and residents rarely
+> bottom out; the fix came from TRACING the distribution of the worst need (median 96, p25 44, 23%
+> under 32 — the `w0..w3` watches in the cart's `DE_TRACE` block) and sizing the constants against it.
+> **Counter-intuitive, already measured, do not re-derive:** a SHARPER day makes a QUIETER building
+> (REST appeal amp 70 → 95 drops contention 16.2% → 12.2%), because residents pinned into one narrow
+> window stop overlapping at its edges. The phase is also still wrong (they sleep late afternoon).
+> **▶ NEXT ACTION.** (a) **A RIM ON THE RESIDENTS** — the top item now, and hauling made it matter
+> more, since more people are in the hall at once; two adjacent residents of the same household still
+> read as one blob, and with the depth buffer this is a per-pixel job rather than a sort problem.
+> (b) **Unpark D/R and read it against the new consequence:** the old objection was "contention with no
+> CONSEQUENCE is just traffic", and there IS one now, so run D+R long and see whether contention costs
+> anybody their income. (c) Then eviction / traces, the real stakes question.
+> **Hot files:** `runtime/tenement/work.h` (`tnk_deliver`, the flip), `runtime/tenement/econ.h` (the
+> buyer, `TNE_TRADE_*`), `runtime/tenement/offer.h` (the score, `TN_APPEAL`, `TN_BORED`, and the
+> `TN_OFFERS`/`TN_OFFER_N` pair that must move together), `runtime/tenement/art.h` (the slump in
+> `tnr_part`, the chips in `tnr_event_of`/`tnr_glyph`), `tools/carts/tenement.c` (the toggles + the
+> `DE_TRACE` instrument — now traces the goods chain and the worst need too; re-run after any
+> score/decay/offer-table change).
 > **Resume-at:** [`design/tenement.md` → The building does not contend, and the four reasons are stacked](design/tenement.md#12-the-building-does-not-contend-and-the-four-reasons-are-stacked),
-> plus the cart's own punch list, `node tools/cart-todos.js tenement` (12 items, the D/R decision first).
+> plus the cart's own punch list, `node tools/cart-todos.js tenement` (the rim first).
 
 > **▶ ACTIVE THREAD (2026-08-13) — EXTERNAL CLOCK + the AUv3 on macOS: a cart can be slaved, and acidcandy is a GarageBand plug-in.**
 > **▶▶ START HERE IN A FRESH SESSION (rewritten 2026-08-13 end-of-day). GOAL: a well-behaved macOS
@@ -234,6 +267,24 @@ a broken doc link or `#section`).
 > changing nothing (a `sed` that missed, and an edit to `sound_master_gain`, which is dead code on the
 > native path under `#ifdef DE_AUDIO_WORKLET`). **Assert your perturbation landed before believing any
 > verdict** — that is the same failure that cost yesterday three hours.
+>
+> **✅ THE CLASSIFICATION IS DONE — [`design/engine-context.md`](design/engine-context.md) +
+> [`tools/ctx-classification.json`](../tools/ctx-classification.json)** (2026-08-13). Which statics must
+> NOT simply become per-instance members, from three parallel read-only audits of `sound.h`. Default is
+> per-instance (250+ of 293); only exceptions are recorded. **Read it before generating anything.** The
+> four findings that justify it — none of which a byte-exact gate can see, because a single-instance run
+> is identical either way: **(1)** `lfo_seed_ctr` (5822, function-local) is the `--det` reproducibility
+> seed; shared, two instances BOTH lose determinism and `refactor-guard` stays green through it.
+> **(2)** the scope + record rings are **public cart API**, not debug taps, despite sitting right after
+> the WAV capture — calling them harness would have deleted a shipping feature. **(3)** several
+> "flags" (`drop_used`, `vari_used`, `fxmod_any`, `shim_next`) are live DSP gates and pool cursors, not
+> telemetry. **(4)** `atomic_int` does NOT mean shared: the request ring's SPSC invariant BREAKS if two
+> instances share it. Also settled: the struct's **type-hoist** works (transitive closure = 14 types +
+> 18 macros, compiles clean, tested on a copy), and **~3.4 MB of the 6.2 MB is lazy-allocatable**.
+> ⚠ **Four open questions are logged in the JSON**, each with what breaks if guessed. None block the
+> first batch. The sharpest is the MIC PATH: if host audio is process-wide, a naive per-instance
+> `extin_on` means the capture thread reads whichever copy the linker picked and the mic is silently
+> dead on every other instance.
 >
 > **Order — do NOT take both engine files at once:**
 > 1. **`runtime/sound.h` ALONE** (293 statics / 29 non-zero initialisers, self-contained, strongest

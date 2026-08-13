@@ -112,8 +112,19 @@ public final class TinyjamAU: AUAudioUnit {
     // the one AUv3 provides. This is the minimum that makes the transport MEASURABLE — an echo —
     // so ios/au-msgchannel-spike.swift can answer "pixels or state?" with numbers instead of
     // estimates. It carries no engine data yet and is deliberately not wired to the view.
+    // AUMessageChannel is 16.0+ and this extension deploys lower, so the override is gated.
+    // Worth knowing beyond the spike: if the cross-process channel becomes the real transport,
+    // it sets a hard OS floor for the PLUG-IN (the app itself is unaffected).
+    @available(macCatalyst 16.0, iOS 16.0, macOS 13.0, *)
+    private static let canvasChannel = TinyjamCanvasChannel()
+
+    @available(macCatalyst 16.0, iOS 16.0, macOS 13.0, *)
     public override func messageChannel(for name: String) -> AUMessageChannel {
-        if name == "com.tinyjam.canvas" { return TinyjamCanvasChannel() }
+        // ⚠ RETAINED, not constructed per call. The first cut returned a fresh
+        // TinyjamCanvasChannel() and nothing held it, so it was deallocated the instant this
+        // method returned — the host's proxy then called into a dead object and every reply came
+        // back EMPTY, which reads exactly like "not implemented yet".
+        if name == "com.tinyjam.canvas" { return Self.canvasChannel }
         return super.messageChannel(for: name)
     }
 
@@ -296,15 +307,23 @@ public final class TinyjamAU: AUAudioUnit {
 // what a real implementation would do here is hand back a framebuffer (option 4) or a state delta
 // (the netplay-style alternative). Kept trivial ON PURPOSE — a spike that measures its own cleverness
 // measures nothing.
+@available(macCatalyst 16.0, iOS 16.0, macOS 13.0, *)
 final class TinyjamCanvasChannel: NSObject, AUMessageChannel {
     var callHostBlock: CallHostBlock?
-    var callAudioUnit: CallAudioUnitBlock? = { message in
-        // echo, plus a marker so the caller can tell a real answer from a base/no-op channel
+
+    // ⚠ A METHOD, not a stored closure property. Swift imports AUMessageChannel's callAudioUnit as
+    // an OPTIONAL ObjC protocol method, which on the *calling* side reads as an optional closure —
+    // so `var callAudioUnit: ((...)->...)?` looks like it conforms, compiles clean, and registers no
+    // selector at all. The host's proxy then finds nothing implemented and every reply comes back
+    // EMPTY, which is indistinguishable from "the plug-in has no channel yet". Cost: two rebuilds
+    // and a wrong diagnosis (a retain bug) before the shape of the declaration was the culprit.
+    func callAudioUnit(_ message: [AnyHashable: Any]) -> [AnyHashable: Any] {
         var reply = message
-        reply["ok"] = true
+        reply["ok"] = true          // marker so the caller can tell a real answer from a no-op channel
         return reply
     }
 }
+
 
 public final class TinyjamAUFactory: NSObject, AUAudioUnitFactory {
     public func beginRequest(with context: NSExtensionContext) {}

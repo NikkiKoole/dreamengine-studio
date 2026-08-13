@@ -17,15 +17,17 @@
 //   ./au-msgchannel-spike                # the measurement
 //   ./au-msgchannel-spike --in-process   # the CONTROL — see below
 //
-// ⚠ THE CONTROL IS THE POINT, and this spike exists partly because the gate next door got it wrong.
-// ios/au-transport-check.swift says in a comment "instantiate the plug-in (out of process, as a real
-// host does)" and then passes `options: []` — which loads it IN-PROCESS. So every AU gate we have has
-// been exercising the wrong topology, and an in-process channel would report gorgeous numbers that
-// say NOTHING about GarageBand. Two defences here:
-//   1. we pass .loadOutOfProcess explicitly, and
-//   2. we ASSERT auAudioUnit.isLoadedInProcess == false before believing any number.
-// --in-process runs the same measurement the other way on purpose: if the two are indistinguishable,
-// the flag is not doing what we think and the whole result is void.
+// ⚠ THE CONTROL IS THE POINT — and it immediately caught the author, which is the best argument for
+// keeping it. The first version of this header claimed that ios/au-transport-check.swift was running
+// IN-process because it passes `options: []`, and therefore that every AU gate we own exercised the
+// wrong topology. MEASURED: FALSE. On macOS an AUv3 app extension loads OUT-of-process regardless of
+// that flag — `--in-process` here reports "loaded OUT-of-process (asked for in)" and says outright
+// that it is isolating nothing. au-transport-check's comment was accurate all along.
+// What remains true, and is why the check stays:
+//   1. we pass .loadOutOfProcess explicitly (harmless where it is already the default, correct where
+//      it is not — iOS and future macOS are not obliged to agree), and
+//   2. we ASSERT isLoadedInProcess == false before believing any number, so a platform that DOES
+//      honour in-process loading cannot hand us flattering numbers that say nothing about a DAW.
 
 import AVFoundation
 import AudioToolbox
@@ -108,7 +110,11 @@ if probe.isEmpty {
 let sizes = [64, 1024, 16 * 1024, 64 * 1024, 151_536, 256 * 1024]
 let reps  = 60
 
-print(String(format: "\n  %-10s %10s %10s %10s", "payload", "rtt avg", "rtt max", "max fps"))
+// NB: %s in String(format:) takes a C string — handing it a Swift String is undefined and
+// segfaults. Interpolation + padding instead.
+func pad(_ s: String, _ n: Int) -> String { s.count >= n ? s : s + String(repeating: " ", count: n - s.count) }
+func rpad(_ s: String, _ n: Int) -> String { s.count >= n ? s : String(repeating: " ", count: n - s.count) + s }
+print("\n  " + pad("payload", 11) + rpad("rtt avg", 11) + rpad("rtt max", 11) + rpad("max fps", 10))
 print("  " + String(repeating: "─", count: 44))
 
 var pixelsOK = false, stateOK = false
@@ -123,7 +129,10 @@ for size in sizes {
     }
     let avg = total / Double(reps)
     let fps = avg > 0 ? 1000.0 / avg : 0
-    print(String(format: "  %-10@ %8.3fms %8.3fms %10.0f", "\(size)B" as NSString, avg, worst, fps))
+    print("  " + pad("\(size)B", 11)
+        + rpad(String(format: "%.3fms", avg), 11)
+        + rpad(String(format: "%.3fms", worst), 11)
+        + rpad(String(format: "%.0f", fps), 10))
     if size >= 151_536 && fps >= 20 { pixelsOK = true }
     if size <= 1024   && fps >= 60 { stateOK = true }
 }

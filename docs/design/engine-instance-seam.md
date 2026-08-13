@@ -203,7 +203,17 @@ Named so the next session does not assume otherwise:
      underneath a seam call that already established the instance, so it got
      `de_active_screen_w()` rather than a NULL argument — the handle-taking pair is the HOST seam,
      that pair is the engine asking about the canvas it is drawing.
-2. **Move `studio.c`'s state** into `DeVideo` (`ctx-gen --target studio.c`), byte-identical.
+2. **✅ DONE — `studio.c`'s state** moved into `DeVideo`, byte-identical (116 of its statics; 108
+   remain, all deliberate). **What it taught, and both lessons outlive it:**
+   · **A generator driven by ONE configuration's AST cannot rewrite conditionally-declared state.**
+     `studio.c` forks on `DE_NO_RAYLIB` throughout and has ~40 statics per side the other build never
+     compiles (the platform seam and software rotation on one, netplay/desktop-mic/CoreMIDI on the
+     other). Moving one produced a struct with a duplicate member for one build and a missing member
+     for the other. `ctx-gen` now REFUSES anything inside a preprocessor conditional and says so.
+   · **The probe was checking the easy half.** It built `DE_NO_RAYLIB` four ways and never built the
+     Raylib path at all — so a batch compiled four times, was applied, and failed in the build the
+     probe never touched. It now builds BOTH renderers, and says loudly when raylib headers are
+     missing rather than quietly testing less.
 3. **Switch the AUv3** to one instance per audio unit, one worker per instance; delete
    `bootEngineOnce`.
 4. **Gate it.** `tools/engine-dylib-spike/probe.c` already drives two engines with different

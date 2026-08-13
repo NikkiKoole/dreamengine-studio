@@ -349,6 +349,21 @@ a broken doc link or `#section`).
 > · Also logged: `colorkey()` destroys and rebuilds a SHARED GPU texture from a cart API;
 >   `fp_cache`'s key omits the palette; and an unrelated latent `web_px` overflow after a canvas grow.
 >
+> **✅ STEP 2 IS DONE — `studio.c`'s STATE IS PER-INSTANCE (2026-08-14).** 116 statics into `DeVideo`,
+> byte-identical. `engine-statics` reads **13 for sound.h and 108 for studio.c** (from 340 and 222).
+> Green on: refactor-guard 6/6, `build-nr` byte-identical, spec 1986/0, build-all 580/580, soundcheck,
+> tune-check, canvas-golden, all three probes, and the Mac Catalyst plug-in builds.
+> **Two generator lessons, both of which will recur:**
+> · **One configuration's AST cannot rewrite conditionally-declared state.** studio.c forks on
+>   `DE_NO_RAYLIB` throughout, with ~40 statics per side the other build never compiles. Moving one
+>   gave a struct with a DUPLICATE member for one build and a MISSING member for the other. ctx-gen
+>   now refuses anything inside a `#if` and reports it (12 such lines in studio.c — the seam, sw
+>   rotation, netplay, desktop mic, CoreMIDI). **Those still need a home; they are the honest
+>   remainder of studio.c**, along with 15 function-local statics.
+> · **The probe was only building the easy half** — `DE_NO_RAYLIB` four ways, never Raylib. A batch
+>   compiled four times, was applied, and failed in the build the probe never touched. It builds BOTH
+>   renderers now, and says so loudly if raylib headers are missing instead of quietly testing less.
+>
 > **✅ STEP 1 IS DONE — THE SEAM TAKES A HANDLE (2026-08-14).** `DeInstance` +
 > `de_instance_create`/`_destroy`, a scoped thread-local `de_cur`, and every seam function names its
 > instance. All hosts migrated: `headless-nr`, the three probes, and the Swift (`CanvasView`,

@@ -467,6 +467,14 @@
    "de_win_reveal_pending": {
     "line": 3196,
     "note": "Win32 + DE_NET_BUILD only; never compiled in the plug-in"
+   },
+   "de_inst_default": {
+    "line": 3007,
+    "note": "THE INSTANCE ITSELF. It cannot live inside the per-instance context it identifies \u2014 that is circular, and the compiler says so ('field has incomplete type struct DeInstance'). Step 3 replaces it with a heap allocation per audio unit."
+   },
+   "de_cur": {
+    "line": 3015,
+    "note": "the _Thread_local pointer the seam sets and restores around a call. A struct member cannot have a storage class, and more importantly this is the MECHANISM that reaches the context \u2014 it can never be part of it."
    }
   },
   "harness": {

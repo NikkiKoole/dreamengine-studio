@@ -158,6 +158,52 @@ function parseDeclarator(d, knownNames) {
 
 const ZERO = /^(0|0\.0f?|0u|0L|0x0u?|NULL|false|\{\s*0\s*\}|\{\s*\{\s*0\s*\}\s*\}|\{\s*\}|"")$/;
 
+// Is this static's ADDRESS taken by another FILE-SCOPE initialiser? `&game_font` is a constant
+// expression while game_font is a static; `&(de_vid->game_font)` is not, so a table built from it
+// (`static Font *const FONT_SLOT[] = { &game_font, … }`) stops compiling the moment the target
+// moves. Scans only top-level declarations — an `&name` inside a function body is fine, because
+// that is a runtime address-of, not a constant expression.
+function addressTakenAtFileScope(src, name) {
+  const re = new RegExp('&\\s*' + name + '\\b');
+  let depth = 0;
+  for (let i = 0; i < src.length; i++) {
+    const line = stripComment(src[i]);
+    // ⚠ A FUNCTION DEFINITION also starts with `static`, and joining lines until a `;` swallows its
+    // whole BODY — which made this report `&de_pend` (an atomic_fetch_or inside de_resize) and
+    // `&show_touch_ui` as file-scope address-takes. Both were false. Only DATA declarations count.
+    const looksLikeFn = /[A-Za-z_]\w*\s*\([^)]*\)\s*[{;]?\s*$/.test(line) && !/=/.test(line.split('(')[0]);
+    if (depth === 0 && /^\s*static\b/.test(line) && !looksLikeFn) {
+      let text = line, j = i;
+      while (!/;/.test(text) && j + 1 < src.length && j - i < 40) { j++; text += ' ' + stripComment(src[j]); }
+      if (re.test(text)) return true;
+    }
+    for (const c of line) { if (c === '{') depth++; else if (c === '}') depth--; }
+  }
+  return false;
+}
+
+
+
+
+// Is this line inside a PREPROCESSOR CONDITIONAL? The static list comes from ONE configuration's
+// AST, so a declaration inside `#ifdef DE_NO_RAYLIB` (or its `#else`) is invisible to the other
+// build — and studio.c has ~40 such statics per side: the platform seam and software rotation in
+// one branch, netplay, the desktop mic and CoreMIDI in the other. Moving one produced a struct with
+// a duplicate member for one build and a missing member for the other.
+//
+// So the generator REFUSES them. It cannot see what it is not compiling, and guessing across a
+// configuration boundary is exactly the kind of thing that compiles in the build you tested and
+// breaks the one you did not.
+function insideConditional(src, line) {
+  let depth = 0;
+  for (let i = 0; i < line - 1 && i < src.length; i++) {
+    const l = src[i];
+    if (/^\s*#\s*(if|ifdef|ifndef)\b/.test(l)) depth++;
+    else if (/^\s*#\s*endif\b/.test(l)) depth--;
+  }
+  return depth > 0;
+}
+
 /* ─────────────────────────────────────────────────────────────── planning ── */
 
 function plan(opts) {
@@ -201,6 +247,11 @@ function plan(opts) {
     // is a constant expression today, but `&(de_vid->game_font)` is not, so the table that points
     // at it (`static Font *const FONT_SLOT[] = { &game_font, … }`) stops compiling. Caught by the
     // probe as an error; reported here so it reads as a decision rather than a crash.
+    if (insideConditional(src, line)) {
+      skipped.push({ line, names, why: 'inside a PREPROCESSOR CONDITIONAL — the other build configuration declares something different here, and this list comes from one AST' });
+      continue;
+    }
+
     const addressed = names.filter(n => addressTakenAtFileScope(src, n));
     if (addressed.length) { skipped.push({ line, names, why: 'ADDRESS TAKEN in a file-scope initialiser (' + addressed.join(' ') + ') — &member is not a constant expression; move the table to runtime init first, or keep this shared' }); continue; }
 
@@ -329,10 +380,31 @@ function collectMacroHoist(move, src) {
   }
   // Dedupe by SPAN, not by name: several identifiers can share one line (an anonymous enum lists
   // all its members at once), and emitting that line per-identifier redefines it.
+  // ⚠ A #define may live inside a PREPROCESSOR CONDITIONAL, and hoisting the bare line out of it
+  // changes its meaning. `#ifndef SCALE / #define SCALE 4 / #endif` is a FALLBACK for a -D flag;
+  // lifted alone it becomes an unconditional redefinition of the value the build passed in. So the
+  // span grows to the whole enclosing conditional, which is always safe to move earlier.
+  const widen = (span) => {
+    let depth = 0, first = span.first;
+    for (let i = span.first - 1; i >= 0; i--) {
+      const l = src[i];
+      if (/^\s*#\s*endif\b/.test(l)) depth++;
+      else if (/^\s*#\s*(if|ifdef|ifndef)\b/.test(l)) { if (depth === 0) { first = i; break; } depth--; }
+    }
+    if (first === span.first) return span;             // not inside a conditional
+    let d = 0, last = span.last;
+    for (let i = first; i < src.length; i++) {
+      const l = src[i];
+      if (/^\s*#\s*(if|ifdef|ifndef)\b/.test(l)) d++;
+      else if (/^\s*#\s*endif\b/.test(l)) { d--; if (d === 0) { last = i; break; } }
+    }
+    return { first, last };
+  };
+
   const seen = new Set();
   const spans = [];
   for (const id of want) {
-    const s = defLine.get(id);
+    const s = widen(defLine.get(id));
     const key = s.first + ':' + s.last;
     if (seen.has(key)) continue;
     seen.add(key);
@@ -348,7 +420,7 @@ function emitHeader(move, macroSpans = [], src = []) {
   L.push(' * The per-instance engine context (docs/design/engine-context.md). An AUv3 puts every plug-in');
   L.push(' * instance in ONE process, so state that lives in file-scope statics is shared by every');
   L.push(' * instance — which is why two DAW tracks fight over one rack. These members used to be those');
-  L.push(' * statics; the macro block at the bottom means the DSP code reads exactly as it did before.');
+  L.push(' * statics; the macro block at the bottom means the engine code reads exactly as it did before.');
   L.push(' *');
   L.push(' * The default instance below is a `static` with DESIGNATED INITIALISERS, so every value is');
   L.push(' * still set at compile time exactly as it was, and the rest is still zeroed static storage.');
@@ -356,8 +428,12 @@ function emitHeader(move, macroSpans = [], src = []) {
   L.push(' * before it is set, because the linker sets it. A real per-instance context is then created');
   L.push(' * by copying this template, which is exact by construction.');
   L.push(' */');
-  L.push('#ifndef DE_SOUND_CTX_H');
-  L.push('#define DE_SOUND_CTX_H');
+  // ⚠ The guard must be DERIVED, not hardcoded. It once said DE_SOUND_CTX_H for every target, so
+  // studio_ctx.h (included after sound_ctx.h) found the guard already defined and its ENTIRE BODY
+  // vanished — struct, defaults and macro block — leaving every moved name undeclared.
+  const guard = 'DE_' + CTX_HEADER.replace(/[^A-Za-z0-9]/g, '_').toUpperCase();
+  L.push('#ifndef ' + guard);
+  L.push('#define ' + guard);
   L.push('');
   L.push('/* self-contained: the members use these, and depending on where this header lands in');
   L.push(' * sound.h they may not have been pulled in yet. */');
@@ -366,7 +442,7 @@ function emitHeader(move, macroSpans = [], src = []) {
   L.push('#include <stdatomic.h>');
   L.push('');
   if (macroSpans.length) {
-    L.push('/* MOVED here from sound.h: the sizes and constants the members below are written in.');
+    L.push('/* MOVED here from ' + path.basename(TARGET) + ': the sizes and constants the members below are written in.');
     L.push(' * They have to precede the struct, and moving a #define earlier is always safe because a');
     L.push(' * macro body is only text until it is expanded. */');
     for (const s of macroSpans) for (let i = s.first; i <= s.last; i++) L.push(src[i]);
@@ -455,12 +531,25 @@ function probe(res) {
   // so any static inside `#ifdef DE_TRACE` is invisible to the generator — and DE_TRACE is exactly
   // what play.js (and therefore refactor-guard) builds with. A batch that compiles here and fails
   // there would look like the refactor broke the harness rather than the engine.
+  // ⚠ BOTH RENDERERS. These configs used to be DE_NO_RAYLIB only, so a studio.c batch compiled four
+  // times, was applied, and then failed in the RAYLIB build the probe never touched — duplicate and
+  // missing struct members from declarations that live in the other #ifdef branch. studio.c forks on
+  // DE_NO_RAYLIB throughout; a probe that only builds one side is checking the easy half.
+  let raylibInc = null;
+  try { raylibInc = execFileSync('brew', ['--prefix', 'raylib'], { stdio: ['ignore','pipe','ignore'] }).toString().trim() + '/include'; } catch (_) {}
   const CONFIGS = [
-    { name: 'plain',           extra: [] },
-    { name: 'DE_TRACE',        extra: ['-DDE_TRACE'] },
-    { name: 'DE_SPEC',         extra: ['-DDE_SPEC'] },
-    { name: 'DE_TRACE+SPEC',   extra: ['-DDE_TRACE', '-DDE_SPEC'] },
+    { name: 'no-raylib',            extra: ['-DDE_NO_RAYLIB'] },
+    { name: 'no-raylib+DE_TRACE',   extra: ['-DDE_NO_RAYLIB', '-DDE_TRACE'] },
+    { name: 'no-raylib+DE_SPEC',    extra: ['-DDE_NO_RAYLIB', '-DDE_SPEC'] },
+    { name: 'no-raylib+TRACE+SPEC', extra: ['-DDE_NO_RAYLIB', '-DDE_TRACE', '-DDE_SPEC'] },
   ];
+  if (raylibInc && fs.existsSync(path.join(raylibInc, 'raylib.h'))) {
+    CONFIGS.push({ name: 'RAYLIB',          extra: ['-I', raylibInc] });
+    CONFIGS.push({ name: 'RAYLIB+DE_TRACE', extra: ['-I', raylibInc, '-DDE_TRACE'] });
+  } else {
+    console.log('  ⚠ raylib headers not found — the RAYLIB configs are being SKIPPED, so this probe is');
+    console.log('    only checking the DE_NO_RAYLIB half. Run tools/build-all.js before trusting it.');
+  }
   // ⚠ COMPILE THE COPY'S studio.c, NOT the repo's. A quoted `#include "sound.h"` resolves relative
   // to the INCLUDING FILE's own directory before any -I path is consulted, so compiling
   // runtime/studio.c picks up runtime/sound.h no matter what -I says. This probe did exactly that
@@ -487,7 +576,7 @@ function probe(res) {
     process.stdout.write('  compiling (' + cfg.name + ') … ');
     try {
       execFileSync('clang', ['-fsyntax-only', studio, '-I', rt, '-I', path.join(ROOT, 'runtime'), '-I', path.join(ROOT, 'build'),
-        '-DDE_NO_RAYLIB', '-DSCREEN_W=320', '-DSCREEN_H=200', '-DSCALE=2',
+        '-DSCREEN_W=320', '-DSCREEN_H=200', '-DSCALE=2',
         '-DMAP_W=128', '-DMAP_H=64', '-DCELL_W=16', '-DCELL_H=16', ...cfg.extra], { cwd: ROOT, stdio: 'pipe' });
       console.log('ok');
     } catch (e) {
@@ -538,6 +627,20 @@ function selfCheck() {
   t('non-zero initialiser detected',  () => !ZERO.test('0.35f') && !ZERO.test('PAN_LINEAR'));
 
   t('strips a trailing comment',      () => stripComment('static int x = 1;  // hi').trim() === 'static int x = 1;');
+
+  /* the address-taken guard, in BOTH directions. It is easy to make this check inert while it keeps
+     printing green — the fix that stopped it swallowing function bodies could equally have stopped
+     it seeing anything at all. */
+  const srcAddr = [
+    'static Font game_font;',
+    'static Font *const FONT_SLOT[] = { &game_font };',
+    'static void de_resize(int w) {',
+    '    atomic_fetch_or_explicit(&de_pend, 1, memory_order_release);',
+    '}',
+    'static atomic_int de_pend = 0;',
+  ];
+  t('a file-scope &address IS caught',  () => addressTakenAtFileScope(srcAddr, 'game_font') === true);
+  t('an &address in a FUNCTION is not', () => addressTakenAtFileScope(srcAddr, 'de_pend') === false);
 
   // the emitter: a member, its designated initialiser, and its macro must agree on the name
   const hdr = emitHeader([{ name: 'echo_fb', member: 'float echo_fb;', init: '0.35f' },

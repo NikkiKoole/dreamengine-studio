@@ -53,12 +53,12 @@
 #include "midi_input.h"
 #include "midi_output.h"  // the engine SPEAKS MIDI (notes/CC/clock out) — independent of the input scan above
 #include "game_rect.h"   // window↔canvas placement transform (touch-controls Phase 1.5 chokepoint)
+#include "studio_ctx.h"   // GENERATED per-instance context (tools/ctx-gen.js)
 
 // where the canvas sits in the window + the single window↔canvas transform (see game_rect.h).
 // Phase 1.5 pins it to the full window (origin 0,0; scale = SCALE) → identity, byte-identical to
 // the old bare /SCALE. Phase 2 placement just assigns a different value here and coords follow.
 // Declared up here because the input readers (inp_mouse_x/y, below) are the first to use it.
-static GameRect game_rect = { 0.0f, 0.0f, (float)SCALE };
 
 #ifdef PLATFORM_WEB
 #include <emscripten/emscripten.h>
@@ -169,12 +169,8 @@ static void cart_reload_if_changed(void) {
 // Only palette_hex() writes the upper half today. The named CLR_* stay 0-31.
 // Power of two so color-index masking is `& (PALETTE_SIZE-1)` — same as `% PALETTE_SIZE`
 // for valid colors, but a NEGATIVE color wraps to a safe index instead of reading before palette[].
-#define PALETTE_SIZE 64
 #define SPRITE_SIZE  16
 #define SPRITE_COUNT 64   // 8×8 grid of 16×16 sprites = 128×128 sheet
-#ifndef SCALE
-#define SCALE 4
-#endif
 
 static Texture2D       spritesheet;
 static Image           spritesheet_img = {0};
@@ -187,15 +183,12 @@ static Texture2D       sheet_texs[SPRITES_MULTI] = {0};
 #endif
 #endif
 static void de_sheet_select(int ctx);   // fwd: swap the active sprite sheet on a cart switch
-static RenderTexture2D canvas;
-static RenderTexture2D canvas_snap;   // scratch copy for zoom_rect (avoids sampling the live target)
 static Font            game_font;
 static Font            font_small = {0};
 static Font            font_tiny  = {0};
 static Font            font_comic = {0};
 static Font            font_thin = {0};
 static Font            font_tic  = {0};
-static int             active_font_id = FONT_NORMAL;
 // CPU copies of each font atlas (for the software-canvas glyph blit; filled at load via
 // LoadImageFromTexture). Same index meaning as active_font_id via cur_font_img().
 static Image           game_font_img = {0}, font_small_img = {0}, font_tiny_img = {0}, font_comic_img = {0}, font_thin_img = {0}, font_tic_img = {0};
@@ -206,8 +199,6 @@ static bool            custom_font = false;
 enum { FONT_COUNT = 6 };
 static Font  *const FONT_SLOT[FONT_COUNT] = { &game_font, &font_small, &font_tiny, &font_comic, &font_thin, &font_tic };
 static Image *const FONT_IMG [FONT_COUNT] = { &game_font_img, &font_small_img, &font_tiny_img, &font_comic_img, &font_thin_img, &font_tic_img };
-static DeColor           palette[PALETTE_SIZE];
-static DeColor           base_palette[PALETTE_SIZE];   // pristine copy, for pal_reset()
 // pal()-on-sprites: a palette-swap shader. Sprite texels are exact palette RGBs,
 // so the shader finds each texel's base-palette index and outputs the (possibly
 // remapped) current palette color — reproducing pal() for spr()/sspr() just like
@@ -227,22 +218,13 @@ static int             loc_blend_cur   = -1;   // curPal[64]  (output, follows p
 static int             loc_blend_snap  = -1;   // snapshot sampler (dst)
 static int             loc_blend_res   = -1;   // canvas resolution (px) → snapshot UV
 static int             loc_blend_mode  = -1;   // BLEND_AVG/ADD/MUL/SUB
-static RenderTexture2D blend_snap;             // canvas-so-far copy the blend shader samples as dst
-static bool            pal_active    = false;          // any palette[i] != base_palette[i]?
-static float           cur_pal_rgb[PALETTE_SIZE * 3];  // current palette, normalized — uploaded to the shader
-static bool            cur_pal_dirty = true;
 // blend tables (ADR-0031 / docs/design/blend-tables.md): blend_lut[mode][src][dst] = result index.
 // Built ONCE from base_palette[] (the RGB mixing happens here, at build time; the framebuffer only
 // ever holds palette colors) — dynamic build, no baked constants, so a future palette swap just
 // rebuilds. blend_mode is sticky drawing-scope state like pal()/fillp(); NONE = plain overwrite.
-static int             blend_mode    = BLEND_NONE;
-static unsigned char   blend_lut[5][PALETTE_SIZE][PALETTE_SIZE];   // [BLEND_*][src][dst]; index 0 (NONE) unused
-static bool            blend_lut_ready = false;
 // runtime colorkey() on the software canvas: the GPU path bakes the keyed colour into the
 // `spritesheet` texture (alpha 0); the canvas samples the pristine `spritesheet_img`, so it
 // must skip the key itself. Snapshot the RGB at colorkey() time (matches when the GPU bakes it).
-static bool            sw_colorkey_on  = false;
-static DeColor           sw_colorkey_rgb = {0};
 
 // present-scaling filter, picked in settings → "scaling" (machine-local, -D flag):
 //   0 crisp (nearest, default) · 1 bilinear (smooth) · 2 sharp-bilinear · 3 sharp+gamma
@@ -265,22 +247,6 @@ static int             loc_scale_gamma   = -1;
 // use sites (all after fb_w's declaration); smooth_rt is reallocated to match in de_grow_gpu.
 #define SMOOTH_W (fb_w * 2)
 #define SMOOTH_H (fb_h * 2)
-static RenderTexture2D  smooth_rt;
-static bool            smooth_on        = false;   // smooth_zoom() enabled?
-static bool            smooth_rt_ok     = false;   // offscreen allocated?
-static bool            smooth_capturing = false;   // mid-capture (between camera_ex and camera())
-static float           smooth_zoom_amt  = 1.0f;    // the zoom to apply at composite
-static float           fade_amt   = 0.0f;            // fade()  — 0 normal .. 1 black
-static float           shake_amt  = 0.0f;            // shake() — pixels, self-decaying
-static float           frame_dt   = 0.0f;            // dt()    — seconds since last frame
-static double          last_time  = 0.0;
-static char            text_buf[32] = {0};           // text_input() — chars typed this frame
-static char            paste_buf[256] = {0};          // paste() — clipboard text on the Ctrl/Cmd+V frame
-static bool            fp_on      = false;            // fillp() global pattern active?
-static int             fp_global  = 0;                // current fillp() pattern
-static int             fp_hole    = -1;               // fillp() 1-bit color (-1 = transparent)
-static int             fp_anc_x   = 0;                // fillp() lattice origin (world coords)
-static int             fp_anc_y   = 0;                // — shifts the pattern phase; anchor to a
 // The poly-fill / disc-fill / blit / clamp-cache A/B flags were RETIRED 2026-07-10 after
 // 2–3½ weeks soaking as the sole real-world path (their fast paths are now unconditional).
 static bool            tritex_fast_on = true;        // false → legacy sw_tritex (A/B; env DE_TRITEX_FAST=off). Fast path: bbox clamped to the visible region + hoisted row-write plot (zoom==1 canvas). Last A/B flag — kept (newest, ~1wk soak)
@@ -302,12 +268,7 @@ static bool            pset_batch     = DE_BATCH_PSET_DEFAULT; // true → batch
 // --- software canvas (Phase 0 probe): write pixels into a CPU RGBA buffer, upload once/frame with
 // one UpdateTexture → no per-pixel rlVertex3f. A/B with env DE_SOFTWARE_CANVAS=on (mirrors
 // DE_BATCH_PSET); -DSW_CANVAS_DEFAULT=1 for web. Plan: docs/design/software-canvas-phase0-plan.md.
-#ifndef SW_CANVAS_DEFAULT
-#define SW_CANVAS_DEFAULT 0
-#endif
 static bool            sw_canvas_enabled = SW_CANVAS_DEFAULT; // env DE_SOFTWARE_CANVAS=on (the master toggle)
-static bool            sw_canvas_active   = SW_CANVAS_DEFAULT; // PER-FRAME: enabled AND this cart hasn't used a zoom/rotation camera_ex. Primitives check this.
-static bool            sw_force_gpu     = false;            // sticky: cart used camera_ex with zoom!=1 or angle!=0 → that cart falls back to the GPU path (Fork-2/C)
 // DE_CPU_RASTER (default off): route the primitives that GL rasterizes DIFFERENTLY from the software
 // canvas through the SAME CPU rasterizer even off-canvas — `line()`/`bezier`/2-pt poly (→ de_cpu_line)
 // and `rectfill_rot` (→ the inverse-map fill), via pset so they hit the GPU buffer too. Purpose is A/B
@@ -328,18 +289,15 @@ static bool            audio_off = false;
 // CPU framebuffer (Fork 1: RGBA on desktop). Phase 1b(B): a HEAP buffer sized to fb_w×fb_h so a
 // resizable cart can GROW it past the compile-time SCREEN_W/H (de_ensure_fb). Allocated at boot to
 // SCREEN_W×SCREEN_H; a fixed cart never grows it, so fb_w==SCREEN_W and everything is byte-identical.
-static uint32_t       *sw_cbuf = NULL;
 
 // device-adaptive-layout.md: the PHYSICAL framebuffer dimensions — the row STRIDE for every sw_cbuf
 // index. Grows (grow-only, high-water-mark) when a resizable cart's active size exceeds it; the
 // active de_sw×de_sh region sits at the buffer's bottom-left and the present samples that sub-rect.
-static int fb_w = SCREEN_W, fb_h = SCREEN_H;
 
 // device-adaptive-layout.md Phase 1a: the ACTIVE canvas dims are a runtime value, read wherever a
 // render EXTENT / centering / clip / camera / present rect is computed. SCREEN_W/SCREEN_H are the
 // cart's DEFAULT/boot size (and the fb's initial size). Pinned for a fixed cart → byte-identical;
 // a `resizable` cart updates them (reflow) + grows the fb to fit. Outside DE_NO_RAYLIB — all builds.
-static int de_sw = SCREEN_W, de_sh = SCREEN_H;
 // device-adaptive-layout.md Phase 1b: the per-cart RESIZABLE opt-in. A cart compiled with
 // -DDE_RESIZABLE (clang builds cart.c + studio.c together, so the one flag reaches both TUs)
 // gets a resizable window AND de_sw/de_sh that reflow live to (window / SCALE) on every resize —
@@ -359,8 +317,6 @@ int screen_h(void) { return de_sh; }   // active canvas height in px (== SCREEN_
 // safe-area insets (px) the host reports (iOS notch / home-bar). 0 on desktop. de_set_safe_area sets
 // them; safe_rect gives the cart the usable sub-rectangle so controls dodge the chrome (draw your
 // background full-bleed to screen_w/h, lay controls inside safe_rect).
-static int safe_l = 0, safe_t = 0, safe_r = 0, safe_b = 0;
-static int safe_ref_w = 0, safe_ref_h = 0;   // the canvas dims WHEN the host set the insets (px)
 void safe_rect(int *x, int *y, int *w, int *h) {   // usable area after the device's safe-area insets
     // SCALE the host-reported insets to the CURRENT canvas: a resizable cart may de_resize to its OWN
     // size AFTER the host set them (e.g. a chunky reflow), so the raw px would be mis-scaled → a fat
@@ -376,7 +332,6 @@ void safe_rect(int *x, int *y, int *w, int *h) {   // usable area after the devi
 // iOS's pixelChunk, 2× — via de_set_backing_scale). A comfortable touch target is ~44pt, so a finger
 // is FINGER_PT/scale logical px (22 at 2×). Default 2 so a desktop preview matches the iOS chunk; carts
 // size finger controls to finger_px() instead of a raw constant, which then follows a changed chunk / HiDPI.
-static float de_backing = 2.0f;
 #define FINGER_PT 44.0f
 int finger_px(void) { int p = (int)(FINGER_PT / de_backing + 0.5f); return p < 1 ? 1 : p; }
 // classify the live viewport (same 0/1/2 as disclose.h's DiscShape). ROOMY at >= 340 logical px min-side.
@@ -485,13 +440,7 @@ static void scale_shader_init(void);
 static void scale_shader_ensure(void);
 static void smooth_composite(void);
 
-#define BTN_COUNT 8
-static bool            btn_curr[2][BTN_COUNT];
-static bool            btn_prev[2][BTN_COUNT];
 
-static uint8_t         map_data[MAP_W * MAP_H];
-static int             map_scale_factor = 1;   // map_scale() — integer zoom for map drawing
-static int             frame_count      = 0;
 #ifdef PLATFORM_WEB
 static bool            web_started      = false;  // true after the user clicks to start
 #endif
@@ -512,8 +461,6 @@ static bool            web_started      = false;  // true after the user clicks 
 #endif
 
 // pause overlay — P/ENTER opens it; ESC or selecting Continue closes it
-static bool  pause_active = false;
-static int   pause_sel    = 0;    // 0 = Continue, 1 = Restart
 static char **restart_argv = NULL;
 
 // EXPERIMENTAL (not committed API): --data <file> lets a data-driven cart load a
@@ -532,8 +479,6 @@ static int  de_drop_valid = 0;
 // keys the cart reads via key()/keyp()/keyr() are "claimed" — the pause
 // hotkey skips them, so a cart using the whole keyboard (sh101's two-manual
 // piano takes P) doesn't fight the overlay. Claims are sticky per cart run.
-#define KEY_CLAIM_MAX 512
-static bool key_claimed[KEY_CLAIM_MAX];
 static void key_claim(int k) { if (k >= 0 && k < KEY_CLAIM_MAX) key_claimed[k] = true; }
 #ifdef DE_TCC
 static void key_claims_reset(void) { memset(key_claimed, 0, sizeof key_claimed); }
@@ -728,13 +673,7 @@ static bool studio_net_barrier_poll(void) {
 // touch state (all coordinates in window pixels unless noted)
 // ------------------------------------------------------------
 
-#ifndef TOUCH_CONTROLS_DEFAULT
-#define TOUCH_CONTROLS_DEFAULT 0
-#endif
 
-static bool show_touch_ui = TOUCH_CONTROLS_DEFAULT;
-static int  touch_move_mode = TOUCH_ANALOG;   // TOUCH_ANALOG (floating) | TOUCH_ANALOG_FIX (fixed); set by touch_layout()
-static int  touch_n_buttons = 2;              // how many action buttons the cart asked for (clamped 0..4)
 
 #define STICK_RADIUS    60.0f
 #define STICK_DEADZONE  0.35f
@@ -745,36 +684,21 @@ static int  touch_n_buttons = 2;              // how many action buttons the car
 // 1.0 = full size (overlay, or plenty of room). eff_stick_r()/eff_btn_r() are what every
 // hit-test and draw call actually uses — never the bare STICK_RADIUS/BTN_RADIUS constants —
 // so the visible size and the tappable size never drift apart.
-static float ctrl_scale = 1.0f;      // the STICK's scale (also reused for buttons in DECK/OVERLAY, where a fixed margin already keeps them safely on-screen)
-static float ctrl_scale_btn = 1.0f;  // the BUTTON diamond's own scale — RAILS sizes this from the button rail's width, since it's a wider footprint than the stick and the two rails aren't always the same size
 #define CTRL_SCALE_MIN  0.6f
 
 // last computed placement (set once a frame alongside game_rect, below) — read back by
 // touch_layout_mode()/touch_ctrl_scale() and the touch_debug() overlay.
-static int  place_mode = PLACE_OVERLAY;
-static int  tband_x = 0, tband_y = 0, tband_w = 0, tband_h = 0;
-static bool touch_debug_on = false;
-static bool net_debug_on    = false;   // F2: net-health overlay (frame/buffer/stalls/pkts) — see draw_net_debug
 
 static inline float eff_stick_r(void) { return STICK_RADIUS * ctrl_scale; }
 static inline float eff_btn_r(void)   { return BTN_RADIUS   * ctrl_scale_btn; }
 
-static int   stick_touch_id = -1;
-static float stick_base_x = 0, stick_base_y = 0;
-static float stick_knob_x = 0, stick_knob_y = 0;
-static float stick_home_x = 0, stick_home_y = 0;   // fixed-mode base position (window px)
-static int   sgz_x = 0, sgz_y = 0, sgz_w = 0, sgz_h = 0;   // stick grab zone (window px), set by layout
 
 // action button centres (window px), by index: 0=A, 1=B, 2=X, 3=Y — see layout_action_buttons().
 // Only the first touch_n_buttons slots are drawn/hit-tested; the rest sit computed-but-unused.
-static int btn_cx[4], btn_cy[4];
 
 // d-pad move mode: same grab-zone as the stick, but resolves to direction booleans instead
 // of a knob position. dpad_touch_id tracks the held finger; dpad_up/down/left/right are this
 // frame's result, read by btn() and painted by the draw skin.
-static int  dpad_touch_id = -1;
-static bool dpad_up = false, dpad_down = false, dpad_left = false, dpad_right = false;
-static int  dpad_sector = -1;   // 0..7 compass sector (0=up, clockwise by 45°), -1 = no direction held
 #define DPAD_DEADZONE     (eff_stick_r() * 0.3f)
 #define DPAD_GRAB_RADIUS  (eff_stick_r() * 1.4f)  // a d-pad is a fixed LOCAL widget (unlike the
                                                     // stick's whole-zone grab) — only a tap near its
@@ -783,35 +707,15 @@ static int  dpad_sector = -1;   // 0..7 compass sector (0=up, clockwise by 45°)
 // virtual touch pool — merges raylib touches with mouse-as-touch on desktop.
 // the mouse LMB is exposed as a synthetic touch with id MOUSE_TOUCH_ID.
 #define MOUSE_TOUCH_ID  (-2)
-#define VT_MAX           16
-static int     vt_count = 0;
-static Vector2 vt_pos[VT_MAX];
-static int     vt_id[VT_MAX];
 // previous frame's ids — lets tapp() spot a touch that BEGAN this frame
-static int     vt_prev_count = 0;
-static int     vt_prev_id[VT_MAX];
 // previous frame's positions + this frame's lifted contacts — a released touch
 // is a ghost (no index this frame), so touch_ended_*/tapr() read these instead
-static Vector2 vt_prev_pos[VT_MAX];
-static int     vt_ended_count = 0;
-static int     vt_ended_id[VT_MAX];
-static Vector2 vt_ended_pos[VT_MAX];
 
 // camera + clip state
 // the camera is a raylib Camera2D applied via BeginMode2D, so zoom/rotation are GPU
 // matrix work (not per-primitive math). offset is pinned to the screen centre, so
 // zoom/angle pivot there; target is back-computed from camera(x,y) to stay identical
 // to the old "world (x,y) at top-left" translate at zoom 1 / angle 0.
-static Camera2D cam = {   // static initializer needs compile-time consts → SCREEN_W/H (the max);
-                          // camera() recomputes offset/target at runtime, so this is byte-identical
-    .offset   = { SCREEN_W / 2.0f, SCREEN_H / 2.0f },
-    .target   = { SCREEN_W / 2.0f, SCREEN_H / 2.0f },
-    .rotation = 0.0f,
-    .zoom     = 1.0f,
-};
-static bool  cam_active = false;   // true while inside BeginMode2D during draw()
-static bool  clip_active = false;
-static int   clip_cx = 0, clip_cy = 0, clip_cw = 0, clip_ch = 0;  // active scissor rect (valid while clip_active)
 
 // world→screen under the active camera (rotation is always 0 on the software path — a rotation
 // camera_ex makes the cart fall back to GPU, see sw_force_gpu). zoom==1 is the fast translation
@@ -1155,14 +1059,10 @@ void de_ui_audit(int x, int y, int w, int h, int focusable) {
 
 // pget snapshot — refreshed at the start of every frame, so pget reads
 // the previous frame's canvas (consistent state, no mid-frame RT readback)
-static Image pget_snapshot     = (Image){0};
-static bool  pget_snapshot_valid = false;
 // opt-in (enable_pget): the canvas read-back is only worth its GPU stall + per-frame
 // 256KB Image churn for carts that actually read pixels. Off by default; a cart that
 // uses pget/pget_rgb/touching_color turns it on (once in init, or around a reading
 // mode). pget_warned makes the "forgot to enable" hint fire only once.
-static bool  pget_enabled = false;
-static bool  pget_warned  = false;
 
 // how much to shrink a control (0..1) so a ring of the given reference diameter fits inside a
 // band of the given size — floored at CTRL_SCALE_MIN so it never shrinks below a tappable size,
@@ -1627,16 +1527,7 @@ void printh(const char *fmt, ...) {
     fflush(stderr);              // line-buffer through the pipe so the editor sees it promptly
 }
 
-typedef struct {
-    char name[24];
-    char value[40];
-    int  age;                    // frames since last touched
-} WatchEntry;
 
-#define WATCH_MAX 40
-static WatchEntry watches[WATCH_MAX];
-static int        watch_count = 0;
-static bool       watch_show  = true;   // F1 toggles
 
 void watch(const char *name, const char *fmt, ...) {
     int slot = -1;
@@ -2858,7 +2749,6 @@ static void load_script(const char *path) {
 // build/.bake/<name>, but for persistence.
 // ------------------------------------------------------------
 
-static char save_dir[512] = ".";
 
 // join save_dir + file into a static buffer ("cart.kv" → "saves/foo/cart.kv")
 static const char *save_path(const char *file) {
@@ -4035,7 +3925,6 @@ void mouse_hide(void) { HideCursor(); }
 void mouse_show(void) { ShowCursor(); }
 #endif
 
-static int last_cls_color = 0;   // remembered so smooth_zoom's offscreen clears to the same bg
 void cls(int color) {
     PROF("cls");
     last_cls_color = color & (PALETTE_SIZE - 1);
@@ -5414,7 +5303,6 @@ int mid(int a, int b, int c) {
 // timer — a resettable stopwatch on top of GetTime()
 // ------------------------------------------------------------
 
-static double timer_base = 0.0;
 
 float timer(void)       { return (float)(clk() - timer_base); }
 void  timer_reset(void) { timer_base = clk(); }
@@ -5982,8 +5870,6 @@ void follow(int tx, int ty, int world_w, int world_h) {
 // persistence
 // ------------------------------------------------------------
 
-static int  sav_data[64]  = {0};
-static bool sav_loaded    = false;
 
 static void sav_ensure(void) {
     if (sav_loaded) return;
@@ -6010,8 +5896,6 @@ int load(int slot) {
 // the whole process. Under the live (libtcc) backend the host owns this memory, so it
 // SURVIVES a hot reload — unlike a cart global, which is wiped when the module reloads.
 // Grows on demand; never shrinks. Bytes added by a grow are zeroed.
-static unsigned char *de_state_mem = NULL;
-static int            de_state_cap = 0;
 void *de_state(int bytes) {
     if (bytes <= 0) return de_state_mem;   // bogus size (negative casts to a huge size_t) → no grow
     if (bytes > de_state_cap) {
@@ -6067,8 +5951,6 @@ int load_bytes(void *out, int max) {
 #define KV_MAX     64
 #define KV_KEYLEN  24
 static struct { char key[KV_KEYLEN]; int value; } kv_data[KV_MAX];
-static int  kv_count  = 0;
-static bool kv_loaded = false;
 
 static void kv_ensure(void) {
     if (kv_loaded) return;

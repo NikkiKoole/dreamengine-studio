@@ -5,7 +5,10 @@ STATUS: SHIPPED (2026-07-02, one day, design → cart) — **`acidrack.c`, all f
 per-DEVICE FX ([fx] view per machine: dist + delay send into the one shared unit; MASTER keeps
 glue + the PCF lane), CPY/CLR/RND scoped to the open strip, and the SEEDED GENERATOR: an 8-hex
 song code deterministically fills all banks + the chain (byte-identical trace+WAV acceptance
-test), tap-to-nudge digits, [ ] history, WAV export via the engine's live capture. Same-day
+test), tap-to-nudge digits, [ ] history, WAV export via the engine's live capture (⚠ **overstated** — see
+[external-clock-sync.md → what export would actually take](external-clock-sync.md#what-export-would-actually-take-and-what-acidrack-really-does):
+that "export" pokes the DEBUG-HARNESS request file `.bake/wav_request`, which does not exist in a
+shipped app, so it is a capability demo and not a feature a buyer can use). Same-day
 engine work: `FILTER_DIODE` + `tools/filter-spec.js` (audio-notes §25), tb303.c upgraded.
 Open tails live in the cart's de:meta todo (touch strokes, per-voice knobs, undo, naming) +
 Increment G machine buses (effects-bus-architecture.md). This doc proposed taking the pilot

@@ -148,8 +148,10 @@ a broken doc link or `#section`).
 > descriptive of our sound at all, so no nominative-use defence. No tool enforces this — a trademark screen belongs in the `aso-*` pipeline.
 > **(2)** `acidcandy` **cannot export a track**, and in-app export is what ReBirth shipped instead of
 > relying on a host — which is the real answer to "recording it in GarageBand does nothing".
-> `acidrack` can export via the engine's live capture, so the surface exists and the shipping cart
-> just does not use it.
+> The engine CAN capture its own output, but the only trigger is the debug harness's `.bake/wav_request`
+> file, which does not exist in a shipped app — so nothing a buyer can reach exports today. A real one
+> is three pieces (a `capture_*` API instead of a polled file · the app's Documents dir via
+> `de_set_save_dir` · a share-sheet last mile in `ios/Sources/`), and only the first is cart work.
 >
 > **The outward surface in ONE table** (asked for 2026-08-13, was scattered over four docs):
 > [`external-clock-sync.md` → The whole outward surface](design/external-clock-sync.md#the-whole-outward-surface--what-ships-what-is-open-and-the-rebirth-comparison)

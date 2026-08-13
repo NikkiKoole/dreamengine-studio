@@ -28,7 +28,7 @@ rather than fact, because getting that wrong would be worse than leaving it open
 | **MIDI clock OUT** — drive other gear from a cart | out | ✗ **NOT BUILT AT ALL.** There is no MIDI output path in the engine; `midi_input.h` is input-only by design. See [`midi-out.md`](midi-out.md) (EXPLORING) | ✗ ReWire instead (recall) |
 | **MIDI notes OUT** — a cart as a sequencer for outboard | out | ✗ not built (same missing path) | ✗ (recall) |
 | **Audio INTO another app / DAW** | out | AUv3 — plays, but the panel is not honestly wired (the fork above) | ✅ ReWire on desktop; **Audiobus** on iPad |
-| **In-app EXPORT of your track** | out | ✗ **`acidcandy` cannot.** `acidrack` can (engine live capture), so the surface exists | ✅ **iTunes + SoundCloud** |
+| **In-app EXPORT of your track** | out | ✗ **nothing ships this.** The engine CAN capture its own output (`sound_wavcap_begin`), but the only trigger is the debug harness's request-file channel — see "what export would actually take" below | ✅ **iTunes + SoundCloud** |
 | **Background audio while slaved** (iOS) | — | ✗ open, and it is the pairing ReBirth shipped | ✅ |
 | **Who owns the tempo** | — | the cart, until a clock arrives; `sync_transport()` says whether that clock drives start/stop too, so a tempo-only clock never steals the play button | — |
 
@@ -44,13 +44,44 @@ predates it and Propellerhead never added one. No Ableton Link. No MIDI out.
 So its outward surface was: **be a slave, keep playing in the background, route audio to other apps,
 and GET YOUR TRACK OUT.** Two of those four we do not have:
 
-- **In-app EXPORT.** ReBirth let you export the track to iTunes or SoundCloud. `acidcandy` cannot
-  export at all (`acidrack` can — "WAV export via the engine's live capture" — so the engine surface
-  exists and the shipping cart just does not use it). **This is the honest answer to "recording it in
-  GarageBand does nothing":** ReBirth never relied on the host for that either. It shipped its own way
-  out.
+- **In-app EXPORT.** ReBirth let you export the track to iTunes or SoundCloud. Nothing of ours does.
+  **This is the honest answer to "recording it in GarageBand does nothing":** ReBirth never relied on a
+  host to capture a take either — it shipped its own way out. See below for what ours would take; the
+  short version is that the capture engine exists and the product feature does not.
 - **Background audio on iOS** (with MIDI clock in), which is exactly the pairing ReBirth shipped and
   our lane still lists as open.
+
+### What export would actually take (and what `acidrack` really does)
+
+Worth stating precisely, because `rebirth-classic.md` says "WAV export via the engine's live capture"
+and that oversells it. What `acidrack` does is poke a **debug-harness request file**:
+
+```c
+FILE *f = fopen(".bake/wav_request", "w");        // acidrack.c export_wav()
+fprintf(f, "%s\n%.1f\n", export_name, secs);      // line 1 = path, line 2 = seconds
+```
+
+…which `studio.c` picks up in the same poller that serves `screenshot_request` and `profiler_request`,
+then calls `sound_wavcap_begin(out, secs)` (capped at 60s). The capture engine is real and the cart
+even restarts the song from the top so the take covers the whole arrangement. But:
+
+- **there is no cart-facing API** — no `capture_*` in `studio.h`; a cart writes a file at a path
+  relative to its working directory. In the editor that is `build/`; in a shipped app `.bake/` does not
+  exist, `fopen` fails, and `export_wav()` silently returns having done nothing
+- **60 seconds** is a loop, not a track
+- **the file lands somewhere a user cannot reach** — on iOS the container is sandboxed, so a WAV in it
+  is invisible without a share sheet. ReBirth's "export to iTunes/SoundCloud" *was* that last mile
+
+So a real export is three pieces, and only the first is cart work:
+
+1. **promote the capture to the API** — `capture_begin(path, secs)` in `studio.h`, so it does not depend
+   on a polled request file or on the working directory
+2. **a writable destination** — the app's Documents dir, which the iOS host already supplies through
+   the existing `de_set_save_dir` seam
+3. **the last mile** — a share sheet / Files hand-off in `ios/Sources/`, which is HOST work, not cart work
+
+Arguably worth more to the product than any remaining sync feature: it is the difference between "I
+made something" and "I have a file", and it answers the recording question without a host at all.
 
 ### What the market expects now (same research)
 

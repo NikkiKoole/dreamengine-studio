@@ -42,7 +42,7 @@ a broken doc link or `#section`).
 > What a reader needs to *choose* a lane is in the front-door output; what they need to *resume*
 > one is in the lane itself. A summary in between is a third copy, and it is the copy nobody
 > updates. If you find yourself writing one again, teach `handoff.js` to print it instead.
-> **▶ ACTIVE THREAD (2026-08-13) — `tenement`: the building now contends, behind two toggles nobody has decided on.**
+> **▶ ACTIVE THREAD (2026-08-13) — `tenement`: it is low-poly 3D now, and the open half is STAKES rather than looks.**
 > The sim of several households sharing one building, built contract-first then fanned out to eight
 > agents (ADR-0034). **SHIPPED:** the frozen contract `runtime/tenement/model.h` plus twelve modules
 > (world/path/offer/agents/work/econ/store/social/art/hud/build/atlas), 242 `spec()` assertions,
@@ -82,15 +82,30 @@ a broken doc link or `#section`).
 > up to a cart with no stakes. **So D+R made the simulation more truthful than the picture can
 > express, which is backwards for a cart whose thesis is that the sim reports whether your space
 > works.**
-> **▶ NEXT ACTION, and it is NOT simulation work.** In order: (a) make the residents the loudest thing
-> on screen (rim, per-household colour, posture carrying the worst need — the rim also makes a queue
-> of three COUNTABLE, which is a second item it closes); (b) put the events in the picture rather than
-> the news line, above the resident's head, `fxicons.h` being the precedent for a shared glyph
-> vocabulary; (c) let something be LOST, which is the real design conversation — eviction, or the
-> smaller version where needs leave traces the building keeps so a neglected flat LOOKS neglected.
-> **The D/R decision is PARKED behind all three**: you cannot judge whether a building has a life in
-> it until you can see who lives there. Committing them would also rewrite case 1's converse, the
-> cart's headline assertion, which is why they are keys and not a commit. **Counter-intuitive, already
+> **▶ THE RENDERING WAS REPLACED (2026-08-13, later the same day), and it answers half the verdict.**
+> Decided in a probe rather than argued about: `polyroom` builds the same flat twice — low-poly
+> triangles against the baked voxel sprites, one key apart — and the maker picked low-poly with real
+> hex palette ramps. That is now LANDED in `runtime/tenement/art.h`, with the sprite view kept on `V`
+> so the comparison stays checkable. What shipped: a **depth buffer** instead of a painter's sort
+> (draw order stops mattering, and it let subdivision be deleted, which paid for it — 3.02ms with,
+> 2.28ms without); **free orbit + tilt** on the arrows, polygon-view only; **per-household colour**;
+> and **three poses** where there had been one and a half — stand, **sit** (the contract had said
+> `TN_POSE_SIT` since day one and only the art was missing, so a resident on the sofa had always been
+> drawn standing on the backrest) and **work** (arms out, aimed at the object, which forced the
+> instance rotation a symmetric figure had let us skip). Gates held throughout: **spec 242/242,
+> ui-audit clean, canvas-diff 0px**, and the projection was left untouched so `build.h`'s
+> click-to-tile inverse still lands where the player aimed.
+>
+> **▶ NEXT ACTION, and the ORDER CHANGED because the look is no longer the bottleneck.** The two
+> legibility items about IDENTITY are done — you can see whose flat someone is in and what they are
+> doing. The two about STATE and STAKES are not, and they are now the top: (a) **posture must carry the
+> worst need** — the HUD prints "filthy" and "bursting" while the figure stands there unbothered, and
+> everything needed is already in place, so this is a slump and a shade rather than new machinery;
+> (b) **let something be LOST**, the real design conversation, now unblocked because you can finally
+> see who lives there. Then the rim (two residents of the same household adjacent are still one
+> shape), events in the picture, and a HAUL pose. **The D/R decision stays PARKED, for a better reason
+> than before:** the old reason was that you could not see the residents, and you can now — the new
+> one is that contention with no CONSEQUENCE is still just traffic, so it belongs after (b). **Counter-intuitive, already
 > measured, do not re-derive:** a SHARPER day makes a QUIETER building (REST appeal amp 70 → 95 drops
 > contention 16.2% → 12.2%), because residents pinned into one narrow window stop overlapping at its
 > edges. The phase is also still wrong (they sleep late afternoon), which is tuning, not structure.

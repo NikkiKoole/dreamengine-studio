@@ -11,6 +11,7 @@
     "AND THE PICTURES AGREE: 103 differing pixels of 56320 (0.18%), max delta 146, at the angle that used to fail. So the depth buffer is NOT fixing a visible bug today — subdivision plus the abut rule already do. Its value is deleting those compensations, and that is a real but different argument. Read the residual 0.18% before believing either path: they are edge pixels where this cart's own rasterizer and the engine's trifill coverage rule disagree, NOT sort errors, and confirming that is the next job.",
     "SO THE ENGINE QUESTION IS NOW EVIDENCED RATHER THAN SPECULATIVE. ADR-0009 scoped general 3D out and chose leaf helpers, which was right against a 3D ENGINE; what this measures is much narrower — a per-pixel depth compare inside trifill plus one 320x200 depth array. It is cheap, it is faster than sorting, and it removes four separate authoring constraints. It still wants an ADR and a det-probes gate rather than a patch to a hot shared file, and the numbers above are the evidence to argue it with.",
     "SUBDIVISION IS NOW LOAD-BEARING and its bound is asserted, not assumed: no quad may span more than two tiles of depth (spec case 5). If a future mesh gets big flat faces, they subdivide automatically — but the constant is tuned to a 6-voxel tile, so changing TILE changes the sort's soundness. The cost of the bound is measured: tri count 372 to 551, frame 0.59ms to 0.93ms.",
+    "THE SHADE COUNT IS WHERE THE 32-SLOT BUDGET ACTUALLY HURTS, and both symptoms the maker found came from it. A resident with 2 shades gives BOTH its side faces one dark tone, so a sleeping figure was a bright top and a flat shadow — it reads as missing geometry. Fixed by giving households 3 shades, paid for by dropping PORCELAIN out of the hex set (it is white, and the base palette already holds a real neutral ramp, so it loses least). Four shades also cannot keep all three simultaneously-visible face directions distinct through a dot product — that is provable, not tuning, and it is why screen mode now shades by up-ness and screen-right-ness instead. If the palette ever widens past 64 slots, revisit both.",
     "THE HEX MODE IS THE OPEN QUESTION, and it is bigger than this cart. D's third setting abandons the dither and writes real ramps into palette slots 32-63, which are free (PALETTE_SIZE is 64 and only 0-31 are named). That is not off-grain: palette-and-color.md already carries a release gate that no paid app ships on the borrowed PICO-8 set. But the BUDGET is the finding — 32 slots buys six materials four shades each plus four households two each, and nothing for skin, trim, trousers or the floor. If the answer is 'real shades, always', the next question is not this cart's: it is whether the console's palette stops being 32 fixed entries, which is blend-tables and dynamic-palettes territory.",
     "PERSPECTIVE is not implemented and the seam is marked in pr_project: this is a stylized shear (the ground squash and the height scale are two independent numbers, inherited from the voxel bake's 2px-per-voxel convention, which no single orthographic elevation can produce). A real perspective divide is a different projection and a different question; add it only if the ortho look wins first.",
     "Instance yaw is not implemented — every object is placed in its authored orientation, and the room was laid out to suit that. The voxel set solves this by baking NS and EW wall variants; a poly set would rotate the mesh, which is one of the things this probe exists to prove is cheaper.",
@@ -136,12 +137,18 @@ static const unsigned char HH_TONE[HH_COUNT][3] = {          // top, right, left
 // materials four shades each (24) plus four households two each (8), and NOT a shade for every
 // material. Skin, trim, trousers and the floor keep their base-palette entries — they are small or
 // flat, and something always has to lose when the budget is a fixed 32.
+// THE SPLIT IS 5 MATERIALS x 4 + 4 HOUSEHOLDS x 3, and the reallocation was forced by looking at it:
+// two shades gave a resident's BOTH side faces the same dark tone, so a sleeping figure read as a
+// bright top and one flat shadow, which is what "missing triangles" looks like. Three shades give
+// the voxel bake's own [top, screen-right, screen-left] reading. The slot for it came from dropping
+// PORCELAIN out of the hex set — it is white, and the base palette already holds a real neutral
+// ramp (dark grey, light grey, white), so it loses least. 32 slots means something always loses.
 #define PR_SLOT0    32                 // first free palette slot
 #define PR_MAT_SH   4                  // shades per material group
-#define PR_HH_SH    2                  // shades per household shirt
-enum { SG_WOOD, SG_WALL, SG_METAL, SG_PORC, SG_UPH, SG_CUSH, SG_COUNT };
+#define PR_HH_SH    3                  // shades per household shirt
+enum { SG_WOOD, SG_WALL, SG_METAL, SG_UPH, SG_CUSH, SG_COUNT };
 static const int SG_BASE[SG_COUNT] = {              // seeded from the pico32 entry each replaces,
-    0xab5236, 0x754665, 0xc2c3c7, 0xfff1e8,         // so identity survives the change of technique
+    0xab5236, 0x754665, 0xc2c3c7,                   // so identity survives the change of technique
     0x29adff, 0xff77a8,
 };
 static const int HH_BASE[HH_COUNT] = { 0xff004d, 0x00e436, 0x83769c, 0xffa300 };
@@ -166,12 +173,15 @@ static void pr_build_palette(void) {
             palette_hex(PR_SLOT0 + g * PR_MAT_SH + s, hex);
         }
     for (int h = 0; h < HH_COUNT; h++)
-        for (int s = 0; s < PR_HH_SH; s++)
-            palette_hex(PR_SLOT0 + SG_COUNT * PR_MAT_SH + h * PR_HH_SH + s,
-                        s ? pr_mix(HH_BASE[h], LIGHT, 0.30f) : pr_mix(HH_BASE[h], SHADOW, 0.40f));
+        for (int s = 0; s < PR_HH_SH; s++) {
+            const float t = (float)s / (PR_HH_SH - 1);
+            const int hex = (t < 0.5f) ? pr_mix(HH_BASE[h], SHADOW, (0.5f - t) * 1.3f)
+                                       : pr_mix(HH_BASE[h], LIGHT,  (t - 0.5f) * 0.9f);
+            palette_hex(PR_SLOT0 + SG_COUNT * PR_MAT_SH + h * PR_HH_SH + s, hex);
+        }
     for (int m = 0; m < M_COUNT; m++) SG_OF[m] = -1;
-    SG_OF[M_WOOD] = SG_WOOD;   SG_OF[M_WALL]  = SG_WALL;   SG_OF[M_METAL] = SG_METAL;
-    SG_OF[M_PORC] = SG_PORC;   SG_OF[M_UPH]   = SG_UPH;    SG_OF[M_CUSH]  = SG_CUSH;
+    SG_OF[M_WOOD] = SG_WOOD;   SG_OF[M_WALL] = SG_WALL;   SG_OF[M_METAL] = SG_METAL;
+    SG_OF[M_UPH]  = SG_UPH;    SG_OF[M_CUSH] = SG_CUSH;   // PORC falls back to the base neutral ramp
 }
 
 // ── the authoring primitive ─────────────────────────────────────────────────
@@ -246,7 +256,7 @@ static const Part P_TOILET[] = {
 static const Part P_FRIDGE[] = {
     PRISM(0,0,0, 6,6,11.6f,  0.15f,0.15f,-0.15f,-0.15f, M_METAL),
     BOX  (0.3f,6.0f,5.4f, 5.7f,6.25f,5.9f,           M_TRIM),       // door seam
-    BOX  (4.5f,6.0f,6.4f, 5.2f,6.4f,9.6f,            M_TRIM),       // handle
+    BOX  (4.4f,6.0f,6.2f, 5.3f,6.45f,9.8f,           M_TRIM),       // handle, standing a little prouder
     PRISM(0,0,11.6f, 6,6,12,  0.15f,0.15f,-0.15f,-0.15f, M_TRIM),   // dark top, kills the box read
 };
 
@@ -583,15 +593,43 @@ static void pr_quad(const float a[3], const float b[3], const float c[3], const 
     float dx, dy, dz; pr_viewdir(&dx, &dy, &dz);
     if (n[0]*dx + n[1]*dy + n[2]*dz <= 0.0f) return;     // backface. With no z-buffer this is not
                                                          // an optimization, it is correctness
-    // Brightness. Screen-fixed mode spins the normal by the camera yaw before lighting it, which is
-    // the same thing as spinning the light the other way — and matches the baked tones exactly.
-    float ln[3] = { n[0], n[1], n[2] };
+    // ── BRIGHTNESS, and the two modes are genuinely different KINDS of thing ────────────────────
+    //
+    // SCREEN mode is not "the light rotates with the camera" — that framing is what broke it. A
+    // dot product against any single light direction TIES two perpendicular faces at whichever yaw
+    // puts them symmetric about the light, and then the corner between them vanishes: a fridge came
+    // out as one flat grey pane over part of the orbit. The voxel bake never has this problem
+    // because it does not use a dot product at all — it assigns [top, screen-right, screen-left] by
+    // face DIRECTION, and screen-right is never equal to screen-left.
+    //
+    // So screen mode shades by UP-ness and SCREEN-RIGHT-ness, which is that rule made continuous so
+    // rakes and tapers still get in-between values. Why it cannot tie: the two visible side faces
+    // are perpendicular in the ground plane and the view direction BISECTS them, so their
+    // screen-right-ness is always opposite in sign. Guaranteed at every yaw, not tuned per angle.
+    //
+    // Screen-right is (cos a, -sin a, 0), NOT the world x axis — sx = (x cos a - y sin a) * SX, so
+    // +y world moves screen-LEFT. Getting that wrong is why the first fill-light attempt failed:
+    // it gave +y and -y the same right-ness (zero) and could not separate them.
+    float br;
     if (pr_lightcam) {
-        const float ang = (pr_yaw - 45.0f) * 3.14159265f / 180.0f, cs = cosf(ang), sn = sinf(ang);
-        ln[0] = n[0]*cs - n[1]*sn; ln[1] = n[0]*sn + n[1]*cs;
+        const float ar = pr_yaw * 3.14159265f / 180.0f;
+        const float right = n[0] * cosf(ar) - n[1] * sinf(ar);
+        const float up = n[2] > 0.0f ? n[2] : 0.0f;
+        // Weights are not free parameters: the two side faces must land in DIFFERENT shade bins at
+        // every yaw in the quadrant, and the top must clear both. 0.20/0.38/0.40 does that with the
+        // least contrast — the first pass used 0.12/0.42/0.45, which separated them and made the
+        // shaded side nearly black, trading one artifact for a worse-looking picture.
+        br = 0.20f + 0.38f * up + 0.40f * (0.5f + 0.5f * right);
+    } else {
+        // WORLD mode keeps a real directional light — each face then has a CONSTANT brightness as
+        // you orbit, which is the honest reading of a room turning under a fixed sun. The ambient is
+        // a fill rather than a flat floor so two unlit faces (the -x/-y pair) do not both bottom out
+        // onto the same shade, which was the other half of the flat-fridge bug.
+        const float d = n[0]*LX + n[1]*LY + n[2]*LZ;
+        const float fill = 0.14f + 0.16f * (0.5f + 0.5f * n[0]);
+        br = fill + (1.0f - fill) * (d < 0.0f ? 0.0f : d);
     }
-    float br = ln[0]*LX + ln[1]*LY + ln[2]*LZ;
-    br = 0.22f + 0.78f * (br < 0.0f ? 0.0f : br);   // ambient floor, or an unlit face is a black hole
+    if (br > 1.0f) br = 1.0f;  if (br < 0.0f) br = 0.0f;
 
     // ── SUBDIVISION: the requirement that makes a painter's sort SOUND ──────────────────────────
     // A painter's sort gives each polygon ONE depth, so a polygon that spans a large depth range is
@@ -680,7 +718,9 @@ static void pr_shade_of(const Tri *t, int *color, int *hi, int *lo) {
     if (pr_shade == SH_SMOOTH) {
         int slot = -1;
         if (is_shirt) {
-            const int s = t->bright > 0.62f ? 1 : 0;
+            // Three bands chosen to land the three faces a standing figure shows on three DIFFERENT
+            // shades (top 0.87, screen-right 0.61, screen-left 0.42) — the voxel bake's own reading.
+            const int s = t->bright > 0.72f ? 2 : (t->bright > 0.50f ? 1 : 0);
             slot = PR_SLOT0 + SG_COUNT * PR_MAT_SH + t->hh * PR_HH_SH + s;
         } else if (SG_OF[t->mat] >= 0) {
             int s = (int)(t->bright * (PR_MAT_SH - 0.001f));

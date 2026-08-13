@@ -17,6 +17,17 @@ static const int OBJ_CELL[TN_OBJ_KIND_COUNT] = {
     [TN_OBJ_TOILET] = ISO_TOILET, [TN_OBJ_SOFA] = ISO_SOFA, [TN_OBJ_LOOM] = ISO_LOOM,
     [TN_OBJ_WARDROBE] = ISO_WARDROBE,
 };
+// WHERE A BODY RESTS ON THIS OBJECT, in voxels — 0 means "the top of it", which is the old
+// behaviour. The old code always lifted a non-standing resident to the object's full HEIGHT. That is
+// right for a bed (you lie on the mattress, and the mattress IS the top) and wrong for everything you
+// SIT on: a sofa is six voxels tall because of its backrest, so a sitter was placed on top of the
+// backrest, and a toilet put one on top of the cistern. WHOLE voxels only — a fractional lift puts
+// corners between lattice points and strays pixels everywhere (iso-rooms.md §7's measured table).
+// ART ONLY, like OBJ_CELL: this says where a body looks right, never what the object does.
+static const short ISO_REST_Z[ISO_MODEL_COUNT] = {
+    [ISO_SOFA]   = 4,     // the seat cushion, not the top of the backrest
+    [ISO_TOILET] = 3,     // the seat, not the top of the cistern
+};
 static float cam_x, cam_y;   // owner: art. The HUD does not need these.
 static void tnr_iso_turn(int q, float x, float y, float *X, float *Y) {
     switch (q & 3) { case 0: *X= x; *Y= y; break; case 1: *X=-y; *Y= x; break;
@@ -284,6 +295,14 @@ static const TnPart TNP_PERSON[] = {
     TNR_PRISM(1.1f,0.7f,5.2f, 3.9f,2.3f,9.3f, -0.7f,-0.1f,0.7f,0.1f, TNM_SHIRT),  // SHOULDERS
     TNR_PRISM(1.6f,0.9f,9.3f, 3.4f,2.1f,11.6f, 0.25f,0.2f,-0.25f,-0.2f, TNM_SKIN),
 };
+// SITTING: thighs projecting forward, torso up, shoulders wider than the head. Eight voxels, and the
+// forward projection is what carries the read — at this size a seated figure is recognised by its
+// outline breaking the vertical, never by proportion.
+static const TnPart TNP_PERSON_SIT[] = {
+    TNR_BOX  (1.0f,4.0f,0, 4.0f,6.0f,1.9f,              TNM_TROUSER),   // thighs, forward
+    TNR_PRISM(1.1f,2.2f,1.9f, 3.9f,3.9f,6.0f, -0.7f,-0.1f,0.7f,0.1f, TNM_SHIRT),  // torso -> shoulders
+    TNR_PRISM(1.6f,2.4f,6.0f, 3.4f,3.7f,8.0f, 0.25f,0.2f,-0.25f,-0.2f, TNM_SKIN), // head
+};
 static const TnPart TNP_PERSON_LIE[] = {
     TNR_PRISM(0.5f,0,0.2f, 2.5f,1.3f,1.9f, 0.2f,0.15f,-0.2f,-0.15f, TNM_SKIN),
     TNR_PRISM(0.2f,1.4f,0, 2.8f,7.6f,1.6f, 0.2f,0,-0.2f,-0.4f, TNM_SHIRT),
@@ -302,7 +321,7 @@ static const TnMesh TNR_MESHES[ISO_MODEL_COUNT] = {
     [ISO_TOILET]       = TNR_MESH(TNP_TOILET),       [ISO_FRIDGE]       = TNR_MESH(TNP_FRIDGE),
     [ISO_COUNTER]      = TNR_MESH(TNP_COUNTER),      [ISO_LOOM]         = TNR_MESH(TNP_LOOM),
     [ISO_WARDROBE]     = TNR_MESH(TNP_WARDROBE),     [ISO_PERSON]       = TNR_MESH(TNP_PERSON),
-    [ISO_PERSON_LIE]   = TNR_MESH(TNP_PERSON_LIE),
+    [ISO_PERSON_LIE]   = TNR_MESH(TNP_PERSON_LIE), [ISO_PERSON_SIT]   = TNR_MESH(TNP_PERSON_SIT),
     [ISO_WALL_FULL_NS] = TNR_MESH(TNP_WALL_FULL_NS), [ISO_WALL_FULL_EW] = TNR_MESH(TNP_WALL_FULL_EW),
     [ISO_WALL_LOW_NS]  = TNR_MESH(TNP_WALL_LOW_NS),  [ISO_WALL_LOW_EW]  = TNR_MESH(TNP_WALL_LOW_EW),
 };
@@ -532,7 +551,11 @@ void tn_draw_world(void) {
         // object kind anywhere: a bed does not tell the renderer it is a bed, it tells the sim that
         // using it means lying down (contract rule 2). Standing on a mattress was the symptom of
         // there being no notion of posture at all.
-        const int pcell = (tn_agent[i].pose == TN_POSE_LIE) ? ISO_PERSON_LIE : ISO_PERSON;
+        // THE POSE PICKS THE CELL, all three of them. SIT used to fall through to the standing
+        // figure, so a resident on the sofa or the toilet was drawn upright — the sim had said SIT
+        // since offer.h was written, and only the art was missing.
+        const int pcell = (tn_agent[i].pose == TN_POSE_LIE) ? ISO_PERSON_LIE
+                        : (tn_agent[i].pose == TN_POSE_SIT) ? ISO_PERSON_SIT : ISO_PERSON;
         const short *fp = ISO_FOOTPRINT[pcell];
         // A resident who is not standing is ON the thing it is using, not on the floor beside it.
         // Position comes from the OBJECT and height from that object's own voxel depth (ISO_FOOTPRINT
@@ -553,7 +576,9 @@ void tn_draw_world(void) {
             // stray pixels on occupied beds back to this line.
             ax = (float)(ob->tx * TN_TILE_VOX + (ofp[0] - fp[0]) / 2);
             ay = (float)(ob->ty * TN_TILE_VOX + (ofp[1] - fp[1]) / 2);
-            az = (float)ofp[2];                       // stand ON its surface, whatever height it is
+            // Rest on the SURFACE A BODY USES, which is the top only when nothing says otherwise.
+            const short rest = ISO_REST_Z[OBJ_CELL[ob->kind]];
+            az = (float)(rest ? rest : ofp[2]);
             arot = tn_rot;                            // align with the furniture, not with the walk
         }
         tnr_dl[tnr_dl_n++] = (Draw){ tnr_iso_depth(tn_rot, ax + fp[0]*0.5f, ay + fp[1]*0.5f) + 0.5f,

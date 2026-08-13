@@ -295,6 +295,52 @@ module.exports = {
        '...'],
     ]},
 
+    // ── the figure, SITTING. ──
+    // The contract has had TN_POSE_SIT since day one and offer.h has always said a sofa and a toilet
+    // are things you SIT on — but art had no cell for it, so it fell through to the standing figure
+    // and a resident using the sofa was drawn upright on top of the backrest. A declared pose with no
+    // art is the same class of bug as a declared seam with no consumer.
+    //
+    // EIGHT voxels, not twelve, and the thighs project FORWARD in +y. That projection is the whole
+    // read: at this size a seated figure cannot be recognised from its proportions, only from its
+    // outline breaking the vertical — the same reason the standing figure needs shoulders wider than
+    // its head. No shins: the body is placed at SEAT height, so anything below the seat would need
+    // negative z, and a foot two voxels wide would read as noise rather than as a leg.
+    // SIX deep, not four, and the first two rows are EMPTY on purpose. art centres a posed body in
+    // its object's footprint, so a 4-deep sitter on a 6-deep sofa lands in the middle — which is
+    // where the BACKREST is, and the torso ended up inside it. Matching the object's depth and
+    // parking the body at the FRONT of it makes the same model correct on both things you sit on:
+    // on a sofa the torso clears the backrest, on a toilet it clears the cistern.
+    person_sit: { layers: [
+      ['.....',
+       '.....',
+       '.....',
+       '.....',
+       '.jjj.',
+       '.jjj.'],
+      1,
+      ['.....',
+       '.....',
+       'bbbbb',
+       'bbbbb',
+       '.....',
+       '.....'],
+      2,
+      ['.....',
+       '.....',
+       '.bbb.',
+       '.bbb.',
+       '.....',
+       '.....'],
+      ['.....',
+       '.....',
+       '.hhh.',
+       '.hhh.',
+       '.....',
+       '.....'],
+      1,
+    ]},
+
     // ── the figure: 12 voxels tall = 24px. ──
     // Arms out at torso level so the shoulder line is wider than the head. That contrast is what
     // makes a small figure read as a person; the 32px first cut had none and read as a lamp.

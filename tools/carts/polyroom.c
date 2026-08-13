@@ -326,6 +326,16 @@ static const Part P_PERSON[] = {
     PRISM(1.6f,0.9f,9.3f, 3.4f,2.1f,11.6f, 0.25f,0.2f,-0.25f,-0.2f, M_SKIN), // head, tapered
 };
 
+// SITTING, 5x4x8: thighs projecting forward, torso up, shoulders wider than the head. The forward
+// projection is what carries the read — a seated figure at this size is recognised by its outline
+// breaking the vertical, never by proportion. tenement's offer table has always said a sofa and a
+// toilet are things you SIT on; until now no cell existed for it and the art drew them standing.
+static const Part P_PERSON_SIT[] = {
+    BOX  (1.0f,4.0f,0, 4.0f,6.0f,1.9f,              M_TROUSER),   // thighs, forward
+    PRISM(1.1f,2.2f,1.9f, 3.9f,3.9f,6.0f, -0.7f,-0.1f,0.7f,0.1f, M_SHIRT),  // torso -> shoulders
+    PRISM(1.6f,2.4f,6.0f, 3.4f,3.7f,8.0f, 0.25f,0.2f,-0.25f,-0.2f, M_SKIN), // head
+};
+
 // person_lie 3x8x2 — a low silhouette, long with a head at one end, per the voxel file's rule.
 static const Part P_PERSON_LIE[] = {
     PRISM(0.5f,0,0.2f, 2.5f,1.3f,1.9f, 0.2f,0.15f,-0.2f,-0.15f, M_SKIN),
@@ -348,7 +358,7 @@ static const Mesh MESHES[ISO_MODEL_COUNT] = {
     [ISO_TOILET]       = MESH(P_TOILET),       [ISO_FRIDGE]     = MESH(P_FRIDGE),
     [ISO_COUNTER]      = MESH(P_COUNTER),      [ISO_LOOM]       = MESH(P_LOOM),
     [ISO_WARDROBE]     = MESH(P_WARDROBE),     [ISO_PERSON]     = MESH(P_PERSON),
-    [ISO_PERSON_LIE]   = MESH(P_PERSON_LIE),
+    [ISO_PERSON_LIE]   = MESH(P_PERSON_LIE),   [ISO_PERSON_SIT] = MESH(P_PERSON_SIT),
     [ISO_WALL_FULL_NS] = MESH(P_WALL_FULL_NS), [ISO_WALL_FULL_EW] = MESH(P_WALL_FULL_EW),
     [ISO_WALL_LOW_NS]  = MESH(P_WALL_LOW_NS),  [ISO_WALL_LOW_EW]  = MESH(P_WALL_LOW_EW),
 };
@@ -411,6 +421,10 @@ static void pr_scene(void) {
     // list says two waiters on neighbouring tiles read as ONE BLOB, so a queue of three looks like
     // a queue of one. Whether you can COUNT these four is half of what this cart is for.
     pr_add_tile(ISO_PERSON, 2, 1, 0);
+    // A SITTER ON THE SOFA, so the new pose is on screen where it can be judged rather than only
+    // asserted. Lifted to the seat cushion (4), not the top of the 6-tall backrest — which is the
+    // same distinction ISO_REST_Z draws in tenement.
+    pr_add(ISO_PERSON_SIT, (float)(2 * TILE) + 3.0f, (float)(2 * TILE), 4.0f, 2);   // centred, seat height
     pr_add_tile(ISO_PERSON, 2, 4, 1);
     pr_add_tile(ISO_PERSON, 4, 4, 2);
     // Asleep: centred on the bed and lifted onto its surface, the same arithmetic art.h does, in
@@ -1154,6 +1168,13 @@ void spec(void) {
     for (int i = 0; i < pr_item_n; i++) for (int j = i + 1; j < pr_item_n; j++) {
         float a[6], b[6];
         const Item *it[2] = { &pr_item[i], &pr_item[j] };
+        // A RESIDENT USING FURNITURE IS EXEMPT, and the exemption is the honest one rather than a
+        // waiver: sitting on a sofa MEANS sharing space with it — thighs in the cushion, back against
+        // the backrest — and a pose that did not would be a figure hovering. So the rule is about
+        // things that merely stand near each other. It is also the one case that makes polyroom's X
+        // toggle worth pressing again: a sitter is real interpenetration, so the sorted path renders
+        // it imperfectly and the depth test does not, which is the whole argument on screen.
+        if (it[0]->hh >= 0 || it[1]->hh >= 0) continue;
         float *box[2] = { a, b };
         for (int k = 0; k < 2; k++) {
             const Mesh *m = &MESHES[it[k]->cell];

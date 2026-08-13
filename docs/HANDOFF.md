@@ -349,6 +349,22 @@ a broken doc link or `#section`).
 > · Also logged: `colorkey()` destroys and rebuilds a SHARED GPU texture from a cart API;
 >   `fp_cache`'s key omits the palette; and an unrelated latent `web_px` overflow after a canvas grow.
 >
+> **✅ THE SEAM HANDLE IS DESIGNED — [`design/engine-instance-seam.md`](design/engine-instance-seam.md)
+> (2026-08-13). BUILD IT BEFORE `studio.c`'s state move**, because the move is only correct if shaped
+> for it. Five decisions, each with the rejected alternative and why:
+> **(1)** an explicit opaque `DeInstance *` on every seam function — compiler-checked, so a missed
+> call site does not build; **(2)** a thread-local that `de_frame`/`de_audio_render` SET AND RESTORE
+> within the call, so the ~800 macro sites and the whole cart API need no change (this is not the
+> global that was rejected: per-thread, scoped, never read outside a seam call); **(3)** `de_init`
+> splits into `de_process_init` (fonts/shaders/sheet — the genuinely shared minority) and
+> `de_instance_create` (memcpy of the generated default template), which is what `bootEngineOnce`
+> becomes; **(4)** ONE FRAME WORKER PER INSTANCE — a semaphore signal carries no identity, so the
+> shared worker cannot drive N racks; **(5)** `crash_handler` keeps a static "last instance to enter
+> de_frame", deliberately, because a signal handler takes no argument.
+> **Order: handle first on ONE instance (byte-identical) → `studio.c` state move → AUv3 to one
+> instance per AU → gate with `engine-dylib-spike/probe.c`, whose assertions port unchanged and which
+> is the test `refactor-guard` structurally cannot be.**
+>
 > **Order — do NOT take both engine files at once:**
 > 1. **`runtime/sound.h` ALONE** (293 statics / 29 non-zero initialisers, self-contained, strongest
 >    oracle in the repo). Prove the pattern here; if it does not work you have lost an afternoon on one

@@ -4,7 +4,8 @@
 > context struct; `node tools/engine-statics.js` reads **13** for that file, and every one of the 13
 > is a recorded decision (1 shared, 5 harness, 5 deferred, 2 dead-weight), not a leftover. Next:
 > `studio.c` (222). Lane: [`HANDOFF.md`](../HANDOFF.md) → the AUv3 thread.
-> Sibling docs: [`ios-plan.md`](ios-plan.md) (how the AUv3 got here),
+> Sibling docs: [`engine-instance-seam.md`](engine-instance-seam.md) (the host-facing handle — DESIGN THAT FIRST,
+> `studio.c`'s move is only correct if shaped for it), [`ios-plan.md`](ios-plan.md) (how the AUv3 got here),
 > [`external-clock-sync.md`](external-clock-sync.md) (the transport seam it rides on).
 
 ## Why
@@ -134,6 +135,11 @@ thread copies the frame), and one worker serves many instances. There is no "cur
 thread to hold. **The seam must take an explicit handle.** Concretely `de_copy_frame(dst, cap, &w, &h)`
 has no instance parameter at all, and its reader must load `de_pres_buf` from the same context it
 loaded `de_pres_seq` from or the seqlock means nothing.
+
+**→ The shape is now designed: [`engine-instance-seam.md`](engine-instance-seam.md).** An explicit
+`DeInstance *` at every seam function, plus a thread-local that is set and restored *within* a seam
+call so the cart API and the macro accesses need no change. Build the handle BEFORE moving
+`studio.c`'s state.
 
 **A signal handler cannot reach a context either.** `crash_handler` is registered with the OS and
 reads `watches`/`watch_count` to dump them; a handler takes no argument. Either keep a static

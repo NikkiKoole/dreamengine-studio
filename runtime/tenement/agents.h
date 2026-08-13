@@ -12,6 +12,8 @@
 // Decay rates per need, per hour. DATA, per seam 1: a new need is a row here, not a code path.
 static const unsigned char TNA_DECAY[TN_NEED_COUNT] = { 8, 6, 5, 10, 4 };
 
+// The day lives in offer.h, not here, and that placement is the finding. See TN_APPEAL.
+
 void tn_agents_tick(void) {
     tn_clock.minute += 1;
     if (tn_clock.minute >= 1440) { tn_clock.minute = 0; tn_clock.day++; }

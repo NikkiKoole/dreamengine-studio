@@ -16,7 +16,7 @@
   "description": {
     "summary": "A few residents, some furniture, and one question: does the best offer on the table beat picking your worst need first? Watch the scores and see.",
     "detail": "The thin vertical slice of a bigger sim about several households sharing one building. Every object advertises what it offers, how strongly, for how long, and for how many people at once. Every resident does no thinking at all beyond taking the single best offer available, where a need's deficit is one term in the score rather than a filter applied first. That distinction is the whole point: the usual way to write this is to sort needs by urgency and then look for an object, which sends a hungry person past an empty toilet to a fridge on the far side of the building. Here the near thing can win. The HUD shows each resident's current winning bid and its score, because the interesting part of this simulation is invisible otherwise.",
-    "controls": "Q/E turn the building. TAB shows every bid the winning resident considered, not just the winner. SPACE pauses. 1/2/4 set speed."
+    "controls": "Q/E turn the building. TAB shows every bid the winning resident considered, not just the winner. SPACE pauses. 1/2/4 set speed. D and R are the two open design questions, off by default: D prices an action by how long it takes, R gives the day a shape and lets a resident decline a bad offer. Turn both on and the building starts fighting over the one toilet."
   }
 }
 de:meta */
@@ -39,6 +39,20 @@ de:meta */
 #include "tenement/model.h"
 
 int tnc_show_bids = 0;          // owner: cart. hud reads it.
+
+// THE TWO OPEN FORKS OF design §12, wired as live toggles rather than argued about. Both default
+// OFF, so the committed simulation and every assertion still describe the cart as it shipped; each
+// one turned on is a different claim about what a day in a building is, and the point of putting
+// them on keys is that the difference is a THING YOU WATCH rather than a table in a doc.
+//
+//   D  price TIME     the score gains `+ minutes`, becoming value-per-minute-of-your-life.
+//                     Without it an 8-hour sleep is priced exactly like a 10-minute toilet visit
+//                     and residents sleep 62% of their lives. Costs: it breaks case 1's converse.
+//   R  give it a DAY  needs decay on a circadian curve instead of a flat rate, so everybody gets
+//                     sleepy at the same hour. Without it the clock decides nothing and four
+//                     residents never synchronise, which is why the one WC is never fought over.
+int tnc_price_time = 0;         // owner: cart. offer reads it.
+int tnc_rhythm     = 0;         // owner: cart. agents reads it.
 
 // ORDER IS A HARD REQUIREMENT, and every constraint here was discovered by a module author
 // rather than designed by me:
@@ -70,6 +84,8 @@ void update(void) {
     if (keyp('Q')) tn_rot = (tn_rot + 3) & 3;
     if (keyp('E')) tn_rot = (tn_rot + 1) & 3;
     if (keyp(KEY_TAB)) tnc_show_bids = !tnc_show_bids;
+    if (keyp('D')) tnc_price_time = !tnc_price_time;   // design §12b — see the block up top
+    if (keyp('R')) tnc_rhythm     = !tnc_rhythm;       // design §12c
     if (keyp(KEY_SPACE)) tnc_paused = !tnc_paused;
     if (keyp('1')) tnc_speed = 1;
     if (keyp('2')) tnc_speed = 2;

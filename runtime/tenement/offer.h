@@ -84,6 +84,57 @@ static int tno_travel(int agent, int obj) {
     return tn_path_len(tn_agent[agent].tx, tn_agent[agent].ty, tn_obj[obj].tx, tn_obj[obj].ty);
 }
 
+// ── THE DAY, as one row per need (design §12c, on the R key, OFF by default) ─────────────────────
+// Nothing in this simulation varies with the hour: `tn_clock` is read by the HUD and by nothing that
+// decides anything. Measured, 2.5 of 4 residents are asleep at 11am and bed occupancy is within
+// noise of identical at every hour. That is why the building never contends, and it is not a
+// queueing problem: contention in a building is about SYNCHRONY, not utilisation. Four people
+// failing to share one bathroom is a MORNING, not a coincidence. Four residents on flat decay are
+// four independent oscillators, and at the WC's 9% duty cycle they collide about as often as this
+// building does, which is never.
+//
+// THE PART WORTH KEEPING, because the obvious version was tried first and does not work: a daily
+// rhythm on the DECAY RATE synchronises nobody. Sleeping eight hours resets a resident to the top
+// of its own cycle, so each one free-runs at its own period and drifts straight through the curve;
+// measured, sleepiness peaking at 22:00 put everyone to bed at teatime, and moving the peak six
+// hours just moved which wrong hour they chose. A modulated rate is a nudge, not a clock.
+//
+// The hour has to be in the BID. "A bed is worth more at 3am than at noon" is a phase LOCK, because
+// however far a resident has drifted, a bed at noon cannot win: the appeal multiplies the score
+// directly instead of pushing on the deficit that feeds it. Same table, one layer out, and it is
+// the difference between a rhythm and a suggestion.
+//
+// Data, not a code path: a need that wants a shape declares one, and nothing here asks which need
+// it is. `amp` is per-cent swing about 100, so appeal averages 1.0 over a day and a rhythm
+// redistributes a day's attention without adding any.
+// Measured against the real building: winning bids run 1..2625, median 54. A floor of 40 means a
+// resident declines the bottom third of what it would otherwise get up for.
+#define TN_BORED 40
+typedef struct { unsigned char amp, peak; } TnAppeal;    // peak = the hour this need is worth MOST
+static const TnAppeal TN_APPEAL[TN_NEED_COUNT] = {
+    [TN_SERVE_HUNGER]  = { 45, 13 },   // you want dinner at dinner time
+    [TN_SERVE_REST]    = { 70,  3 },   // THE synchroniser. Everything below follows from it.
+                                       // 70 rather than 95: a HARDER gate on the wrong hour makes
+                                       // the day sharper and the building QUIETER (contention
+                                       // 16.2% -> 12.2%), because residents pinned to one narrow
+                                       // window stop overlapping at the edges. Worth knowing before
+                                       // anyone turns this up thinking more rhythm is more comedy.
+    [TN_SERVE_HYGIENE] = { 30,  8 },
+    [TN_SERVE_BLADDER] = { 20,  8 },   // deliberately WEAK: the morning WC rush must not be
+                                       // scripted here. It should fall out of four people waking
+                                       // up together, or it has not been demonstrated at all
+    [TN_SERVE_FUN]     = { 40, 20 },
+};
+
+static int tno_appeal(TnTag tag) {
+    if (!tnc_rhythm || tag >= TN_SERVE_COUNT) return 100;
+    const TnAppeal *r = &TN_APPEAL[tag];
+    // de_cos_turns, not cosf: this decides behaviour and is compared by spec(), so it has to be the
+    // same bits everywhere the cart runs. demath.h on why libm is not.
+    const float turns = (float)(((tn_clock.minute / 60) - (int)r->peak + 24) % 24) / 24.0f;
+    return 100 + (int)(r->amp * de_cos_turns(turns));
+}
+
 // HOW LONG UNTIL THIS OBJECT IS FREE, in minutes. DERIVED from the sitting users' own `until`
 // rather than stored on the object, so there is exactly one truth about when an occupation ends
 // and no field to forget to clear.
@@ -135,7 +186,14 @@ static int tno_score(int agent, int obj, const TnOffer *of, TnTag tag) {
     // would kill the comedy the design is built on AND re-introduce exactly the pre-filter the
     // slice existed to remove. The penalty is in tiles so it lands in the same unit as travel.
     const int detour = tn_ownership_penalty(agent, obj, tag);
-    return deficit * of->strength / (tno_travel(agent, obj) + 1 + detour + queue);
+    // The `minutes` term is design §12(b), on the D key and OFF by default. With it the denominator
+    // is every minute the action will cost you (walk there, wait your turn, then sit in it) and the
+    // score becomes need-points per minute of your life, which is the only form in which §8's
+    // "objects buy back TIME" can be stated at all. Off, an 8-hour sleep is priced like a 10-minute
+    // toilet visit. It is a toggle rather than a commit because it changes what case 1 claims.
+    const int spend = tnc_price_time ? of->minutes : 0;
+    return deficit * of->strength * tno_appeal(tag) / 100
+           / (tno_travel(agent, obj) + 1 + detour + queue + spend);
 }
 
 // ONE argmax over EVERY (object, need) pair. Not "most urgent need, then an object for it".
@@ -151,6 +209,19 @@ int tn_best_action(int agent, TnTag *out_tag, int *out_score) {
             if (s > best_score) { best_score = s; best = o; best_tag = (TnTag)of->tag; }
         }
     }
+    // A FLOOR UNDER THE ARGMAX, and it turns out to be the thing that makes a day possible at all.
+    //
+    // Without it an agent always has exactly one best thing to do and always does it, however bad
+    // it is: `best_score > 0` accepts a bid of 1 out of a range that reaches 2600. So no rhythm can
+    // ever hold anyone. A resident awake for twenty hours has sated everything else, the bed is the
+    // only bid on the table, and it wins on being the only one there however hard the hour argues
+    // against it. That is why modulating appeal moved the numbers and never produced a night: the
+    // hour was competing against nothing.
+    //
+    // "Take the best offer" needed one more word: take the best offer WORTH TAKING. Below the floor
+    // a resident does nothing and lets the clock move, which is what leaves room for the day to say
+    // no. It is the smallest possible change and it is not a queue, a schedule or a plan.
+    if (tnc_rhythm && best_score < TN_BORED) { best = -1; best_score = 0; best_tag = TN_SERVE_COUNT; }
     if (out_tag)   *out_tag   = best_tag;
     if (out_score) *out_score = best_score;
     return best;

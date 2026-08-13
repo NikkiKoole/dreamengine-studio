@@ -423,10 +423,46 @@ evening peak and hunger a midday one, everyone synchronises without a single scr
 the WC jams at seven in the morning because everybody woke up. Work shifts in `work.h` are a second
 synchroniser already built and not yet pulling.
 
-**The general lesson, which is not about this cart.** All three defects lived in the gap between a
+**(d) There is no floor under the argmax, and this is the one that was actually blocking.** Found
+while wiring (b) and (c) up as live toggles so they could be judged by eye. `tn_best_action` accepts
+any bid above zero, so a resident always has exactly one best thing to do and always does it, however
+bad it is: measured against the real building, winning bids run 1 to 2625 with a median of 54.
+
+That is why (c) kept failing. A rhythm on the decay rate synchronises nobody, because sleeping eight
+hours resets a resident to the top of its own cycle and each one free-runs at its own period and
+drifts straight through the curve; sleepiness peaking at 22:00 put everyone to bed at teatime, and
+moving the peak six hours only changed which wrong hour they picked. Moving the hour into the *bid*
+(`TN_APPEAL`, a per-need appeal multiplier, which is a phase lock rather than a nudge) was necessary
+and still not enough, because a resident awake for twenty hours has sated everything else and the bed
+is the only bid on the table. It wins on being the only one there, however hard the hour argues.
+
+**The hour was competing against nothing.** "Take the best offer" needed one more word: take the best
+offer *worth taking*. `TN_BORED` is a floor; below it a resident does nothing and lets the clock
+move, which is what leaves room for the day to say no. With (b), (c) and (d) together:
+
+| | as shipped | D+R |
+|---|---|---|
+| frames with anybody standing at a busy object | 3.3% | **16.2%** |
+| frames with two residents heading for the same thing | 6.0% | **22.7%** |
+| beds by hour | flat | empty 06:00 to 13:00, full 18:00 to 21:00 |
+| the WC | never fought over | busy right through the waking hours |
+
+Which is the design's claim, working, for the first time. The phase is still wrong (they sleep in the
+late afternoon rather than at night) and that is a tuning question, not a structural one. One
+counter-intuitive measurement worth keeping: turning REST's appeal amplitude *up* from 70 to 95
+makes the day sharper and the building **quieter** (contention 16.2% back down to 12.2%), because
+residents pinned into one narrow window stop overlapping at its edges. More rhythm is not more comedy.
+
+All four are now on `D` and `R` in the cart, defaulting off, so the shipped simulation and every
+assertion still describe what was committed and the difference is something you watch rather than
+something you read.
+
+**The general lesson, which is not about this cart.** All four defects lived in the gap between a
 design doc written in prose and a test suite written per decision. The assertions were right, the
 building was wrong, and only a *distribution over time* could tell the difference. Sims want an
-oracle that reads a week, not a choice.
+oracle that reads a week, not a choice. And (d) is the sharper version of the same point: it was
+invisible to every assertion *and* to every aggregate, and only showed up when two changes that
+should each have worked both did nothing.
 
 ## See also
 

@@ -446,9 +446,20 @@ void tn_draw_hud(void) {
     snprintf(t, sizeof t, "day %d  %02d:%02d", tn_clock.day, tn_clock.minute / 60,
              tn_clock.minute % 60);
     print(t, 3, 1, CLR_LIGHT_GREY);
-    const int clock_end = 3 + text_width(t) + 6;
+    int clock_end = 3 + text_width(t) + 6;
     font(FONT_SMALL);                       // before the chips: they are measured, so the font
                                             // has to be the one they will be drawn in
+
+    {   // design §12's two open forks, live on D and R, sitting against the clock because both of
+        // them are claims about what an HOUR does. Drawn even when off, dim: a toggle nobody can
+        // see is a toggle nobody presses, and the whole reason these are keys instead of a decision
+        // is that the difference has to be watched rather than read.
+        const int on  = CLR_GREEN, off = CLR_DARK_GREY;
+        print("D time", clock_end, 2, tnc_price_time ? on : off);
+        clock_end += text_width("D time") + 5;
+        print("R day",  clock_end, 2, tnc_rhythm     ? on : off);
+        clock_end += text_width("R day") + 6;
+    }
 
     {   // Rent and bills are DATED events (econ.h), and today the HUD can only know the day HAS
         // come, not that it is coming: the period is econ's private constant. So this is the

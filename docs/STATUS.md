@@ -87,16 +87,13 @@ _Last updated: 2026-07-30 — **Synth Secrets phases 1 + 2**: PIANO's dispersion
   (the view blits a seqlock SNAPSHOT, never the live canvas). Gates
   `tools/input-ring-check/run.sh` + `tools/present-race-check/run.sh` (`-tsan` is the real one in both,
   `-bypass` the negative control) + `au-transport-check --view`. **PLAY-TESTED 2026-08-13 and it plays**:
-  a whole song, host tempo and transport, our own panel, past a bar-33 wedge that killed two earlier
-  sessions. Three fixes got it there, each worth knowing — the frame moved OFF the audio thread to a
-  worker (it was the cart's entire software-rasterised UI on the render thread: 2 ms peaks against a
-  64-sample buffer's 1.45 ms), the view now keeps the engine ticking when a stopped host stops pulling
-  audio (else the panel freezes AND stops reading input, so its own play button did nothing), and boot
-  became idempotent — **ONE engine per process**, because GarageBand asks our view controller for an
-  audio unit once per panel and three engines had ended up writing the same file-scope globals.
-  ⚠ **NOT finished: GarageBand runs our UI and our audio in DIFFERENT PROCESSES, so the panel is drawn
-  by a different engine than the one you hear.** Four ways out, one of which is "ship the app, park the
-  plug-in" — [`design/ios-plan.md` → The out-of-process wall](design/ios-plan.md#the-out-of-process-wall-the-open-fork-2026-08-13).
+  a whole song, host tempo and transport, our own panel, past a bar-33 wedge. Three fixes got it there:
+  the frame moved OFF the audio thread to a worker, the view keeps the engine ticking when a stopped
+  host stops pulling audio (else the panel freezes AND stops reading input), and boot became idempotent
+  — **ONE engine per process**. ⚠ **NOT finished: GarageBand runs our UI and our audio in DIFFERENT
+  PROCESSES, so the panel is drawn by a different engine than the one you hear.** Four ways out, one
+  being "ship the app, park the plug-in" —
+  [`design/ios-plan.md` → The out-of-process wall](design/ios-plan.md#the-out-of-process-wall-the-open-fork-2026-08-13).
   **Still open: Ableton Link** (the same `sync_push_pos` call), MIDI clock on
   iOS, and clock OUT. Design: [`design/external-clock-sync.md`](design/external-clock-sync.md),
   [`design/audio-threading.md`](design/audio-threading.md) (the thread split).

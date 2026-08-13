@@ -8,6 +8,7 @@
   "lineage": "A look probe for tenement, whose maker's verdict was that the picture reads as an architectural diagram with a caption. Asks one question: does the same flat, rendered as low-poly flat-shaded triangles instead of baked voxel sprites, read as FOUR PEOPLE IN A BUILDING? Renderer chassis from solid3d (rot/cull/light/sort/trifill + the fillp checker half-shade); shapes transcribed from tools/voxel-models/tenement.js so the comparison is of RENDERINGS, not of two different object sets.",
   "todo": [
     "THE DEPTH BUFFER IS BUILT AND MEASURED (X toggles it) AND THE RESULT IS THE OPPOSITE OF EXPECTED: it is not slower, it is slightly FASTER. Sorted path 0.93ms avg / 2.77ms peak with 551 trifill; depth-tested path 0.86ms / 2.23ms with 3996 one-row rectfill — from CART LAND, through the public API, which was supposed to be the expensive way. Two reasons: the sort draws every triangle in full and the depth test only emits runs that survive, and zsort is an INSERTION sort, so 551 triangles is up to ~150k comparisons a frame that the depth path simply does not do. Engine-side would be faster still (direct framebuffer writes, no per-run call).",
+    "HOW TO TELL A SORT BUG FROM EVERYTHING ELSE, and it is the most reusable thing in this cart: render the orbit TWICE, once sorted and once depth-tested, and diff the frames. Anything present in both is not a sorting error. That scan (47-204 differing pixels of 56320 across eight angles) is what proved the last four defects were a rasterization CRACK at the floor-wall junction, a sub-pixel FLOAT gap under the sleeper, a shade-budget tie, and a scene-layout collision — none of them the sort, which is where all four would otherwise have been blamed. Two scripts and a blend=difference; do this before theorising.",
     "AND THE PICTURES AGREE: 103 differing pixels of 56320 (0.18%), max delta 146, at the angle that used to fail. So the depth buffer is NOT fixing a visible bug today — subdivision plus the abut rule already do. Its value is deleting those compensations, and that is a real but different argument. Read the residual 0.18% before believing either path: they are edge pixels where this cart's own rasterizer and the engine's trifill coverage rule disagree, NOT sort errors, and confirming that is the next job.",
     "SO THE ENGINE QUESTION IS NOW EVIDENCED RATHER THAN SPECULATIVE. ADR-0009 scoped general 3D out and chose leaf helpers, which was right against a 3D ENGINE; what this measures is much narrower — a per-pixel depth compare inside trifill plus one 320x200 depth array. It is cheap, it is faster than sorting, and it removes four separate authoring constraints. It still wants an ADR and a det-probes gate rather than a patch to a hot shared file, and the numbers above are the evidence to argue it with.",
     "SUBDIVISION IS NOW LOAD-BEARING and its bound is asserted, not assumed: no quad may span more than two tiles of depth (spec case 5). If a future mesh gets big flat faces, they subdivide automatically — but the constant is tuned to a 6-voxel tile, so changing TILE changes the sort's soundness. The cost of the bound is measured: tri count 372 to 551, frame 0.59ms to 0.93ms.",
@@ -175,7 +176,11 @@ static void pr_build_palette(void) {
     for (int h = 0; h < HH_COUNT; h++)
         for (int s = 0; s < PR_HH_SH; s++) {
             const float t = (float)s / (PR_HH_SH - 1);
-            const int hex = (t < 0.5f) ? pr_mix(HH_BASE[h], SHADOW, (0.5f - t) * 1.3f)
+            // Households shade LESS far toward the cool shadow than materials do (0.9 against 1.5).
+            // The cool-shadow trick overshoots on a warm hue: amber mixed 65% into a violet dark
+            // comes out OLIVE, which reads as a different material rather than as the same blanket
+            // in shade. A resident is also the thing you most need to recognise at a glance.
+            const int hex = (t < 0.5f) ? pr_mix(HH_BASE[h], SHADOW, (0.5f - t) * 0.9f)
                                        : pr_mix(HH_BASE[h], LIGHT,  (t - 0.5f) * 0.9f);
             palette_hex(PR_SLOT0 + SG_COUNT * PR_MAT_SH + h * PR_HH_SH + s, hex);
         }
@@ -232,7 +237,12 @@ static const Part P_BED[] = {
     BOX  (0,1.6f,0, 6,12,1.8f,                       M_WOOD),       // frame, clear of the rake
     BOX  (0.4f,1.8f,1.8f, 5.6f,11.6f,2.6f,           M_PORC),       // mattress
     PRISM(0.9f,1.9f,2.6f, 5.1f,3.8f,3.3f, 0.3f,0.2f,-0.3f,-0.2f, M_PORC), // pillow
-    PRISM(0.3f,4,2.6f, 5.7f,11.8f,3.7f, 0.3f,0,-0.3f,-0.4f, M_CUSH),// duvet, wedged
+    // Duvet top is 4.0, NOT 3.7, and the 0.3 matters: a sleeper is placed at the bed's DECLARED
+    // height (ISO_FOOTPRINT's nz = 4), so a duvet stopping at 3.7 left the figure floating a third
+    // of a voxel above it. That gap is under a pixel wide, so it rasterized as a ragged dashed line
+    // of duvet showing under the sleeper's edge — which reads as a torn seam rather than as a gap.
+    // The lesson generalises: anything a resident stands or lies ON must reach its declared height.
+    PRISM(0.3f,4,2.6f, 5.7f,11.8f,4.0f, 0.3f,0,-0.3f,-0.4f, M_CUSH),// duvet, wedged
 };
 
 // toilet 6x6x6 — tall tank behind, flaring bowl in front. The flare is the point: a cylinder read
@@ -377,7 +387,11 @@ static void pr_add_tile(int cell, int tx, int ty, int hh) {
 //   y=4  (bed)   wardrobe person  .       person  .
 static void pr_scene(void) {
     pr_item_n = 0;
-    pr_add_tile(ISO_FRIDGE,   0, 0, -1);
+    // The fridge is at (0,1) rather than the corner (0,0) deliberately. A 12-voxel tower in the far
+    // corner is the worst place in the room: at one yaw it is the furthest thing and the sofa lands
+    // on the same screen column, at the opposite yaw the two cut-away corner walls pass in front of
+    // its base and it reads as standing outside the building. One tile in fixes both.
+    pr_add_tile(ISO_FRIDGE,   0, 1, -1);
     pr_add_tile(ISO_COUNTER,  1, 0, -1);
     pr_add_tile(ISO_TOILET,   5, 0, -1);
     pr_add_tile(ISO_SOFA,     2, 2, -1);
@@ -768,9 +782,21 @@ static void pr_build_tris(void) {
     // Floor: one quad per tile, alternating, same two browns the voxel half uses. Flat on z=0, so
     // it needs no normal — but it goes through the same emit so it sorts with everything else.
     for (int ty = 0; ty < ROOM_H; ty++) for (int tx = 0; tx < ROOM_W; tx++) {
-        const float x0 = (float)(tx*TILE), y0 = (float)(ty*TILE);
-        const float a[3] = {x0,y0,0}, b[3] = {x0+TILE,y0,0};
-        const float c[3] = {x0+TILE,y0+TILE,0}, d[3] = {x0,y0+TILE,0};
+        float x0 = (float)(tx*TILE), y0 = (float)(ty*TILE);
+        float x1 = x0 + TILE, y1 = y0 + TILE;
+        // THE OUTER TILES RUN 2 VOXELS UNDER THE WALLS, which closes the dotted dark line that
+        // showed along every floor-to-wall junction. The floor's outer edge and the wall's base are
+        // the SAME LINE in space, and two polygons meeting exactly on a line leave gaps under
+        // pixel-centre coverage: neither owns the boundary pixel, so the background shows through in
+        // a dashed pattern. This is a CRACK, not a sorting error — the sort-vs-depth-buffer scan
+        // showed it identically in both paths, which is how it was told apart. Overlapping by the
+        // wall thickness is the standard fix and costs nothing, because the wall hides the overlap.
+        if (tx == 0)          x0 -= 2.0f;
+        if (ty == 0)          y0 -= 2.0f;
+        if (tx == ROOM_W - 1) x1 += 2.0f;
+        if (ty == ROOM_H - 1) y1 += 2.0f;
+        const float a[3] = {x0,y0,0}, b[3] = {x1,y0,0};
+        const float c[3] = {x1,y1,0}, d[3] = {x0,y1,0};
         pr_quad(a, b, c, d, ((tx + ty) & 1) ? M_FLOOR_A : M_FLOOR_B, -1);
     }
     for (int i = 0; i < pr_item_n; i++) {

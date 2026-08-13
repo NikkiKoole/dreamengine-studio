@@ -325,7 +325,76 @@ default:
 **Do not start 2, 3 or 4 without deciding which product the plug-in is for.** They are different
 plug-ins.
 
-#### ⛔ SETTLED 2026-08-13: option 4 is CLOSED — the panel cannot reach the audio engine
+#### ⛔ PARKED 2026-08-13: BOTH routes measured, both closed AS CONFIGURED — and the wrong turns
+
+**Outcome: the plug-in is parked.** It works as a sound source (plays, follows host tempo and
+transport, stops, restarts, survives a loop, converts sample rates; five gates cover it). It does not
+work as an *instrument you can play*: the panel is disconnected in both directions — it shows a
+different engine than you hear, and touches on it drive that same wrong engine.
+
+**What was measured, in GarageBand, which is the only place that counts.** Two mechanisms, one
+result each, both from a clean restart:
+
+| route | result |
+|---|---|
+| `AUMessageChannel` from the view controller's AU | `PANEL TALKING TO ITSELF — channel engine pid 98759 · this UI process pid 98759` |
+| `AUParameterTree` (Apple's own supported route) | `PARAM writing 0.75 from UI pid 98759` → `PARAM observed … in pid 98759` |
+
+Same pid both times. The view controller's `TinyjamAU` is an orphan: nothing it writes reaches the
+rendering instance, and nothing the rendering instance holds is readable from it.
+
+⚠ **Do NOT read that as "AUv3 cannot do this."** Commercial AUv3s have working out-of-process UIs
+through exactly the parameter mechanism that just failed here, so the suspect is **our
+configuration**, not the platform. The most likely candidate is that our view controller is both the
+principal class and the factory (done deliberately — two factories would let a host instantiate the
+one without a view), leaving the UI process with an AU nobody connected.
+
+**How to resume, and it is deliberately NOT more instrumentation on our own code** — the last three
+probes all told us the same thing:
+
+1. **Diff against a KNOWN-WORKING AUv3** — Apple's `AUv3FilterDemo`, or [bradhowes/LPF](https://github.com/bradhowes/LPF).
+   Run the same pid probe on *that* first, so "what a working one looks like" is established before
+   changing ours.
+2. **Test on iPad.** Everything above is Mac Catalyst, where audio runs in `AUOOPRenderingServer`.
+   iOS has historically hosted the audio unit and the view in ONE process, which could make the whole
+   problem vanish on the platform the product actually ships to. The `[tinyjam] PANEL …` line is
+   permanent, so this is a ten-minute check.
+
+**What is kept, and why.** `TinyjamCanvasChannel` (echo/nonce/frame) and `CanvasView.remoteFrame` stay
+and are inert — `remoteFrame` is nil, so the view runs exactly the old path, and all five `mac.sh`
+gates pass with them in. They earn their place as the DIAGNOSTIC: `[tinyjam] PANEL …` answers "is the
+panel connected?" in one line of Console, in every case, where before it took `sample`ing a wedged
+host and reading thread names. The probe PARAMETER was removed — a stray "Bridge Probe" shows in every
+host's automation list, and this app is on the store.
+
+##### The wrong turns, written down because they cost the afternoon
+
+Kept in full: every one of these looked like progress at the time, and the pattern across them is
+more useful than any single fix.
+
+| # | what was believed | what was true | the lesson |
+|---|---|---|---|
+| 1 | "`au-transport-check` runs IN-process, so every AU gate tests the wrong topology" — stated confidently, put in a commit message | macOS loads AUv3 app extensions **out-of-process regardless** of the `options` flag. The comment in that file was accurate all along | Caught by the spike's own `--in-process` control. The control existed only because of an unrelated habit, and it caught its author within minutes |
+| 2 | The channel returned empty replies because the channel object **was not retained** | Retaining changed nothing | A plausible mechanism is not a diagnosis. Cost a full rebuild cycle |
+| 3 | — | The real cause: Swift imports `callAudioUnit` as an **optional ObjC protocol METHOD**. Declaring it as a stored closure property type-checks, compiles clean, and registers **no selector** | The host proxy then finds nothing and returns empty — indistinguishable from "no channel exists" |
+| 4 | "The fork is decided — ship pixels, it's just plumbing" | The spike measured **HOST → audio-AU**. The panel needs **UI-extension → audio-AU**, a hop that does not exist | **A measurement can be perfectly sound and still be of the wrong thing.** The 0.32ms frame numbers are real and were answering a question nobody asked |
+| 5 | Told the maker to compare the panel's nonce against a host-side spike run | The nonce is per **process**; two host sessions always differ, so "different" would have looked like proof no matter what was true | The check was fine and the PROCEDURE around it measured nothing |
+| 6 | The panel diagnostic would report its own failure | It sat in `viewDidLoad` behind `if let au`, and GarageBand calls `createAudioUnit` **last** — so `au` was nil, the block was skipped, and the fallback log was **inside the same `if`**. No line at all in a real host | A diagnostic that can be silently skipped is not a diagnostic |
+| 7 | A canvas frame is ~150KB (1 byte per palette index) | `de_copy_frame` publishes RGBA `UInt32` — **4 bytes/px**. This cart is 160×100 = 64KB | Wrong by 4×, and it happened to land in the safe direction rather than by judgement |
+| 8 | `implementorValueProvider = { param in param.value }` | That getter **calls the provider** — infinite recursion. `auval` failed instantly with `OpenAComponent: result: 4099` | The gate caught it at the moment of introduction; otherwise the first symptom is "won't load in a DAW" |
+| 9 | The first live-frame reply was a black picture | It was `0x0`, no pixels at all — the spike had never made the plug-in **render**, and `de_frame` runs from the render block | The message conflated "no frame" with "black frame" and sent the reader to the wrong end. Now three sentences for three failures |
+| 10 | `swiftc -parse` proved the AU change compiled | `-parse` is syntax only. It accepted `CallAudioUnitBlock`, a type that does not exist in this SDK | `-typecheck` with the right target and SDK is the actual check |
+| 11 | "0 errors" from `grep -c "error:"` on the build log | `mac.sh` pipes xcodebuild through `| tail -6`, so the diagnostics were already cut. Two rebuild cycles were spent blind | A count over a filtered log is not a count. (Also: `zsh mac.sh \| tail` makes `$?` the exit of `tail`, not the script) |
+
+**The thread running through all of it:** eleven separate times, something green, plausible, or
+confidently stated was not measuring what it claimed. Six were caught by a control, a negative case,
+or a plausibility assertion — and the ones that were not caught (4, 5, 7) are the ones that cost the
+most. That is the same lesson as
+[`checks-and-oracles.md` → "The OTHER way a green check lies"](../guides/checks-and-oracles.md#the-other-way-a-green-check-lies-it-was-never-measuring-the-thing),
+learned again at a different altitude: not just in assertions, but in procedures, messages, estimates
+and build scripts.
+
+#### the transport numbers, which remain true (`ios/au-msgchannel-spike.swift`)
 
 Measured in GarageBand, which is the only place that counts:
 

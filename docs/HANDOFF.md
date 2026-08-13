@@ -200,7 +200,23 @@ a broken doc link or `#section`).
 > processes stay two processes. Scale if ever taken: ~204 engine statics (58 studio.c, 146 sound.h)
 > plus each cart's own (acidcandy ~120); `de_switch_cart` does not help — it is a config-log replay
 > that switches one cart at a time, not concurrent instances.
-> **⛔ ANSWERED 2026-08-13 IN GARAGEBAND: option 4 is CLOSED.** `PANEL TALKING TO ITSELF — channel
+> **⛔ PARKED 2026-08-13 — both routes measured in GarageBand, both closed AS CONFIGURED.** The
+> message channel AND the parameter tree (Apple's own supported route) each stayed inside the UI
+> process: `PARAM writing 0.75 from UI pid 98759` → `PARAM observed … in pid 98759`, and
+> `PANEL TALKING TO ITSELF · channel engine pid 98759 · this UI process pid 98759`. The view
+> controller's AU is an orphan. ⚠ **NOT "AUv3 cannot do this"** — commercial AUv3s work through
+> exactly that parameter mechanism, so the suspect is OUR configuration (the view controller is both
+> principal class and factory). **Resume by (1) diffing against a KNOWN-WORKING AUv3 — Apple's
+> AUv3FilterDemo or bradhowes/LPF — and running the same pid probe on THAT first, and (2) testing on
+> iPad**, which is untested and has historically hosted the audio unit and the view in ONE process,
+> so the problem may not exist there at all. The `[tinyjam] PANEL …` line is permanent, so (2) is a
+> ten-minute check. The frame path + channel stay INERT (5/5 gates green) as the diagnostic; the probe
+> PARAMETER was removed (a stray "Bridge Probe" would show in every host's automation list).
+> **ELEVEN wrong turns from this stretch are written down in full** — they are the more useful
+> artefact, and the pattern is that a measurement can be perfectly sound and still be of the wrong
+> thing (the spike measured HOST→AU while the panel needs UI-extension→AU).
+>
+> **superseded — the earlier "option 4 is CLOSED" note (2026-08-13).** `PANEL TALKING TO ITSELF — channel
 > engine pid 96523 · this UI process pid 96523`. The channel from the view controller's own AU loops
 > back to the LOCAL instance; the UI extension makes its own `TinyjamAU` and no API hands it the
 > rendering one. Apple's route for UI↔DSP is the PARAMETER TREE, which is why commercial AUv3s are
@@ -229,7 +245,7 @@ a broken doc link or `#section`).
 > view pulling at display rate, and iPad (this is all Mac Catalyst).
 >
 > Full table + the three corrections the spike made to its own author:
-> [`ios-plan.md` → MEASURED 2026-08-13](design/ios-plan.md#-settled-2026-08-13-option-4-is-closed--the-panel-cannot-reach-the-audio-engine).
+> [`ios-plan.md` → MEASURED 2026-08-13](design/ios-plan.md#-parked-2026-08-13-both-routes-measured-both-closed-as-configured--and-the-wrong-turns).
 >
 > **Smaller open items, all recorded, none started:** a HOVER seam (a Catalyst mouse-move is not a
 > touch, so the cart only learns the pointer on click and `cursor.h` never sees a mouse — the pixel

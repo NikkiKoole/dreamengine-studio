@@ -105,6 +105,23 @@ public final class TinyjamAU: AUAudioUnit {
     public override var outputBusses: AUAudioUnitBusArray { _outputBusArray }
     public override var inputBusses: AUAudioUnitBusArray { _inputBusArray }
 
+    // ══ PARAMETER BRIDGE: TESTED, AND IT DOES NOT BRIDGE (2026-08-13) ═══════════════════════════
+    // A probe parameter lived here briefly. Measured in GarageBand: a value written by the UI
+    // process was observed ONLY in the UI process (same pid), exactly like the message channel. So
+    // Apple's own supported route for UI↔DSP does not reach our rendering instance either.
+    //
+    // The parameter itself is REMOVED rather than left behind: a stray "Bridge Probe" shows up in
+    // every host's automation list and generic UI, and this app is on the store. The finding is in
+    // docs/design/ios-plan.md; re-adding the probe is ten lines if it is ever needed again.
+    //
+    // ⚠ Do not read that result as "AUv3 cannot do this". Commercial AUv3s have working
+    // out-of-process UIs through exactly this mechanism, so the suspect is OUR configuration — the
+    // view controller is both principal class and factory, and something about that is leaving it
+    // with an orphaned AU. The way to find it is to diff this extension against a KNOWN-WORKING
+    // AUv3 (Apple's AUv3FilterDemo, or bradhowes/LPF) and run the same pid probe on that, not to
+    // add more instrumentation here. iPad is also untested and has historically hosted the audio
+    // unit and the view in ONE process, which could make the whole problem vanish.
+
     // ══ CROSS-PROCESS CHANNEL (spike scaffolding) ═══════════════════════════════════════════════
     // A host runs our UI and our audio in DIFFERENT PROCESSES, so a view that blits the engine's
     // framebuffer draws an engine nobody can hear (docs/design/ios-plan.md → "The out-of-process

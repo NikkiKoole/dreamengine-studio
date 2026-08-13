@@ -232,11 +232,20 @@ a broken doc link or `#section`).
 > **So the only live defect is (B), and it is the one worth the effort:** engine state is
 > process-global (~204 statics in studio.c/sound.h plus acidcandy's ~120), `mac.sh` itself now prints
 > `2 instance(s) in this process`, and two GarageBand tracks are two front-ends over one rack.
-> **The one thing our own host cannot rule out:** a DAW that loads the *view* into a different
-> process from the *audio*. That is now a one-minute check instead of an inference — load it in
-> GarageBand and read the single `[tinyjam] PANEL …` line (`/usr/bin/log stream --predicate
-> 'eventMessage CONTAINS "[tinyjam] PANEL"'`, and note `log` is a **zsh builtin**, so the absolute
-> path matters). Full arc, the twelfth wrong turn, and why each item above is a measurement:
+> **✅ CONFIRMED IN GARAGEBAND (the maker, 2026-08-13).** One track, play:
+> `PANEL CONNECTED — this panel's own audio unit is the one being rendered`. **(A) is dead**, and with
+> it the whole four-way fork it created (park / per-instance state / parameter-bound UI / ship pixels)
+> — that fork was answering a question that was never open. **Two tracks reproduce "it goes super
+> weird" and the same lines explain it:** both audio units are in ONE extension process (same pid) and
+> the "which instance renders" stamp FLIPS between 1 and 2, so both render blocks are pushing
+> `de_sync_position` into the one process-global engine and both signal the one frame worker — the rack
+> is driven twice per host buffer by two transports. No host gives each track its own process, so
+> **per-instance engine state is the only real fix**. ONE cheaper mitigation exists and is a PRODUCT
+> call: elect one instance to drive transport + the frame, making track 2 a second window on the SAME
+> rack — coherent instead of garbled, and an honest limitation. Read the verdict any time with
+> `/usr/bin/log stream --predicate 'eventMessage CONTAINS "[tinyjam] PANEL"'` (`log` is a **zsh
+> builtin** — the absolute path matters). Full arc, the twelfth wrong turn, and why each item above is
+> a measurement:
 > [`ios-plan.md → UNPARKED 2026-08-13`](design/ios-plan.md#-unparked-2026-08-13-later-the-same-day-the-panel-was-never-orphaned-and-the-diagnostic-that-said-it-was-could-not-have-said-anything-else).
 >
 > **▼ superseded, kept for the trail (written earlier on 2026-08-13):**

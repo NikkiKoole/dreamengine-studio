@@ -404,11 +404,44 @@ extension's verdict back out of the unified log — the same line a person reads
 **requires both verdicts in one run**, which is its control: a run showing only `CONNECTED` would be a
 reporter stuck on a branch, the precise failure being corrected here.
 
-**4. What is still genuinely open.** Our host is not GarageBand. The one thing it cannot rule out is a
-host that loads the *view* into a different process from the *audio* — so the GarageBand look is still
-worth one minute, and now costs one line instead of an inference. **And defect (B) is untouched and
-real:** engine state is process-global, `mac.sh`'s own run shows `2 instance(s) in this process`, and
-two GarageBand tracks are two front-ends over one rack. That is the defect to spend effort on.
+**4. ✅ CONFIRMED IN GARAGEBAND (the maker, 2026-08-13) — (A) is dead and (B) is now measured.**
+One track, panel open, press play:
+
+```
+TinyjamMacAU[6127]  PANEL NO AUDIO HAS RENDERED IN THIS PROCESS …            · on open · 1 instance(s)
+TinyjamMacAU[6127]  PANEL CONNECTED — this panel's own audio unit is the one being rendered · +8s
+```
+
+**The panel in GarageBand is attached to the audio unit that renders.** The out-of-process wall, as
+characterised, does not exist; the whole four-way fork it created (park / per-instance state / a
+parameter-bound UI / ship pixels over XPC) was answering a question that was never open. Nothing needs
+to be built to connect the panel.
+
+Then a SECOND track with the same plug-in — the "it goes super weird" case, reproduced and explained
+in three lines:
+
+```
+TinyjamMacAU[6127]  PANEL CONNECTED through the shared per-process engine — instance 1 renders,
+                    this panel holds 2 … · on open · 2 instance(s) in this process · pid 6127
+TinyjamMacAU[6127]  PANEL CONNECTED — this panel's own audio unit is the one being rendered · +2s · 2 instance(s)
+TinyjamMacAU[6127]  PANEL CONNECTED through the shared per-process engine — instance 1 renders … · +8s · 2 instance(s)
+```
+
+**Same pid.** Two tracks are two audio units in ONE extension process, and the "which instance
+renders" stamp **flips between 1 and 2** across re-reads — both render blocks are running, so both are
+pushing `de_sync_position` into the one process-global engine and both are signalling the one frame
+worker. The rack is being driven twice per host buffer by two transports. That is the whole of the
+"weird sound", stated as a mechanism.
+
+It also closes off the cheap hope: there is no host behaviour that gives each track its own process, so
+**per-instance engine state is the only real fix** (~204 file-scope statics in studio.c/sound.h plus
+each cart's own; acidcandy ~120). One much smaller mitigation is available and is a PRODUCT decision,
+not a cleanup: **elect one instance to drive transport and the frame**, and the second track becomes a
+second window onto the *same* rack — still wrong for two tracks, but coherent instead of garbled, and
+an honest limitation a buyer can be told about.
+
+Incidentally all three verdict branches have now been observed in the wild, which is the strongest form
+of the control the `--panel` gate asserts synthetically.
 
 **5. Wrong turn #12, and it is the generic one.** *A diagnostic whose other branch is unreachable is
 not a diagnostic* — the same defect as a gate that cannot go red (`tools/gate-controls.js` exists for

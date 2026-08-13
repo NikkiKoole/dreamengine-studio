@@ -60,6 +60,15 @@
     "am_nrm":      { "line": 1883, "bytes": 32768 }
   },
 
+  "defer": {
+    "_why": "HELD BACK from the move until the matching open question below is answered. These are NOT per-instance state as far as anyone knows, and leaving them as file-scope statics preserves exactly today's behaviour — so deferring costs nothing and guessing could cost a silent bug. The first generated batch swept these in before this group existed, which is precisely the accident it now prevents: the generator has no opinion, so anything without a decision must be named here or it moves by default.",
+    "sound_synth_mode": { "line": 450, "question": "synth_mode", "note": "gates whether the PROCESS creates an audio device at all (sound_init 9164, sound_shutdown 9194). Per-instance copies of a process-level mode is incoherent however the harness-vs-shared question resolves" },
+    "sound_extin":      { "line": 1846, "question": "mic_input_path" },
+    "extin_w":          { "line": 1847, "question": "mic_input_path" },
+    "extin_r":          { "line": 1848, "question": "mic_input_path", "note": "consumer-side and probably per-instance, but held with the rest of the group so the ring and its two cursors are decided together" },
+    "extin_on":         { "line": 1849, "question": "mic_input_path", "note": "THE dangerous one: if capture is process-wide, a per-instance copy means the capture thread reads whichever copy the linker picked and the mic is silently dead everywhere else" }
+  },
+
   "open_questions": {
     "_why": "Real forks that a measurement cannot settle. Each names what breaks if it is guessed wrong. NONE of them block the first batch of work — they are all in code paths the first pass can leave alone.",
 

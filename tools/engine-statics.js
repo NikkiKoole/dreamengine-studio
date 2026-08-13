@@ -192,10 +192,11 @@ function analyze(rows, only) {
   }
 
   const perFile = {};
-  for (const f of files) perFile[f] = { total: 0, nonZeroInit: 0, zeroOrNone: 0, localStatics: 0, nonZero: [] };
+  for (const f of files) perFile[f] = { total: 0, nonZeroInit: 0, zeroOrNone: 0, localStatics: 0, nonZero: [], all: [] };
   for (const r of uniq) {
     const e = perFile[r.file]; if (!e) continue;
     e.total++;
+    e.all.push({ line: r.line, name: r.name, type: r.type });
     const v = initialiserValue(r.file, r.line, r.name);
     if (v === null || ZERO.test(v) || /^\{0[,0\s]*\}$/.test(v)) e.zeroOrNone++;
     else { e.nonZeroInit++; e.nonZero.push({ line: r.line, name: r.name, type: r.type, value: v.length > 44 ? v.slice(0, 44) + '…' : v }); }
@@ -209,6 +210,16 @@ function analyze(rows, only) {
 
 function report(res, opts) {
   const { perFile, collisions, files } = res;
+
+  // --list: the raw (file, line, name) inventory, for the context generator to consume. Kept here
+  // rather than re-derived there so the counter and the generator can never disagree about what
+  // the set of statics IS.
+  if (opts.list) {
+    const out = [];
+    for (const f of files) for (const v of perFile[f].all) out.push({ file: f, ...v });
+    console.log(JSON.stringify(out, null, 1));
+    return;
+  }
   const tot = (k) => files.reduce((s, f) => s + perFile[f][k], 0);
 
   if (opts.json) { console.log(JSON.stringify(res, null, 1)); return; }
@@ -320,6 +331,7 @@ const opts = {
   quiet: argv.includes('--quiet'),
   json: argv.includes('--json'),
   verbose: !argv.includes('--quiet'),
+  list: argv.includes('--list'),
 };
 if (argv.includes('--check')) { selfCheck(); }
 else {

@@ -22,6 +22,7 @@
 #include <stdbool.h>
 #include <string.h>
 #include <stdatomic.h>   // lock-free SPSC request queue: main (producer) ↔ audio (consumer) thread
+#include "sound_ctx.h"   // GENERATED per-instance context (tools/ctx-gen.js)
 #if defined(__SSE__) || defined(__x86_64__) || defined(__i386__)
 #include <xmmintrin.h>   // _mm_setcsr/_mm_getcsr — denormal flush-to-zero (FTZ/DAZ) on x86
 #endif
@@ -38,8 +39,6 @@ static inline float clamp01(float v)                     { return v < 0.0f ? 0.0
 static inline float clampf (float lo, float hi, float v) { return v < lo ? lo : v > hi ? hi : v; }
 // linear dry/wet blend — the `dry*(1-mix)+wet*mix` line every effect's *_process ends on.
 static inline float mix_wet(float dry, float wet, float mix) { return dry * (1.0f - mix) + wet * mix; }
-#define SOUND_SAMPLE_RATE  44100
-#define SOUND_VOICES       32   // polyphony (8→16→32; needs SOUND_HANDLE_BITS≥5). ~9-10KB/voice .bss; CPU is the real cost (every active voice runs per-sample) — long-ringing modal/Karplus engines + chords starved 16
 #define SOUND_SFX_STEPS    32
 #define SOUND_SFX_SLOTS    32
 #define SOUND_INSTR_SLOTS  48   // 0-4 = the raw waves; 5-47 cart-defined (rich patch carts like modrack want banks per wave + many macro engines). ~200B/slot
@@ -431,13 +430,9 @@ static Voice         voices[SOUND_VOICES];
 // or -1). A setter is honored only if the live voice still carries the handle's
 // generation — so a stale handle (its voice was stolen or the slot reused)
 // silently no-ops instead of hitting the wrong note. See docs/design/held-notes.md.
-#define SOUND_HANDLE_BITS 5                      // slot field width — must hold SOUND_VOICES-1 (32 voices → 0..31 → 5 bits)
 #define SOUND_HANDLE_MASK ((1 << SOUND_HANDLE_BITS) - 1)
 _Static_assert(SOUND_VOICES <= (1 << SOUND_HANDLE_BITS),
                "SOUND_VOICES no longer fits the handle slot field - bump SOUND_HANDLE_BITS");
-static int           hn_gen[SOUND_VOICES];      // main thread: generation per handle slot
-static bool          hn_used[SOUND_VOICES];     // main thread: slot handed out (between note_on/note_off)
-static int           held_voice[SOUND_VOICES];  // audio thread: handle slot → voice index, or -1
 #define SOUND_HELD_GATE 0x7FFFFFFF               // "infinite" gate length for a sustained note
 static AudioStream   sound_stream;
 
@@ -460,15 +455,8 @@ static char          wavcap_path[512];
 // first calls scope_read(). Lock-free best-effort (audio thread writes, draw
 // thread reads — a single torn sample is invisible on a scope), no determinism
 // impact (read-only; the gate keeps --det runs that never scope byte-identical).
-#define SCOPE_LEN 2048
-static float scope_buf[SCOPE_LEN];
-static int   scope_w    = 0;
-static bool  scope_ever = false;
 // stereo twin of the tap (scope_read2 — the vectorscope/goniometer pair): the
 // UNDOWNMIXED L/R rings, separately gated so mono-only scoping stays untouched.
-static float scope2_bufL[SCOPE_LEN], scope2_bufR[SCOPE_LEN];
-static int   scope2_w    = 0;
-static bool  scope2_ever = false;
 
 // ── PCM sampler (mic-and-sampling.md) ────────────────────────────────────────
 // Piece 1: a rolling capture ring of the final mono mix, armed by record_arm().
@@ -483,10 +471,6 @@ static bool  scope2_ever = false;
 #define SOUND_REC_LEN      (SOUND_SAMPLE_RATE * SOUND_REC_SECONDS)
 typedef struct { float *data; int len; bool loaded; } SoundSample;  // data = malloc'd mono PCM -1..1
 static SoundSample   sound_samples[SOUND_SAMPLE_SLOTS];
-static float        *rec_ring  = NULL;     // malloc'd on arm; NULL = unused (byte-identical)
-static volatile int  rec_w     = 0;        // audio-thread write cursor into rec_ring
-static volatile long rec_total = 0;        // monotonic samples written (for "last N" math)
-static volatile bool rec_arm   = false;    // armed by record_arm() — the write gate
 
 // ── voice debugging (docs/design/audio-voice-debugging.md) — DE_TRACE-only ───────────
 // Two harness tools for "a voice got cut off by another instrument". The whole block is
@@ -565,9 +549,6 @@ static void sound_wavcap_poll(void) {
 }
 static Sfx           sfx_bank[SOUND_SFX_SLOTS];
 static Instrument    instr_bank[SOUND_INSTR_SLOTS];
-#define SOUND_USER_WAVES 4
-#define SOUND_WAVE_LEN   64
-static float         user_wave[SOUND_USER_WAVES][SOUND_WAVE_LEN];   // INSTR_USER0..3 single-cycle tables (filled via wave_set)
 
 // ── INSTR_BOWED shared bodies (§M2, plan 2.4) — ONE BOX PER SLOT ──────────────────────────────
 // Reid Part 22: an instrument body IS a small reverberant room — three parallel lines in the 1-4 ms
@@ -596,8 +577,6 @@ typedef struct {
     bool  live;                   // claimed by a slot, so worth clocking
 } BowBody;
 static BowBody bow_bodies[SOUND_BOW_BODIES];
-static int     bow_body_next     = 0;   // next free pool entry (claim-only, like fx_next_bus)
-static int     bow_body_overflow = 0;   // slots that wanted a body and found the pool empty (tripwire)
 
 // Reid's three delays. Deliberately incommensurate, so the resonance series interleave into a dense
 // modal family instead of stacking into one comb. At 1.0x these give 24 resonances in 80-4000 Hz, 19
@@ -720,39 +699,16 @@ static void bow_body_advance(void) {
 //   • the read tap is FRACTIONAL and the delay time slews toward its target
 //     with a clamped per-sample step — sweeping echo() time live pitch-bends
 //     the ringing tail exactly like varying tape speed (the RE-201 move)
-#define SOUND_ECHO_MAX (SOUND_SAMPLE_RATE * 2)   // 2s cap on the delay line
-static float echo_buf[SOUND_ECHO_MAX];
-static int   echo_widx        = 0;
-static float echo_time        = 0.375f * SOUND_SAMPLE_RATE;   // read-tap distance, samples (fractional)
-static float echo_time_target = 0.375f * SOUND_SAMPLE_RATE;   // default 375ms = dotted-8th at 120bpm
-static float echo_fb          = 0.35f;
-static float echo_tone_coef   = 0.0f;            // one-pole LP coefficient (set from tone; default in sound_init)
-static float echo_lp          = 0.0f;            // the loop filter's running state
-static float echo_dc_x1       = 0.0f, echo_dc_y1 = 0.0f;   // DC blocker on the feedback: tanh of an asymmetric tail injects DC that fb (up to 1.1) accumulates → a thump; ~7Hz HP corner, inaudible
-static bool  echo_used        = false;           // flips true on first echo API call, never back
 
 // ── delay INSERT (echo_insert) — an IN-LINE dry/wet delay, an honest reorderable pedal ──────────
 // The echo above is a parallel SEND; this is the same tape-delay DSP placed IN the master fx_order
 // chain, so its POSITION matters (delay→drive vs drive→delay). Master-only (one buffer), gated on
 // b==0 in apply_insert. Its OWN buffer so it never collides with the send. Wet ADDS over the full
 // dry (a delay pedal's MIX = repeat level), scaled by mix. Dormant until echo_insert() → byte-identical.
-static float echo_ins_buf[SOUND_ECHO_MAX];
-static int   echo_ins_widx        = 0;
-static float echo_ins_time        = 0.375f * SOUND_SAMPLE_RATE;
-static float echo_ins_time_target = 0.375f * SOUND_SAMPLE_RATE;
-static float echo_ins_fb          = 0.35f;
-static float echo_ins_tone_coef   = 0.0f;
-static float echo_ins_lp          = 0.0f;
-static float echo_ins_mix         = 0.0f;
-static bool  echo_ins_used        = false;
 // BBD analog voicing (opt-in via echo_insert_bbd; 0 = off → byte-identical). A real bucket-brigade
 // delay adds clock JITTER (the repeats shimmer) and DARKENS as the delay lengthens (the clock slows,
 // bandwidth drops). Both live INSIDE the loop / on the read tap, so only the REPEATS are coloured —
 // the dry signal passes untouched (unlike a master tape() insert, which wobbles everything).
-static float echo_ins_bbd  = 0.0f;   // amount 0..1 (0 = clean digital delay)
-static float echo_ins_tone = 0.55f;  // raw tone 0..1, kept so the time-darkening can re-derive the loop coef
-static float echo_ins_wph  = 0.0f;   // wow LFO phase
-static float echo_ins_fph  = 0.0f;   // flutter LFO phase
 #define ECHO_BBD_WOW_RATE  0.55f     // Hz — slow drift; SLOW vs the loop period, so the recirculation
 #define ECHO_BBD_WOW_DEPTH 20.0f     // samples (~0.45ms) — stays coherent and self-osc survives (the audible wobble)
 #define ECHO_BBD_FLT_RATE  6.30f     // Hz — faster flutter. Kept SHALLOW: a big fast read-tap swing decorrelates
@@ -790,7 +746,6 @@ static void echo_ins_process(float *mixL, float *mixR) {
 // master pan law (stereo.md): PAN_LINEAR (default, center=mix, byte-identical to mono) or
 // PAN_POWER (constant-power, center=-3dB, equal loudness across the sweep). gated so the
 // default never regresses centered carts; only a panning cart that opts in changes output.
-static int   g_pan_law        = PAN_LINEAR;
 
 // tone 0..1 → loop-filter cutoff 300 Hz .. ~6.8 kHz (each repeat passes through it once)
 static float sound_echo_coef(float t) {
@@ -841,12 +796,9 @@ static void echo_ins_set_coef(void) {
 // allpass gives). Uses the existing rvb_allpass() Schroeder section.
 #define SPRING_AP_STAGES 8
 #define SPRING_AP_MAX    128         // max per-stage delay (buffer size)
-#define SPRING_DISP    0.62f         // default dispersion coefficient (the "boing" character)
 #define SPRING_HP_COEF 0.010f        // ~75 Hz highpass (drop the lows)
 #define SPRING_LP_COEF 0.42f         // ~4 kHz lowpass (drop the highs → metallic mid focus)
 static const int SPRING_AP_LEN[SPRING_AP_STAGES] = { 89, 113, 67, 97, 127, 71, 107, 83 };
-static float rvb_spring = 0.0f;      // 0..1 spring amount (global; default 0 = off, dormant)
-static float rvb_spring_disp = SPRING_DISP;   // live dispersion coefficient (reverb_spring_tone) — the "boing" character
 
 // THE reverb tank pool (Increment C — effects-bus-architecture.md §5). Was a single shared
 // reverberator; now SOUND_REVERB_TANKS independent tanks of identical DSP. Tank 0 = the legacy
@@ -854,7 +806,6 @@ static float rvb_spring_disp = SPRING_DISP;   // live dispersion coefficient (re
 // reverb SEND-BUSES: reverb_bus() routes a slot's send onto a dedicated aux bus whose insert
 // chain starts with FX_REVERB, so a cart can run effects AFTER the space (reverb→bitcrush). One
 // tank ≈ 24KB of comb/allpass buffers; the whole struct is zero-init .bss (0 bytes of wasm).
-#define SOUND_REVERB_TANKS 3
 typedef struct {
     float comb1[REVERB_COMB_1], comb2[REVERB_COMB_2], comb3[REVERB_COMB_3], comb4[REVERB_COMB_4];
     float ap1[REVERB_ALLPASS_1], ap2[REVERB_ALLPASS_2];
@@ -871,7 +822,6 @@ typedef struct {
     bool  used;                      // per-tank dormancy: a dormant tank is skipped (costs zero)
 } ReverbTank;
 static ReverbTank rvb_tank[SOUND_REVERB_TANKS];
-static bool  reverb_used = false;          // flips true on first reverb() call (tank 0 master send), never back
 
 // one comb filter with lowpass damping (navkit processCombFilter — darker tails as damping rises)
 static float rvb_comb(float input, float *buf, int *pos, int size, float *lp, float fb, float damp) {
@@ -930,27 +880,14 @@ static float reverb_process(ReverbTank *t, float sample) {
 // instrument_chorus/instrument_flanger(slot,…) hand a slot a private bus so you can flange one
 // instrument and leave the rest dry. Each bus owns its own chorus + flanger state (its own comb
 // buffer/LFO/feedback). Sends (echo/reverb) stay ONE shared tank — only inserts go per-bus.
-#define SOUND_FX_BUSES   8         // bus 0 master + 7 aux (per-instrument). ~82KB of buffers total
-#define CHORUS_BUF_LEN   2048      // ~46ms @44100 Hz
 #define CHORUS_MIN_DELAY 0.005f    // 5ms
 #define CHORUS_MAX_DELAY 0.030f    // 30ms
 #define CHORUS_BASE_DELAY 0.0175f  // (MIN+MAX)/2 — base ± mod stays in range at depth 1
 #define BBD_CHARGE_SAT   0.7f      // charge-well saturation threshold (warm even harmonics)
-static int   fx_next_bus = 1;                  // next free aux bus to hand to instrument_chorus/flanger
 // Increment C — the reverb send-bus indirection (effects-bus-architecture.md §C.1). A reverb-bus
 // is an aux bus fed only by sends, with FX_REVERB as insert slot 0. bus_tank maps that bus to its
 // reverb tank (the expensive 24KB pool above); tank_bus is the inverse, resolved at note-on so
 // reverb_bus()/instrument_reverb_bus() can be called in either order.
-static int8_t bus_tank[SOUND_FX_BUSES];        // bus → reverb tank index, or -1 = not a reverb-bus (default -1)
-static int    tank_bus[SOUND_REVERB_TANKS];    // reverb tank → its dedicated aux bus, or 0 = unallocated
-static int    rvb_bus_overflow = 0;            // count of reverb_bus() requests dropped (aux-bus pool exhausted)
-static float cho_buf[SOUND_FX_BUSES][CHORUS_BUF_LEN];
-static int   cho_widx [SOUND_FX_BUSES];        // per-bus write index
-static float cho_phase[SOUND_FX_BUSES];        // per-bus LFO phase 0..1
-static float cho_rate [SOUND_FX_BUSES];        // LFO Hz (0.1..5)
-static float cho_depth[SOUND_FX_BUSES];        // sweep amount 0..1
-static float cho_mix  [SOUND_FX_BUSES];        // dry/wet 0..1
-static bool  cho_used [SOUND_FX_BUSES];        // per-bus: flips true when that bus's chorus is configured
 
 // one-pole DC blocker — out = in - x1 + R*y1; advance state. Highpass corner ~ (1-R)·SR/2π:
 // R 0.999 ≈ 7Hz (feedback taps + drive output), R 0.990 ≈ 70Hz (guitar body, trims sub mud).
@@ -1093,18 +1030,8 @@ static void chorus_process(int b, float *mixL, float *mixR) {
 // triangle-LFO-swept delay with FEEDBACK: feedback is the flanger's identity (subtle → jet whoosh
 // → metallic resonance), negative = through-zero. Mono (the classic flange is mono — no antiphase
 // trick). MASTER INSERT, master-wide, dormant until the first flanger() call.
-#define FLANGER_BUF_LEN   512        // ~11ms @44100 Hz
 #define FLANGER_MIN_DELAY 0.0001f    // 0.1ms
 #define FLANGER_MAX_DELAY 0.010f     // 10ms
-static float flg_buf[SOUND_FX_BUSES][FLANGER_BUF_LEN];
-static int   flg_widx [SOUND_FX_BUSES];
-static float flg_phase[SOUND_FX_BUSES];
-static float flg_rate [SOUND_FX_BUSES];        // LFO Hz (0.05..5)
-static float flg_depth[SOUND_FX_BUSES];        // sweep amount 0..1
-static float flg_fb   [SOUND_FX_BUSES];        // feedback −0.95..0.95 (the jet/metallic knob)
-static float flg_mix  [SOUND_FX_BUSES];        // dry/wet 0..1
-static float flg_dc_x1[SOUND_FX_BUSES], flg_dc_y1[SOUND_FX_BUSES];  // DC blocker on the feedback (mono): the delay line passes DC at unity, so fb (±0.95) accumulates it (fx-check stack found −0.03)
-static bool  flg_used [SOUND_FX_BUSES];        // per-bus: flips true when that bus's flanger is configured
 
 // process one stereo sample on bus b IN PLACE: mono sum → swept short delay + feedback → wet, dry kept
 static void flanger_process(int b, float *mixL, float *mixR) {
@@ -1138,24 +1065,11 @@ static void flanger_process(int b, float *mixL, float *mixR) {
 // channels' pitch drifts together) + a baked HF rolloff (tape loses highs, darker as you saturate).
 // Plain-sine LFOs → fully deterministic (--det safe); navkit's noise-LFO + hiss skipped. The third
 // instance of the mod-delay technique after chorus + flanger (read via the shared moddel_hermite).
-#define TAPE_BUF_LEN     1024
 #define TAPE_BASE_DELAY  320.0f     // ~7ms playback-head offset; > the max mod swing (read stays behind write)
 #define TAPE_WOW_RATE    0.5f       // Hz — slow drift
 #define TAPE_WOW_DEPTH   200.0f     // samples (±4.5ms)
 #define TAPE_FLUT_RATE   6.0f       // Hz — fast warble
 #define TAPE_FLUT_DEPTH  40.0f      // samples (±0.9ms)
-#define TAPE_INST 2                        // Increment F: tape instances per bus (LO-FI vs standalone TAPE) — each carries its own buffer (~32KB/bus total)
-static float tape_bufL[SOUND_FX_BUSES][TAPE_INST][TAPE_BUF_LEN];
-static float tape_bufR[SOUND_FX_BUSES][TAPE_INST][TAPE_BUF_LEN];
-static int   tape_widx[SOUND_FX_BUSES][TAPE_INST];
-static float tape_wph [SOUND_FX_BUSES][TAPE_INST];    // wow LFO phase
-static float tape_fph [SOUND_FX_BUSES][TAPE_INST];    // flutter LFO phase
-static float tape_lpL [SOUND_FX_BUSES][TAPE_INST];    // HF-rolloff one-pole state (L)
-static float tape_lpR [SOUND_FX_BUSES][TAPE_INST];    // … (R)
-static float tape_wow [SOUND_FX_BUSES][TAPE_INST];
-static float tape_flut[SOUND_FX_BUSES][TAPE_INST];
-static float tape_sat [SOUND_FX_BUSES][TAPE_INST];
-static bool  tape_used[SOUND_FX_BUSES][TAPE_INST];
 
 static void tape_process(int b, int i, float *mixL, float *mixR) {
     float sat = tape_sat[b][i];
@@ -1214,14 +1128,6 @@ static void fx_set_tape(int b, int i, float wow, float flut, float sat) {
 // ── bitcrush — lo-fi quantizer: bit-depth reduction (floor to 2^bits levels) + sample-rate
 // reduction (sample-and-hold every `rate` samples). navkit processBitcrusher, made stereo and
 // per-bus. Cheap + stateless-ish (just the held sample + a counter). Dormant until first crush().
-#define CRUSH_INST 2                       // Increment F: crush instances per bus (LO-FI vs standalone BITCRUSH)
-static float crush_bits [SOUND_FX_BUSES][CRUSH_INST];  // bit depth 1..16
-static float crush_rate [SOUND_FX_BUSES][CRUSH_INST];  // sample-hold downsample factor 1..64
-static float crush_mix  [SOUND_FX_BUSES][CRUSH_INST];  // dry/wet 0..1
-static float crush_holdL[SOUND_FX_BUSES][CRUSH_INST];  // last sampled value (L)
-static float crush_holdR[SOUND_FX_BUSES][CRUSH_INST];  // … (R)
-static int   crush_cnt  [SOUND_FX_BUSES][CRUSH_INST];  // sample counter for rate reduction
-static bool  crush_used [SOUND_FX_BUSES][CRUSH_INST];
 static void crush_process(int b, int i, float *mixL, float *mixR) {
     float dryL = *mixL, dryR = *mixR;
     if (++crush_cnt[b][i] >= (int)crush_rate[b][i]) {  // sample-rate reduction: re-sample every `rate`
@@ -1250,12 +1156,6 @@ static void fx_set_crush(int b, int i, float bits, float rate, float mix) {
 // too). Stateless waveshaping (no buffer), so it runs on any bus. It REUSES the exact DRIVE_*
 // shaper curves from the voice path (drive_shape below = a verbatim copy of that switch) so the
 // character A/Bs against per-voice drive. Dormant until drive_insert() raises mix → byte-identical.
-#define DRIVE_INST 2                        // Increment F: bus-drive instances (a 2nd drive in the chain — overdrive pedal INTO amp drive)
-static float drvins_amt [SOUND_FX_BUSES][DRIVE_INST];   // pre-gain amount 0..1
-static int   drvins_mode[SOUND_FX_BUSES][DRIVE_INST];   // DRIVE_SOFT/HARD/FOLD/ASYM
-static float drvins_mix [SOUND_FX_BUSES][DRIVE_INST];   // dry/wet 0..1
-static bool  drvins_used[SOUND_FX_BUSES][DRIVE_INST];
-static float drvins_dcx [SOUND_FX_BUSES][DRIVE_INST][2], drvins_dcy[SOUND_FX_BUSES][DRIVE_INST][2];   // per-channel DC-blocker (asym injects DC)
 
 // the DRIVE_* curves, identical to the per-voice path: g grows from 0 (shape(s·g)/shape(g) → s as
 // g → 0, so amount 0 is a true bypass), normalized by shape(g) so full-scale stays full-scale.
@@ -1285,10 +1185,6 @@ static float drive_shape(float s, int mode, float dr) {
 #define TS_SPLIT_COEF 0.045f   // ~300 Hz one-pole split — below it bypasses the clipper (stays clean)
 #define TS_TONE_MIN   0.12f    // TONE post-LP: darkest
 #define TS_TONE_RANGE 0.55f    // ...to brightest
-static int   drvins_voice = 0;    // DRIVE_VOICE_NONE(0) / DRIVE_VOICE_TS(1) — global
-static float drvins_tone  = 0.5f; // TS TONE knob 0..1
-static float drvins_lp1[SOUND_FX_BUSES][DRIVE_INST][2];   // TS pre-split LP (clean bass)
-static float drvins_lp2[SOUND_FX_BUSES][DRIVE_INST][2];   // TS post/tone LP
 // The famous-pedal voices, each = a clip curve + its own tone-shaping. lp1/lp2 are per-bus/instance/channel
 // one-pole states, reused per voice. Byte-identical off (voice 0 never calls this).
 static float drive_voice_shape(int b, int i, int ch, float s, float dr) {
@@ -1344,15 +1240,6 @@ static void fx_set_drive(int b, int i, float amt, int mode, float mix) {
 // Mono (like flanger). Closes the §8.10.1 PARKED auto-wah; the follower's "real home is bus-level".
 #define WAH_FREQ_LOW   300.0f
 #define WAH_FREQ_HIGH  2500.0f
-static float wah_env [SOUND_FX_BUSES];     // envelope-follower state
-static float wah_ic1 [SOUND_FX_BUSES];     // TPT SVF state
-static float wah_ic2 [SOUND_FX_BUSES];
-static float wah_sens[SOUND_FX_BUSES];     // envelope sensitivity (~0.3..5 internal)
-static float wah_res [SOUND_FX_BUSES];     // resonance/Q 0..1 (the quack)
-static float wah_mix [SOUND_FX_BUSES];     // dry/wet 0..1
-static bool  wah_used[SOUND_FX_BUSES];
-static float wah_lfo_rate [SOUND_FX_BUSES]; // navkit WAH_MODE_LFO: sweep rate Hz; 0 = follower (envelope) mode
-static float wah_lfo_phase[SOUND_FX_BUSES]; // LFO phase 0..1
 
 static void wah_process(int b, float *mixL, float *mixR) {
     float in = (*mixL + *mixR) * 0.5f;     // filter the mono sum
@@ -1408,13 +1295,6 @@ static void fx_set_wah_lfo(int b, float rate, float res, float mix) {
 // (Zavalishin) in a selectable mode (LP/HP/BP/notch), cutoff + resonance set by the cart and RIDDEN
 // live (the build-up / breakdown sweep). Per-channel state → preserves stereo. Cheap to re-call every
 // frame (just stores 3 values — unlike the buffer effects, sweeping it live is fine). filt_used-gated.
-#define FILT_INST 2                         // Increment F: filter instances per bus (filter A/B; LO-FI vs standalone)
-static int   filt_mode[SOUND_FX_BUSES][FILT_INST];     // FILTER_LOW / HIGH / BAND / NOTCH
-static float filt_cut [SOUND_FX_BUSES][FILT_INST];     // cutoff Hz
-static float filt_res [SOUND_FX_BUSES][FILT_INST];     // resonance 0..1 (peak height / the scream)
-static float filt_ic1L[SOUND_FX_BUSES][FILT_INST], filt_ic2L[SOUND_FX_BUSES][FILT_INST];   // TPT integrator state, L
-static float filt_ic1R[SOUND_FX_BUSES][FILT_INST], filt_ic2R[SOUND_FX_BUSES][FILT_INST];   //                        R
-static bool  filt_used[SOUND_FX_BUSES][FILT_INST];
 
 static void filter_process(int b, int i, float *mixL, float *mixR) {
     float freq = filt_cut[b][i];
@@ -1465,13 +1345,6 @@ static void fx_set_filter(int b, int i, int mode, float cutoff, float res) {
 // SVFs from precomputed band targets) so it can sit before apply_insert. Filters the mono sum (the
 // wet is mono, like wah); dry stays per-channel. Dormant until formant()/instrument_formant() →
 // non-users byte-identical. design: docs/guides/effects-recipes.md → formant.
-static float fmt_freq[SOUND_FX_BUSES][4];   // band centre freqs (Hz), from the vowel table
-static float fmt_k   [SOUND_FX_BUSES][4];   // band damping = 1/Q = bw/fc (precomputed by fx_set_formant)
-static float fmt_amp [SOUND_FX_BUSES][4];   // band relative amplitudes (F1 loudest)
-static float fmt_ic1 [SOUND_FX_BUSES][4];   // TPT SVF state per band
-static float fmt_ic2 [SOUND_FX_BUSES][4];
-static float fmt_mix [SOUND_FX_BUSES];      // dry/wet 0..1
-static bool  fmt_used[SOUND_FX_BUSES];
 static void formant_process(int b, float *mixL, float *mixR) {
     float in = (*mixL + *mixR) * 0.5f;      // filter the mono sum (wet is mono, like wah)
     float out = 0.0f;
@@ -1507,15 +1380,6 @@ static void formant_process(int b, float *mixL, float *mixR) {
 // call → non-users byte-identical.
 #define EQ_LOW_FREQ   80.0f     // low/mid crossover (Hz) — reaches sub-bass / body
 #define EQ_HIGH_FREQ  6000.0f   // mid/high crossover (Hz) — presence / air
-#define EQ_INST 2                         // Increment F: EQ instances per bus (EQ before AND after a dirt stage)
-static float eq_low_g [SOUND_FX_BUSES][EQ_INST];   // low-band  linear gain = 10^(dB/20)
-static float eq_mid_g [SOUND_FX_BUSES][EQ_INST];   // mid-band  linear gain
-static float eq_high_g[SOUND_FX_BUSES][EQ_INST];   // high-band linear gain
-static float eq_loL[SOUND_FX_BUSES][EQ_INST];      // low-crossover one-pole state (L)
-static float eq_loR[SOUND_FX_BUSES][EQ_INST];      // … (R)
-static float eq_hiL[SOUND_FX_BUSES][EQ_INST];      // mid/top-crossover one-pole state (L)
-static float eq_hiR[SOUND_FX_BUSES][EQ_INST];      // … (R)
-static bool  eq_used[SOUND_FX_BUSES][EQ_INST];
 static void eq_process(int b, int i, float *mixL, float *mixR) {
     float lowCoeff  = EQ_LOW_FREQ  * SOUND_TWO_PI / (float)SOUND_SAMPLE_RATE;  if (lowCoeff  > 0.99f) lowCoeff  = 0.99f;
     float highCoeff = EQ_HIGH_FREQ * SOUND_TWO_PI / (float)SOUND_SAMPLE_RATE;  if (highCoeff > 0.99f) highCoeff = 0.99f;
@@ -1554,12 +1418,7 @@ static void fx_set_eq(int b, int i, float low_db, float mid_db, float high_db) {
 #define TREM_SHAPE_SINE   0   // = LFO_SHAPE_SINE (kept for the internal trem/pan code)
 #define TREM_SHAPE_SQUARE 1
 #define TREM_SHAPE_TRI    2
-static float trem_rate [SOUND_FX_BUSES];   // LFO rate Hz
-static float trem_depth[SOUND_FX_BUSES];   // modulation depth 0..1
-static int   trem_shape[SOUND_FX_BUSES];   // LFO_SHAPE_* (now the full vocabulary, via lfo_eval)
-static float trem_phase[SOUND_FX_BUSES];   // LFO phase 0..1
 static ModState trem_md[SOUND_FX_BUSES];   // state for the S&H/random shapes
-static bool  trem_used [SOUND_FX_BUSES];
 static void trem_process(int b, float *mixL, float *mixR) {
     // -1..1 wave from the shared dispatcher → 0..1 mod (sine/square/tri reproduce the old output exactly)
     float wave = lfo_eval(trem_shape[b], trem_phase[b], &trem_md[b], trem_rate[b], 1.0f / (float)SOUND_SAMPLE_RATE);
@@ -1586,12 +1445,7 @@ static void fx_set_tremolo(int b, float rate, float depth, int shape) {
 // isn't a mode of tremolo. Reuses the TREM_SHAPE_* shapes. Only attenuates (never boosts), so the
 // summed level never exceeds the dry input — no added clip risk. Dormant until autopan()/
 // instrument_autopan() with depth>0 → non-users byte-identical.
-static float pan_rate [SOUND_FX_BUSES];   // LFO rate Hz
-static float pan_depth[SOUND_FX_BUSES];   // pan depth 0..1 (1 = full L↔R)
-static int   pan_shape[SOUND_FX_BUSES];   // TREM_SHAPE_*
-static float pan_phase[SOUND_FX_BUSES];   // LFO phase 0..1
 static ModState pan_md[SOUND_FX_BUSES];   // state for the S&H/random shapes
-static bool  pan_used [SOUND_FX_BUSES];
 static void pan_process(int b, float *mixL, float *mixR) {
     float wave = lfo_eval(pan_shape[b], pan_phase[b], &pan_md[b], pan_rate[b], 1.0f / (float)SOUND_SAMPLE_RATE);
     float mod = 0.5f + 0.5f * wave;
@@ -1615,10 +1469,6 @@ static void fx_set_autopan(int b, float rate, float depth, int shape) {
 // tremolo's unipolar 0..1 gain), so it generates inharmonic sum/difference tones — the robot/bell/
 // Dalek clang, NOT just a wobble. |carrier|≤1 and the dry/wet blend keep |out|≤|in|, so no added clip
 // risk. Per-bus carrier phase. Dormant until ringmod()/instrument_ringmod() with mix>0 → byte-identical.
-static float rm_freq [SOUND_FX_BUSES];   // carrier frequency Hz
-static float rm_mix  [SOUND_FX_BUSES];   // dry/wet 0..1
-static float rm_phase[SOUND_FX_BUSES];   // carrier phase 0..1
-static bool  rm_used [SOUND_FX_BUSES];
 static void rm_process(int b, float *mixL, float *mixR) {
     float c = de_sin_turns(rm_phase[b]);
     rm_phase[b] += rm_freq[b] * (1.0f / (float)SOUND_SAMPLE_RATE);
@@ -1641,20 +1491,6 @@ static void fx_set_ringmod(int b, float freq, float mix) {
 // from the flanger's swept comb). navkit's processor is mono; we run it PER CHANNEL (own allpass
 // memory L/R) sharing one LFO phase, so a centered source matches navkit's mono exactly and a stereo
 // source keeps its width. stages 2..8 (4 = the classic Phase-90). Dormant until mix>0 → byte-identical.
-#define SOUND_PHASER_STAGES 8
-static float phaser_rate [SOUND_FX_BUSES];   // LFO rate Hz
-static float phaser_depth[SOUND_FX_BUSES];   // sweep depth 0..1
-static float phaser_fb   [SOUND_FX_BUSES];   // feedback (resonance), signed
-static float phaser_mix  [SOUND_FX_BUSES];   // dry/wet 0..1
-static int   phaser_stages[SOUND_FX_BUSES];  // allpass stages 2..8
-static float phaser_phase[SOUND_FX_BUSES];   // LFO phase 0..1 (shared L/R)
-static float phaser_stL[SOUND_FX_BUSES][SOUND_PHASER_STAGES];  // per-stage allpass output (L)
-static float phaser_pvL[SOUND_FX_BUSES][SOUND_PHASER_STAGES];  // per-stage allpass input  (L)
-static float phaser_stR[SOUND_FX_BUSES][SOUND_PHASER_STAGES];  // … (R)
-static float phaser_pvR[SOUND_FX_BUSES][SOUND_PHASER_STAGES];
-static float phaser_dcx[SOUND_FX_BUSES][2], phaser_dcy[SOUND_FX_BUSES][2];  // DC blocker on the feedback tap (per channel): allpasses pass DC at unity, so fb (up to ±0.95) accumulates it ~1/(1-fb)× into a thump (fx-check found −0.13 at fb 0.95)
-static bool  phaser_used[SOUND_FX_BUSES];
-static bool  phaser_optical[SOUND_FX_BUSES];   // univibe(): drive the sweep with mod_optical instead of a sine
 static float phaser_chan(float in, float coeff, float fb, float mix, int stages, float *st, float *pv, float *dcx, float *dcy) {
     float dry = in;
     // DC blocker on the feedback tap: allpasses pass DC at unity, so the loop's DC gain is fb
@@ -1718,7 +1554,6 @@ static void fx_set_univibe(int b, float rate, float depth, float mix) {
 // crossover + Doppler buffer L/R) sharing one rotor, so a centered source matches navkit's mono
 // exactly and a stereo source keeps its width. Pinned LAST in the insert chain (the speaker/cabinet
 // output stage, like the soft-clip — not a reorderable pedal). Dormant until mix>0 → byte-identical.
-#define LESLIE_BUF        512        // ~11.6ms horn Doppler delay line (navkit LESLIE_BUFFER_SIZE)
 #define LESLIE_XOVER_COEF 0.1074f    // 1-exp(-2π·800/44100), the 800 Hz drum/horn crossover (navkit, precomputed)
 #define LESLIE_BASE_MS    3.0f       // horn base delay (center of the Doppler modulation)
 #define LESLIE_DOPP_MS    0.5f       // max Doppler excursion ±0.5ms
@@ -1730,25 +1565,12 @@ static void fx_set_univibe(int b, float rate, float depth, float mix) {
 #define LESLIE_HORN_DEC   1.2f       // horn spin-down
 #define LESLIE_DRUM_ACC   4.0f       // drum spin-up — heavy, ramps slow
 #define LESLIE_DRUM_DEC   5.0f
-static int   leslie_speed[SOUND_FX_BUSES];   // 0=stop 1=slow(chorale) 2=fast(tremolo) — LESLIE_* in studio.h
-static float leslie_drive[SOUND_FX_BUSES];   // pre-amp tube overdrive 0..1
-static float leslie_bal  [SOUND_FX_BUSES];   // horn/drum balance 0=drum .. 0.5=equal .. 1=horn
-static float leslie_dopp [SOUND_FX_BUSES];   // horn Doppler depth 0..1
-static float leslie_mix  [SOUND_FX_BUSES];   // dry/wet 0..1
-static bool  leslie_used [SOUND_FX_BUSES];
-static float leslie_hornPh[SOUND_FX_BUSES], leslie_drumPh[SOUND_FX_BUSES];   // rotor phase (shared L/R)
-static float leslie_hornRt[SOUND_FX_BUSES], leslie_drumRt[SOUND_FX_BUSES];   // rotor rate, slewed toward target
-static float leslie_xoL[SOUND_FX_BUSES], leslie_xoR[SOUND_FX_BUSES];          // crossover LP state (per channel)
-static int   leslie_wpos[SOUND_FX_BUSES];                                     // Doppler write pos (shared)
-static float leslie_bufL[SOUND_FX_BUSES][LESLIE_BUF], leslie_bufR[SOUND_FX_BUSES][LESLIE_BUF];
 
 // sidechain / bus-compression DYNAMICS (studio.h sidechain()/sidechain_key()/glue()). A gain stage
 // on a victim bus driven by an envelope follower: keyed off a TRIGGER (sidechain_key → sc_key_lvl)
 // or, for glue, off the bus's OWN level. Dormant (used=false) until configured → byte-identical.
-#define N_SC_KEYS 4   // independent trigger buses (kick/snare/…); sidechain_key key index 0..3
 typedef struct { bool used; int key; float amount, atk, rel, env; } SideChain;  // key<0 = glue (self-keyed)
 static SideChain sc[SOUND_FX_BUSES];      // one keyed comp per victim bus (bus 0 = master)
-static float     sc_key_lvl[N_SC_KEYS];   // this sample's summed trigger sends per key (reset each sample)
 // duck gain for victim bus b. Updates the envelope follower; reads its trigger key (or the bus's own
 // level when self-keyed/glue). Returns the gain to multiply the bus by (1 = open, <1 = ducked).
 static float sc_apply(int b, float curL, float curR) {
@@ -1766,16 +1588,6 @@ static float sc_apply(int b, float curL, float curR) {
 // vocoder_send() slots, send-only). Dormant (voc_on=false) until vocoder() → byte-identical. MONO
 // (a vocoder's output is mono), blended into the master by voc_mix. Both signals go through the SAME
 // N log-spaced SVF bandpasses; each modulator band's envelope multiplies the matching carrier band.
-#define VOC_BANDS 12
-static bool   voc_on   = false;
-static float  voc_mix  = 0.0f;                 // 0..1 wet blend into the master
-static float  voc_mod  = 0.0f;                 // this sample's summed modulator send (reset each sample, like sc_key_lvl)
-static float  voc_f[VOC_BANDS];                // per-band SVF coeff f = 2·sin(π·fc/sr)
-static float  voc_q1   = 0.2f;                 // 1/Q shared across bands (Q≈5 → bands overlap slightly)
-static float  voc_mk   = 1.2f;                 // makeup gain (tuned by render: keeps the 12-band sum off the master limiter)
-static float  voc_c_lp[VOC_BANDS], voc_c_bp[VOC_BANDS];   // carrier SVF states (Chamberlin)
-static float  voc_m_lp[VOC_BANDS], voc_m_bp[VOC_BANDS];   // modulator SVF states
-static float  voc_env[VOC_BANDS];              // per-band modulator envelope follower
 // v2 quality — UNVOICED/sibilance noise band (docs/design/vocoder.md §"known hard bits"). Consonants
 // (s, sh, f, t) are broadband noise, not pitched — a tonal carrier can't render them, so speech goes
 // mushy. Fix: when the modulator's energy piles into the TOP bands with nothing below (an "s"), swap
@@ -1785,11 +1597,6 @@ static float  voc_env[VOC_BANDS];              // per-band modulator envelope fo
 #define VOC_UV_BANDS  4                         // the top bands that get noise-substituted (~2.5..7 kHz)
 #define VOC_UV_LO     0.34f                     // energy-fraction below this = voiced (top-4-of-12 flat point ≈0.33)
 #define VOC_UV_HI     0.60f                     // energy-fraction above this = fully unvoiced (sibilant tilt)
-static float  voc_uv_amt = 0.0f;               // vocoder_unvoiced() control 0..1 — how much noise to substitute (0 = off)
-static float  voc_uv     = 0.0f;               // smoothed unvoiced detector 0..1 (fraction of energy in the top bands)
-static int    voc_nz     = 0x1a2b3c4d;         // deterministic white-noise LCG state for the unvoiced excitation
-static float  voc_nk     = 2.6f;               // noise makeup — a band-limited white draw is quieter than the carrier band
-static float  voc_n_lp[VOC_BANDS], voc_n_bp[VOC_BANDS];   // noise-excitation SVF states (only the top bands used)
 
 static void voc_config(void) {                 // log-spaced band centers 180..7000 Hz (constant; recompute is harmless)
     float lo = 180.0f, hi = 7000.0f;
@@ -1847,9 +1654,6 @@ static float      sound_extin[SOUND_EXTIN_LEN];
 static atomic_int extin_w = 0;              // producer index (capture thread)
 static atomic_int extin_r = 0;              // consumer index (audio thread)
 static int        extin_on = 0;             // a live effect wants the mic feed (set by vocoder_mic)
-static int        extin_mon_on   = 0;       // input_monitor(): feed the live mic into master bus 0's fx chain
-static float      extin_mon_gain = 0.0f;    // input_monitor() gain (0 = off)
-static float      voc_mic_amt = 0.0f;       // vocoder: how much the LIVE mic drives the modulator (0 = off)
 
 static void sound_extin_write(float s) {    // capture thread — drop on a full ring (only the reader frees space)
     int w    = atomic_load_explicit(&extin_w, memory_order_relaxed);
@@ -1875,33 +1679,15 @@ static void sound_extin_reset(void) {       // consumer-side: align reader to wr
 // grain content kept → formants preserved), and monitors the corrected voice into the mix. Dormant
 // (am_on=0) → byte-identical. LIVE-ONLY (ADR-0032). SPIKE — quality/latency is the whole question.
 // State here (so the mixer sees am_on/am_amt); the per-sample process is defined after the at_* helpers.
-#define AM_RING 8192
 #define AM_MASK (AM_RING - 1)
 #define AM_LAT  1200                  // fixed output latency (samples ~27ms) — must exceed 2×grain-half
-static float am_inbuf[AM_RING];       // mic history ring
-static float am_outbuf[AM_RING];      // overlap-add output accumulator
-static float am_nrm[AM_RING];         // per-sample window-sum normalizer
-static long  am_w = 0;                // monotonic write cursor (read trails by AM_LAT)
-static float am_T = 300.0f;           // running source period estimate (samples)
-static long  am_ea = 0;               // next analysis epoch position
-static long  am_eps[8];               // ring of recent analysis-epoch positions
-static int   am_epi = 0, am_pd = 0;   // epoch-ring index, period-refresh countdown
-static float am_amt = 0.0f;           // correction strength 0..1 (0 = off, byte-identical)
-static int   am_on = 0, am_root = 0, am_scale = 1;
 // The same streaming engine wears TWO faces (contemporary-rebirth.md Rung B), exactly like the
 // offline at_psola_slot: AM_SNAP corrects to a scale (autotune_mic) and AM_SHIFT transposes by a
 // fixed interval with an optional STACK of extra voices (harmonize_mic — formants ride along with
 // the pitch, see the at_psola_slot header on the parked hold axis). ONE corrector, so the last call
 // wins: a cart picks a face, it does not run both. AM_SHIFT gives each voice its own synthesis
 // pointer, all overlap-adding into the one output accumulator.
-enum { AM_SNAP, AM_SHIFT };
-#define AM_MAXV 3                     // voices in a stack: the shift itself, + a fifth, + an octave
 static const float AM_STACK[AM_MAXV] = { 0.0f, 7.0f, 12.0f };
-static long  am_ts[AM_MAXV];          // per-voice synthesis epoch position (voice 0 = the snap face's)
-static int   am_mode = AM_SNAP;       // which face is live
-static int   am_nv = 1;              // active voices (AM_SHIFT only)
-static float am_semis = 0.0f;         // AM_SHIFT interval
-static float am_gain = 1.0f;          // 1/sqrt(voices) so a stack doesn't pile up level (1.0 for SNAP → exact)
 static float autotune_mic_process(float x);   // defined below, after the at_* helpers (uses at_snap)
 // clear the mic ring + the streaming PSOLA state (both faces start from silence, never mid-grain)
 static void am_stream_reset(void) {
@@ -1997,9 +1783,6 @@ typedef struct {
     bool   freeze, used, reverse;  // reverse = grains play backwards through the buffer
 } GrainTank;
 static GrainTank grain_pool[SOUND_GRAIN_TANKS];
-static int8_t    grain_tank_of[SOUND_FX_BUSES];   // bus → pool tank index, or -1 = none (default -1)
-static int       grain_next     = 0;              // next free pool tank to hand out
-static int       grain_overflow = 0;              // count of grains() requests dropped (pool exhausted)
 
 // assign a pool tank to bus b on first use; -1 = pool exhausted (caller bails → that bus stays dry)
 static int grain_tank_for_bus(int b) {
@@ -2630,9 +2413,6 @@ static float    drop_amount = 0.0f;   // 0..1: catch frequency (0 = off)
 static float    drop_depth  = 0.7f;   // 0..1: severity (how far level drops + how dull)
 static bool     drop_used   = false;
 static ModState drop_mod;             // the S&H trigger source
-static float    drop_env    = 0.0f;   // current catch envelope (0 = normal, 1 = full drop)
-static float    drop_prev   = 0.0f;   // last S&H value (rising-edge detect)
-static float    drop_lpL = 0.0f, drop_lpR = 0.0f;   // HF-rolloff one-pole state
 static void dropout_process(float *mixL, float *mixR) {
     const float dt = 1.0f / (float)SOUND_SAMPLE_RATE;
     float sh = mod_sh(&drop_mod, DROP_EVENT_HZ, dt);   // sample-&-hold: a fresh random each step, held between
@@ -2663,11 +2443,6 @@ static void fx_set_dropout(float amount, float depth) {
 // by the mix). Stereo-decorrelated hiss (width) + mono hum (a centered ground-loop). Seeded LCG →
 // --det reproducible. NOT dither (that's a quantization fix) — the hiss + 50/60 Hz hum are modelled
 // directly. (The companion noise GATE that clamps this between notes is the next pedal.)
-static float    noise_hiss = 0.0f, noise_hum = 0.0f;   // 0..1 levels
-static int      noise_mains = 60;                       // 50 (EU) / 60 (US) Hz
-static bool     noise_used = false;
-static unsigned int noise_seed = 0x6D2B79F5u;
-static float    noise_lpL, noise_lpR, noise_hum_ph;
 static void amp_noise_process(float *L, float *R) {
     noise_seed = noise_seed * 1103515245u + 12345u;     // hiss: two white draws → one-pole LP each
     float wl = (float)((int)((noise_seed >> 16) & 0xFFFF)) / 32767.5f - 1.0f;
@@ -2728,9 +2503,6 @@ typedef struct {
     bool  used;
 } ShimVoice;
 static ShimVoice shim[SOUND_SHIM_TANKS];
-static int8_t    shim_bus_of[SOUND_FX_BUSES];   // bus → shim tank (1+), or -1 (tank 0 = master, not bus-mapped)
-static int       shim_next     = 1;             // next free instrument tank (0 reserved for master shimmer())
-static int       shim_overflow = 0;             // instrument_shimmer() requests dropped (pool exhausted → bus stays dry)
 static int shim_tank_for_bus(int b) {
     if (shim_bus_of[b] >= 1) return shim_bus_of[b];
     if (shim_next >= SOUND_SHIM_TANKS) { shim_overflow++; return -1; }
@@ -2771,17 +2543,6 @@ static void fx_set_shimmer(int t, float size, float damp, float shimmer, float m
 // MODULATION RIDES, IT DOESN'T ENABLE: the cart configures the effect first (filter()/drive_insert()/…);
 // fx_mod only moves the param of an already-live effect (so a stray fx_mod on a silent bus stays silent —
 // matches the static/modulated split). Dormant until first use (fxmod_any gate) → byte-identical otherwise.
-#define FXMOD_N 7                                   // active targets: studio.h FXMOD_FILTER_CUT(0)..FXMOD_SHIMMER_MIX(6)
-static bool  fxmod_any = false;                     // any target ever activated? gate → zero per-sample cost (+ byte-identical) until used
-static bool  fxmod_on   [SOUND_FX_BUSES][FXMOD_N];  // active → writes its param each sample
-static bool  fxmod_prime[SOUND_FX_BUSES][FXMOD_N];  // first CV sample after attach → snap (no slew ramp)
-static float fxmod_cur  [SOUND_FX_BUSES][FXMOD_N];  // slewed current value 0..1
-static float fxmod_tgt  [SOUND_FX_BUSES][FXMOD_N];  // CV target 0..1 (fx_mod sink)
-static float fxlfo_rate [SOUND_FX_BUSES][FXMOD_N];  // Hz; 0 = CV mode (use fxmod_tgt), >0 = engine sine LFO
-static float fxlfo_depth[SOUND_FX_BUSES][FXMOD_N];  // peak deviation 0..1 (0 = detached)
-static float fxlfo_ctr  [SOUND_FX_BUSES][FXMOD_N];  // LFO center 0..1
-static float fxlfo_phase[SOUND_FX_BUSES][FXMOD_N];  // 0..1 running phase
-static int   fxlfo_shape[SOUND_FX_BUSES][FXMOD_N];  // LFO_SHAPE_* (default SINE)
 static ModState fxlfo_mod[SOUND_FX_BUSES][FXMOD_N]; // per-target state for S&H/random shapes
 
 // normalized 0..1 → the target's natural param value, written into the live array (no enable side-effect).
@@ -2833,14 +2594,6 @@ static void fxmod_tick(void) {
 // (shared transport). Built for sweeps — at a HELD off-speed the read eventually laps the write (a
 // ~2 s click), it's not a dwell. Master output stage. Dormant (not called) until off-speed, and it
 // keeps running through a release until the slew settles back to 1.0 → then byte-identical again.
-#define VARI_BUF (SOUND_SAMPLE_RATE * 2)   // 2 s — room for a long dive before the read laps the write
-static float vari_bufL[VARI_BUF], vari_bufR[VARI_BUF];
-static int   vari_wpos   = 0;
-static float vari_rpos   = 0.0f;
-static float vari_target = 1.0f;   // requested speed
-static float vari_speed  = 1.0f;   // slewed applied speed (tape inertia)
-static bool  vari_used   = false;
-static bool  vari_ever   = false;  // has the cart ever called varispeed()? gates the rolling record (zero cost otherwise)
 static void varispeed_process(float *mixL, float *mixR) {
     if (!vari_ever) return;                                      // cart never used varispeed → full bypass, no record cost
     vari_bufL[vari_wpos] = *mixL; vari_bufR[vari_wpos] = *mixR;   // ROLLING record: always capture the live mix once the
@@ -5567,7 +5320,6 @@ static void sound_unclaim_held(int vi) {
 
 // declick accumulator (audio-thread-owned): a stolen voice's last output lands here and
 // fades over ~3ms instead of cutting to zero in one sample. See the mix loop.
-static float steal_tailL = 0.0f, steal_tailR = 0.0f;   // stereo: a stolen voice pays its last PANNED output per channel
 
 static int sound_find_voice(void) {
     int vi = -1;
@@ -5680,12 +5432,6 @@ static void sound_suppress_onset(Voice *v) {
 // ── spatial audio (spatial.md): listener + per-source geometry → pan, distance-gain, Doppler.
 // Dormant until listener()/note_pos()/hit_at(); a voice with sp_on=false keeps sp_gain=1 and
 // doppler_mul=1 (true bypass), so a cart that never positions a sound is byte-identical. ─────────
-static float g_listener_x  = 0.0f, g_listener_y  = 0.0f;   // ears position (world units)
-static float g_listener_vx = 0.0f, g_listener_vy = 0.0f;   // ears velocity (units/sec) for Doppler
-static float g_spatial_ref     = 24.0f;    // full volume within this distance
-static float g_spatial_max     = 400.0f;   // silent beyond this distance
-static float g_spatial_rolloff = 1.0f;     // falloff steepness
-static float g_spatial_c       = 340.0f;   // speed of sound (units/sec); 0 = Doppler off
 
 // Pure geometry shared by v1 voices and v2 emitter buses (spatial.md "shared machinery"):
 // a source position + velocity → distance gain, bearing pan, Doppler factor, all vs the listener.
@@ -5735,17 +5481,7 @@ static void spatial_recompute_all(void) {
 // Doppler is a 2-grain variable-ratio PITCH SHIFTER (the generalized octave-up): bounded buffer,
 // zero net latency drift, and a SUSTAINED shift (unlike a modulated delay, which decays). Crossfaded
 // to dry near unity so a stationary emitter is transparent (no comb coloration).
-#define EMIT_DL_LEN  3072      // grain buffer per bus (~70ms @44100), stereo
 #define EMIT_GRAIN   2048.0f   // grain/window length (~46ms) — the 2-grain crossfade period
-static bool  emit_on   [SOUND_FX_BUSES];
-static float emit_x    [SOUND_FX_BUSES], emit_y    [SOUND_FX_BUSES];
-static float emit_vx   [SOUND_FX_BUSES], emit_vy   [SOUND_FX_BUSES];
-static float emit_gain [SOUND_FX_BUSES], emit_gain_t[SOUND_FX_BUSES];   // distance gain (current + slew target)
-static float emit_pan  [SOUND_FX_BUSES], emit_pan_t [SOUND_FX_BUSES];   // bearing pan
-static float emit_dopp [SOUND_FX_BUSES], emit_dopp_t[SOUND_FX_BUSES];   // Doppler factor (pitch ratio)
-static float emit_bufL [SOUND_FX_BUSES][EMIT_DL_LEN], emit_bufR[SOUND_FX_BUSES][EMIT_DL_LEN];
-static int   emit_wpos [SOUND_FX_BUSES];
-static float emit_ph   [SOUND_FX_BUSES];   // grain phase 0..1 (the pitch shifter)
 
 // set an aux bus's emitter target from world coords (internal; instrument_pos/_motion call this).
 static void spatial_set_bus(int b, float x, float y, float vx, float vy) {
@@ -5972,7 +5708,6 @@ static void sound_set_step(Voice *v, SfxStep step, int step_dur_units) {
     }
 }
 
-static int fx_bus_overflow = 0;   // count of per-instrument FX requests dropped (pool exhausted)
 // Return the private insert bus for a slot, allocating one on first use. -1 = pool exhausted
 // (caller bails → that slot stays dry; never falls back to bus 0, which would effect everything).
 static int fx_bus_for(int slot) {

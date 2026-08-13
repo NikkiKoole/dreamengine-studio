@@ -1,7 +1,8 @@
 # The engine context — giving `sound.h` and `studio.c` per-instance state
 
-> **STATUS: building.** Step 0 (the byte-exact guardrail) and the classification are done; the
-> generator and the `sound.h` pass are next. Lane: [`HANDOFF.md`](../HANDOFF.md) → the AUv3 thread.
+> **STATUS: building.** Guardrail, classification, generator and **batch 1 of `sound.h` are DONE and
+> byte-identical** — 269 of its 293 statics now live in a context struct (`node tools/engine-statics.js`
+> reads 23 for `sound.h`, down from 293). Batch 2 is the 13 typed declarations that need the type-hoist. Lane: [`HANDOFF.md`](../HANDOFF.md) → the AUv3 thread.
 > Sibling docs: [`ios-plan.md`](ios-plan.md) (how the AUv3 got here),
 > [`external-clock-sync.md`](external-clock-sync.md) (the transport seam it rides on).
 
@@ -128,9 +129,25 @@ cannot see a variable that should have been per-instance and was not. `lfo_seed_
 example. Those defects are caught by review and by the two-engine probe
 (`tools/engine-dylib-spike/probe.c`), not by the byte-exact gate.
 
+## What batch 1 taught (all three were silent failures)
+
+- **The include landed inside `#if defined(__SSE__)`.** "After the last `#include` in the first 200
+  lines" put it in an x86-only block, so on arm64 it was never included and every moved name became an
+  undeclared identifier. The generator now tracks preprocessor depth and only accepts a depth-0 include.
+- **The probe passed four times without testing anything.** A quoted `#include "sound.h"` resolves
+  relative to the *including file's* own directory before any `-I` is consulted, so compiling
+  `runtime/studio.c` read `runtime/sound.h` no matter what `-I` said. `--probe` now compiles the COPY's
+  `studio.c` and carries a `#error` sentinel proving it reached the generated header. **This is the
+  same failure shape as a `sed` that silently fails to match** — a green that means nothing.
+- **The generator swept in variables nobody had decided about.** `sound_synth_mode` and the whole
+  `extin_*` mic group went into the struct because the classification listed them under
+  *open questions* rather than as exclusions. Harmless in step A (one context) and wrong in step B.
+  Hence the **`defer`** group: anything without a decision must be named, or it moves by default.
+
 ## Order
 
 1. **`sound.h` alone** — self-contained, strongest oracle, clean bail-out if the pattern is wrong.
+   **Batch 1 done** (269 primitive-typed statics, byte-identical); batch 2 = the 13 typed ones.
 2. `studio.c`.
 3. `acidcandy`'s own statics → `de_state()`.
 4. Thread the context through the platform seam; `TinyjamAU` makes one per instance and

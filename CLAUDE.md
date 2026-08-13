@@ -675,6 +675,19 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
                              `--selfcheck` = the KNOWN-ANSWER fixture (tools/fixtures/status-check/): asserts
                              the checker itself, incl. regression guards for the two false-positive shapes that
                              fooled v1. Gated in repo-doctor. Copy this pattern into any linter that JUDGES
+             ctx-gen.js      the EDIT half of the per-instance-context refactor: moves engine state into
+                             a context struct, mechanically. Reads the static list from `engine-statics
+                             --list` + the exceptions from `ctx-classification.json`, emits runtime/
+                             sound_ctx.h (struct + macro block) and rewrites sound.h. `--primitive` =
+                             batch 1 (no type-hoist needed) · `--probe` compiles it on a COPY in four
+                             build configs · `--write` applies · `--check` = 15 known answers. The move is
+                             PURE because the default instance is a `static` with DESIGNATED INITIALISERS —
+                             values still set at link time, so there is no init-order risk and no init
+                             function to call. ⚠ Its `--probe` carries a SENTINEL (`#error` in the
+                             generated header) because a quoted `#include "sound.h"` resolves relative to
+                             studio.c's OWN directory before any `-I`, so the probe reported ok four times
+                             for a build that never read the generated file. Anything it cannot parse with
+                             certainty is SKIPPED and reported, never guessed. Verify with refactor-guard.js
              refactor-guard.js  "I moved state around — did ANY output change?" The safety net for a
                              PURE REFACTOR (born for the per-instance-context/AUv3 work): `--bless` records
                              a baseline, bare compares, `--quiet` gates, `--full` adds the semantic gates as

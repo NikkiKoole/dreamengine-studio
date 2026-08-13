@@ -186,12 +186,39 @@ a broken doc link or `#section`).
 > · **(b) the same pointer, `_Thread_local`.** Identical diff, race-free: each thread (each render
 >   thread, the frame worker) sets its own current context on entry. Costs a TLS load per access —
 >   which needs measuring in the per-sample DSP loops, not assuming.
-> · **(c) an explicit `ctx` first parameter through all 634 engine functions.** The textbook answer,
->   race-free, no macros — and a diff touching every function and every internal call site.
-> **Recommended: (b), then measure.** It keeps the "call sites do not change" property that makes this
-> days rather than weeks, and unlike (a) it is correct under concurrent render. If the DSP loops
-> regress, promote only the hot functions to (c) — the byte-exact oracle makes that safe to do
-> incrementally, and the profiler (`profiler_request`) says which ones.
+> · **(c) an explicit `ctx` first parameter.** The textbook answer, race-free, compiler-checked.
+>   Measured edit surface: `sound.h` = **335 signatures + 707 call sites**; whole engine = 749 + 1494.
+>   ⚠ It does **NOT** mean rewriting the variable references — `#define echo_fb (ctx->echo_fb)` works
+>   the same whether `ctx` is a global or a parameter, so the thousands of uses are untouched either
+>   way. An earlier draft of this block said otherwise and made (c) look far worse than it is.
+>
+> **MEASURED, 2026-08-13 — `bash tools/tls-spike/run.sh`** (a loop shaped like the real per-sample
+> block, the same DSP text compiled all three ways so the delta IS the mechanism):
+>
+> | | ns/sample | vs today | verdict |
+> |---|---|---|---|
+> | plain statics (today) | 10.51 | — | |
+> | **(b)** thread-local | 15.50 | **+47%** | **+0.83 ns per function entry** |
+> | **(c)** parameter | 10.60 | +0.8% | **free** |
+>
+> · **(c) costs nothing at runtime.** That was not obvious and is now measured.
+> · **(b)'s cost is entirely per-FUNCTION-ENTRY, not per access** — clang hoists the lookup out of
+>   loops. When the stages are small enough to inline it disappears completely (all three within
+>   0.1%). So the transferable number is **+0.83 ns per opaque call**: at N function entries per
+>   sample it costs N × 0.0037% of a core, i.e. ~0.4% at N=100. Real, bounded, probably affordable.
+> · **The stronger argument is not speed, it is that (c) is COMPILER-CHECKED.** Miss a call site and
+>   it will not build. Under (b) everything compiles regardless, and a thread that never set the
+>   pointer reads a NULL or — far worse — another instance's state, silently. That is the same class
+>   of bug this whole refactor exists to remove.
+> · **A boundary mechanism is needed either way**: the public API (`note_on` etc.) is called by carts
+>   and cannot grow a parameter without changing every cart, so a thread-local lives at the door
+>   regardless. The real question is only whether it stops there or goes all the way down.
+>
+> **Recommended: the HYBRID.** Thread-local at the public boundary; explicit `ctx` for the per-sample
+> DSP functions, which is where 100% of (b)'s cost lives and where a silent wrong-instance read would
+> be least visible. A few dozen functions, not 749. And the choice is **reversible per function**,
+> because member access goes through the same macro either way — so start small, let the profiler
+> (`profiler_request`) name the functions to promote, and let the byte-exact oracle prove each step.
 >
 > **Order — do NOT take both engine files at once:**
 > 1. **`runtime/sound.h` ALONE** (293 statics / 29 non-zero initialisers, self-contained, strongest

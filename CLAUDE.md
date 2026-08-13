@@ -625,6 +625,17 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
              build-box2d.sh  build the vendored Box2D v3 (runtime/box2d/) into build/box2d/<target>/libbox2d.a per platform (--mac/--win/--wasm/--ios, --check runs a drop-box smoke test). Pure-C rigid-body lib for the physics experiment; opt-in, not in the default cart build. See docs/design/box2d-integration.md
              mac-app.sh      bundle an exported cart binary into a signed + notarized + stapled .app that opens on ANY Mac (Gatekeeper-clean); needs a Developer ID cert + a notarytool cred profile (header has the one-time setup)
              bundle-spike/   PASSED probe: TWO carts in ONE binary (per-TU -Ddraw=<slug>_draw renames + a dispatcher shim; carts unmodified) — the Tinyjam multi-cart app shape (design/share-panel.md §spike); proof-sound.sh = the de_switch_cart round-trip oracle
+             tls-spike/      MEASURED probe for the per-instance-context refactor's one open design
+                             question: how should `ctx` get into scope? `bash tools/tls-spike/run.sh` times
+                             the SAME per-sample DSP text compiled three ways — plain statics (today) ·
+                             a `_Thread_local` pointer · an explicit `ctx` parameter — so the delta is the
+                             access mechanism and nothing else. VERDICT: the parameter is FREE (+0.8%);
+                             the thread-local costs **+0.83 ns per opaque function ENTRY** (not per
+                             access — clang hoists the lookup out of loops, and it vanishes entirely when
+                             the stage inlines). Also prints the arm64 TLS thunk it is talking about.
+                             ⚠ Its own output-equality assertion caught the first version measuring the
+                             BASELINE 3× slow (unreset echo state decaying into denormals) — a benchmark
+                             whose variants do not start from identical state measures nothing
              engine-dylib-spike/  PASSED probe: **K independent engines in ONE process**, by loading the
                              engine as a dylib K times instead of refactoring its globals. `bash run.sh`.
                              WHY: two AUv3 instances land in one extension process (measured) and engine

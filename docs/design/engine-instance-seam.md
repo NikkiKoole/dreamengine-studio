@@ -214,9 +214,10 @@ Named so the next session does not assume otherwise:
      Raylib path at all — so a batch compiled four times, was applied, and failed in the build the
      probe never touched. It now builds BOTH renderers, and says loudly when raylib headers are
      missing rather than quietly testing less.
-3. **Switch the AUv3** to one instance per audio unit, one worker per instance; delete
-   `bootEngineOnce`. **The ENGINE half is done** (instances allocate and are independent, proven by
-   `instance-check`); the Swift half is what remains.
+3. **✅ DONE — the AUv3** creates one engine per audio unit with its own frame worker, semaphore and
+   frame counter; `bootEngineOnce` is deleted; the canvas channel blits its OWNER's engine rather
+   than a process-wide one. **Remaining: the maker loading two GarageBand tracks** — the eyeball step
+   no gate replaces.
 4. **✅ DONE — gated.** `bash tools/instance-check/run.sh`: two instances from `de_instance_create`,
    different transport, and their frames and audio differ. Control: two fresh instances driven the
    SAME come back byte-identical, so the headline is the transport rather than noise. **This is the

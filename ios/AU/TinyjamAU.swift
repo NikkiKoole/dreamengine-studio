@@ -71,45 +71,43 @@ public final class TinyjamAU: AUAudioUnit {
 
     public override init(componentDescription: AudioComponentDescription,
                          options: AudioComponentInstantiationOptions = []) throws {
+        // BEFORE super.init: Swift requires every `let` initialized first, and this unit's engine is
+        // one. de_instance_create is a plain C call with no dependency on the AU being constructed.
+        engine = de_instance_create(DE_RENDERER_SOFTWARE)   // THIS unit's own engine
         try super.init(componentDescription: componentDescription, options: options)
         let outBus = try AUAudioUnitBus(format: format)
         _outputBusArray = AUAudioUnitBusArray(audioUnit: self, busType: .output, busses: [outBus])
         _inputBusArray  = AUAudioUnitBusArray(audioUnit: self, busType: .input,  busses: [])
         acc.pointee = 0
         rate.initialize(to: RateState())
-        TinyjamAU.bootEngineOnce()
+        startWorker()   // BEFORE any render: a view can open while the host is stopped and still
+                        // needs frames
         TinyjamAU.bootLock.lock()
         TinyjamAU.instanceCount += 1
         instanceID = TinyjamAU.instanceCount        // 1-based, so 0 stays free to mean "nobody"
         TinyjamAU.bootLock.unlock()
     }
 
-    // ══ ONE ENGINE PER PROCESS ══════════════════════════════════════════════════════════════════
-    // studio.c and sound.h keep their state in FILE-SCOPE GLOBALS, so an engine is per-process by
-    // construction. That was recorded as a known limitation ("multi-instance, spike 9") on the theory
-    // that a host gives each instance its own process. GarageBand does not: a sample taken while the
-    // maker's session was wedged found THREE TinyjamAU instances in one process, each with its own
-    // de_init and its own frame worker, all writing the same globals. The host had asked our view
-    // controller for an audio unit once per panel it opened.
+    // ══ ONE ENGINE PER INSTANCE ═════════════════════════════════════════════════════════════════
+    // It used to be one per PROCESS, and that was the defect. studio.c and sound.h kept their state
+    // in file-scope globals, so an engine was a singleton by construction. It was recorded as a
+    // known limitation on the theory that a host gives each instance its own process — GarageBand
+    // does not. A sample taken while the maker's session was wedged found THREE TinyjamAU instances
+    // in ONE process, each with its own de_init and its own frame worker, all writing the same
+    // globals. The host had asked our view controller for an audio unit once per panel it opened.
     //
-    // So booting is idempotent and the worker is shared. Two instances in one process therefore share
-    // one rack — which is wrong for two tracks, but it is HONESTLY wrong instead of corrupt, and it is
-    // what the globals have always meant. The real fix is per-instance engine state, which is a much
-    // larger job than this seam.
-    private static var engineBooted = false
+    // The engine's state is now per-instance (docs/design/engine-context.md) and the seam names its
+    // instance (docs/design/engine-instance-seam.md), so each audio unit owns an engine and a frame
+    // worker. Two tracks are two racks. Proven by tools/instance-check, which drives two engines
+    // with different transport and asserts their frames and audio differ.
+    //
+    // ⚠ STILL SHARED: de_sync_position takes no instance, so the HOST TRANSPORT is process-wide.
+    // That is mostly BENIGN rather than broken — two tracks in one DAW project share one transport,
+    // so both render blocks push the same beat/tempo/playing and the engines agree. It goes wrong
+    // only where two instances legitimately differ: an OFFLINE BOUNCE of one track while another
+    // plays in realtime. Instance-scoping sync.h is the fix; it is not what makes two racks work.
     private static let bootLock = NSLock()          // instantiation only; never touched by audio
-    // The engine instance. The seam names its instance now (docs/design/engine-instance-seam.md);
-    // today there is still exactly one, so this is process-wide and bootEngineOnce still means what
-    // it says. Step 3 makes it `private let engine` — one per audio unit — at which point
-    // bootEngineOnce disappears entirely: it exists ONLY because instances share an engine.
-    fileprivate static var engine: OpaquePointer!   // fileprivate: the canvas channel below blits from it
-    private static func bootEngineOnce() {
-        bootLock.lock(); defer { bootLock.unlock() }
-        if engineBooted { return }
-        engineBooted = true
-        engine = de_instance_create(DE_RENDERER_SOFTWARE)   // sound_init() + the cart's init()
-        startWorker()                               // BEFORE any render: a view can open while the
-    }                                               // host is stopped and still needs frames
+    fileprivate let engine: OpaquePointer
 
     // ══ WHICH INSTANCE IS THE AUDIBLE ONE ═══════════════════════════════════════════════════════
     // The one question the panel needs answered, and the reason it needs a new mechanism: the OLD
@@ -180,7 +178,10 @@ public final class TinyjamAU: AUAudioUnit {
         // TinyjamCanvasChannel() and nothing held it, so it was deallocated the instant this
         // method returned — the host's proxy then called into a dead object and every reply came
         // back EMPTY, which reads exactly like "not implemented yet".
-        if name == "com.tinyjam.canvas" { return Self.canvasChannel }
+        if name == "com.tinyjam.canvas" {
+            Self.canvasChannel.owner = self   // the panel blits THIS unit's engine, not a process-wide one
+            return Self.canvasChannel
+        }
         return super.messageChannel(for: name)
     }
 
@@ -204,20 +205,24 @@ public final class TinyjamAU: AUAudioUnit {
     // Shared with the engine they drive: ONE worker per process, not per instance (see ONE ENGINE PER
     // PROCESS). It outlives every instance — a thread parked on a semaphore costs nothing, and tearing
     // it down when one instance goes away would strand the others mid-frame.
-    private static var worker: Thread?
-    private static let frameSignal = DispatchSemaphore(value: 0)
-    private static var frameCount: UInt64 = 0
+    // ONE WORKER PER INSTANCE. It used to be one per process, which worked only while there was one
+    // engine: a semaphore signal carries no identity, so a shared worker cannot know WHICH rack to
+    // advance. Per-instance also makes teardown trivial — nothing is shared, so nothing is stranded.
+    // A thread parked on a semaphore costs essentially nothing.
+    private var worker: Thread?
+    private let frameSignal = DispatchSemaphore(value: 0)
+    private var frameCount: UInt64 = 0
 
-    private static func workerLoop() {
+    private func workerLoop() {
         while true {
             frameSignal.wait()
             frameCount &+= 1
             de_frame(engine, Double(frameCount) / 60.0)
         }
     }
-    private static func startWorker() {
+    private func startWorker() {
         guard worker == nil else { return }
-        let t = Thread { workerLoop() }
+        let t = Thread { [weak self] in self?.workerLoop() }
         t.name = "dreamengine.frame"
         t.qualityOfService = .userInteractive   // it feeds the sequencer; it must not be starved
         t.start()
@@ -237,8 +242,8 @@ public final class TinyjamAU: AUAudioUnit {
     // is still exactly one thread inside the engine.
     private var lastSeenFrame: UInt64 = 0
     public func uiTick() {
-        let f = TinyjamAU.frameCount
-        if f == lastSeenFrame { TinyjamAU.frameSignal.signal() }  // audio is not driving: we will
+        let f = frameCount
+        if f == lastSeenFrame { frameSignal.signal() }  // audio is not driving: we will
         lastSeenFrame = f
     }
 
@@ -256,7 +261,7 @@ public final class TinyjamAU: AUAudioUnit {
 
     public override var internalRenderBlock: AUInternalRenderBlock {
         let scratch = self.scratch, cap = self.scratchCap, acc = self.acc
-        let echunk = self.echunk, rate = self.rate, signal = TinyjamAU.frameSignal
+        let echunk = self.echunk, rate = self.rate, signal = self.frameSignal
         let spf = TinyjamAU.SAMPLES_PER_FRAME
         // Capture SELF unretained, not the two host blocks themselves. The host assigns
         // musicalContextBlock / transportStateBlock AFTER it fetches this render block, so reading
@@ -268,7 +273,7 @@ public final class TinyjamAU: AUAudioUnit {
         let myID = self.instanceID, renderedBy = TinyjamAU.renderedBy
         // Same rule as the rest of this capture list: resolved HERE, off the audio thread. Touching
         // a `static var` inside the block would put swift_once on the render path.
-        let engine = TinyjamAU.engine
+        let engine = self.engine
         return { _, _, frameCount, _, outputData, eventListHead, _ in
             let n = Int(frameCount)
             if n * 2 > cap { return kAudioUnitErr_TooManyFramesToProcess }
@@ -322,7 +327,7 @@ public final class TinyjamAU: AUAudioUnit {
                     // OFFLINE (a bounce) runs the frame INLINE: there is no deadline to miss, and a
                     // bounce must be exact — handing it to a worker would let audio render ahead of
                     // the sequencer that is supposed to be driving it. Realtime signals instead.
-                    if offline { TinyjamAU.frameCount &+= 1; de_frame(engine, Double(TinyjamAU.frameCount) / 60.0) }
+                    if offline { me.frameCount &+= 1; de_frame(engine, Double(me.frameCount) / 60.0) }
                     else       { signal.signal() }
                 }
                 de_audio_render(engine, scratch, Int32(n))                   // sound.h mixer → interleaved L,R
@@ -336,7 +341,7 @@ public final class TinyjamAU: AUAudioUnit {
                 for j in 0..<n {
                     while st.rc.needsFrame {
                         if st.eIdx >= spf {
-                            if offline { TinyjamAU.frameCount &+= 1; de_frame(engine, Double(TinyjamAU.frameCount) / 60.0) }
+                            if offline { me.frameCount &+= 1; de_frame(engine, Double(me.frameCount) / 60.0) }
                             else       { signal.signal() }        // see the fast path's note
                             de_audio_render(engine, echunk, Int32(spf))
                             st.eIdx = 0
@@ -374,6 +379,12 @@ public final class TinyjamAU: AUAudioUnit {
 final class TinyjamCanvasChannel: NSObject, AUMessageChannel {
     var callHostBlock: CallHostBlock?
 
+    // WHICH engine this channel blits. There is one engine per audio unit now, so a channel that
+    // reached for a process-wide one would serve whichever instance happened to be there — the exact
+    // "the panel is showing an engine nobody can hear" class of bug this channel exists to close.
+    // Set by the audio unit that hands the channel out.
+    weak var owner: TinyjamAU?
+
     // The snapshot buffer lives here, in the AUDIO process, where the engine everyone can hear is.
     // Grown the same way CanvasView grows its own: ask, resize, get it next call.
     // stamped once per process, so a reply names WHICH engine answered
@@ -409,16 +420,17 @@ final class TinyjamCanvasChannel: NSObject, AUMessageChannel {
             return ["nonce": TinyjamCanvasChannel.instanceNonce, "pid": Int(ProcessInfo.processInfo.processIdentifier)]
 
         case "frame":
+            guard let engine = owner?.engine else { return [:] }   // no owner = nothing to show
             var pw: Int32 = 0, ph: Int32 = 0
-            var ok = buf != nil && de_copy_frame(TinyjamAU.engine, buf, Int32(cap), &pw, &ph) == 1
+            var ok = buf != nil && de_copy_frame(engine, buf, Int32(cap), &pw, &ph) == 1
             if !ok {
-                _ = de_copy_frame(TinyjamAU.engine, nil, 0, &pw, &ph)      // dst == nil: report the size, copy nothing
+                _ = de_copy_frame(engine, nil, 0, &pw, &ph)      // dst == nil: report the size, copy nothing
                 let need = Int(pw) * Int(ph)
                 if need > cap, need > 0 {
                     buf?.deallocate()
                     buf = UnsafeMutablePointer<UInt32>.allocate(capacity: need)
                     cap = need
-                    ok = de_copy_frame(TinyjamAU.engine, buf, Int32(cap), &pw, &ph) == 1
+                    ok = de_copy_frame(engine, buf, Int32(cap), &pw, &ph) == 1
                 }
             }
             guard ok, let b = buf, pw > 0, ph > 0 else { return [:] }

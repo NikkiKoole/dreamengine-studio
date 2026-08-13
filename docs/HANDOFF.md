@@ -349,6 +349,24 @@ a broken doc link or `#section`).
 > · Also logged: `colorkey()` destroys and rebuilds a SHARED GPU texture from a cart API;
 >   `fp_cache`'s key omits the palette; and an unrelated latent `web_px` overflow after a canvas grow.
 >
+> **✅ STEP 3 IS DONE — THE PLUG-IN GIVES EACH AUDIO UNIT ITS OWN ENGINE (2026-08-14).**
+> `TinyjamAU` now holds `fileprivate let engine` created per instance, with its OWN frame worker,
+> semaphore and frame counter. **`bootEngineOnce` is GONE** — it existed only because instances
+> shared an engine. The canvas message channel gained an `owner`, so the panel blits the engine of
+> the unit that handed it out rather than a process-wide one (that was the "panel shows an engine
+> nobody can hear" bug, one level up). The stale ONE-ENGINE-PER-PROCESS comment block was rewritten:
+> it confidently described behaviour that is no longer true.
+> Verified: Mac Catalyst builds, `instance-check` PASS, refactor-guard 6/6, `build-nr` byte-identical,
+> build-all 580/580.
+> ⚠ **THE MAKER'S EYEBALL STEP IS NEXT AND NO GATE REPLACES IT:** `zsh ios/mac.sh`, then load the
+> plug-in on TWO GarageBand tracks and confirm they are two racks rather than one. That is the defect
+> this whole lane opened on ("the sound goes weird").
+> ⚠ **Still process-wide: `de_sync_position`** (takes no instance). Mostly BENIGN — two tracks in one
+> project share one host transport, so both push the same beat/tempo and the engines agree. It goes
+> wrong only where two instances legitimately differ: an OFFLINE BOUNCE of one track while another
+> plays realtime. Also still open: nothing runs two instances CONCURRENTLY on two threads
+> (`present-race-check` covers one), and studio.c's 12 conditional + 15 function-local statics.
+>
 > **✅ THE ENGINE NOW RUNS N INDEPENDENT INSTANCES — PROVEN (2026-08-14).**
 > `bash tools/instance-check/run.sh` creates two engines via `de_instance_create`, drives them with
 > DIFFERENT transport, and their frames and audio DIFFER; the control (two fresh instances driven the

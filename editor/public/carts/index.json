@@ -5604,6 +5604,21 @@
     "homage": "Polo & Pan (Caravelle / Cyclorama)"
   },
   {
+    "title": "polyroom",
+    "description": "One flat, two renderers, one key between them: low-poly triangles against the baked voxel sprites. Which one looks like people live there? tenement's problem is not its simulation, it is that you cannot see who lives in the building: at 24 pixels a resident is a one-tile blob in the same colour family as the furniture. This probe rebuilds the identical scene as flat-shaded low-poly triangles and puts the two renderings one keypress apart, so the comparison is a picture rather than an argument. Both halves walk the SAME item list at the SAME scale through the SAME projection, and at yaw 45 degrees the polygon projection reproduces the voxel one exactly, which is what makes TAB a fair test. What triangles buy: any camera angle instead of four baked ones, diagonals (a sofa back rakes, a torso widens into shoulders, a loom is skeletal), and lighting that can be pinned to the screen or left in the world. What they cost: crisp snapped edges, which crawl once the angle is not one the sprites were baked at. TAB flips POLY / VOXEL. Q and E orbit (the voxel half snaps to its nearest baked angle, because it only has four). W and S raise and lower the camera. Z cycles zoom 1x 2x 3x. D toggles the dither half-shades, L moves the light between world-fixed and screen-fixed, H toggles per-household colour on the residents, SPACE resets the camera.",
+    "file": "polyroom.cart.png",
+    "created": "2026-08-13",
+    "kind": [
+      "probe",
+      "tech-demo"
+    ],
+    "teaches": [
+      "software-rasterizer",
+      "isometric-projection"
+    ],
+    "lineage": "A look probe for tenement, whose maker's verdict was that the picture reads as an architectural diagram with a caption. Asks one question: does the same flat, rendered as low-poly flat-shaded triangles instead of baked voxel sprites, read as FOUR PEOPLE IN A BUILDING? Renderer chassis from solid3d (rot/cull/light/sort/trifill + the fillp checker half-shade); shapes transcribed from tools/voxel-models/tenement.js so the comparison is of RENDERINGS, not of two different object sets."
+  },
+  {
     "title": "polystress",
     "description": "A deterministic torture test for the SOFTWARE polygon rasterizer (polyfill -> poly_fill_cov -> poly_inside -> plot_pat) — polyfill's sibling to trifill stress. 159 fills/frame across every path through the filler: three big concave 9-point stars (large fill AREA through the per-pixel even-odd test), a 70-cell grid of small spinning stars (polyfill COUNT / per-call setup), six sweeping road strips (convex tapering quads, exactly roadlab's fill_strip case), one checker-dithered concave star (plot_pat's fillp() patterned branch), and a giant mostly-off-screen quad (poly_clamp_scan). Everything is a pure function of the frame counter — no time, no random — so dumped frames are byte-reproducible run-to-run and build-to-build, which is the point: it pins the rasterizer for a clean profile (hit the ⏱ profile button) AND validates a rasterizer optimization pixel-identical (--dump + shasum before/after). Not a game; a profiling + regression rig.",
     "file": "polystress.cart.png",

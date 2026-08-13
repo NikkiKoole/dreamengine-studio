@@ -11,30 +11,35 @@
 #include <stdarg.h>
 #include <sys/resource.h>
 
-typedef void (*fn_init)(int);
-typedef void (*fn_frame)(double);
-typedef int  (*fn_copy)(uint32_t *, int, int *, int *);
+// The seam now names its instance (docs/design/engine-instance-seam.md). This probe still gets its
+// separation from dyld — two COPIES of the dylib are two data segments — but it holds a handle per
+// engine because the API requires one. When the context refactor lands, `create` stops being a
+// per-dylib call and becomes two calls into ONE image, and every assertion below is unchanged.
+typedef void *(*fn_create)(int);
+typedef void (*fn_frame)(void *, double);
+typedef int  (*fn_copy)(void *, uint32_t *, int, int *, int *);
 typedef void (*fn_sync)(double, double, int);
-typedef void (*fn_audio)(float *, int);
-typedef int  (*fn_dim)(void);
+typedef void (*fn_audio)(void *, float *, int);
+typedef int  (*fn_dim)(void *);
 
 typedef struct {
     void *h; const char *label;
-    fn_init init; fn_frame frame; fn_copy copy; fn_sync sync; fn_audio audio; fn_dim w, hgt;
+    void *in;   // this engine's instance handle
+    fn_create create; fn_frame frame; fn_copy copy; fn_sync sync; fn_audio audio; fn_dim w, hgt;
 } Engine;
 
 static int load(Engine *e, const char *path, const char *label) {
     e->h = dlopen(path, RTLD_NOW | RTLD_LOCAL);
     if (!e->h) { printf("  ✗ dlopen %s failed: %s\n", path, dlerror()); return 0; }
     e->label = label;
-    e->init  = (fn_init)  dlsym(e->h, "de_init");
+    e->create = (fn_create) dlsym(e->h, "de_instance_create");
     e->frame = (fn_frame) dlsym(e->h, "de_frame");
     e->copy  = (fn_copy)  dlsym(e->h, "de_copy_frame");
     e->sync  = (fn_sync)  dlsym(e->h, "de_sync_position");
     e->audio = (fn_audio) dlsym(e->h, "de_audio_render");
     e->w     = (fn_dim)   dlsym(e->h, "de_screen_w");
     e->hgt   = (fn_dim)   dlsym(e->h, "de_screen_h");
-    if (!e->init || !e->frame || !e->copy || !e->sync || !e->audio || !e->w || !e->hgt) {
+    if (!e->create || !e->frame || !e->copy || !e->sync || !e->audio || !e->w || !e->hgt) {
         printf("  ✗ %s: a symbol is missing from %s\n", label, path); return 0;
     }
     return 1;
@@ -57,8 +62,8 @@ static float drive(Engine *e, double beats, double bpm, int playing, int frames)
     float p = 0;
     for (int f = 0; f < frames; f++) {
         e->sync(beats + f * 0.25, bpm, playing);
-        e->frame(f / 60.0);
-        e->audio(chunk, 735);
+        e->frame(e->in, f / 60.0);
+        e->audio(e->in, chunk, 735);
         float q = peak(chunk, 735 * 2);
         if (q > p) p = q;
     }
@@ -69,10 +74,10 @@ static float drive(Engine *e, double beats, double bpm, int playing, int frames)
 // what a plug-in view uses and what present-race-check gates.
 static uint32_t *grab(Engine *e, int *npx) {
     int w = 0, h = 0;
-    e->copy(NULL, 0, &w, &h);                      // dst == NULL: report the size, copy nothing
+    e->copy(e->in, NULL, 0, &w, &h);                      // dst == NULL: report the size, copy nothing
     if (w <= 0 || h <= 0) { *npx = 0; return NULL; }
     uint32_t *buf = malloc((size_t)w * h * 4);
-    if (!e->copy(buf, w * h, &w, &h)) { free(buf); *npx = 0; return NULL; }
+    if (!e->copy(e->in, buf, w * h, &w, &h)) { free(buf); *npx = 0; return NULL; }
     *npx = w * h;
     return buf;
 }
@@ -114,14 +119,14 @@ int main(int argc, char **argv) {
     if (!load(&ea, a, "A") || !load(&eb, b, "B")) return 1;
     check("the two loads are distinct dyld images", ea.h != eb.h,
           "handles %p vs %p", ea.h, eb.h);
-    ea.init(0); eb.init(0);                        // 0 == DE_RENDERER_SOFTWARE
+    ea.in = ea.create(0); eb.in = eb.create(0);     // 0 == DE_RENDERER_SOFTWARE
     long rss2 = rss_kb();
     float pa = drive(&ea, 0.0,   90.0, 0, 40);     // stopped at the top
     float pb = drive(&eb, 64.0, 160.0, 1, 90);     // mid-song, playing, faster, more frames
     int na = 0, nb = 0;
     uint32_t *fa = grab(&ea, &na), *fb = grab(&eb, &nb);
     check("both engines published a frame", fa && fb && na > 0 && nb == na,
-          "%d px and %d px (%dx%d)", na, nb, ea.w(), ea.hgt());
+          "%d px and %d px (%dx%d)", na, nb, ea.w(ea.in), ea.hgt(ea.in));
     check("both drew something", nonblank(fa, na) && nonblank(fb, nb),
           "neither frame is one flat colour");
     check("THE POINT: their frames DIFFER, so their state is independent",
@@ -155,12 +160,12 @@ int main(int argc, char **argv) {
         printf("▸ BONUS: a SECOND CART in the same process\n");
         Engine ec = {0};
         if (load(&ec, c, "C")) {
-            ec.init(0);
+            ec.in = ec.create(0);
             drive(&ec, 0.0, 120.0, 1, 40);
             int nc = 0; uint32_t *fc = grab(&ec, &nc);
             check("the other cart runs alongside, drawing its own frame",
                   fc && nc > 0 && nonblank(fc, nc),
-                  "%d px (%dx%d) — a different cart's canvas size and contents", nc, ec.w(), ec.hgt());
+                  "%d px (%dx%d) — a different cart's canvas size and contents", nc, ec.w(ec.in), ec.hgt(ec.in));
         }
     }
 

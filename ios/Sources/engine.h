@@ -14,33 +14,41 @@
 
 typedef enum { DE_RENDERER_SOFTWARE = 0, DE_RENDERER_GPU = 1 } DeRenderer;
 
-void            de_init(DeRenderer renderer);
-void            de_frame(double t);
-const uint32_t *de_framebuffer(void);   // the LIVE canvas — only safe on the thread calling de_frame
+// THE INSTANCE HANDLE. An AUv3 puts every plug-in instance in ONE process, so every entry point
+// names WHICH engine it means. Explicit rather than an internal "current instance" because the same
+// instance is driven from four threads while one host thread may serve many instances — there is
+// nothing for the engine to infer, and a global holding it would be a UI-thread/audio-thread race.
+// Design: docs/design/engine-instance-seam.md. Swift sees this as an OpaquePointer.
+typedef struct DeInstance DeInstance;
+
+DeInstance     *de_instance_create(DeRenderer renderer);
+void            de_instance_destroy(DeInstance *in);
+void            de_frame(DeInstance *in, double t);
+const uint32_t *de_framebuffer(DeInstance *in);   // the LIVE canvas — only safe on the thread calling de_frame
 // The same frame as a SNAPSHOT, for a view that blits from a different thread than the one ticking
 // the engine. That is the AUv3: its render block drives de_frame on the AUDIO thread (the frame is
 // sample-clocked, which is what survives an offline bounce) while the view draws on main. Copies the
 // last completed frame into `dst` and returns 1, setting *w/*h; returns 0 if nothing is published yet
 // or cap_px is too small — *w/*h still report the size needed, so grow and ask again.
-int             de_copy_frame(uint32_t *dst, int cap_px, int *w, int *h);
-int             de_screen_w(void);
-int             de_screen_h(void);
+int             de_copy_frame(DeInstance *in, uint32_t *dst, int cap_px, int *w, int *h);
+int             de_screen_w(DeInstance *in);
+int             de_screen_h(DeInstance *in);
 // Device-adaptive (Phase 2): the host hands the engine the device viewport (in framebuffer px;
 // SCALE=1 on iOS → points) so a resizable cart reflows to fill the screen. de_resize reallocs +
 // republishes de_screen_w/h; call it whenever the view's bounds change (incl. rotation). Only act on
 // it when de_is_resizable() is true — a fixed cart returns 0 and should stay letterboxed at its size.
-void            de_resize(int w, int h);
-int             de_is_resizable(void);
+void            de_resize(DeInstance *in, int w, int h);
+int             de_is_resizable(DeInstance *in);
 // Safe-area insets (px; notch / home-bar / status bar). Report them alongside de_resize so a
 // resizable cart keeps controls out of the chrome (it reads the usable rect via safe_rect()).
-void            de_set_safe_area(int left, int top, int right, int bottom);
+void            de_set_safe_area(DeInstance *in, int left, int top, int right, int bottom);
 // Backing scale — points per logical canvas px (= pixelChunk). Feeds finger_px() so finger controls
 // are sized physically, not by a raw-px coincidence. Report it alongside de_resize.
-void            de_set_backing_scale(float k);
-// Persistence root — a writable app-private dir (iOS Documents). Call BEFORE de_init() so a cart's
+void            de_set_backing_scale(DeInstance *in, float k);
+// Persistence root — a writable app-private dir (iOS Documents). Call BEFORE de_instance_create() so a cart's
 // init() can load_int(). Unset it defaults to "." (cwd). [declared for parity; iOS host wiring TBD]
-void            de_set_save_dir(const char *dir);
-void            de_audio_render(float *out, int frames);
+void            de_set_save_dir(DeInstance *in, const char *dir);
+void            de_audio_render(DeInstance *in, float *out, int frames);
 
 // AUDIO INPUT (platform.h §4) — the mirror of de_audio_render, inverted. The host owns the
 // capture device + permission flow and PUSHES captured MONO frames in; the engine only analyzes
@@ -50,9 +58,9 @@ void de_audio_input(const float *mono, int n, int sample_rate);
 int  de_mic_wanted(void);
 void de_mic_set_active(int on);
 
-void de_touch_begin(int id, float x, float y);
-void de_touch_moved(int id, float x, float y);
-void de_touch_ended(int id, float x, float y);
+void de_touch_begin(DeInstance *in, int id, float x, float y);
+void de_touch_moved(DeInstance *in, int id, float x, float y);
+void de_touch_ended(DeInstance *in, int id, float x, float y);
 
 // Host MIDI → engine (the AUv3 render block feeds these from its event list). type: +1
 // note-on, -1 note-off; note 0..127; vel 1..127. de_midi_bend: -8192..8191 (0 = centre).

@@ -98,11 +98,16 @@ public final class TinyjamAU: AUAudioUnit {
     // larger job than this seam.
     private static var engineBooted = false
     private static let bootLock = NSLock()          // instantiation only; never touched by audio
+    // The engine instance. The seam names its instance now (docs/design/engine-instance-seam.md);
+    // today there is still exactly one, so this is process-wide and bootEngineOnce still means what
+    // it says. Step 3 makes it `private let engine` — one per audio unit — at which point
+    // bootEngineOnce disappears entirely: it exists ONLY because instances share an engine.
+    fileprivate static var engine: OpaquePointer!   // fileprivate: the canvas channel below blits from it
     private static func bootEngineOnce() {
         bootLock.lock(); defer { bootLock.unlock() }
         if engineBooted { return }
         engineBooted = true
-        de_init(DE_RENDERER_SOFTWARE)               // sound_init() + the cart's init()
+        engine = de_instance_create(DE_RENDERER_SOFTWARE)   // sound_init() + the cart's init()
         startWorker()                               // BEFORE any render: a view can open while the
     }                                               // host is stopped and still needs frames
 
@@ -207,7 +212,7 @@ public final class TinyjamAU: AUAudioUnit {
         while true {
             frameSignal.wait()
             frameCount &+= 1
-            de_frame(Double(frameCount) / 60.0)
+            de_frame(engine, Double(frameCount) / 60.0)
         }
     }
     private static func startWorker() {
@@ -261,6 +266,9 @@ public final class TinyjamAU: AUAudioUnit {
         // Resolved HERE, off the audio thread, for the same reason as everything else in this capture
         // list: a `static let` touched inside the block would run swift_once on the render path.
         let myID = self.instanceID, renderedBy = TinyjamAU.renderedBy
+        // Same rule as the rest of this capture list: resolved HERE, off the audio thread. Touching
+        // a `static var` inside the block would put swift_once on the render path.
+        let engine = TinyjamAU.engine
         return { _, _, frameCount, _, outputData, eventListHead, _ in
             let n = Int(frameCount)
             if n * 2 > cap { return kAudioUnitErr_TooManyFramesToProcess }
@@ -314,10 +322,10 @@ public final class TinyjamAU: AUAudioUnit {
                     // OFFLINE (a bounce) runs the frame INLINE: there is no deadline to miss, and a
                     // bounce must be exact — handing it to a worker would let audio render ahead of
                     // the sequencer that is supposed to be driving it. Realtime signals instead.
-                    if offline { TinyjamAU.frameCount &+= 1; de_frame(Double(TinyjamAU.frameCount) / 60.0) }
+                    if offline { TinyjamAU.frameCount &+= 1; de_frame(engine, Double(TinyjamAU.frameCount) / 60.0) }
                     else       { signal.signal() }
                 }
-                de_audio_render(scratch, Int32(n))                   // sound.h mixer → interleaved L,R
+                de_audio_render(engine, scratch, Int32(n))                   // sound.h mixer → interleaved L,R
             } else {
                 // ── 2b) THE HOST IS AT ANOTHER RATE: pull engine frames and convert. ─────────────
                 //    The engine's clock is now driven by ENGINE samples consumed, not by the host's
@@ -328,9 +336,9 @@ public final class TinyjamAU: AUAudioUnit {
                 for j in 0..<n {
                     while st.rc.needsFrame {
                         if st.eIdx >= spf {
-                            if offline { TinyjamAU.frameCount &+= 1; de_frame(Double(TinyjamAU.frameCount) / 60.0) }
+                            if offline { TinyjamAU.frameCount &+= 1; de_frame(engine, Double(TinyjamAU.frameCount) / 60.0) }
                             else       { signal.signal() }        // see the fast path's note
-                            de_audio_render(echunk, Int32(spf))
+                            de_audio_render(engine, echunk, Int32(spf))
                             st.eIdx = 0
                         }
                         st.rc.push(echunk[st.eIdx*2], echunk[st.eIdx*2 + 1])
@@ -402,15 +410,15 @@ final class TinyjamCanvasChannel: NSObject, AUMessageChannel {
 
         case "frame":
             var pw: Int32 = 0, ph: Int32 = 0
-            var ok = buf != nil && de_copy_frame(buf, Int32(cap), &pw, &ph) == 1
+            var ok = buf != nil && de_copy_frame(TinyjamAU.engine, buf, Int32(cap), &pw, &ph) == 1
             if !ok {
-                _ = de_copy_frame(nil, 0, &pw, &ph)      // dst == nil: report the size, copy nothing
+                _ = de_copy_frame(TinyjamAU.engine, nil, 0, &pw, &ph)      // dst == nil: report the size, copy nothing
                 let need = Int(pw) * Int(ph)
                 if need > cap, need > 0 {
                     buf?.deallocate()
                     buf = UnsafeMutablePointer<UInt32>.allocate(capacity: need)
                     cap = need
-                    ok = de_copy_frame(buf, Int32(cap), &pw, &ph) == 1
+                    ok = de_copy_frame(TinyjamAU.engine, buf, Int32(cap), &pw, &ph) == 1
                 }
             }
             guard ok, let b = buf, pw > 0, ph > 0 else { return [:] }

@@ -2,6 +2,10 @@
 // GPU-path / device calls that only need to LINK (never run in software mode).
 // Real bodies (timing + the software text path) are hand-written at the bottom.
 #include "raylib_compat.h"
+// The host seam functions at the bottom of this file name their instance, so the handle type has to
+// be visible here. Forward declaration rather than including platform.h: that would pull in studio.h
+// and this file is deliberately below it.
+typedef struct DeInstance DeInstance;
 #include <math.h>   // cosf/sinf — the Camera2D transforms below are REAL, not stubs
 #include <stdatomic.h>   // host→engine input ring: main (producer) ↔ the thread running de_frame
 
@@ -189,9 +193,12 @@ void SetTextureFilter(Texture2D texture, int filter) { }
 void SetTextureWrap(Texture2D texture, int wrap) { }
 void SetTraceLogLevel(int logLevel) { }
 void SetWindowState(unsigned int flags) { }
-extern int de_screen_w(void); extern int de_screen_h(void);   // defined in studio.c (DE_NO_RAYLIB)
-int  GetScreenWidth(void)  { return de_screen_w(); }          // no OS window → the active canvas IS the screen
-int  GetScreenHeight(void) { return de_screen_h(); }
+// The ENGINE-INTERNAL canvas accessors, not the host seam. de_screen_w(DeInstance*) names an
+// instance because a host has to; this code already runs inside one, so it asks for the canvas it
+// is drawing rather than inventing a handle to pass.
+extern int de_active_screen_w(void); extern int de_active_screen_h(void);   // studio.c (DE_NO_RAYLIB)
+int  GetScreenWidth(void)  { return de_active_screen_w(); }   // no OS window → the active canvas IS the screen
+int  GetScreenHeight(void) { return de_active_screen_h(); }
 bool IsWindowState(unsigned int flags) { (void)flags; return false; }   // no window states on the software build
 void SetWindowSize(int width, int height) { (void)width; (void)height; }
 void ShowCursor(void) { }
@@ -286,10 +293,12 @@ static void de_in_push(int kind, int id, float x, float y) {
 }
 
 // The host side: append only. Cheap enough to call from a UIKit touch handler with 10 fingers.
-void de_touch_begin(int id, float x, float y) { de_in_push(DE_IN_TOUCH_BEGIN, id, x, y); }
-void de_touch_moved(int id, float x, float y) { de_in_push(DE_IN_TOUCH_MOVED, id, x, y); }
-void de_touch_ended(int id, float x, float y) { de_in_push(DE_IN_TOUCH_ENDED, id, x, y); }
-void de_key_event(int key, int down)          { de_in_push(DE_IN_KEY, key, down ? 1.0f : 0.0f, 0); }
+// A touch belongs to the panel it landed on, so these name their instance. The ring itself is still
+// process-wide while the state is (step 2 gives each instance its own).
+void de_touch_begin(DeInstance *in, int id, float x, float y) { (void)in; de_in_push(DE_IN_TOUCH_BEGIN, id, x, y); }
+void de_touch_moved(DeInstance *in, int id, float x, float y) { (void)in; de_in_push(DE_IN_TOUCH_MOVED, id, x, y); }
+void de_touch_ended(DeInstance *in, int id, float x, float y) { (void)in; de_in_push(DE_IN_TOUCH_ENDED, id, x, y); }
+void de_key_event(DeInstance *in, int key, int down)          { (void)in; de_in_push(DE_IN_KEY, key, down ? 1.0f : 0.0f, 0); }
 
 // The engine side: everything below runs on the thread that calls de_frame, and owns the pool.
 static DeTouchPoint *de_touch_find(int id) {

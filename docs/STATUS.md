@@ -614,6 +614,19 @@ Detail lives in the linked design doc in every case; that is where it was always
 
 ## Open — prioritized
 
+> ### The AUv3 plug-in has NO session state — a reopened DAW project starts every rack at defaults
+>
+> Opened 2026-08-13, found while designing the instance seam. `ios/AU/TinyjamAU.swift` implements no
+> `fullState`, no `parameterTree`, no presets — nothing. So a buyer who saves a song and reopens it
+> gets their racks back at factory defaults, silently. **This is a DIFFERENT gap from the "two tracks
+> share one engine" defect** the context refactor is fixing, and arguably the more visible one: the
+> shared-engine bug needs two instances to show up, this one shows up the first time anybody saves.
+> The route is a rung on the same ladder and needs nothing undone — per-instance state (in progress)
+> → per-instance `save_dir` → swap the file for a host-provided blob. What gets serialized is INTENT,
+> not the context struct: `de_state()` (one flat block) replayed over `ctx_log` (already a log of the
+> cart's config calls, built for `de_switch_cart`). Detail + the rule it would impose (carts must keep
+> no pointers in `de_state()`): [`design/engine-instance-seam.md`](design/engine-instance-seam.md).
+
 > ### `tenement` — the D/R fork: the building contends now, and nobody has decided whether it should
 >
 > Opened 2026-08-13. design §1 promises "queues form, corridors jam" and it was never happening: 99.6%

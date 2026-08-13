@@ -81,13 +81,17 @@ final class AudioEngine {
         let sr = 44100.0
 
         let fmt = AVAudioFormat(standardFormatWithSampleRate: sr, channels: 2)!
+        // Resolved ONCE here, never inside the render block: the audio thread must not call into
+        // engine bring-up, and step 2 makes de_instance_create allocate. The seam names its instance
+        // now — docs/design/engine-instance-seam.md.
+        let deInstance = de_instance_create(DE_RENDERER_SOFTWARE)   // not `engine`: that is the AVAudioEngine
         let node = AVAudioSourceNode { [weak self] _, _, frameCount, ablPointer -> OSStatus in
             guard let self = self else { return noErr }
             let n = Int(frameCount)
             let abl = UnsafeMutableAudioBufferListPointer(ablPointer)
             if self.scratch.count < n * 2 { self.scratch = [Float](repeating: 0, count: n * 2) }
             self.scratch.withUnsafeMutableBufferPointer { buf in
-                de_audio_render(buf.baseAddress!, Int32(n))       // fills L,R interleaved
+                de_audio_render(deInstance, buf.baseAddress!, Int32(n))       // fills L,R interleaved
                 let interleaved = buf.baseAddress!
                 if abl.count >= 2,
                    let l = abl[0].mData?.assumingMemoryBound(to: Float.self),

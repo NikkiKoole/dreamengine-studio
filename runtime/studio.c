@@ -2994,7 +2994,42 @@ static void de_setup_baked_fonts(void) {
     de_bind_font(&font_tic,   &font_tic_img,   &DE_BAKED_FONTS[DE_FONT_TIC]);
 }
 
-void de_init(DeRenderer renderer) {
+// ── THE INSTANCE ────────────────────────────────────────────────────────────────────────────────
+// One engine. Today the state it names still lives in this file's globals, so there is exactly one
+// and `de_instance_create` returns the same object every time. That is deliberate: this step changes
+// only the SHAPE of the host API, on a single engine, where every existing gate still applies. The
+// state moves into this struct next (docs/design/engine-instance-seam.md, step 2), and at that point
+// nothing on the host side has to change again.
+struct DeInstance {
+    int id;            // 0 for the default instance; distinct once there is more than one
+    int booted;        // guards a second create from re-running the cart's init()
+};
+static struct DeInstance de_inst_default = { 0, 0 };
+
+// The context the CART API resolves through. Set on entry to a seam call that runs engine or cart
+// code, restored on the way out — `spr()` and `note_on()` cannot grow a parameter without changing
+// every cart in the repo, so this is how the instance reaches them.
+//
+// ⚠ THREAD-LOCAL AND SCOPED, which is what makes it not the mutable global the design rejected: the
+// UI and audio threads never write each other's slot, and it never outlives the call that set it.
+static _Thread_local struct DeInstance *de_cur;
+
+#define DE_ENTER(in_)  struct DeInstance *de_prev_ = de_cur; de_cur = (in_)
+#define DE_LEAVE()     de_cur = de_prev_
+
+static void de_init_impl(DeRenderer renderer);
+
+DeInstance *de_instance_create(DeRenderer renderer) {
+    struct DeInstance *in = &de_inst_default;   // step 2: allocate + copy the default templates
+    if (!in->booted) { DE_ENTER(in); de_init_impl(renderer); DE_LEAVE(); in->booted = 1; }
+    return in;
+}
+
+void de_instance_destroy(DeInstance *in) {
+    (void)in;   // step 2: free the contexts. Nothing to release while the state is still file-scope.
+}
+
+static void de_init_impl(DeRenderer renderer) {
     (void)renderer;                              // software canvas only for now
     sw_canvas_enabled = sw_canvas_active = true;
     de_ensure_fb(SCREEN_W, SCREEN_H);            // heap framebuffer(s), grows if a resizable cart enlarges
@@ -3119,7 +3154,8 @@ static void de_publish_frame(void) {
 // (the AUv3 view). Bottom-up rows, exactly like de_framebuffer(). Returns 1 and sets *w/*h on
 // success; 0 if no frame has been published yet or `cap_px` is too small to hold it — in which case
 // *w/*h still report the size needed, so the host can grow its buffer and ask again.
-int de_copy_frame(uint32_t *dst, int cap_px, int *w, int *h) {
+int de_copy_frame(DeInstance *in, uint32_t *dst, int cap_px, int *w, int *h) {
+    (void)in;   // step 2: read THIS instance's published frame
     for (int attempt = 0; attempt < 8; attempt++) {
         int s1 = atomic_load_explicit(&de_pres_seq, memory_order_acquire);
         if (s1 & 1) continue;                                     // a publish is mid-flight
@@ -3138,14 +3174,20 @@ int de_copy_frame(uint32_t *dst, int cap_px, int *w, int *h) {
 
 // de_apply_pending FIRST (a queued resize must land before the cart lays out for it), then the input
 // ring, then the frame, then publish what was drawn.
-void de_frame(double t) { de_host_time = t; de_apply_pending(); de_input_beginframe(); loop_step(); if (sw_rot_active) sw_rot_composite(); de_input_endframe(); de_publish_frame(); }   // loop_step draws (sw_cbuf or the rotated world buffer) + advances the sequencer; composite any rotated world a cart didn't close with camera()
+void de_frame(DeInstance *in, double t) { DE_ENTER(in); de_host_time = t; de_apply_pending(); de_input_beginframe(); loop_step(); if (sw_rot_active) sw_rot_composite(); de_input_endframe(); de_publish_frame(); DE_LEAVE(); }   // loop_step draws (sw_cbuf or the rotated world buffer) + advances the sequencer; composite any rotated world a cart didn't close with camera()
 // pulled by the host audio backend (CoreAudio on iOS) — fills `frames` interleaved
 // stereo floats in [-1,1] @ SOUND_SAMPLE_RATE. The same mixer the Raylib AudioStream
 // drives; reentrant/lock-free, safe from the audio thread while de_frame runs on main.
-void de_audio_render(float *out, int frames) { sound_callback((void *)out, (unsigned)frames); }
-const uint32_t *de_framebuffer(void) { return (const uint32_t*)sw_cbuf; }
-int de_screen_w(void) { return de_sw; }   // active canvas dims (== SCREEN_W until the host resizes)
-int de_screen_h(void) { return de_sh; }
+void de_audio_render(DeInstance *in, float *out, int frames) { DE_ENTER(in); sound_callback((void *)out, (unsigned)frames); DE_LEAVE(); }
+const uint32_t *de_framebuffer(DeInstance *in) { (void)in; return (const uint32_t*)sw_cbuf; }
+int de_screen_w(DeInstance *in) { (void)in; return de_sw; }   // active canvas dims (== SCREEN_W until the host resizes)
+int de_screen_h(DeInstance *in) { (void)in; return de_sh; }
+// The same two, for ENGINE-INTERNAL callers (raylib_compat's GetScreenWidth/Height). They run
+// underneath a seam call that already established the instance, so they have no handle to pass and
+// should not pretend to: the handle-taking pair above is the HOST seam, this pair is the engine
+// asking about the canvas it is currently drawing.
+int de_active_screen_w(void) { return de_sw; }
+int de_active_screen_h(void) { return de_sh; }
 // Phase 2 (device-adaptive): the host (iOS CanvasView) hands us the device viewport so a resizable
 // cart reflows to fill the real screen. de_resize reallocs the framebuffer + republishes de_sw/de_sh
 // (screen_w()/screen_h()); the next de_frame lays out for it. de_is_resizable tells the host whether
@@ -3155,27 +3197,30 @@ int de_screen_h(void) { return de_sh; }
 // de_resize reallocs the framebuffer, which is fatal to a frame being drawn on another thread.
 // Deferral is invisible to the standalone app: CanvasView already re-reads de_screen_w/h AFTER
 // de_frame (a cart can resize itself mid-frame), which is exactly when a pending resize lands.
-void de_resize(int w, int h) {
+void de_resize(DeInstance *in, int w, int h) {
+    (void)in;
     atomic_store_explicit(&de_pend_w, w, memory_order_relaxed);
     atomic_store_explicit(&de_pend_h, h, memory_order_relaxed);
     atomic_fetch_or_explicit(&de_pend, 1, memory_order_release);
 }
-int  de_is_resizable(void)   { return de_reflow ? 1 : 0; }
-void de_set_safe_area(int l, int t, int r, int b) {   // host reports notch/home-bar insets (px)
+int  de_is_resizable(DeInstance *in) { (void)in; return de_reflow ? 1 : 0; }
+void de_set_safe_area(DeInstance *in, int l, int t, int r, int b) {
+    (void)in;   // host reports notch/home-bar insets (px)
     atomic_store_explicit(&de_pend_sl, l, memory_order_relaxed);
     atomic_store_explicit(&de_pend_st, t, memory_order_relaxed);
     atomic_store_explicit(&de_pend_sr, r, memory_order_relaxed);
     atomic_store_explicit(&de_pend_sb, b, memory_order_relaxed);
     atomic_fetch_or_explicit(&de_pend, 2, memory_order_release);
 }
-void de_set_backing_scale(float k) {   // host reports pt-per-logical-px (iOS pixelChunk); feeds finger_px()
+void de_set_backing_scale(DeInstance *in, float k) {
+    (void)in;   // host reports pt-per-logical-px (iOS pixelChunk); feeds finger_px()
     atomic_store_explicit(&de_pend_bs, (int)(k * 256.0f), memory_order_relaxed);
     atomic_fetch_or_explicit(&de_pend, 4, memory_order_release);
 }
 // Host points persistence at a writable app dir (Android internalDataPath, iOS Documents). Call
 // BEFORE de_init so the cart's init() can load_int(). Twin of the desktop --save-dir flag; if the
 // host never sets it, save_dir stays "." (the cwd) and saves silently no-op on a sandboxed OS.
-void de_set_save_dir(const char *dir) { if (dir && *dir) save_dir_set(dir); }
+void de_set_save_dir(DeInstance *in, const char *dir) { (void)in; if (dir && *dir) save_dir_set(dir); }
 
 #else  // !DE_NO_RAYLIB — the Raylib desktop/web build owns main()
 
@@ -3186,8 +3231,8 @@ void de_set_save_dir(const char *dir) { if (dir && *dir) save_dir_set(dir); }
 // SetWindowSize — the window stays put. Lets a cart drive its own logical size, e.g. the acidwire
 // device-matrix wireframe (device-matrix.md) flipping through device shapes. de_is_resizable stays
 // honest (only -DDE_RESIZABLE carts opt into live window→canvas reflow).
-void de_resize(int w, int h) { de_set_canvas(w, h); }
-int  de_is_resizable(void)   { return de_reflow ? 1 : 0; }
+void de_resize(DeInstance *in, int w, int h) { (void)in; de_set_canvas(w, h); }
+int  de_is_resizable(DeInstance *in) { (void)in; return de_reflow ? 1 : 0; }
 
 #ifdef DE_NET_BUILD
 // Windows starts the window HIDDEN (see InitWindow) to avoid the undrawn-white flash; this reveals

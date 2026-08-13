@@ -6,7 +6,11 @@
 #   bash tools/present-race-check/run.sh -bypass   # NEGATIVE CONTROL: the naive host must fail
 #
 # Run after touching de_copy_frame / de_apply_pending / de_resize / the order of calls in de_frame.
-# Builds the real engine the way tools/build-nr.sh does (DE_NO_RAYLIB, no Raylib, no frameworks).
+# Builds the real engine the way tools/build-nr.sh does (DE_NO_RAYLIB, no Raylib).
+# CoreMIDI + CoreFoundation are linked for the same reason build-nr.sh links them: midi_output.h
+# publishes a CoreMIDI virtual source with the SAME call on macOS and iOS, so it is not gated off
+# under DE_NO_RAYLIB. This link line was missed when that landed and the gate has been dead since —
+# it failed to LINK, which looks identical to "not run" in a log nobody reads.
 set -e
 cd "$(dirname "$0")/../.."
 CART="${CART:-acidcandy}"
@@ -35,7 +39,8 @@ esac
 clang "${flags[@]}" \
   tools/present-race-check/probe.c runtime/studio.c runtime/raylib_compat.c build/cart.c \
   -I runtime -I build -I tools -DDE_NO_RAYLIB=1 -DSCALE=1 -DSCREEN_W="$SW" -DSCREEN_H="$SH" -DDE_RESIZABLE=1 \
-  -o "$out" -lm -lpthread
+  -o "$out" -lm -lpthread \
+  -framework CoreMIDI -framework CoreFoundation
 
 if [ "$mode" = expect-fail ]; then
   if "$out"; then

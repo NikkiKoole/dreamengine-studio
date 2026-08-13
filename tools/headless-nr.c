@@ -3,7 +3,7 @@
 // Proves the portable software path (studio.c + raylib_compat.c stubs + baked fonts
 // + stb sprites + sound_callback) renders AND sounds on desktop WITHOUT Raylib — so
 // we can A/B it against the Raylib build before the iOS shell. The iOS app does the
-// same: de_init → per tick de_frame(t) + blit de_framebuffer(); CoreAudio pulls
+// same: de_instance_create → per tick de_frame(in,t) + blit de_framebuffer(in); CoreAudio pulls
 // de_audio_render() on its own thread.
 //
 //   build/headless-nr <frames> <out.ppm> [out.wav]
@@ -26,16 +26,16 @@ int main(int argc, char **argv) {
     const char *ppm = (argc > 2) ? argv[2] : "build/headless_nr.ppm";
     const char *wav = (argc > 3) ? argv[3] : NULL;
 
-    de_init(DE_RENDERER_SOFTWARE);
+    DeInstance *in = de_instance_create(DE_RENDERER_SOFTWARE);
 
     short *pcm = wav ? malloc((size_t)frames * PER_FRAME * 2 * sizeof(short)) : NULL;
     float scratch[PER_FRAME * 2];
     long npcm = 0;
 
     for (int i = 0; i < frames; i++) {
-        de_frame((double)(i + 1) / 60.0);        // advances draw + the sequencer; +1 so frame 0 gets a full 1/60 dt (matches det_mode)
+        de_frame(in, (double)(i + 1) / 60.0);        // advances draw + the sequencer; +1 so frame 0 gets a full 1/60 dt (matches det_mode)
         if (pcm) {
-            de_audio_render(scratch, PER_FRAME);  // pull one frame of audio (host audio-thread's job)
+            de_audio_render(in, scratch, PER_FRAME);  // pull one frame of audio (host audio-thread's job)
             for (int s = 0; s < PER_FRAME * 2; s++) {
                 float v = scratch[s]; if (v > 1) v = 1; if (v < -1) v = -1;
                 pcm[npcm++] = (short)(v * 32767.0f);
@@ -44,8 +44,8 @@ int main(int argc, char **argv) {
     }
 
     // ---- frame → PPM (sw_cbuf is bottom-up; flip for a normal image) ----
-    const uint32_t *fb = de_framebuffer();
-    int w = de_screen_w(), h = de_screen_h();
+    const uint32_t *fb = de_framebuffer(in);
+    int w = de_screen_w(in), h = de_screen_h(in);
     FILE *f = fopen(ppm, "wb");
     if (!f) { fprintf(stderr, "cannot write %s\n", ppm); return 1; }
     fprintf(f, "P6\n%d %d\n255\n", w, h);

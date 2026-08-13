@@ -1,6 +1,7 @@
 # The instance seam — giving the host a handle
 
-> **STATUS: ready to build.** Design only; no code written yet. The prerequisite work is done:
+> **STATUS: building — STEP 1 IS DONE** (2026-08-14). The handle exists and every host passes it;
+> there is still exactly one instance, so nothing behaves differently yet. Steps 2-4 below remain. The prerequisite work is done:
 > `sound.h`'s state is per-instance ([`engine-context.md`](engine-context.md)) and `studio.c`'s is
 > classified. This doc decides the shape of the host-facing API *before* `studio.c`'s state moves,
 > because the move is only correct if it is shaped for this.
@@ -182,10 +183,26 @@ Named so the next session does not assume otherwise:
 
 ## Order of work
 
-1. **Introduce the handle with ONE instance.** Add `DeInstance`, `de_cur`, `de_process_init` and
-   `de_instance_create`; convert the seam to take a handle; the desktop `main()` and the iOS
-   `CanvasView` create exactly one and pass it. **Byte-identical — `refactor-guard` must stay green.**
-   Nothing is multi-instance yet; this is purely the shape change, on a single engine.
+1. **✅ DONE — the handle, with ONE instance.** `DeInstance` + `de_instance_create`/`_destroy`, the
+   scoped `de_cur`, and every seam function takes a handle. All five hosts migrated: `headless-nr`,
+   the three probes, and the Swift (`CanvasView`, `AudioEngine`, `GameHost`, `TinyjamAU`).
+   `de_process_init` deliberately did NOT land: the shared-vs-per-instance split it formalises is
+   `studio.c`'s work, so inventing it now would be a name with nothing behind it. Verified: the
+   `DE_NO_RAYLIB` render is **byte-identical**, `refactor-guard` 6/6, spec 1986/0, `build-all`
+   580/580, all three probes green **with their negative controls**, and the Mac Catalyst plug-in
+   builds.
+   **Three things step 1 taught:**
+   · **`refactor-guard` is blind to this entire change** — the seam lives inside `#ifdef DE_NO_RAYLIB`
+     and the guard builds the Raylib path. `build-nr.sh` + the probes are the gate here, and the
+     guard staying green proves only that the *cart-facing* engine was untouched.
+   · **`present-race-check` had been DEAD since `midi_output.h` landed** — it failed to LINK
+     (CoreMIDI/CoreFoundation missing from its line), which in a log reads exactly like "not run".
+     Fixed; it and its negative control both work again. A gate that cannot link is a gate that
+     cannot fail.
+   · **Engine-internal callers must not fake a handle.** `raylib_compat`'s `GetScreenWidth()` runs
+     underneath a seam call that already established the instance, so it got
+     `de_active_screen_w()` rather than a NULL argument — the handle-taking pair is the HOST seam,
+     that pair is the engine asking about the canvas it is drawing.
 2. **Move `studio.c`'s state** into `DeVideo` (`ctx-gen --target studio.c`), byte-identical.
 3. **Switch the AUv3** to one instance per audio unit, one worker per instance; delete
    `bootEngineOnce`.

@@ -349,6 +349,26 @@ a broken doc link or `#section`).
 > · Also logged: `colorkey()` destroys and rebuilds a SHARED GPU texture from a cart API;
 >   `fp_cache`'s key omits the palette; and an unrelated latent `web_px` overflow after a canvas grow.
 >
+> **✅ STEP 1 IS DONE — THE SEAM TAKES A HANDLE (2026-08-14).** `DeInstance` +
+> `de_instance_create`/`_destroy`, a scoped thread-local `de_cur`, and every seam function names its
+> instance. All hosts migrated: `headless-nr`, the three probes, and the Swift (`CanvasView`,
+> `AudioEngine`, `GameHost`, `TinyjamAU`). **There is still exactly ONE instance — nothing behaves
+> differently yet**, which is the point: the shape changed where every existing gate still applies.
+> Verified: `DE_NO_RAYLIB` render **byte-identical**, refactor-guard 6/6, spec 1986/0, build-all
+> 580/580, all three probes + their negative controls green, Mac Catalyst plug-in builds.
+> ⚠ **`de_process_init` deliberately did NOT land.** The shared-vs-per-instance split it formalises
+> IS `studio.c`'s work; adding the name now would be a promise with nothing behind it.
+> **Three things step 1 taught, all of which apply to step 2:**
+> · **`refactor-guard` is BLIND to seam changes** — the seam is inside `#ifdef DE_NO_RAYLIB` and the
+>   guard builds the Raylib path. `build-nr.sh` + the probes are the gate. Guard-green here proves
+>   only that the CART-facing engine was untouched.
+> · **`present-race-check` had been DEAD since `midi_output.h` landed**: it failed to LINK (CoreMIDI
+>   missing from its line), which reads exactly like "not run". Fixed. A gate that cannot link cannot
+>   fail, and nothing was watching.
+> · **Engine-internal callers must not fake a handle.** `GetScreenWidth()` got `de_active_screen_w()`
+>   rather than passing NULL — the handle pair is the HOST seam; internal code already runs inside an
+>   instance.
+>
 > **✅ THE SEAM HANDLE IS DESIGNED — [`design/engine-instance-seam.md`](design/engine-instance-seam.md)
 > (2026-08-13). BUILD IT BEFORE `studio.c`'s state move**, because the move is only correct if shaped
 > for it. Five decisions, each with the rejected alternative and why:

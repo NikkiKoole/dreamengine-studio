@@ -47,8 +47,9 @@
 // raylib_compat.c is self-contained enough to include whole: it needs no studio.h and no raylib, and
 // it brings its own GetTime(). Only the canvas dims come from studio.c, so the probe supplies those
 // two — that the input seam needs nothing else is what makes this gate possible at all.
-int de_screen_w(void) { return 320; }
-int de_screen_h(void) { return 200; }
+// the ENGINE-INTERNAL accessors raylib_compat asks for (not the host seam, which names an instance)
+int de_active_screen_w(void) { return 320; }
+int de_active_screen_h(void) { return 200; }
 #include "../../runtime/raylib_compat.c"
 
 static double probe_clock = 0;   // advanced per simulated frame; de_input_endframe reads GetTime()
@@ -80,9 +81,9 @@ static void *producer(void *unused) {
     #define PROBE_MOVED de_apply_touch_moved
     #define PROBE_ENDED de_apply_touch_ended
 #else
-    #define PROBE_BEGIN de_touch_begin
-    #define PROBE_MOVED de_touch_moved
-    #define PROBE_ENDED de_touch_ended
+    #define PROBE_BEGIN(i,x,y) de_touch_begin(NULL,(i),(x),(y))
+    #define PROBE_MOVED(i,x,y) de_touch_moved(NULL,(i),(x),(y))
+    #define PROBE_ENDED(i,x,y) de_touch_ended(NULL,(i),(x),(y))
 #endif
     for (int r = 0; r < PROBE_ROUNDS; r++) {
         for (int f = 0; f < PROBE_FINGERS; f++) {
@@ -97,7 +98,7 @@ static void *producer(void *unused) {
             float x = (float)((r * 5 + f * 17) % 300);
             PROBE_ENDED(f, x, x + 1000.0f);
         }
-        de_key_event(65 + (r % 8), r & 1);
+        de_key_event(NULL, 65 + (r % 8), r & 1);
     }
     atomic_store_explicit(&producer_done, 1, memory_order_release);
     return 0;
@@ -148,8 +149,8 @@ int main(void) {
 
     // ── 4: the one-frame tap ────────────────────────────────────────────────────────────────────
     // Both events arrive BETWEEN frames, which on a phone is the common case: 60 Hz is 16ms.
-    de_touch_begin(1, 40.0f, 1040.0f);
-    de_touch_ended(1, 40.0f, 1040.0f);
+    de_touch_begin(NULL, 1, 40.0f, 1040.0f);
+    de_touch_ended(NULL, 1, 40.0f, 1040.0f);
     frame();
     int seen     = GetTouchPointCount();
     int pressed  = IsMouseButtonPressed(MOUSE_BUTTON_LEFT);
@@ -167,8 +168,8 @@ int main(void) {
     // Key 100, deliberately OUTSIDE the 65..72 the storm above hammers: the first version used 70,
     // which the storm had left down, so IsKeyPressed was correctly false and the probe blamed the
     // ring. A shared-state test needs its own state.
-    de_key_event(100, 1);
-    de_key_event(100, 0);
+    de_key_event(NULL, 100, 1);
+    de_key_event(NULL, 100, 0);
     frame();
     int kdown = IsKeyDown(100), kpressed = IsKeyPressed(100);
     endframe();
@@ -183,10 +184,10 @@ int main(void) {
     // Flood without draining, the way a host that paused our render block would. The pool must still
     // come back empty: a dropped `ended` is a finger held down forever.
     int before_drop = atomic_load(&de_in_dropped);
-    for (int f = 0; f < PROBE_FINGERS; f++) de_touch_begin(f, 10.0f + f, 1010.0f + f);
+    for (int f = 0; f < PROBE_FINGERS; f++) de_touch_begin(NULL, f, 10.0f + f, 1010.0f + f);
     for (int r = 0; r < 4000; r++)
-        for (int f = 0; f < PROBE_FINGERS; f++) de_touch_moved(f, (float)(r % 300), (float)(r % 300) + 1000.0f);
-    for (int f = 0; f < PROBE_FINGERS; f++) de_touch_ended(f, 10.0f + f, 1010.0f + f);
+        for (int f = 0; f < PROBE_FINGERS; f++) de_touch_moved(NULL, f, (float)(r % 300), (float)(r % 300) + 1000.0f);
+    for (int f = 0; f < PROBE_FINGERS; f++) de_touch_ended(NULL, f, 10.0f + f, 1010.0f + f);
     for (int i = 0; i < 40; i++) { frame(); endframe(); }
     int dropped = atomic_load(&de_in_dropped) - before_drop;
     check("an overflowing ring still lets every finger lift", GetTouchPointCount() == 0,

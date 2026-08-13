@@ -28,6 +28,10 @@
 //   4. NOT VACUOUS: it really did blit, really did resize, and the canvas really did change size.
 
 #include "../../runtime/platform.h"
+
+// The one instance both threads drive. Named explicitly now that the seam takes a handle — which is
+// exactly this probe's point: the reader must copy from the SAME instance the engine published.
+static DeInstance *g_in;
 #include <pthread.h>
 #include <stdatomic.h>
 #include <stdio.h>
@@ -55,12 +59,12 @@ static void *engine_thread(void *unused) {
     (void)unused;
     float audio[735 * 2];
     for (long i = 0; i < PROBE_FRAMES; i++) {
-        de_frame((double)(i + 1) / 60.0);
+        de_frame(g_in, (double)(i + 1) / 60.0);
         // Pull the audio too, on THIS thread, because that is exactly what the AUv3 render block does:
         // one de_frame per 735 rendered samples, both on the audio thread. Without it the cart's sound
         // calls pile up unconsumed and the run drowns in "request queue overflow" — which would be the
         // probe misrepresenting the very arrangement it exists to model.
-        de_audio_render(audio, 735);
+        de_audio_render(g_in, audio, 735);
         atomic_store_explicit(&frames_run, i + 1, memory_order_relaxed);
     }
     atomic_store_explicit(&engine_done, 1, memory_order_release);
@@ -69,7 +73,7 @@ static void *engine_thread(void *unused) {
 
 int main(void) {
     printf("\xE2\x96\xB8 present/resize race: the view blitting + resizing while the engine draws\n");
-    de_init(DE_RENDERER_SOFTWARE);
+    g_in = de_instance_create(DE_RENDERER_SOFTWARE);
 
     int failures = 0;
     uint32_t *dst = (uint32_t *)malloc((size_t)CAP_PX * sizeof(uint32_t));
@@ -89,12 +93,12 @@ int main(void) {
         // THE NEGATIVE CONTROL: the naive host, reading the engine's LIVE canvas from another thread
         // (what a view would do if de_copy_frame did not exist). The resize is deferred to the engine
         // thread now, which does not save this path — it moves the realloc UNDER this memcpy.
-        const uint32_t *base = de_framebuffer();
-        w = de_screen_w(); h = de_screen_h();
+        const uint32_t *base = de_framebuffer(g_in);
+        w = de_screen_w(g_in); h = de_screen_h(g_in);
         int got = (base && w > 0 && h > 0 && (long)w * h <= CAP_PX);
         if (got) memcpy(dst, base, (size_t)w * h * sizeof(uint32_t));
 #else
-        int got = de_copy_frame(dst, CAP_PX, &w, &h);
+        int got = de_copy_frame(g_in, dst, CAP_PX, &w, &h);
 #endif
         if (got) {
             blits++;
@@ -115,8 +119,8 @@ int main(void) {
 
         if (blits % 37 == 0) {                       // a layout pass, from the host thread
             const int *s = sizes[resizes % 6];
-            de_resize(s[0], s[1]);
-            de_set_safe_area(2, 3, 2, 3);
+            de_resize(g_in, s[0], s[1]);
+            de_set_safe_area(g_in, 2, 3, 2, 3);
             resizes++;
         }
     }
@@ -130,9 +134,9 @@ int main(void) {
     else              printf("  \xE2\x9C\x93 no snapshot was torn across a resize\n");
 
     // 3: a resize issued from the host thread must actually reach the engine.
-    de_resize(288, 176);
-    for (int i = 0; i < 4; i++) de_frame(1000.0 + i / 60.0);
-    int got_w = de_screen_w(), got_h = de_screen_h();
+    de_resize(g_in, 288, 176);
+    for (int i = 0; i < 4; i++) de_frame(g_in, 1000.0 + i / 60.0);
+    int got_w = de_screen_w(g_in), got_h = de_screen_h(g_in);
     // A resizable cart reflows, so the engine may land on its own chunky size — what must be true is
     // that the canvas MOVED to something derived from the request, not that it matched it exactly.
     int landed = (got_w != 160 || got_h != 100);

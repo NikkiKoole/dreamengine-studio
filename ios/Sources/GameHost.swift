@@ -28,10 +28,14 @@ final class GameViewController: UIViewController {
         //     landscape) — else it looks wrong rotated.
         // An explicit per-cart override (a manifest orientation field) would slot in here when a cart
         // needs to contradict this default — see docs/design/device-adaptive-layout.md.
-        if de_is_resizable() != 0 {
+        // The engine the app is about to show. de_instance_create is idempotent for the process's
+        // one instance (docs/design/engine-instance-seam.md), so asking here is safe wherever this
+        // runs relative to the view's own create.
+        let engine = de_instance_create(DE_RENDERER_SOFTWARE)
+        if de_is_resizable(engine) != 0 {
             AppDelegate.orientationLock = .all
         } else {
-            let w = Int(de_screen_w()), h = Int(de_screen_h())
+            let w = Int(de_screen_w(engine)), h = Int(de_screen_h(engine))
             AppDelegate.orientationLock = (w > h) ? .landscape : (h > w ? .portrait : .all)
         }
     }

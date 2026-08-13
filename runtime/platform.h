@@ -50,21 +50,44 @@ typedef enum {
 //     its while-loop. On iOS, CanvasView/CADisplayLink calls them per vsync tick.
 // ============================================================================
 
-// One-time engine bring-up: decode/bind assets, sound_init(), run the cart's
+// ============================================================================
+// THE INSTANCE HANDLE.
+//
+// An AUv3 puts every plug-in instance in ONE process, so "the engine" cannot be a
+// singleton: two racks on two DAW tracks each need their own state. Every entry
+// point below therefore names WHICH engine it is talking to.
+//
+// Why an explicit parameter and not an internal "current instance": the same
+// instance is driven from FOUR threads (the audio render block, the frame worker,
+// the host's layout pass, and the view thread that copies the frame), while one
+// host thread may serve MANY instances. There is no "current" for the engine to
+// infer, and a mutable global holding one would be a data race between the UI and
+// audio threads — the very thing the deferred-resize and seqlock machinery below
+// exists to avoid. A parameter is also compiler-checked: a missed call site fails
+// to build instead of silently driving the wrong rack.
+//
+// Design + the rejected alternatives: docs/design/engine-instance-seam.md
+// ============================================================================
+typedef struct DeInstance DeInstance;
+
+// Bring up one engine instance: decode/bind assets, sound_init(), run the cart's
 // init(). `renderer` selects the path; a SOFTWARE backend needs no GPU context.
-// Safe to call exactly once before the first de_frame().
-void de_init(DeRenderer renderer);
+// Returns NULL if the instance cannot be created.
+DeInstance *de_instance_create(DeRenderer renderer);
+
+// Tear one down. Safe to call with NULL.
+void de_instance_destroy(DeInstance *in);
 
 // Advance and render ONE frame. `t` = seconds since launch (the host's clock —
 // CACurrentMediaTime on iOS, GetTime on desktop). Runs input drain → update() →
 // draw() into the active renderer. After this returns in SOFTWARE mode the frame
 // is complete in de_framebuffer(); the host blits it.
-void de_frame(double t);
+void de_frame(DeInstance *in, double t);
 
 // SOFTWARE renderer: pointer to the finished frame, RGBA8888, de_screen_w()*
 // de_screen_h() pixels, row-major top-left origin. Returns NULL under DE_RENDERER_GPU.
 // ONLY SAFE ON THE THREAD THAT CALLS de_frame — it is the engine's live canvas, not a snapshot.
-const uint32_t *de_framebuffer(void);
+const uint32_t *de_framebuffer(DeInstance *in);
 
 // The same frame, for a host that blits from a DIFFERENT thread than the one calling de_frame — an
 // AUv3, where the render block drives the frame on the audio thread while the view draws on main.
@@ -72,30 +95,30 @@ const uint32_t *de_framebuffer(void);
 // *w/*h. Returns 0 if no frame exists yet or `cap_px` is too small — *w/*h still report the size
 // needed, so grow the buffer and call again. Internally a seqlock: it may briefly retry, and it never
 // makes the audio thread wait. A single-threaded host can keep using de_framebuffer().
-int de_copy_frame(uint32_t *dst, int cap_px, int *w, int *h);
+int de_copy_frame(DeInstance *in, uint32_t *dst, int cap_px, int *w, int *h);
 
 // Active framebuffer dimensions (== SCREEN_W / SCREEN_H at boot; a resizable cart
 // grows past them via de_resize — always read these, never the compile-time macros).
-int de_screen_w(void);
-int de_screen_h(void);
+int de_screen_w(DeInstance *in);
+int de_screen_h(DeInstance *in);
 
 // Device-adaptive (Phase 2): the host hands the engine the device viewport so a resizable cart
 // reflows to fill the screen. de_resize reallocs the framebuffer + republishes de_screen_w/h; call
 // it when the view's bounds change (incl. rotation). Only act on it when de_is_resizable() is true —
 // a fixed cart returns 0 and stays letterboxed at its compile-time size.
-void de_resize(int w, int h);
-int  de_is_resizable(void);
+void de_resize(DeInstance *in, int w, int h);
+int  de_is_resizable(DeInstance *in);
 // Safe-area insets (px) — notch / home-bar / status bar. The host reports them; a cart reads the
 // usable rect via safe_rect() and keeps its controls inside it (background can still bleed full).
-void de_set_safe_area(int left, int top, int right, int bottom);
+void de_set_safe_area(DeInstance *in, int left, int top, int right, int bottom);
 // Backing scale — points per logical canvas px (iOS pixelChunk, e.g. 2). Feeds finger_px() so a
 // finger control is sized physically, not by a raw-px coincidence. Host reports it; default 2.
-void de_set_backing_scale(float k);
+void de_set_backing_scale(DeInstance *in, float k);
 // Persistence root — the host's writable app-private dir (Android internalDataPath, iOS Documents).
-// save()/save_int()/save_bytes() write under here; call BEFORE de_init() so a cart's init() can
+// save()/save_int()/save_bytes() write under here; call BEFORE de_instance_create() so a cart's init() can
 // load_int(). Twin of the desktop --save-dir flag; unset it defaults to "." (the cwd), where a
 // sandboxed OS can't write, so saves silently no-op.
-void de_set_save_dir(const char *dir);
+void de_set_save_dir(DeInstance *in, const char *dir);
 
 // ============================================================================
 // (2) AUDIO — pulled by the host's audio backend (CoreAudio on iOS, Raylib's
@@ -103,21 +126,21 @@ void de_set_save_dir(const char *dir);
 //     audio thread while the main thread runs de_frame(). Fills `frames` stereo
 //     interleaved float samples in [-1,1] at SOUND_SAMPLE_RATE (44100).
 // ============================================================================
-void de_audio_render(float *out, int frames);
+void de_audio_render(DeInstance *in, float *out, int frames);
 
 // ============================================================================
 // (3) INPUT — the host feeds events in (UIKit touches on iOS, controller on
 //     Switch). Coordinates are in framebuffer pixels (0..screen_w, 0..screen_h).
 //     [M3 — declared now so the seam is complete; wired after render+audio land.]
 // ============================================================================
-void de_touch_begin(int id, float x, float y);
-void de_touch_moved(int id, float x, float y);
-void de_touch_ended(int id, float x, float y);
+void de_touch_begin(DeInstance *in, int id, float x, float y);
+void de_touch_moved(DeInstance *in, int id, float x, float y);
+void de_touch_ended(DeInstance *in, int id, float x, float y);
 
 // The PRIMARY finger also drives the mouse API (GetMousePosition/IsMouseButton*), so mouse-reading
 // carts play from touch with no extra host work — same as a browser synthesizing mouse from touch.
 // Keys have no touch equivalent; a host with a real/on-screen keyboard feeds them here (down=1/0).
-void de_key_event(int key, int down);
+void de_key_event(DeInstance *in, int key, int down);
 
 // ============================================================================
 // (4) AUDIO INPUT — the mirror of (2), inverted. The engine NEVER opens a capture

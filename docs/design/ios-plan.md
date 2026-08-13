@@ -367,6 +367,38 @@ panel connected?" in one line of Console, in every case, where before it took `s
 host and reading thread names. The probe PARAMETER was removed — a stray "Bridge Probe" shows in every
 host's automation list, and this app is on the store.
 
+##### ▶ THE LEAD TO RESUME ON: our extension may never be loadable IN-PROCESS
+
+Found by diffing our extension declaration against [bradhowes/LPF](https://github.com/bradhowes/LPF)
+(a working AUv3 the author tests in GarageBand and Logic on macOS). We match on the parts already
+checked — `NSExtensionPointIdentifier: com.apple.AudioUnit-UI`, principal class = the view controller,
+`sandboxSafe: true`. **Two keys differ:**
+
+| key | LPF | ours (`ios/project-mac.yml`) |
+|---|---|---|
+| `AudioComponentBundle` | `com.braysoftware.SimplyLowPass.framework` — a **separate framework** holding the AU code | `$(PRODUCT_BUNDLE_IDENTIFIER)` — the extension itself |
+| `factoryFunction` | declared, names the factory | **absent** |
+
+Both keys exist so the system can **load the audio unit's code as a bundle into another process**,
+which together with `sandboxSafe` is what permits **in-process instantiation**. In-process is exactly
+the case where `createAudioUnit` runs once and `requestViewController` hands back a view controller
+holding *that same instance*.
+
+That would explain every symptom at once: with no loadable component bundle and no factory function
+the system has no option but out-of-process, the UI extension separately instantiates our principal
+class, and the view controller ends up with an AU that bridges nothing — not the message channel, not
+the parameter tree. It also fits LPF's HOST code, which calls `requestViewController` and **never sets
+an `audioUnit` property on the returned controller**, because with a correctly-declared component it
+does not need to (`AUv3Support/Sources/AUv3Support/Host/AudioUnitLoader.swift`, `wireAudioUnit`).
+
+⚠ **Confidence: a well-supported hypothesis, NOT a measured fact.** It explains all the evidence and
+matches a known-working plug-in's structure — but four confident claims were wrong earlier the same
+day (see the table below), so treat it as the next thing to TEST.
+
+**The test:** factor the AU code into a framework, add `AudioComponentBundle` + `factoryFunction`,
+rebuild, reload in GarageBand, read the one `[tinyjam] PANEL …` line. Ordinary build configuration
+rather than research, and the diagnostic is already permanent.
+
 ##### The wrong turns, written down because they cost the afternoon
 
 Kept in full: every one of these looked like progress at the time, and the pattern across them is

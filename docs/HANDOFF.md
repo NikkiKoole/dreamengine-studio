@@ -200,6 +200,45 @@ a broken doc link or `#section`).
 > processes stay two processes. Scale if ever taken: ~204 engine statics (58 studio.c, 146 sound.h)
 > plus each cart's own (acidcandy ~120); `de_switch_cart` does not help — it is a config-log replay
 > that switches one cart at a time, not concurrent instances.
+> **▶▶ START HERE IN A FRESH SESSION (written 2026-08-13). GOAL: a well-behaved macOS AUv3.**
+> There is no iPad — macOS IS the target, so no "maybe it's fine on iOS" escape hatch.
+> **TWO SEPARATE DEFECTS, do not conflate them:**
+> **(A) THE PANEL IS ORPHANED.** It draws an engine nobody hears, and touches drive that same wrong
+> engine. Measured in GarageBand: BOTH the message channel AND the parameter tree stayed inside the
+> UI process (`PARAM writing 0.75 from UI pid 98759` → `PARAM observed … in pid 98759`;
+> `PANEL TALKING TO ITSELF · channel engine pid 98759 · this UI process pid 98759`).
+> **(B) TWO INSTANCES SHARE ONE ENGINE.** Maker-reported: load the plug-in on two GarageBand tracks
+> and "it goes super weird". Cause is known and separate — engine state is process-global (~204
+> file-scope statics in studio.c/sound.h, plus acidcandy's ~120), so two tracks are two front-ends
+> fighting over one rack. Fixing (A) does NOT fix (B) and vice versa.
+>
+> **▶ THE LEAD FOR (A), and it is ordinary build config rather than research.** Diffing our extension
+> against [bradhowes/LPF](https://github.com/bradhowes/LPF) (works in GarageBand + Logic on macOS):
+> we match on `com.apple.AudioUnit-UI`, principal class, `sandboxSafe` — but LPF declares
+> **`AudioComponentBundle` pointing at a separate FRAMEWORK holding the AU code** and a
+> **`factoryFunction`**, and we declare neither properly (`ios/project-mac.yml`). Those two keys are
+> what let the system load the AU's code as a bundle into another process = **in-process
+> instantiation**, which is the case where `createAudioUnit` runs ONCE and `requestViewController`
+> returns a controller holding THAT instance. It explains every symptom at once, and fits LPF's host
+> code never setting an `audioUnit` property on the returned VC.
+> ⚠ **Hypothesis, not measured** — four confident claims were wrong the same day (11 wrong turns are
+> tabulated in the design doc; read them before trusting anything here).
+> **DO:** factor the AU code into a framework · add `AudioComponentBundle` + `factoryFunction` ·
+> rebuild (`zsh ios/mac.sh`, 5 gates) · load in GarageBand · read the ONE `[tinyjam] PANEL …` line.
+> **DO NOT:** add more instrumentation to our own AU — the last three probes all said the same thing.
+> If the lead fails, the next move is to build LPF itself and run the same pid probe on IT, to
+> establish what a working one does before changing ours again.
+>
+> **Already in place, keep it:** `TinyjamCanvasChannel` (echo/nonce/frame) + `CanvasView.remoteFrame`,
+> INERT (remoteFrame nil = the old path exactly, 5/5 `mac.sh` gates green), and the `[tinyjam] PANEL …`
+> diagnostic that answers "is the panel connected?" in one Console line — it used to take `sample`ing
+> a wedged host. The frame path itself is written and MEASURED (a real 160×100 frame crosses a process
+> boundary in 0.32ms, byte-exact, non-black), so if in-process loading lands, the pixels are ready.
+> A probe PARAMETER was deliberately REMOVED (a stray "Bridge Probe" shows in every host's automation
+> list, and this app is on the store).
+> Full arc + the 11 wrong turns:
+> [`ios-plan.md` → PARKED 2026-08-13](design/ios-plan.md#-parked-2026-08-13-both-routes-measured-both-closed-as-configured--and-the-wrong-turns).
+>
 > **⛔ PARKED 2026-08-13 — both routes measured in GarageBand, both closed AS CONFIGURED.** The
 > message channel AND the parameter tree (Apple's own supported route) each stayed inside the UI
 > process: `PARAM writing 0.75 from UI pid 98759` → `PARAM observed … in pid 98759`, and

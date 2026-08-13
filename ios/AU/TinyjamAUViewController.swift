@@ -41,8 +41,12 @@ public final class TinyjamAUViewController: AUViewController, AUAudioUnitFactory
     // skipped is not a diagnostic. It now runs on whichever call completes the pair, once.
     private var panelConnected = false
     private func connectPanel() {
-        guard !panelConnected, au != nil, canvas != nil else { return }
+        guard !panelConnected, let a = au, let c = canvas else { return }
         panelConnected = true
+        // HAND THE VIEW THE AUDIO UNIT'S ENGINE. The panel must show the engine that makes the
+        // sound, and a hosted CanvasView deliberately creates none of its own — a UI extension runs
+        // in its own process, so creating one there boots a second engine inside the view process.
+        c.engine = a.engine
         // Read the verdict NOW and again later. Not politeness: the only orphan signal available is
         // "nothing in this process has rendered", and a host whose transport is stopped looks
         // identical at the moment a panel opens. Press play and the ambiguity resolves itself — which

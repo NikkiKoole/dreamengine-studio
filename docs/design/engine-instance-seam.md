@@ -215,9 +215,15 @@ Named so the next session does not assume otherwise:
      probe never touched. It now builds BOTH renderers, and says loudly when raylib headers are
      missing rather than quietly testing less.
 3. **✅ DONE — the AUv3** creates one engine per audio unit with its own frame worker, semaphore and
-   frame counter; `bootEngineOnce` is deleted; the canvas channel blits its OWNER's engine rather
-   than a process-wide one. **Remaining: the maker loading two GarageBand tracks** — the eyeball step
-   no gate replaces.
+   frame counter; `bootEngineOnce` is deleted; the canvas channel blits its OWNER's engine.
+   **VERIFIED IN GARAGEBAND (maker, 2026-08-14): one track is clean, panel stable, no regression.**
+   ⚠ The DAW test found what no gate did: a HOSTED PANEL WAS BOOTING ITS OWN ENGINE. Step 1 made
+   `CanvasView` call `de_instance_create` unconditionally, so each open panel started a second engine
+   and ticked it from the display link — with the cart's state shared, two tracks with panels open
+   was four engines on one sequencer. Fixed: a hosted view creates nothing and is handed the audio
+   unit's engine. **The lesson is about the seam, not the bug: giving every caller the ability to
+   create an instance meant a caller that should only ever BORROW one created its own.** A view is a
+   consumer of an engine, never a producer, and the API should have said so.
 4. **✅ DONE — gated.** `bash tools/instance-check/run.sh`: two instances from `de_instance_create`,
    different transport, and their frames and audio differ. Control: two fresh instances driven the
    SAME come back byte-identical, so the headline is the transport rather than noise. **This is the

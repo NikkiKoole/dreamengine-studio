@@ -107,7 +107,8 @@ public final class TinyjamAU: AUAudioUnit {
     // engine its sequencer happens to fire into makes sound. That is the next step and it is cart
     // work, not engine work. tools/instance-check reports it explicitly rather than asserting it.
     private static let bootLock = NSLock()          // instantiation only; never touched by audio
-    fileprivate let engine: OpaquePointer
+    // internal, not fileprivate: the view controller (another file) hands it to the panel
+    let engine: OpaquePointer
 
     // ══ WHICH INSTANCE IS THE AUDIBLE ONE ═══════════════════════════════════════════════════════
     // The one question the panel needs answered, and the reason it needs a new mechanism: the OLD

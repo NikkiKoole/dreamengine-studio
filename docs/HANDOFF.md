@@ -349,6 +349,23 @@ a broken doc link or `#section`).
 > · Also logged: `colorkey()` destroys and rebuilds a SHARED GPU texture from a cart API;
 >   `fp_cache`'s key omits the palette; and an unrelated latent `web_px` overflow after a canvas grow.
 >
+> **✅ VERIFIED IN GARAGEBAND BY THE MAKER (2026-08-14): ONE TRACK IS CLEAN.** *"one track works fine
+> now, panel is stable"* — no regression from the whole per-instance refactor, which is the result
+> that mattered. Two findings from that session, both now fixed or filed:
+> · **FIXED — a hosted panel was booting its OWN engine.** Step 1 made `CanvasView` call
+>   `de_instance_create` unconditionally, which it never used to do, so every open panel started a
+>   second engine and ticked it from the display link. With the cart's state shared, two tracks with
+>   panels open meant up to FOUR engines driving one sequencer: the maker saw a flickering panel, a
+>   play button toggling by itself, and "wide and slow" audio. A hosted view now creates nothing; the
+>   audio unit hands it the engine that makes the sound (`TinyjamAUViewController.connectPanel`).
+> · **FILED, NOT A REGRESSION — the iPad-layout toggle has NEVER worked in GarageBand** (maker
+>   confirmed). See STATUS.md. The CART is fine: `play.js acidcandy --resize …` reflows correctly in
+>   both orientations, so it is the plug-in's resize path. Suspect: `de_pend*` is still process-wide
+>   (it is inside `#ifdef DE_NO_RAYLIB`) while the layout state it feeds is per-instance.
+> ⚠ **REVISED EXPECTATION for two tracks:** not "the second is silent". Both instances tick their own
+> engine but share the CART's sequencer, so two tracks still interfere. Only the cart's statics →
+> `de_state()` fixes that.
+>
 > **▶▶ THE ENGINE IS DONE; THE CART IS NOT. READ THIS BEFORE TESTING IN A DAW (2026-08-14).**
 > Running `zsh ios/mac.sh` will show **6 of 7 gates green and the PANEL gate RED**, and two tracks
 > will NOT both play. That is expected and the cause is known — it is not the engine.

@@ -44,7 +44,11 @@ final class CanvasView: UIView {
     // The engine instance this view shows. The seam names its instance now
     // (docs/design/engine-instance-seam.md); today there is exactly one, so hosted and standalone
     // both resolve to it. Step 3 has the plug-in hand its OWN instance to its view instead.
-    private var engine: OpaquePointer!
+    // THE ENGINE THIS VIEW SHOWS. Standalone creates one; HOSTED is GIVEN one by the audio unit
+    // that owns the panel — it must NOT create its own. A UI extension runs in its own process, so
+    // calling de_instance_create there boots a whole second engine (and runs the cart's init) inside
+    // the view process: pointless at best, and it is what stopped the panel reporting.
+    var engine: OpaquePointer!
     private var w = 0
     private var h = 0
     private let cs = CGColorSpaceCreateDeviceRGB()
@@ -77,16 +81,16 @@ final class CanvasView: UIView {
         isMultipleTouchEnabled = true
         layer.magnificationFilter = .nearest
         layer.contentsGravity = .resizeAspect
-        // de_instance_create replaces de_init and is idempotent for the process's one instance, so
-        // the hosted path gets back the engine TinyjamAU already booted rather than booting a second.
-        engine = de_instance_create(DE_RENDERER_SOFTWARE)
 #if !AU_EXT
         if !hosted {
+            engine = de_instance_create(DE_RENDERER_SOFTWARE)   // this app's one engine
             AudioEngine.shared.start()       // CoreAudio pulls de_audio_render on its own thread
-        }                                    // hosted: TinyjamAU booted the engine; the host owns audio
+        }                                    // hosted: the audio unit hands us its engine (see `engine`)
 #endif
-        w = Int(de_screen_w(engine)); h = Int(de_screen_h(engine))
-        flipped = [UInt32](repeating: 0, count: w * h)
+        if engine != nil {
+            w = Int(de_screen_w(engine)); h = Int(de_screen_h(engine))
+            flipped = [UInt32](repeating: 0, count: w * h)
+        }
         start = CACurrentMediaTime()
         let l = CADisplayLink(target: self, selector: #selector(tick))
         l.add(to: .main, forMode: .common)
@@ -122,6 +126,7 @@ final class CanvasView: UIView {
     // pick up a de_resize: re-read the engine's active dims and resize the flip scratch when they
     // change, so the CGImage blit and touch mapping use the current canvas.
     private func syncSize() {
+        guard engine != nil else { return }   // hosted, before the audio unit handed us one
         let nw = Int(de_screen_w(engine)), nh = Int(de_screen_h(engine))
         if nw != w || nh != h { w = nw; h = nh; flipped = [UInt32](repeating: 0, count: w * h) }
     }
@@ -153,6 +158,7 @@ final class CanvasView: UIView {
             // all we do is take a snapshot. de_copy_frame reports the size it has even when it refuses
             // to copy, which is how the buffer grows: ask, resize, get it next tick.
             var pw: Int32 = 0, ph: Int32 = 0
+            guard engine != nil else { return }
             var ok = snap != nil && de_copy_frame(engine, snap, Int32(snapCap), &pw, &ph) == 1
             if !ok {
                 _ = de_copy_frame(engine, nil, 0, &pw, &ph)         // dst == nil: report the size, copy nothing
@@ -174,12 +180,13 @@ final class CanvasView: UIView {
             AudioEngine.shared.pollMic()   // open/close the mic to match the cart's mic_start()/mic_stop()
 #endif
             syncSize()
+            guard engine != nil else { return }
             de_frame(engine, t0 - start)
             // A resizable cart can de_resize the canvas DURING de_frame (e.g. acidcandy's chunky reflow
             // shrinks 426×196 → 217×100). Re-sync dims + the flip scratch AFTER de_frame, or the blit
             // below memcpy's the OLD (larger) w×h out of the NEW (smaller) framebuffer → SIGSEGV over-read.
             syncSize()
-            guard let live = de_framebuffer(engine) else { return }
+            guard engine != nil, let live = de_framebuffer(engine) else { return }
             base = live
         }
         let t1 = CACurrentMediaTime()
@@ -248,20 +255,20 @@ final class CanvasView: UIView {
             guard let (x, y) = toFB(t.location(in: self)) else { continue }
             let id = nextId; nextId += 1
             touchIds[ObjectIdentifier(t)] = id
-            de_touch_begin(engine, id, x, y)
+            if engine != nil { de_touch_begin(engine, id, x, y) }
         }
     }
     override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
         for t in touches {
             guard let id = touchIds[ObjectIdentifier(t)], let (x, y) = toFB(t.location(in: self)) else { continue }
-            de_touch_moved(engine, id, x, y)
+            if engine != nil { de_touch_moved(engine, id, x, y) }
         }
     }
     private func end(_ touches: Set<UITouch>) {
         for t in touches {
             guard let id = touchIds.removeValue(forKey: ObjectIdentifier(t)) else { continue }
             let (x, y) = toFB(t.location(in: self)) ?? (0, 0)
-            de_touch_ended(engine, id, x, y)
+            if engine != nil { de_touch_ended(engine, id, x, y) }
         }
     }
     override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) { end(touches) }

@@ -614,6 +614,21 @@ Detail lives in the linked design doc in every case; that is where it was always
 
 ## Open — prioritized
 
+> ### The AUv3 panel's LAYOUT TOGGLE has never worked in GarageBand (pre-dates the context work)
+>
+> Opened 2026-08-14, confirmed by the maker: *"the home button never worked (in garageband as plugin)"*.
+> Toggling GarageBand's iPad-style layout leaves the panel garbled, empty, or laid out wrong. **This is
+> NOT a regression from the per-instance refactor** — it was broken before any of it, and it was found
+> only because that work put the plug-in under a real DAW test for the first time in a while.
+> **The cart is not the problem:** driven headlessly through the same `de_resize` path,
+> `node tools/play.js acidcandy --resize 492x308,768x1024,1024x768` reflows correctly in both
+> orientations (landscape and a narrow portrait column both lay out cleanly). So it is in the plug-in's
+> resize path, not the cart's layout. First suspect: `de_pend*` — the pending-resize handshake — lives
+> inside `#ifdef DE_NO_RAYLIB`, so the context generator refused it and it is still process-wide, while
+> the layout state it feeds (`safe_*`, `game_rect`, `place_mode`, backing scale) is now per-instance.
+> Related: [`design/engine-instance-seam.md`](design/engine-instance-seam.md),
+> [`design/device-adaptive-layout.md`](design/device-adaptive-layout.md).
+
 > ### The AUv3 plug-in has NO session state — a reopened DAW project starts every rack at defaults
 >
 > Opened 2026-08-13, found while designing the instance seam. `ios/AU/TinyjamAU.swift` implements no

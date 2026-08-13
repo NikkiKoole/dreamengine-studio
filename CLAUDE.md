@@ -628,7 +628,7 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
              engine-dylib-spike/  PASSED probe: **K independent engines in ONE process**, by loading the
                              engine as a dylib K times instead of refactoring its globals. `bash run.sh`.
                              WHY: two AUv3 instances land in one extension process (measured) and engine
-                             state is process-global (~204 statics in studio.c/sound.h + every cart's own),
+                             state is process-global (~200 mutable statics in studio.c/sound.h + each cart's own),
                              so two DAW tracks fight over one rack. dyld keys images by FILE, so two
                              COPIES of one dylib are two data segments — every static duplicated, ZERO
                              changes to studio.c/sound.h/any cart. Ships as K pre-signed copies in the

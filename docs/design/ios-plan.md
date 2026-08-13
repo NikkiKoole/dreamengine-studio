@@ -434,8 +434,11 @@ worker. The rack is being driven twice per host buffer by two transports. That i
 "weird sound", stated as a mechanism.
 
 It also closes off the cheap hope: there is no host behaviour that gives each track its own process, so
-**per-instance engine state is the only real fix** (~204 file-scope statics in studio.c/sound.h plus
-each cart's own; acidcandy ~120). One much smaller mitigation is available and is a PRODUCT decision,
+**per-instance engine state is the only real fix** — which is also what the platform expects, since an
+AUv3 is designed to be instantiated many times and Apple's own samples keep DSP state in a per-instance
+kernel object. (The scary figures this section originally carried — "~204 statics … acidcandy ~120" —
+were never measured. See "the numbers, finally measured" below: 91 + 109 mutable vars with 34 non-zero
+initialisers between them, and acidcandy has 20, not 120.) One much smaller mitigation is available and is a PRODUCT decision,
 not a cleanup: **elect one instance to drive transport and the frame**, and the second track becomes a
 second window onto the *same* rack — still wrong for two tracks, but coherent instead of garbled, and
 an honest limitation a buyer can be told about.
@@ -443,9 +446,10 @@ an honest limitation a buyer can be told about.
 #### ✅ AND PER-INSTANCE STATE IS CHEAP AFTER ALL — `tools/engine-dylib-spike` PASSES (2026-08-13)
 
 Asked at the right scale ("imagine I want to make 20 audio apps") the answer changes: a hack costs you
-20×, an engine fix costs 1×. So the refactor is what you want and the refactor is unlandable — ~204
-statics in the two files CLAUDE.md names as hot and shared between parallel agents, plus per-cart
-globals in 553 carts, plus every determinism gate downstream. **There is a third route, and it works.**
+20×, an engine fix costs 1×. So the refactor is what you want — and this section originally called it
+UNLANDABLE, on the strength of numbers nobody had run. **That was wrong; see "the numbers, finally
+measured" below. The struct refactor is THE route.** What follows is still worth having, because it is a
+measured FALLBACK and its test harness is the refactor's oracle.
 
 **dyld keys loaded images by FILE, not by symbol.** Two *copies* of one dylib are two images with two
 data segments, so every file-scope static duplicates — all 146 in `sound.h`, all 58 in `studio.c`, and
@@ -497,6 +501,54 @@ on macOS and iOS, so it is not gated and the script's "ZERO frameworks (only lib
 broke. Fixed (link `CoreMIDI` + `CoreFoundation`, header corrected). It sat red for hours because
 nothing runs that script in CI, which is the same shape as the six gates that passed on a plug-in
 GarageBand could not open: **the seams that only humans exercise are the ones that rot.**
+
+#### ▶ THE ROUTE: a context struct — the numbers, finally measured (2026-08-13)
+
+The refactor was called *unlandable* twice in this document on the strength of "~204 statics", a figure
+nobody ran a command against. Run:
+
+```
+grep -E '^static [^(]*;$' <file> | grep -vE '\(|const'      # mutable file-scope vars (a LOWER bound)
+```
+
+| | mutable file-scope vars | of those, NON-ZERO initialisers |
+|---|---|---|
+| `runtime/sound.h` | 91 | **14** |
+| `runtime/studio.c` | 109 | **20** |
+| `acidcandy` | **20** (29 total, 9 const) | — |
+
+**Three things that figure hid, each of which changes the decision:**
+
+**1. The call sites do not change.** The C idiom is one struct plus `#define name (ctx->name)` per member,
+so every existing reference keeps compiling untouched. "204 statics" reads as 204 rewrites; the actual
+hand work is the **34 non-zero initialisers**, which become an init function. Everything else is zero or
+NULL and comes free from a calloc.
+
+**2. The determinism gates are the SAFETY NET, not a cost.** This document listed them as a reason NOT to
+refactor. Backwards: a pure state move MUST produce byte-identical output, and this repo can prove it —
+`tune-check --quiet`, the golden WAVs, `canvas-diff --bytecheck`, `spec.js`, `det-probes/run.sh`. A
+semantic slip shows up as a changed sha. Very few refactors get an oracle this strong. **A non-identical
+render is a bug in the refactor, never "close enough".**
+
+**3. Carts come along for free if they use `de_state()`.** *"A zero-filled block of bytes that the engine
+owns — put your whole cart state in it"*, already the documented idiom (`STATE {…}` / `S->x`, and it
+survives a hot-reload). Put that block inside the engine context and a cart's state duplicates with it —
+**one mechanism covers engine and cart.** The claim that 553 carts each needed treatment was doubly wrong:
+only carts you actually host in an AUv3 matter, and acidcandy has 20 mutable statics, not 120.
+
+**Order:** `sound.h` alone first (self-contained, strongest oracle, clean bail-out) → `studio.c` →
+acidcandy's statics into `STATE` → thread the context through `engine.h` → the three per-instance items
+that are NOT C globals (Swift frame worker, CoreMIDI source name, `cart.blob`) → gate with
+`tools/engine-dylib-spike/probe.c`, whose assertions and negative control port unchanged once `dlopen` is
+swapped for the context call.
+
+**Risks:** `#define` collisions with same-named locals (mechanical to find, do it first), and scheduling —
+these are the two files parallel agents share, so CLAUDE.md's hot-files rule applies in full.
+
+**Why not the dylib route, which is also proven?** It is a workaround for an engine that should not be a
+singleton: K is a hard cap, memory multiplies (~4.5 MB/engine), it rests on dyld image-dedup behaviour
+rather than a documented contract, and it is unusual enough to draw a review question. Keep it as the
+fallback — its spike and oracle are already written.
 
 #### ✅ THE SANDBOX QUESTION IS ANSWERED — YES, and runtime copying is CLOSED (2026-08-13)
 

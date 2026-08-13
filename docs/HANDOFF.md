@@ -200,6 +200,20 @@ a broken doc link or `#section`).
 > processes stay two processes. Scale if ever taken: ~204 engine statics (58 studio.c, 146 sound.h)
 > plus each cart's own (acidcandy ~120); `de_switch_cart` does not help — it is a config-log replay
 > that switches one cart at a time, not concurrent instances.
+> **▶ NEXT ACTION, and it is a LOOK not a build (2026-08-13).** The panel is wired to pull its frame
+> through the channel (`CanvasView.remoteFrame`, `TinyjamCanvasChannel` op=frame, measured 0.32ms for
+> 160x100, byte-exact and non-black). **But the spike proved the HOST→AU hop, and the panel needs the
+> UI-EXTENSION→AU hop, which is NOT the same**: `TinyjamAUViewController.createAudioUnit` builds a
+> TinyjamAU *in the UI process*, and whether a channel taken from it reaches the RENDERING instance
+> depends on the host wiring the view controller to its own proxy — AUv3 does not oblige it to.
+> **Load it in GarageBand and read Console for `[tinyjam] panel channel live — engine nonce N pid P`.**
+> Then compare that nonce with a host-side `./ios/build/au-msgchannel-spike` run. SAME nonce → the
+> panel is genuinely connected and option 4 is done bar the input direction. DIFFERENT nonce → it is
+> still two engines, this route is closed, and the parameter-bound UI (option 3) is the answer.
+> One line of Console settles what previously took sampling a wedged host.
+> Still open after that either way: INPUT back the other way (the ring exists), a TSan look at the
+> view pulling at display rate, and iPad (this is all Mac Catalyst).
+>
 > Full table + the three corrections the spike made to its own author:
 > [`ios-plan.md` → MEASURED 2026-08-13](design/ios-plan.md#measured-2026-08-13-option-4s-transport-is-a-non-issue-iosau-msgchannel-spikeswift).
 >

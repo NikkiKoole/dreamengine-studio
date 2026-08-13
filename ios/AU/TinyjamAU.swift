@@ -311,16 +311,52 @@ public final class TinyjamAU: AUAudioUnit {
 final class TinyjamCanvasChannel: NSObject, AUMessageChannel {
     var callHostBlock: CallHostBlock?
 
+    // The snapshot buffer lives here, in the AUDIO process, where the engine everyone can hear is.
+    // Grown the same way CanvasView grows its own: ask, resize, get it next call.
+    private var buf: UnsafeMutablePointer<UInt32>?
+    private var cap = 0
+
     // ⚠ A METHOD, not a stored closure property. Swift imports AUMessageChannel's callAudioUnit as
     // an OPTIONAL ObjC protocol method, which on the *calling* side reads as an optional closure —
     // so `var callAudioUnit: ((...)->...)?` looks like it conforms, compiles clean, and registers no
     // selector at all. The host's proxy then finds nothing implemented and every reply comes back
-    // EMPTY, which is indistinguishable from "the plug-in has no channel yet". Cost: two rebuilds
-    // and a wrong diagnosis (a retain bug) before the shape of the declaration was the culprit.
+    // EMPTY, which is indistinguishable from "the plug-in has no channel yet".
+    //
+    // THREADING: this runs on whatever thread the XPC call arrives on, never the audio thread — and
+    // de_copy_frame is built for exactly that (a seqlock over the published frame, gated by
+    // tools/present-race-check with a TSan run and a -bypass control). This is the seam being used
+    // for the thing it was written for.
     func callAudioUnit(_ message: [AnyHashable: Any]) -> [AnyHashable: Any] {
-        var reply = message
-        reply["ok"] = true          // marker so the caller can tell a real answer from a no-op channel
-        return reply
+        guard let op = message["op"] as? String else { return [:] }
+        switch op {
+        case "echo":
+            var reply = message
+            reply["ok"] = true          // marker: tells a real answer from a no-op channel
+            return reply
+
+        case "frame":
+            var pw: Int32 = 0, ph: Int32 = 0
+            var ok = buf != nil && de_copy_frame(buf, Int32(cap), &pw, &ph) == 1
+            if !ok {
+                _ = de_copy_frame(nil, 0, &pw, &ph)      // dst == nil: report the size, copy nothing
+                let need = Int(pw) * Int(ph)
+                if need > cap, need > 0 {
+                    buf?.deallocate()
+                    buf = UnsafeMutablePointer<UInt32>.allocate(capacity: need)
+                    cap = need
+                    ok = de_copy_frame(buf, Int32(cap), &pw, &ph) == 1
+                }
+            }
+            guard ok, let b = buf, pw > 0, ph > 0 else { return [:] }
+            // 4 BYTES PER PIXEL. The spike's first estimate assumed a 1-byte palette index and so
+            // undercounted a frame 4x; the engine publishes RGBA UInt32. At this cart's 160x100 that
+            // is 64KB, and a 320x200 cart is 256KB — both already measured on this channel.
+            return ["w": Int(pw), "h": Int(ph),
+                    "px": Data(bytes: b, count: Int(pw) * Int(ph) * 4)]
+
+        default:
+            return [:]
+        }
     }
 }
 

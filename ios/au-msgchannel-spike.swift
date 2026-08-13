@@ -137,12 +137,90 @@ for size in sizes {
     if size <= 1024   && fps >= 60 { stateOK = true }
 }
 
+// ── THE REAL THING: a live frame out of the audio process ──────────────────────────────────────
+// Everything above is an echo — a payload the plug-in bounces without touching the engine. That
+// measures the pipe and nothing else. This asks for an ACTUAL frame, so the number includes
+// de_copy_frame's seqlock read and the Data copy, which is what a real panel would pay.
+//
+// It also checks the frame is PLAUSIBLE, because "it returned bytes" is not the same as "it returned
+// a picture": non-zero dimensions, a byte count that matches w*h*4, and — the one that matters — some
+// NON-ZERO pixels. An all-black frame would satisfy every other check while proving the UI process is
+// still looking at a dead engine, which is the exact bug this whole exercise is about.
+// The plug-in must actually RENDER before it has a frame to give: de_frame runs from the render
+// block, so an AU that has never rendered has published nothing and de_copy_frame honestly reports
+// 0x0. The first run of this spike hit exactly that and the message blamed a black picture, which
+// was wrong twice over — there were no pixels at all, and the AU was simply idle. So drive it like a
+// host first (the au-transport-check rig: manual offline rendering), then ask.
+let renderFmt = AVAudioFormat(standardFormatWithSampleRate: 44100, channels: 2)!
+let hostEngine = AVAudioEngine()
+hostEngine.attach(avAU)
+hostEngine.connect(avAU, to: hostEngine.mainMixerNode, format: renderFmt)
+var rendered = 0
+do {
+    try hostEngine.enableManualRenderingMode(.offline, format: renderFmt, maximumFrameCount: 4096)
+    try hostEngine.start()
+    if let rbuf = AVAudioPCMBuffer(pcmFormat: hostEngine.manualRenderingFormat, frameCapacity: 4096) {
+        for _ in 0..<40 {                                   // ~1.9s at 2048 frames a go
+            guard (try? hostEngine.renderOffline(2048, to: rbuf)) == .success else { break }
+            rendered += 2048
+        }
+    }
+    print("\n  drove the plug-in for \(rendered) frames of audio so it has something to show")
+} catch {
+    print("\n  ⚠ could not drive the plug-in (\(error.localizedDescription)) — a frame may not exist yet")
+}
+
+print("\n  A LIVE FRAME (not an echo — includes de_copy_frame + the copy)")
+var frameOK = false
+var fw = 0, fh = 0, fbytes = 0, nonzero = 0
+var favg = 0.0
+do {
+    let warm = call(["op": "frame"] as [AnyHashable: Any])
+    if warm.isEmpty {
+        print("    the plug-in returned nothing for op=frame — the frame path is not wired yet")
+    } else {
+        fw = (warm["w"] as? Int) ?? 0
+        fh = (warm["h"] as? Int) ?? 0
+        if let px = warm["px"] as? Data {
+            fbytes = px.count
+            nonzero = px.withUnsafeBytes { raw -> Int in
+                let u = raw.bindMemory(to: UInt32.self)
+                var n = 0
+                for v in u where (v & 0x00FF_FFFF) != 0 { n += 1 }
+                return n
+            }
+        }
+        var total = 0.0
+        let reps2 = 60
+        for _ in 0..<reps2 {
+            let t0 = CFAbsoluteTimeGetCurrent()
+            _ = call(["op": "frame"] as [AnyHashable: Any])
+            total += (CFAbsoluteTimeGetCurrent() - t0) * 1000.0
+        }
+        favg = total / Double(reps2)
+        let expect = fw * fh * 4
+        let sane = fw > 0 && fh > 0 && fbytes == expect && nonzero > 0
+        frameOK = sane && favg > 0
+        print("    \(fw)x\(fh)  \(fbytes) bytes  (expect \(expect))  non-zero px \(nonzero)")
+        print("    rtt " + String(format: "%.3fms", favg) + "  →  " + String(format: "%.0f", favg > 0 ? 1000/favg : 0) + " fps ceiling")
+        // THREE distinct failures, three distinct sentences. The first version printed "every pixel
+        // is black" for a 0x0 reply, which is not a black frame — it is no frame — and it sent the
+        // reader looking at the wrong end. Conflating failure modes in a message is the same mistake
+        // as conflating them in a check.
+        if fw == 0 || fh == 0 { print("    ✗ NO FRAME PUBLISHED (0x0) — the engine has not rendered one yet, or is not booted") }
+        else if fbytes != expect { print("    ✗ byte count \(fbytes) != w*h*4 (\(expect)) — the payload is not a whole frame") }
+        else if nonzero == 0 { print("    ✗ EVERY PIXEL IS BLACK — a full frame crossed, but no picture did") }
+    }
+}
+
 // ── the verdict, stated as what it decides rather than pass/fail ──
 print("""
 
   READ IT LIKE THIS
     pixels (option 4)  \(pixelsOK ? "VIABLE — a 150KB frame sustains 20fps+, the canvas can cross the boundary"
                                   : "NOT viable at 150KB — either downscale/compress the frame, or ship STATE instead")
+    live frame         \(frameOK ? "REAL — a genuine engine frame crossed, non-black, at the rate above"
+                                 : "NOT PROVEN — see the frame block above")
     state  (netplay)   \(stateOK ? "VIABLE — small messages are cheap, so mirroring inputs and re-rendering wins on bandwidth"
                                  : "small messages are NOT cheap either — the channel itself is the bottleneck")
 

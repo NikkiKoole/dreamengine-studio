@@ -84,16 +84,51 @@ static int tno_travel(int agent, int obj) {
     return tn_path_len(tn_agent[agent].tx, tn_agent[agent].ty, tn_obj[obj].tx, tn_obj[obj].ty);
 }
 
+// HOW LONG UNTIL THIS OBJECT IS FREE, in minutes. DERIVED from the sitting users' own `until`
+// rather than stored on the object, so there is exactly one truth about when an occupation ends
+// and no field to forget to clear.
+//
+// Occupied by nobody we can find (spec fakes `users` by hand, or a user was destroyed) comes back
+// as TN_UNREACHABLE, which is the honest answer: an occupation with no owner has no end. It also
+// makes this a strict superset of the QUEUE_FULL wall it replaces, so the old assertions still
+// mean what they said.
+static int tno_free_in(int obj) {
+    int soonest = TN_UNREACHABLE;
+    for (int a = 0; a < tn_agent_n; a++) {
+        const TnAgent *g = &tn_agent[a];
+        if (g->activity != TN_ACT_USE || g->target_obj != obj) continue;
+        const int left = g->until - tn_now();
+        if (left < soonest) soonest = left < 0 ? 0 : left;
+    }
+    return soonest;
+}
+
 // THE SCORE, in one place so no module invents its own (contract, offer-index block).
 //     deficit * strength / (travel + queue)
 // Every term a number, which is what makes the choice oracle-able.
-#define QUEUE_FULL 1000                   // an occupied capacity-1 object is not worth waiting for
 static int tno_score(int agent, int obj, const TnOffer *of, TnTag tag) {
     if (of->strength < 0) return -1;                       // capability/storage: not a need bid
     const int deficit = 255 - tn_agent[agent].need[tag];
     if (deficit <= 0) return -1;
     int queue = 0;
-    if (tn_obj[obj].users >= of->capacity) queue = QUEUE_FULL;
+    // WAITING IS PRICED, NOT BANNED, and the unit falls out for free: an agent steps one tile per
+    // tick and a tick is one minute, so a tile of walking and a minute of waiting are literally the
+    // same quantity. `queue` is therefore just "how many more minutes until it's mine", added to
+    // "how many tiles until I'm there".
+    //
+    // This replaces a flat QUEUE_FULL of 1000, which made any occupied capacity-1 object worth
+    // approximately nothing. Measured over 1200 frames of the real building, that produced a
+    // simulation where 99.6% of frames had somebody wanting a full object and 2.3% had anybody
+    // standing at one: contention was continuous in the numbers and invisible on the screen,
+    // because every collision resolved as a silent deflection before anyone moved. Design §1
+    // promises "a queue you can see" and §4 promises "one loom, four tenants, and a queue"; the
+    // score could not produce either, and §10 recorded the ban as a virtue.
+    //
+    // The good part is what the price decides for us, which no ban could express: whether a thing
+    // forms a queue is now a property of HOW LONG IT TAKES. A toilet is a 10-minute offer, so its
+    // worst wait is 10 tiles of walking and people queue for it. A bed is 480 and a loom is 480,
+    // so waiting is never worth it and people deflect. Nobody wrote that rule down.
+    if (tn_obj[obj].users >= of->capacity) queue = tno_free_in(obj);
     else queue = tn_obj[obj].users * 4;                    // sharing is worse than being alone
     // Ownership is a TERM, not a filter, and that distinction is design §6. A comfortable tenant
     // walks across the floor to its OWN fridge; a bottomed-out one raids the neighbour's. A hard ban

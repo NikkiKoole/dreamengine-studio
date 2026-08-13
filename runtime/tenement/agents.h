@@ -66,7 +66,16 @@ void tn_agents_tick(void) {
                         a->activity = TN_ACT_USE;
                         a->pose = of->pose;   // the OBJECT decides what your body does
                         a->until = tn_now() + of->minutes;   // absolute: cannot wrap
-                    } else { a->target_obj = -1; a->activity = TN_ACT_IDLE; }
+                    } else {
+                        // FULL ON ARRIVAL: go idle but KEEP the target, which is what turns the
+                        // priced wait in tno_score into a visible queue. Dropping it here (the
+                        // original) meant a resident who had decided the wait was worth it forgot
+                        // that the moment it arrived, and the next tick's argmax re-derived the
+                        // same answer from scratch with nothing on screen to show for it. Idle is
+                        // still the re-decision point, so a waiter that stops being right about
+                        // waiting walks away by itself: nobody is queued to anything by force.
+                        a->activity = TN_ACT_IDLE;
+                    }
                 } else {
                     int nx, ny;
                     if (!tn_path_next(a->tx, a->ty, ox, oy, &nx, &ny)) {
@@ -86,6 +95,9 @@ void tn_agents_tick(void) {
             // TnIdx, not signed char: the contract widened these and the casts had to follow, or an
             // object index above 127 truncates negative and negative already means "none".
             if (o >= 0) { a->target_obj = (TnIdx)o; a->activity = TN_ACT_WALK; }
+            else a->target_obj = -1;   // wanting nothing must also SHOW as nothing: since arrival
+                                       // at a full object now keeps the target, a sated agent
+                                       // would otherwise stand there still pointed at it.
             break;
         }
         }

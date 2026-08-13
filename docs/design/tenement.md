@@ -257,7 +257,8 @@ against a subtly wrong contract is the expensive failure mode.
 hunger the more urgent need but the fridge across the building, the near toilet wins, and with travel
 equalised the hungrier need wins again. Both directions, so it cannot pass by accident. Case 2 shows
 contention living in the *score* rather than in queue-handling code (an occupied capacity-1 object
-stops attracting anyone; a half-full capacity-2 object still does). Case 4 pins the boundary that
+stops attracting anyone; a half-full capacity-2 object still does — but see §12, because "stops
+attracting anyone" was the wrong rule and this sentence is what let it stand for so long). Case 4 pins the boundary that
 lets one index serve three consumers: a loom and a wardrobe never bid for attention even at zero
 needs, but both remain findable by tag.
 
@@ -348,6 +349,84 @@ have spare hours, then give the hours somewhere to go. Neither half is interesti
 
 **Not in v1.** Recorded so the contract leaves room, and so the next person does not invent a
 separate social system beside the offer index.
+
+## 12. The building does not contend, and the three reasons are stacked
+
+§1 promises "queues form, corridors jam" and "four people failing to share one bathroom". §4 promises
+"one loom, four tenants, and a queue you can see". None of that was happening, and the reason it was
+never noticed is that every one of those promises is prose: no oracle reads §1, and 237 passing
+assertions all describe single decisions rather than a week in the life of a building.
+
+So it got measured. 2000 frames of the shipped building, instrumented under `-DDE_TRACE` in the
+cart's own trace block (`taken` / `share` / `wait` / `busy` / the per-kind occupancies), which is
+left in place because this is the instrument that has to be re-run after any change here.
+
+| | before |
+|---|---|
+| frames where somebody wanted a thing that was full | **99.6%** |
+| frames where anybody was standing at one | **2.3%** |
+| the WC, the building's headline scarcity, in use | **8.9%** |
+| the loom, one machine for four households, in use | 78.5% |
+| beds in use | 94.8%, and **flat across all 24 hours** |
+
+Contention was continuous in the numbers and absent from the picture. Three separate things caused
+that, and they stack, so fixing only the top one moves almost nothing (measured: it moved `wait`
+from 2.3% to 3.0%).
+
+**(a) Waiting was banned rather than priced. FIXED.** The score carried a flat `QUEUE_FULL` of 1000
+for an occupied capacity-1 object, which is a wall dressed as a number: the bid did not fall, it
+vanished, so every collision resolved as a silent deflection *before anybody moved*. Nobody ever
+converged on anything, so there was nothing to see.
+
+It is now `tno_free_in(obj)`, the minutes until the current sitting ends, derived from the users'
+own `until` so there is no field to forget to clear. The unit falls out for free and this is the
+part worth keeping: an agent steps one tile per tick and a tick is one minute, so **a tile of
+walking and a minute of waiting are literally the same quantity**. The whole denominator is minutes.
+
+What that buys is a rule nobody had to write down: whether a thing forms a queue is now a property
+of **how long it takes**. A toilet is a 10-minute offer, so its worst wait costs ten tiles of
+walking and people queue for it. A bed and a loom are 480, so waiting is never worth it and people
+deflect. `spec()` case 2b pins both directions. Case 2 above kept passing throughout, because it
+fakes occupancy by poking `users` with nobody inside, and an occupation with no occupant honestly
+has no end date: a reminder that a test which stubs the world tests the stub.
+
+**(b) The score has no term for how long an action takes. OPEN, and it touches the thesis.** The
+score is `deficit * strength / (travel + queue)`, so an eight-hour sleep is priced exactly like a
+ten-minute visit to the toilet. A bed is strong (120) and one tile away in your own flat, so it wins
+constantly: **residents sleep 62% of their lives**, which starves every other object of the demand
+that would make it contend. That is the whole reason the WC sits empty 91% of the time. The
+scarcity is real in the floor plan and fictional in the arithmetic.
+
+Adding `+ of->minutes` to the denominator makes it `value / time`, which is dimensionally right
+(every term already minutes) and measurably better: sleep 2.45 → 1.81 residents, sofa use +49%,
+fridge +33%, and the loom saturates at 99%, becoming the genuine bottleneck §4 asks for. It is not
+done here because **it breaks case 1's converse**, the assertion that stops the headline claim
+passing by accident: with travel equalised, a 30-minute fridge no longer outbids a 10-minute toilet
+however hungry you are. Under `value / time` that is arguably correct and is exactly what §8's
+"objects buy back TIME" needs in order to be representable at all. But it is a change to what the
+cart claims, so it wants a decision rather than a commit.
+
+**(c) There is no day. OPEN, and it is the deepest.** `TNA_DECAY` is a flat rate per hour, so
+nothing in the simulation varies with the time of day: `tn_clock` is read by the HUD and by nothing
+that decides anything. **2.5 of 4 residents are asleep at 11am**, and bed occupancy is within noise
+of identical at every hour. Adding (b) does not fix it; the day stays flat.
+
+This matters more than either of the others because **contention in a building is about synchrony,
+not about utilisation**. Four people failing to share one bathroom is not a queueing result, it is a
+*morning*. Independent residents on uniform decay are four Poisson processes, and four Poisson
+processes at 9% duty cycle collide about as often as this building does. No amount of pricing the
+wait produces a rush hour out of demand that is uniform by construction.
+
+The fix stays on the one principle, which is the encouraging part: a rhythm is a **data row**, not a
+code path. A per-need `{ base, amplitude, peak_hour }` beside `TNA_DECAY` gives sleepiness an
+evening peak and hunger a midday one, everyone synchronises without a single scripted schedule, and
+the WC jams at seven in the morning because everybody woke up. Work shifts in `work.h` are a second
+synchroniser already built and not yet pulling.
+
+**The general lesson, which is not about this cart.** All three defects lived in the gap between a
+design doc written in prose and a test suite written per decision. The assertions were right, the
+building was wrong, and only a *distribution over time* could tell the difference. Sims want an
+oracle that reads a week, not a choice.
 
 ## See also
 

@@ -83,6 +83,58 @@ void update(void) {
     watch("hunger0", "%d", tn_agent[0].need[TN_SERVE_HUNGER]);
     watch("act0",    "%d", tn_agent[0].activity);
     watch("bid0",    "%d", tn_agent[0].bid_score);
+    // CONTENTION, measured rather than assumed, and the reason this block exists permanently.
+    //
+    // design §1 promises "queues form, corridors jam" and §4 promises "one loom, four tenants, and
+    // a queue you can see". No oracle reads a design doc, and every one of the 242 assertions
+    // describes a single DECISION, so nothing in the repo could see that the building was not doing
+    // any of it. Only a distribution over time can: 99.6% of frames had somebody wanting a full
+    // object and 2.3% had anybody standing at one, the headline scarcity (one WC, four households)
+    // sat empty 91% of the time, and bed occupancy was flat across all 24 hours because residents
+    // sleep 62% of their lives. The full reading is design §12; two of its three causes are still
+    // open, so re-run this after any change to the score, the decay rates or the offer table:
+    //
+    //   node tools/play.js tenement script /dev/null --headless --frames 2000 --trace out.jsonl
+    //
+    // `uXXX` histogrammed by frame index gives the hour-of-day shape (1 frame = 4 sim minutes).
+    {
+        int taken = 0, share = 0, wait = 0, busy = 0;
+        for (int o = 0; o < tn_obj_n; o++) {
+            const int kind = tn_obj[o].kind;
+            for (int i = 0; i < TN_OFFER_N[kind]; i++) {
+                const TnOffer *of = &TN_OFFERS[kind][i];
+                if (of->tag >= TN_SERVE_COUNT || tn_obj[o].users < of->capacity) continue;
+                busy++;
+                for (int a = 0; a < tn_agent_n; a++)
+                    if (tn_agent[a].need[of->tag] < 255 && tn_agent[a].target_obj != o) taken++;
+            }
+        }
+        for (int a = 0; a < tn_agent_n; a++) {
+            if (tn_agent[a].target_obj < 0) continue;
+            for (int b = a + 1; b < tn_agent_n; b++)
+                if (tn_agent[b].target_obj == tn_agent[a].target_obj) share++;
+            const int t = tn_agent[a].target_obj;
+            if (tn_agent[a].activity != TN_ACT_USE &&
+                abs(tn_agent[a].tx - tn_obj[t].tx) + abs(tn_agent[a].ty - tn_obj[t].ty) <= 1) wait++;
+        }
+        watch("taken", "%d", taken);   // wanted by someone, and full
+        watch("share", "%d", share);   // two residents heading for the same thing
+        watch("wait",  "%d", wait);    // standing at a thing without using it
+        watch("busy",  "%d", busy);    // offers at capacity right now
+        {
+            int use[TN_OBJ_KIND_COUNT] = {0};
+            for (int o = 0; o < tn_obj_n; o++) if (tn_obj[o].users > 0) use[tn_obj[o].kind]++;
+            watch("uBED", "%d", use[TN_OBJ_BED]);
+            watch("uWC",  "%d", use[TN_OBJ_TOILET]);
+            watch("uFRG", "%d", use[TN_OBJ_FRIDGE]);
+            watch("uSOF", "%d", use[TN_OBJ_SOFA]);
+            watch("uLOO", "%d", use[TN_OBJ_LOOM]);
+            int lowbl = 0;
+            for (int a = 0; a < tn_agent_n; a++)
+                if (tn_agent[a].need[TN_SERVE_BLADDER] < 128) lowbl++;
+            watch("needWC", "%d", lowbl);   // how many residents are half-desperate at once
+        }
+    }
 #endif
 }
 
@@ -164,6 +216,54 @@ void spec(void) {
         expect(tn_best_action(0, &tag, &score) == 1 && tag == TN_SERVE_FUN,
                "case 2: a half-full capacity-2 object is still a valid offer");
     }
+
+    // ── CASE 2b: A WAIT IS PRICED, NOT BANNED ───────────────────────────────
+    // Case 2 above fakes occupancy by poking `users` with nobody inside, which is why it kept
+    // passing when the rule underneath it changed: an occupation with no occupant has no end date,
+    // so it still reads as infinite. This case puts a REAL resident in there with a REAL clock on
+    // it, which is the only way the interesting half gets exercised.
+    //
+    // What it pins is the thing that makes queues possible at all: how long you would wait is a
+    // number in the same unit as how far you would walk, so a short wait for the right thing beats
+    // a walk to the wrong one, and a long wait does not. Nobody wrote "toilets form queues and beds
+    // do not" anywhere — it falls out of 10 minutes versus 480.
+    tn_obj_n = 0; tn_agent_n = 0;
+    tn_add_obj(TN_OBJ_TOILET, 1, 1, 0);          // obj 0 — a 10-minute offer
+    tn_add_obj(TN_OBJ_SOFA,   3, 1, 0);          // obj 1 — the alternative, if waiting is not worth it
+    tn_add_agent(0, 1, 2);                       // agent 0 — the one deciding
+    tn_add_agent(0, 1, 0);                       // agent 1 — the one already in there
+    for (int n = 0; n < TN_NEED_COUNT; n++) { tn_agent[0].need[n] = 255; tn_agent[1].need[n] = 255; }
+    tn_agent[0].need[TN_SERVE_BLADDER] = 60;
+    tn_agent[0].need[TN_SERVE_FUN]     = 90;
+    tn_agent[1].activity   = TN_ACT_USE;
+    tn_agent[1].target_obj = 0;
+    tn_obj[0].users        = 1;
+    {
+        TnTag tag; int soon_score, late_score;
+        tn_agent[1].until = tn_now() + 2;         // nearly done
+        expect(tn_best_action(0, &tag, &soon_score) == 0 && tag == TN_SERVE_BLADDER,
+               "case 2b: two minutes from free, the toilet is still the best offer — you WAIT");
+
+        tn_agent[1].until = tn_now() + 400;       // just went to sleep on the job
+        expect(tn_best_action(0, &tag, &late_score) == 1 && tag == TN_SERVE_FUN,
+               "case 2b: 400 minutes from free, the same toilet loses to the sofa — you LEAVE");
+
+        expect(tn_score_offer(0, 0, TN_SERVE_BLADDER) < soon_score,
+               "case 2b: and it is a slope, not a switch — the longer the wait, the lower the bid");
+    }
+    // The state machine has to agree with the score, or the decision to wait is invisible: a
+    // resident that arrives and finds the thing full must STAND THERE still pointed at it. The
+    // original dropped the target on arrival, so a waiter re-derived the same answer every tick
+    // with nothing on screen to show for it, and that is why contention read as teleportation.
+    tn_agent[1].until      = tn_now() + 5;
+    tn_agent[0].tx = 1; tn_agent[0].ty = 2;       // already beside it
+    tn_agent[0].activity   = TN_ACT_WALK;
+    tn_agent[0].target_obj = 0;
+    tn_agents_tick();
+    expect(tn_agent[0].target_obj == 0 && tn_agent[0].activity != TN_ACT_USE,
+           "case 2b: arriving at a full object KEEPS the target — the wait is a place you stand");
+    expect(tn_obj[0].users == 1,
+           "case 2b: and waiting never sneaks past capacity — still exactly one person in there");
 
     // ── CASE 3: A SATED NEED MAKES NO BID ───────────────────────────────────
     tn_obj_n = 0; tn_agent_n = 0;

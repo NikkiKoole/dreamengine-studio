@@ -141,8 +141,11 @@ a broken doc link or `#section`).
 > claimed IP infringement** — so this is the documented cause of death of the app we are an homage to —
 > while our own PAID listing, already pushed to ASC, is titled "**303** Groovebox" with `rebirth`, `338`
 > and `tb303` in the keyword field, breaking a rule `product-notes.md` wrote down years earlier
-> ("nothing Roland-named crosses a paywall"). The market's answer is Troublemaker's: sell the SOUND,
-> never wear the trademark. No tool enforces this — a trademark screen belongs in the `aso-*` pipeline.
+> ("nothing Roland-named crosses a paywall"). The market's answer is finer than "avoid the numbers":
+> Troublemaker uses "303/TB-303" freely in its DESCRIPTION (with a "this is not a 303" disclaimer, and
+> never says Roland) while keeping its NAME and SUBTITLE clean — the marks stay out of the identity
+> fields. Ours are in both. And the weakest item is `rebirth`/`338`: Reason Studios' marks, not
+> descriptive of our sound at all, so no nominative-use defence. No tool enforces this — a trademark screen belongs in the `aso-*` pipeline.
 > **(2)** `acidcandy` **cannot export a track**, and in-app export is what ReBirth shipped instead of
 > relying on a host — which is the real answer to "recording it in GarageBand does nothing".
 > `acidrack` can export via the engine's live capture, so the surface exists and the shipping cart

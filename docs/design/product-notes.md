@@ -118,11 +118,32 @@ Connect — reads:
 That is Roland's model numbers in the title and subtitle, plus **`rebirth` and `338`** — Reason
 Studios' marks — in the keyword field. By our own rule, none of it should cross a paywall.
 
-**How the market solves it, and it is instructive:** Bram Bos's **Troublemaker** is marketed as
-explicitly *"not a 303"* and sells fine on the sound alone
-([Synthtopia](https://www.synthtopia.com/content/2017/01/09/new-troublemaker-synth-not-a-303-it-just-sounds-like-one-and-works-in-your-ios-daw/)).
-**Pure Acid** says "inspired by … like the legendary TB-303" rather than claiming to be one. The
-pattern is: describe the SOUND and the LINEAGE, never wear the trademark.
+**How the market actually solves it — and the distinction is finer than "avoid the numbers".** The
+first version of this note said "never wear the trademark", the maker pointed out that Troublemaker has
+"bassline / 303" all over its page, and he is right. Reading the actual listing
+([App Store](https://apps.apple.com/us/app/troublemaker/id1180892130)) the pattern is about **which
+field the mark sits in**:
+
+| field | Troublemaker | ours |
+|---|---|---|
+| **name** (the identity) | `Troublemaker` — original, no mark | `Tiny Acid Jam: **303** Groovebox` |
+| **subtitle** | `Acid Bassline Synth` — generic descriptors | `**808**, **909**, house in your pocket` |
+| **description** | uses "303" and "TB-303" freely, *plus* an explicit **"this is not a 303 … if you want a TB-303, you should buy a TB-303"**, and never says "Roland" | describes the sound; no disclaimer |
+| **keywords** | (not public) | `**rebirth**, **338**, **tb303**` |
+
+So: **describing the sound in the description is normal practice** (nominative use — "it sounds like
+X"), and a disclaimer plus never naming the manufacturer is the belt-and-braces. What Troublemaker
+does *not* do is put a model number in the fields that function as the product's identity. Ours does,
+in both.
+
+**And the weakest part of ours is not the Roland numbers at all — it is `rebirth` and `338`.** Those
+are Reason Studios' product marks, and they are not descriptive of our sound in any sense: they are
+there to catch searches for someone else's app. That is the one item on the list with no
+nominative-use defence.
+
+Cheapest fix, if the maker wants one: keep "acid / bassline / groovebox" in the identity fields, move
+the model numbers into the description where they describe the sound, add Troublemaker's disclaimer
+sentence, and drop `rebirth`/`338` from the keyword field outright.
 
 **Not fixed here** — renaming a listing is the maker's call and touches the store metadata, the ASO
 brief and the icon. But `aso-lint`/`aso-compose` happily packed those keywords because they optimise

@@ -75,10 +75,9 @@ _Last updated: 2026-07-30 — **Synth Secrets phases 1 + 2**: PIANO's dispersion
   kept the fix out of the engine. New **`ios/AU/RateConvert.swift`** (Catmull-Rom + an anti-alias
   cascade only when the host is below us; **bit-identical at 44100**, where the old path still runs),
   gated by **`ios/rate-convert-check.swift`** — a 220 Hz sine through the real struct, 220.000 Hz at
-  every rate. ⚠ The cents figure first published here was **retracted**: it came from a per-window
-  zero-crossing estimator quantized to a grid that moves with the sample rate, so it reported the rate
-  ratio itself and looked exactly like the defect (ios-plan.md → "Retracted"). A nondeterministic cart
-  can't be a converter's reference signal; a sine can. And the **AUv3 VIEW is WIRED**
+  every rate. ⚠ The cents figure first published here was **retracted** as an estimator artifact
+  (ios-plan.md → "Retracted"): a nondeterministic cart can't be a converter's reference signal, a sine
+  can. And the **AUv3 VIEW is WIRED**
   (`AU/TinyjamAUViewController.swift` + the app's own `CanvasView` in a new `hosted: true` blit-only
   mode) — a plug-in a host can only show generic sliders for is, for a groovebox, the same as not
   working. That took **three host→engine seams**, because a plug-in inverts which thread is which

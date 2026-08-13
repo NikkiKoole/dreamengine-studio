@@ -7,7 +7,9 @@
   "created": "2026-08-13",
   "lineage": "A look probe for tenement, whose maker's verdict was that the picture reads as an architectural diagram with a caption. Asks one question: does the same flat, rendered as low-poly flat-shaded triangles instead of baked voxel sprites, read as FOUR PEOPLE IN A BUILDING? Renderer chassis from solid3d (rot/cull/light/sort/trifill + the fillp checker half-shade); shapes transcribed from tools/voxel-models/tenement.js so the comparison is of RENDERINGS, not of two different object sets.",
   "todo": [
-    "THE REAL ARCHITECTURAL QUESTION, and it is an ENGINE question rather than this cart's: everything here that fights sorting artifacts — one depth per face instead of per triangle, subdividing every polygon down to a tile, the abut-never-overlap authoring rule, the wall merge-versus-split tradeoff — is compensation for having no DEPTH BUFFER. A z-buffer makes all four classes vanish at once and lets a wall be one polygon again. ADR-0009 deliberately scoped general 3D out and chose small leaf helpers, and that was right against a 3D ENGINE; this cart is evidence for a much narrower thing, a per-pixel depth compare in the software rasterizer. Cost is a 320x200 depth array (64k entries) plus an interpolated depth per pixel in trifill, and the measured headroom is there: 0.93ms average of a 16.67ms budget. It wants an ADR, not a patch.",
+    "THE DEPTH BUFFER IS BUILT AND MEASURED (X toggles it) AND THE RESULT IS THE OPPOSITE OF EXPECTED: it is not slower, it is slightly FASTER. Sorted path 0.93ms avg / 2.77ms peak with 551 trifill; depth-tested path 0.86ms / 2.23ms with 3996 one-row rectfill — from CART LAND, through the public API, which was supposed to be the expensive way. Two reasons: the sort draws every triangle in full and the depth test only emits runs that survive, and zsort is an INSERTION sort, so 551 triangles is up to ~150k comparisons a frame that the depth path simply does not do. Engine-side would be faster still (direct framebuffer writes, no per-run call).",
+    "AND THE PICTURES AGREE: 103 differing pixels of 56320 (0.18%), max delta 146, at the angle that used to fail. So the depth buffer is NOT fixing a visible bug today — subdivision plus the abut rule already do. Its value is deleting those compensations, and that is a real but different argument. Read the residual 0.18% before believing either path: they are edge pixels where this cart's own rasterizer and the engine's trifill coverage rule disagree, NOT sort errors, and confirming that is the next job.",
+    "SO THE ENGINE QUESTION IS NOW EVIDENCED RATHER THAN SPECULATIVE. ADR-0009 scoped general 3D out and chose leaf helpers, which was right against a 3D ENGINE; what this measures is much narrower — a per-pixel depth compare inside trifill plus one 320x200 depth array. It is cheap, it is faster than sorting, and it removes four separate authoring constraints. It still wants an ADR and a det-probes gate rather than a patch to a hot shared file, and the numbers above are the evidence to argue it with.",
     "SUBDIVISION IS NOW LOAD-BEARING and its bound is asserted, not assumed: no quad may span more than two tiles of depth (spec case 5). If a future mesh gets big flat faces, they subdivide automatically — but the constant is tuned to a 6-voxel tile, so changing TILE changes the sort's soundness. The cost of the bound is measured: tri count 372 to 551, frame 0.59ms to 0.93ms.",
     "THE HEX MODE IS THE OPEN QUESTION, and it is bigger than this cart. D's third setting abandons the dither and writes real ramps into palette slots 32-63, which are free (PALETTE_SIZE is 64 and only 0-31 are named). That is not off-grain: palette-and-color.md already carries a release gate that no paid app ships on the borrowed PICO-8 set. But the BUDGET is the finding — 32 slots buys six materials four shades each plus four households two each, and nothing for skin, trim, trousers or the floor. If the answer is 'real shades, always', the next question is not this cart's: it is whether the console's palette stops being 32 fixed entries, which is blend-tables and dynamic-palettes territory.",
     "PERSPECTIVE is not implemented and the seam is marked in pr_project: this is a stylized shear (the ground squash and the height scale are two independent numbers, inherited from the voxel bake's 2px-per-voxel convention, which no single orthographic elevation can produce). A real perspective divide is a different projection and a different question; add it only if the ortho look wins first.",
@@ -18,7 +20,7 @@
   "description": {
     "summary": "One flat, two renderers, one key between them: low-poly triangles against the baked voxel sprites. Which one looks like people live there?",
     "detail": "tenement's problem is not its simulation, it is that you cannot see who lives in the building: at 24 pixels a resident is a one-tile blob in the same colour family as the furniture. This probe rebuilds the identical scene as flat-shaded low-poly triangles and puts the two renderings one keypress apart, so the comparison is a picture rather than an argument. Both halves walk the SAME item list at the SAME scale through the SAME projection, and at yaw 45 degrees the polygon projection reproduces the voxel one exactly, which is what makes TAB a fair test. What triangles buy: any camera angle instead of four baked ones, diagonals (a sofa back rakes, a torso widens into shoulders, a loom is skeletal), and lighting that can be pinned to the screen or left in the world. What they cost: crisp snapped edges, which crawl once the angle is not one the sprites were baked at.",
-    "controls": "TAB flips POLY / VOXEL. Q and E turn: a free orbit in POLY, a quarter-turn step in VOXEL, because the sprites exist at four angles and nowhere in between. W and S raise and lower the camera (POLY only, for the same reason). Z cycles zoom 1x 2x 3x. D cycles the shading three ways: dithered half-shades, flat, or real hex ramps written into the palette's unused upper 32 slots. L moves the light between screen-fixed (what the voxel bake does) and world-fixed. H toggles per-household colour on the residents. SPACE resets the camera."
+    "controls": "X toggles the depth buffer: the sorted painter's path against a real per-pixel depth test built in cart land. TAB flips POLY / VOXEL. Q and E turn: a free orbit in POLY, a quarter-turn step in VOXEL, because the sprites exist at four angles and nowhere in between. W and S raise and lower the camera (POLY only, for the same reason). Z cycles zoom 1x 2x 3x. D cycles the shading three ways: dithered half-shades, flat, or real hex ramps written into the palette's unused upper 32 slots. L moves the light between screen-fixed (what the voxel bake does) and world-fixed. H toggles per-household colour on the residents. SPACE resets the camera."
   }
 }
 de:meta */
@@ -502,7 +504,11 @@ static void pr_camera(void) {
 }
 
 // ── the polygon renderer ────────────────────────────────────────────────────
-typedef struct { int x[3], y[3]; float depth, bright; unsigned char mat, hh; } Tri;
+// zv[] is the PER-VERTEX depth, needed only by the z-buffer path: a painter's sort wants one number
+// per face, a depth test wants one per pixel. Screen-space linear interpolation of depth is EXACT
+// here rather than approximate, because the projection is orthographic — there is no perspective
+// divide, so depth really is affine in screen x/y. A perspective renderer would need 1/z.
+typedef struct { int x[3], y[3]; float zv[3]; float depth, bright; unsigned char mat, hh; } Tri;
 #define MAX_TRIS 3072
 static Tri pr_tri[MAX_TRIS];
 static int pr_tri_n, pr_tri_drawn, pr_order[MAX_TRIS];
@@ -532,9 +538,11 @@ static void pr_tri_push(const float a[3], const float b[3], const float c[3],
     if (pr_tri_n >= MAX_TRIS) return;
     Tri *t = &pr_tri[pr_tri_n];
     const float *v[3] = { a, b, c };
+    float dx, dy, dz; pr_viewdir(&dx, &dy, &dz);
     for (int i = 0; i < 3; i++) {
         float sx, sy; pr_project(v[i][0], v[i][1], v[i][2], &sx, &sy);
         t->x[i] = (int)(sx + pr_cx); t->y[i] = (int)(sy + pr_cy);
+        t->zv[i] = -(v[i][0]*dx + v[i][1]*dy + v[i][2]*dz);   // negated nearness: smaller = nearer
     }
     t->depth = depth; t->bright = bright;
     t->mat = (unsigned char)mat; t->hh = (unsigned char)(hh < 0 ? 255 : hh);
@@ -653,17 +661,18 @@ static void pr_part(const Part *p, float ox, float oy, float oz, int hh, float l
 // Brightness -> a shade. Four ramp entries become SEVEN steps: the odd ones are a checker of two
 // adjacent colours, which is a shade the palette does not contain. D turns it off and the gradient
 // collapses into four hard bands, which is the fastest way to see what the dither is buying.
-static void pr_shade_fill(const Tri *t) {
+// Decide a face's colour WITHOUT drawing it, so the sorted path and the depth-tested path cannot
+// drift apart on shading — the only thing X may change is which pixels survive. *hi/*lo carry the
+// dither pair when the face is dithered, and are -1 when it is solid.
+static void pr_shade_of(const Tri *t, int *color, int *hi, int *lo) {
+    *hi = -1; *lo = -1;
     // THE FLOOR IS NEVER SHADED AND NEVER DITHERED, and both halves of that are deliberate. It is
     // one flat plane at one brightness, so a checker between two shades cannot read as shading —
     // it can only read as a chequered lino, which is what it did (a 50% brown/tan pattern over the
     // whole room, which looked like a texture decision and was an accident). Drawing it as the
     // literal two browns the voxel half uses also keeps the A/B honest: the floor is then the same
     // pixels in both modes, so every difference you see is furniture and people.
-    if (t->mat >= M_FLOOR_A) {
-        trifill(t->x[0], t->y[0], t->x[1], t->y[1], t->x[2], t->y[2], RAMP[t->mat][2]);
-        return;
-    }
+    if (t->mat >= M_FLOOR_A) { *color = RAMP[t->mat][2]; return; }
     const int is_shirt = (t->hh < HH_COUNT && pr_tint && t->mat == M_SHIRT);
 
     // HEX mode: the material simply has its shades, out of the palette's free upper half. No
@@ -678,10 +687,7 @@ static void pr_shade_fill(const Tri *t) {
             if (s > PR_MAT_SH - 1) s = PR_MAT_SH - 1;  if (s < 0) s = 0;
             slot = PR_SLOT0 + SG_OF[t->mat] * PR_MAT_SH + s;
         }
-        if (slot >= 0) {
-            trifill(t->x[0], t->y[0], t->x[1], t->y[1], t->x[2], t->y[2], slot);
-            return;
-        }
+        if (slot >= 0) { *color = slot; return; }
         // No slot in the budget (skin, trim, trousers) — fall through to the flat base ramp.
     }
 
@@ -696,16 +702,22 @@ static void pr_shade_fill(const Tri *t) {
                           - (long)(t->x[2]-t->x[0]) * (t->y[1]-t->y[0]));   // 2x the triangle area
     if (pr_shade != SH_DITHER || area2 > 400) {
         int s = (int)(t->bright * 3.999f); if (s > 3) s = 3; if (s < 0) s = 0;
-        trifill(t->x[0], t->y[0], t->x[1], t->y[1], t->x[2], t->y[2], ramp[s]);
+        *color = ramp[s];
         return;
     }
     int s = (int)(t->bright * 6.999f); if (s > 6) s = 6; if (s < 0) s = 0;
-    if (s & 1) {
-        fillp(FILL_CHECKER, ramp[s / 2]);
-        trifill(t->x[0], t->y[0], t->x[1], t->y[1], t->x[2], t->y[2], ramp[s / 2 + 1]);
+    *color = ramp[s / 2];
+    if (s & 1) { *color = ramp[s / 2 + 1]; *hi = ramp[s / 2 + 1]; *lo = ramp[s / 2]; }
+}
+
+static void pr_shade_fill(const Tri *t) {
+    int col, hi, lo; pr_shade_of(t, &col, &hi, &lo);
+    if (hi >= 0) {
+        fillp(FILL_CHECKER, lo);
+        trifill(t->x[0], t->y[0], t->x[1], t->y[1], t->x[2], t->y[2], hi);
         fillp_reset();                 // fillp is STICKY and into the next frame — always reset
     } else {
-        trifill(t->x[0], t->y[0], t->x[1], t->y[1], t->x[2], t->y[2], ramp[s / 2]);
+        trifill(t->x[0], t->y[0], t->x[1], t->y[1], t->x[2], t->y[2], col);
     }
 }
 
@@ -729,11 +741,97 @@ static void pr_build_tris(void) {
     }
 }
 
+// ── A Z-BUFFER, IN CART LAND ────────────────────────────────────────────────
+// Built here rather than in the engine ON PURPOSE, and the reasoning matters more than the code.
+// Everything the sorted path needs — one depth per face, subdivide to a tile, parts must abut, walls
+// merged for seams but split for sorting — is compensation for not having a depth test. Whether the
+// depth test is worth having is a question about the PICTURE, so it gets answered by looking, and
+// looking needs no engine change. X toggles it, so the artifacts appear and disappear side by side.
+//
+// WHERE IT WOULD EVENTUALLY LIVE IS STILL THE ENGINE, and this cart cannot pretend otherwise: from
+// cart land every pixel run is a `rectfill` call through the full public path, where the engine
+// writes its framebuffer directly. So treat the frame cost below as an upper bound on a real
+// implementation and NOT as evidence against one — that would be measuring the wrapper.
+//
+// The depth test also makes the sort unnecessary rather than better: in this mode zsort is not
+// called at all and draw order does not matter. That IS the argument, in one sentence.
+static float pr_zbuf[SCREEN_W * SCREEN_H];
+static int   pr_zbuf_on = 0, pr_zspans;
+#define PR_ZFAR 1e18f
+
+// Flat-shaded triangle with a depth test, as edge functions stepped incrementally. Runs of pixels
+// that pass are emitted as ONE rectfill, because a flat triangle's passing pixels are contiguous
+// until something occludes them — that keeps the call count near the scanline count rather than the
+// pixel count, which is the difference between this being usable and being a slideshow.
+static void pr_raster_z(const Tri *t, int color, int dither_hi, int dither_lo) {
+    int x0 = t->x[0], y0 = t->y[0], x1 = t->x[1], y1 = t->y[1], x2 = t->x[2], y2 = t->y[2];
+    float z0 = t->zv[0], z1 = t->zv[1], z2 = t->zv[2];
+    float area = (float)(x1-x0) * (y2-y0) - (float)(x2-x0) * (y1-y0);
+    if (area == 0.0f) return;
+    if (area < 0.0f) {                                  // keep one winding so "inside" is one test
+        int tx = x1; x1 = x2; x2 = tx;  int ty = y1; y1 = y2; y2 = ty;
+        float tz = z1; z1 = z2; z2 = tz;  area = -area;
+    }
+    int lox = x0 < x1 ? (x0 < x2 ? x0 : x2) : (x1 < x2 ? x1 : x2);
+    int hix = x0 > x1 ? (x0 > x2 ? x0 : x2) : (x1 > x2 ? x1 : x2);
+    int loy = y0 < y1 ? (y0 < y2 ? y0 : y2) : (y1 < y2 ? y1 : y2);
+    int hiy = y0 > y1 ? (y0 > y2 ? y0 : y2) : (y1 > y2 ? y1 : y2);
+    if (lox < 0) lox = 0;  if (hix > SCREEN_W - 1) hix = SCREEN_W - 1;
+    if (loy < 0) loy = 0;  if (hiy > SCREEN_H - 1) hiy = SCREEN_H - 1;
+    if (lox > hix || loy > hiy) return;
+
+    const float inv = 1.0f / area;
+    // w0 is the weight of vertex 0 and is the edge function of the OPPOSITE edge (v1,v2).
+    const float a0 = -(float)(y2 - y1), b0 = (float)(x2 - x1);
+    const float a1 = -(float)(y0 - y2), b1 = (float)(x0 - x2);
+    const float a2 = -(float)(y1 - y0), b2 = (float)(x1 - x0);
+
+    for (int y = loy; y <= hiy; y++) {
+        const float py = (float)y + 0.5f, px0 = (float)lox + 0.5f;
+        float w0 = a0 * (px0 - (float)x1) + b0 * (py - (float)y1);
+        float w1 = a1 * (px0 - (float)x2) + b1 * (py - (float)y2);
+        float w2 = a2 * (px0 - (float)x0) + b2 * (py - (float)y0);
+        int run_x = -1, run_n = 0, run_col = 0;
+        for (int x = lox; x <= hix; x++, w0 += a0, w1 += a1, w2 += a2) {
+            int keep = 0, col = color;
+            if (w0 >= 0.0f && w1 >= 0.0f && w2 >= 0.0f) {
+                const float z = (w0 * z0 + w1 * z1 + w2 * z2) * inv;
+                float *slot = &pr_zbuf[y * SCREEN_W + x];
+                if (z < *slot) {                        // smaller = nearer
+                    *slot = z; keep = 1;
+                    // The dither is a 50% checker, so in this path it is a per-pixel parity choice
+                    // rather than a global fillp — fillp cannot be honoured one pixel at a time.
+                    if (dither_hi >= 0) col = ((x ^ y) & 1) ? dither_hi : dither_lo;
+                }
+            }
+            if (keep && (run_n == 0 || col == run_col)) {
+                if (run_n == 0) { run_x = x; run_col = col; }
+                run_n++;
+            } else {
+                if (run_n) { rectfill(run_x, y, run_n, 1, run_col); pr_zspans++; }
+                run_n = keep;  run_x = x;  run_col = col;
+            }
+        }
+        if (run_n) { rectfill(run_x, y, run_n, 1, run_col); pr_zspans++; }
+    }
+}
+
 static void pr_draw_poly(void) {
     pr_build_tris();
-    for (int i = 0; i < pr_tri_n; i++) pr_key[i] = pr_tri[i].depth;
-    zsort(pr_key, pr_order, pr_tri_n);                 // far -> near; there is no z-buffer
-    for (int i = 0; i < pr_tri_n; i++) pr_shade_fill(&pr_tri[pr_order[i]]);
+    if (pr_zbuf_on) {
+        // NO SORT AT ALL. Not a faster sort, not a better one — none. Draw order stops mattering,
+        // which is the whole argument for a depth buffer in one line of code.
+        for (int i = 0; i < SCREEN_W * SCREEN_H; i++) pr_zbuf[i] = PR_ZFAR;
+        pr_zspans = 0;
+        for (int i = 0; i < pr_tri_n; i++) {
+            int col, hi, lo; pr_shade_of(&pr_tri[i], &col, &hi, &lo);
+            pr_raster_z(&pr_tri[i], col, hi, lo);
+        }
+    } else {
+        for (int i = 0; i < pr_tri_n; i++) pr_key[i] = pr_tri[i].depth;
+        zsort(pr_key, pr_order, pr_tri_n);             // far -> near; approximate by construction
+        for (int i = 0; i < pr_tri_n; i++) pr_shade_fill(&pr_tri[pr_order[i]]);
+    }
     pr_tri_drawn = pr_tri_n;
 }
 
@@ -872,6 +970,7 @@ void update(void) {
     }
     if (keyp('Z')) pr_zoom = pr_zoom % 3 + 1;
     if (keyp('D')) pr_shade = (pr_shade + 1) % SH_COUNT;
+    if (keyp('X')) pr_zbuf_on = !pr_zbuf_on;
     if (keyp('L')) pr_lightcam = !pr_lightcam;
     if (keyp('H')) pr_tint = !pr_tint;
     if (keyp(KEY_SPACE)) { pr_yaw = 45.0f; pr_squash = 1.0f; pr_zoom = 1; }
@@ -898,10 +997,12 @@ void draw(void) {
     rectfill(0, SCREEN_H - 20, SCREEN_W, 20, CLR_BLACK);
     font(FONT_SMALL);
     print(pr_poly ? "POLY" : "VOXEL", 3, SCREEN_H - 17, pr_poly ? CLR_LIGHT_PEACH : CLR_BLUE);
-    print(str("yaw %3.0f  %dx  tris %d", pr_yaw, pr_zoom, pr_tri_drawn),
-          32, SCREEN_H - 17, CLR_LIGHT_GREY);
-    print(str("TAB a/b  QE turn  WS tilt  Z zoom  D shade:%s  L light:%s  H hh:%s",
-              SH_NAME[pr_shade], pr_lightcam ? "screen" : "world", pr_tint ? "on" : "off"),
+    print(str("yaw %3.0f  %dx  tris %d  %s", pr_yaw, pr_zoom, pr_tri_drawn,
+              pr_poly ? (pr_zbuf_on ? "ZBUF" : "sort") : ""),
+          32, SCREEN_H - 17, pr_zbuf_on ? CLR_LIME_GREEN : CLR_LIGHT_GREY);
+    print(str("TAB a/b  QE turn  WS tilt  Z zoom  X depth:%s  D shade:%s  L light:%s  H hh:%s",
+              pr_zbuf_on ? "ON" : "sort", SH_NAME[pr_shade],
+              pr_lightcam ? "screen" : "world", pr_tint ? "on" : "off"),
           3, SCREEN_H - 9, CLR_DARK_GREY);
     if (!pr_selfcheck_ok)
         print(str("SELFCHECK FAILED (%s) - the halves are not at the same scale", pr_selfcheck_why),

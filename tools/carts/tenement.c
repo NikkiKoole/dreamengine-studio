@@ -7,11 +7,18 @@
   "created": "2026-08-12",
   "lineage": "Thin vertical slice of the tenement sim: proves ONE claim, that a single argmax over every (object, need) pair produces different, better behaviour than the urgency-sort every other needs sim here uses. sims sorts needs then finds an object; this lets an adjacent nearly-free toilet outbid a distant fridge at higher hunger, which is what people recognise as Sims-like. Built against the frozen contract runtime/tenement/model.h before any fan-out, because that contract's centrepiece had never been exercised by a line of code.",
   "todo": [
-    "SLICE, NOT THE GAME. Present: the offer index, needs decay, contention via queue penalty, and the spec that pins the argmax. Absent: households, money, work orders, storage, rent, building, pathfinding. Those are the fan-out.",
-    "Distance is straight-line, not a path. Enough to prove the DECISION mechanism; the contention claim in design section 1 (corridors jam) needs real pathfinding before it can be judged.",
-    "Split into the module files the contract names (runtime/tenement/*.h), one per future agent. work/econ/store are STUBS carrying their own briefs, waiting on the fan-out.",
+    "DECIDE THE D/R FORK, and it is the top item because everything else is downstream of it. D (price an action by its duration) and R (a day-shaped bid plus a floor under the argmax) default OFF, so the shipped sim is still the one 242 assertions describe. Together they take contention from 3.3% of frames to 16.2% and are the first time design section 1's claim actually happens. Turning them on for real means rewriting case 1's converse, which is the cart's headline assertion. See design section 12; a live A/B is what the keys are for.",
+    "The day's PHASE is wrong: with D+R residents sleep late afternoon and are up all night. Tuning, not structure. Open question first though, and it is a taste question not a numbers one: do we want a literal human day, or is a building that keeps odd hours funnier? Note the measured trap in offer.h before touching it, that a SHARPER day makes a QUIETER building.",
+    "NOTHING QUEUES IN A LINE. Waiting is priced now and residents do stand and wait, but two waiters can stand on the same tile and read as one blob, so a queue of three looks like a queue of one. The 1px rim fixes several collisions at once. Contention is only legible if you can COUNT the people in it.",
+    "WHO GETS IT WHEN IT FREES is agent index order, so a low-index resident always wins a contested object. Arbitrary rather than first-come. Fine while there are 4 residents; a real unfairness at 12, and the fix is emergent (longest wait wins) rather than a queue structure.",
+    "Three open loops past the autarky gate in design section 3, chiefly hygiene, which is unserveable for 99% of agent-minutes: there is no object that offers it. A need nothing can meet is a need that only ever drags the score down.",
+    "The store module is unreachable because no item ever persists, and case 8 asserts a gap that is now closed. Both are stale assertions describing an older sim.",
+    "SPECIES IS A FIELD, NOT A SEAM (contract seam 3). Children are the obvious second species and the contract has room, but nothing reads the field, so the seam is unexercised and therefore unproven.",
+    "The WC wants unconditionally-low interior walls (you cannot see the comedy through a wall) and the loom currently reads as a second wardrobe. Both are art, both matter more than they sound: section 1's soul is a thing you SEE.",
+    "social.h is committed but unwired, pending its contract diff.",
     "The iso projection is COPIED from isoroom. Extract runtime/isoview.h when the second consumer proves the shape, per ADR-0006 (a library header wants real consumers first, not speculation).",
-    "Objects are placeholders and the tag vocabulary is a first guess. Both should be revised by what the fan-out learns, not defended."
+    "Objects are placeholders and the tag vocabulary is a first guess. Both should be revised by what the fan-out learns, not defended.",
+    "RE-RUN THE CONTENTION TRACE after any change to the score, the decay rates or the offer table. The DE_TRACE block in update() is the instrument that found all four of section 12's findings, and every one of them was invisible to the assertions. Command is in the comment above it."
   ],
   "description": {
     "summary": "A few residents, some furniture, and one question: does the best offer on the table beat picking your worst need first? Watch the scores and see.",

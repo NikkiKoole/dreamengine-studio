@@ -42,6 +42,45 @@ a broken doc link or `#section`).
 > What a reader needs to *choose* a lane is in the front-door output; what they need to *resume*
 > one is in the lane itself. A summary in between is a third copy, and it is the copy nobody
 > updates. If you find yourself writing one again, teach `handoff.js` to print it instead.
+> **▶ ACTIVE THREAD (2026-08-13) — `tenement`: the building now contends, behind two toggles nobody has decided on.**
+> The sim of several households sharing one building, built contract-first then fanned out to eight
+> agents (ADR-0034). **SHIPPED:** the frozen contract `runtime/tenement/model.h` plus twelve modules
+> (world/path/offer/agents/work/econ/store/social/art/hud/build/atlas), 242 `spec()` assertions,
+> real BFS pathfinding over edge walls, the cutaway iso view, and a HUD where every number is a
+> relation rather than a quantity.
+> **THE LIVE QUESTION, and it is a design decision rather than a task.** design §1 promises "queues
+> form, corridors jam" and §4 promises "one loom, four tenants, and a queue you can see". None of it
+> was happening, and nothing in the repo could see that: every assertion describes a single DECISION,
+> and only a distribution over time can tell you a building is dead. Measured, 99.6% of frames had
+> somebody wanting a full object and 2.3% had anybody standing at one; the headline scarcity (one WC,
+> four households) sat empty 91% of the time. **Four causes, stacked, so fixing only the top one moved
+> nothing:** (a) waiting was banned rather than priced, FIXED, and the unit falls out for free because
+> a tile of walking and a minute of waiting are the same quantity; (b) the score had no term for how
+> long an action takes, so residents slept 62% of their lives; (c) nothing varied with the hour, so
+> four residents never synchronised, and **contention in a building is about synchrony rather than
+> utilisation** (four people failing to share one bathroom is a *morning*); (d) **the argmax had no
+> floor**, so a resident always had exactly one best thing to do and always did it however bad it was,
+> which is why (b) and (c) each did nothing alone. The hour was competing against nothing.
+> (b) is the `D` key, (c)+(d) the `R` key, **both default OFF**. Together: contention 3.3% → 16.2% of
+> frames, two residents heading for the same thing 6.0% → 22.7%, beds empty 06:00–13:00 and full
+> 18:00–21:00 instead of flat across 24 hours. Two dead ends are kept in `offer.h` because both are
+> the obvious thing to try: a rhythm on the DECAY RATE synchronises nobody (an 8-hour sleep resets a
+> resident to the top of its own cycle, so each free-runs and drifts), and moving the hour into the
+> BID was necessary but not sufficient without the floor.
+> **▶ NEXT ACTION: the maker play-tests D+R and answers two things no oracle can.** Does it read as a
+> building with a life in it, or as a stampede where everyone does the same thing at once (the
+> ADR-0022 half nothing checks)? And the phase is visibly wrong, they sleep late afternoon and are up
+> all night: do we want a literal human day, or is a building on odd hours funnier? Turning the
+> toggles on for real means rewriting case 1's converse, the cart's headline assertion, which is why
+> they are keys and not a commit. **Counter-intuitive, already measured, do not re-derive:** a
+> SHARPER day makes a QUIETER building (REST appeal amp 70 → 95 drops contention 16.2% → 12.2%),
+> because residents pinned into one narrow window stop overlapping at its edges.
+> **Hot files:** `runtime/tenement/offer.h` (the score, `TN_APPEAL`, `TN_BORED`), `runtime/tenement/agents.h`
+> (the state machine), `tools/carts/tenement.c` (the toggles + the `DE_TRACE` contention instrument
+> that found all four findings and should be re-run after any score/decay/offer-table change).
+> **Resume-at:** [`design/tenement.md` → The building does not contend, and the four reasons are stacked](design/tenement.md#12-the-building-does-not-contend-and-the-four-reasons-are-stacked),
+> plus the cart's own punch list, `node tools/cart-todos.js tenement` (12 items, the D/R decision first).
+
 > **▶ ACTIVE THREAD (2026-08-12) — EXTERNAL CLOCK + the AUv3 on macOS: a cart can be slaved, and acidcandy is a GarageBand plug-in.**
 > Started from "does Tiny Acid Jam do AUv3 or MIDI in?" (it did neither). **SHIPPED, both verified by the
 > maker on real gear:** `runtime/sync.h` + the five `sync_*` API functions (an external clock a cart

@@ -609,6 +609,25 @@ Detail lives in the linked design doc in every case; that is where it was always
 
 ## Open — prioritized
 
+> ### `tenement` — the D/R fork: the building contends now, and nobody has decided whether it should
+>
+> Opened 2026-08-13. design §1 promises "queues form, corridors jam" and it was never happening: 99.6%
+> of frames had somebody wanting a full object, 2.3% had anybody standing at one, and the headline
+> scarcity (one WC, four households) sat empty 91% of the time. **Four stacked causes** (§12): waiting
+> was banned rather than priced (FIXED); the score had no duration term, so residents slept 62% of
+> their lives; nothing varied with the hour, so four residents never synchronised; and **the argmax had
+> no floor**, so a resident always did the single best thing available however bad it was, which is why
+> each of the other two did nothing alone. The last one is the general lesson: it was invisible to 242
+> assertions *and* to every aggregate, and only showed up when two changes that should each have worked
+> both didn't.
+>
+> The last three are live on `D` and `R` in the cart, **defaulting off**, so the shipped sim is still
+> the one the assertions describe. On: contention 3.3% → 16.2% of frames, two residents heading for the
+> same thing 6.0% → 22.7%, beds empty 06:00–13:00 and full 18:00–21:00 instead of flat across 24 hours.
+> **Why it's a decision and not a task:** committing them rewrites case 1's converse, the cart's
+> headline assertion, and the phase is still wrong (they sleep late afternoon). Both halves want the
+> maker's eye, not a gate. Resume: HANDOFF's `tenement` lane · `node tools/cart-todos.js tenement`.
+
 > ### ✅ FIXED — `piano`'s two dead sliders were one bound in the engine (and the bug class remains)
 >
 > Found 2026-07-28 while building the Synth Secrets §I9 layer; fixed 2026-07-29. `piano.c`'s **"decay"** and

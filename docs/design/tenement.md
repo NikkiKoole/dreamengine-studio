@@ -350,7 +350,7 @@ have spare hours, then give the hours somewhere to go. Neither half is interesti
 **Not in v1.** Recorded so the contract leaves room, and so the next person does not invent a
 separate social system beside the offer index.
 
-## 12. The building does not contend, and the three reasons are stacked
+## 12. The building does not contend, and the four reasons are stacked
 
 §1 promises "queues form, corridors jam" and "four people failing to share one bathroom". §4 promises
 "one loom, four tenants, and a queue you can see". None of that was happening, and the reason it was
@@ -369,9 +369,10 @@ left in place because this is the instrument that has to be re-run after any cha
 | the loom, one machine for four households, in use | 78.5% |
 | beds in use | 94.8%, and **flat across all 24 hours** |
 
-Contention was continuous in the numbers and absent from the picture. Three separate things caused
+Contention was continuous in the numbers and absent from the picture. Four separate things caused
 that, and they stack, so fixing only the top one moves almost nothing (measured: it moved `wait`
-from 2.3% to 3.0%).
+from 2.3% to 3.0%). (d) was found last and was blocking the other two the whole time, which is worth
+reading in that order: it is what makes each of (b) and (c) look like a failed idea on its own.
 
 **(a) Waiting was banned rather than priced. FIXED.** The score carried a flat `QUEUE_FULL` of 1000
 for an occupied capacity-1 object, which is a wall dressed as a number: the bid did not fall, it

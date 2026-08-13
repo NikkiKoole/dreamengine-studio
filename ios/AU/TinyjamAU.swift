@@ -105,6 +105,18 @@ public final class TinyjamAU: AUAudioUnit {
     public override var outputBusses: AUAudioUnitBusArray { _outputBusArray }
     public override var inputBusses: AUAudioUnitBusArray { _inputBusArray }
 
+    // ══ CROSS-PROCESS CHANNEL (spike scaffolding) ═══════════════════════════════════════════════
+    // A host runs our UI and our audio in DIFFERENT PROCESSES, so a view that blits the engine's
+    // framebuffer draws an engine nobody can hear (docs/design/ios-plan.md → "The out-of-process
+    // wall"). Two of the four ways out need a pipe across that boundary, and AUMessageChannel is
+    // the one AUv3 provides. This is the minimum that makes the transport MEASURABLE — an echo —
+    // so ios/au-msgchannel-spike.swift can answer "pixels or state?" with numbers instead of
+    // estimates. It carries no engine data yet and is deliberately not wired to the view.
+    public override func messageChannel(for name: String) -> AUMessageChannel {
+        if name == "com.tinyjam.canvas" { return TinyjamCanvasChannel() }
+        return super.messageChannel(for: name)
+    }
+
     // ══ THE FRAME WORKER ════════════════════════════════════════════════════════════════════════
     // de_frame() does not run on the audio thread. It used to, and that is a plug-in writing a cheque
     // its render deadline cannot cash: a frame is the cart's whole update AND its whole software-
@@ -280,6 +292,20 @@ public final class TinyjamAU: AUAudioUnit {
 }
 
 // NSExtensionPrincipalClass — the system instantiates this to get the AU.
+// The echo end of the spike's pipe. Bounces the payload straight back so a round trip can be timed;
+// what a real implementation would do here is hand back a framebuffer (option 4) or a state delta
+// (the netplay-style alternative). Kept trivial ON PURPOSE — a spike that measures its own cleverness
+// measures nothing.
+final class TinyjamCanvasChannel: NSObject, AUMessageChannel {
+    var callHostBlock: CallHostBlock?
+    var callAudioUnit: CallAudioUnitBlock? = { message in
+        // echo, plus a marker so the caller can tell a real answer from a base/no-op channel
+        var reply = message
+        reply["ok"] = true
+        return reply
+    }
+}
+
 public final class TinyjamAUFactory: NSObject, AUAudioUnitFactory {
     public func beginRequest(with context: NSExtensionContext) {}
     public func createAudioUnit(with componentDescription: AudioComponentDescription) throws -> AUAudioUnit {

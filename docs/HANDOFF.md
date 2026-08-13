@@ -349,6 +349,19 @@ a broken doc link or `#section`).
 > · Also logged: `colorkey()` destroys and rebuilds a SHARED GPU texture from a cart API;
 >   `fp_cache`'s key omits the palette; and an unrelated latent `web_px` overflow after a canvas grow.
 >
+> **▶ STEP 4 IS A DECISION, NOT A TASK — MEASURED 2026-08-14, read before starting it.** The plan
+> said "acidcandy's statics → `de_state()`" on a figure of ~20. It is **209 statics in the cart's
+> TU**: 120 in the cart, 19 in `ui.h`, 10 across `tr808/tr909/cursor.h`, 60 unattributed. **The
+> CART-LAND HEADERS hold state too** — `ui.h`'s widget table, the drum banks, the cursor — and they
+> are included by **553 carts**, so making one cart multi-instance-safe is not a local change.
+> Three routes, costed in [`design/engine-instance-seam.md`](design/engine-instance-seam.md):
+> **(a)** generate context-ified header COPIES for the plug-in build only (recommended — the AU build
+> already stages `build/cart.c`, so no blast radius); **(b)** move the declarations in the shared
+> headers, one mechanism for all 553 but it changes what a cart IS; **(c)** ship one rack per project,
+> the honest single-instance fallback, keeping the engine work for the editor/offline/test cases it
+> already unlocks. **Decide before writing: (a) and (b) are the same work aimed differently, and only
+> (a) is cheap to undo.**
+>
 > **✅ VERIFIED IN GARAGEBAND BY THE MAKER (2026-08-14): ONE TRACK IS CLEAN.** *"one track works fine
 > now, panel is stable"* — no regression from the whole per-instance refactor, which is the result
 > that mattered. Two findings from that session, both now fixed or filed:

@@ -181,6 +181,45 @@ Named so the next session does not assume otherwise:
 - **`colorkey()`**, which destroys and rebuilds the shared sprite-sheet texture from a cart API.
   Needs its own decision (per-instance texture variant, or software-only).
 
+
+## ⚠ STEP 4 IS BIGGER THAN "THE CART'S STATICS" — measured 2026-08-14
+
+The plan said *"acidcandy's statics → `de_state()`"*, on a handoff figure of ~20. The real number is
+**209 mutable file-scope statics in the cart's translation unit**, and they are not all the cart's:
+
+| where | count |
+|---|---|
+| the cart itself (`acidcandy.c`) | 120 |
+| `runtime/ui.h` | 19 |
+| `tr808.h` · `tr909.h` · `cursor.h` | 10 |
+| unattributed (multi-line decls + other cart-land headers) | 60 |
+
+**The cart-land HEADERS hold state too.** `ui.h`'s widget table, the drum-machine banks, the cursor —
+all `static`, all compiled into the cart's one TU, so two instances of one cart share them. A rack
+whose widget state is shared is not two racks however independent the engine underneath is.
+
+That matters because those headers are included by **553 carts**. Moving their declarations into a
+per-cart context is not a local change.
+
+### Three ways out, with the cost of each
+
+**(a) Generate context-ified COPIES of the headers for the plug-in build only.** The AU build already
+stages generated artifacts (`build/cart.c`), so it can stage generated `ui.h` etc. with declarations
+removed, leaving the originals untouched for the other 552 carts. Mechanical, reuses `ctx-gen`, no
+blast radius. Cost: generated header copies that can drift from their originals.
+
+**(b) Move the declarations in the shared headers themselves.** One mechanism for every cart, and the
+macro block keeps every call site identical — but it makes a per-cart context struct mandatory for
+all 553, which is a change to what a cart IS.
+
+**(c) Ship one rack per project** — the "honest single-instance" fallback the lane always carried.
+The engine work still pays for itself (it removed real cross-instance corruption and unlocks the
+editor previewing two carts, offline render while playing, and parallel tests), and multi-instance
+becomes a stated limitation rather than a defect.
+
+**Recommendation: (a)**, and it is worth deciding before writing any of it, because (a) and (b) are
+the same work aimed at different targets and only one of them can be undone cheaply.
+
 ## Order of work
 
 1. **✅ DONE — the handle, with ONE instance.** `DeInstance` + `de_instance_create`/`_destroy`, the

@@ -1,7 +1,10 @@
 # tenement — several households, one building, and not enough of anything
 
-STATUS: BUILDING (2026-08-12) — the THIN VERTICAL SLICE is in and the contract's centrepiece is
-proven (`tools/carts/tenement.c`, `spec()` 21/21). No fan-out yet; see §10 for what the slice found.
+STATUS: BUILDING (2026-08-14) — the slice is fanned out into twelve modules and the ITEM ECONOMY is
+live end to end (made → carried → hauled → shelved → bought), which gives storage its first real
+consequence: no cupboard, no income (§6a). `spec()` 249/249. Open: a rim on the residents, and
+whether anything can be irrecoverably LOST (§8a). See §10 for what the slice found, §12 for the
+contention reading.
 Originally READY, designed, contract frozen. The renderer it
 needs is done and measured ([`iso-rooms.md`](iso-rooms.md), SHIPPED). Contract:
 `runtime/tenement/model.h`. Method: [ADR-0034](../decisions/0034-contract-first-parallel-authoring.md),
@@ -180,6 +183,43 @@ carry-the-container-to-the-item pattern as a source of locking and reservation p
 tenant with nothing to eat and a bottomed-out hunger need walks past a neighbour's full one? That is
 emergent, legible without explanation, and exactly the small disaster §1 asks for. It also gives
 money a reason to matter beyond bills.
+
+### 6a. Storage was UNREACHABLE, and switching it on gave it a job (2026-08-14)
+
+This whole section was true on paper and dead in practice for the slice's entire life, and the cause
+is worth writing down because it is the cheapest kind of bug to leave lying around. `store.h` shipped
+complete: a fetch/haul/put loop over real BFS routes, ownership priced as a detour, thirty
+assertions. It never ran once. `work.h`'s `tnk_deliver` minted a good, sold it on the spot, and
+deleted it in the same breath — under a comment that said exactly what to do about it ("WHEN store.h
+CAN HAUL, DELETE THE TWO LINES BELOW"). Hauling *had* landed. So no item ever persisted for longer
+than one statement, `TnAgent.carrying` was never once non-negative in a running game, and
+`TN_ACT_HAUL` was a state nothing could enter.
+
+Three small things turned it on, and none of them was a new system:
+
+1. **Delete the two lines.** The good now stays in its maker's hands.
+2. **One offer row.** Nothing offered `TN_STORE_GOODS`, so a bolt had nowhere to live — which
+   `store.h`'s own item catalogue had already diagnosed as *"a missing table row in offer.h, not a
+   missing code path"*. The wardrobe accepts goods as well as clothes. (Watch the pair: `TN_OFFERS`
+   and `TN_OFFER_N` both declare the count and nothing checks they agree.)
+3. **A BUYER, in `econ.h`.** It calls once a day and takes only goods that are **shelved**.
+   `tn_sell` is still the one external seam of §5; only its caller moved, from the maker to the
+   market.
+
+**The third one is the design, not the plumbing.** Because the buyer wants *shelved* goods, and
+`store.h` drops a load it cannot house, a household with no cupboard — or a full one — keeps working
+and quietly stops earning, with the unsold bolts piling up in the hall where anyone can see them.
+Nobody wrote that rule. It falls out of the buyer wanting a shelf and the shelf having a capacity,
+and it is the first thing in this simulation that can go badly for you (§8a's open question moves off
+zero; `work.h` case **W5b** pins it). Production and income stopped being the same event, which is
+the whole reason storage now means anything.
+
+A second consequence came free and is the better kind: **the loom started taking turns.** `work.h`'s
+W8 used to assert, as a marked known gap, that one household took every shift because the finisher
+was re-offered the machine the instant it was free. Now the finisher has a bolt to go and shelve, so
+it leaves and the neighbour gets the machine. Nothing scores fairness; the turn-taking is a side
+effect of an errand. The real gap underneath is still open — give the loser a longer errand and it
+starves again — but it is smaller and it closed itself.
 
 ## 7. The six seams
 

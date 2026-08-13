@@ -249,10 +249,19 @@ a broken doc link or `#section`).
 > static duplicated, including each cart's own, with ZERO source changes.** `engine.h` is already the
 > interface. Ship K pre-built, pre-signed copies in the bundle; instance K+1 refuses politely. 9 MB for
 > two engines, and a SECOND CART ran alongside the first at its own canvas size (something
-> `de_switch_cart` cannot do). Carries a negative control. **Four things it does NOT cover, in risk
-> order:** `dlopen` from inside the sandboxed `.appex` with library validation on (the one that could
-> kill it) · the Swift-side frame worker (one `static` per process today) · K same-named CoreMIDI
-> virtual sources · K instances sharing one `cart.blob` (`de_set_save_dir` exists). Detail + the
+> `de_switch_cart` cannot do). Carries a negative control.
+> **✅ AND THE KILLER UNKNOWN IS ANSWERED — YES.** Measured in the real plug-in (a temporary dylib in
+> the appex's `Frameworks/`, dlopen'd from `bootEngineOnce`, then REMOVED again): `SBPROBE bundled dylib
+> LOADED under the sandbox`. A sandboxed, hardened-runtime appex CAN dlopen a signed dylib from its own
+> bundle. **Runtime COPYING is closed** — refused as *"library load disallowed by system policy"*, and
+> worse, macOS threw user-visible Gatekeeper MALWARE dialogs at the maker, which is disqualifying
+> whatever the API allows. So **pre-ship K signed copies**, which was the plan anyway. ⚠ One run DID
+> load a copy — after the maker granted permission for that one file on this one machine. That is not a
+> measurement of the default and must not be read as "runtime copying works".
+> **Three smaller things remain:** the Swift-side frame worker (one `static` per process today) · K
+> same-named CoreMIDI virtual sources · K instances sharing one `cart.blob` (`de_set_save_dir` exists).
+> **▶ NEXT: build it for real** — the engine as a dylib in the appex, K signed copies, one per instance.
+> Detail + the
 > results table: [`ios-plan.md`](design/ios-plan.md#-and-per-instance-state-is-cheap-after-all--toolsengine-dylib-spike-passes-2026-08-13).
 > **✅ DONE — the LOAD gate exists now** (`au-transport-check --loadable`, the FIRST gate in `mac.sh`,
 > 7 gates / 31 assertions green). It instantiates nothing: it reads what the extension DECLARES and

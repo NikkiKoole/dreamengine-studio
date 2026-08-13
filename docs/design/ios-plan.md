@@ -485,7 +485,7 @@ a capability the app side has never had.
 
 | unknown | why it matters |
 |---|---|
-| `dlopen` from inside the sandboxed `.appex`, library validation on | the spike runs unsandboxed; this is the one that could kill the route — **do this next** |
+| ~~`dlopen` from inside the sandboxed `.appex`~~ | **✅ ANSWERED — YES. See below.** |
 | the Swift-side frame worker | one `static` per process today (`TinyjamAU.worker`); needs one per instance |
 | K CoreMIDI virtual sources | `midi_output.h` publishes by NAME; K instances would collide |
 | K instances, one `cart.blob` | `save_bytes` per cart; `de_set_save_dir` already exists to scope it |
@@ -497,6 +497,48 @@ on macOS and iOS, so it is not gated and the script's "ZERO frameworks (only lib
 broke. Fixed (link `CoreMIDI` + `CoreFoundation`, header corrected). It sat red for hours because
 nothing runs that script in CI, which is the same shape as the six gates that passed on a plug-in
 GarageBand could not open: **the seams that only humans exercise are the ones that rot.**
+
+#### ✅ THE SANDBOX QUESTION IS ANSWERED — YES, and runtime copying is CLOSED (2026-08-13)
+
+The killer unknown, measured in the real plug-in: a temporary dylib (`AU/sandboxprobe.c`, a counter)
+embedded in the appex's `Frameworks/`, `dlopen`ed from `bootEngineOnce`, logged, then **removed again**
+— a `dlopen` has no business in a shipping AU's boot path once it has answered.
+
+```
+[tinyjam] SBPROBE bundled dylib LOADED under the sandbox — counter 3 (expect 3)
+```
+
+**A sandboxed, hardened-runtime app extension CAN dlopen a signed dylib shipped in its own bundle.**
+That is the route to per-instance engine state, and it is open.
+
+**The other half is firmly closed, and for a better reason than failure.** The probe also copied itself
+into the container and tried to load *that*:
+
+```
+[tinyjam] SBPROBE container copy dlopen REFUSED —
+  code signature … not valid for use in process: library load disallowed by system policy
+```
+
+and — the part that actually decides it — macOS threw **user-visible Gatekeeper dialogs** at the maker:
+*"sbprobe-copy.dylib can't be opened because Apple cannot check it for malicious software"*, then
+*"is damaged and can't be opened. You should move it to the Bin."* A plug-in that pops a malware
+warning is dead on arrival, whatever the API allows. **So: PRE-SHIP K signed copies in the bundle.**
+Not as risk-avoidance — as the only shape that does not accuse the user's DAW of running malware.
+
+⚠ **Two traps this run set, both the day's recurring shape.**
+
+**(1) The probe's own verdict line was INVERTED, and it printed the wrong answer.** It compared the two
+images' counters and reported `b == a` as *"SAME image"*. It is the opposite: `open()` calls the counter
+three times, so **two independent images both return 3**, while one shared image returns 3 then 6. The
+one run where the copy did load (after the maker allowed it in Privacy & Security) printed
+`counter 3 … SAME image (unexpected)` when 3 was proof of exactly the independence being tested. Fixed
+before removal. The lesson is the day's: *a probe's interpretation needs a control as much as its
+measurement does* — a two-state readout where both states are plausible is a coin toss with a comment.
+
+**(2) That allowed load must NOT be read as "runtime copying works".** It worked because a human
+clicked Allow Anyway for one file on one machine. Nothing shipped can rely on that, and a green reading
+obtained by granting a permission is not a measurement of the default. Recorded because it is precisely
+the mistake made twice earlier today — reading an outcome without asking what produced it.
 
 ✅ **And that second one is now gated: `au-transport-check --loadable`, the FIRST check in `mac.sh`.**
 It instantiates nothing — it reads what the extension DECLARES and checks the declaration is honest: if

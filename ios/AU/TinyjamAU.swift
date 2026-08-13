@@ -313,6 +313,9 @@ final class TinyjamCanvasChannel: NSObject, AUMessageChannel {
 
     // The snapshot buffer lives here, in the AUDIO process, where the engine everyone can hear is.
     // Grown the same way CanvasView grows its own: ask, resize, get it next call.
+    // stamped once per process, so a reply names WHICH engine answered
+    static let instanceNonce = Int.random(in: 1...999_999)
+
     private var buf: UnsafeMutablePointer<UInt32>?
     private var cap = 0
 
@@ -333,6 +336,14 @@ final class TinyjamCanvasChannel: NSObject, AUMessageChannel {
             var reply = message
             reply["ok"] = true          // marker: tells a real answer from a no-op channel
             return reply
+
+        // A per-INSTANCE id. The one question a spike run from a host cannot answer: is the AU the
+        // PANEL talks to the same instance as the one making sound? In an out-of-process host the UI
+        // extension constructs its OWN TinyjamAU (see TinyjamAUViewController.createAudioUnit), so
+        // "same process" is not a given and neither is "same engine". Two channels reporting
+        // different nonces is the disconnect, stated as a number instead of inferred from a symptom.
+        case "nonce":
+            return ["nonce": TinyjamCanvasChannel.instanceNonce, "pid": Int(ProcessInfo.processInfo.processIdentifier)]
 
         case "frame":
             var pw: Int32 = 0, ph: Int32 = 0

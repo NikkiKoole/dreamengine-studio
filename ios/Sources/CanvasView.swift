@@ -18,6 +18,15 @@ import SwiftUI
 // the live canvas, because the engine is drawing on the audio thread while we draw here on main.
 final class CanvasView: UIView {
     private let hosted: Bool
+
+    // ── where a HOSTED frame comes from ──────────────────────────────────────────────────────────
+    // Default: de_copy_frame, i.e. THIS process's engine. In an out-of-process AUv3 that is the
+    // wrong engine — the UI extension builds its own TinyjamAU, so the panel has always been
+    // blitting an instance nobody can hear (docs/design/ios-plan.md → "The out-of-process wall").
+    // Set this and the view pulls the frame from wherever the closure says instead, which is how the
+    // panel gets connected to the engine that is actually making sound.
+    // nil = keep the old local behaviour, so the standalone app and any in-process host are untouched.
+    var remoteFrame: (() -> (px: Data, w: Int, h: Int)?)?
     // Hosted only: called once per display tick so the plug-in can advance a frame when the HOST is
     // not rendering audio (a stopped DAW stops pulling, and then nothing ticks the engine — the panel
     // freezes and, worse, stops responding to clicks). TinyjamAU.uiTick() decides whether it is needed.
@@ -113,7 +122,25 @@ final class CanvasView: UIView {
     @objc private func tick() {
         let t0 = CACurrentMediaTime()
         var base: UnsafePointer<UInt32>
-        if hosted {
+        if hosted, let pull = remoteFrame {
+            // REMOTE: the frame comes from the process that is actually making sound. Reuses `snap`
+            // and falls through to the SAME blit below — one blit path, so the remote case cannot
+            // drift from the local one. No onDisplayTick: that exists to tick a LOCAL engine and
+            // there is no local engine on this path.
+            guard let f = pull(), f.w > 0, f.h > 0, f.px.count == f.w * f.h * 4 else { return }
+            let need = f.w * f.h
+            if need > snapCap {
+                snap?.deallocate()
+                snap = UnsafeMutablePointer<UInt32>.allocate(capacity: need)
+                snapCap = need
+            }
+            guard let s = snap else { return }
+            _ = f.px.withUnsafeBytes { raw in
+                memcpy(UnsafeMutableRawPointer(s), raw.baseAddress!, need * 4)
+            }
+            if f.w != w || f.h != h { w = f.w; h = f.h; flipped = [UInt32](repeating: 0, count: w * h) }
+            base = UnsafePointer(s)
+        } else if hosted {
             onDisplayTick?()      // keep the engine alive when the host is not rendering (see above)
             // BLIT ONLY. The plug-in's render block already ticked the engine on the audio thread, so
             // all we do is take a snapshot. de_copy_frame reports the size it has even when it refuses

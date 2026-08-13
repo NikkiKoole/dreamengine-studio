@@ -38,6 +38,34 @@ public final class TinyjamAUViewController: AUViewController, AUAudioUnitFactory
         // keeps the pixels honest at 1:2 without demanding a huge window.
         preferredContentSize = CGSize(width: 640, height: 400)
         let c = CanvasView(frame: view.bounds, hosted: true)
+
+        // ── connect the panel to the engine that is actually making sound ───────────────────────
+        // In an out-of-process host, createAudioUnit above builds a TinyjamAU IN THIS (UI) process,
+        // and blitting its framebuffer is the disconnect: a panel drawn by an engine nobody hears.
+        // If a message channel is reachable, pull frames through it instead.
+        //
+        // ⚠ OPEN, and stated plainly because it is the one thing this is not yet known to fix:
+        // `au` here is the instance THIS process created. Whether a channel taken from it reaches
+        // the RENDERING instance depends on the host wiring the view controller to its own AU proxy
+        // — some do, and AUv3 does not oblige them to. The nonce op exists to settle that in a real
+        // host rather than by argument: if the panel's nonce differs from the one a host-side spike
+        // reports, this is still two engines and the parameter-bound route (option 3) is the answer.
+        if #available(macCatalyst 16.0, iOS 16.0, macOS 13.0, *), let a = au {
+            let ch = a.messageChannel(for: "com.tinyjam.canvas")
+            if let call = ch.callAudioUnit, !call(["op": "nonce"]).isEmpty {
+                let who = call(["op": "nonce"])
+                NSLog("[tinyjam] panel channel live — engine nonce %@ pid %@",
+                      String(describing: who["nonce"] ?? "?"), String(describing: who["pid"] ?? "?"))
+                c.remoteFrame = {
+                    let r = call(["op": "frame"])
+                    guard let px = r["px"] as? Data,
+                          let w = r["w"] as? Int, let h = r["h"] as? Int else { return nil }
+                    return (px: px, w: w, h: h)
+                }
+            } else {
+                NSLog("[tinyjam] no panel channel — falling back to this process's own engine")
+            }
+        }
         // The panel must live even when the host is stopped and pulling no audio — otherwise the
         // engine never ticks, the picture freezes and the rack's own controls stop responding.
         c.onDisplayTick = { [weak self] in self?.au?.uiTick() }

@@ -125,8 +125,27 @@ a broken doc link or `#section`).
 > these machines). That is what forced `ch` into every signature *before* it reached five places, and
 > the same logic made CC-in channel-aware while notes stay omni. Full map + the still-open **slide
 > encoding** question: [`midi-out.md` → The channel map](design/midi-out.md#the-channel-map-and-why-drum-voices-are-notes-not-channels).
+> **✅ CONFIRMED IN A REAL DAW (GarageBand, the maker, 2026-08-13)** — the eyeball step no gate can
+> do. `midiout` drove both an ePiano and a drum kit. Note for next time: only the SELECTED track
+> monitors live MIDI, and GarageBand is NOT multi-timbral (every channel hits that one track's
+> instrument), so channel ROUTING cannot be observed there — that needs Logic/Ableton. Hence `B`/`D`
+> in the cart, to mute one part at a time.
+> **That play-test found TWO defects the gate was structurally blind to, both now fixed:**
+> **(1) zero-length drum notes** — on and off in the same frame (0.0ms on the wire), which is legal
+> AND balanced, so the "every note-on has a note-off" check sat green while rewarding it. A DAW that
+> RECORDS such a note normalises it on playback, so a take gains notes that were inaudible live —
+> which is exactly how the maker noticed ("the recorded song sounds different"). Drums now hold
+> ~50ms. **(2) stuck notes on exit**, which fix 1 exposed: a cart can quit on a frame where a note is
+> held, and the off it would have sent next frame never happens. Fixed in the ENGINE
+> (`midi_output.h` tracks live notes, releases them in `midi_output_shutdown`) because no cart should
+> be *able* to leave a note droning in someone's DAW. **The transferable lesson: pair-counting is
+> blind to defects that live in the TIMING.** The listener now timestamps every line and the gate
+> asserts gate length ≥20ms.
 > ⚠ **Nothing is wired to a RACK yet** — `acidcandy` neither sends nor reads CC, so none of this is
 > reachable by a buyer. That is the next cart-side job, and it is where the slide decision gets made.
+> **The one claim still unverified:** whether the beat LANDS correctly on a GM kit (kick on the
+> downbeats, snare on 2 and 4, hats in eighths). The gate proves we send note 36 on ch 10; it cannot
+> prove 36 *is* a kick in a real kit. Check that before wiring the rack.
 >
 > **⚠ A BUG THIS FOUND, fixed: a guard that was inert in exactly the runs it protected.**
 > `sync_automated` — the flag stopping an automated run from consulting a real external clock — had its

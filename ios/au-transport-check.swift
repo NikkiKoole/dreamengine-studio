@@ -315,6 +315,29 @@ let restarted = rig.render(beats: 8.0)
 check("STARTS AGAIN when the host restarts", restarted.onsets >= 8,
       "\(restarted.onsets) onsets over 8 beats after the host resumed, peak \(String(format: "%.3f", restarted.peak))")
 
+// ── 5+6: THE PLAYHEAD JUMPS. ────────────────────────────────────────────────────────────────────
+// Both added chasing a wedge the maker hit at bar 33.1 — twice, and again after the first fix. 33.1
+// is beat 128, which is where a 32-bar CYCLE region ends: the host does not merely stop there, it
+// JUMPS THE PLAYHEAD BACKWARDS. Every check above moves the playhead forwards only, so a cart that
+// mishandles a backward jump would pass all of them and still die in the first bar of real use.
+//   5. LOOP: jump back mid-flight, the way a cycle does, and keep playing.
+//   6. REWIND then RESTART: the other half — stop, return to the top, press play.
+hostBeat = 128.0                                // where the maker's wedge happened
+hostMoving = true
+_ = rig.render(beats: 2.0)
+hostBeat = 0.0                                  // the cycle wraps: 128 beats BACKWARDS, still playing
+let looped = rig.render(beats: 8.0)
+check("keeps playing when the host LOOPS the playhead backwards", looped.onsets >= 8,
+      "\(looped.onsets) onsets over the 8 beats after a 128-beat jump back, peak \(String(format: "%.3f", looped.peak))")
+
+hostMoving = false
+_ = rig.render(beats: 4.0)                      // stop and let the tails die
+hostBeat = 0.0                                  // rewind to the top, as pressing stop-then-play does
+hostMoving = true
+let afterRewind = rig.render(beats: 8.0)
+check("plays after a STOP + REWIND + play", afterRewind.onsets >= 8,
+      "\(afterRewind.onsets) onsets over 8 beats from the top, peak \(String(format: "%.3f", afterRewind.peak))")
+
 rig.teardown()
 print(failures == 0 ? "\nPASS — the plug-in follows host transport."
                     : "\n\(failures) check(s) FAILED")

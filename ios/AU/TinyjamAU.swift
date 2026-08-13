@@ -54,9 +54,9 @@ public final class TinyjamAU: AUAudioUnit {
     // audio thread. Generous cap; n*2 is asserted ≤ this in the render block.
     private let scratchCap = 16384 * 2
     private let scratch = UnsafeMutablePointer<Float>.allocate(capacity: 16384 * 2)
-    // sample-clock state, owned by the render block (single audio thread).
+    // sample-clock state, owned by the render block (single audio thread). The FRAME counter is not
+    // here: it belongs to the shared engine, so it lives with the worker (see ONE ENGINE PER PROCESS).
     private let acc = UnsafeMutablePointer<Int>.allocate(capacity: 1)     // samples since last frame
-    private let frame = UnsafeMutablePointer<UInt64>.allocate(capacity: 1)
     // one cart frame of ENGINE-rate audio, pulled from by the resampler (interleaved L,R).
     private let echunk = UnsafeMutablePointer<Float>.allocate(capacity: 735 * 2)
 
@@ -76,12 +76,31 @@ public final class TinyjamAU: AUAudioUnit {
         _outputBusArray = AUAudioUnitBusArray(audioUnit: self, busType: .output, busses: [outBus])
         _inputBusArray  = AUAudioUnitBusArray(audioUnit: self, busType: .input,  busses: [])
         acc.pointee = 0
-        frame.pointee = 0
         rate.initialize(to: RateState())
-        de_init(DE_RENDERER_SOFTWARE)        // sound_init() + the cart's init()
-        startWorker()                        // BEFORE any render: a view can open while the host is
-                                             // stopped, and it needs frames to be clickable at all
+        TinyjamAU.bootEngineOnce()
     }
+
+    // ══ ONE ENGINE PER PROCESS ══════════════════════════════════════════════════════════════════
+    // studio.c and sound.h keep their state in FILE-SCOPE GLOBALS, so an engine is per-process by
+    // construction. That was recorded as a known limitation ("multi-instance, spike 9") on the theory
+    // that a host gives each instance its own process. GarageBand does not: a sample taken while the
+    // maker's session was wedged found THREE TinyjamAU instances in one process, each with its own
+    // de_init and its own frame worker, all writing the same globals. The host had asked our view
+    // controller for an audio unit once per panel it opened.
+    //
+    // So booting is idempotent and the worker is shared. Two instances in one process therefore share
+    // one rack — which is wrong for two tracks, but it is HONESTLY wrong instead of corrupt, and it is
+    // what the globals have always meant. The real fix is per-instance engine state, which is a much
+    // larger job than this seam.
+    private static var engineBooted = false
+    private static let bootLock = NSLock()          // instantiation only; never touched by audio
+    private static func bootEngineOnce() {
+        bootLock.lock(); defer { bootLock.unlock() }
+        if engineBooted { return }
+        engineBooted = true
+        de_init(DE_RENDERER_SOFTWARE)               // sound_init() + the cart's init()
+        startWorker()                               // BEFORE any render: a view can open while the
+    }                                               // host is stopped and still needs frames
 
     public override var outputBusses: AUAudioUnitBusArray { _outputBusArray }
     public override var inputBusses: AUAudioUnitBusArray { _inputBusArray }
@@ -103,22 +122,23 @@ public final class TinyjamAU: AUAudioUnit {
     // Cost: note timing is quantised to the worker's wakeup rather than the exact sample, a jitter of
     // at most one frame. That is precisely what the standalone app has always done, and it is
     // inaudible next to an overrun.
-    private var worker: Thread?
-    private let frameSignal = DispatchSemaphore(value: 0)
-    private var workerStop = false
+    // Shared with the engine they drive: ONE worker per process, not per instance (see ONE ENGINE PER
+    // PROCESS). It outlives every instance — a thread parked on a semaphore costs nothing, and tearing
+    // it down when one instance goes away would strand the others mid-frame.
+    private static var worker: Thread?
+    private static let frameSignal = DispatchSemaphore(value: 0)
+    private static var frameCount: UInt64 = 0
 
-    private func workerLoop() {
+    private static func workerLoop() {
         while true {
             frameSignal.wait()
-            if workerStop { break }
-            frame.pointee &+= 1
-            de_frame(Double(frame.pointee) / 60.0)
+            frameCount &+= 1
+            de_frame(Double(frameCount) / 60.0)
         }
     }
-    private func startWorker() {
+    private static func startWorker() {
         guard worker == nil else { return }
-        workerStop = false
-        let t = Thread { [weak self] in self?.workerLoop() }
+        let t = Thread { workerLoop() }
         t.name = "dreamengine.frame"
         t.qualityOfService = .userInteractive   // it feeds the sequencer; it must not be starved
         t.start()
@@ -138,17 +158,9 @@ public final class TinyjamAU: AUAudioUnit {
     // is still exactly one thread inside the engine.
     private var lastSeenFrame: UInt64 = 0
     public func uiTick() {
-        let f = frame.pointee
-        if f == lastSeenFrame { frameSignal.signal() }   // audio is not driving: drive it ourselves
+        let f = TinyjamAU.frameCount
+        if f == lastSeenFrame { TinyjamAU.frameSignal.signal() }  // audio is not driving: we will
         lastSeenFrame = f
-    }
-
-    private func stopWorker() {
-        guard let t = worker else { return }
-        workerStop = true
-        frameSignal.signal()
-        while !t.isFinished { usleep(500) }
-        worker = nil
     }
 
     // The host's rate is only knowable here: it sets the bus format, and it may set a DIFFERENT one
@@ -156,7 +168,6 @@ public final class TinyjamAU: AUAudioUnit {
     // reset the converter's state, rather than reading the rate once at init.
     public override func allocateRenderResources() throws {
         try super.allocateRenderResources()
-        startWorker()
         let host = _outputBusArray[0].format.sampleRate
         var s = RateState()
         s.rc.configure(engineRate: TinyjamAU.ENGINE_RATE, hostRate: host)
@@ -164,14 +175,9 @@ public final class TinyjamAU: AUAudioUnit {
         acc.pointee = 0                      // the fast path's sample clock; stale after a rate change
     }
 
-    public override func deallocateRenderResources() {
-        stopWorker()               // before super: the worker calls into the engine this tears down
-        super.deallocateRenderResources()
-    }
-
     public override var internalRenderBlock: AUInternalRenderBlock {
-        let scratch = self.scratch, cap = self.scratchCap, acc = self.acc, frame = self.frame
-        let echunk = self.echunk, rate = self.rate, signal = self.frameSignal
+        let scratch = self.scratch, cap = self.scratchCap, acc = self.acc
+        let echunk = self.echunk, rate = self.rate, signal = TinyjamAU.frameSignal
         let spf = TinyjamAU.SAMPLES_PER_FRAME
         // Capture SELF unretained, not the two host blocks themselves. The host assigns
         // musicalContextBlock / transportStateBlock AFTER it fetches this render block, so reading
@@ -230,7 +236,7 @@ public final class TinyjamAU: AUAudioUnit {
                     // OFFLINE (a bounce) runs the frame INLINE: there is no deadline to miss, and a
                     // bounce must be exact — handing it to a worker would let audio render ahead of
                     // the sequencer that is supposed to be driving it. Realtime signals instead.
-                    if offline { frame.pointee &+= 1; de_frame(Double(frame.pointee) / 60.0) }
+                    if offline { TinyjamAU.frameCount &+= 1; de_frame(Double(TinyjamAU.frameCount) / 60.0) }
                     else       { signal.signal() }
                 }
                 de_audio_render(scratch, Int32(n))                   // sound.h mixer → interleaved L,R
@@ -244,7 +250,7 @@ public final class TinyjamAU: AUAudioUnit {
                 for j in 0..<n {
                     while st.rc.needsFrame {
                         if st.eIdx >= spf {
-                            if offline { frame.pointee &+= 1; de_frame(Double(frame.pointee) / 60.0) }
+                            if offline { TinyjamAU.frameCount &+= 1; de_frame(Double(TinyjamAU.frameCount) / 60.0) }
                             else       { signal.signal() }        // see the fast path's note
                             de_audio_render(echunk, Int32(spf))
                             st.eIdx = 0
@@ -270,8 +276,7 @@ public final class TinyjamAU: AUAudioUnit {
         }
     }
 
-    deinit { scratch.deallocate(); acc.deallocate(); frame.deallocate()
-             echunk.deallocate(); rate.deallocate() }
+    deinit { scratch.deallocate(); acc.deallocate(); echunk.deallocate(); rate.deallocate() }
 }
 
 // NSExtensionPrincipalClass — the system instantiates this to get the AU.

@@ -59,9 +59,8 @@ _Last updated: 2026-07-30 — **Synth Secrets phases 1 + 2**: PIANO's dispersion
   without driving transport) · and the guard for the ambient clock keyed on `det_mode`, **which the editor's
   ▶ Run sets** for the flight recorder, so it silently killed live DAW sync in the one place a person plays
   while every CLI test passed. The engine now asks "is anyone sitting in front of this run", not "is the
-  timestep fixed"; known cost is that a `--record` take made while slaved won't replay identically.
-  **Swing is deliberately NOT claimed** (he couldn't tell a difference, which is evidence not a verdict; the
-  doc carries the mechanism, the experiment and the fix instead). **AUv3 HOST TRANSPORT now SHIPPED too**
+  timestep fixed"; cost: a `--record` take made while slaved won't replay identically. **Swing is
+  deliberately NOT claimed** (he couldn't tell a difference: evidence, not a verdict). **AUv3 HOST TRANSPORT now SHIPPED too**
   (2026-08-12, same day): acidcandy runs as an Audio Unit in GarageBand on macOS, stopping and
   following the tempo of the host — and **the cart needed zero changes**, because a host is the
   absolute half of the same seam (`de_sync_position` → `sync_push_pos`). That is the payoff for

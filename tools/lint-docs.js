@@ -225,6 +225,7 @@ const ENGINE_INTERNALS = new Set([
   'sound.h', 'spec.h',   // engine + harness, documented elsewhere in CLAUDE.md
   'color.h', 'game_rect.h', 'platform.h', 'raylib_compat.h',   // platform seams
   'mic.h', 'mic_desktop.h', 'midi_input.h', 'sync.h',          // host input plumbing (sync.h = the external-clock seam; API in studio.h)
+  'midi_output.h',                                             // the OUT direction's twin of midi_input.h — CoreMIDI virtual source, compiled inside studio.c; cart-facing API is midi_send_* in studio.h
   'stb_image.h', 'studio_tcc_symbols.h',                       // vendored / generated
 ]);
 const GENERATED_H = /(_data|_font|_baked)\.h$/;   // baked font tables

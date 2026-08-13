@@ -51,6 +51,7 @@
 #include "sound.h"
 #include "sync.h"        // external clock (MIDI clock / AUv3 host / Link) — BEFORE midi_input.h, which pushes ticks into it
 #include "midi_input.h"
+#include "midi_output.h"  // the engine SPEAKS MIDI (notes/CC/clock out) — independent of the input scan above
 #include "game_rect.h"   // window↔canvas placement transform (touch-controls Phase 1.5 chokepoint)
 
 // where the canvas sits in the window + the single window↔canvas transform (see game_rect.h).
@@ -3349,6 +3350,12 @@ int main(int argc, char **argv) {
         // would otherwise add its ticks on top and the run stops being reproducible — see the
         // three-case guard in runtime/sync.h), and on the fixed timestep it is bit-reproducible.
         else if (strcmp(argv[i], "--midi-clock") == 0 && i + 1 < argc) sync_synth_bpm = (float)atof(argv[++i]);
+        // --midi-out: let an AUTOMATED run actually SEND MIDI. Off by default there for the same
+        // reason the input side ignores a real clock, pointed the other way: a headless bake, a
+        // build-all sweep or a ui-audit pass would otherwise publish a "dreamengine" MIDI device
+        // and fire notes into whatever DAW the dev has open. Interactive runs (the editor's ▶ Run,
+        // a shipped app) send freely and need no flag. tools/midi-out-check/run.sh passes it.
+        else if (strcmp(argv[i], "--midi-out") == 0) midi_out_force = 1;
 #ifdef DE_TRACE
         else if (strcmp(argv[i], "--solo-slot") == 0 && i + 1 < argc) {   // stem render: hear only these instrument slot(s). "6" or "5,6"
             const char *p = argv[++i];
@@ -3405,9 +3412,20 @@ int main(int argc, char **argv) {
     // (main.cjs), so guarding on it silently killed live DAW sync in the editor, which is the one
     // place a person actually plays. It shipped that way for an hour and the report was "acidcandy
     // doesnt respond to play/pause also not to bpm changes".
+#endif
+    // ⚠ THIS ASSIGNMENT MUST STAY OUTSIDE #ifdef DE_SPEC. It lived inside it until 2026-08-13,
+    // which made the guard INERT in every run that actually needed it: only spec.js defines
+    // DE_SPEC, while play.js (--headless/--script/--replay) and the screenshot bake build with
+    // -DDE_TRACE alone, so sync_automated stayed 0 and those runs consulted the REAL clock —
+    // the exact nondeterminism the flag was added to stop, still live, with the fix sitting one
+    // #ifdef away. `--midi-clock` runs were unaffected (sync_frame's synthetic branch wins
+    // first), which is why the gates all passed and hid it. Keep it after the spec_mode line
+    // above, which sets hide_window.
     sync_automated = hide_window || screenshot_mode
                   || script_path != NULL || replay_path != NULL || uiaudit_path != NULL;
-#endif
+    // The same question, asked outward: may this run SEND MIDI? Same operands deliberately —
+    // "is anyone sitting in front of this" decides both directions. --midi-out overrides.
+    midi_out_automated = sync_automated;
     if (rec_path) { rec_file = fopen(rec_path, "w");
                     if (rec_file) fprintf(rec_file, "# seed %u\n", seed); }   // self-seeding header — load_replay reads it back (skipped by every other .rec consumer)
     if (trace_path)  trace_file = fopen(trace_path, "w");
@@ -3675,6 +3693,8 @@ int main(int argc, char **argv) {
     if (pget_snapshot.data) UnloadImage(pget_snapshot);
     UnloadRenderTexture(canvas);
     wav_stream_close();    // --wav: patch RIFF sizes and finish the file
+    midi_output_shutdown();   // no-op unless a cart actually sent (lazy virtual source); NOT gated on
+                              // audio_off — a pure sequencer cart driving outboard gear makes no sound itself
     if (!audio_off) {                                   // mirror the gated init
         midi_input_shutdown();
         sound_shutdown();

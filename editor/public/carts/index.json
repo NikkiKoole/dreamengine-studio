@@ -4335,6 +4335,19 @@
     "lineage": "The showcase for the engine's AUTO-TUNE — sample_autotune() (docs/design/transparent-autotune.md). Formant-preserving pitch correction: sing a note and it snaps onto the scale + steadies, but STILL sounds like you (not a chipmunk, not the robot vocoder — that's hardtune). Born as the offline TD-PSOLA spike (formant preservation + detector-driven correct-to-scale), now an engine primitive this app just calls. The pitch ribbon shows your wobbly voice snapping to the scale grid."
   },
   {
+    "title": "midi out",
+    "description": "Sends a pattern OUT to another instrument over MIDI -- a bassline on channel 1, drums as GM notes on channel 10 -- and logs every message as it goes. The cart makes no sound of its own; the point is what comes out the other end. It appears to the system as a MIDI device called 'dreamengine' that a DAW picks as a track input. Two parts play at once and they show the whole channel convention: a 16-step bassline on CHANNEL 1, where the notes are notes, and a drum pattern on CHANNEL 10, where each voice is a fixed GM note number (36 kick, 38 snare, 42 closed hat) rather than a channel of its own -- which is how every drum machine addresses a DAW's drum rack. A filter-cutoff sweep rides out as CC 74 on channel 1, and the transport is mirrored as real MIDI clock at 24 ticks per quarter note, so the receiving gear follows this cart's tempo. The log on the right shows the last dozen messages with their channel, which is the part worth watching: if a receiver is silent, this tells you whether the problem is us not sending or them not listening. SPACE plays/stops (and sends MIDI start/stop). LEFT/RIGHT change tempo. C toggles sending clock. D toggles the drum part.",
+    "file": "midiout.cart.png",
+    "created": "2026-08-13",
+    "kind": [
+      "tech-demo"
+    ],
+    "teaches": [
+      "algorithm-visualization"
+    ],
+    "lineage": "The midi_output.h self-test cart, the OUT-direction twin of synccheck: it plays a pattern on some OTHER instrument -- another app, or gear on a cable -- and shows every byte as it leaves, so 'is my cart actually reaching the DAW, and on which channel' is one look instead of a guess. Also the worked example of the channel convention the racks will use: pitched parts get a channel each, a drum machine gets ONE channel with its voices as GM note numbers."
+  },
+  {
     "title": "Minesweeper",
     "description": "The desktop classic, rebuilt from scratch on the fantasy console. A 16x14 field of beveled tiles hides 30 mines; left-click reveals, and uncovering an empty cell triggers a satisfying flood-fill cascade that opens its whole region in one click. Numbers 1-8 glow in the canonical colors to count adjacent mines; right-click plants a flag. The first click is always safe — mines are seeded only after you commit. A live mine counter and a running timer flank a smiley face that grins, dies, or beams depending on your fate; clearing the board logs your best time. Tap a mine and the whole field detonates with a screen-shaking boom. Left-click reveals, right-click flags, click the face or press R for a new game.",
     "file": "minesweeper.cart.png",

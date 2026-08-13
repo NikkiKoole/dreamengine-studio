@@ -15,12 +15,16 @@
 //   bool midi_held(int note)            is this note currently down?
 //   int  midi_bend(void)                last pitch-bend, -8192..8191 (0 = centre)
 //   bool midi_present(void)             any MIDI source connected?
+//   int  midi_cc(int ch, int cc)        last CC value 0..127, -1 = never seen (ch 0 = omni)
+//   int  midi_cc_get(int*, int*, int*)  drain one CC event (the MIDI-learn primitive)
 //
-// Scope: note-on/off + velocity + pitch-bend, plus the CLOCK/TRANSPORT bytes, which
-// this file only PARSES — the state they drive lives in sync.h (which must be included
-// first), because a host clock and Ableton Link feed the same cart-facing API from
-// somewhere else entirely. CC (knobs), MIDI-learn and aftertouch are still out — see
-// docs/design/midi-and-keybed.md.
+// Scope: note-on/off + velocity + pitch-bend + CC (knobs, channel-aware — see the CC block
+// below for why the channel is kept there and dropped for notes), plus the CLOCK/TRANSPORT
+// bytes, which this file only PARSES — the state they drive lives in sync.h (which must be
+// included first), because a host clock and Ableton Link feed the same cart-facing API from
+// somewhere else entirely. Still out: aftertouch (poly + channel), program change, and MPE
+// (midi_bend is one GLOBAL bend, not per-channel, so the input layer is MPE-unaware) — see
+// docs/design/midi-and-keybed.md. The OUTPUT direction is runtime/midi_output.h.
 
 #ifndef DE_MIDI_INPUT_H
 #define DE_MIDI_INPUT_H
@@ -39,6 +43,35 @@ static volatile int      midi_bend_v = 0;     // -8192..8191
 static volatile int      midi_dev_count = 0;
 static char              midi_dev_name[64] = {0};   // name of the connected keyboard (CoreMIDI / Web MIDI)
 static volatile int      midi_g_wanted = 0;   // a cart called a midi_* read fn → host may ask for MIDI access (web opt-in, mirrors mic_g_wanted). See de_midi_wanted() in studio.c + runtime/web_midi.js.
+
+// ── CC (knobs) — channel-aware, unlike the note path above ──
+// WHY the channel is kept here and thrown away for notes: a keybed cart has ONE voice, so
+// which channel a note arrived on is noise. A knob mapping is the opposite — a rack with
+// several machines wants "cutoff on channel 1" to reach a different machine than "cutoff on
+// channel 10", which is exactly how a DAW automates a multi-timbral instrument. So notes
+// stay omni (simple, and no cart asked otherwise) and CC carries the channel.
+// See docs/design/midi-out.md for the channel map this mirrors.
+#define MIDI_CCRING 128   // power of two
+typedef struct { uint8_t ch, cc, val; } MidiCC;        // ch 0..15 on the wire (public API is 1..16)
+static MidiCC            midi_ccring[MIDI_CCRING];
+static volatile unsigned midi_ccw = 0, midi_ccr = 0;
+static int16_t           midi_cc_v[16][128];           // last value per channel, -1 = never seen
+static int16_t           midi_cc_any[128];             // last value on ANY channel (the omni read)
+static volatile int      midi_cc_init_done = 0;
+
+static void de_midi_push_cc(int ch, int cc, int val) {
+    if (ch < 0 || ch > 15 || cc < 0 || cc > 127 || val < 0 || val > 127) return;
+    if (!midi_cc_init_done) {                          // -1 (unseen) is not zero, so it needs filling
+        for (int c = 0; c < 16; c++) for (int i = 0; i < 128; i++) midi_cc_v[c][i] = -1;
+        for (int i = 0; i < 128; i++) midi_cc_any[i] = -1;
+        midi_cc_init_done = 1;
+    }
+    midi_cc_v[ch][cc] = (int16_t)val;
+    midi_cc_any[cc]   = (int16_t)val;
+    unsigned w = midi_ccw;
+    midi_ccring[w & (MIDI_CCRING - 1)] = (MidiCC){ (uint8_t)ch, (uint8_t)cc, (uint8_t)val };
+    midi_ccw = w + 1;
+}
 
 // producer side — called from the CoreMIDI thread (or, later, the web JS bridge)
 static void de_midi_push(int type, int note, int vel) {
@@ -67,6 +100,30 @@ bool midi_held(int note)  { midi_g_wanted = 1; return (note >= 0 && note < 128) 
 int  midi_bend(void)      { midi_g_wanted = 1; return midi_bend_v; }
 bool midi_present(void)   { midi_g_wanted = 1; return midi_dev_count > 0; }
 const char *midi_name(void) { midi_g_wanted = 1; return midi_dev_name; }   // connected keyboard's name, or "" if none
+
+// ── CC reads: one POLLED, one DRAINED, because knobs and MIDI-learn want different things ──
+// midi_cc()     — "where is that knob now?" Survives a frame where nothing moved, which is
+//                 what riding a filter needs. ch 0 = omni (any channel), the simple case.
+// midi_cc_get() — "which knob did the user just touch?" The MIDI-learn primitive: you cannot
+//                 build learn from the polled form, because the whole question is WHICH cc
+//                 moved and a poll only answers about one you already named.
+int midi_cc(int ch, int cc) {
+    midi_g_wanted = 1;
+    if (cc < 0 || cc > 127) return -1;
+    if (ch == 0) return midi_cc_any[cc];               // omni
+    if (ch < 1 || ch > 16) return -1;
+    return midi_cc_v[ch - 1][cc];
+}
+int midi_cc_get(int *ch, int *cc, int *val) {
+    midi_g_wanted = 1;
+    if (midi_ccr == midi_ccw) return 0;
+    MidiCC e = midi_ccring[midi_ccr & (MIDI_CCRING - 1)];
+    midi_ccr++;
+    if (ch)  *ch  = e.ch + 1;                          // public API is 1..16, like the gear prints it
+    if (cc)  *cc  = e.cc;
+    if (val) *val = e.val;
+    return 1;
+}
 
 // ── CoreMIDI backend (DESKTOP macOS only) ───────────────────────────────────────
 // Gated off under DE_NO_RAYLIB: a portable host (iOS AUv3, Switch) is fed MIDI by the
@@ -119,7 +176,10 @@ static void midi_parse(const uint8_t *d, unsigned n) {
         } else if (status == 0xE0 && k + 2 < n) {
             midi_bend_v = (((int)d[k + 2] << 7) | d[k + 1]) - 8192;
             k += 3;
-        } else if (status == 0xB0 || status == 0xA0) {  k += 3;  // CC / poly-AT — skip (future)
+        } else if (status == 0xB0 && k + 2 < n) {
+            de_midi_push_cc(d[k] & 0x0F, d[k + 1], d[k + 2]);   // CC — channel KEPT (see below)
+            k += 3;
+        } else if (status == 0xA0) {                    k += 3;  // poly-AT — skip (future)
         } else if (status == 0xC0 || status == 0xD0) {  k += 2;  // program / channel-AT
         } else {                                        k += 1;  // unknown / running-status data byte
         }
@@ -195,6 +255,7 @@ static void midi_input_shutdown(void) {}
 //   type: +1 note-on, -1 note-off ; note 0..127 ; vel 1..127
 void de_midi_event(int type, int note, int vel) { de_midi_push(type, note, vel); }
 void de_midi_bend(int v)                         { midi_bend_v = v; }          // -8192..8191
+void de_midi_cc(int ch, int cc, int val)         { de_midi_push_cc(ch, cc, val); }   // ch 0..15, as it arrives on the wire
 #endif
 
 #ifdef PLATFORM_WEB
@@ -204,6 +265,7 @@ void de_midi_bend(int v)                         { midi_bend_v = v; }          /
 #include <emscripten.h>
 EMSCRIPTEN_KEEPALIVE void de_midi_web_push(int type, int note, int vel) { de_midi_push(type, note, vel); }
 EMSCRIPTEN_KEEPALIVE void de_midi_web_bend(int v)     { midi_bend_v = v; }
+EMSCRIPTEN_KEEPALIVE void de_midi_web_cc(int ch, int cc, int val) { de_midi_push_cc(ch, cc, val); }
 EMSCRIPTEN_KEEPALIVE void de_midi_web_present(int n)  { midi_dev_count = n; if (n == 0) midi_dev_name[0] = 0; }
 EMSCRIPTEN_KEEPALIVE void de_midi_web_name(const char *s) { strncpy(midi_dev_name, s ? s : "", sizeof midi_dev_name - 1); midi_dev_name[sizeof midi_dev_name - 1] = 0; }
 #endif

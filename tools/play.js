@@ -346,6 +346,7 @@ if (mode === 'run' && !hasFlag('--net-echo')) {
   }
 }
 if (opt('--midi-clock', null)) runArgs.push('--midi-clock', opt('--midi-clock'))   // synthetic EXTERNAL clock at <bpm> → sync_active/sync_beats/sync_bpm, no DAW needed (runtime/sync.h)
+if (hasFlag('--midi-out'))     runArgs.push('--midi-out')   // let this AUTOMATED run actually SEND MIDI (off by default here, or every headless bake fires notes into the dev's open DAW — runtime/midi_output.h). tools/midi-out-check/run.sh
 if (opt('--solo-slot', null))  runArgs.push('--solo-slot', opt('--solo-slot'))   // stem render: mute all but these instrument slot(s), e.g. 6 or 5,6 (docs/design/audio-voice-debugging.md)
 if (opt('--uiaudit', null))    runArgs.push('--uiaudit', path.resolve(opt('--uiaudit')))   // per-frame draw bounding boxes → JSONL (tools/ui-audit.js)
 

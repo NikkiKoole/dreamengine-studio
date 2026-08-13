@@ -388,6 +388,20 @@ bool midi_held(int note);                                 // is this MIDI note c
 int  midi_bend(void);                                     // last pitch-bend wheel value, -8192..+8191 (0 = centred) — for ribbons/glides
 bool midi_present(void);                                  // is any MIDI keyboard connected? (false = no device / web Safari / not macOS)
 const char *midi_name(void);                              // name of the connected MIDI keyboard (e.g. "Arturia KeyStep"), or "" if none — for a "connected to …" readout
+int  midi_cc(int ch, int cc);                             // last value of a knob/slider on the controller, 0..127 (-1 = never touched). ch 1..16, or 0 for "any channel"
+int  midi_cc_get(int *ch, int *cc, int *val);             // drain one knob move: returns 1 and fills ch/cc/val, or 0 if none. use this to let the player MAP a knob by wiggling it
+
+// ── MIDI out: your cart plays OTHER instruments (another app, or gear on a cable) ──
+// The cart appears as a MIDI device called "dreamengine" that a DAW can pick as an input.
+// Channels are 1..16, the way they're printed on gear. Nothing is sent until you call one
+// of these, so a cart that never sends never shows up.
+void midi_send_note(int ch, int note, int vel, int on);   // play a note on another instrument: on=1 starts it, on=0 stops it. note 0..127 (60 = middle C), vel 1..127
+void midi_send_cc(int ch, int cc, int val);               // turn a knob on another instrument, val 0..127 (cc 1 = mod wheel, 74 = filter cutoff by convention)
+void midi_send_bend(int ch, int v);                       // bend the pitch of what you're playing, -8192..+8191 (0 = no bend)
+void midi_send_clock(void);                               // one tick of the beat — send 24 per quarter note to keep other gear in time with you
+void midi_send_start(int rewind);                         // tell the other gear to play: rewind=1 starts from the top, rewind=0 continues where it stopped
+void midi_send_stop(void);                                // tell the other gear to stop
+bool midi_out_ready(void);                                // did the MIDI output open? (false = not macOS/iOS, or the system said no)
 
 // EXTERNAL CLOCK — follow someone else's tempo, so your sequencer plays in time with a DAW,
 // a drum machine or another app. One API for every source (MIDI clock now; an AUv3 host and

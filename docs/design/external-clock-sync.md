@@ -24,9 +24,9 @@ rather than fact, because getting that wrong would be worse than leaving it open
 | **Host transport** (AUv3 `musicalContextBlock`) | in | ✅ **SHIPPED** on macOS; the panel/process fork is open ([ios-plan.md](ios-plan.md#the-out-of-process-wall-the-open-fork-2026-08-13)) | ReWire was its equivalent |
 | **Ableton Link** — peer tempo with phones in the room | both | ✗ **OPEN.** Same `sync_push_pos()` call, so small — but the lib is dual-licensed, check that FIRST | n/a (Link postdates it) |
 | **MIDI notes IN** — play the instrument | in | ✅ engine-wide (`midi_input.h`, keybed carts). ⚠ **acidcandy reads none** — it is a sequencer, which is why recording a GarageBand instrument track captures nothing | ✅ |
-| **MIDI CC IN** — turn its knobs from a controller or DAW automation | in | ✗ **NOT BUILT, and it is one line**: `midi_input.h` parses the byte and drops it — `status == 0xB0 … // CC / poly-AT — skip (future)`. **This is the cheapest missing piece of the whole story** | ✅ (recall — this is the gap the maker was reaching for) |
-| **MIDI clock OUT** — drive other gear from a cart | out | ✗ **NOT BUILT AT ALL.** There is no MIDI output path in the engine; `midi_input.h` is input-only by design. See [`midi-out.md`](midi-out.md) (EXPLORING) | ✗ ReWire instead (recall) |
-| **MIDI notes OUT** — a cart as a sequencer for outboard | out | ✗ not built (same missing path) | ✗ (recall) |
+| **MIDI CC IN** — turn its knobs from a controller or DAW automation | in | ✅ **SHIPPED 2026-08-13** — `midi_cc(ch, cc)` (polled, for riding a knob) + `midi_cc_get()` (drained, the MIDI-learn primitive). **Channel-aware**, unlike notes, so a rack can map per machine ([why](midi-out.md#the-channel-map-and-why-drum-voices-are-notes-not-channels)). ⚠ no cart reads it yet | ✅ (recall — this is the gap the maker was reaching for) |
+| **MIDI clock OUT** — drive other gear from a cart | out | ✅ **SHIPPED 2026-08-13** — `midi_send_clock/start/stop` over a CoreMIDI virtual source (macOS + iOS). Gated by `tools/midi-check/run.sh`. See [`midi-out.md`](midi-out.md) | ✗ ReWire instead (recall) |
+| **MIDI notes OUT** — a cart as a sequencer for outboard | out | ✅ **SHIPPED 2026-08-13** — `midi_send_note(ch, …)` + `_cc` + `_bend`, channel-first. `midiout` is the demo. ⚠ no RACK wired to it yet (acidcandy is the target; slide encoding still open) | ✗ (recall) |
 | **Audio INTO another app / DAW** | out | AUv3 — plays, but the panel is not honestly wired (the fork above) | ✅ ReWire on desktop; **Audiobus** on iPad |
 | **In-app EXPORT of your track** | out | ✗ **nothing ships this.** The engine CAN capture its own output (`sound_wavcap_begin`), but the only trigger is the debug harness's request-file channel — see "what export would actually take" below | ✅ **iTunes + SoundCloud** |
 | **Background audio while slaved** (iOS) | — | ✗ open, and it is the pairing ReBirth shipped | ✅ |
@@ -88,11 +88,14 @@ made something" and "I have a file", and it answers the recording question witho
 The live 303-alikes on iOS set the baseline: **Troublemaker** (Bram Bos) has AUv3, **Ableton Link**,
 **MIDI CC mapping**, Core/Virtual/Bluetooth MIDI in, Audiobus 2. **Pure Acid** has Link. **2xB303** has
 Link, IAA/Audiobus/AUM routing, MIDI sync and audio-loop export. Against that list we have AUv3
-(panel unfinished) and MIDI clock in on desktop; **Link, CC and export are all table stakes we lack.**
+(panel unfinished), MIDI clock in on desktop, and — since 2026-08-13 — **CC in ✓ SHIPPED** plus MIDI
+**out**, which none of the three named above offer. **Link and export remain table stakes we lack**,
+and CC is shipped at the *engine* level only: no cart maps a knob to it yet, so a buyer cannot use it.
 
-**So the short answer to the question.** The simplest thing: **MIDI CC in.** One `else if` in
-`midi_input.h` throws the bytes away, and with it goes "tweak the cutoff from a knob box / automate it
-from the DAW" — which for an acid box is most of the fun, and which ReBirth had. The *biggest* thing is
+**So the short answer to the question, as it stood when asked.** The simplest thing was **MIDI CC
+in** — one `else if` in `midi_input.h` threw the bytes away, and with them "tweak the cutoff from a
+knob box / automate it from the DAW", which for an acid box is most of the fun, and which ReBirth had.
+That `else if` is now wired (`midi_cc`/`midi_cc_get`, channel-aware). The *biggest* thing is
 ReWire, and our answer to that is the AUv3: shipped, playing, and stuck on the out-of-process wall.
 
 Neither is scheduled. They are listed here so the next session finds them in one place instead of

@@ -110,8 +110,36 @@ a broken doc link or `#section`).
 > TWO shapes — MIDI clock is *incremental* (measure the tempo, infer the transport), a host and Link are
 > *absolute* (they state both). `sync_beats()` is the common currency and a cart DERIVES its step counter
 > from it. That is why AUv3 transport needed **zero cart changes**: it was the other shape of the same seam.
-> **▶ NEXT SESSION: BUILD IN-APP EXPORT. Decided by the maker 2026-08-13 — do this before the fork
-> below.** Nothing of ours can get a track out today, which is what ReBirth shipped *instead* of relying
+> **▶ EXPORT IS POSTPONED — the maker redirected 2026-08-13 ("postpone the wav export, rather continue
+> working on the plugin stuff, midi export all the jazz"). What shipped instead, that same session:
+> the MIDI seam in BOTH directions.** `runtime/midi_output.h` — a CoreMIDI **virtual source** (the same
+> call on macOS and iOS, so desktop and the phone→Ableton case are one implementation), seven
+> `midi_send_note/cc/bend/clock/start/stop` + `midi_out_ready` functions in `studio.h`, **channel-first**
+> — plus **MIDI CC *in***, the one dropped `else if` in `midi_input.h` that four docs kept calling "the
+> cheapest missing piece" (`midi_cc(ch,cc)` polled + `midi_cc_get()` drained = the MIDI-learn primitive).
+> Gated by `zsh tools/midi-check/run.sh` (BOTH directions, real CoreMIDI, second process, negative
+> control). `midiout` is the demo cart. **The design point worth not re-deriving:** the maker asked
+> whether a rack should send on "various channels" given acidcandy's four machines — the answer is
+> **4 channels, not 4+27**, because a drum machine is ONE channel with its voices as GM **note numbers**
+> (and both the 808 and 909 rosters land on exact GM homes, since GM's percussion map was modelled on
+> these machines). That is what forced `ch` into every signature *before* it reached five places, and
+> the same logic made CC-in channel-aware while notes stay omni. Full map + the still-open **slide
+> encoding** question: [`midi-out.md` → The channel map](design/midi-out.md#the-channel-map-and-why-drum-voices-are-notes-not-channels).
+> ⚠ **Nothing is wired to a RACK yet** — `acidcandy` neither sends nor reads CC, so none of this is
+> reachable by a buyer. That is the next cart-side job, and it is where the slide decision gets made.
+>
+> **⚠ A BUG THIS FOUND, fixed: a guard that was inert in exactly the runs it protected.**
+> `sync_automated` — the flag stopping an automated run from consulting a real external clock — had its
+> assignment sitting **inside `#ifdef DE_SPEC`**. Only `spec.js` defines that; `play.js`
+> (`--headless`/`--script`/`--replay`) and the screenshot bake build with `-DDE_TRACE` alone, so the flag
+> stayed 0 and those runs *did* read the real clock — the nondeterminism
+> [`external-clock-sync.md`](design/external-clock-sync.md) documents as FIXED, still live, one `#ifdef`
+> away from the fix. It hid because `--midi-clock` runs are unaffected (the synthetic branch wins first)
+> and those are the runs the sync gates exercise. Moved out; both build modes recompile, spec still 104
+> green. **The transferable lesson, and why the new gate carries a negative control:** a gate must
+> include a case where the guard is the only thing that can produce the result.
+>
+> **Older next-action, still true — IN-APP EXPORT.** Nothing of ours can get a track out today, which is what ReBirth shipped *instead* of relying
 > on a host, and it is the real answer to "recording it in GarageBand does nothing". Three pieces, only
 > the first is cart work, full detail (incl. what `acidrack`'s existing "export" really is) at
 > [`external-clock-sync.md` → what export would actually take](design/external-clock-sync.md#what-export-would-actually-take-and-what-acidrack-really-does):

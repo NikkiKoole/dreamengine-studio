@@ -4,13 +4,20 @@
 > ReBirth: [`external-clock-sync.md` → The whole outward surface](external-clock-sync.md#the-whole-outward-surface--what-ships-what-is-open-and-the-rebirth-comparison).
 > Read that first; this doc is the OUT half only.
 
-> **STATUS: EXPLORING (idea, 2026-07-11; demand-confirmed 2026-07-19).** Captured from a
-> session sparked by "does MIDI out always make sense — e.g. in the 303?" Nothing built yet;
-> there is **no MIDI-output path in the engine today** (`runtime/midi_input.h` is input-only
-> and its v1 scope note explicitly defers CC/out). Current focus is the **303 (`acidrack`)**;
-> the maker notes many other carts could want this. Sibling of the shipped input layer —
-> [`midi-and-keybed.md`](midi-and-keybed.md). Deeper research deferred. A 2026-07-19 r/ipadmusic
-> drip put real numbers behind it — see [Demand evidence](#demand-evidence-from-the-r-ipadmusic-drip).
+> **STATUS: BUILDING (idea 2026-07-11; demand-confirmed 2026-07-19; the SEAM SHIPPED 2026-08-13).**
+> `runtime/midi_output.h` exists and is gated: a cart can send notes, CC, bend and clock/transport
+> out through a CoreMIDI **virtual source** (the same call on macOS and iOS, so desktop and the
+> phone→Ableton case are one implementation). Seven `midi_send_*`/`midi_out_ready` functions are in
+> `studio.h`, `midiout` is the demo + gate driver, and `tools/midi-check/run.sh` asserts the
+> bytes on real CoreMIDI from a second process, negative control included.
+> **MIDI CC *in* shipped the same day** — the one dropped `else if` this doc's sibling kept
+> deferring — and it is **channel-aware**, which notes deliberately are not
+> ([why](#the-channel-map-and-why-drum-voices-are-notes-not-channels)).
+> **Still open:** wiring a rack to it (the target is **`acidcandy`/Tiny Acid Jam**, not `acidrack`
+> — that is where the shipping app is), the **slide encoding** decision, an AUv3 MIDI-out path
+> (model B), and MPE in either direction. Sibling of the input layer —
+> [`midi-and-keybed.md`](midi-and-keybed.md). A 2026-07-19 r/ipadmusic drip put real numbers behind
+> it — see [Demand evidence](#demand-evidence-from-the-r-ipadmusic-drip).
 
 ---
 
@@ -112,6 +119,62 @@ Plain note-on/off can't carry the 303's expression:
   **pitch-bend / CC5 portamento** ramp. There is no universal encoding — it depends on the
   target synth. **This is the real design decision**, not "should we add MIDI out."
 
+## The channel map, and why drum voices are NOTES, not channels
+
+Asked by the maker 2026-08-13, in the form "it kinda makes sense if it would send MIDI on various
+channels? it has 4 instruments, 2 of those are drum machines with various voices inside too." The
+instinct is right and the arithmetic is the interesting part: the answer is **4 channels, not 4+27**.
+
+**The rule.** A *pitched* part gets a channel of its own, because on that channel a note number
+means a pitch. A *drum machine* gets **one** channel on which each voice is a fixed **note number** —
+not a channel per voice. That is how every drum machine addresses a DAW, and it is why a receiving
+drum rack lights kick/snare/hat instead of three arbitrary pitches. Twenty-seven channels would also
+overflow the sixteen MIDI has.
+
+**`acidcandy`'s five machines** (`M_303A, M_303B, M_808, M_909, M_MST`) therefore map:
+
+| machine | ch | what goes out |
+|---|---|---|
+| 303 A | 1 | pitched notes; accent → velocity; slide → **open**, see below |
+| 303 B | 2 | same |
+| 808 | 10 | its 16 `TR_*` voices as 16 GM notes |
+| 909 | 11 | its 11 `TR9_*` voices as GM notes |
+| MST | — | **nothing.** It is a master bus, not a sound source |
+
+Channel 10 is GM's reserved drum channel, so the 808 lands where a DAW already looks; two drum
+machines cannot both be 10, so the 909 takes 11 (worth making settable).
+
+**Both rosters land on exact GM homes, with nothing left over** — which is not luck: GM's percussion
+map was modelled on these machines.
+
+| 808 (`TR_*`) | GM | 808 | GM | 909 (`TR9_*`) | GM |
+|---|---|---|---|---|---|
+| BD | 36 | CLAV | 75 | BD | 36 |
+| SD | 38 | CP | 39 | SD | 38 |
+| LT | 41 | MA | 70 | LT / MT / HT | 41 / 45 / 48 |
+| MT | 45 | CB | 56 | RS | 37 |
+| HT | 48 | CY | 49 | CP | 39 |
+| LC / MC / HC | 64 / 63 / 62 | OH | 46 | CH / OH | 42 / 46 |
+| RS | 37 | CH | 42 | CC / RC | 49 / 51 |
+
+**The API consequence, caught before it shipped.** This doc originally proposed
+`midi_send_note(note, vel, on)` — *no channel argument*. Fine for a single-voice keybed cart, useless
+for a rack, and a five-place retrofit once it is in `studio.h`. Every `midi_send_*` therefore takes
+`ch` **first**, 1..16 as printed on gear (the wire's 0..15 conversion happens once, inside
+`midi_output.h`, so no cart ever writes `ch - 1`).
+
+**And it applies symmetrically to CC *in*.** `midi_input.h` masks the channel nibble off
+(`d[k] & 0xF0`) — fine for notes, where a keybed cart has one voice and the channel is noise, but
+wrong for knobs: automating 303A's cutoff separately from the 808's is exactly a per-channel
+question. So CC carries the channel (`midi_cc(ch, cc)`, `ch 0` = omni) while notes stay omni, and the
+shipped `midi_get()` was left alone.
+
+**Still open here:** the **slide** encoding (overlapping note-ons requiring a legato/mono receiver,
+versus an explicit portamento CC — target-dependent, so it wants testing against real synths, and it
+is the one decision this section does not make), and whether a muted machine keeps sending. Mute is a
+*mixer* function, so the defensible default is that MIDI keeps flowing — muting locally while an
+external synth plays the part is a real workflow — but it will surprise someone either way.
+
 ## Two delivery models (they are genuinely different — don't conflate)
 
 Both are valid; a cart like the 303 could do either. They share the same net-new engine
@@ -139,18 +202,44 @@ render-block MIDI plumbing already built — just the output direction. Note: de
 **cannot** load an iOS AUv3 (hosting is same-device only), so model B stays on the phone;
 reaching desktop Ableton is model A's job.
 
-## What it would cost us (engine surface — not built)
+## What it cost us (engine surface — SHIPPED 2026-08-13)
 
-- A new **`runtime/midi_output.h`** sibling to `midi_input.h`, compiled inside `studio.c` the
-  same way. **Native/iOS = CoreMIDI** — `MIDISourceCreate` + `MIDISend` (the virtual-source
-  API is the **same call on macOS and iOS**, so one implementation covers desktop *and* the
-  phone→Ableton case). **Windows/web = harmless stubs** (web could later use Web-MIDI
-  *output*, mirroring the input bridge in `runtime/web_midi.js`).
-- A few `studio.h` functions — e.g. `midi_send_note(note, vel, on)`, `midi_send_bend(v)`,
-  later `midi_send_cc(cc, v)` — added in the usual four places (studio.h/studio.c/studioDocs/
-  shell) per CLAUDE.md.
-- A cart-side convention for **which** events a generator emits, plus the **slide encoding**
-  decision above (per-cart, since it's target-dependent).
+- **`runtime/midi_output.h`**, sibling to `midi_input.h`, compiled inside `studio.c` the same way.
+  CoreMIDI **virtual source** (`MIDISourceCreate` + `MIDIReceived`) on macOS *and* iOS — one
+  implementation for desktop and the phone→Ableton case. Windows/web = harmless stubs.
+  Allocation-free per send (stack packet list), so a cart may send from the audio thread, which is
+  where `update()` runs inside the AUv3.
+- **Seven `studio.h` functions** in the usual four places: `midi_send_note/cc/bend/clock/start/stop`
+  + `midi_out_ready`. All channel-first (see the map above).
+- **Two design calls worth not re-deriving:**
+  - **Lazy init.** The source is created on the *first send*, never at startup — otherwise every
+    one of 578 cart runs would publish a "dreamengine" port into the user's MIDI setup, including
+    headless ones.
+  - **Automated runs do not send.** `midi_out_automated` mirrors `sync_automated` (headless,
+    screenshot, scripted/replayed/ui-audited) and suppresses output unless `--midi-out` is passed.
+    Without it a `build-all` sweep or a gif bake would fire notes into whatever DAW the dev has
+    open. ⚠ The assignment is kept **outside** any `#ifdef` on purpose — see
+    [the inert-guard bug](#the-inert-guard-found-while-building-this) below.
+- **Gate:** `tools/midi-check/run.sh` — a real CoreMIDI listener in a second process asserting
+  channel/note/velocity/controller, plus a **negative control** (the same run without `--midi-out`
+  must publish nothing, which is the only way to tell "correctly gated" from "not gated at all").
+  Needs no IAC bus and no DAW, unlike [`sync-spike`](external-clock-sync.md).
+- **Still open:** wiring a rack to it, and the **slide encoding** decision above.
+
+### The inert guard, found while building this
+
+Worth recording because the shape recurs. `sync_automated` — the flag that stops an automated run
+consulting a real external clock — had its assignment sitting **inside `#ifdef DE_SPEC`**. Only
+`spec.js` defines `DE_SPEC`; `play.js` (`--headless`/`--script`/`--replay`) and the screenshot bake
+build with `-DDE_TRACE` alone. So in every run the flag was written to protect, it stayed `0` and the
+real clock *was* consulted — the exact nondeterminism
+[`external-clock-sync.md`](external-clock-sync.md) documents as fixed, still live, with the fix one
+`#ifdef` away.
+
+It hid because `--midi-clock` runs were unaffected (`sync_frame`'s synthetic branch wins before the
+`automated` branch is reached), and those are the runs the sync gates exercise. **The lesson for any
+"is anyone watching this run" guard: the gate must include a case where the guard is the only thing
+that can produce the result** — which is why the MIDI-out gate carries a negative control.
 
 ## Where this could go (later)
 

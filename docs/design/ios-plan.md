@@ -440,6 +440,64 @@ not a cleanup: **elect one instance to drive transport and the frame**, and the 
 second window onto the *same* rack — still wrong for two tracks, but coherent instead of garbled, and
 an honest limitation a buyer can be told about.
 
+#### ✅ AND PER-INSTANCE STATE IS CHEAP AFTER ALL — `tools/engine-dylib-spike` PASSES (2026-08-13)
+
+Asked at the right scale ("imagine I want to make 20 audio apps") the answer changes: a hack costs you
+20×, an engine fix costs 1×. So the refactor is what you want and the refactor is unlandable — ~204
+statics in the two files CLAUDE.md names as hot and shared between parallel agents, plus per-cart
+globals in 553 carts, plus every determinism gate downstream. **There is a third route, and it works.**
+
+**dyld keys loaded images by FILE, not by symbol.** Two *copies* of one dylib are two images with two
+data segments, so every file-scope static duplicates — all 146 in `sound.h`, all 58 in `studio.c`, and
+every cart's own — with **zero changes to any of them**. The engine seam is already exactly the right
+interface: `ios/Sources/engine.h`, ~20 C functions.
+
+Measured on the REAL engine (`bash tools/engine-dylib-spike/run.sh`, `acidcandy` twice + `epiano`):
+
+```
+▸ two COPIES of one engine dylib, driven with different transport
+  ✓ the two loads are distinct dyld images                     handles …3510 vs …39c0
+  ✓ THE POINT: their frames DIFFER, so their state is independent
+  ✓ each engine hears its own transport   A peak 0.0000 (host stopped) vs B peak 0.6128 (playing)
+▸ NEGATIVE CONTROL: the same path twice (must SHARE state)
+  ✓ dyld hands back the SAME image for one path                …3510 and …3510
+  ✓ and therefore ONE engine: both reads are byte-identical
+▸ BONUS: a SECOND CART in the same process
+  ✓ the other cart runs alongside, drawing its own frame        64000 px (320x200)
+RSS: 9 MB with two engines up (peak 15 MB)
+```
+
+The audio row is the strongest one: A was handed a **stopped** transport and B a **playing** one, and a
+shared engine could not have produced both. The negative control matters as much — the same path twice
+comes back byte-identical, reproducing today's defect on purpose, so "the frames differed" cannot be the
+probe simply being unable to see sharing.
+
+**The shipping shape: K pre-built, pre-signed copies in the bundle** (`engine1.dylib`…`engineK.dylib`),
+each instance `dlopen`s the next free one, instance K+1 refuses politely instead of garbling. Shipping
+the copies rather than copying at runtime removes the one serious unknown — whether a sandboxed,
+hardened-runtime appex may `dlopen` a file it just wrote.
+
+**Bonus worth noticing:** the second cart ran alongside the first at its own canvas size. `de_switch_cart`
+is a config-log replay that swaps one cart at a time; this is two carts *alive simultaneously*, which is
+a capability the app side has never had.
+
+**Still not covered — each needs its own step before this is a plan, not a hope:**
+
+| unknown | why it matters |
+|---|---|
+| `dlopen` from inside the sandboxed `.appex`, library validation on | the spike runs unsandboxed; this is the one that could kill the route |
+| the Swift-side frame worker | one `static` per process today (`TinyjamAU.worker`); needs one per instance |
+| K CoreMIDI virtual sources | `midi_output.h` publishes by NAME; K instances would collide |
+| K instances, one `cart.blob` | `save_bytes` per cart; `de_set_save_dir` already exists to scope it |
+
+⚠ **And the spike found a break at HEAD on its way in:** `tools/build-nr.sh` no longer linked. Today's
+`midi_output.h` put CoreMIDI in `studio.c` and — unlike `midi_input.h`, which gates its backend off
+under `DE_NO_RAYLIB` because a portable host feeds MIDI *in* — output deliberately wants that same call
+on macOS and iOS, so it is not gated and the script's "ZERO frameworks (only libc + libm)" link line
+broke. Fixed (link `CoreMIDI` + `CoreFoundation`, header corrected). It sat red for hours because
+nothing runs that script in CI, which is the same shape as the six gates that passed on a plug-in
+GarageBand could not open: **the seams that only humans exercise are the ones that rot.**
+
 Incidentally all three verdict branches have now been observed in the wild, which is the strongest form
 of the control the `--panel` gate asserts synthetically.
 

@@ -240,9 +240,27 @@ a broken doc link or `#section`).
 > the "which instance renders" stamp FLIPS between 1 and 2, so both render blocks are pushing
 > `de_sync_position` into the one process-global engine and both signal the one frame worker — the rack
 > is driven twice per host buffer by two transports. No host gives each track its own process, so
-> **per-instance engine state is the only real fix**. ONE cheaper mitigation exists and is a PRODUCT
-> call: elect one instance to drive transport + the frame, making track 2 a second window on the SAME
-> rack — coherent instead of garbled, and an honest limitation. Read the verdict any time with
+> per-instance engine state is the only real fix.
+> **▶▶ AND IT IS CHEAP — `tools/engine-dylib-spike` PASSES (2026-08-13). THIS IS THE NEXT JOB.**
+> Asked at the scale of "20 audio apps", a hack costs 20× and an engine fix costs 1× — so you want the
+> refactor, and the refactor is unlandable (~204 statics in the two hot shared files, plus per-cart
+> globals in 553 carts, plus every determinism gate downstream). **Third route, measured on the real
+> engine: dyld keys images by FILE, so two COPIES of one engine dylib are two data segments — every
+> static duplicated, including each cart's own, with ZERO source changes.** `engine.h` is already the
+> interface. Ship K pre-built, pre-signed copies in the bundle; instance K+1 refuses politely. 9 MB for
+> two engines, and a SECOND CART ran alongside the first at its own canvas size (something
+> `de_switch_cart` cannot do). Carries a negative control. **Four things it does NOT cover, in risk
+> order:** `dlopen` from inside the sandboxed `.appex` with library validation on (the one that could
+> kill it) · the Swift-side frame worker (one `static` per process today) · K same-named CoreMIDI
+> virtual sources · K instances sharing one `cart.blob` (`de_set_save_dir` exists). Detail + the
+> results table: [`ios-plan.md`](design/ios-plan.md#-and-per-instance-state-is-cheap-after-all--toolsengine-dylib-spike-passes-2026-08-13).
+> **ALSO DO FIRST, and it protects all 20 apps:** a real-host LOAD gate in `mac.sh`. Six gates passed
+> today on a plug-in GarageBand refused to open, because our test host silently falls back where a DAW
+> refuses — fail on a `dlopen`/load error in the log, not just on the resulting pid. Same shape as
+> `tools/build-nr.sh` sitting red for hours (CoreMIDI, now fixed): **the seams only humans exercise rot.**
+> The cheaper mitigation stays in the pocket if the sandbox kills the dylib route: elect one instance to
+> drive transport + the frame, making track 2 a second window on the SAME rack — coherent instead of
+> garbled, and an honest limitation. Read the panel verdict any time with
 > `/usr/bin/log stream --predicate 'eventMessage CONTAINS "[tinyjam] PANEL"'` (`log` is a **zsh
 > builtin** — the absolute path matters). Full arc, the twelfth wrong turn, and why each item above is
 > a measurement:

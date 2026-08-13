@@ -625,6 +625,21 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
              build-box2d.sh  build the vendored Box2D v3 (runtime/box2d/) into build/box2d/<target>/libbox2d.a per platform (--mac/--win/--wasm/--ios, --check runs a drop-box smoke test). Pure-C rigid-body lib for the physics experiment; opt-in, not in the default cart build. See docs/design/box2d-integration.md
              mac-app.sh      bundle an exported cart binary into a signed + notarized + stapled .app that opens on ANY Mac (Gatekeeper-clean); needs a Developer ID cert + a notarytool cred profile (header has the one-time setup)
              bundle-spike/   PASSED probe: TWO carts in ONE binary (per-TU -Ddraw=<slug>_draw renames + a dispatcher shim; carts unmodified) — the Tinyjam multi-cart app shape (design/share-panel.md §spike); proof-sound.sh = the de_switch_cart round-trip oracle
+             engine-dylib-spike/  PASSED probe: **K independent engines in ONE process**, by loading the
+                             engine as a dylib K times instead of refactoring its globals. `bash run.sh`.
+                             WHY: two AUv3 instances land in one extension process (measured) and engine
+                             state is process-global (~204 statics in studio.c/sound.h + every cart's own),
+                             so two DAW tracks fight over one rack. dyld keys images by FILE, so two
+                             COPIES of one dylib are two data segments — every static duplicated, ZERO
+                             changes to studio.c/sound.h/any cart. Ships as K pre-signed copies in the
+                             bundle (no runtime copy = no "may a sandboxed appex dlopen what it wrote").
+                             Carries a NEGATIVE CONTROL (same path twice must come back byte-identical,
+                             reproducing the defect so the main assertion can go red) + a BONUS assertion
+                             that two DIFFERENT carts run side by side at their own canvas sizes — which
+                             de_switch_cart cannot do. 9 MB for two engines. NOT covered: dlopen from
+                             inside the sandboxed .appex, the Swift-side frame worker (one static per
+                             process today), K same-named CoreMIDI virtual sources, K instances sharing
+                             one cart.blob. docs/design/ios-plan.md
              sync-spike/     the two MIDI-CLOCK probes + the end-to-end gate for external sync
                              (runtime/sync.h): midimon = LISTEN, naming every transport byte on the wire ·
                              midisend = SEND a clock to the IAC bus, and `midisend <bpm> <secs>` WITHOUT

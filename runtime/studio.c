@@ -752,7 +752,7 @@ static float ctrl_scale_btn = 1.0f;  // the BUTTON diamond's own scale — RAILS
 // last computed placement (set once a frame alongside game_rect, below) — read back by
 // touch_layout_mode()/touch_ctrl_scale() and the touch_debug() overlay.
 static int  place_mode = PLACE_OVERLAY;
-static int  band_x = 0, band_y = 0, band_w = 0, band_h = 0;
+static int  tband_x = 0, tband_y = 0, tband_w = 0, tband_h = 0;
 static bool touch_debug_on = false;
 static bool net_debug_on    = false;   // F2: net-health overlay (frame/buffer/stalls/pkts) — see draw_net_debug
 
@@ -1556,7 +1556,7 @@ static void draw_touch_overlay_window(void) {
     if (touch_debug_on) {
         DeColor band_col = (DeColor){   0, 255, 255, 160 };
         DeColor zone_col = (DeColor){ 255,   0, 255, 160 };
-        if (place_mode != PLACE_OVERLAY) DrawRectangleLines(band_x, band_y, band_w, band_h, band_col);
+        if (place_mode != PLACE_OVERLAY) DrawRectangleLines(tband_x, tband_y, tband_w, tband_h, band_col);
         bool dpad = (touch_move_mode == TOUCH_DPAD4 || touch_move_mode == TOUCH_DPAD8);
         if (dpad) DrawCircleLines((int)stick_home_x, (int)stick_home_y, DPAD_GRAB_RADIUS, zone_col);
         else      DrawRectangleLines(sgz_x, sgz_y, sgz_w, sgz_h, zone_col);
@@ -2433,7 +2433,7 @@ static void loop_step(void) {
       // (show_touch_ui off — e.g. a keyboard-driven letterbox like the acidwire wireframe in
       // landscape), that band is dead space and top-pinning just shoves the game up — CENTER instead.
       if (!show_touch_ui && pl.mode == PLACE_DECK) {
-          pl.game.y = pl.band_h / 2.0f;   // band_h == vertical leftover; center vertically (x already centered)
+          pl.game.y = pl.band_h / 2.0f;   // tband_h == vertical leftover; center vertically (x already centered)
           pl.mode = PLACE_OVERLAY; pl.band_w = 0; pl.band_h = 0;
       }
       // RESIZABLE carts FILL the window at a fractional COVER scale (crisp nearest-neighbour, just
@@ -2450,7 +2450,7 @@ static void loop_step(void) {
           pl.mode = PLACE_OVERLAY; pl.band_x = pl.band_y = 0; pl.band_w = (int)ww; pl.band_h = (int)wh;
       }
       game_rect = pl.game; layout_touch_controls(pl);
-      place_mode = pl.mode; band_x = pl.band_x; band_y = pl.band_y; band_w = pl.band_w; band_h = pl.band_h; }
+      place_mode = pl.mode; tband_x = pl.band_x; tband_y = pl.band_y; tband_w = pl.band_w; tband_h = pl.band_h; }
 #endif
     poll_virtual_touches();
     if (touch_move_mode == TOUCH_DPAD4 || touch_move_mode == TOUCH_DPAD8) update_dpad(); else update_stick();
@@ -2886,7 +2886,14 @@ static void save_dir_set(const char *dir) {
 #define STB_IMAGE_STATIC
 #define STB_IMAGE_IMPLEMENTATION
 #define STBI_ONLY_PNG               // the engine only embeds PNG blobs
+// stb_image takes a parameter named `palette`, and so does this engine's colour table — which
+// becomes a per-instance context member reached through `#define palette (…->palette)`. The
+// preprocessor rewrites the vendored parameter too, so shield the vendored header from our macro
+// rather than renaming 146 uses of ours. Scoped to exactly this include.
+#pragma push_macro("palette")
+#undef palette
 #include "stb_image.h"
+#pragma pop_macro("palette")
 static Image de_image_decode(const unsigned char *png, int len) {
     int w = 0, h = 0, ch = 0;
     stbi_uc *px = stbi_load_from_memory(png, len, &w, &h, &ch, 4);   // force RGBA8888

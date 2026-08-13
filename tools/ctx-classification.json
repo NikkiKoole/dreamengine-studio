@@ -60,6 +60,15 @@
     "am_nrm":      { "line": 1883, "bytes": 32768 }
   },
 
+  "collision_waivers": {
+    "_why": "A name the collision check flags, where the clash has been HANDLED at the source rather than by renaming. A waiver must say exactly how, and must not be used to silence a collision that is merely believed harmless — the check exists because the failure is a compile error at best and a silently rewritten field access at worst.",
+    "palette": {
+      "clashes_with": "a `stbi_uc *palette` parameter inside the vendored runtime/stb_image.h",
+      "handled_by": "studio.c wraps that one #include in `#pragma push_macro(\"palette\") / #undef palette / … / #pragma pop_macro(\"palette\")`, so the vendored header is compiled without our macro. Scoped to exactly that include, and only reachable in the DE_NO_RAYLIB build where stb_image is used at all.",
+      "why_not_rename": "our `palette` has 146 uses in studio.c and is the engine's core colour table; shielding one vendored include is a three-line change against a 146-line one."
+    }
+  },
+
   "defer": {
     "_why": "HELD BACK from the move until the matching open question below is answered. These are NOT per-instance state as far as anyone knows, and leaving them as file-scope statics preserves exactly today's behaviour — so deferring costs nothing and guessing could cost a silent bug. The first generated batch swept these in before this group existed, which is precisely the accident it now prevents: the generator has no opinion, so anything without a decision must be named here or it moves by default.",
     "sound_synth_mode": { "line": 450, "question": "synth_mode", "note": "gates whether the PROCESS creates an audio device at all (sound_init 9164, sound_shutdown 9194). Per-instance copies of a process-level mode is incoherent however the harness-vs-shared question resolves" },

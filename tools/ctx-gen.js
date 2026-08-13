@@ -74,7 +74,12 @@ function loadStatics() {
 // the generator producing a file that cannot compile.
 function loadCollisions() {
   const out = execFileSync('node', ['tools/engine-statics.js', '--json'], { cwd: ROOT, maxBuffer: 1 << 26 }).toString();
-  return new Set(Object.keys(JSON.parse(out).collisions || {}));
+  const found = new Set(Object.keys(JSON.parse(out).collisions || {}));
+  // A waiver means the clash is handled AT THE SOURCE (see ctx-classification.json), not that it is
+  // believed harmless. Each one has to say how.
+  const c = JSON.parse(fs.readFileSync(path.join(ROOT, 'tools', 'ctx-classification.json'), 'utf8'));
+  for (const name of Object.keys(c.collision_waivers || {})) if (!name.startsWith('_')) found.delete(name);
+  return found;
 }
 
 function loadExclusions() {

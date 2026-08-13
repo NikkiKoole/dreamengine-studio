@@ -111,7 +111,7 @@ static int r2_dpaint  = 0;       // ROOMY drum grid paint tool: 0=HIT (toggle) �
 static int r2_octpen[2] = { 0, 0 };   // ROOMY 303 "active draw octave" pen, per line: +1 up / 0 center / -1 down. A note drawn on the roll lands at this octave; tapping the matching note erases it.
 static int r2_303panel[2] = { 0, 0 }; // ROOMY 303: which control panel is REVEALED, per line (0 = none / roll gets the room · 1 = PERF · 2 = GEN), toggled by the bottom-left chips.
 static int r2_drumpanel[2] = { 1, 1 };// ROOMY drum: which panel is REVEALED, per machine (0 = none · 1 = FLAG/paint · 2 = GEN · 3 = PERF), toggled by the bottom-left chips. Default FLAG so the paint tools are up.
-static int r2_mstpanel = 0;           // ROOMY master: which panel is REVEALED (0 = none / mixer+lanes all-at-once · 1 = GEN song-generator · 2 = SONG save/load slots · 3 = DLY delay division), toggled by the bottom-left chips.
+static int r2_mstpanel = 0;           // ROOMY master: which panel is REVEALED (0 = none / mixer+lanes all-at-once · 1 = GEN song-generator · 2 = SONG save/load slots · 3 = DLY delay division · 4 SWP · 5 VOW · 6 MIDI out), toggled by the bottom-left chips.
 static int r2_mstlane  = -1;          // ROOMY master: which automation lane is EXPANDED to full height for precise editing (-1 = the 3-up overview · 0 = PCF · 1 = CRUSH · 2 = GATE). Tap a lane's label to toggle.
 static int r2_dark     = 0;           // ROOMY chassis theme: 0 = salmon candy skin · 1 = dark. Toggled by the tiny header button (flips R2_PNL/INK/DIM).
 
@@ -276,7 +276,7 @@ static float level[M_N] = { 1, 1, 1, 1, 1 };                // per-machine TAB f
 static int   mpcf[STEPS];                                   // pattern-controlled filter: cutoff level 0..7 per step (7 = open)
 static int   mcrush[STEPS];                                 // pattern-controlled CRUSH: bitcrush level 0..7 per step (0 = clean; the PCF's texture twin)
 static int   mgate[STEPS];                                  // pattern-controlled GATE: openness 0..7 per step (7 = open, down = chop; the rhythm twin)
-static int   mstflow = 0;                                   // MST screen: 0 = MIX meters, 1 = PCF lane, 2 = CRUSH lane, 3 = GATE lane, 4 = GEN, 5 = SONG, 7 = DLY delay-div picker, 8 = the FX HUB (was 6 = the old SWEEP page, folded into the hub)
+static int   mstflow = 0;                                   // MST screen: 0 = MIX meters, 1 = PCF lane, 2 = CRUSH lane, 3 = GATE lane, 4 = GEN, 5 = SONG, 7 = DLY delay-div picker, 8 = the FX HUB (was 6 = the old SWEEP page, folded into the hub), 9 = MIDI OUT
 static float flmix = 0.5f, flfb = 0.5f, phmix = 0.5f, phfb = 0.5f;   // PER-DEVICE mix/depth + feedback — FLANGER (fl*) and PHASER (ph*) each own their knobs so you can BLEND them independently
 static int   flon = 0, phon = 0, mswdiv = 0;                         // the two INDEPENDENT sweep DEVICES: FLANGER on + PHASER on (run 2 / 1 / 0 at once) + shared rate div (0 = 1-bar, 1 = 2-bar, 2 = 4-bar, tempo-synced)
 
@@ -1907,6 +1907,8 @@ static void draw_909(Box stage) {
     }
 }
 
+static void r2_mstmidi(Box b);   // ONE MIDI panel, drawn by BOTH views — see its definition below
+
 // ── the MST master / mixer face — its own shape (not a voice): master FX +
 // a per-machine mix overview + the shared delay. Green identity.
 static int machine_active(int m) {
@@ -1984,6 +1986,12 @@ static void draw_mst(Box stage) {
       if (cbtn(0x26u, (int)scell.x, (int)scell.y, (int)scell.w, (int)scell.h, "SONG", mstflow == 5)) mstflow = (mstflow == 5) ? 0 : 5; }
     { Box dcell = lay_split_gap(rcol, EDGE_TOP, rcol.h * 0.30f, 1, &rcol);   // DLY — opens the delay-division picker IN the LCD (was 4 cramped inline buttons)
       if (cbtn(0x04u, (int)dcell.x, (int)dcell.y, (int)dcell.w, (int)dcell.h, "DLY", mstflow == 7)) mstflow = (mstflow == 7) ? 0 : 7; }
+    // MIDI — the rack drives OTHER instruments. On the PHONE too, deliberately: rack_view makes the
+    // roomy rack tablet-only, so a chip that exists only there would be invisible on the device most
+    // of this app is played on. The left soft-key column is full (and one key per device does not
+    // scale — that is why FX became a hub), but the right column had room after DLY.
+    { Box micell = lay_split_gap(rcol, EDGE_TOP, rcol.h * 0.45f, 1, &rcol);
+      if (cbtn(0x27u, (int)micell.x, (int)micell.y, (int)micell.w, (int)micell.h, "MIDI", mstflow == 9)) mstflow = (mstflow == 9) ? 0 : 9; }
     rrectfill((int)lcd.x, (int)lcd.y, (int)lcd.w, (int)lcd.h, 3, CLR_BROWNISH_BLACK);
     Box glass = lay_inset(lcd, 2);
     rrectfill((int)glass.x, (int)glass.y, (int)glass.w, (int)glass.h, 2, CLR_DARK_GREEN);
@@ -2064,6 +2072,8 @@ static void draw_mst(Box stage) {
         // glass (a 2×2 of big tap targets). FB (feedback) stays the master-row knob; this sets mdiv.
         for (int d = 0; d < 4; d++) { Box c = lay_grid(gc, 2, 4, d, 2);
             if (lcdbtn(0x74u + d, (int)c.x, (int)c.y, (int)c.w, (int)c.h, DL[d], mdiv == d)) mdiv = d; }
+    } else if (mstflow == 9) {
+        r2_mstmidi(gc);                                   // one implementation, both views
     } else if (mstflow == 8) {
         // ── the FX HUB ── one soft-key holding every master DEVICE. fxpage -1 = the chip MENU;
         // otherwise that device's knob page. A chip TAP opens its page — no hold, no meta-gesture.
@@ -2390,6 +2400,105 @@ static void song_load_slot(int i) {
     song_restore(&g_bank.slot[i]); g_bank.cur = i; bank_write();
 }
 
+// ══ MIDI OUT — the rack plays OTHER instruments (runtime/midi_output.h) ═════════════════════
+// The whole point: this pattern language (slide/accent/tie, the 808+909 grids) is worth driving
+// a DAW or a hardware synth with, alongside our own voices — not instead of them. Design +
+// rationale: docs/design/midi-out.md → "The channel map".
+//
+// FOUR CHANNELS, not four-plus-twenty-seven. A pitched part gets a channel of its own because a
+// note number there means a PITCH; a drum machine gets ONE channel with its voices as fixed NOTE
+// NUMBERS, which is how every drum machine addresses a DAW and why a receiving drum rack lights
+// kick/snare/hat instead of three arbitrary pitches. (Twenty-seven channels would also overflow
+// the sixteen MIDI has.)
+#define MO_CH_303A  1
+#define MO_CH_303B  2
+#define MO_CH_808  10          // GM's reserved drum channel — where a DAW already looks
+#define MO_CH_909  11          // two drum machines cannot both be 10
+
+// Both rosters land on EXACT General MIDI homes with nothing left over, which is not luck: GM's
+// percussion map was modelled on these machines. Index order must track the TR_*/TR9_* enums in
+// runtime/tr808.h and tr909.h — a voice inserted mid-list would silently cross-wire the map.
+static const int MO_GM808[TR_NV] = {   // TR_BD SD LT MT HT LC MC HC RS CLV CP MA CB CY OH CH
+    36, 38, 41, 45, 48, 64, 63, 62, 37, 75, 39, 70, 56, 49, 46, 42
+};
+static const int MO_GM909[TR9_NV] = {  // TR9_BD SD LT MT HT RS CP CH OH CC RC
+    36, 38, 41, 45, 48, 37, 39, 42, 46, 49, 51
+};
+
+static int mout_on  = 0;       // OFF by default: enabling publishes a MIDI port into the user's
+                               // system, which nobody asked for by booting a groovebox
+static int mout_clk = 1;       // mirror our transport + 24ppqn clock, so outboard gear follows us
+
+// Drum hits need a real GATE LENGTH — on and off in the same frame is legal, balanced, and
+// records WRONG (a DAW that captures it normalises the pair on playback, so a take gains notes
+// that were inaudible live). Learned the hard way in `midiout`; see docs/design/midi-out.md.
+#define MO_GATE   3            // ~50ms at 60fps
+#define MO_NPEND  32
+static struct { int ch, note, left; } mo_pend[MO_NPEND];
+static int mo_held[2]  = { -1, -1 };   // the 303 note currently sounding per line
+static int mo_clk_sent = 0, mo_was_playing = 0;
+
+static void mo_hit(int ch, int note, int vel) {
+    if (note < 0 || note > 127) return;
+    midi_send_note(ch, note, vel, 1);
+    for (int i = 0; i < MO_NPEND; i++)
+        if (mo_pend[i].left <= 0) { mo_pend[i].ch = ch; mo_pend[i].note = note; mo_pend[i].left = MO_GATE; return; }
+    midi_send_note(ch, note, 0, 0);    // table full: release now rather than hang it
+}
+static void mo_tick(void) {
+    for (int i = 0; i < MO_NPEND; i++)
+        if (mo_pend[i].left > 0 && --mo_pend[i].left == 0) midi_send_note(mo_pend[i].ch, mo_pend[i].note, 0, 0);
+}
+// Release EVERYTHING, unconditionally — deliberately not gated on mout_on, so switching MIDI off
+// (or stopping, or muting) can never strand a note droning in someone else's instrument.
+static void mo_all_off(void) {
+    for (int i = 0; i < MO_NPEND; i++)
+        if (mo_pend[i].left > 0) { midi_send_note(mo_pend[i].ch, mo_pend[i].note, 0, 0); mo_pend[i].left = 0; }
+    for (int i = 0; i < 2; i++)
+        if (mo_held[i] >= 0) { midi_send_note(i ? MO_CH_303B : MO_CH_303A, mo_held[i], 0, 0); mo_held[i] = -1; }
+}
+
+// SLIDE = OVERLAPPING NOTE-ONS (legato), which is the open question docs/design/midi-out.md left
+// and this is the answer it takes: send the new note BEFORE releasing the old one, so a receiver
+// in mono/legato mode glides between them. That is what acid sequencers and 303 clones send, and
+// it needs no agreement about a portamento CC number. The cost is honest and worth knowing: a
+// POLYPHONIC receiver will simply play both notes for an instant instead of gliding, because
+// nothing in MIDI says "slide" — the alternative (CC 65/5 portamento) is no more universal and
+// also silently wrong on a receiver that ignores it.
+static void mo_303(int i, int midi, int accent, int slide) {
+    if (!mout_on) return;
+    int ch = i ? MO_CH_303B : MO_CH_303A, prev = mo_held[i];
+    int vel = accent ? 112 : 88;                     // ACCENT → VELOCITY, the one clean mapping
+    if (slide && prev >= 0) { midi_send_note(ch, midi, vel, 1); midi_send_note(ch, prev, 0, 0); }
+    else { if (prev >= 0) midi_send_note(ch, prev, 0, 0); midi_send_note(ch, midi, vel, 1); }
+    mo_held[i] = midi;
+}
+static void mo_303_off(int i) {   // no mout_on guard: if a note is out there, it gets released
+    if (mo_held[i] >= 0) { midi_send_note(i ? MO_CH_303B : MO_CH_303A, mo_held[i], 0, 0); mo_held[i] = -1; }
+}
+static void mo_drum(int ch, int note, int boost) {
+    if (!mout_on) return;
+    int vel = 90 + boost * 12;                       // the fire() boost IS the accent, in velocity terms
+    mo_hit(ch, note, vel < 1 ? 1 : vel > 127 ? 127 : vel);
+}
+
+static void mo_transport(int now_playing) {
+    if (mout_on && mout_clk) {
+        if (now_playing && !mo_was_playing) { midi_send_start(1); mo_clk_sent = (int)(g_phase * 6.0f); }
+        else if (!now_playing && mo_was_playing) { mo_all_off(); midi_send_stop(); }
+    } else if (!now_playing && mo_was_playing) mo_all_off();
+    mo_was_playing = now_playing;
+}
+static void mo_clock(void) {
+    // 24 ppqn = 6 ticks per 16th, caught up rather than one-per-frame (60 frames and 24 ticks do
+    // not divide evenly). SKIPPED WHILE SLAVED: if someone else's clock is driving us, echoing a
+    // clock back out is at best redundant and at worst a loop.
+    if (!mout_on || !mout_clk || !playing || sync_active()) return;
+    int want = (int)(g_phase * 6.0f);
+    while (mo_clk_sent < want) { midi_send_clock(); mo_clk_sent++; }
+    if (mo_clk_sent > want) mo_clk_sent = want;      // g_phase can jump (loop/seek) — never spin
+}
+
 void init(void) {
     bpm((int)g_bpm);
     acid_init(&ac[0], 6, 36);                                          // 303a — the bass line (+ octave-down sub on slot 36)
@@ -2463,6 +2572,8 @@ void update(void) {
     for (int v = 0; v < TR9_NV; v++) if (d9trig[v] > 0) d9trig[v] -= 0.14f;
     vow_tick();                                                        // SPEAK: glide the vowel toward this note's syllable, BEFORE apply_fx pushes it
     apply_fx();                                                        // master FX (glue/filter/delay/pump)
+    mo_tick();                                                        // release drum note-offs whose gate ran out
+    mo_transport(playing);                                            // MIDI start/stop mirrors our transport
     for (int i = 0; i < 2; i++) acid_ride(&ac[i]);                     // ride cutoff/reso live on both lines
     // FINE tune: a separate per-voice cents trim (MIX screen) applied via instrument_tune on CHANGE
     // only — the coarse TUNE knob keeps its musical semitone steps; FINE (±0.5 semitone) nulls a beat.
@@ -2472,6 +2583,7 @@ void update(void) {
     if (g_last_t == 0) g_last_t = t;                                   // bpm change moves the RATE, never JUMPS the counter
     // NB: NO per-frame dt clamp — phase must accumulate REAL elapsed time so the tempo is
     // correct at ANY frame rate (a clamp made the heavy rack run persistently slow < 20 FPS).
+    mo_clock();                                                        // 24ppqn out (skipped while WE are the slave)
     if (ext) g_phase = sync_beats() * 4.0f;                            // DERIVE the 16th counter from their
     else     g_phase += (t - g_last_t) * (g_bpm / 60.0f * 4);          // position — an accumulator only knows
     g_last_t = t;                                                      // how FAST, never WHERE, so it can't
@@ -2530,18 +2642,19 @@ void update(void) {
                 int raw = lcs % plen[i];
                 int ls  = pf_rev[i] ? (plen[i] - 1 - raw) : raw;      // REV lens: mirror the step index (play backwards)
                 lpos[i] = ls;
-                if (mac[i].mute) { acid_off(&ac[i]); continue; }
+                if (mac[i].mute) { acid_off(&ac[i]); mo_303_off(i); continue; }   // muted = silent BOTH ways
                 int accent = acc[i][ls] || pf_acc[i];                          // total-accent lens
                 int slide  = pf_stac[i] ? 0 : pf_glide[i] ? 1 : sld[i][ls];    // slide-flip lens
                 int oshift = (pf_oct[i] && (lcs & 1)) ? -12 : 0;               // OCT lens: every OTHER step (odd counter) an octave down — the acid bounce
                 if (on[i][ls]) {
                     int midi = ac[i].base + mroot[i] + loct[i] * 12 + pit[i][ls] + oct[i][ls] * 12 + oshift;
                     acid_note(&ac[i], midi, accent, slide); mbop = 1;
+                    mo_303(i, midi, accent, slide);                   // …and out the wire, same note/accent/slide
                     vow_attack();                                     // SPEAK: this note gets the next syllable (both lines feed it)
                     roll_pit[i] = midi; roll_acc[i] = accent;         // remember the last played note for ROLL to repeat
                 }
                 else if (tie[i][ls]) acid_tie(&ac[i], slide);         // hold the previous note through
-                else acid_off(&ac[i]);
+                else { acid_off(&ac[i]); mo_303_off(i); }            // (a TIE sends nothing: the note simply continues)
             } else if (!pf_glide[i]) {                                // staccato gate between flips (GLIDE lens sustains → skip entirely)
                 int raw = lcs % plen[i];
                 int ls  = pf_rev[i] ? (plen[i] - 1 - raw) : raw;
@@ -2578,6 +2691,7 @@ void update(void) {
                         else if (L[p].sink == SK_PAN && eff != dpanlast[v]) { tr808_pan(TR808_BASE, v, (eff - 0.5f) * 2); dpanlast[v] = eff; }  // PAN → -1..+1; push only on CHANGE (queued set-and-hold)
                     }
                     tr808_fire(TR808_BASE, v, bo, swms, dtune, ddecay, dcolor);
+                    mo_drum(MO_CH_808, MO_GM808[v], bo);          // same hit, as a GM note on ch 10
                     for (int p = 0; p < nl; p++) if (L[p].sink == SK_ARG) *L[p].knob = sv[p];
                 }
             }
@@ -2600,6 +2714,10 @@ void update(void) {
                     }
                     if (st && !ghost) tr909_fire_stroke(D909_BASE, v, st, bo, swms, (int)(15000.0f / g_bpm), d9tune, d9decay, d9color);   // one 16th = 15000/bpm ms (113 @132)
                     else    tr909_fire(D909_BASE, v, bo, swms, d9tune, d9decay, d9color);
+                    // …and out the wire, as a GM note on ch 11. KNOWN LIMIT: a STROKE (flam/drag/
+                    // ratchet) leaves as ONE note — reproducing it would mean scheduling the extra
+                    // hits ourselves, since MIDI has no flam. The groove goes out; the ornament does not.
+                    mo_drum(MO_CH_909, MO_GM909[v], bo);
                     for (int p = 0; p < nl; p++) if (L[p].sink == SK_ARG) *L[p].knob = sv[p];
                 }
             }
@@ -2992,6 +3110,32 @@ static void r2_mstformant(Box b) {
     lcdknob_cell(lay_grid(m, nk, nk, nk - 1, 3), &vowmix, "MIX",  0.7f);   // 0.7 = the real default (double-tap resets HERE, so it must match)
 }
 
+// MST MIDI panel — the rack drives OTHER instruments. Two toggles and a readout, because that is
+// genuinely all there is to decide: whether we send, and whether we also send the transport/clock.
+// The channel map is a CONVENTION, not a preference (docs/design/midi-out.md), so it is shown
+// rather than configured — a user who needs 303a somewhere other than channel 1 is a request, not
+// a knob to add speculatively.
+static void r2_mstmidi(Box b) {
+    Box m = lay_inset(b, 2);
+    int x = (int)m.x, y = (int)m.y, h = (int)m.h;
+    int bx = x;
+    if (lcdbtnf(0x411u, &bx, y, 11, "MIDI OUT", mout_on)) {
+        mout_on = !mout_on;
+        if (!mout_on) mo_all_off();               // switching off must never strand a held note
+    }
+    if (lcdbtnf(0x412u, &bx, y, 11, "CLOCK", mout_clk)) mout_clk = !mout_clk;
+
+    font(FONT_TINY);
+    // The honest state line. midi_out_ready() also OPENS the port, so it doubles as the lamp —
+    // and it answers false on a build with no CoreMIDI, which is the case worth naming out loud.
+    const char *state = !mout_on ? "off"
+                      : midi_out_ready() ? "sending as \"dreamengine\""
+                                         : "no midi out on this build";
+    print(state, x, y + 14, mout_on && midi_out_ready() ? CLR_LIME_GREEN : CLR_MEDIUM_GREEN);
+    if (h >= 34) print("303a ch1  303b ch2  808 ch10  909 ch11", x, y + 23, CLR_MEDIUM_GREEN);
+    font(FONT_SMALL);
+}
+
 // MST SONG panel — six whole-rack song slots (the "6 songs in master" layer). TAP a slot = load ·
 // HOLD to charge = save (an occupied slot asks X/OK first). Ported from the phone SONGS page.
 static void r2_mstsong(Box b) {
@@ -3182,6 +3326,7 @@ static void r2_bigscreen(Box c, int focus) {
             else if (open == 2) r2_mstsong(panel);
             else if (open == 3) r2_mstdelay(panel);
             else if (open == 5) r2_mstformant(panel);                // the VOWEL device (the phone reaches it through the FX hub)
+            else if (open == 6) r2_mstmidi(panel);                   // MIDI OUT — drive other instruments
             else                r2_mstsweep(panel);                 // open == 4
         }
         int chx = x + 3, cy = y + h - chipH - 1;                    // toggle chips, bottom-left (text-fit)
@@ -3190,6 +3335,7 @@ static void r2_bigscreen(Box c, int focus) {
         if (lcdbtnf(0x13Eu, &chx, cy, chipH - 1, "DLY",  open == 3)) r2_mstpanel = (open == 3) ? 0 : 3;
         if (lcdbtnf(0x13Fu, &chx, cy, chipH - 1, "SWP",  open == 4)) r2_mstpanel = (open == 4) ? 0 : 4;
         if (lcdbtnf(0x310u, &chx, cy, chipH - 1, "VOW",  open == 5)) r2_mstpanel = (open == 5) ? 0 : 5;
+        if (lcdbtnf(0x311u, &chx, cy, chipH - 1, "MIDI", open == 6)) r2_mstpanel = (open == 6) ? 0 : 6;
         // the DRY kill rides along the chip row (roomy has no hub page to hold it) — the SAME latch as
         // the phone's, so a bypass thrown in either view is one shared state.
         lcdlatchf(0x311u, &chx, cy, chipH - 1, "DRY", &fxdry_latch, &fxdry_hold, 0);

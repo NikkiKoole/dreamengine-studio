@@ -229,7 +229,7 @@ a broken doc link or `#section`).
 > view pulling at display rate, and iPad (this is all Mac Catalyst).
 >
 > Full table + the three corrections the spike made to its own author:
-> [`ios-plan.md` → MEASURED 2026-08-13](design/ios-plan.md#measured-2026-08-13-option-4s-transport-is-a-non-issue-iosau-msgchannel-spikeswift).
+> [`ios-plan.md` → MEASURED 2026-08-13](design/ios-plan.md#-settled-2026-08-13-option-4-is-closed--the-panel-cannot-reach-the-audio-engine).
 >
 > **Smaller open items, all recorded, none started:** a HOVER seam (a Catalyst mouse-move is not a
 > touch, so the cart only learns the pointer on click and `cursor.h` never sees a mouse — the pixel

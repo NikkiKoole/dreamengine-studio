@@ -7,6 +7,8 @@
   "created": "2026-08-13",
   "lineage": "A look probe for tenement, whose maker's verdict was that the picture reads as an architectural diagram with a caption. Asks one question: does the same flat, rendered as low-poly flat-shaded triangles instead of baked voxel sprites, read as FOUR PEOPLE IN A BUILDING? Renderer chassis from solid3d (rot/cull/light/sort/trifill + the fillp checker half-shade); shapes transcribed from tools/voxel-models/tenement.js so the comparison is of RENDERINGS, not of two different object sets.",
   "todo": [
+    "THE REAL ARCHITECTURAL QUESTION, and it is an ENGINE question rather than this cart's: everything here that fights sorting artifacts — one depth per face instead of per triangle, subdividing every polygon down to a tile, the abut-never-overlap authoring rule, the wall merge-versus-split tradeoff — is compensation for having no DEPTH BUFFER. A z-buffer makes all four classes vanish at once and lets a wall be one polygon again. ADR-0009 deliberately scoped general 3D out and chose small leaf helpers, and that was right against a 3D ENGINE; this cart is evidence for a much narrower thing, a per-pixel depth compare in the software rasterizer. Cost is a 320x200 depth array (64k entries) plus an interpolated depth per pixel in trifill, and the measured headroom is there: 0.93ms average of a 16.67ms budget. It wants an ADR, not a patch.",
+    "SUBDIVISION IS NOW LOAD-BEARING and its bound is asserted, not assumed: no quad may span more than two tiles of depth (spec case 5). If a future mesh gets big flat faces, they subdivide automatically — but the constant is tuned to a 6-voxel tile, so changing TILE changes the sort's soundness. The cost of the bound is measured: tri count 372 to 551, frame 0.59ms to 0.93ms.",
     "THE HEX MODE IS THE OPEN QUESTION, and it is bigger than this cart. D's third setting abandons the dither and writes real ramps into palette slots 32-63, which are free (PALETTE_SIZE is 64 and only 0-31 are named). That is not off-grain: palette-and-color.md already carries a release gate that no paid app ships on the borrowed PICO-8 set. But the BUDGET is the finding — 32 slots buys six materials four shades each plus four households two each, and nothing for skin, trim, trousers or the floor. If the answer is 'real shades, always', the next question is not this cart's: it is whether the console's palette stops being 32 fixed entries, which is blend-tables and dynamic-palettes territory.",
     "PERSPECTIVE is not implemented and the seam is marked in pr_project: this is a stylized shear (the ground squash and the height scale are two independent numbers, inherited from the voxel bake's 2px-per-voxel convention, which no single orthographic elevation can produce). A real perspective divide is a different projection and a different question; add it only if the ortho look wins first.",
     "Instance yaw is not implemented — every object is placed in its authored orientation, and the room was laid out to suit that. The voxel set solves this by baking NS and EW wall variants; a poly set would rotate the mesh, which is one of the things this probe exists to prove is cheaper.",
@@ -461,8 +463,12 @@ static void pr_walls(int merged) {
         const int cell = cut ? (ew ? ISO_WALL_LOW_EW : ISO_WALL_LOW_NS)
                              : (ew ? ISO_WALL_FULL_EW : ISO_WALL_FULL_NS);
         if (merged) {
-            pr_add_run(cell, side[s].vx, side[s].vy, ew ? 1.0f : (float)ROOM_W,
-                                                    ew ? (float)ROOM_H : 1.0f);
+            // The EW runs are stretched 2 voxels PAST the room at each end so they cover the CORNER
+            // squares. Four runs that stop exactly at the room bounds leave a 2x2 hole at every
+            // corner, which is the notch the maker photographed — the floor showed through it.
+            // Stretching the EW pair (not both pairs) means the runs still only TOUCH, never overlap.
+            const float ly = ew ? (ROOM_H * TILE + 4.0f) / TILE : 1.0f;
+            pr_add_run(cell, side[s].vx, ew ? -2.0f : side[s].vy, ew ? 1.0f : (float)ROOM_W, ly);
         } else {
             const int n = ew ? ROOM_H : ROOM_W;
             for (int i = 0; i < n; i++)
@@ -501,6 +507,7 @@ typedef struct { int x[3], y[3]; float depth, bright; unsigned char mat, hh; } T
 static Tri pr_tri[MAX_TRIS];
 static int pr_tri_n, pr_tri_drawn, pr_order[MAX_TRIS];
 static float pr_key[MAX_TRIS];
+static float pr_max_span;    // worst depth range any single quad spans — the sort's soundness bound
 
 // The light. World-fixed is the honest one (the room turns under a fixed sun). Screen-fixed
 // reproduces what the voxel bake does — its tones are literally [top, screen-right, screen-left],
@@ -578,13 +585,50 @@ static void pr_quad(const float a[3], const float b[3], const float c[3], const 
     float br = ln[0]*LX + ln[1]*LY + ln[2]*LZ;
     br = 0.22f + 0.78f * (br < 0.0f ? 0.0f : br);   // ambient floor, or an unlit face is a black hole
 
-    // NEGATED nearness — see pr_viewdir. zsort draws the big key first, so big must mean far.
-    float cen[3] = { 0, 0, 0 };
-    for (int i = 0; i < 4; i++) { cen[0] += p[i][0]; cen[1] += p[i][1]; cen[2] += p[i][2]; }
-    const float depth = -(cen[0]*dx + cen[1]*dy + cen[2]*dz) * 0.25f;
+    // ── SUBDIVISION: the requirement that makes a painter's sort SOUND ──────────────────────────
+    // A painter's sort gives each polygon ONE depth, so a polygon that spans a large depth range is
+    // unsortable by construction — no single answer is right for all of it. Merging each wall side
+    // into one long box (to kill the per-tile seams) made its inner face a single quad 36 voxels
+    // long and 12 tall, and at some angles its NEAR end is genuinely in front of the toilet while
+    // its FAR end is genuinely behind. One quad cannot be both, so it was drawn over everything.
+    //
+    // BOTH AXES MATTER, and the vertical one is the counter-intuitive half: height contributes to
+    // depth in this projection (the view ray has a +z component), so a 12-tall wall's face centroid
+    // sits at z=6 while the toilet's sits at z=2.7 — and the wall won on HEIGHT alone even after
+    // splitting along its length. Splitting vertically too puts the overlapping piece at z=3, which
+    // sorts correctly. Measured, not guessed: yaw 315 was the failing case.
+    //
+    // The normal and brightness are computed ONCE for the whole face and shared, so subdividing is
+    // invisible in the shading — it only changes the sort granularity.
+    const float ux = b[0]-a[0], uy = b[1]-a[1], uz = b[2]-a[2];
+    const float vx = d[0]-a[0], vy = d[1]-a[1], vz = d[2]-a[2];
+    int nu = (int)(sqrtf(ux*ux + uy*uy + uz*uz) / (float)TILE + 0.999f);
+    int nv = (int)(sqrtf(vx*vx + vy*vy + vz*vz) / (float)TILE + 0.999f);
+    if (nu < 1) nu = 1;  if (nu > 8) nu = 8;
+    if (nv < 1) nv = 1;  if (nv > 8) nv = 8;
 
-    pr_tri_push(a, b, c, br, depth, mat, hh);
-    pr_tri_push(a, c, d, br, depth, mat, hh);
+    for (int j = 0; j < nv; j++) for (int i = 0; i < nu; i++) {
+        const float s0 = (float)i / nu, s1 = (float)(i+1) / nu;
+        const float t0 = (float)j / nv, t1 = (float)(j+1) / nv;
+        float q[4][3];
+        const float ss[4] = { s0, s1, s1, s0 }, tt[4] = { t0, t0, t1, t1 };
+        for (int k = 0; k < 4; k++) for (int e = 0; e < 3; e++) {
+            // bilinear over the face's own corners, so sub-quads share vertices EXACTLY and the
+            // subdivision cannot open a crack
+            const float top = a[e] + (b[e] - a[e]) * ss[k];
+            const float bot = d[e] + (c[e] - d[e]) * ss[k];
+            q[k][e] = top + (bot - top) * tt[k];
+        }
+        float cen[3] = { 0, 0, 0 };
+        for (int k = 0; k < 4; k++) for (int e = 0; e < 3; e++) cen[e] += q[k][e];
+        // NEGATED nearness — see pr_viewdir. zsort draws the big key first, so big must mean far.
+        const float depth = -(cen[0]*dx + cen[1]*dy + cen[2]*dz) * 0.25f;
+        const float span = fabsf(ux*dx + uy*dy + uz*dz) / nu
+                         + fabsf(vx*dx + vy*dy + vz*dz) / nv;
+        if (span > pr_max_span) pr_max_span = span;
+        pr_tri_push(q[0], q[1], q[2], br, depth, mat, hh);
+        pr_tri_push(q[0], q[2], q[3], br, depth, mat, hh);
+    }
 }
 
 // A prism's six faces, wound counter-clockwise seen from OUTSIDE so the cross product points out.
@@ -668,6 +712,7 @@ static void pr_shade_fill(const Tri *t) {
 // Split from the draw so spec() can assert on the triangle list without rasterizing anything.
 static void pr_build_tris(void) {
     pr_tri_n = 0;
+    pr_max_span = 0.0f;
     // Floor: one quad per tile, alternating, same two browns the voxel half uses. Flat on z=0, so
     // it needs no normal — but it goes through the same emit so it sorts with everything else.
     for (int ty = 0; ty < ROOM_H; ty++) for (int tx = 0; tx < ROOM_W; tx++) {
@@ -994,6 +1039,19 @@ void spec(void) {
     }
     expect(min_tris > 200, "the room is never mostly culled away");
     expect(max_tris < MAX_TRIS, str("tri budget holds (peak %d of %d)", max_tris, MAX_TRIS));
+
+    // 5. THE SORT'S SOUNDNESS BOUND. A painter's sort gives one depth per polygon, so it is only
+    //    sound while no polygon spans much depth. This asserts the subdivision actually holds that
+    //    bound at every angle — the property that was silently violated when the walls were merged,
+    //    and the reason a wall could be drawn over a toilet standing in front of it.
+    float worst = 0.0f;
+    for (int a = 0; a < 24; a++) {
+        pr_yaw = (float)a * 15.0f;
+        pr_walls(1); pr_build_tris();
+        if (pr_max_span > worst) worst = pr_max_span;
+    }
+    expect(worst < (float)TILE * 2.05f,
+           str("no quad spans more than 2 tiles of depth (worst %.1f voxels)", worst));
 
     pr_yaw = 45.0f;
 }

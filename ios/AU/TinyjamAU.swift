@@ -79,6 +79,8 @@ public final class TinyjamAU: AUAudioUnit {
         frame.pointee = 0
         rate.initialize(to: RateState())
         de_init(DE_RENDERER_SOFTWARE)        // sound_init() + the cart's init()
+        startWorker()                        // BEFORE any render: a view can open while the host is
+                                             // stopped, and it needs frames to be clickable at all
     }
 
     public override var outputBusses: AUAudioUnitBusArray { _outputBusArray }
@@ -122,6 +124,25 @@ public final class TinyjamAU: AUAudioUnit {
         t.start()
         worker = t
     }
+    // ── THE UI KEEP-ALIVE ───────────────────────────────────────────────────────────────────────
+    // The frame is driven by RENDERED AUDIO (one per 735 samples), which is what keeps the sequencer
+    // on the host's grid. But a host that is STOPPED may stop pulling audio altogether — GarageBand
+    // does — and then nothing ticks the engine at all. The panel freezes on its last frame, and far
+    // worse, the cart stops reading INPUT: its own play button does nothing, because nobody is running
+    // the code that would notice the click. That is exactly what a stopped-at-bar-33 plug-in looked
+    // like, and "I can't start it from the host OR from the plug-in" is the symptom.
+    //
+    // So the VIEW calls this once per display tick. It signals a frame ONLY when the audio side has
+    // not advanced one since the last call, so a rendering host keeps its sample-clocked timing and an
+    // idle host still gets a live, clickable panel at display rate. Same worker either way, so there
+    // is still exactly one thread inside the engine.
+    private var lastSeenFrame: UInt64 = 0
+    public func uiTick() {
+        let f = frame.pointee
+        if f == lastSeenFrame { frameSignal.signal() }   // audio is not driving: drive it ourselves
+        lastSeenFrame = f
+    }
+
     private func stopWorker() {
         guard let t = worker else { return }
         workerStop = true

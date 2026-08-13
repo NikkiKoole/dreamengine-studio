@@ -89,6 +89,13 @@ let wavPrefix: String? = {
     return argv[i + 1]
 }()
 
+// WIPE THE PLUG-IN'S SAVED CART STATE FIRST. acidcandy persists its banks with save_bytes, and an
+// app-extension has its own container, so without this every run boots from whatever the LAST run
+// left — the onset counts drift between runs and a gate that drifts is not a gate. It is also how a
+// silent state got stuck to the plug-in during the maker's play-test: worth knowing the path.
+let blob = ("~/Library/Containers/com.tinyjam.mac.AU/Data/cart.blob" as NSString).expandingTildeInPath
+try? FileManager.default.removeItem(atPath: blob)
+
 // ── instantiate the plug-in (out of process, as a real host does) ──
 // PUMP THE MAIN RUN LOOP instead of blocking on a semaphore. This used to be a semaphore wait, and it
 // worked right up until the extension gained a VIEW: a `com.apple.AudioUnit-UI` extension does part of
@@ -293,9 +300,20 @@ check("the same 8 beats fire the same notes at 2x tempo", ratio > 0.7 && ratio <
 hostMoving = false
 _ = rig.render(beats: 3.0)                     // release + reverb/delay tails decay
 let stopped = rig.render(beats: 6.0)
+
+// ── 4. IT COMES BACK. ───────────────────────────────────────────────────────────────────────────
+// Added after the maker's play-test wedged TWICE at bar 33 — which is where a host reaches the end of
+// a 32-bar section and STOPS. Stopping was already covered; STARTING AGAIN was not, and "it paused
+// and neither GarageBand's play button nor the rack's own would bring it back" is a far worse bug
+// than never stopping. A stop is a state you must be able to leave.
 check("STOPS when the host stops", freeRun ? stopped.onsets > 0 : (stopped.onsets == 0 && stopped.peak < 0.05),
       "\(stopped.onsets) onsets, peak \(String(format: "%.4f", stopped.peak)) after a 3-beat settle"
       + (freeRun ? "  (--free: inverted — it SHOULD keep playing)" : ""))
+
+hostMoving = true                              // the host presses PLAY again
+let restarted = rig.render(beats: 8.0)
+check("STARTS AGAIN when the host restarts", restarted.onsets >= 8,
+      "\(restarted.onsets) onsets over 8 beats after the host resumed, peak \(String(format: "%.3f", restarted.peak))")
 
 rig.teardown()
 print(failures == 0 ? "\nPASS — the plug-in follows host transport."

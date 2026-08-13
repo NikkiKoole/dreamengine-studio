@@ -38,6 +38,9 @@ public final class TinyjamAUViewController: AUViewController, AUAudioUnitFactory
         // keeps the pixels honest at 1:2 without demanding a huge window.
         preferredContentSize = CGSize(width: 640, height: 400)
         let c = CanvasView(frame: view.bounds, hosted: true)
+        // The panel must live even when the host is stopped and pulling no audio — otherwise the
+        // engine never ticks, the picture freezes and the rack's own controls stop responding.
+        c.onDisplayTick = { [weak self] in self?.au?.uiTick() }
         c.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         view.addSubview(c)
         canvas = c

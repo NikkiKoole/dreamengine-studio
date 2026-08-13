@@ -18,6 +18,10 @@ import SwiftUI
 // the live canvas, because the engine is drawing on the audio thread while we draw here on main.
 final class CanvasView: UIView {
     private let hosted: Bool
+    // Hosted only: called once per display tick so the plug-in can advance a frame when the HOST is
+    // not rendering audio (a stopped DAW stops pulling, and then nothing ticks the engine — the panel
+    // freezes and, worse, stops responding to clicks). TinyjamAU.uiTick() decides whether it is needed.
+    var onDisplayTick: (() -> Void)?
     // hosted only: a bottom-up snapshot of the last published frame. A manual allocation rather than
     // a Swift Array because the flip below needs a pointer that OUTLIVES the access — escaping one out
     // of withUnsafeMutableBufferPointer is undefined behaviour, however well it seems to work.
@@ -110,6 +114,7 @@ final class CanvasView: UIView {
         let t0 = CACurrentMediaTime()
         var base: UnsafePointer<UInt32>
         if hosted {
+            onDisplayTick?()      // keep the engine alive when the host is not rendering (see above)
             // BLIT ONLY. The plug-in's render block already ticked the engine on the audio thread, so
             // all we do is take a snapshot. de_copy_frame reports the size it has even when it refuses
             // to copy, which is how the buffer grows: ask, resize, get it next tick.

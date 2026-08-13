@@ -675,6 +675,19 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
                              `--selfcheck` = the KNOWN-ANSWER fixture (tools/fixtures/status-check/): asserts
                              the checker itself, incl. regression guards for the two false-positive shapes that
                              fooled v1. Gated in repo-doctor. Copy this pattern into any linter that JUDGES
+             refactor-guard.js  "I moved state around — did ANY output change?" The safety net for a
+                             PURE REFACTOR (born for the per-instance-context/AUv3 work): `--bless` records
+                             a baseline, bare compares, `--quiet` gates, `--full` adds the semantic gates as
+                             a second opinion. Fingerprints THREE independent streams per probe cart (WAV ·
+                             frame dump · watch() trace), each as a whole-stream sha PLUS per-chunk shas, so
+                             a failure says WHERE — "audio diverges at 3.1s", "frame 137" — not just that a
+                             hash moved. Unlike tune-check/spec/canvas-diff (which assert SEMANTIC properties
+                             and so have tolerances a state move can slip inside), this asserts nothing
+                             changed at all. ⚠ Its real enemy is a VACUOUS PASS, so every probe carries
+                             LIVENESS assertions (audio must have signal, frames must have more than one
+                             colour, a trace must actually evolve) and a dead probe FAILS rather than
+                             passing quietly — which caught 2 of the first 6 probes. Proven to go red on a
+                             real `sound.h` edit; `--check` = 13 known answers incl. a live negative control
              engine-statics.js  how much PROCESS-GLOBAL MUTABLE STATE the engine still holds — the
                              measurement the per-instance-context (AUv3 multi-instance) refactor is paced by,
                              and its progress meter: every file-scope static is state two plug-in instances

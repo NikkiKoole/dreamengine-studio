@@ -220,6 +220,21 @@ a broken doc link or `#section`).
 > because member access goes through the same macro either way — so start small, let the profiler
 > (`profiler_request`) name the functions to promote, and let the byte-exact oracle prove each step.
 >
+> **✅ STEP 0 IS DONE — the guardrail exists: `node tools/refactor-guard.js`** (2026-08-13). A pure
+> state move must produce byte-identical output, and this is the one command that says so: six probe
+> carts fingerprinted across audio, frames and the `watch()` trace, per-chunk, so a failure names
+> WHERE it started rather than only that a hash moved. The baseline is committed
+> (`tools/refactor-guard-baseline.json`) and is green at HEAD. **Run it after every step; a red is a
+> bug in the refactor, never a new baseline.** Three things it already taught, all of which apply to
+> the work ahead: **(1)** two of the first six probes were VACUOUS (`omnichord` renders silence
+> headless, `epiano`'s watched values never move) — a probe that proves nothing passes forever, which
+> is why liveness assertions are part of the gate. **(2)** `acidcandy` alone is not enough: when the
+> control perturbed the pan law, the other three audio probes went red and acidcandy did not, because
+> it sets that value explicitly. **(3)** Two perturbation attempts printed a confident green while
+> changing nothing (a `sed` that missed, and an edit to `sound_master_gain`, which is dead code on the
+> native path under `#ifdef DE_AUDIO_WORKLET`). **Assert your perturbation landed before believing any
+> verdict** — that is the same failure that cost yesterday three hours.
+>
 > **Order — do NOT take both engine files at once:**
 > 1. **`runtime/sound.h` ALONE** (293 statics / 29 non-zero initialisers, self-contained, strongest
 >    oracle in the repo). Prove the pattern here; if it does not work you have lost an afternoon on one

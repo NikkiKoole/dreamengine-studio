@@ -71,6 +71,14 @@ an engine instance-context refactor (every `sound.h` static behind a context poi
 is bigger than the umbrella app's cart-context swap and stays parked until a user
 actually asks for two of the same rack.
 
+> **UPDATE 2026-08-13 — this got worse, and it is no longer only about two of the same rack.** A live
+> sample of a wedged GarageBand found the UI and the audio in **different processes**, with THREE
+> engines in the UI one. So "one engine per process" is not merely a musical limitation now; it breaks
+> a plug-in whose VIEW renders the engine's framebuffer, because the panel is drawn by a different
+> engine than the one you hear. The instance-context refactor named above is one of the four ways out.
+> Read [The out-of-process wall](#the-out-of-process-wall-the-open-fork-2026-08-13) before planning
+> anything here.
+
 Spike 1 mechanism shipped: `ios/Sources/canvas.{h,c}` (a stand-in software canvas — a few primitives
 into an RGBA8888 buffer) + `CanvasView.swift` (CGImage from the buffer, `layer.magnificationFilter =
 .nearest` for crisp pixels, `resizeAspect` letterboxing) driven by a `CADisplayLink` calling
@@ -270,6 +278,52 @@ gate keeps its meaning. Gate: **`ios/rate-convert-check.swift`** (in `mac.sh`), 
 the real struct — 220.000 Hz at every rate, level held, the 11025 case rejecting a 15 kHz tone
 instead of folding it down to 3.9 kHz, and a nonsense rate falling back to passthrough rather than
 hanging the audio thread in a pull loop that never terminates.
+
+### The out-of-process wall: the open fork (2026-08-13)
+
+⚠ **Read this before doing any more AUv3 view work.** The plug-in now plays in GarageBand and survives a
+full song, but its panel is not honestly connected to its sound, and no amount of patching the current
+design fixes that.
+
+**What a live sample found** while the maker's session was wedged (`sample <pid> 2 -file out.txt`, and
+the *thread names* are the tell):
+
+| process | what it had | what it means |
+|---|---|---|
+| pid A | view work, **no** `AUOOPRenderingServer`, **three** `dreamengine.frame` threads | a UI-only process running THREE engines |
+| pid B | view work **and** `AUOOPRenderingServer`, one worker | the process actually making sound |
+
+GarageBand runs the UI and the audio in **different processes**, and our view controller created a
+fresh `TinyjamAU` — `de_init`, globals, worker and all — every time a panel opened. So the panel being
+clicked was drawn by an engine that was not the one you hear, and three of them were writing the same
+file-scope globals. That is the bar-33 wedge, and it is why the rack's own play button did nothing.
+
+**Fixed now:** booting is idempotent — one `de_init` and one shared frame worker per process
+(`TinyjamAU.bootEngineOnce`). Two instances in one process share one rack: wrong for two tracks, but
+honestly wrong instead of corrupt, and it is what the globals have always meant.
+
+**Not fixed, and not fixable within this design:** a view that blits the engine's framebuffer requires
+the view and the engine to be the SAME instance in the SAME process. AUv3 does not promise that, and
+GarageBand does not provide it. "multi-instance, spike 9" was filed as a limitation on the assumption
+that each instance gets its own process; that assumption is simply false.
+
+**Four ways out, in rough order of cost.** This is a genuine fork and it wants a decision, not a
+default:
+
+1. **Ship the standalone app; park the plug-in.** The app works, is signed, and is the product
+   `apps/tinyacidjam` describes. The AUv3 was always the ambitious end of the arc. Parking it
+   deliberately is a legitimate answer, and the cheapest one.
+2. **Per-instance engine state** — the honest engineering fix: `studio.c`/`sound.h` file-scope globals
+   become a context struct threaded through the engine. Large, touches everything, and pays for itself
+   beyond the plug-in (two tracks = two racks, and the umbrella-app `de_switch_cart` seam gets simpler).
+3. **A parameter-bound UI** — expose the rack as AU parameters and rebuild the panel from controls the
+   system proxies across processes. This is how every commercial AUv3 does it, and it means giving up
+   the pixel canvas *in the plug-in* (the app keeps it).
+4. **Ship pixels across the boundary** — keep the canvas, send the framebuffer out and input back over
+   XPC/shared memory. Keeps the look; adds a realtime transport problem and a lot of new surface.
+
+**Do not start 2, 3 or 4 without deciding which product the plug-in is for.** They are different
+plug-ins.
 
 ### The first real play-test, and the two things it found (2026-08-13)
 

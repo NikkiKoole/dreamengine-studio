@@ -325,6 +325,35 @@ default:
 **Do not start 2, 3 or 4 without deciding which product the plug-in is for.** They are different
 plug-ins.
 
+#### MEASURED 2026-08-13: option 4's transport is a non-issue (`ios/au-msgchannel-spike.swift`)
+
+The cost that made option 4 read as "a lot of new surface" was guessed, so it got measured. An
+`AUMessageChannel` round trip, **out-of-process** (`isLoadedInProcess` asserted false), 60 reps:
+
+| payload | 64 B | 1 KB | 64 KB | **150 KB** (a full canvas frame) | 256 KB |
+|---|---|---|---|---|---|
+| rtt avg | 0.145 ms | 0.128 ms | 0.272 ms | **0.424 ms** | 0.668 ms |
+
+A whole framebuffer crosses in **0.42 ms** — roughly 2300 fps against the 20–30 a panel needs. The
+canvas can cross the boundary with ~100× headroom.
+
+**It also settles the state-vs-pixels question against state.** Payload grows 2400× while latency
+grows ~3×: the channel is dominated by fixed per-call overhead, not bandwidth. So mirroring the cart
+in the UI process netplay-style (ship inputs, re-render locally) buys nothing measurable, and it
+would buy a determinism contract across two processes where any drift silently draws the *wrong*
+rack. **Ship pixels.**
+
+Two things this does not settle: the numbers are an ECHO with no engine work behind them (real use
+adds a `de_copy_frame()` on one side and a blit on the other, both of which already exist and are
+TSan-gated), and it is Mac Catalyst — iPad is where the app lives. Also `AUMessageChannel` is
+Catalyst/iOS **16+**, an OS floor on the plug-in, not on the app.
+
+⚠ Three claims made confidently during that spike were wrong and are corrected in its header:
+AUv3 extensions load out-of-process on macOS **regardless** of the `options` flag (so
+`au-transport-check` was never running the wrong topology); the empty replies were not a retain bug;
+the real cause is that Swift imports `callAudioUnit` as an optional ObjC **method**, so declaring it
+as a stored closure property compiles clean and registers no selector.
+
 ### The first real play-test, and the two things it found (2026-08-13)
 
 The maker put the plug-in on a track in GarageBand and played it. Two findings, and **the one that

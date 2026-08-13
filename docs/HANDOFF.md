@@ -187,6 +187,21 @@ a broken doc link or `#section`).
 > ship the app and park the plug-in · per-instance engine state (globals → a context struct) ·
 > a parameter-bound UI (what commercial AUv3s do) · ship pixels over XPC. Do not start the last three
 > without deciding which product the plug-in is for.
+> **▶ THE FORK IS NOW MOSTLY DECIDED BY MEASUREMENT (2026-08-13, `ios/au-msgchannel-spike.swift`).**
+> The cost that made "ship pixels" read as expensive was a guess; measured out-of-process, a **full
+> 150KB canvas frame round-trips in 0.42ms** (~2300fps against the 20-30 a panel needs). It also
+> kills the netplay-style alternative: payload grows 2400× while latency grows ~3×, so the channel is
+> per-call-overhead-bound and shipping STATE buys nothing — while costing a determinism contract
+> across two processes where drift silently draws the wrong rack. **Ship pixels.** Two seams it needs
+> already exist and are TSan-gated (`de_copy_frame`, the input ring), so the remaining work is
+> plumbing, not research. Caveats: the numbers are an ECHO (no engine work behind them), it is Mac
+> Catalyst not iPad, and `AUMessageChannel` is Catalyst/iOS **16+** — an OS floor on the PLUG-IN only.
+> Per-instance state is a SEPARATE want (two tracks = two racks), not a fix for the panel: two
+> processes stay two processes. Scale if ever taken: ~204 engine statics (58 studio.c, 146 sound.h)
+> plus each cart's own (acidcandy ~120); `de_switch_cart` does not help — it is a config-log replay
+> that switches one cart at a time, not concurrent instances.
+> Full table + the three corrections the spike made to its own author:
+> [`ios-plan.md` → MEASURED 2026-08-13](design/ios-plan.md#measured-2026-08-13-option-4s-transport-is-a-non-issue-iosau-msgchannel-spikeswift).
 >
 > **Smaller open items, all recorded, none started:** a HOVER seam (a Catalyst mouse-move is not a
 > touch, so the cart only learns the pointer on click and `cursor.h` never sees a mouse — the pixel

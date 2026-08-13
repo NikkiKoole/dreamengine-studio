@@ -6,8 +6,11 @@
  * authoritative list of file-scope statics from `engine-statics.js --list` (clang's AST, so it cannot
  * miss a declaration shape) and the exceptions from `ctx-classification.json`, then emits:
  *
- *   runtime/sound_ctx.h   the struct + a compile-time-initialised default instance + the macro block
- *   runtime/sound.h       with those declarations removed and the header included at the top
+ *   runtime/<x>_ctx.h     the struct + a compile-time-initialised default instance + the macro block
+ *   runtime/<x>            with those declarations removed and the header included at the top
+ *
+ * `--target sound.h` (default) or `--target studio.c`. Each engine file gets its OWN context struct
+ * rather than one giant one, so a file can land and be verified byte-identical on its own.
  *
  * WHY A GENERATOR AND NOT AN AGENT OR A HUMAN. It is ~300 near-identical edits in one 9,200-line
  * file. A generator is auditable, re-runnable, and bisectable by batch; if it is wrong it is wrong in
@@ -27,7 +30,7 @@
  * then allocates by copying this template, which is exact by construction.
  *
  * USAGE
- *   node tools/ctx-gen.js                       dry run: what would move, what would be skipped
+ *   node tools/ctx-gen.js [--target studio.c]   dry run: what would move, what would be skipped
  *   node tools/ctx-gen.js --probe               apply to a COPY of runtime/ and compile it
  *   node tools/ctx-gen.js --write               apply for real (then run tools/refactor-guard.js)
  *   node tools/ctx-gen.js --primitive           BATCH 1: only statics of primitive type
@@ -50,10 +53,25 @@ const os = require('os');
 const path = require('path');
 
 const ROOT = path.resolve(__dirname, '..');
-const TARGET = 'runtime/sound.h';
-const CTX_HEADER = 'sound_ctx.h';
-const CTX_TYPE = 'DeSound';
-const CTX_PTR = 'de_snd';
+
+// One generator, several engine files. Each gets its own context struct rather than one giant one,
+// so a file can land and be verified byte-identical on its own — and so the audio context can be
+// created per plug-in instance independently of the video one, which the platform seam may want to
+// scope differently.
+const TARGETS = {
+  'sound.h':  { file: 'runtime/sound.h',  header: 'sound_ctx.h',  type: 'DeSound', ptr: 'de_snd' },
+  'studio.c': { file: 'runtime/studio.c', header: 'studio_ctx.h', type: 'DeVideo', ptr: 'de_vid' },
+};
+const TARGET_KEY = (() => {
+  const i = process.argv.indexOf('--target');
+  const k = i >= 0 ? process.argv[i + 1] : 'sound.h';
+  if (!TARGETS[k]) { console.error('ctx-gen: unknown --target ' + k + ' (have: ' + Object.keys(TARGETS).join(', ') + ')'); process.exit(2); }
+  return k;
+})();
+const TARGET = TARGETS[TARGET_KEY].file;
+const CTX_HEADER = TARGETS[TARGET_KEY].header;
+const CTX_TYPE = TARGETS[TARGET_KEY].type;
+const CTX_PTR = TARGETS[TARGET_KEY].ptr;
 
 const PRIMITIVES = new Set([
   'float', 'double', 'int', 'bool', 'char', 'short', 'long', 'unsigned', 'signed', 'void',
@@ -85,8 +103,13 @@ function loadCollisions() {
 function loadExclusions() {
   const c = JSON.parse(fs.readFileSync(path.join(ROOT, 'tools', 'ctx-classification.json'), 'utf8'));
   const ex = new Map();
+  // Per-target classification: sound.h's groups live at the top level (written first), studio.c's
+  // under a `studio_c` key. A target with no classification yet yields no exclusions, which is
+  // deliberately LOUD rather than silently permissive — the dry run shows everything moving, which
+  // is the signal to go and classify first.
+  const scope = TARGET_KEY === 'sound.h' ? c : (c.studio_c || {});
   for (const group of ['shared', 'harness', 'function_local', 'dead_weight', 'defer']) {
-    for (const name of Object.keys(c[group] || {})) {
+    for (const name of Object.keys(scope[group] || {})) {
       if (name.startsWith('_')) continue;
       ex.set(name, group);
     }
@@ -138,6 +161,20 @@ const ZERO = /^(0|0\.0f?|0u|0L|0x0u?|NULL|false|\{\s*0\s*\}|\{\s*\{\s*0\s*\}\s*\
 /* ─────────────────────────────────────────────────────────────── planning ── */
 
 function plan(opts) {
+  // ⚠ RE-RUNNING ON AN ALREADY-PROCESSED FILE IS DESTRUCTIVE. The generator builds the context from
+  // the statics it can SEE, so a second run over a file whose statics have already moved regenerates
+  // the header from the handful that remain — silently discarding the hundreds already migrated.
+  // The generated header is not cumulative and cannot be: the declarations it was built from are
+  // gone from the source. To redo a target, restore both files from git first.
+  const already = fs.readFileSync(path.join(ROOT, TARGET), 'utf8').includes('#include "' + CTX_HEADER + '"');
+  if (already) {
+    console.error(`\nctx-gen: ${TARGET} already includes ${CTX_HEADER} — it has been processed.`);
+    console.error('Running again would rebuild the context from only the statics that REMAIN and');
+    console.error('throw away everything already moved. Refusing.\n');
+    console.error(`To redo it:  git checkout <commit> -- ${TARGET} && rm runtime/${CTX_HEADER}`);
+    process.exit(4);
+  }
+
   const statics = loadStatics();
   const exclusions = loadExclusions();
   const collisions = loadCollisions();
@@ -159,6 +196,13 @@ function plan(opts) {
     // statement and splitting it is a guess
     const ex = names.filter(n => exclusions.has(n));
     if (ex.length) { skipped.push({ line, names, why: 'classified ' + exclusions.get(ex[0]) + ' (' + ex.join(' ') + ')' }); continue; }
+
+    // A static whose ADDRESS is taken in another file-scope initialiser cannot move: `&game_font`
+    // is a constant expression today, but `&(de_vid->game_font)` is not, so the table that points
+    // at it (`static Font *const FONT_SLOT[] = { &game_font, … }`) stops compiling. Caught by the
+    // probe as an error; reported here so it reads as a decision rather than a crash.
+    const addressed = names.filter(n => addressTakenAtFileScope(src, n));
+    if (addressed.length) { skipped.push({ line, names, why: 'ADDRESS TAKEN in a file-scope initialiser (' + addressed.join(' ') + ') — &member is not a constant expression; move the table to runtime init first, or keep this shared' }); continue; }
 
     const clash = names.filter(n => collisions.has(n));
     if (clash.length) { skipped.push({ line, names, why: 'NAME COLLISION — the macro would rewrite another use of this identifier (' + clash.join(' ') + '); rename one side first' }); continue; }
@@ -361,14 +405,23 @@ function rewriteSource(src, byLine, movedNames, macroSpans = []) {
   // ZERO. Taking "the last #include in the first 200 lines" put it inside sound.h's
   // `#if defined(__SSE__)` block, so on arm64 it was never included at all and every moved name
   // became an undeclared identifier. Track #if/#endif depth and only accept a depth-0 include.
-  let includeAt = 0, depth = 0;
-  for (let i = 0; i < Math.min(src.length, 200); i++) {
-    const s = src[i];
-    if (/^\s*#\s*(if|ifdef|ifndef)\b/.test(s)) depth++;
-    else if (/^\s*#\s*endif\b/.test(s)) depth--;
-    // depth 1 == inside sound.h's own include guard, which is where the real includes live
-    else if (/^\s*#\s*include/.test(s) && depth <= 1) includeAt = i + 1;
+  // Which nesting level counts as "not inside a conditional" DIFFERS BY FILE: in a header wrapped in
+  // an include guard the real includes sit at depth 1, in a .c file they sit at depth 0. Hardcoding
+  // depth<=1 put studio.c's include inside its `#ifdef _WIN32` block, where it was never compiled.
+  // So derive it: the base level is the MINIMUM depth at which any include appears.
+  const seen = [];
+  {
+    let depth = 0;
+    for (let i = 0; i < Math.min(src.length, 200); i++) {
+      const s = src[i];
+      if (/^\s*#\s*(if|ifdef|ifndef)\b/.test(s)) depth++;
+      else if (/^\s*#\s*endif\b/.test(s)) depth--;
+      else if (/^\s*#\s*include/.test(s)) seen.push({ i, depth });
+    }
   }
+  const base = seen.length ? Math.min(...seen.map(s => s.depth)) : 0;
+  const atBase = seen.filter(s => s.depth === base);
+  const includeAt = atBase.length ? atBase[atBase.length - 1].i + 1 : 0;
 
   const out = [];
   for (let i = 0; i < src.length; i++) {
@@ -387,7 +440,7 @@ function apply(dir, res) {
   const movedNames = new Set(res.move.map(m => m.name));
   const macroSpans = collectMacroHoist(res.move, res.src);
   fs.writeFileSync(path.join(dir, CTX_HEADER), emitHeader(res.move, macroSpans, res.src));
-  fs.writeFileSync(path.join(dir, 'sound.h'), rewriteSource(res.src, res.byLine, movedNames, macroSpans));
+  fs.writeFileSync(path.join(dir, path.basename(TARGET)), rewriteSource(res.src, res.byLine, movedNames, macroSpans));
   return macroSpans.length;
 }
 

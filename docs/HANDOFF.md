@@ -327,6 +327,28 @@ a broken doc link or `#section`).
 >   `ctx_log` already moved per-instance assuming yes; if cart choice belongs to the umbrella app it
 >   belongs to the shell. Settle it before the memory-trimming pass.
 >
+> **▶ NEXT IS `studio.c` — AND IT IS NOT A REPEAT OF `sound.h`. Read this before generating.**
+> Its classification is done (123 exceptions vs sound.h's 13 — see
+> [`design/engine-context.md`](design/engine-context.md) and the `studio_c` key in the JSON) and the
+> two macro collisions are already cleared. But:
+> · **THE PLATFORM SEAM HAS NO INSTANCE ARGUMENT.** The AUv3 runs ONE process-wide frame worker (its
+>   own comment says so) and calls `de_frame(t)`, `de_resize`, `de_copy_frame`, `de_set_safe_area`,
+>   `de_set_backing_scale`, `de_audio_render`, `de_set_save_dir` with no instance parameter. Once
+>   studio.c is per-instance, **one `de_frame()` advances ONE rack and the others freeze.** ⚠ The macro
+>   move COMPILES and passes every byte-exact gate while leaving this broken — `refactor-guard` runs a
+>   single instance. Treat the mechanical pass as a prerequisite, never as completion.
+> · **A THREAD-LOCAL POINTER DOES NOT WORK HERE** (a correction to the sound.h shape): the same
+>   instance is touched from THREE threads — UI thread resizes, the frame worker draws, the XPC/view
+>   thread copies the frame — and one worker serves many instances. The seam must take an EXPLICIT
+>   handle. And do NOT use a mutable global "current instance": that is the exact race the
+>   pending/seqlock machinery exists to prevent, one level up.
+> · **`crash_handler` cannot reach a context** — it is registered with the OS and reads
+>   `watches`/`watch_count`; a signal handler takes no argument. Design it, do not macro it.
+> · **`save_dir` is already a live defect**: N instances share one `cart.sav`/`cart.kv`, and because
+>   the mirrors are written back WHOLE it is last-writer-wins at FILE granularity, not per key.
+> · Also logged: `colorkey()` destroys and rebuilds a SHARED GPU texture from a cart API;
+>   `fp_cache`'s key omits the palette; and an unrelated latent `web_px` overflow after a canvas grow.
+>
 > **Order — do NOT take both engine files at once:**
 > 1. **`runtime/sound.h` ALONE** (293 statics / 29 non-zero initialisers, self-contained, strongest
 >    oracle in the repo). Prove the pattern here; if it does not work you have lost an afternoon on one

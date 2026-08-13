@@ -103,6 +103,42 @@ broken second instance. Four findings carried the audit:
   ordering *within one engine*. Shared, the single-producer/single-consumer invariant itself breaks:
   two producers and two consumers on one ring means lost and duplicated events, not merely crosstalk.
 
+
+## ⚠ `studio.c` is NOT a repeat of `sound.h`
+
+`sound.h` was almost entirely per-instance audio state, so a macro move finished the job. `studio.c`
+is different in two ways, and the second one changes what "done" means.
+
+**It holds real shared state.** GPU handles (the sprite sheet, six font atlases, three shader
+programs and their uniform locations), open OS file handles, the process `argv`. Duplicating any of
+those is N GPU allocations at best and a handle freed while a sibling samples it at worst. The
+classification records ~123 exceptions for this file, against 13 for `sound.h`.
+
+**And the platform seam has no instance argument.** This is the finding that matters. The AUv3 today
+runs ONE process-wide frame worker (its own comment: *"ONE worker per process, not per instance"*)
+and calls `de_frame(t)` with no instance parameter — as do `de_resize`, `de_copy_frame`,
+`de_set_safe_area`, `de_set_backing_scale`, `de_audio_render` and `de_set_save_dir`. **Once
+`studio.c`'s state is per-instance, one `de_frame()` per tick advances exactly one rack and the
+others freeze.**
+
+The dangerous part is that **the macro move compiles and passes every byte-exact gate while leaving
+this broken**, because `refactor-guard` runs a single instance. So the mechanical pass is a
+prerequisite, not a completion.
+
+**Two things NOT to reach for when fixing the seam.** A mutable global "current instance" pointer
+would be written by the UI thread and read by the audio thread on every call — precisely the race the
+pending/seqlock machinery exists to prevent, reintroduced one level up. And **a thread-local pointer
+does not work here either**, which is a correction to the shape chosen for `sound.h`: the same
+instance is touched from THREE threads (UI thread resizes, the frame worker draws, the XPC/view
+thread copies the frame), and one worker serves many instances. There is no "current instance" for a
+thread to hold. **The seam must take an explicit handle.** Concretely `de_copy_frame(dst, cap, &w, &h)`
+has no instance parameter at all, and its reader must load `de_pres_buf` from the same context it
+loaded `de_pres_seq` from or the seqlock means nothing.
+
+**A signal handler cannot reach a context either.** `crash_handler` is registered with the OS and
+reads `watches`/`watch_count` to dump them; a handler takes no argument. Either keep a static
+"last active instance" for it to walk, or drop the watch dump from the crash path. Design, not macro.
+
 ## Memory
 
 `size -m` on a compiled `studio.o`: the engine's mutable statics are **6.2 MB**, and a context is

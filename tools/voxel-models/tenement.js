@@ -295,6 +295,45 @@ module.exports = {
        '...'],
     ]},
 
+    // ── the figure, WORKING: arms out in front of it. ──
+    // design §4 says the loom is where labour is VISIBLE, and until now a resident on a 480-minute
+    // shift stood there exactly like one waiting for a bus. Arms are the whole read: a standing
+    // figure plus two arms reaching forward is the only silhouette at this size that says BUSY.
+    //
+    // THE ARMS POINT +y (SOUTH) IN MODEL SPACE and the renderer turns the model so they point at the
+    // thing being used. Not at `facing`, which is only the last step of the walk — a resident that
+    // arrived from the north is facing south whether or not the loom is south of it.
+    //
+    // Straight arms from the shoulder tips rather than modelled elbows: at 4x2px a voxel there is no
+    // room for a joint, and the earlier lesson from this file is that detail at this scale reads as
+    // noise while OUTLINE reads as meaning.
+    person_work: { layers: [
+      ['.j.j.',
+       '.....',
+       '.....',
+       '.....'],
+      4,
+      ['.bbb.',
+       '.....',
+       '.....',
+       '.....'],
+      1,
+      ['bbbbb',
+       'b...b',
+       'b...b',
+       'b...b'],
+      1,
+      ['.bbb.',
+       '.....',
+       '.....',
+       '.....'],
+      ['.hhh.',
+       '.....',
+       '.....',
+       '.....'],
+      1,
+    ]},
+
     // ── the figure, SITTING. ──
     // The contract has had TN_POSE_SIT since day one and offer.h has always said a sofa and a toilet
     // are things you SIT on — but art had no cell for it, so it fell through to the standing figure

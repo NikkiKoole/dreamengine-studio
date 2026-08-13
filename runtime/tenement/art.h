@@ -57,7 +57,10 @@ void tn_camera(void) {
 
 // `hh` is the household whose colour a RESIDENT wears, or -1 for anything that is not a resident.
 // Furniture's own `household` field is OWNERSHIP, not paint, so it is deliberately not put here.
-typedef struct { float depth; int cell, rot; float vx, vy, vz; int fp0, fp1; int shadow; int hh; } Draw;
+// `myaw` turns the MESH in world space, in quarter turns — needed the moment a figure stopped being
+// symmetric. The sprite path has no use for it (a baked cell already IS a rotation), so it is only
+// read by the polygon renderer.
+typedef struct { float depth; int cell, rot; float vx, vy, vz; int fp0, fp1; int shadow; int hh; int myaw; } Draw;
 // + 2*TN_N because every tile can carry a north AND a west edge wall.
 static Draw tnr_dl[TN_MAX_OBJECTS + TN_MAX_AGENTS + 2 * TN_N];
 static int tnr_dl_n;
@@ -295,6 +298,18 @@ static const TnPart TNP_PERSON[] = {
     TNR_PRISM(1.1f,0.7f,5.2f, 3.9f,2.3f,9.3f, -0.7f,-0.1f,0.7f,0.1f, TNM_SHIRT),  // SHOULDERS
     TNR_PRISM(1.6f,0.9f,9.3f, 3.4f,2.1f,11.6f, 0.25f,0.2f,-0.25f,-0.2f, TNM_SKIN),
 };
+// WORKING: a standing figure with both arms reaching forward along +y. design §4 wants labour to be
+// VISIBLE, and arms are the only silhouette at this size that says busy. Straight from the shoulder
+// tips — at this scale an elbow is noise, an outline is meaning.
+static const TnPart TNP_PERSON_WORK[] = {
+    TNR_PRISM(1.0f,0.9f,0, 2.2f,2.1f,5.2f,  0.15f,0,-0.15f,0, TNM_TROUSER),
+    TNR_PRISM(2.8f,0.9f,0, 4.0f,2.1f,5.2f,  0.15f,0,-0.15f,0, TNM_TROUSER),
+    TNR_PRISM(1.1f,0.7f,5.2f, 3.9f,2.3f,9.3f, -0.7f,-0.1f,0.7f,0.1f, TNM_SHIRT),   // torso
+    TNR_BOX  (0.4f,2.45f,7.4f, 1.5f,4.0f,8.5f,           TNM_SHIRT),   // arms, reaching +y
+    TNR_BOX  (3.5f,2.45f,7.4f, 4.6f,4.0f,8.5f,           TNM_SHIRT),
+    TNR_PRISM(1.6f,0.9f,9.3f, 3.4f,2.1f,11.6f, 0.25f,0.2f,-0.25f,-0.2f, TNM_SKIN),
+};
+
 // SITTING: thighs projecting forward, torso up, shoulders wider than the head. Eight voxels, and the
 // forward projection is what carries the read — at this size a seated figure is recognised by its
 // outline breaking the vertical, never by proportion.
@@ -322,6 +337,7 @@ static const TnMesh TNR_MESHES[ISO_MODEL_COUNT] = {
     [ISO_COUNTER]      = TNR_MESH(TNP_COUNTER),      [ISO_LOOM]         = TNR_MESH(TNP_LOOM),
     [ISO_WARDROBE]     = TNR_MESH(TNP_WARDROBE),     [ISO_PERSON]       = TNR_MESH(TNP_PERSON),
     [ISO_PERSON_LIE]   = TNR_MESH(TNP_PERSON_LIE), [ISO_PERSON_SIT]   = TNR_MESH(TNP_PERSON_SIT),
+    [ISO_PERSON_WORK]  = TNR_MESH(TNP_PERSON_WORK),
     [ISO_WALL_FULL_NS] = TNR_MESH(TNP_WALL_FULL_NS), [ISO_WALL_FULL_EW] = TNR_MESH(TNP_WALL_FULL_EW),
     [ISO_WALL_LOW_NS]  = TNR_MESH(TNP_WALL_LOW_NS),  [ISO_WALL_LOW_EW]  = TNR_MESH(TNP_WALL_LOW_EW),
 };
@@ -430,13 +446,34 @@ static void tnr_face(const float a[3], const float b[3], const float c[3], const
 }
 
 // A prism's six faces, wound counter-clockwise seen from OUTSIDE so the normal points out.
-static void tnr_part(const TnPart *p, float ox, float oy, float oz, int hh) {
-    const float bx0=p->x0+ox, by0=p->y0+oy, bx1=p->x1+ox, by1=p->y1+oy;
-    const float tx0=p->x0+p->dx0+ox, ty0=p->y0+p->dy0+oy;
-    const float tx1=p->x1+p->dx1+ox, ty1=p->y1+p->dy1+oy;
+// A quarter turn of the model about its own footprint, applied BEFORE placing it. The linear part is
+// (x,y) -> (-y,x) and the footprint term is only there to keep coordinates positive; determinant is
+// +1, so face winding — and therefore every outward normal — survives untouched.
+static void tnr_spin(int q, float fx, float fy, float x, float y, float *ox, float *oy) {
+    switch (q & 3) {
+        case 1:  *ox = fy - y;  *oy = x;       break;
+        case 2:  *ox = fx - x;  *oy = fy - y;  break;
+        case 3:  *ox = y;       *oy = fx - x;  break;
+        default: *ox = x;       *oy = y;       break;
+    }
+}
+static void tnr_part(const TnPart *p, float ox, float oy, float oz, int hh,
+                     int q, float fx, float fy) {
+    float rb0x,rb0y, rb1x,rb1y, rb2x,rb2y, rb3x,rb3y;
+    float ru0x,ru0y, ru1x,ru1y, ru2x,ru2y, ru3x,ru3y;
+    tnr_spin(q, fx, fy, p->x0, p->y0, &rb0x, &rb0y);
+    tnr_spin(q, fx, fy, p->x1, p->y0, &rb1x, &rb1y);
+    tnr_spin(q, fx, fy, p->x1, p->y1, &rb2x, &rb2y);
+    tnr_spin(q, fx, fy, p->x0, p->y1, &rb3x, &rb3y);
+    tnr_spin(q, fx, fy, p->x0 + p->dx0, p->y0 + p->dy0, &ru0x, &ru0y);
+    tnr_spin(q, fx, fy, p->x1 + p->dx1, p->y0 + p->dy0, &ru1x, &ru1y);
+    tnr_spin(q, fx, fy, p->x1 + p->dx1, p->y1 + p->dy1, &ru2x, &ru2y);
+    tnr_spin(q, fx, fy, p->x0 + p->dx0, p->y1 + p->dy1, &ru3x, &ru3y);
     const float z0=p->z0+oz, z1=p->z1+oz;
-    const float b0[3]={bx0,by0,z0}, b1[3]={bx1,by0,z0}, b2[3]={bx1,by1,z0}, b3[3]={bx0,by1,z0};
-    const float u0[3]={tx0,ty0,z1}, u1[3]={tx1,ty0,z1}, u2[3]={tx1,ty1,z1}, u3[3]={tx0,ty1,z1};
+    const float b0[3]={rb0x+ox,rb0y+oy,z0}, b1[3]={rb1x+ox,rb1y+oy,z0};
+    const float b2[3]={rb2x+ox,rb2y+oy,z0}, b3[3]={rb3x+ox,rb3y+oy,z0};
+    const float u0[3]={ru0x+ox,ru0y+oy,z1}, u1[3]={ru1x+ox,ru1y+oy,z1};
+    const float u2[3]={ru2x+ox,ru2y+oy,z1}, u3[3]={ru3x+ox,ru3y+oy,z1};
     const int m = p->mat;
     tnr_face(u0,u1,u2,u3, m,hh);  tnr_face(b0,b3,b2,b1, m,hh);   // top, bottom
     tnr_face(b0,b1,u1,u0, m,hh);  tnr_face(b2,b3,u3,u2, m,hh);   // front, back
@@ -515,8 +552,10 @@ static void tnr_draw_poly(void) {
         // adjacent tile, furniture FILLS its tile, so doubling the intrusion made furniture visibly
         // punch through walls. The depth test resolves both without moving anything, which is the
         // whole reason it is here.
+        const short *mfp = ISO_FOOTPRINT[cell];
         for (int p = 0; p < m->n; p++)
-            tnr_part(&m->p[p], tnr_dl[i].vx, tnr_dl[i].vy, tnr_dl[i].vz, tnr_dl[i].hh);
+            tnr_part(&m->p[p], tnr_dl[i].vx, tnr_dl[i].vy, tnr_dl[i].vz, tnr_dl[i].hh,
+                     tnr_dl[i].myaw, (float)mfp[0], (float)mfp[1]);
     }
     // NO SORT. Not a faster sort, not a stabler one — none. Draw order stops mattering entirely,
     // which is the whole argument for a depth buffer in one line of code.
@@ -544,18 +583,27 @@ void tn_draw_world(void) {
         tnr_dl[tnr_dl_n++] = (Draw){ tnr_iso_depth(tn_rot, tn_obj[o].tx*TN_TILE_VOX + fp[0]*0.5f,
                                                tn_obj[o].ty*TN_TILE_VOX + fp[1]*0.5f),
                              cell, tn_rot, (float)tn_obj[o].tx*TN_TILE_VOX,
-                             (float)tn_obj[o].ty*TN_TILE_VOX, 0.0f, fp[0], fp[1], 1, -1 };
+                             (float)tn_obj[o].ty*TN_TILE_VOX, 0.0f, fp[0], fp[1], 1, -1, 0 };
     }
     for (int i = 0; i < tn_agent_n; i++) {
         // The cell comes from the agent's POSE, which came from the offer it is using. No branch on
         // object kind anywhere: a bed does not tell the renderer it is a bed, it tells the sim that
         // using it means lying down (contract rule 2). Standing on a mattress was the symptom of
         // there being no notion of posture at all.
-        // THE POSE PICKS THE CELL, all three of them. SIT used to fall through to the standing
-        // figure, so a resident on the sofa or the toilet was drawn upright — the sim had said SIT
-        // since offer.h was written, and only the art was missing.
+        // THE POSE PICKS THE CELL. SIT used to fall through to the standing figure, so a resident on
+        // the sofa or the toilet was drawn upright — the sim had said SIT since offer.h was written
+        // and only the art was missing.
+        //
+        // WORKING is read from the winning bid's TAG, not from the activity: nothing in the cart ever
+        // sets TN_ACT_WORK, so `activity` cannot tell a shift at the loom from a snack at the fridge.
+        // `bid_tag` is the sim's own answer to what this resident is doing, and TN_CAP_WORK covers the
+        // loom and the counter both. Reading it here is ART reading a decision, never making one.
+        const int working = (tn_agent[i].pose == TN_POSE_STAND &&
+                             tn_agent[i].activity == TN_ACT_USE &&
+                             tn_agent[i].bid_tag == TN_CAP_WORK);
         const int pcell = (tn_agent[i].pose == TN_POSE_LIE) ? ISO_PERSON_LIE
-                        : (tn_agent[i].pose == TN_POSE_SIT) ? ISO_PERSON_SIT : ISO_PERSON;
+                        : (tn_agent[i].pose == TN_POSE_SIT) ? ISO_PERSON_SIT
+                        : working                           ? ISO_PERSON_WORK : ISO_PERSON;
         const short *fp = ISO_FOOTPRINT[pcell];
         // A resident who is not standing is ON the thing it is using, not on the floor beside it.
         // Position comes from the OBJECT and height from that object's own voxel depth (ISO_FOOTPRINT
@@ -565,6 +613,18 @@ void tn_draw_world(void) {
         float ax = (float)tn_agent[i].tx * TN_TILE_VOX, ay = (float)tn_agent[i].ty * TN_TILE_VOX;
         float az = 0.0f;
         int   arot = (tn_rot + tn_agent[i].facing) & 3;
+        // POINT THE ARMS AT THE WORK, derived from where the object IS rather than from `facing`
+        // (which is only the last step of the walk — arrive from the north and you face south whether
+        // or not the loom is). The mesh is authored with its arms along +y, and the quarter turns map
+        // +y to: 0 south, 1 west, 2 north, 3 east. Everything else is unturned: a sitter is already
+        // aligned with its furniture below, and the standing figure is symmetric enough not to care.
+        int   amyaw = 0;
+        if (working && tn_agent[i].target_obj >= 0) {
+            const TnObject *wo = &tn_obj[tn_agent[i].target_obj];
+            const int ddx = wo->tx - tn_agent[i].tx, ddy = wo->ty - tn_agent[i].ty;
+            if (abs(ddx) > abs(ddy)) amyaw = (ddx > 0) ? 3 : 1;     // east : west
+            else                     amyaw = (ddy > 0) ? 0 : 2;     // south : north
+        }
         if (tn_agent[i].pose != TN_POSE_STAND && tn_agent[i].target_obj >= 0) {
             const TnObject *ob = &tn_obj[tn_agent[i].target_obj];
             const short *ofp = ISO_FOOTPRINT[OBJ_CELL[ob->kind]];
@@ -583,7 +643,7 @@ void tn_draw_world(void) {
         }
         tnr_dl[tnr_dl_n++] = (Draw){ tnr_iso_depth(tn_rot, ax + fp[0]*0.5f, ay + fp[1]*0.5f) + 0.5f,
                              pcell, arot, ax, ay, az, fp[0], fp[1], az == 0.0f,
-                             (int)tn_agent[i].household };
+                             (int)tn_agent[i].household, amyaw };
     }
     // ── EDGE WALLS ──────────────────────────────────────────────────────────
     // world.h stores walls on tile EDGES, not tiles, and only each tile's north and west edge (the
@@ -630,7 +690,7 @@ void tn_draw_world(void) {
                     const int cell = (en == TN_WALL_DOOR || near_n) ? ISO_WALL_LOW_NS : ISO_WALL_FULL_NS;
                     const short *fp = ISO_FOOTPRINT[cell];
                     tnr_dl[tnr_dl_n++] = (Draw){ tnr_iso_depth(tn_rot, vx + fp[0] * 0.5f, vy),
-                                                 cell, tn_rot, vx, vy - 1.0f, 0.0f, fp[0], fp[1], 0, -1 };
+                                                 cell, tn_rot, vx, vy - 1.0f, 0.0f, fp[0], fp[1], 0, -1, 0 };
                 }
             }
             if (ty < tn_bh) {
@@ -639,7 +699,7 @@ void tn_draw_world(void) {
                     const int cell = (ew == TN_WALL_DOOR || near_w) ? ISO_WALL_LOW_EW : ISO_WALL_FULL_EW;
                     const short *fp = ISO_FOOTPRINT[cell];
                     tnr_dl[tnr_dl_n++] = (Draw){ tnr_iso_depth(tn_rot, vx, vy + fp[1] * 0.5f),
-                                                 cell, tn_rot, vx - 1.0f, vy, 0.0f, fp[0], fp[1], 0, -1 };
+                                                 cell, tn_rot, vx - 1.0f, vy, 0.0f, fp[0], fp[1], 0, -1, 0 };
                 }
             }
         }

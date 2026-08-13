@@ -326,6 +326,20 @@ static const Part P_PERSON[] = {
     PRISM(1.6f,0.9f,9.3f, 3.4f,2.1f,11.6f, 0.25f,0.2f,-0.25f,-0.2f, M_SKIN), // head, tapered
 };
 
+// WORKING, 5x4x12: a standing figure with both arms reaching forward along +y. tenement's design §4
+// wants labour VISIBLE, and at this size arms are the only silhouette that says busy. In tenement the
+// renderer turns this model so the arms point at the object being used, which is what pr_yaw_of below
+// exercises here — the reason a poly path needs instance rotation at all is that a figure with arms
+// stopped being symmetric.
+static const Part P_PERSON_WORK[] = {
+    PRISM(1.0f,0.9f,0, 2.2f,2.1f,5.2f,  0.15f,0,-0.15f,0, M_TROUSER),
+    PRISM(2.8f,0.9f,0, 4.0f,2.1f,5.2f,  0.15f,0,-0.15f,0, M_TROUSER),
+    PRISM(1.1f,0.7f,5.2f, 3.9f,2.3f,9.3f, -0.7f,-0.1f,0.7f,0.1f, M_SHIRT),
+    BOX  (0.4f,2.45f,7.4f, 1.5f,4.0f,8.5f,           M_SHIRT),      // arms, reaching +y
+    BOX  (3.5f,2.45f,7.4f, 4.6f,4.0f,8.5f,           M_SHIRT),
+    PRISM(1.6f,0.9f,9.3f, 3.4f,2.1f,11.6f, 0.25f,0.2f,-0.25f,-0.2f, M_SKIN),
+};
+
 // SITTING, 5x4x8: thighs projecting forward, torso up, shoulders wider than the head. The forward
 // projection is what carries the read — a seated figure at this size is recognised by its outline
 // breaking the vertical, never by proportion. tenement's offer table has always said a sofa and a
@@ -359,6 +373,7 @@ static const Mesh MESHES[ISO_MODEL_COUNT] = {
     [ISO_COUNTER]      = MESH(P_COUNTER),      [ISO_LOOM]       = MESH(P_LOOM),
     [ISO_WARDROBE]     = MESH(P_WARDROBE),     [ISO_PERSON]     = MESH(P_PERSON),
     [ISO_PERSON_LIE]   = MESH(P_PERSON_LIE),   [ISO_PERSON_SIT] = MESH(P_PERSON_SIT),
+    [ISO_PERSON_WORK]  = MESH(P_PERSON_WORK),
     [ISO_WALL_FULL_NS] = MESH(P_WALL_FULL_NS), [ISO_WALL_FULL_EW] = MESH(P_WALL_FULL_EW),
     [ISO_WALL_LOW_NS]  = MESH(P_WALL_LOW_NS),  [ISO_WALL_LOW_EW]  = MESH(P_WALL_LOW_EW),
 };
@@ -375,17 +390,23 @@ static const Mesh MESHES[ISO_MODEL_COUNT] = {
 //
 // So the walls are the ONE thing the two halves build differently, and the difference is itself a
 // finding rather than a cheat. Furniture and residents — the actual subject — stay one shared list.
-typedef struct { int cell; float vx, vy, vz; float lx, ly; int hh; } Item;
+// `q` turns the mesh in quarter turns about its own footprint. Needed the moment a figure stopped
+// being symmetric: a worker's arms have to point AT something.
+typedef struct { int cell; float vx, vy, vz; float lx, ly; int hh; int q; } Item;
 #define MAX_ITEMS 96
 static Item pr_item[MAX_ITEMS];
 static int  pr_item_n;      // total this frame
 static int  pr_fixed_n;     // furniture + residents; the walls after this are rebuilt every frame
 
 static void pr_add(int cell, float vx, float vy, float vz, int hh) {
-    if (pr_item_n < MAX_ITEMS) pr_item[pr_item_n++] = (Item){ cell, vx, vy, vz, 1.0f, 1.0f, hh };
+    if (pr_item_n < MAX_ITEMS) pr_item[pr_item_n++] = (Item){ cell, vx, vy, vz, 1.0f, 1.0f, hh, 0 };
 }
 static void pr_add_run(int cell, float vx, float vy, float lx, float ly) {
-    if (pr_item_n < MAX_ITEMS) pr_item[pr_item_n++] = (Item){ cell, vx, vy, 0.0f, lx, ly, -1 };
+    if (pr_item_n < MAX_ITEMS) pr_item[pr_item_n++] = (Item){ cell, vx, vy, 0.0f, lx, ly, -1, 0 };
+}
+static void pr_add_turned(int cell, float vx, float vy, float vz, int hh, int q) {
+    pr_add(cell, vx, vy, vz, hh);
+    if (pr_item_n) pr_item[pr_item_n - 1].q = q;
 }
 static void pr_add_tile(int cell, int tx, int ty, int hh) {
     pr_add(cell, (float)(tx * TILE), (float)(ty * TILE), 0.0f, hh);
@@ -426,7 +447,11 @@ static void pr_scene(void) {
     // same distinction ISO_REST_Z draws in tenement.
     pr_add(ISO_PERSON_SIT, (float)(2 * TILE) + 3.0f, (float)(2 * TILE), 4.0f, 2);   // centred, seat height
     pr_add_tile(ISO_PERSON, 2, 4, 1);
-    pr_add_tile(ISO_PERSON, 4, 4, 2);
+    // A WORKER AT THE LOOM, standing on the NEAR side and turned so its arms reach north into the warp
+    // (q=2 maps the model's +y arms to -y). Near side on purpose: put it behind the loom and the loom
+    // correctly hides the very arms this pose exists to show. This is also the only thing in the probe
+    // that exercises instance rotation, which a symmetric figure let us skip for a long time.
+    pr_add_turned(ISO_PERSON_WORK, (float)(4 * TILE), 22.0f, 0.0f, 2, 2);
     // Asleep: centred on the bed and lifted onto its surface, the same arithmetic art.h does, in
     // whole voxels (a fractional offset puts corners between lattice points — iso-rooms.md §7).
     {
@@ -715,14 +740,35 @@ static void pr_quad(const float a[3], const float b[3], const float c[3], const 
 
 // A prism's six faces, wound counter-clockwise seen from OUTSIDE so the cross product points out.
 // lx/ly stretch it along the ground before placing (walls only — see the Item comment).
-static void pr_part(const Part *p, float ox, float oy, float oz, int hh, float lx, float ly) {
-    const float bx0 = p->x0 * lx + ox, by0 = p->y0 * ly + oy;
-    const float bx1 = p->x1 * lx + ox, by1 = p->y1 * ly + oy;
-    const float tx0 = (p->x0 + p->dx0) * lx + ox, ty0 = (p->y0 + p->dy0) * ly + oy;
-    const float tx1 = (p->x1 + p->dx1) * lx + ox, ty1 = (p->y1 + p->dy1) * ly + oy;
+// A quarter turn about the model's own footprint, before placing. Linear part is (x,y) -> (-y,x); the
+// footprint term only keeps coordinates positive. Determinant +1, so winding and every outward normal
+// survive untouched — which is why no face flips inside out.
+static void pr_spin(int q, float fx, float fy, float x, float y, float *ox, float *oy) {
+    switch (q & 3) {
+        case 1:  *ox = fy - y;  *oy = x;       break;
+        case 2:  *ox = fx - x;  *oy = fy - y;  break;
+        case 3:  *ox = y;       *oy = fx - x;  break;
+        default: *ox = x;       *oy = y;       break;
+    }
+}
+static void pr_part(const Part *p, float ox, float oy, float oz, int hh, float lx, float ly,
+                    int q, float fx, float fy) {
+    float sx0,sy0, sx1,sy1, sx2,sy2, sx3,sy3, ux0,uy0, ux1,uy1, ux2,uy2, ux3,uy3;
+    pr_spin(q, fx, fy, p->x0 * lx, p->y0 * ly, &sx0, &sy0);
+    pr_spin(q, fx, fy, p->x1 * lx, p->y0 * ly, &sx1, &sy1);
+    pr_spin(q, fx, fy, p->x1 * lx, p->y1 * ly, &sx2, &sy2);
+    pr_spin(q, fx, fy, p->x0 * lx, p->y1 * ly, &sx3, &sy3);
+    pr_spin(q, fx, fy, (p->x0 + p->dx0) * lx, (p->y0 + p->dy0) * ly, &ux0, &uy0);
+    pr_spin(q, fx, fy, (p->x1 + p->dx1) * lx, (p->y0 + p->dy0) * ly, &ux1, &uy1);
+    pr_spin(q, fx, fy, (p->x1 + p->dx1) * lx, (p->y1 + p->dy1) * ly, &ux2, &uy2);
+    pr_spin(q, fx, fy, (p->x0 + p->dx0) * lx, (p->y1 + p->dy1) * ly, &ux3, &uy3);
+    const float bx0 = sx0 + ox, by0 = sy0 + oy, bx1 = sx1 + ox, by1 = sy1 + oy;
+    const float tx0 = ux0 + ox, ty0 = uy0 + oy, tx1 = ux1 + ox, ty1 = uy1 + oy;
     const float z0 = p->z0 + oz, z1 = p->z1 + oz;
-    const float b0[3] = {bx0,by0,z0}, b1[3] = {bx1,by0,z0}, b2[3] = {bx1,by1,z0}, b3[3] = {bx0,by1,z0};
-    const float u0[3] = {tx0,ty0,z1}, u1[3] = {tx1,ty0,z1}, u2[3] = {tx1,ty1,z1}, u3[3] = {tx0,ty1,z1};
+    const float b0[3] = {bx0,by0,z0}, b1[3] = {bx1,by1,z0};
+    const float b2[3] = {sx2+ox,sy2+oy,z0}, b3[3] = {sx3+ox,sy3+oy,z0};
+    const float u0[3] = {tx0,ty0,z1}, u1[3] = {tx1,ty1,z1};
+    const float u2[3] = {ux2+ox,uy2+oy,z1}, u3[3] = {ux3+ox,uy3+oy,z1};
     const int m = p->mat;
     pr_quad(u0, u1, u2, u3, m, hh);    // top    (+z)
     pr_quad(b0, b3, b2, b1, m, hh);    // bottom (-z)
@@ -824,8 +870,10 @@ static void pr_build_tris(void) {
     for (int i = 0; i < pr_item_n; i++) {
         const Item *it = &pr_item[i];
         const Mesh *m = &MESHES[it->cell];
+        const short *mfp = ISO_FOOTPRINT[it->cell];
         for (int p = 0; p < m->n; p++)
-            pr_part(&m->p[p], it->vx, it->vy, it->vz, it->hh, it->lx, it->ly);
+            pr_part(&m->p[p], it->vx, it->vy, it->vz, it->hh, it->lx, it->ly,
+                    it->q, (float)mfp[0], (float)mfp[1]);
     }
 }
 

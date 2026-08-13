@@ -14,7 +14,7 @@
   "description": {
     "summary": "Sends a pattern OUT to another instrument over MIDI -- a bassline on channel 1, drums as GM notes on channel 10 -- and logs every message as it goes.",
     "detail": "The cart makes no sound of its own; the point is what comes out the other end. It appears to the system as a MIDI device called 'dreamengine' that a DAW picks as a track input. Two parts play at once and they show the whole channel convention: a 16-step bassline on CHANNEL 1, where the notes are notes, and a drum pattern on CHANNEL 10, where each voice is a fixed GM note number (36 kick, 38 snare, 42 closed hat) rather than a channel of its own -- which is how every drum machine addresses a DAW's drum rack. A filter-cutoff sweep rides out as CC 74 on channel 1, and the transport is mirrored as real MIDI clock at 24 ticks per quarter note, so the receiving gear follows this cart's tempo. The log on the right shows the last dozen messages with their channel, which is the part worth watching: if a receiver is silent, this tells you whether the problem is us not sending or them not listening.",
-    "controls": "SPACE plays/stops (and sends MIDI start/stop). LEFT/RIGHT change tempo. C toggles sending clock. D toggles the drum part."
+    "controls": "SPACE plays/stops (and sends MIDI start/stop). LEFT/RIGHT change tempo. C toggles sending clock. D toggles the drum part, B the bassline -- mute one to test against a host that plays every channel on one instrument, like GarageBand."
   }
 }
 de:meta */
@@ -28,8 +28,8 @@ de:meta */
 // Press SPACE here and the DAW's transport follows, its input meter moves on every step,
 // and a drum rack on the same track lights kick/snare/hat rather than three random pitches.
 //
-// PASS, headless + deterministic (this is what tools/midi-out-check/run.sh asserts):
-//   node tools/play.js midiout script /dev/null --headless --frames 240
+// PASS, headless + deterministic (this is what tools/midi-check/run.sh asserts):
+//   zsh tools/midi-check/run.sh
 // The sequence is driven off frame() rather than wall time, so the same frames always emit
 // the same messages, and the listener can diff against a fixed expectation. What it proves is
 // narrow but real: the bytes left the process with the right channel, note and value on them.
@@ -59,6 +59,7 @@ static const int HAT[STEPS]   = { 1,0,1,0, 1,0,1,0, 1,0,1,0, 1,0,1,1 };
 static int playing   = 0;
 static int send_clk  = 1;
 static int send_drum = 1;
+static int send_bass = 1;
 static int tempo       = 120;
 
 static int step      = -1;   // last step played (so a step fires once)
@@ -108,6 +109,11 @@ void update(void) {
     if (keyp(KEY_LEFT)  && tempo > 40)  tempo -= 5;
     if (keyp('C')) send_clk  = !send_clk;
     if (keyp('D')) send_drum = !send_drum;
+    // B mutes the BASSLINE, which matters for testing against a host that is not multi-timbral.
+    // GarageBand plays the selected track's instrument no matter what channel a note arrived on,
+    // and the bassline's notes (36/48/43/39/46/41) are all drum-kit notes too — so on a drum
+    // track the two parts collide into mush. Muting one at a time is how you hear either.
+    if (keyp('B')) { if (held >= 0) { midi_send_note(CH_BASS, held, 0, 0); held = -1; } send_bass = !send_bass; }
 
     // Guarded rather than an early `return`, so the trace block at the bottom is reached even
     // when stopped — the IN-direction assertions need it on a run that never presses play.
@@ -131,7 +137,7 @@ void update(void) {
         // bassline on its own channel: release the previous note before starting the next,
         // so a receiver in mono/legato mode glides instead of stacking.
         if (held >= 0) { midi_send_note(CH_BASS, held, 0, 0); held = -1; }
-        if (BASS[s] >= 0) {
+        if (send_bass && BASS[s] >= 0) {
             held = ROOT + BASS[s];
             midi_send_note(CH_BASS, held, 100, 1);
             logmsg("ch%-2d note %3d on", CH_BASS, held);
@@ -194,14 +200,14 @@ void draw(void) {
     char b[64];
     snprintf(b, sizeof b, "%s  %d bpm", playing ? "PLAYING" : "stopped", tempo);
     print(b, 8, 30, playing ? CLR_YELLOW : CLR_MEDIUM_GREY);
-    snprintf(b, sizeof b, "clock %s   drums %s", send_clk ? "on" : "off", send_drum ? "on" : "off");
+    snprintf(b, sizeof b, "clock %s  drums %s  bass %s", send_clk ? "on" : "off", send_drum ? "on" : "off", send_bass ? "on" : "off");
     print(b, 8, 42, CLR_LIGHT_GREY);
 
     // the step grid — bassline row + three drum rows
     int x0 = 8, y0 = 62, w = 9;
     for (int s = 0; s < STEPS; s++) {
         int on = (s == step && playing);
-        rectfill(x0 + s * w, y0,      w - 2, 7, BASS[s]  >= 0 ? (on ? CLR_WHITE : CLR_ORANGE) : CLR_DARK_GREY);
+        rectfill(x0 + s * w, y0,      w - 2, 7, BASS[s]  >= 0 ? (on ? CLR_WHITE : (send_bass ? CLR_ORANGE : CLR_DARK_GREY)) : CLR_DARK_GREY);
         rectfill(x0 + s * w, y0 + 10, w - 2, 7, KICK[s]      ? (on ? CLR_WHITE : CLR_RED)    : CLR_DARK_GREY);
         rectfill(x0 + s * w, y0 + 20, w - 2, 7, SNARE[s]     ? (on ? CLR_WHITE : CLR_PINK)   : CLR_DARK_GREY);
         rectfill(x0 + s * w, y0 + 30, w - 2, 7, HAT[s]       ? (on ? CLR_WHITE : CLR_INDIGO) : CLR_DARK_GREY);
@@ -228,5 +234,5 @@ void draw(void) {
               i == LOGN - 1 ? CLR_WHITE : CLR_MEDIUM_GREY);
     }
 
-    print("SPACE play  <> bpm  C clock  D drums", 8, SCREEN_H - 12, CLR_DARK_GREY);
+    print("SPACE play  <> bpm  C clock  D drums  B bass", 8, SCREEN_H - 12, CLR_DARK_GREY);
 }

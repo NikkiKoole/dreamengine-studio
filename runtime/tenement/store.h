@@ -168,6 +168,17 @@ int tn_store_pick(int agent, int item) {
 // output (TnRecipe.out_store_tag / out_value) both come through here, so an item produced by work
 // and an item placed by a scenario are the same kind of object.
 int tn_item_new(int store_tag, int value, int tx, int ty) {
+    // REUSE A DEAD SLOT FIRST. Items used to be destroyed in the same breath they were created, so
+    // appending was enough; now a good lives until econ's buyer takes it out of the world, and an
+    // append-only array is a slow leak that ends in production stopping with no error (see
+    // TN_ITEM_FREE in the contract). Scanning first keeps tn_item_n bounded by the number of items
+    // ALIVE AT ONCE, which is small, rather than by every item ever made.
+    for (int i = 0; i < tn_item_n; i++)
+        if (tn_item[i].store_tag == TN_ITEM_FREE) {
+            tn_item[i] = (TnItem){ (unsigned char)store_tag, (unsigned char)value, -1, -1,
+                                   (unsigned char)tx, (unsigned char)ty };
+            return i;
+        }
     if (tn_item_n >= TN_MAX_ITEMS) return -1;
     tn_item[tn_item_n] = (TnItem){ (unsigned char)store_tag, (unsigned char)value, -1, -1,
                                    (unsigned char)tx, (unsigned char)ty };

@@ -46,18 +46,14 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include "sync_ctx.h"
+
+typedef struct DeInstance DeInstance;
+DeSync *de_instance_sync(DeInstance *in);   // studio.c — this instance's transport context   // GENERATED per-instance context (tools/ctx-gen.js)
 
 #define SYNC_PPQN     24     // MIDI clock's fixed resolution: ticks per quarter note
-#define SYNC_TIMEOUT 2.0f    // seconds of silence before we call the clock gone
 
 // ── producer state (written by a backend, possibly off-thread) ────────────────
-static volatile uint32_t sync_p_ticks = 0;   // 24-ppqn ticks since the last START
-static volatile uint32_t sync_p_msgs  = 0;   // ANY transport message — liveness only
-static volatile int      sync_p_run   = 0;   // 1 between START/CONTINUE and STOP
-static volatile int      sync_p_tseen = 0;   // has this clock EVER sent start/stop? (see sync_transport)
-static volatile int      sync_p_abs   = 0;   // 1 = an absolute source owns the position
-static volatile double   sync_p_beats = 0;   // absolute sources only (host / Link)
-static volatile double   sync_p_bpm   = 0;   // absolute sources only
 
 // ── producer API ─────────────────────────────────────────────────────────────
 // INCREMENTAL (MIDI clock). from_zero: START rewinds to bar 1, CONTINUE resumes.
@@ -73,19 +69,9 @@ static void sync_push_pos(double beats, double bpm, int playing) {
 }
 
 // ── consumer state (main thread, all of it derived in sync_frame) ─────────────
-static double   sync_c_beats = 0, sync_c_bpm = 0;
-static bool     sync_c_active = false, sync_c_playing = false, sync_c_tseen = false;
-static uint32_t sync_c_last_msgs = 0, sync_c_last_ticks = 0;
-static float    sync_c_quiet = SYNC_TIMEOUT * 2;      // seconds since the last message
-static double   sync_c_win_t = 0;                     // tempo-measure span: seconds…
-static double   sync_c_win_n = 0;                     // …and ticks over it (0 = no tick seen yet)
-static double   sync_c_pend  = 0;                     // seconds since the last tick-bearing frame
 // --midi-clock <bpm>: a synthetic clock for the harness, so a gate needs no DAW and no cable.
 // It keeps its OWN tick counter rather than pushing into the producer state above — see the
 // ambient-clock guard in sync_frame for why that separation is load-bearing.
-static float    sync_synth_bpm = 0;
-static double   sync_synth_acc = 0;
-static uint32_t sync_synth_ticks = 0;
 
 // once per frame, before the cart's update(). dt = the frame delta the rest of the engine clock
 // uses. `automated` = nobody is sitting in front of this run (studio.c computes it: headless,
@@ -193,7 +179,17 @@ static void sync_frame(float dt, int automated) {
 // exactly where its playhead is, every render block, so there is nothing to measure or infer.
 // Called from the AUDIO thread, which is also where de_frame() runs in the AU, so the producer and
 // the consumer are the same thread there — no cross-thread window at all.
-void de_sync_position(double beats, double bpm, int playing) { sync_push_pos(beats, bpm, playing); }
+// ⚠ NAMES ITS INSTANCE. The transport state is per-instance now, and a push is CONSUMED by the
+// engine that drains it — so while this was process-wide the FIRST instance to run swallowed the
+// START edge and every other one joined mid-flow and stayed SILENT. Two DAW tracks, one playing.
+// Found by tools/instance-check's control: two engines given identical transport came back with
+// peaks 0.6386 and 0.0000.
+void de_sync_position(DeInstance *in, double beats, double bpm, int playing) {
+    DeSync *prev = de_sync;
+    if (in) de_sync = de_instance_sync(in);
+    sync_push_pos(beats, bpm, playing);
+    de_sync = prev;
+}
 #endif
 
 // ── public API (declared in studio.h — the sound.h pattern) ───────────────────

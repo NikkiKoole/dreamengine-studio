@@ -205,12 +205,27 @@ extern const unsigned char TN_OBJ_FOOTPRINT[TN_OBJ_KIND_COUNT][2];   // money si
 // every food store already placed. That is the navkit filter fix (design §3b):
 // no per-item-type checkbox, ever.
 typedef struct {
-    unsigned char store_tag;              // which class of storage accepts it
+    unsigned char store_tag;              // which class of storage accepts it, or TN_ITEM_FREE
     unsigned char value;                  // what it sells for at TN_SEAM_EXTERNAL
     TnIdx         held_by;                // agent index, or TN_NONE
     TnIdx         stored_in;              // object index, or TN_NONE
     unsigned char tx, ty;                 // valid only when loose on the floor
 } TnItem;
+
+// ── ADDED after the freeze, and flagged per rule 3 ───────────────────────────
+// A DEAD ITEM SLOT, so the array can be reused. Needed the moment items outlive their maker: goods
+// now persist until econ's buyer takes them out of the world, and `tn_item_new` only ever appended,
+// so without this a long game fills tn_item[] and production STOPS SILENTLY (a shift is stood, no
+// good comes out, it counts as lost). That is the exact leak work.h's old sell-at-the-machine stub
+// existed to dodge, so removing the stub had to answer it.
+//
+// It is a store_tag OUTSIDE the vocabulary rather than a `bool dead`, and that is load-bearing: every
+// consumer already asks "does any container accept this tag", a question no object answers for
+// TN_ITEM_FREE. So a freed slot is invisible to the hauler, to tn_find_store and to the buyer
+// without one line of "if dead" anywhere. The tag vocabulary does the filtering, as it does
+// everywhere else here. Two modules share it — econ marks, store reuses — so it lives in the
+// contract rather than in either.
+#define TN_ITEM_FREE ((unsigned char)TN_TAG_COUNT)
 
 // ─────────────────────────────────────────────────────────────────────────────
 // AGENTS — residents. Dumb by design: they take the best offer going.
@@ -360,6 +375,11 @@ int  tn_score_offer(int agent, int obj, TnTag tag);
 // choose a container. One of them has to be a forward declaration and this is the honest place.
 int  tn_ownership_penalty(int agent, int obj, TnTag tag);   // owner: store
 int  tn_store_pick(int agent, int item);                     // owner: store
+// ADDED after the freeze, per rule 3. `econ` is included BEFORE `store` (the order is pinned in the
+// cart, and store's ownership penalty is why), so the buyer's own selfcheck could not reach the one
+// function that makes an item. It is already a public tn_ symbol; it simply had no declaration up
+// here because nothing before store.h had ever needed to create one.
+int  tn_item_new(int store_tag, int value, int tx, int ty);  // owner: store
 bool tn_can_afford(int household, int kind);                 // owner: econ
 int  tn_buy_obj(int household, int kind, int tx, int ty);   // owner: econ
 

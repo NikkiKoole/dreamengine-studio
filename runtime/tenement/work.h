@@ -9,7 +9,9 @@
 // ── HOW THE LOOP RUNS, in one paragraph ─────────────────────────────────────
 // A STANDING ORDER exists per household per recipe. A resident with nothing better to do claims
 // one, asks the offer index for the nearest thing PROVIDING the recipe's capability, walks there,
-// stands the recipe's shift, and the shift mints one good which is sold at the one external seam.
+// stands the recipe's shift, and the shift mints one good INTO ITS HANDS. It is store.h that finds
+// the good a shelf and econ.h's buyer that eventually pays for it, so making a thing and being paid
+// for it are two events with a haul between them (they used to be one, at the machine).
 // Nothing here knows what a loom is. The word "loom" does not appear below this comment, and the
 // selfcheck at the bottom proves the loop runs identically when the machine is a COUNTER instead —
 // a different TnObjKind entirely, whose only relevant property is that it offers TN_CAP_WORK.
@@ -53,6 +55,11 @@ static TnkShift tnk_shift[TN_MAX_AGENTS];
 // order claims, which is how a WASTED COMMUTE becomes visible: a resident that claims, walks, is
 // turned away and claims again next minute leaves every other number looking healthy.
 static int tnk_shifts_done, tnk_shifts_lost, tnk_goods_made, tnk_claims;
+// WHO stood them, which used to be readable from the pay: while work sold its own output, "both
+// shifts' money landed in one purse" said everything about fairness. The sale moved to econ's buyer,
+// so the money now says where the goods were SHELVED rather than who did the work. This counts the
+// turns directly, which is what W8's fairness gap was always actually about.
+static int tnk_shifts_by[TN_MAX_HOUSEHOLDS];
 
 // ── helpers ─────────────────────────────────────────────────────────────────
 
@@ -123,28 +130,33 @@ static void tnk_release(int agent) {
 // §5). That is stated, not hidden. When a recipe gains an input the only new code is a consume step
 // above the mint; the item, the seam, the order and the state machine are untouched.
 // Returns whether a good actually came out, so a shift stood against a full world is counted as
-// LOST rather than DONE. Without that the ledger would claim a good the world never got, and the
-// selfcheck's money == shifts x value invariant would be quietly wrong instead of loudly wrong.
+// LOST rather than DONE. Without that the ledger would claim a good the world never got.
+//
+// ── THE FLIP HAPPENED (the two lines below this comment used to undo everything above them) ─────
+// This function used to mint the good, sell it on the spot, and then DELETE it again — carrying
+// back to -1 and tn_item_n decremented — with a note saying "WHEN store.h CAN HAUL, DELETE THE TWO
+// LINES BELOW". store.h could haul: it had a full fetch/carry/put loop over BFS routes and thirty
+// assertions. So the whole item economy was unreachable through a two-line stub, `TN_ACT_HAUL` was
+// a state nothing could enter, and `TnAgent.carrying` was a field that was never once non-negative
+// in a running game. Deleting those two lines is the entire change here, exactly as promised.
+//
+// The sale moved to the BUYER in econ.h, which is what "the sale moves to whoever empties the
+// store" meant. tn_sell is still the one seam and still lives in offer.h; only its CALLER changed.
 static int tnk_deliver(int agent, const TnRecipe *rc, int household) {
+    (void)household;                     // the maker no longer sells: econ's buyer does, on its round
+    // HANDS FULL IS AN ANSWER TOO, and this guard only became necessary with the flip above. While
+    // the good was deleted the instant it was made, `carrying` could never already be occupied; now
+    // it can, and the line below used to overwrite it — orphaning the previous item forever, since
+    // its held_by still named this agent so no hauler would ever look at it again. A slow leak that
+    // ends in a stopped economy, with nothing to see. One pair of hands, no stack sizes (store.h's
+    // rule), so a shift finished with full hands is LOST, exactly as a shift against a full world is.
+    if (tn_agent[agent].carrying >= 0) return 0;
     if (tn_item_n >= TN_MAX_ITEMS) return 0;                        // full is an answer, not a crash
     const int it = tn_item_n++;
     tn_item[it] = (TnItem){ rc->out_store_tag, rc->out_value, (TnIdx)agent, -1,
                             (unsigned char)tn_agent[agent].tx, (unsigned char)tn_agent[agent].ty };
     tn_agent[agent].carrying = (TnIdx)it;
     tnk_goods_made++;
-
-    tn_sell(household, it);        // ←── TN_SEAM_EXTERNAL. The ONE place money enters (design §5).
-
-    // v1 SELLS AT THE MACHINE, because store.h is a stub and a good with nowhere to go is a leak
-    // that fills tn_item[] and then silently stops production. The good is a real tagged TnItem,
-    // carried by the person who made it, for exactly as long as it takes to sell it.
-    //
-    // WHEN store.h CAN HAUL, DELETE THE TWO LINES BELOW. The item then stays carried, store finds
-    // it a home by its tag, and the sale moves to whoever empties the store. Nothing else here
-    // moves, which is the whole claim of the shape. The selfcheck asserts today's behaviour
-    // ("no item is left behind") so that whoever lands hauling has to come here and flip it.
-    tn_agent[agent].carrying = -1;
-    if (it == tn_item_n - 1) tn_item_n--;
     return 1;
 }
 
@@ -181,7 +193,11 @@ void tn_work_tick(void) {
                 if (sh->logged < 32000) sh->logged++;
                 a->bid_score = rc->minutes - sh->logged;          // minutes left, on the HUD
                 if (sh->logged >= rc->minutes) {
-                    if (tnk_deliver(i, rc, tn_order[sh->order].household)) tnk_shifts_done++;
+                    if (tnk_deliver(i, rc, tn_order[sh->order].household)) {
+                        tnk_shifts_done++;
+                        const int hh = tn_order[sh->order].household;
+                        if (hh >= 0 && hh < TN_MAX_HOUSEHOLDS) tnk_shifts_by[hh]++;
+                    }
                     else                                                   tnk_shifts_lost++;
                     tnk_release(i);
                 } else {
@@ -258,6 +274,7 @@ static void tnk_sc_build(int kind, int agents) {
     tn_world_init();
     tn_obj_n = 0; tn_agent_n = 0; tn_item_n = 0; tn_order_n = 0;
     tnk_shifts_done = tnk_shifts_lost = tnk_goods_made = tnk_claims = 0;
+    for (int h = 0; h < TN_MAX_HOUSEHOLDS; h++) tnk_shifts_by[h] = 0;
     tn_add_obj(kind, 2, 2, -1);                            // communal
     for (int i = 0; i < agents; i++) {
         tn_add_agent(i, 1, 2 + i);                         // one per household, so each has an order
@@ -267,6 +284,20 @@ static void tnk_sc_build(int kind, int agents) {
 }
 static void tnk_sc_run(int minutes) {
     for (int m = 0; m < minutes; m++) { tn_agents_tick(); tn_work_tick(); }
+}
+// THE WHOLE CHAIN, in the cart's own tick order. Needed since the sale left this module: a good is
+// now made here, carried, shelved by store, and only then sold by econ's buyer, so any case about
+// what production is WORTH has to run all four. tnk_sc_run stays for the cases that are about work
+// alone — and W10 uses the difference deliberately, as its proof that the seam really moved.
+static void tnk_sc_run_full(int minutes) {
+    for (int m = 0; m < minutes; m++) { tn_agents_tick(); tn_work_tick(); tn_econ_tick(); tn_store_tick(); }
+}
+// A machine AND somewhere to put what it makes, owned by household 0 so the buyer has someone to
+// pay (it will not pay a communal shelf — see econ's buyer). The wardrobe is the goods store: it
+// offers TN_STORE_GOODS, which is the row that let the loom's output exist at all.
+static void tnk_sc_build_trade(int kind, int agents) {
+    tnk_sc_build(kind, agents);
+    tn_add_obj(TN_OBJ_WARDROBE, 4, 2, 0);
 }
 
 void tn_work_selfcheck(void) {
@@ -310,20 +341,23 @@ void tn_work_selfcheck(void) {
     expect(TN_OBJ_LOOM != TN_OBJ_COUNTER &&
            tn_offers(0, (TnTag)rc->needs_cap, NULL) == false,   /* obj 0 here is a WARDROBE */
            "W3 setup: the two machines about to be swapped really are different kinds");
-    int loom_spot, loom_money, loom_shifts;
+    // MEASURED IN GOODS, NOT IN MONEY, since the sale left this module (see tnk_deliver). That is a
+    // sharper test of what W3 is actually about: two different kinds must produce the same OUTPUT,
+    // and output is a good. Money would now be testing econ's buyer through three other modules.
+    int loom_spot, loom_goods, loom_shifts;
     tnk_sc_build(TN_OBJ_LOOM, 1);
     tnk_sc_run(600);
-    loom_spot = tn_order[0].at_obj; loom_money = tnk_sc_money(); loom_shifts = tnk_shifts_done;
-    snprintf(tnk_sp, sizeof tnk_sp, "W3: machine A stands one shift and sells one good (%d shifts, "
-             "%d money at %d/good)", loom_shifts, loom_money, PAY);
-    expect(loom_shifts == 1 && loom_money == PAY, tnk_sp);
+    loom_spot = tn_order[0].at_obj; loom_goods = tnk_goods_made; loom_shifts = tnk_shifts_done;
+    snprintf(tnk_sp, sizeof tnk_sp, "W3: machine A stands one shift and turns out one good (%d "
+             "shifts, %d goods worth %d each)", loom_shifts, loom_goods, PAY);
+    expect(loom_shifts == 1 && loom_goods == 1, tnk_sp);
 
     tnk_sc_build(TN_OBJ_COUNTER, 1);
     tnk_sc_run(600);
     snprintf(tnk_sp, sizeof tnk_sp, "W3: machine B, a DIFFERENT KIND ENTIRELY, produces the same "
-             "outcome (%d/%d shifts, %d/%d money)", tnk_shifts_done, loom_shifts,
-             tnk_sc_money(), loom_money);
-    expect(tnk_shifts_done == loom_shifts && tnk_sc_money() == loom_money, tnk_sp);
+             "outcome (%d/%d shifts, %d/%d goods)", tnk_shifts_done, loom_shifts,
+             tnk_goods_made, loom_goods);
+    expect(tnk_shifts_done == loom_shifts && tnk_goods_made == loom_goods, tnk_sp);
     expect(tn_offers(0, (TnTag)rc->needs_cap, NULL),
            "W3: because the ONLY property the recipe ever asked about is the capability it offers");
 
@@ -344,31 +378,87 @@ void tn_work_selfcheck(void) {
     tnk_sc_run(200);
     expect(tnk_goods_made == 1, "W4: and at 600 it has produced exactly one, on the RECIPE's clock");
 
-    // ── W5: VALUE CONSERVATION AT THE SEAM ──────────────────────────────────
-    // Money is exactly shifts x out_value. Catches a double sale, a sale without a shift, and a
-    // shift that pays twice — none of which any other check here would notice.
-    tnk_sc_build(TN_OBJ_LOOM, 1);
-    tnk_sc_run(3000);
-    snprintf(tnk_sp, sizeof tnk_sp, "W5: money is EXACTLY shifts x value, no more and no less "
-             "(%d shifts, %d goods, %d money)", tnk_shifts_done, tnk_goods_made, tnk_sc_money());
-    expect(tnk_shifts_done > 1 && tnk_goods_made == tnk_shifts_done &&
-           tnk_sc_money() == tnk_shifts_done * PAY, tnk_sp);
+    // ── W5: PRODUCTION CONSERVATION ─────────────────────────────────────────
+    // One shift, one good, every time. Catches a shift that produces twice, a good minted without a
+    // shift, and a shift silently producing nothing. This used to read `money == shifts x value`;
+    // the money half moved to econ's buyer with the sale (see econ's "buyer" cases), and asserting
+    // it here would now be asserting three other modules through a keyhole. What is left is exactly
+    // this module's own claim, and it is the sharper half: work makes GOODS, not money.
+    tnk_sc_build_trade(TN_OBJ_LOOM, 1);
+    tnk_sc_run_full(3000);
+    snprintf(tnk_sp, sizeof tnk_sp, "W5: goods are EXACTLY shifts, no more and no less "
+             "(%d shifts, %d goods worth %d each)", tnk_shifts_done, tnk_goods_made, PAY);
+    expect(tnk_shifts_done > 1 && tnk_goods_made == tnk_shifts_done, tnk_sp);
     expect(tnk_shifts_lost == 0, "W5: and no shift was stood and then thrown away");
 
-    // ── W6: v1 SELLS AT THE MACHINE (CURRENT BEHAVIOUR, MARKED) ─────────────
-    // Asserted as CURRENT, not desired, in the style of the cart's case 8: a gap a test describes
-    // is a work item, a gap in a comment is folklore. store.h is a stub, so a good with nowhere to
-    // go would fill tn_item[] and silently stop production. When hauling lands, FLIP THIS: the item
-    // stays carried, store finds it a home, and the sale moves.
-    expect(tn_item_n == 0 && tn_agent[0].carrying == -1,
-           "W6 (KNOWN GAP): the good is sold at the machine and nothing is left to haul, because "
-           "store.h is a stub. Flip this when §6 hauling lands.");
+    // ── W5b: NO CUPBOARD MEANS NO INCOME, NOT NO WORK ───────────────────────
+    // THE CASE THAT ONLY EXISTS BECAUSE GOODS ARE REAL, and the one that gives storage a job. Same
+    // machine, same 3000 minutes, NO CUPBOARD. Production is completely unaffected — the residents
+    // keep making bolts — and not one penny arrives, because the buyer only takes goods that are
+    // SHELVED and there is no shelf. The bolts end up loose on the floor: store.h, finding nowhere
+    // to put a thing down, drops it where it stands.
+    //
+    // WORTH READING TWICE, because the first draft of this case asserted the opposite and was
+    // wrong: the guess was that full hands would STALL the factory. They do not. store.h frees the
+    // hands by dropping the load, so the loop keeps turning and only the money stops. That is a
+    // better story than a stall and it is visible in the room — a hallway filling up with unsold
+    // goods — where a stalled machine would just look like a machine nobody uses.
+    //
+    // It is also the shape of an answer to "let something be LOST" (the punch list's open design
+    // question): a household that never builds storage is never told off. It just stops earning,
+    // and the evidence piles up on the floor where anyone can see it.
+    tnk_sc_build(TN_OBJ_LOOM, 1);                        // a machine, and nowhere to put its output
+    tnk_sc_run_full(3000);
+    {
+        int loose = 0;
+        for (int i = 0; i < tn_item_n; i++)
+            if (tn_item[i].store_tag == rc->out_store_tag &&
+                tn_item[i].held_by < 0 && tn_item[i].stored_in < 0) loose++;
+        snprintf(tnk_sp, sizeof tnk_sp, "W5b: with nowhere to shelve them the work still happens and "
+                 "the goods pile up LOOSE — and nothing is earned (%d shifts, %d goods, %d on the "
+                 "floor, %d money)", tnk_shifts_done, tnk_goods_made, loose, tnk_sc_money());
+        expect(tnk_shifts_done > 1 && tnk_goods_made == tnk_shifts_done &&
+               loose >= 1 && tnk_sc_money() == 0, tnk_sp);
+    }
+
+    // ── W6: THE GOOD SURVIVES ITS MAKER (WAS A KNOWN GAP; FLIPPED) ──────────
+    // Run with tnk_sc_run (work only, no store tick) so the good is caught in the ONE state this
+    // case is about: freshly made and still in its maker's hands. With the store tick running it
+    // would already have been shelved or dropped, and the thing being asserted would be gone.
+    tnk_sc_build(TN_OBJ_LOOM, 1);
+    tnk_sc_run(600);
+    // This case used to assert the OPPOSITE and say so: "the good is sold at the machine and
+    // nothing is left to haul, because store.h is a stub. Flip this when §6 hauling lands." Hauling
+    // had in fact landed — store.h carried a full fetch/haul/put loop over BFS routes and thirty
+    // assertions — and only work.h's two-line stub stood between it and ever running. So the item
+    // economy was unreachable, TN_ACT_HAUL was a state nothing could enter, and TnAgent.carrying was
+    // never once non-negative in a running game.
+    //
+    // This is the flip, and it is the assertion that would catch the stub coming back: a real
+    // tagged item, still in its maker's hands, waiting for somebody to put it somewhere.
+    {
+        int carried = 0, alive = 0;
+        for (int i = 0; i < tn_item_n; i++) if (tn_item[i].store_tag != TN_ITEM_FREE) alive++;
+        for (int i = 0; i < tn_agent_n; i++) if (tn_agent[i].carrying >= 0) carried++;
+        snprintf(tnk_sp, sizeof tnk_sp, "W6: the good OUTLIVES the shift — it exists and is still "
+                 "being carried, so store.h has something to haul (%d alive, %d in hands)",
+                 alive, carried);
+        expect(alive >= 1 && carried == 1 &&
+               tn_item[tn_agent[0].carrying].store_tag == rc->out_store_tag, tnk_sp);
+    }
+    // The converse, and the reason the item survives at all: nothing in THIS module sells. If a
+    // future edit re-adds a sale here, money appears with no buyer and this goes red.
+    expect(tnk_sc_money() == 0,
+           "W6: and work created no money doing it — the sale belongs to econ's buyer now, and "
+           "this scenario never runs one");
 
     // ── W7: CONTENTION, WITH NO QUEUE CODE ANYWHERE ─────────────────────────
     // Two households, two orders, ONE capacity-1 machine. Exactly one shift can be in flight, and
     // the loser's order stays posted rather than sending it across the building to be turned away.
-    tnk_sc_build(TN_OBJ_LOOM, 2);
-    tnk_sc_run(30);
+    // The full chain runs here (a cupboard, a hauler, a buyer) because W8 below needs a SECOND
+    // shift to happen at all, and a worker cannot stand one with its hands still full.
+    tnk_sc_build_trade(TN_OBJ_LOOM, 2);
+    tnk_sc_run_full(30);
     {
         int claimed = 0, working = 0;
         for (int o = 0; o < tn_order_n; o++) if (tn_order[o].claimed_by >= 0) claimed++;
@@ -384,23 +474,35 @@ void tn_work_selfcheck(void) {
                  "not one wasted commute)", tnk_claims);
         expect(tnk_claims == 1, tnk_sp);
     }
-    tnk_sc_run(570);
-    expect(tnk_shifts_done == 1 && tnk_sc_money() == PAY,
+    tnk_sc_run_full(570);
+    expect(tnk_shifts_done == 1 && tnk_goods_made == 1,
            "W7: and only one good came out of it, so contention cost production rather than "
            "duplicating it");
 
-    // ── W8: WHOEVER GETS THERE FIRST KEEPS IT (CURRENT BEHAVIOUR, MARKED) ───
-    // Found by running: the finisher is re-offered the machine the instant it is free, because
-    // nothing anywhere is a term for fairness or for waiting. In the real building needs pull a
-    // worker away and it alternates, but in a bare scenario one household takes every shift. Same
-    // shape as the cart's ownership gap: real, in the model rather than the code, and asserted so
-    // that whoever adds order priority has to come here.
-    tnk_sc_run(600);
-    snprintf(tnk_sp, sizeof tnk_sp, "W8 (KNOWN GAP): both shifts' pay landed in ONE household "
-             "(%d / %d) — nothing scores fairness or waiting time. Flip this when order priority "
-             "lands.", tn_house[0].money, tn_house[1].money);
-    expect(tnk_shifts_done == 2 && tnk_sc_money() == 2 * PAY &&
-           (tn_house[0].money == 2 * PAY || tn_house[1].money == 2 * PAY), tnk_sp);
+    // ── W8: THE MACHINE ALTERNATES — AND NOBODY MADE IT FAIR ────────────────
+    // THIS CASE USED TO BE A KNOWN GAP, and hauling closed it without a line of fairness code.
+    //
+    // What it said before: "whoever gets there first keeps it — the finisher is re-offered the
+    // machine the instant it is free, because nothing anywhere is a term for fairness or for
+    // waiting", and in a bare scenario one household took every shift. That was true while a good
+    // was sold where it was made, because a finisher had nothing else to do and simply turned round.
+    //
+    // Now the good is a real thing in its hands, so the finisher LEAVES to go and shelve it — and
+    // the machine is free for the neighbour while it is gone. The turn-taking is a side effect of
+    // an errand, which is the honest kind: nothing scores fairness, nothing queues, no priority was
+    // added. The same shape as the design's other claims — behaviour out of interacting rules
+    // rather than a rule about behaviour.
+    //
+    // Counted in SHIFTS STOOD rather than in pay, since pay left this module with the sale. It is
+    // the sharper measure anyway: the complaint was never about money, it was about turns.
+    // Still a REAL gap underneath, and it is now the one W8 leaves open: this alternates because
+    // the winner is busy, NOT because waiting is worth anything. Give the loser a longer errand and
+    // it starves again. The fix is still "longest wait wins", and it is still unwritten.
+    tnk_sc_run_full(600);
+    snprintf(tnk_sp, sizeof tnk_sp, "W8: two shifts, one machine, and they ALTERNATED (%d / %d) — "
+             "because the finisher walks off to shelve its good, not because anything scores "
+             "fairness", tnk_shifts_by[0], tnk_shifts_by[1]);
+    expect(tnk_shifts_done == 2 && tnk_shifts_by[0] == 1 && tnk_shifts_by[1] == 1, tnk_sp);
 
     // ── W9: WORK NEVER STEALS SOMEBODY MID-USE ──────────────────────────────
     // The leak this guards: `users` is incremented and decremented by the agents module's USE case.
@@ -409,6 +511,7 @@ void tn_work_selfcheck(void) {
     tn_world_init();
     tn_obj_n = 0; tn_agent_n = 0; tn_item_n = 0; tn_order_n = 0;
     tnk_shifts_done = tnk_shifts_lost = tnk_goods_made = 0;
+    for (int h = 0; h < TN_MAX_HOUSEHOLDS; h++) tnk_shifts_by[h] = 0;
     tn_add_obj(TN_OBJ_BED,  2, 2, 0);                  // a need, strongly bid
     tn_add_obj(TN_OBJ_LOOM, 3, 2, -1);                 // and a machine right next to it
     tn_add_agent(0, 1, 2);
@@ -438,6 +541,7 @@ void tn_work_selfcheck(void) {
     // minute rather than at the end, since a leak that later cancels out would otherwise hide.
     tn_world_init();
     tnk_shifts_done = tnk_shifts_lost = tnk_goods_made = 0;
+    for (int h = 0; h < TN_MAX_HOUSEHOLDS; h++) tnk_shifts_by[h] = 0;
     {
         const int money0 = tnk_sc_money();
         int over = 0, unbalanced = 0;
@@ -456,9 +560,13 @@ void tn_work_selfcheck(void) {
             if (held != using) unbalanced++;
         }
         const int earned = tnk_sc_money() - money0;
+        // GOODS, and NO money: this loop runs agents+work only, so the buyer never calls. That is
+        // the point of checking `earned == 0` rather than dropping the money term — it proves the
+        // seam really did move, in the one scenario big enough to have hidden a stray sale.
         snprintf(tnk_sp, sizeof tnk_sp, "W10: in the real building residents work between needs "
-                 "(%d shifts, %d earned over %d days)", tnk_shifts_done, earned, tn_clock.day - 1);
-        expect(tnk_shifts_done >= 1 && earned == tnk_shifts_done * PAY, tnk_sp);
+                 "(%d shifts, %d goods, %d money over %d days)", tnk_shifts_done, tnk_goods_made,
+                 earned, tn_clock.day - 1);
+        expect(tnk_shifts_done >= 1 && tnk_goods_made == tnk_shifts_done && earned == 0, tnk_sp);
         snprintf(tnk_sp, sizeof tnk_sp, "W10: every minute of 4000, sum(users) == residents in USE "
                  "and nothing over capacity (%d unbalanced, %d over) — work leaked no count",
                  unbalanced, over);

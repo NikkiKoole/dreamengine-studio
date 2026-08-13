@@ -36,6 +36,13 @@
 #define TOUCH_CONTROLS_DEFAULT 0
 #endif
 #define VT_MAX           16
+/* ⚠ NOT HERE, DELIBERATELY: fb_w / fb_h / de_sw / de_sh — the canvas dimensions.
+ * They belong to the framebuffer group, and the rest of that group (sw_cbuf, sw_dst,
+ * sw_world_buf) is declared inside `#ifdef DE_NO_RAYLIB`, which this generator refuses to move
+ * because it only sees one configuration. Moving HALF the group is worse than moving none:
+ * per-instance dimensions with a shared destination buffer made cls() write fb_w*fb_h pixels into
+ * another instance's smaller canvas. Crash, found by tools/instance-check's resize coverage.
+ * They move when their siblings can — see docs/design/engine-instance-seam.md. */
 typedef struct {
     char name[24];
     char value[40];
@@ -78,10 +85,6 @@ typedef struct {
     bool sw_canvas_active;
     bool sw_force_gpu;
     uint32_t *sw_cbuf;
-    int fb_w;
-    int fb_h;
-    int de_sw;
-    int de_sh;
     int safe_l;
     int safe_t;
     int safe_r;
@@ -171,10 +174,6 @@ static DeVideo de_vid_default = {
     .smooth_zoom_amt = 1.0f,
     .fp_hole = -1,
     .sw_canvas_active = SW_CANVAS_DEFAULT,
-    .fb_w = SCREEN_W,
-    .fb_h = SCREEN_H,
-    .de_sw = SCREEN_W,
-    .de_sh = SCREEN_H,
     .de_backing = 2.0f,
     .map_scale_factor = 1,
     .show_touch_ui = TOUCH_CONTROLS_DEFAULT,
@@ -241,10 +240,6 @@ static _Thread_local DeVideo *de_vid = &de_vid_default;
 #define sw_canvas_active    (de_vid->sw_canvas_active)
 #define sw_force_gpu        (de_vid->sw_force_gpu)
 #define sw_cbuf             (de_vid->sw_cbuf)
-#define fb_w                (de_vid->fb_w)
-#define fb_h                (de_vid->fb_h)
-#define de_sw               (de_vid->de_sw)
-#define de_sh               (de_vid->de_sh)
 #define safe_l              (de_vid->safe_l)
 #define safe_t              (de_vid->safe_t)
 #define safe_r              (de_vid->safe_r)

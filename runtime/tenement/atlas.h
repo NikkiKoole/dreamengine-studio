@@ -3,9 +3,9 @@
 // Baked rotation cells for an isometric room. See docs/design/iso-rooms.md.
 #pragma once
 
-#define ISO_SIG      "d08a9096"   // guard: the .cart.js re-derives this
+#define ISO_SIG      "7f388815"   // guard: the .cart.js re-derives this
 #define ISO_ATLAS_W  128
-#define ISO_ATLAS_H  291
+#define ISO_ATLAS_H  302
 #define ISO_TW       4    // diagonal tile width, px per voxel unit
 #define ISO_TH       2
 #define ISO_CW       4    // cardinal tile width (== ISO_TW keeps the footprint equal)
@@ -31,29 +31,31 @@ typedef enum {
     ISO_PERSON_LIE = 11,
     ISO_PERSON_WORK = 12,
     ISO_PERSON_SIT = 13,
-    ISO_PERSON = 14,
-    ISO_MODEL_COUNT = 15
+    ISO_PERSON_HAUL = 14,
+    ISO_PERSON = 15,
+    ISO_MODEL_COUNT = 16
 } IsoModel;
 
-static const char *ISO_NAMES[ISO_MODEL_COUNT] = { "sofa", "bed", "toilet", "fridge", "counter", "wall_low_ns", "wall_low_ew", "wall_full_ns", "wall_full_ew", "loom", "wardrobe", "person_lie", "person_work", "person_sit", "person" };
+static const char *ISO_NAMES[ISO_MODEL_COUNT] = { "sofa", "bed", "toilet", "fridge", "counter", "wall_low_ns", "wall_low_ew", "wall_full_ns", "wall_full_ew", "loom", "wardrobe", "person_lie", "person_work", "person_sit", "person_haul", "person" };
 
 // [model][rotation]. Rotation is 0..7; EVEN = cardinal, ODD = diagonal.
 static const IsoCell ISO_CELLS[ISO_MODEL_COUNT][ISO_ROTS] = {
     /* sofa       */ { {64,70,36,30,12,12}, {0,132,36,29,36,17}, {36,132,36,29,24,29}, {0,102,36,30,0,24} },
-    /* bed        */ { {78,161,36,26,24,8}, {24,215,36,24,36,18}, {60,215,36,24,12,24}, {0,189,36,26,0,14} },
-    /* toilet     */ { {0,241,16,20,6,11}, {64,241,16,18,18,13}, {80,241,16,18,10,19}, {16,241,16,20,-2,17} },
+    /* bed        */ { {24,189,36,26,24,8}, {72,217,36,24,36,18}, {0,243,36,24,12,24}, {60,189,36,26,0,14} },
+    /* toilet     */ { {68,243,16,20,6,11}, {16,267,16,18,18,13}, {32,267,16,18,10,19}, {84,243,16,20,-2,17} },
     /* fridge     */ { {0,0,24,36,12,24}, {24,0,24,36,24,30}, {48,0,24,36,12,36}, {72,0,24,36,0,30} },
-    /* counter    */ { {36,189,24,26,12,14}, {60,189,24,26,24,20}, {84,189,24,26,12,26}, {0,215,24,26,0,20} },
-    /* wall_low_ns */ { {96,241,16,16,4,8}, {112,241,16,16,16,10}, {0,261,16,16,12,16}, {16,261,16,16,0,14} },
-    /* wall_low_ew */ { {32,261,16,16,12,8}, {48,261,16,16,16,14}, {64,261,16,16,4,16}, {80,261,16,16,0,10} },
+    /* counter    */ { {96,189,24,26,12,14}, {0,217,24,26,24,20}, {24,217,24,26,12,26}, {48,217,24,26,0,20} },
+    /* wall_low_ns */ { {48,267,16,16,4,8}, {64,267,16,16,16,10}, {80,267,16,16,12,16}, {96,267,16,16,0,14} },
+    /* wall_low_ew */ { {112,267,16,16,12,8}, {0,286,16,16,16,14}, {16,286,16,16,4,16}, {32,286,16,16,0,10} },
     /* wall_full_ns */ { {60,36,16,32,4,24}, {76,36,16,32,16,26}, {92,36,16,32,12,32}, {108,36,16,32,0,30} },
     /* wall_full_ew */ { {0,70,16,32,12,24}, {16,70,16,32,16,30}, {32,70,16,32,4,32}, {48,70,16,32,0,26} },
     /* loom       */ { {96,0,20,34,8,24}, {0,36,20,34,20,28}, {20,36,20,34,12,34}, {40,36,20,34,0,30} },
     /* wardrobe   */ { {36,102,20,30,8,20}, {56,102,20,30,20,24}, {76,102,20,30,12,30}, {96,102,20,30,0,26} },
-    /* person_lie */ { {96,261,20,14,16,3}, {20,277,20,12,22,10}, {40,277,20,12,4,13}, {0,277,20,14,-2,6} },
+    /* person_lie */ { {48,286,20,14,16,3}, {88,286,20,12,22,10}, {108,286,20,12,4,13}, {68,286,20,14,-2,6} },
     /* person_work */ { {96,132,18,28,8,23}, {0,161,18,28,18,24}, {18,161,18,28,10,29}, {36,161,18,28,0,28} },
-    /* person_sit */ { {96,215,16,23,10,13}, {32,241,16,19,20,19}, {48,241,16,19,6,24}, {112,215,16,23,-4,18} },
-    /* person     */ { {54,161,12,28,2,23}, {72,132,12,29,12,25}, {84,132,12,29,10,30}, {66,161,12,28,0,28} },
+    /* person_sit */ { {36,243,16,23,10,13}, {100,243,16,19,20,19}, {0,267,16,19,6,24}, {52,243,16,23,-4,18} },
+    /* person_haul */ { {54,161,16,28,6,23}, {70,161,16,28,16,24}, {86,161,16,28,10,29}, {102,161,16,28,0,28} },
+    /* person     */ { {0,189,12,28,2,23}, {72,132,12,29,12,25}, {84,132,12,29,10,30}, {12,189,12,28,0,28} },
 };
 
 // Voxel footprint per model, in voxel units (8 voxels = one floor tile).
@@ -72,5 +74,6 @@ static const short ISO_FOOTPRINT[ISO_MODEL_COUNT][3] = {
     /* person_lie */ {3,8,2},
     /* person_work */ {5,4,12},
     /* person_sit */ {5,6,8},
+    /* person_haul */ {5,4,12},
     /* person     */ {5,3,12},
 };

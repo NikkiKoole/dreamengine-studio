@@ -71,6 +71,9 @@ void de_midi_bend(int v);
 // HOST TRANSPORT (runtime/sync.h) — the AUv3 render block pushes the host's playhead here every
 // block, and a cart reads it through sync_active()/sync_playing()/sync_beats()/sync_bpm(). beats =
 // the host's absolute beat position, bpm = its tempo, playing = its transport state.
-void de_sync_position(double beats, double bpm, int playing);
+// ⚠ NAMES ITS INSTANCE. A transport push is CONSUMED by the engine that drains it, so while this
+// was process-wide the FIRST instance swallowed the START edge and every other one joined mid-flow
+// and stayed silent — two DAW tracks, one playing.
+void de_sync_position(DeInstance *in, double beats, double bpm, int playing);
 
 #endif

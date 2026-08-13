@@ -61,6 +61,7 @@ const ROOT = path.resolve(__dirname, '..');
 const TARGETS = {
   'sound.h':  { file: 'runtime/sound.h',  header: 'sound_ctx.h',  type: 'DeSound', ptr: 'de_snd' },
   'studio.c': { file: 'runtime/studio.c', header: 'studio_ctx.h', type: 'DeVideo', ptr: 'de_vid' },
+  'sync.h':   { file: 'runtime/sync.h',   header: 'sync_ctx.h',   type: 'DeSync',  ptr: 'de_sync' },
 };
 const TARGET_KEY = (() => {
   const i = process.argv.indexOf('--target');
@@ -107,7 +108,7 @@ function loadExclusions() {
   // under a `studio_c` key. A target with no classification yet yields no exclusions, which is
   // deliberately LOUD rather than silently permissive — the dry run shows everything moving, which
   // is the signal to go and classify first.
-  const scope = TARGET_KEY === 'sound.h' ? c : (c.studio_c || {});
+  const scope = TARGET_KEY === 'sound.h' ? c : (c[TARGET_KEY.replace(/\W/g, '_')] || {});
   for (const group of ['shared', 'harness', 'function_local', 'dead_weight', 'defer']) {
     for (const name of Object.keys(scope[group] || {})) {
       if (name.startsWith('_')) continue;
@@ -194,14 +195,27 @@ function addressTakenAtFileScope(src, name) {
 // So the generator REFUSES them. It cannot see what it is not compiling, and guessing across a
 // configuration boundary is exactly the kind of thing that compiles in the build you tested and
 // breaks the one you did not.
-function insideConditional(src, line) {
+function conditionalDepthAt(src, line) {
   let depth = 0;
   for (let i = 0; i < line - 1 && i < src.length; i++) {
     const l = src[i];
     if (/^\s*#\s*(if|ifdef|ifndef)\b/.test(l)) depth++;
     else if (/^\s*#\s*endif\b/.test(l)) depth--;
   }
-  return depth > 0;
+  return depth;
+}
+
+// The BASE depth for this file: an include-guarded HEADER puts everything at depth 1, a .c file at
+// depth 0. Assuming 0 made every declaration in sync.h look conditional and refused all 17 of them —
+// the same mistake as hardcoding the include position, and it fails in the safe direction (refusing
+// work) rather than the dangerous one, which is how it survived unnoticed in studio.c.
+function baseConditionalDepth(src, statics) {
+  const depths = statics.map(v => conditionalDepthAt(src, v.line));
+  return depths.length ? Math.min(...depths) : 0;
+}
+
+function insideConditional(src, line, base) {
+  return conditionalDepthAt(src, line) > base;
 }
 
 /* ─────────────────────────────────────────────────────────────── planning ── */
@@ -226,6 +240,8 @@ function plan(opts) {
   const collisions = loadCollisions();
   const src = fs.readFileSync(path.join(ROOT, TARGET), 'utf8').split('\n');
 
+  const condBase = baseConditionalDepth(src, statics);
+
   const byLine = new Map();
   for (const v of statics) {
     if (!byLine.has(v.line)) byLine.set(v.line, []);
@@ -247,7 +263,7 @@ function plan(opts) {
     // is a constant expression today, but `&(de_vid->game_font)` is not, so the table that points
     // at it (`static Font *const FONT_SLOT[] = { &game_font, … }`) stops compiling. Caught by the
     // probe as an error; reported here so it reads as a decision rather than a crash.
-    if (insideConditional(src, line)) {
+    if (insideConditional(src, line, condBase)) {
       skipped.push({ line, names, why: 'inside a PREPROCESSOR CONDITIONAL — the other build configuration declares something different here, and this list comes from one AST' });
       continue;
     }
@@ -313,7 +329,7 @@ function plan(opts) {
     process.exit(3);
   }
 
-  return { move, skipped, byLine, src };
+  return { move, skipped, byLine, src, condBase };
 }
 
 /* ─────────────────────────────────────────────────────────────── emitting ── */
@@ -325,7 +341,7 @@ function plan(opts) {
  * Hoisting a #define is unconditionally safe, unlike hoisting a typedef: a macro body is just text
  * until it is expanded, so moving the definition earlier cannot break anything it references. The
  * closure is transitive because a macro body can name another macro. */
-function collectMacroHoist(move, src) {
+function collectMacroHoist(move, src, condBaseForHoist) {
   // ── type definitions ────────────────────────────────────────────────────────────────────────
   // Members of type `Voice`, `ReverbTank`, … need those types complete BEFORE the struct. In
   // sound.h each type is defined immediately before the statics that use it, interleaved through
@@ -385,6 +401,10 @@ function collectMacroHoist(move, src) {
   // lifted alone it becomes an unconditional redefinition of the value the build passed in. So the
   // span grows to the whole enclosing conditional, which is always safe to move earlier.
   const widen = (span) => {
+    // ⚠ Do NOT widen out to the file's own INCLUDE GUARD. In a guarded header every macro sits
+    // inside one, so walking to the enclosing #if swallowed the entire file — sync.h came out as a
+    // comment and an #include, with its whole body relocated into the generated header.
+    if (conditionalDepthAt(src, span.first + 1) <= condBaseForHoist) return span;
     let depth = 0, first = span.first;
     for (let i = span.first - 1; i >= 0; i--) {
       const l = src[i];
@@ -526,7 +546,7 @@ function rewriteSource(src, byLine, movedNames, macroSpans = []) {
 
 function apply(dir, res) {
   const movedNames = new Set(res.move.map(m => m.name));
-  const macroSpans = collectMacroHoist(res.move, res.src);
+  const macroSpans = collectMacroHoist(res.move, res.src, res.condBase);
   fs.writeFileSync(path.join(dir, CTX_HEADER), emitHeader(res.move, macroSpans, res.src));
   fs.writeFileSync(path.join(dir, path.basename(TARGET)), rewriteSource(res.src, res.byLine, movedNames, macroSpans));
   return macroSpans.length;

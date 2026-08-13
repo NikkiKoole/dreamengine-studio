@@ -18,7 +18,7 @@
 typedef void *(*fn_create)(int);
 typedef void (*fn_frame)(void *, double);
 typedef int  (*fn_copy)(void *, uint32_t *, int, int *, int *);
-typedef void (*fn_sync)(double, double, int);
+typedef void (*fn_sync)(void *, double, double, int);
 typedef void (*fn_audio)(void *, float *, int);
 typedef int  (*fn_dim)(void *);
 
@@ -61,7 +61,7 @@ static float drive(Engine *e, double beats, double bpm, int playing, int frames)
     static float chunk[735 * 2];
     float p = 0;
     for (int f = 0; f < frames; f++) {
-        e->sync(beats + f * 0.25, bpm, playing);
+        e->sync(e->in, beats + f * 0.25, bpm, playing);
         e->frame(e->in, f / 60.0);
         e->audio(e->in, chunk, 735);
         float q = peak(chunk, 735 * 2);

@@ -60,7 +60,11 @@ void tn_camera(void) {
 // `myaw` turns the MESH in world space, in quarter turns — needed the moment a figure stopped being
 // symmetric. The sprite path has no use for it (a baked cell already IS a rotation), so it is only
 // read by the polygon renderer.
-typedef struct { float depth; int cell, rot; float vx, vy, vz; int fp0, fp1; int shadow; int hh; int myaw; } Draw;
+// `droop` is HOW BADLY IT IS GOING, 0..1, and it is a property of the instance rather than of the
+// mesh — which is the whole reason it is a number here and not a fifth pose. Furniture and walls
+// leave it 0 by omission (these initialisers are positional), so only residents can slump.
+typedef struct { float depth; int cell, rot; float vx, vy, vz; int fp0, fp1; int shadow; int hh; int myaw;
+                 float droop; } Draw;
 // + 2*TN_N because every tile can carry a north AND a west edge wall.
 static Draw tnr_dl[TN_MAX_OBJECTS + TN_MAX_AGENTS + 2 * TN_N];
 static int tnr_dl_n;
@@ -310,6 +314,24 @@ static const TnPart TNP_PERSON_WORK[] = {
     TNR_PRISM(1.6f,0.9f,9.3f, 3.4f,2.1f,11.6f, 0.25f,0.2f,-0.25f,-0.2f, TNM_SKIN),
 };
 
+// HAULING: the same figure with a LOAD held proud of the chest. The box is what you see — it breaks
+// the silhouette's vertical edge in +y, the way the sitting pose's thighs do — and the arms are only
+// there to explain it. TNM_WOOD rather than TNM_SHIRT on purpose: the thing being carried must not
+// take the household colour, or it reads as part of the body and a hauler just looks stout.
+//
+// This pose was unreachable art until the storage flip: work.h sold each good where it was made and
+// deleted it in the same breath, so `carrying` was never non-negative and TN_ACT_HAUL was a state
+// nothing could enter. Drawing it was never the blocker.
+static const TnPart TNP_PERSON_HAUL[] = {
+    TNR_PRISM(1.0f,0.9f,0, 2.2f,2.1f,5.2f,  0.15f,0,-0.15f,0, TNM_TROUSER),
+    TNR_PRISM(2.8f,0.9f,0, 4.0f,2.1f,5.2f,  0.15f,0,-0.15f,0, TNM_TROUSER),
+    TNR_PRISM(1.1f,0.7f,5.2f, 3.9f,2.3f,9.3f, -0.7f,-0.1f,0.7f,0.1f, TNM_SHIRT),  // torso
+    TNR_BOX  (0.5f,2.3f,6.2f, 1.5f,3.4f,7.4f,            TNM_SHIRT),   // arms, cradling
+    TNR_BOX  (3.5f,2.3f,6.2f, 4.5f,3.4f,7.4f,            TNM_SHIRT),
+    TNR_PRISM(1.2f,2.4f,6.0f, 3.8f,4.3f,8.0f, 0.1f,0,-0.1f,0, TNM_WOOD),  // THE LOAD
+    TNR_PRISM(1.6f,0.9f,9.3f, 3.4f,2.1f,11.6f, 0.25f,0.2f,-0.25f,-0.2f, TNM_SKIN),
+};
+
 // SITTING: thighs projecting forward, torso up, shoulders wider than the head. Eight voxels, and the
 // forward projection is what carries the read — at this size a seated figure is recognised by its
 // outline breaking the vertical, never by proportion.
@@ -337,7 +359,7 @@ static const TnMesh TNR_MESHES[ISO_MODEL_COUNT] = {
     [ISO_COUNTER]      = TNR_MESH(TNP_COUNTER),      [ISO_LOOM]         = TNR_MESH(TNP_LOOM),
     [ISO_WARDROBE]     = TNR_MESH(TNP_WARDROBE),     [ISO_PERSON]       = TNR_MESH(TNP_PERSON),
     [ISO_PERSON_LIE]   = TNR_MESH(TNP_PERSON_LIE), [ISO_PERSON_SIT]   = TNR_MESH(TNP_PERSON_SIT),
-    [ISO_PERSON_WORK]  = TNR_MESH(TNP_PERSON_WORK),
+    [ISO_PERSON_WORK]  = TNR_MESH(TNP_PERSON_WORK), [ISO_PERSON_HAUL] = TNR_MESH(TNP_PERSON_HAUL),
     [ISO_WALL_FULL_NS] = TNR_MESH(TNP_WALL_FULL_NS), [ISO_WALL_FULL_EW] = TNR_MESH(TNP_WALL_FULL_EW),
     [ISO_WALL_LOW_NS]  = TNR_MESH(TNP_WALL_LOW_NS),  [ISO_WALL_LOW_EW]  = TNR_MESH(TNP_WALL_LOW_EW),
 };
@@ -371,6 +393,97 @@ static TnTri tnr_tri[TNR_MAX_TRIS];
 static int   tnr_tri_n;
 static float tnr_zbuf[SCREEN_W * SCREEN_H];
 #define TNR_ZNEAR (-1e18f)
+// ── HOW BADLY IT IS GOING, as one number ────────────────────────────────────────────────────────
+// The WORST need, not the average, because that is the one a person would tell you about: somebody
+// fed, rested and entertained who has not washed in two days is a filthy person, and averaging five
+// needs would report them as fine. Same quantity the HUD's bottom band already prints a word for.
+//
+// 96 IS hud.h's OWN THRESHOLD (`wv < 96` is where it starts printing "bursting" instead of a bar),
+// and the two must move together or the picture and the caption disagree about who is in trouble —
+// which is the exact failure this item exists to fix. It is duplicated rather than shared because a
+// module may not include a sibling (model.h's rules) and art.h is included BEFORE hud.h anyway.
+//
+// ART READS A SIM FACT AND DECIDES NOTHING. Nobody's behaviour changes because they look tired.
+#define TNR_DISTRESS_AT 96
+static float tnr_distress(const TnAgent *a) {
+    int worst = 255;
+    for (int n = 0; n < TN_NEED_COUNT; n++) if (a->need[n] < worst) worst = a->need[n];
+    if (worst >= TNR_DISTRESS_AT) return 0.0f;                 // fine, and fine looks like nothing
+    return (float)(TNR_DISTRESS_AT - worst) / (float)TNR_DISTRESS_AT;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// THE EVENTS, IN THE PICTURE — punch-list item 3.
+//
+// The moment someone fails to find a thing, or wants the WC that is taken, or gives up and walks
+// away, IS the comedy of this sim, and all of it used to scroll past as text in a band at the top.
+// It wants to happen above their head, where you are already looking.
+//
+// THREE RULES THIS FOLLOWS, and they are what keep it from becoming noise:
+//   · ONLY THE NOTABLE. A resident doing its job successfully gets nothing. Every glyph here is a
+//     thing GOING WRONG or a thing being carried, so a quiet building is a blank one and a busy
+//     one is legible at a glance.
+//   · TRANSIENT, AND ON THE EDGE. The timer restarts when the event CHANGES, not while it holds,
+//     so a resident queueing for twenty minutes flashes once rather than strobing "!" all morning.
+//   · NO NEW SIM STATE. Every kind below is derived from what the agent already is, so nothing in
+//     the contract moves and the glyph cannot disagree with the simulation. This state is ART's,
+//     it lives here, and deleting the whole block changes no behaviour.
+//
+// The vocabulary is deliberately tiny and shape-based rather than lettered: at 320x200 a word is
+// four times the size of the person it belongs to. fxicons.h is the precedent — one glyph per kind,
+// shared, so the same thing always looks the same.
+enum { TNR_EV_NONE = 0, TNR_EV_BLOCKED, TNR_EV_NOWHERE, TNR_EV_HAUL };
+#define TNR_BUB_FRAMES 48
+// The head point is kept in WORLD space and projected at draw time, not here: the polygon camera
+// (tnr_pcx/pcy) is recomputed inside tnr_draw_poly, which runs after this list is built, so
+// projecting early would peg every chip to the PREVIOUS frame's camera — invisible while the view
+// is still, and a chip sliding off its owner the moment you orbit.
+static struct { unsigned char kind, last; short left; float wx, wy, wz; } tnr_bub[TN_MAX_AGENTS];
+
+// WHAT IS HAPPENING TO THIS RESIDENT, in the order that matters when two are true at once.
+// Reading `activity` and `bid_tag` only: art asks the sim what it decided, it never decides.
+static int tnr_event_of(const TnAgent *a) {
+    // Carrying beats everything: it is the only one that is not a complaint, and store.h gives
+    // hauling the last word over wanting for the same reason (you put your load down first).
+    if (a->activity == TN_ACT_HAUL || a->carrying >= 0) return TNR_EV_HAUL;
+    // IDLE while still pointed at something is agents.h's own "arrived, and it was full" state —
+    // its comment calls keeping the target the thing that turns a priced wait into a visible queue.
+    // This is that queue, made visible.
+    if (a->activity == TN_ACT_IDLE && a->target_obj >= 0) return TNR_EV_BLOCKED;
+    // tn_best_action found NOTHING worth getting up for: either the building cannot serve what this
+    // resident needs, or (with R on) everything on offer fell under the boredom floor.
+    if (a->bid_tag >= TN_SERVE_COUNT && a->target_obj < 0 && a->activity != TN_ACT_USE)
+        return TNR_EV_NOWHERE;
+    return TNR_EV_NONE;
+}
+
+// A 7x7 chip: a dark plate so the mark survives any floor colour, then the mark. Shapes rather than
+// letters — a "!" is legible at 5px, a word is not, and a shape needs no language.
+static void tnr_glyph(int x, int y, int kind) {
+    if (kind == TNR_EV_NONE) return;
+    rectfill(x, y, 7, 7, CLR_BROWNISH_BLACK);
+    pset(x,     y,     CLR_DARK_BLUE);  pset(x + 6, y,     CLR_DARK_BLUE);   // nipped corners
+    pset(x,     y + 6, CLR_DARK_BLUE);  pset(x + 6, y + 6, CLR_DARK_BLUE);
+    pset(x + 3, y + 8, CLR_BROWNISH_BLACK);                                   // a tail, so it points
+    pset(x + 3, y + 7, CLR_BROWNISH_BLACK);
+    switch (kind) {
+    case TNR_EV_BLOCKED:                        // "!"  — I want that and I cannot have it
+        rectfill(x + 3, y + 1, 1, 3, CLR_RED);
+        pset(x + 3, y + 5, CLR_RED);
+        break;
+    case TNR_EV_NOWHERE:                        // "…"  — nothing on offer, at a loss
+        pset(x + 1, y + 4, CLR_LIGHT_GREY);
+        pset(x + 3, y + 4, CLR_LIGHT_GREY);
+        pset(x + 5, y + 4, CLR_LIGHT_GREY);
+        break;
+    case TNR_EV_HAUL:                           // a crate — carrying something somewhere
+        rectfill(x + 1, y + 2, 5, 4, CLR_BROWN);
+        rectfill(x + 1, y + 3, 5, 1, CLR_DARK_BROWN);
+        break;
+    default: break;
+    }
+}
+
 static float tnr_near3(float vx, float vy, float vz) {
     float dx, dy, dz; tnr_viewdir(&dx, &dy, &dz);
     return vx*dx + vy*dy + vz*dz;
@@ -383,10 +496,16 @@ static float tnr_near3(float vx, float vy, float vz) {
 // screen-left] by DIRECTION. This is that rule made continuous, so rakes and tapers still get
 // in-between values, and it cannot tie: the view direction bisects the two visible side faces, so
 // their screen-right-ness is always opposite in sign.
-static int tnr_shade(const float n[3], int mat, int hh) {
+// `droop` (0..1) drains the SKIN and only the skin. The household colour is left alone on purpose:
+// it is the one thing on screen that says whose flat this is, and a resident who goes grey when
+// hungry would be trading the identity read for the mood read when we want both. Skin is the right
+// carrier because it is the only material a person has that furniture does not, so nothing else in
+// the picture can be mistaken for distress.
+static int tnr_shade(const float n[3], int mat, int hh, float droop) {
     const float right = tnr_screen_right(n);
     const float up    = n[2] > 0.0f ? n[2] : 0.0f;
     float br = 0.20f + 0.38f * up + 0.40f * (0.5f + 0.5f * right);
+    if (mat == TNM_SKIN) br -= 0.26f * droop;         // hollow rather than lit
     if (br > 1.0f) br = 1.0f;  if (br < 0.0f) br = 0.0f;
 
     if (mat >= TNM_FLOOR_A) return TNR_RAMP[mat][2];   // floor: flat, and the sprite view's colour
@@ -417,7 +536,7 @@ static void tnr_push(const float a[3], const float b[3], const float c[3], int c
 // One face: Newell normal (correct for the non-planar sides a taper produces), backface cull, one
 // shade for the whole face, then subdivided to about a tile so the sort stays sound.
 static void tnr_face(const float a[3], const float b[3], const float c[3], const float d[3],
-                     int mat, int hh) {
+                     int mat, int hh, float droop) {
     const float *p[4] = { a, b, c, d };
     float n[3] = { 0, 0, 0 };
     for (int i = 0; i < 4; i++) {
@@ -433,7 +552,7 @@ static void tnr_face(const float a[3], const float b[3], const float c[3], const
     // it stays correct at any yaw and tilt rather than only at the four baked angles.
     float dx, dy, dz; tnr_viewdir(&dx, &dy, &dz);
     if (n[0]*dx + n[1]*dy + n[2]*dz <= 0.0f) return;   // backface
-    const int col = tnr_shade(n, mat, hh);
+    const int col = tnr_shade(n, mat, hh, droop);
 
     // NO SUBDIVISION, and this is the depth buffer PAYING FOR ITSELF. Splitting every polygon down
     // to about a tile was never wanted for its own sake — it existed because a painter's sort gives
@@ -457,8 +576,45 @@ static void tnr_spin(int q, float fx, float fy, float x, float y, float *ox, flo
         default: *ox = x;       *oy = y;       break;
     }
 }
+// ── THE SLUMP, and it is ONE GENERIC RULE rather than a mesh per mood ────────────────────────────
+// The punch list asked for posture to carry the WORST NEED, because the HUD prints "filthy" and
+// "bursting" in a text band while the figure stands there unbothered. The cheap answer would be a
+// fifth and sixth person mesh, and it does not scale: five needs times three poses is fifteen
+// drawings, and none of them can show a resident who is halfway gone.
+//
+// So distress is a SCALAR applied to whatever mesh is already there, and the trick is that the prism
+// primitive makes three separate reads fall out of two lines of arithmetic:
+//   · SQUASH z          — the figure gets shorter. Height is the loudest thing in a 24px silhouette.
+//   · SHRINK the top offsets — and this is the one that does the work. The healthy figure is
+//     recognised by SHOULDERS WIDER THAN THE HEAD (this file's own note: without that contrast it
+//     "read as a lamp"), and that contrast IS the shirt prism's outward taper. Scaling every dx/dy
+//     toward zero un-flares it, so a distressed resident collapses toward the lamp it started as.
+//     Exactly the inverse of the healthy read, for free, with no per-part special case.
+//   · SHEAR along +y     — a forward hunch. Proportional to each part's own height above the floor,
+//     so the feet stay planted and the head travels furthest.
+// It applies to any mesh, so it needs no knowledge of which pose it is decorating, and a sitter
+// slumps in its chair by the same code that makes a stander stoop.
 static void tnr_part(const TnPart *p, float ox, float oy, float oz, int hh,
-                     int q, float fx, float fy) {
+                     int q, float fx, float fy, float droop) {
+    TnPart s = *p;
+    if (droop > 0.0f) {
+        // MEASURED, not guessed. The first cut of these was ~half as strong and changed 15 pixels
+        // across an 1800-frame run, because most of a resident is behind furniture and only the head
+        // and shoulders are ever visible — so whatever carries the mood has to carry it UP THERE.
+        // Sized against the traced distribution of the worst need (median 96, p25 44, 23% under 32),
+        // so the common case of "somewhat badly" is already a couple of pixels rather than nothing.
+        const float squash = 1.0f - 0.24f * droop;      // shorter
+        const float flare  = 1.0f - 0.85f * droop;      // shoulders in toward the head
+        const float lean   = 0.11f * droop;             // voxels of hunch per voxel of height
+        s.z0 = p->z0 * squash;              s.z1 = p->z1 * squash;
+        s.dx0 = p->dx0 * flare;             s.dx1 = p->dx1 * flare;
+        s.dy0 = p->dy0 * flare;             s.dy1 = p->dy1 * flare;
+        // The shear moves the BASE by its own height and the TOP by the part's full height, which is
+        // what makes the stack lean as one body instead of each part shearing on its own spot.
+        s.y0 += lean * s.z0;                s.y1 += lean * s.z0;
+        s.dy0 += lean * (s.z1 - s.z0);      s.dy1 += lean * (s.z1 - s.z0);
+        p = &s;
+    }
     float rb0x,rb0y, rb1x,rb1y, rb2x,rb2y, rb3x,rb3y;
     float ru0x,ru0y, ru1x,ru1y, ru2x,ru2y, ru3x,ru3y;
     tnr_spin(q, fx, fy, p->x0, p->y0, &rb0x, &rb0y);
@@ -475,9 +631,9 @@ static void tnr_part(const TnPart *p, float ox, float oy, float oz, int hh,
     const float u0[3]={ru0x+ox,ru0y+oy,z1}, u1[3]={ru1x+ox,ru1y+oy,z1};
     const float u2[3]={ru2x+ox,ru2y+oy,z1}, u3[3]={ru3x+ox,ru3y+oy,z1};
     const int m = p->mat;
-    tnr_face(u0,u1,u2,u3, m,hh);  tnr_face(b0,b3,b2,b1, m,hh);   // top, bottom
-    tnr_face(b0,b1,u1,u0, m,hh);  tnr_face(b2,b3,u3,u2, m,hh);   // front, back
-    tnr_face(b3,b0,u0,u3, m,hh);  tnr_face(b1,b2,u2,u1, m,hh);   // left, right
+    tnr_face(u0,u1,u2,u3, m,hh,droop);  tnr_face(b0,b3,b2,b1, m,hh,droop);   // top, bottom
+    tnr_face(b0,b1,u1,u0, m,hh,droop);  tnr_face(b2,b3,u3,u2, m,hh,droop);   // front, back
+    tnr_face(b3,b0,u0,u3, m,hh,droop);  tnr_face(b1,b2,u2,u1, m,hh,droop);   // left, right
 }
 
 // Flat-shaded triangle with a depth test, edge functions stepped incrementally. Runs of surviving
@@ -541,7 +697,7 @@ static void tnr_draw_poly(void) {
         if (tx == tn_bw - 1)  x1 += 2.0f;
         if (ty == tn_bh - 1)  y1 += 2.0f;
         const float a[3]={x0,y0,0}, b[3]={x1,y0,0}, c[3]={x1,y1,0}, d[3]={x0,y1,0};
-        tnr_face(a, b, c, d, ((tx+ty)&1) ? TNM_FLOOR_A : TNM_FLOOR_B, -1);
+        tnr_face(a, b, c, d, ((tx+ty)&1) ? TNM_FLOOR_A : TNM_FLOOR_B, -1, 0.0f);
     }
     for (int i = 0; i < tnr_dl_n; i++) {
         const int cell = tnr_dl[i].cell;
@@ -555,11 +711,32 @@ static void tnr_draw_poly(void) {
         const short *mfp = ISO_FOOTPRINT[cell];
         for (int p = 0; p < m->n; p++)
             tnr_part(&m->p[p], tnr_dl[i].vx, tnr_dl[i].vy, tnr_dl[i].vz, tnr_dl[i].hh,
-                     tnr_dl[i].myaw, (float)mfp[0], (float)mfp[1]);
+                     tnr_dl[i].myaw, (float)mfp[0], (float)mfp[1], tnr_dl[i].droop);
     }
     // NO SORT. Not a faster sort, not a stabler one — none. Draw order stops mattering entirely,
     // which is the whole argument for a depth buffer in one line of code.
     for (int i = 0; i < tnr_tri_n; i++) tnr_raster(&tnr_tri[i]);
+}
+
+// The chips, LAST and on top of everything. Deliberately not depth-tested: a chip is an annotation
+// about a person, not a thing in the room, and one hidden behind the wall its owner is standing
+// behind would report nothing at exactly the moment worth reporting. Runs after the render so the
+// camera it projects through is this frame's.
+static void tnr_draw_bubbles(void) {
+    for (int i = 0; i < tn_agent_n && i < TN_MAX_AGENTS; i++) {
+        if (tnr_bub[i].left <= 0) continue;
+        float px, py;
+        if (tn_poly) { tnr_poly_project(tnr_bub[i].wx, tnr_bub[i].wy, tnr_bub[i].wz, &px, &py);
+                       px += tnr_pcx; py += tnr_pcy; }
+        else         { tnr_iso_project(tn_rot, tnr_bub[i].wx, tnr_bub[i].wy, tnr_bub[i].wz, &px, &py);
+                       px += cam_x;   py += cam_y; }
+        const int x = (int)px - 3, y = (int)py - 7;            // 7 wide, sitting above the head
+        // The HUD owns the top 18 rows and the bottom band from 174 (hud.h's own note). A chip that
+        // strays into either is a ui-audit overlap, so it is simply not drawn there — losing one
+        // glyph at the edge of the room beats drawing over the numbers.
+        if (x < 0 || x > SCREEN_W - 7 || y < 19 || y > 165) continue;
+        tnr_glyph(x, y, tnr_bub[i].kind);
+    }
 }
 
 void tn_draw_world(void) {
@@ -601,8 +778,14 @@ void tn_draw_world(void) {
         const int working = (tn_agent[i].pose == TN_POSE_STAND &&
                              tn_agent[i].activity == TN_ACT_USE &&
                              tn_agent[i].bid_tag == TN_CAP_WORK);
+        // CARRYING is read from the sim's own answer — `carrying` is a live item index, so the pose
+        // needs no new state, which is what the punch list said when it asked for this. It ranks
+        // below the seated and lying poses (you put a thing down before you sit on the sofa, and
+        // store.h enforces exactly that by refusing to interrupt a USE) and above the standing one.
+        const int hauling = (tn_agent[i].pose == TN_POSE_STAND && tn_agent[i].carrying >= 0);
         const int pcell = (tn_agent[i].pose == TN_POSE_LIE) ? ISO_PERSON_LIE
                         : (tn_agent[i].pose == TN_POSE_SIT) ? ISO_PERSON_SIT
+                        : hauling                           ? ISO_PERSON_HAUL
                         : working                           ? ISO_PERSON_WORK : ISO_PERSON;
         const short *fp = ISO_FOOTPRINT[pcell];
         // A resident who is not standing is ON the thing it is using, not on the floor beside it.
@@ -641,9 +824,28 @@ void tn_draw_world(void) {
             az = (float)(rest ? rest : ofp[2]);
             arot = tn_rot;                            // align with the furniture, not with the walk
         }
+        // A SLEEPER DOES NOT SLUMP, and this is the one exception the rule needs. Every other pose is
+        // a body holding itself up, so a collapse of that effort reads; a lying figure is already
+        // horizontal, so squashing and shearing it just makes a tidy shape untidy and says nothing.
+        // Someone in bed is also, right then, doing the thing about it.
+        const float droop = (pcell == ISO_PERSON_LIE) ? 0.0f : tnr_distress(&tn_agent[i]);
         tnr_dl[tnr_dl_n++] = (Draw){ tnr_iso_depth(tn_rot, ax + fp[0]*0.5f, ay + fp[1]*0.5f) + 0.5f,
                              pcell, arot, ax, ay, az, fp[0], fp[1], az == 0.0f,
-                             (int)tn_agent[i].household, amyaw };
+                             (int)tn_agent[i].household, amyaw, droop };
+
+        // ── the event chip: WHERE it goes, decided here where the body's placement is already known.
+        // Head height comes from the POSE's own footprint (fp[2] is nz), so a chip floats the same
+        // gap above a sitter as above a stander without anyone writing a number per pose.
+        // The timer restarts only when the event CHANGES, so a long queue blinks once (see the block
+        // above tnr_event_of). Decremented here because tn_draw_world runs exactly once a frame.
+        const int ev = tnr_event_of(&tn_agent[i]);
+        if (ev != TNR_EV_NONE && ev != tnr_bub[i].last) { tnr_bub[i].kind = (unsigned char)ev;
+                                                          tnr_bub[i].left = TNR_BUB_FRAMES; }
+        tnr_bub[i].last = (unsigned char)ev;
+        if (tnr_bub[i].left > 0) tnr_bub[i].left--;
+        tnr_bub[i].wx = ax + fp[0] * 0.5f;
+        tnr_bub[i].wy = ay + fp[1] * 0.5f;
+        tnr_bub[i].wz = az + (float)fp[2] + 3.0f;              // clear of the head, in voxels
     }
     // ── EDGE WALLS ──────────────────────────────────────────────────────────
     // world.h stores walls on tile EDGES, not tiles, and only each tile's north and west edge (the
@@ -706,7 +908,7 @@ void tn_draw_world(void) {
     }
 
     qsort(tnr_dl, tnr_dl_n, sizeof tnr_dl[0], tnr_cmp_draw);
-    if (tn_poly) { tnr_draw_poly(); return; }
+    if (tn_poly) { tnr_draw_poly(); tnr_draw_bubbles(); return; }
     for (int i = 0; i < tnr_dl_n; i++) {
         const IsoCell *c = &ISO_CELLS[tnr_dl[i].cell][tnr_dl[i].rot];
         float sx, sy; tnr_iso_project(tn_rot, tnr_dl[i].vx, tnr_dl[i].vy, tnr_dl[i].vz, &sx, &sy);
@@ -726,6 +928,7 @@ void tn_draw_world(void) {
         }
         sspr(c->x, c->y, c->w, c->h, (int)(sx+cam_x)-c->ox, (int)(sy+cam_y)-c->oy, c->w, c->h);
     }
+    tnr_draw_bubbles();
 }
 
 #endif // TENEMENT_ART_H

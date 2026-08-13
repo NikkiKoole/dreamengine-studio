@@ -349,6 +349,27 @@ a broken doc link or `#section`).
 > · Also logged: `colorkey()` destroys and rebuilds a SHARED GPU texture from a cart API;
 >   `fp_cache`'s key omits the palette; and an unrelated latent `web_px` overflow after a canvas grow.
 >
+> **▶▶ THE ENGINE IS DONE; THE CART IS NOT. READ THIS BEFORE TESTING IN A DAW (2026-08-14).**
+> Running `zsh ios/mac.sh` will show **6 of 7 gates green and the PANEL gate RED**, and two tracks
+> will NOT both play. That is expected and the cause is known — it is not the engine.
+> · **THE CART'S OWN STATE IS STILL SHARED.** `acidcandy` has **136 file-scope statics and calls
+>   `de_state()` ZERO times**, so every instance shares one sequencer and only the engine it happens
+>   to fire into makes sound. Driven ALONE each instance sounds correct (measured); interleaved, only
+>   the first does. **This is plan step 4 ("the cart's statics → STATE") and it is CART work.**
+>   ⚠ The handoff previously said acidcandy had ~20 statics. It has 136 — the same bad grep.
+> · **A REAL CRASH was found and fixed** by giving `instance-check` resize coverage: `de_instance_create`
+>   copied the context template AFTER instance 0 had booted and mutated it, so instance 2 inherited
+>   LIVE HEAP POINTERS and two engines freed one framebuffer. malloc caught it in `de_ensure_fb`,
+>   only under a host that RESIZES — which is why every earlier assertion passed while GarageBand
+>   crashed. Fixed with a pristine snapshot taken before instance 0 boots.
+> · **`sync.h` IS NOW PER-INSTANCE** (21 statics) and `de_sync_position` NAMES ITS INSTANCE. A push is
+>   CONSUMED by whichever engine drains it, so while the transport was process-wide the first
+>   instance swallowed the START edge and the rest joined mid-flow silent.
+> · **`fb_w`/`fb_h`/`de_sw`/`de_sh` were taken BACK OUT of the context.** Their siblings
+>   (`sw_cbuf`/`sw_dst`/`sw_world_buf`) are inside `#ifdef DE_NO_RAYLIB` and cannot move yet, and a
+>   HALF-moved framebuffer group made `cls()` write `fb_w*fb_h` pixels into another instance's
+>   smaller canvas. Coherence beats progress: they move when their siblings can.
+>
 > **✅ STEP 3 IS DONE — THE PLUG-IN GIVES EACH AUDIO UNIT ITS OWN ENGINE (2026-08-14).**
 > `TinyjamAU` now holds `fileprivate let engine` created per instance, with its OWN frame worker,
 > semaphore and frame counter. **`bootEngineOnce` is GONE** — it existed only because instances

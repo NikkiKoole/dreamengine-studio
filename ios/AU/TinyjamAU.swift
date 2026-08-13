@@ -101,11 +101,11 @@ public final class TinyjamAU: AUAudioUnit {
     // worker. Two tracks are two racks. Proven by tools/instance-check, which drives two engines
     // with different transport and asserts their frames and audio differ.
     //
-    // ⚠ STILL SHARED: de_sync_position takes no instance, so the HOST TRANSPORT is process-wide.
-    // That is mostly BENIGN rather than broken — two tracks in one DAW project share one transport,
-    // so both render blocks push the same beat/tempo/playing and the engines agree. It goes wrong
-    // only where two instances legitimately differ: an OFFLINE BOUNCE of one track while another
-    // plays in realtime. Instance-scoping sync.h is the fix; it is not what makes two racks work.
+    // ⚠ STILL SHARED: THE CART'S OWN STATE. The engine is per-instance (state, transport and all),
+    // but a cart that keeps its state in file-scope statics rather than de_state() has ONE
+    // sequencer across every instance — acidcandy has 136 statics and no de_state(), so only the
+    // engine its sequencer happens to fire into makes sound. That is the next step and it is cart
+    // work, not engine work. tools/instance-check reports it explicitly rather than asserting it.
     private static let bootLock = NSLock()          // instantiation only; never touched by audio
     fileprivate let engine: OpaquePointer
 
@@ -293,7 +293,7 @@ public final class TinyjamAU: AUAudioUnit {
                         var flags = AUHostTransportStateFlags()
                         if ts(&flags, nil, nil, nil) { playing = flags.contains(.moving) }
                     }
-                    de_sync_position(beat, tempo, playing ? 1 : 0)
+                    de_sync_position(engine, beat, tempo, playing ? 1 : 0)
                 }
             }
             // 1) feed host MIDI into the engine ring FIRST, so the frame ticked below sees it.

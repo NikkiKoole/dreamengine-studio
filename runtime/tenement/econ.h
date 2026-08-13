@@ -128,6 +128,57 @@ int tn_econ_sunk(void)     { return tne_sunk; }        // total money destroyed 
 bool tn_econ_rent_day(void) { return tn_clock.day >= 1 && tn_clock.day % TNE_RENT_EVERY == 0; }
 bool tn_econ_bill_day(void) { return tn_clock.day >= 1 && tn_clock.day % TNE_BILL_EVERY == TNE_BILL_DAY_OF; }
 
+// ═════════════════════════════════════════════════════════════════════════════
+// THE BUYER — where money enters now that goods are real.
+//
+// work.h used to sell a good the instant it was made, standing at the machine, and delete it in the
+// same breath. That was a stub with a note on it ("WHEN store.h CAN HAUL … the sale moves to
+// whoever empties the store"). This is that move. Nothing about the SEAM changed: tn_sell is still
+// the one place money is created and it still lives in offer.h. Only the caller is different, and
+// the difference is the whole point — production and income are no longer the same event.
+//
+// WHAT IT BUYS IS A TAG, NEVER A THING (contract rule 2). The buyer wants TN_STORE_GOODS and asks
+// each object what it OFFERS; it does not know a wardrobe from a fridge, and a second buyer for a
+// second class of goods would be a second constant, not a second code path.
+//
+// IT ONLY TAKES WHAT IS PUT AWAY. A good in somebody's arms is not for sale, and a good dropped on
+// the floor is not for sale — the trade needs the thing shelved. That is the sentence that gives
+// storage a JOB: before this, a container was a place a tidy resident happened to walk to, and
+// nothing anywhere cared whether they got there. Now a household with no cupboard, or a full one,
+// watches its bolts pile up in the hall while rent day comes round. Nobody wrote that rule; it
+// falls out of the buyer wanting shelved goods and the cupboard having a capacity.
+//
+// The round is DATED like rent, and by the same watermark, for the same reason (see the tick).
+#define TNE_TRADE_TAG    TN_STORE_GOODS   // what the buyer is in the market for
+#define TNE_TRADE_EVERY  1                // days between rounds
+#define TNE_TRADE_MINUTE (11 * 60)        // late morning, so a night shift's output can reach a shelf
+static short tne_trade_day;
+static int   tne_goods_sold;              // for the ledger, and for the selfcheck's value invariant
+
+int tn_econ_goods_sold(void) { return tne_goods_sold; }
+
+static void tne_buyer_calls(void) {
+    if (!(tn_clock.day >= 1 && tn_clock.day % TNE_TRADE_EVERY == 0)) return;
+    if (tn_clock.minute < TNE_TRADE_MINUTE || tne_trade_day == tn_clock.day) return;
+    tne_trade_day = tn_clock.day;
+
+    for (int i = 0; i < tn_item_n; i++) {
+        const int obj = tn_item[i].stored_in;
+        if (obj < 0 || obj >= tn_obj_n) continue;              // held or loose: not for sale
+        if (tn_item[i].store_tag != TNE_TRADE_TAG) continue;   // the buyer wants one class of thing
+        if (!tn_offers(obj, TNE_TRADE_TAG, NULL)) continue;    // ask what it OFFERS, never what it is
+        // WHOSE MONEY: the container's owner, not the maker. A good in your cupboard is yours, which
+        // is the same ownership rule store.h prices a detour by — one answer, used twice.
+        const int hh = tn_obj[obj].household;
+        if (hh < 0 || hh >= tn_house_n) continue;              // communal storage pays nobody, yet
+        tn_sell(hh, i);                                        // ←── TN_SEAM_EXTERNAL, unchanged
+        tn_item[i].stored_in = TN_NONE;                        // it left the building
+        tn_item[i].held_by   = TN_NONE;
+        tn_item[i].store_tag = TN_ITEM_FREE;                   // gone: unsellable, unhaulable, reusable
+        tne_goods_sold++;
+    }
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // The tick. Rent and bills are DATED EVENTS, each fired at most once per day by a watermark rather
 // than by an exact minute match. That matters for a reason worth stating: this is called once per
@@ -148,6 +199,7 @@ void tn_econ_tick(void) {
         tne_bill_day = tn_clock.day;
         for (int h = 0; h < tn_house_n; h++) tne_charge(h, tn_econ_upkeep(h));
     }
+    tne_buyer_calls();
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -391,7 +443,72 @@ void tn_econ_selfcheck(void) {
         expect(tn_econ_sunk() == all_rent && tn_econ_arrears(0) == 0, tne_sp);
     }
 
+    // ── ECON G: THE BUYER ───────────────────────────────────────────────────
+    // The sale used to live in work.h, at the machine, and W5 there guarded it with
+    // "money is EXACTLY shifts x value". That guard came with the seam when it moved, and this is
+    // where it landed. Everything here is about the ONE thing that changed: income is no longer the
+    // same event as production, so the two can now disagree, and every case below is a way they can.
+    tn_world_init(); tn_obj_n = 0; tn_item_n = 0; tn_econ_reset();
+    tne_goods_sold = 0; tne_trade_day = 0;
+    {
+        const int V = 12;
+        const int shelf = tn_add_obj(TN_OBJ_WARDROBE, 2, 2, 0);   // owned by household 0
+        expect(shelf >= 0 && tn_offers(shelf, TNE_TRADE_TAG, NULL),
+               "econ G setup: a wardrobe really does offer the class of storage the buyer wants");
+
+        // Three goods in three different PLACES. Only the shelved one is for sale, and that single
+        // distinction is what gives storage a job at all: before it, a container was somewhere a
+        // tidy resident happened to walk, and nothing anywhere cared whether they arrived.
+        const int on_shelf = tn_item_new(TNE_TRADE_TAG, V, 2, 2);
+        const int in_hands = tn_item_new(TNE_TRADE_TAG, V, 3, 3);
+        const int on_floor = tn_item_new(TNE_TRADE_TAG, V, 4, 4);
+        tn_item[on_shelf].stored_in = (TnIdx)shelf;
+        tn_item[in_hands].held_by   = 0;
+        const int purse0 = tn_house[0].money;
+
+        tne_at(1, TNE_TRADE_MINUTE);
+        snprintf(tne_sp, sizeof tne_sp, "econ G: the buyer takes the SHELVED good and leaves the "
+                 "carried and the dropped one (%d sold, purse %d -> %d)",
+                 tne_goods_sold, purse0, tn_house[0].money);
+        expect(tne_goods_sold == 1 && tn_house[0].money == purse0 + V &&
+               tn_item[in_hands].store_tag == TNE_TRADE_TAG &&
+               tn_item[on_floor].store_tag == TNE_TRADE_TAG, tne_sp);
+
+        // The converse of W5's old invariant, and the reason it existed: a good must not be sold
+        // twice. A whole further day of rounds over the same shelf must add nothing.
+        const int after = tn_house[0].money;
+        for (int d = 2; d < 5; d++) tne_at(d, TNE_TRADE_MINUTE + 30);
+        snprintf(tne_sp, sizeof tne_sp, "econ G: and three more rounds over the same shelf sell "
+                 "NOTHING — a good leaves the world once (%d sold, purse still %d)",
+                 tne_goods_sold, tn_house[0].money);
+        expect(tne_goods_sold == 1 && tn_house[0].money == after, tne_sp);
+
+        // The freed slot is REUSED rather than leaked, which is what keeps a long game from filling
+        // tn_item[] and silently stopping production (see TN_ITEM_FREE in the contract).
+        const int n_before = tn_item_n;
+        const int reused = tn_item_new(TN_STORE_FOOD, 1, 1, 1);
+        snprintf(tne_sp, sizeof tne_sp, "econ G: a sold item's slot is REUSED, so the array cannot "
+                 "creep (%d items before, %d after)", n_before, tn_item_n);
+        expect(reused == on_shelf && tn_item_n == n_before, tne_sp);
+    }
+    {   // A COMMUNAL shelf pays nobody, and must not pay household 0 by accident: `household` is -1
+        // there, and -1 indexes off the front of tn_house[]. The buyer skips it; this is the case
+        // that would catch a missing bounds test, which would corrupt memory rather than misprice.
+        tn_world_init(); tn_obj_n = 0; tn_item_n = 0; tn_econ_reset();
+        tne_goods_sold = 0; tne_trade_day = 0;
+        const int shelf = tn_add_obj(TN_OBJ_WARDROBE, 2, 2, -1);      // communal
+        const int it = tn_item_new(TNE_TRADE_TAG, 12, 2, 2);
+        tn_item[it].stored_in = (TnIdx)shelf;
+        const int total0 = tne_purses();
+        tne_at(1, TNE_TRADE_MINUTE);
+        snprintf(tne_sp, sizeof tne_sp, "econ G: a good on a COMMUNAL shelf has no owner to pay, so "
+                 "the buyer leaves it (%d sold, purses %d -> %d)", tne_goods_sold, total0, tne_purses());
+        expect(tne_goods_sold == 0 && tne_purses() == total0 &&
+               tn_item[it].store_tag == TNE_TRADE_TAG, tne_sp);
+    }
+
     tn_world_init(); tn_econ_reset();              // leave the world as we found it
+    tne_goods_sold = 0; tne_trade_day = 0;
 }
 #endif // DE_SPEC
 

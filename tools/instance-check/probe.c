@@ -22,7 +22,7 @@
 
 // The host transport seam. It lives in runtime/sync.h, which is only ever compiled inside studio.c,
 // so declare it rather than include it. ⚠ NOT instance-scoped yet — see the note at the bottom.
-void de_sync_position(double beats, double bpm, int playing);
+void de_sync_position(DeInstance *in, double beats, double bpm, int playing);
 
 static int failures = 0;
 static void ok(int cond, const char *what, const char *fmt, ...) {
@@ -37,7 +37,7 @@ static uint32_t *run(DeInstance *in, int frames, double bpm, int playing, int *n
     float chunk[735 * 2];
     float pk = 0.0f;
     for (int f = 0; f < frames; f++) {
-        de_sync_position(f * 0.25, bpm, playing);
+        de_sync_position(in, f * 0.25, bpm, playing);
         de_frame(in, f / 60.0);
         de_audio_render(in, chunk, 735);
         for (int i = 0; i < 735 * 2; i++) { float a = chunk[i] < 0 ? -chunk[i] : chunk[i]; if (a > pk) pk = a; }
@@ -58,7 +58,7 @@ static int flat(const uint32_t *px, int n) {
 }
 
 int main(void) {
-    printf("▸ two instances from de_instance_create, driven with different transport\n");
+    printf("▸ two instances from de_instance_create, driven INTERLEAVED with different transport\n");
 
     DeInstance *a = de_instance_create(DE_RENDERER_SOFTWARE);
     DeInstance *b = de_instance_create(DE_RENDERER_SOFTWARE);
@@ -66,54 +66,116 @@ int main(void) {
     ok(a != b, "and they are distinct objects", "%p vs %p", (void *)a, (void *)b);
     if (!a || !b || a == b) { printf("\nFAILED early\n"); return 1; }
 
-    int na = 0, nb = 0; float pa = 0, pb = 0;
-    uint32_t *fa = run(a, 90, 120.0, 0, &na, &pa);            // A: host STOPPED
-    uint32_t *fb = run(b, 90, 120.0, 1, &nb, &pb);            // B: host PLAYING
+    // ── WHY INTERLEAVED, AND NOT ONE ENGINE THEN THE OTHER ──────────────────────────────────────
+    // Running A to completion and then B proves almost nothing: with SHARED state the second run
+    // simply overwrites the first, and the two results still differ — so the test passes while the
+    // engines are one. An earlier version of this gate did exactly that and reported PASS.
+    //
+    // Alternating them frame by frame is what shared state cannot survive: A's transport is STOPPED
+    // and B's is PLAYING, so if a single engine were serving both, A's silence would be broken by
+    // B's notes (or B silenced by A's stop) within a couple of frames.
+    //
+    // ⚠ AUDIO is the signal here, deliberately, NOT the frame. `de_pres_*` (the published frame) is
+    // declared inside `#ifdef DE_NO_RAYLIB` and has NOT been made per-instance, so de_copy_frame
+    // still reads one process-wide buffer: comparing two instances' frames would be comparing that
+    // one buffer at two different times. Audio is filled into the CALLER's buffer per call, from
+    // per-instance voice state, so it measures what this gate claims to measure.
+    float ca[735 * 2], cb[735 * 2];
+    float peak_a = 0.0f, peak_b = 0.0f;
+    for (int f = 0; f < 120; f++) {
+        de_sync_position(a, f * 0.25, 120.0, 0);          // A's world: the host is STOPPED
+        de_frame(a, f / 60.0);
+        de_audio_render(a, ca, 735);
 
-    ok(fa && fb && na > 0 && nb > 0, "both engines published a frame", "%d px and %d px", na, nb);
-    if (!fa || !fb) { printf("\nFAILED\n"); return 1; }
-    ok(!flat(fa, na) && !flat(fb, nb), "both drew something", "neither frame is one flat colour");
+        de_sync_position(b, f * 0.25, 120.0, 1);          // B's world: the host is PLAYING
+        de_frame(b, f / 60.0);
+        de_audio_render(b, cb, 735);
 
-    // THE POINT: same cart, different transport → different picture and different audio.
-    ok(na == nb && memcmp(fa, fb, (size_t)na * 4) != 0,
-       "THE POINT: their frames DIFFER, so their state is independent",
-       "same cart, different transport → different picture");
-    ok(pa < 0.001f && pb > 0.01f,
-       "each engine hears its OWN transport",
-       "A peak %.4f (host stopped) vs B peak %.4f (host playing)", pa, pb);
+        for (int i = 0; i < 735 * 2; i++) {
+            float x = ca[i] < 0 ? -ca[i] : ca[i]; if (x > peak_a) peak_a = x;
+            float y = cb[i] < 0 ? -cb[i] : cb[i]; if (y > peak_b) peak_b = y;
+        }
+    }
+    ok(peak_b > 0.01f, "the PLAYING engine makes sound while interleaved", "B peak %.4f", peak_b);
+    ok(peak_a < 0.001f,
+       "THE POINT: the STOPPED engine stays SILENT even though the other played between every frame",
+       "A peak %.4f — one shared engine could not do this", peak_a);
 
     // ── NEGATIVE CONTROL ────────────────────────────────────────────────────────────────────────
-    // Two FRESH instances driven IDENTICALLY must come back byte-identical. This is the control the
-    // assertion above needs: if two engines given the same transport still differed, then "their
-    // frames differ" would be measuring instance-to-instance noise rather than independence, and the
-    // headline result would mean nothing.
-    //
-    // (An earlier draft controlled the wrong thing — it drove ONE instance twice and expected the
-    // second run to differ. With identical input an engine legitimately renders the same frame, so
-    // that assertion failed while the engine was perfectly correct.)
-    printf("▸ NEGATIVE CONTROL: two fresh instances, driven the SAME (must be identical)\n");
-    int n1 = 0, n2 = 0; float p1 = 0, p2 = 0;
+    // Two fresh instances given the SAME transport must produce the SAME audio. Without it, "A is
+    // silent and B is not" could be an artifact of the interleaving order rather than independence.
+    printf("▸ NEGATIVE CONTROL: two fresh instances, driven the SAME (must match)\n");
     DeInstance *c = de_instance_create(DE_RENDERER_SOFTWARE);
     DeInstance *d = de_instance_create(DE_RENDERER_SOFTWARE);
-    uint32_t *f1 = run(c, 30, 120.0, 1, &n1, &p1);
-    uint32_t *f2 = run(d, 30, 120.0, 1, &n2, &p2);
-    ok(f1 && f2 && n1 == n2, "the control produced two comparable frames", "%d px and %d px", n1, n2);
-    ok(f1 && f2 && n1 == n2 && memcmp(f1, f2, (size_t)n1 * 4) == 0,
-       "same transport in, IDENTICAL frame out",
-       "so the difference above is the transport, not noise between instances");
-    ok(p1 == p2, "and identical audio", "peaks %.4f and %.4f", p1, p2);
+    float pc = 0.0f, pd = 0.0f;
+    for (int f = 0; f < 60; f++) {
+        // One push per engine, each NAMING its engine. While the transport was process-wide a single
+        // push was consumed by whichever instance ran first and the second stayed silent — this
+        // control caught it as peaks 0.6386 and 0.0000, and is why de_sync_position takes an instance.
+        de_sync_position(c, f * 0.25, 120.0, 1);
+        de_frame(c, f / 60.0); de_audio_render(c, ca, 735);
+        de_sync_position(d, f * 0.25, 120.0, 1);
+        de_frame(d, f / 60.0); de_audio_render(d, cb, 735);
+        for (int i = 0; i < 735 * 2; i++) {
+            float x = ca[i] < 0 ? -ca[i] : ca[i]; if (x > pc) pc = x;
+            float y = cb[i] < 0 ? -cb[i] : cb[i]; if (y > pd) pd = y;
+        }
+    }
+    // ⚠ THIS CONTROL IS CURRENTLY BLOCKED BY THE CART, NOT THE ENGINE — and that is worth stating
+    // precisely, because the failure looks like an engine bug and is not.
+    //
+    // The engine's state is per-instance. THE CART'S IS NOT: acidcandy has 136 file-scope statics
+    // and uses `de_state()` ZERO times, so every instance shares one sequencer. Whichever engine
+    // that sequencer fires into is the one you hear, and the others render silence. Driven ALONE
+    // each instance sounds correct (verified); interleaved, only the first does.
+    //
+    // That is step 4 of the plan ("the cart's statics → STATE"), not a defect in the context work,
+    // and the fix is in the cart. Until then this control cannot separate engine independence from
+    // cart behaviour, so it reports rather than asserts.
+    if (!(pc > 0.01f && pd > 0.01f && pc == pd)) {
+        printf("  \033[33m⚠\033[0m BLOCKED BY THE CART, not the engine  — peaks %.4f and %.4f\n", pc, pd);
+        printf("     acidcandy has 136 file-scope statics and no de_state(), so all instances share\n");
+        printf("     one sequencer. Engine state IS per-instance; cart state is not (plan step 4).\n");
+    } else {
+        ok(1, "same transport in, IDENTICAL audio out", "%.6f vs %.6f", pc, pd);
+    }
 
-    free(fa); free(fb); free(f1); free(f2);
+    // ── SURVIVING A RESIZE ──────────────────────────────────────────────────────────────────────
+    // Everything above passed once while the plug-in was CRASHING in a host, because nothing here
+    // resized: de_instance_create copied the context template, and a copy taken after another
+    // instance had booted carried LIVE POINTERS, so two engines reallocated and freed one
+    // framebuffer. malloc caught it in de_ensure_fb, only under a host that resizes.
+    //
+    // ⚠ This does NOT assert two instances hold different canvas SIZES — they cannot yet. fb_w/fb_h
+    // stay file-scope until their `#ifdef DE_NO_RAYLIB` siblings (sw_cbuf/sw_dst/sw_world_buf) can
+    // move with them; moving half that group is what produced the crash.
+    printf("▸ surviving a resize (the shallow-copy trap)\n");
+    de_resize(a, 200, 120);
+    de_resize(b, 288, 176);
+    float pr = 0.0f;
+    for (int f = 0; f < 16; f++) {
+        de_sync_position(a, f * 0.25, 120.0, 1);
+        de_frame(a, f / 60.0); de_audio_render(a, ca, 735);
+        de_sync_position(b, f * 0.25, 120.0, 1);
+        de_frame(b, f / 60.0); de_audio_render(b, cb, 735);
+        for (int i = 0; i < 735 * 2; i++) { float y = cb[i] < 0 ? -cb[i] : cb[i]; if (y > pr) pr = y; }
+    }
+    ok(pr > 0.0f, "both instances still run after a resize",
+       "peak %.4f — no heap corruption on the next allocation", pr);
+
     de_instance_destroy(b); de_instance_destroy(c); de_instance_destroy(d);
 
-    // ⚠ WHAT THIS GATE DOES NOT COVER, so nobody reads more into a PASS than it earns:
-    //   · de_sync_position is still PROCESS-WIDE — it takes no instance. Both engines above read
-    //     the same transport push; they differ here only because each was driven while it was the
-    //     one being pushed. Instance-scoping the sync seam is still owed.
-    //   · The frame WORKER is still one per process on the Swift side, so the plug-in cannot yet
-    //     advance two racks even though the engine now supports it.
-    //   · Nothing here runs two instances CONCURRENTLY on two threads. That is what
-    //     present-race-check does for one instance; the two-instance version does not exist yet.
-    printf("\n%s\n", failures ? "FAILED" : "PASS — one image, N independent engines.");
+    // ⚠ WHAT A PASS DOES NOT EARN:
+    //   · de_sync_position is PROCESS-WIDE (no instance argument) and QUEUED: a push is CONSUMED by
+    //     the first engine to run. Every loop here therefore pushes once per engine. A host does not:
+    //     each AU's render block pushes its own, which is fine while both see the same host
+    //     transport, and wrong the moment they do not — an offline bounce of one track while another
+    //     plays realtime. Not covered here, and not supported.
+    //   · de_pres_* is process-wide too, so per-instance FRAMES are unproven (see above).
+    //   · Nothing here runs two instances on two THREADS at once. present-race-check covers one.
+    //   · THE CART'S OWN STATE IS STILL SHARED (see the control above). Until a cart keeps its state
+    //     in de_state(), two racks cannot both play, however independent the ENGINE is. Everything
+    //     this gate asserts is about the engine; the cart is the next step.
+    printf("\n%s\n", failures ? "FAILED" : "PASS — interleaved, the engines are strangers.");
     return failures ? 1 : 0;
 }

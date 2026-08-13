@@ -15,14 +15,40 @@ const TnOffer TN_OFFERS[TN_OBJ_KIND_COUNT][TN_MAX_OFFERS] = {
                           { TN_STORE_FOOD,     -1,   0, 8, TN_POSE_STAND } },
     [TN_OBJ_COUNTER]  = { { TN_SERVE_HUNGER,   40,  20, 1, TN_POSE_STAND },  // a snack, worse than the fridge
                           { TN_CAP_WORK,       -1,   0, 1, TN_POSE_STAND } },
-    [TN_OBJ_TOILET]   = { { TN_SERVE_BLADDER, 110,  10, 1, TN_POSE_SIT } },
+    // A COLD TAP IN THE WC, and it closes the last unserveable need. world.h's finding 5 recorded
+    // that NOTHING served TN_SERVE_HYGIENE, so one of the five needs decayed to zero on day one and
+    // stayed there — every resident read "filthy" forever, which is a constant rather than a fact
+    // about anybody. It also broke posture-carries-the-worst-need before that was even built: the
+    // worst need was the same need for every resident at every hour.
+    //
+    // Deliberately ON THE TOILET rather than a new washbasin kind, which is the cheap half of world
+    // finding 5's suggestion and the better half. A tenement WC has a tap over it; and putting the
+    // wash on the ONE SHARED FIXTURE aims more traffic at exactly the scarcity design §1 is about,
+    // where a separate basin would have relieved it. Weak and slow on purpose — 55 points against
+    // bladder's 110, and 15 minutes against 10, so a wash is the thing you do when nothing is
+    // urgent, and someone at the tap is someone else's blocked WC.
+    [TN_OBJ_TOILET]   = { { TN_SERVE_BLADDER, 110,  10, 1, TN_POSE_SIT },
+                          { TN_SERVE_HYGIENE,  55,  15, 1, TN_POSE_STAND } },
     [TN_OBJ_SOFA]     = { { TN_SERVE_FUN,      90,  60, 2, TN_POSE_SIT } },   // the only shareable thing
     [TN_OBJ_LOOM]     = { { TN_CAP_WORK,       -1, 480, 1, TN_POSE_STAND } },  // the dumb machine, §4
-    [TN_OBJ_WARDROBE] = { { TN_STORE_CLOTHES,  -1,   0, 6, TN_POSE_STAND } },
+    // A CUPBOARD TAKES GOODS TOO, and this is the missing row store.h's own catalogue predicted:
+    // "bolt … NOTHING offers TN_STORE_GOODS yet, so it has nowhere to live — a missing table row in
+    // offer.h, not a missing code path". It was right, and this is the row. With it, the loom's
+    // output has a destination, tn_find_store answers, and the hauling loop that was already built
+    // and tested has something to carry. Two storage classes on one object costs nothing: `users`
+    // is per-object and a store offer has capacity, not occupancy.
+    [TN_OBJ_WARDROBE] = { { TN_STORE_CLOTHES,  -1,   0, 6, TN_POSE_STAND },
+                          { TN_STORE_GOODS,    -1,   0, 4, TN_POSE_STAND } },
 };
 const unsigned char TN_OFFER_N[TN_OBJ_KIND_COUNT] = {
-    [TN_OBJ_BED] = 1, [TN_OBJ_FRIDGE] = 2, [TN_OBJ_COUNTER] = 2, [TN_OBJ_TOILET] = 1,
-    [TN_OBJ_SOFA] = 1, [TN_OBJ_LOOM] = 1, [TN_OBJ_WARDROBE] = 1,
+    // COUNT AND TABLE MUST AGREE, and nothing checks it for you: an offer row past this count is
+    // simply never read, so the object silently does not offer the thing its own table says it
+    // offers. Both new rows above (the WC's tap, the wardrobe's goods shelf) had to bump a number
+    // here, and forgetting the wardrobe's cost a debugging round — the goods were made and hauled
+    // and then dropped on the floor, because tn_find_store could not see a cupboard that was
+    // sitting right there. Add a row, change this number in the same edit.
+    [TN_OBJ_BED] = 1, [TN_OBJ_FRIDGE] = 2, [TN_OBJ_COUNTER] = 2, [TN_OBJ_TOILET] = 2,
+    [TN_OBJ_SOFA] = 1, [TN_OBJ_LOOM] = 1, [TN_OBJ_WARDROBE] = 2,
 };
 const short TN_OBJ_PRICE[TN_OBJ_KIND_COUNT] = {
     [TN_OBJ_BED] = 120, [TN_OBJ_FRIDGE] = 200, [TN_OBJ_COUNTER] = 60, [TN_OBJ_TOILET] = 90,

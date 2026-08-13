@@ -55,6 +55,12 @@
 #include "game_rect.h"   // window↔canvas placement transform (touch-controls Phase 1.5 chokepoint)
 #include "studio_ctx.h"   // GENERATED per-instance context (tools/ctx-gen.js)
 
+// The canvas dimensions stay FILE-SCOPE for now, with the rest of the framebuffer group. See the
+// note at the top of studio_ctx.h: their siblings sw_cbuf/sw_dst/sw_world_buf are inside
+// `#ifdef DE_NO_RAYLIB` and cannot be moved yet, and a half-moved group crashes.
+static int fb_w = SCREEN_W, fb_h = SCREEN_H;
+static int de_sw = SCREEN_W, de_sh = SCREEN_H;
+
 // where the canvas sits in the window + the single window↔canvas transform (see game_rect.h).
 // Phase 1.5 pins it to the full window (origin 0,0; scale = SCALE) → identity, byte-identical to
 // the old bare /SCALE. Phase 2 placement just assigns a different value here and coords follow.
@@ -2893,8 +2899,9 @@ static void de_setup_baked_fonts(void) {
 struct DeInstance {
     int     id;        // 0 for the default instance; distinct once there is more than one
     int     booted;    // guards a second create from re-running the cart's init()
-    DeSound snd;       // this engine's audio state  (sound_ctx.h)
-    DeVideo vid;       // this engine's video state  (studio_ctx.h)
+    DeSound snd;       // this engine's audio state     (sound_ctx.h)
+    DeVideo vid;       // this engine's video state     (studio_ctx.h)
+    DeSync  syn;       // this engine's host transport  (sync_ctx.h)
 };
 // Instance 0 is the DEFAULT engine, and it deliberately keeps pointing at the generated templates
 // rather than owning copies: the desktop build and every existing gate run on it, so the
@@ -2918,9 +2925,12 @@ static _Thread_local struct DeInstance *de_cur;
 #define DE_ENTER(in_)                                                              \
     struct DeInstance *de_prev_ = de_cur;                                          \
     DeSound *de_prev_snd_ = de_snd; DeVideo *de_prev_vid_ = de_vid;                \
+    DeSync  *de_prev_syn_ = de_sync;                                               \
     de_cur = (in_);                                                                \
-    if ((in_) && (in_)->id != 0) { de_snd = &(in_)->snd; de_vid = &(in_)->vid; }
-#define DE_LEAVE()     de_cur = de_prev_; de_snd = de_prev_snd_; de_vid = de_prev_vid_
+    if ((in_) && (in_)->id != 0) {                                                 \
+        de_snd = &(in_)->snd; de_vid = &(in_)->vid; de_sync = &(in_)->syn;         \
+    }
+#define DE_LEAVE()     de_cur = de_prev_; de_snd = de_prev_snd_; de_vid = de_prev_vid_; de_sync = de_prev_syn_
 
 static void de_init_impl(DeRenderer renderer);
 
@@ -2928,7 +2938,31 @@ static void de_init_impl(DeRenderer renderer);
 // build, the standalone app, all the harnesses — behaves exactly as before. Each later call
 // allocates a real instance whose state starts as a copy of the generated templates, which is the
 // same state a fresh process would have booted into.
+// ⚠ THE TEMPLATE MUST BE SNAPSHOTTED BEFORE ANYTHING RUNS.
+//
+// Instance 0 shares storage WITH the templates (that is what keeps the desktop path byte-identical),
+// so the moment it boots it starts mutating them — including allocating heap buffers. A later
+// instance copying the template then inherits LIVE POINTERS, and two engines realloc and free the
+// same framebuffer. That is not theoretical: it crashed the plug-in in `de_ensure_fb` with malloc
+// reporting a corrupted zone, and only under a host that RESIZES, which is why a probe that never
+// resized sat green through it.
+//
+// So take a pristine copy first. Every pointer in it is still NULL, exactly as the linker left it,
+// and each instance allocates its own on first use.
+static DeSound de_snd_pristine;
+static DeVideo de_vid_pristine;
+static DeSync  de_sync_pristine;
+static int     de_pristine_taken = 0;
+static void de_take_pristine(void) {
+    if (de_pristine_taken) return;
+    de_snd_pristine  = de_snd_default;
+    de_vid_pristine  = de_vid_default;
+    de_sync_pristine = de_sync_default;
+    de_pristine_taken = 1;
+}
+
 DeInstance *de_instance_create(DeRenderer renderer) {
+    de_take_pristine();   // BEFORE instance 0 boots and starts mutating the templates
     if (!de_inst_default.booted) {
         DE_ENTER(&de_inst_default); de_init_impl(renderer); DE_LEAVE();
         de_inst_default.booted = 1;
@@ -2937,12 +2971,17 @@ DeInstance *de_instance_create(DeRenderer renderer) {
     struct DeInstance *in = (struct DeInstance *)calloc(1, sizeof *in);
     if (!in) return NULL;
     in->id  = de_inst_next_id++;
-    in->snd = de_snd_default;   // the compile-time template: exactly a fresh process's state
-    in->vid = de_vid_default;
+    in->snd = de_snd_pristine;   // the PRISTINE template, not the live one instance 0 is using
+    in->vid = de_vid_pristine;
+    in->syn = de_sync_pristine;
     DE_ENTER(in); de_init_impl(renderer); DE_LEAVE();
     in->booted = 1;
     return in;
 }
+
+// The accessor sync.h needs: it is included before DeInstance is defined, so it asks for the
+// context rather than reaching into the struct.
+DeSync *de_instance_sync(DeInstance *in) { return (in && in->id != 0) ? &in->syn : &de_sync_default; }
 
 void de_instance_destroy(DeInstance *in) {
     if (!in || in->id == 0) return;   // instance 0 is static and outlives everything

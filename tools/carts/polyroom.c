@@ -195,13 +195,15 @@ typedef struct {
 // sofa 12x6x6 — the voxel note says the sofa and bed once read as the same pale slab and the fix
 // was HEIGHT AND OUTLINE, not detail. The back now rakes (dy0/dy1 negative at the top), which is
 // the outline cue the block version could only approximate with a straight wall.
+// Note the y values: seat, arms and cushion all start clear of 1.9, which is where the RAKED back's
+// bounding box ends. Nothing here overlaps anything — see the spec's interpenetration gate.
 static const Part P_SOFA[] = {
     PRISM(0,0,0, 12,6,2.4f,  0.4f,0.4f,-0.4f,-0.4f, M_WOOD),        // plinth, tapered to fake feet
-    BOX  (0.9f,1.2f,2.4f, 11.1f,6,3.9f,             M_UPH),         // seat
     PRISM(0,0,2.4f, 12,1.9f,6,  0,-0.9f,0,-0.9f,    M_UPH),         // back, RAKED
-    PRISM(0,1,2.4f, 1.3f,6,4.7f, 0.2f,0,-0.2f,0,    M_UPH),         // arms, tapered
-    PRISM(10.7f,1,2.4f, 12,6,4.7f, 0.2f,0,-0.2f,0,  M_UPH),
-    BOX  (1.2f,1.4f,3.9f, 10.8f,5.4f,4.4f,          M_CUSH),        // a cushion, the colour accent
+    BOX  (1.35f,1.95f,2.4f, 10.65f,6,3.9f,          M_UPH),         // seat
+    PRISM(0,1.95f,2.4f, 1.3f,6,4.7f, 0.2f,0,-0.2f,0, M_UPH),        // arms, tapered
+    PRISM(10.7f,1.95f,2.4f, 12,6,4.7f, 0.2f,0,-0.2f,0, M_UPH),
+    BOX  (1.4f,2.05f,3.9f, 10.6f,5.4f,4.4f,         M_CUSH),        // a cushion, the colour accent
 };
 
 // bed 6x12x4 — and the FOUR is the constraint, not a suggestion. The voxel bed is four voxels tall
@@ -212,58 +214,71 @@ static const Part P_SOFA[] = {
 // So the diagonals here have to earn their keep INSIDE four voxels: the headboard rakes, the duvet
 // is a wedge thicker at the foot, and the pillow is a tapered pad.
 static const Part P_BED[] = {
-    BOX  (0,0.8f,0, 6,12,1.8f,                       M_WOOD),       // frame
-    BOX  (0.4f,1.2f,1.8f, 5.6f,11.6f,2.6f,           M_PORC),       // mattress
+    PRISM(0,0,0, 6,1,4.0f,  0,0.5f,0,0.5f,           M_WOOD),       // headboard, RAKED back
+    BOX  (0,1.6f,0, 6,12,1.8f,                       M_WOOD),       // frame, clear of the rake
+    BOX  (0.4f,1.8f,1.8f, 5.6f,11.6f,2.6f,           M_PORC),       // mattress
+    PRISM(0.9f,1.9f,2.6f, 5.1f,3.8f,3.3f, 0.3f,0.2f,-0.3f,-0.2f, M_PORC), // pillow
     PRISM(0.3f,4,2.6f, 5.7f,11.8f,3.7f, 0.3f,0,-0.3f,-0.4f, M_CUSH),// duvet, wedged
-    PRISM(0.9f,1.4f,2.6f, 5.1f,3.8f,3.3f, 0.3f,0.2f,-0.3f,-0.2f, M_PORC), // pillow
-    PRISM(0,0,0, 6,1,4.0f,  0,0.6f,0,0.6f,           M_WOOD),       // headboard, RAKED back
 };
 
 // toilet 6x6x6 — tall tank behind, flaring bowl in front. The flare is the point: a cylinder read
 // out of a prism, which is as close to round as this scale needs.
+// The bowl flares FORWARD only (dy0 = 0). Flaring it backward too pushed it into the cistern, and a
+// painter's sort cannot draw two solids that pass through each other — it tore along the join.
 static const Part P_TOILET[] = {
     PRISM(1,0,0, 5,2,5.4f,  0.2f,0.1f,-0.2f,-0.1f,   M_PORC),       // cistern
-    PRISM(1.6f,2,0, 4.4f,5.2f,2.4f, -0.5f,-0.2f,0.5f,0.3f, M_PORC), // bowl, FLARED outward
-    PRISM(1,2,2.4f, 5,5.5f,3.0f, 0.1f,0.1f,-0.1f,-0.1f, M_PORC),    // seat
+    PRISM(1.6f,2.05f,0, 4.4f,5.2f,2.4f, -0.5f,0,0.5f,0.3f, M_PORC), // bowl, FLARED outward
+    PRISM(1,2.05f,2.4f, 5,5.5f,3.0f, 0.1f,0.1f,-0.1f,-0.1f, M_PORC),// seat
     BOX  (1.4f,0.4f,5.4f, 4.6f,1.8f,5.8f,            M_PORC),       // lid on the cistern
 };
 
 // fridge 6x6x12 — as tall as the figure. A box, honestly, but the door seam and handle are
 // geometry rather than a painted-on voxel row, and the top is slightly tapered so the silhouette
 // is not a perfect rectangle at every angle.
+// Door seam and handle sit FLUSH ON the +y face, not sunk into it. Two reasons, and the second one
+// only showed up on screen: sinking them 0.15 into the body is an interpenetration, and +y is the
+// face you can actually SEE (the camera looks at each object's +x and +y sides), so details on the
+// -y face were both wrong and invisible.
 static const Part P_FRIDGE[] = {
     PRISM(0,0,0, 6,6,11.6f,  0.15f,0.15f,-0.15f,-0.15f, M_METAL),
-    BOX  (0.3f,-0.25f,5.4f, 5.7f,0.15f,5.9f,         M_TRIM),       // door seam
-    BOX  (4.5f,-0.5f,6.4f, 5.2f,0.1f,9.6f,           M_TRIM),       // handle
+    BOX  (0.3f,6.0f,5.4f, 5.7f,6.25f,5.9f,           M_TRIM),       // door seam
+    BOX  (4.5f,6.0f,6.4f, 5.2f,6.4f,9.6f,            M_TRIM),       // handle
     PRISM(0,0,11.6f, 6,6,12,  0.15f,0.15f,-0.15f,-0.15f, M_TRIM),   // dark top, kills the box read
 };
 
 // counter 6x6x7 — the toe kick (bottom sheared in) and the overhanging top are both things a
 // voxel grid cannot do at this size, and together they are what makes it read as joinery.
+// The worktop still overhangs — but it overhangs the CABINET, not the tile. Sticking it out to
+// -0.3 put it inside the neighbouring fridge and inside the back wall, which is a spatial conflict
+// in a game where a tile is a tile. Slimming the cabinet keeps the read and stays in its square.
 static const Part P_COUNTER[] = {
-    PRISM(0.4f,0.6f,0, 5.6f,6,5.4f, -0.4f,-0.6f,0.4f,0,  M_WOOD),   // cabinet, kicked in at the toe
-    BOX  (-0.3f,-0.3f,5.4f, 6.3f,6.3f,6.2f,          M_METAL),      // overhanging worktop
-    BOX  (0.5f,-0.4f,2.4f, 5.5f,0.1f,2.7f,           M_TRIM),       // drawer line
+    PRISM(0.6f,0.8f,0, 5.4f,6,5.4f, -0.3f,-0.5f,0.3f,0,  M_WOOD),   // cabinet, kicked in at the toe
+    BOX  (0,0,5.4f, 6,6,6.2f,                        M_METAL),      // worktop, overhangs the cabinet
+    BOX  (0.5f,6.0f,2.4f, 5.5f,6.15f,2.7f,           M_TRIM),       // drawer line, on the seen face
 };
 
 // loom 6x4x12 — the punch list says the voxel loom "reads as a second wardrobe". This is the
 // clearest test in the cart: skeletal legs, a top beam, and a RAKED WARP PLANE. A leaning plane is
 // exactly the shape that says machine, and it is exactly the shape a voxel grid cannot make.
+// This one was the worst offender on screen: the warp board ran x 1.0..5.0 straight THROUGH both
+// posts (x 0.2..1.2 and 4.8..5.8), and the beam sank into their tops. Interpenetration is the one
+// artifact a painter's sort cannot resolve at any granularity, and it shredded the board into
+// slivers. The warp now spans strictly BETWEEN the posts and the beam sits ON them.
 static const Part P_LOOM[] = {
     BOX  (0.2f,0.2f,0, 1.2f,1.2f,11,                 M_WOOD),       // four posts
     BOX  (4.8f,0.2f,0, 5.8f,1.2f,11,                 M_WOOD),
     BOX  (0.2f,2.8f,0, 1.2f,3.8f,9,                  M_WOOD),
     BOX  (4.8f,2.8f,0, 5.8f,3.8f,9,                  M_WOOD),
-    PRISM(1.0f,1.0f,3.2f, 5.0f,1.6f,10.4f, 0,2.0f,0,2.0f, M_CUSH),  // the warp, LEANING
-    BOX  (0,0.4f,10.6f, 6,3.6f,11.6f,                M_WOOD),       // top beam
-    BOX  (0.6f,1.2f,2.6f, 5.4f,3.4f,3.4f,            M_WOOD),       // treadle bar
+    BOX  (1.3f,1.3f,2.4f, 4.7f,3.1f,3.1f,            M_WOOD),       // treadle bar
+    PRISM(1.3f,1.0f,3.2f, 4.7f,1.6f,10.4f, 0,2.0f,0,2.0f, M_CUSH),  // the warp, LEANING
+    BOX  (0,0.4f,11.0f, 6,3.6f,11.9f,                M_WOOD),       // top beam, resting on the posts
 };
 
 // wardrobe 6x4x10 — chest height, obviously a box you open. The cornice overhang is the read.
 static const Part P_WARDROBE[] = {
-    PRISM(0.2f,0.2f,0, 5.8f,3.8f,9.4f, 0.1f,0.1f,-0.1f,-0.1f, M_WOOD),
-    BOX  (2.8f,-0.25f,0.6f, 3.2f,0.15f,9.2f,         M_TRIM),       // the door gap
-    BOX  (-0.3f,-0.3f,9.4f, 6.3f,4.3f,10,            M_WOOD),       // cornice
+    PRISM(0.4f,0.4f,0, 5.6f,4.0f,9.4f, 0.1f,0.1f,-0.1f,-0.1f, M_WOOD),
+    BOX  (2.8f,4.0f,0.6f, 3.2f,4.25f,9.2f,           M_TRIM),       // door gap, on the seen face
+    BOX  (0,0.2f,9.4f, 6,4.2f,10,                    M_WOOD),       // cornice, overhangs the body
 };
 
 // ── the figure, and this is the whole cart in one model ─────────────────────
@@ -281,8 +296,8 @@ static const Part P_PERSON[] = {
 
 // person_lie 3x8x2 — a low silhouette, long with a head at one end, per the voxel file's rule.
 static const Part P_PERSON_LIE[] = {
+    PRISM(0.5f,0,0.2f, 2.5f,1.3f,1.9f, 0.2f,0.15f,-0.2f,-0.15f, M_SKIN),
     PRISM(0.2f,1.4f,0, 2.8f,7.6f,1.6f, 0.2f,0,-0.2f,-0.4f, M_SHIRT),
-    PRISM(0.5f,0,0.2f, 2.5f,1.5f,1.9f, 0.2f,0.15f,-0.2f,-0.15f, M_SKIN),
 };
 
 // Walls are prisms too, so they flow through the one item list and the one renderer instead of
@@ -392,7 +407,10 @@ static void pr_scene(void) {
 enum { SH_DITHER, SH_FLAT, SH_SMOOTH, SH_COUNT };   // D cycles these
 static const char *SH_NAME[SH_COUNT] = { "dither", "flat", "hex" };
 static float pr_yaw = 45.0f, pr_squash = 1.0f;
-static int   pr_zoom = 1, pr_poly = 1, pr_shade = SH_DITHER, pr_lightcam = 1, pr_tint = 1;
+// Boots into POLY + HEX because that is the combination the maker picked (2026-08-13). D still
+// cycles back to the dither and TAB back to the sprites — the comparison is the cart, so nothing
+// was removed, only reordered.
+static int   pr_zoom = 1, pr_poly = 1, pr_shade = SH_SMOOTH, pr_lightcam = 1, pr_tint = 1;
 static float pr_cx, pr_cy;    // camera offset, in pixels
 
 static void pr_project(float vx, float vy, float vz, float *sx, float *sy) {
@@ -452,9 +470,13 @@ static void pr_walls(int merged) {
                              side[s].vy + (ew ? (float)(i * TILE) : 0), 0, -1);
         }
     }
-    // The WC stubs are one tile each and always low, so they need no run.
-    pr_add(ISO_WALL_LOW_EW, (float)(5 * TILE) - 2.0f, 0.0f,            0, -1);
-    pr_add(ISO_WALL_LOW_NS, (float)(5 * TILE),        (float)TILE - 2, 0, -1);
+    // The WC stubs are one tile each and always low, so they need no run. Both sit OUTSIDE the WC
+    // tile, the same convention the perimeter uses: a wall two voxels thick placed at TILE-2 would
+    // sit INSIDE the tile and share space with the toilet standing there, which is exactly the
+    // "the wall renders over the toilet" the maker spotted. Not a sort bug — the two solids really
+    // were in the same place, and a painter's sort has no right answer for that.
+    pr_add(ISO_WALL_LOW_EW, (float)(5 * TILE) - 2.0f, 0.0f,          0, -1);
+    pr_add(ISO_WALL_LOW_NS, (float)(5 * TILE),        (float)TILE,   0, -1);
 }
 
 // Frame the room: project the eight corners of its bounding box and centre what comes back. The
@@ -498,45 +520,71 @@ static float pr_key[MAX_TRIS];
 // a rendering bug and an ugly look are the same picture.
 static const float LX = 0.50f, LY = 0.26f, LZ = 0.83f;
 
-static void pr_emit(const float v[3][3], int mat, int hh) {
+static void pr_tri_push(const float a[3], const float b[3], const float c[3],
+                        float bright, float depth, int mat, int hh) {
     if (pr_tri_n >= MAX_TRIS) return;
-    float e1[3] = { v[1][0]-v[0][0], v[1][1]-v[0][1], v[1][2]-v[0][2] };
-    float e2[3] = { v[2][0]-v[1][0], v[2][1]-v[1][1], v[2][2]-v[1][2] };
-    float n[3] = { e1[1]*e2[2] - e1[2]*e2[1], e1[2]*e2[0] - e1[0]*e2[2], e1[0]*e2[1] - e1[1]*e2[0] };
-    const float len = sqrtf(n[0]*n[0] + n[1]*n[1] + n[2]*n[2]);
-    if (len < 1e-6f) return;                       // degenerate: a zero-thickness part edge
-    n[0] /= len; n[1] /= len; n[2] /= len;
-
-    float dx, dy, dz; pr_viewdir(&dx, &dy, &dz);
-    if (n[0]*dx + n[1]*dy + n[2]*dz <= 0.0f) return;   // backface. With no z-buffer this is not an
-                                                       // optimization, it is correctness
-    // Brightness. Screen-fixed mode spins the normal by the camera yaw before lighting it, which is
-    // the same thing as spinning the light the other way — and matches the baked tones exactly.
-    float ln[3] = { n[0], n[1], n[2] };
-    if (pr_lightcam) {
-        const float a = (pr_yaw - 45.0f) * 3.14159265f / 180.0f, c = cosf(a), s = sinf(a);
-        ln[0] = n[0]*c - n[1]*s; ln[1] = n[0]*s + n[1]*c;
-    }
-    float b = ln[0]*LX + ln[1]*LY + ln[2]*LZ;
-    b = 0.22f + 0.78f * (b < 0.0f ? 0.0f : b);     // ambient floor, or an unlit face is a black hole
-
     Tri *t = &pr_tri[pr_tri_n];
+    const float *v[3] = { a, b, c };
     for (int i = 0; i < 3; i++) {
         float sx, sy; pr_project(v[i][0], v[i][1], v[i][2], &sx, &sy);
         t->x[i] = (int)(sx + pr_cx); t->y[i] = (int)(sy + pr_cy);
     }
-    // NEGATED nearness — see pr_viewdir. zsort draws the big key first, so big must mean far.
-    t->depth = -((v[0][0]+v[1][0]+v[2][0]) * dx + (v[0][1]+v[1][1]+v[2][1]) * dy
-               + (v[0][2]+v[1][2]+v[2][2]) * dz) * (1.0f/3.0f);
-    t->bright = b; t->mat = (unsigned char)mat; t->hh = (unsigned char)(hh < 0 ? 255 : hh);
+    t->depth = depth; t->bright = bright;
+    t->mat = (unsigned char)mat; t->hh = (unsigned char)(hh < 0 ? 255 : hh);
     pr_tri_n++;
 }
 
+// THE QUAD IS THE UNIT, NOT THE TRIANGLE, and both halves of that fix a real artifact.
+//
+// 1. ONE NORMAL PER FACE. A prism whose top corners move by DIFFERENT amounts has non-planar side
+//    faces (the duvet, the toilet bowl, every tapered torso), so a per-triangle cross product gives
+//    the two halves different normals — and a visible diagonal seam straight across the face. The
+//    Newell normal is the best-fit plane for a polygon that has no exact one, which is exactly the
+//    case here.
+// 2. ONE DEPTH PER FACE. Sorting each triangle by its own centroid let the two halves of one face
+//    sort INDEPENDENTLY — so on a thin leaning slab a triangle of the top face landed in front of a
+//    triangle of the back face and cut a bright diagonal sliver through it. That was the loom's
+//    warp board looking shredded. Two triangles of one quad can never occlude each other, so giving
+//    them one key is not a heuristic, it is the correct grouping. zsort's insertion pass leaves
+//    equal keys in insertion order, so they stay adjacent.
+//
+// What this does NOT fix, and cannot: two PARTS that genuinely interpenetrate. A painter's sort has
+// no answer for that at any granularity — it needs a z-buffer. The rule that falls out is an
+// AUTHORING rule, gated in spec(): parts must ABUT, never overlap.
 static void pr_quad(const float a[3], const float b[3], const float c[3], const float d[3],
                     int mat, int hh) {
-    float t1[3][3] = { {a[0],a[1],a[2]}, {b[0],b[1],b[2]}, {c[0],c[1],c[2]} };
-    float t2[3][3] = { {a[0],a[1],a[2]}, {c[0],c[1],c[2]}, {d[0],d[1],d[2]} };
-    pr_emit(t1, mat, hh); pr_emit(t2, mat, hh);
+    const float *p[4] = { a, b, c, d };
+    float n[3] = { 0, 0, 0 };
+    for (int i = 0; i < 4; i++) {                        // Newell
+        const float *u = p[i], *w = p[(i + 1) & 3];
+        n[0] += (u[1] - w[1]) * (u[2] + w[2]);
+        n[1] += (u[2] - w[2]) * (u[0] + w[0]);
+        n[2] += (u[0] - w[0]) * (u[1] + w[1]);
+    }
+    const float len = sqrtf(n[0]*n[0] + n[1]*n[1] + n[2]*n[2]);
+    if (len < 1e-6f) return;                             // degenerate: a zero-thickness part face
+    n[0] /= len; n[1] /= len; n[2] /= len;
+
+    float dx, dy, dz; pr_viewdir(&dx, &dy, &dz);
+    if (n[0]*dx + n[1]*dy + n[2]*dz <= 0.0f) return;     // backface. With no z-buffer this is not
+                                                         // an optimization, it is correctness
+    // Brightness. Screen-fixed mode spins the normal by the camera yaw before lighting it, which is
+    // the same thing as spinning the light the other way — and matches the baked tones exactly.
+    float ln[3] = { n[0], n[1], n[2] };
+    if (pr_lightcam) {
+        const float ang = (pr_yaw - 45.0f) * 3.14159265f / 180.0f, cs = cosf(ang), sn = sinf(ang);
+        ln[0] = n[0]*cs - n[1]*sn; ln[1] = n[0]*sn + n[1]*cs;
+    }
+    float br = ln[0]*LX + ln[1]*LY + ln[2]*LZ;
+    br = 0.22f + 0.78f * (br < 0.0f ? 0.0f : br);   // ambient floor, or an unlit face is a black hole
+
+    // NEGATED nearness — see pr_viewdir. zsort draws the big key first, so big must mean far.
+    float cen[3] = { 0, 0, 0 };
+    for (int i = 0; i < 4; i++) { cen[0] += p[i][0]; cen[1] += p[i][1]; cen[2] += p[i][2]; }
+    const float depth = -(cen[0]*dx + cen[1]*dy + cen[2]*dz) * 0.25f;
+
+    pr_tri_push(a, b, c, br, depth, mat, hh);
+    pr_tri_push(a, c, d, br, depth, mat, hh);
 }
 
 // A prism's six faces, wound counter-clockwise seen from OUTSIDE so the cross product points out.
@@ -852,6 +900,64 @@ void spec(void) {
         expect(mx <= fp[0] + 0.51f && my <= fp[1] + 0.51f && mz <= fp[2] + 0.51f,
                str("%s mesh fits its voxel footprint", ISO_NAMES[c]));
     }
+
+    // 2b. NO TWO PARTS OF A MESH MAY INTERPENETRATE. This is the one artifact class the renderer
+    //     cannot fix at any granularity: a painter's sort orders whole faces, so two solids that
+    //     pass THROUGH each other have no correct order and the seam tears whichever way you sort.
+    //     A z-buffer would fix it and there isn't one. So it becomes an authoring rule — parts
+    //     ABUT, never overlap — and a rule nobody checks is a rule that rots. It found the loom's
+    //     warp board overlapping its own posts by 0.2 voxels, which is what shredded it on screen.
+    //     Touching is fine (a mattress sits ON a frame): only a real overlap in ALL THREE axes counts.
+    for (int c = 0; c < ISO_MODEL_COUNT; c++) {
+        int clashes = 0;
+        for (int i = 0; i < MESHES[c].n; i++) for (int j = i + 1; j < MESHES[c].n; j++) {
+            const Part *p = &MESHES[c].p[i], *q = &MESHES[c].p[j];
+            const float pxa = fminf(p->x0, p->x0 + p->dx0), pxb = fmaxf(p->x1, p->x1 + p->dx1);
+            const float pya = fminf(p->y0, p->y0 + p->dy0), pyb = fmaxf(p->y1, p->y1 + p->dy1);
+            const float qxa = fminf(q->x0, q->x0 + q->dx0), qxb = fmaxf(q->x1, q->x1 + q->dx1);
+            const float qya = fminf(q->y0, q->y0 + q->dy0), qyb = fmaxf(q->y1, q->y1 + q->dy1);
+            const float E = 0.05f;                       // touching is not overlapping
+            const float ox = fminf(pxb, qxb) - fmaxf(pxa, qxa);
+            const float oy = fminf(pyb, qyb) - fmaxf(pya, qya);
+            const float oz = fminf(p->z1, q->z1) - fmaxf(p->z0, q->z0);
+            if (ox > E && oy > E && oz > E) clashes++;
+        }
+        if (MESHES[c].n) expect(clashes == 0, str("%s parts abut, never interpenetrate", ISO_NAMES[c]));
+    }
+
+    // 2c. THE SAME RULE ONE LEVEL UP: no two PLACED items may share space either. The part-level
+    //     gate above cannot see a wall standing in the same square as a toilet, and that is the
+    //     form the bug actually took. Bounds come from each mesh, not from ISO_FOOTPRINT, so this
+    //     measures what is DRAWN rather than what was declared.
+    pr_yaw = 45.0f; pr_walls(1);
+    int placed_clashes = 0;
+    for (int i = 0; i < pr_item_n; i++) for (int j = i + 1; j < pr_item_n; j++) {
+        float a[6], b[6];
+        const Item *it[2] = { &pr_item[i], &pr_item[j] };
+        float *box[2] = { a, b };
+        for (int k = 0; k < 2; k++) {
+            const Mesh *m = &MESHES[it[k]->cell];
+            float lo[3] = { 1e9f, 1e9f, 1e9f }, hi[3] = { -1e9f, -1e9f, -1e9f };
+            for (int p = 0; p < m->n; p++) {
+                const Part *q = &m->p[p];
+                const float xs[4] = { q->x0, q->x1, q->x0 + q->dx0, q->x1 + q->dx1 };
+                const float ys[4] = { q->y0, q->y1, q->y0 + q->dy0, q->y1 + q->dy1 };
+                for (int e = 0; e < 4; e++) {
+                    const float X = xs[e] * it[k]->lx + it[k]->vx, Y = ys[e] * it[k]->ly + it[k]->vy;
+                    if (X < lo[0]) lo[0] = X;  if (X > hi[0]) hi[0] = X;
+                    if (Y < lo[1]) lo[1] = Y;  if (Y > hi[1]) hi[1] = Y;
+                }
+                const float Z0 = q->z0 + it[k]->vz, Z1 = q->z1 + it[k]->vz;
+                if (Z0 < lo[2]) lo[2] = Z0;  if (Z1 > hi[2]) hi[2] = Z1;
+            }
+            for (int e = 0; e < 3; e++) { box[k][e] = lo[e]; box[k][e + 3] = hi[e]; }
+        }
+        const float E = 0.05f;
+        int all = 1;
+        for (int e = 0; e < 3; e++) if (fminf(a[e+3], b[e+3]) - fmaxf(a[e], b[e]) <= E) all = 0;
+        if (all) placed_clashes++;
+    }
+    expect_eq(placed_clashes, 0, "no two placed items share space");
 
     // 3. The cutaway agrees across modes at every angle, and never removes the whole room. The
     //    merged run and the per-tile cells are DIFFERENT geometry making the SAME decision.

@@ -349,6 +349,24 @@ a broken doc link or `#section`).
 > · Also logged: `colorkey()` destroys and rebuilds a SHARED GPU texture from a cart API;
 >   `fp_cache`'s key omits the palette; and an unrelated latent `web_px` overflow after a canvas grow.
 >
+> **✅ THE ENGINE NOW RUNS N INDEPENDENT INSTANCES — PROVEN (2026-08-14).**
+> `bash tools/instance-check/run.sh` creates two engines via `de_instance_create`, drives them with
+> DIFFERENT transport, and their frames and audio DIFFER; the control (two fresh instances driven the
+> SAME) comes back byte-identical, so the headline is the transport rather than noise. **This is the
+> test `refactor-guard` structurally cannot be** — the guard runs one instance, so it proves a state
+> move changed nothing and can never prove two instances are strangers.
+> How: `DeInstance` owns a `DeSound` + `DeVideo`; `de_instance_create` calloc's and copies the
+> generated templates (exactly a fresh process's state); the context pointers the ~800 macros expand
+> through are now `_Thread_local`, set and restored by the seam. **Instance 0 keeps the templates**,
+> which is why the desktop path, refactor-guard and every existing gate are untouched.
+> ⚠ **WHAT IS STILL OWED — do not read more into that PASS than it earns:**
+> · **`de_sync_position` is still PROCESS-WIDE** (takes no instance). Both engines read the same
+>   transport push; they differ in the gate only because each was driven while it was being pushed.
+> · **The Swift frame worker is still ONE per process**, so the plug-in cannot advance two racks yet
+>   even though the engine now supports it. That plus per-instance `de_instance_create` in
+>   `TinyjamAU` (deleting `bootEngineOnce`) is the remaining Swift half of step 3.
+> · **Nothing runs two instances CONCURRENTLY on two threads.** `present-race-check` covers one.
+>
 > **✅ STEP 2 IS DONE — `studio.c`'s STATE IS PER-INSTANCE (2026-08-14).** 116 statics into `DeVideo`,
 > byte-identical. `engine-statics` reads **13 for sound.h and 108 for studio.c** (from 340 and 222).
 > Green on: refactor-guard 6/6, `build-nr` byte-identical, spec 1986/0, build-all 580/580, soundcheck,

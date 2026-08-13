@@ -215,11 +215,16 @@ Named so the next session does not assume otherwise:
      probe never touched. It now builds BOTH renderers, and says loudly when raylib headers are
      missing rather than quietly testing less.
 3. **Switch the AUv3** to one instance per audio unit, one worker per instance; delete
-   `bootEngineOnce`.
-4. **Gate it.** `tools/engine-dylib-spike/probe.c` already drives two engines with different
-   transport and asserts their frames and audio differ, with a shared-engine control that must come
-   back byte-identical. Swapping its `dlopen` for `de_instance_create` ports the assertions
-   unchanged — **that is the test the byte-exact gate cannot be**.
+   `bootEngineOnce`. **The ENGINE half is done** (instances allocate and are independent, proven by
+   `instance-check`); the Swift half is what remains.
+4. **✅ DONE — gated.** `bash tools/instance-check/run.sh`: two instances from `de_instance_create`,
+   different transport, and their frames and audio differ. Control: two fresh instances driven the
+   SAME come back byte-identical, so the headline is the transport rather than noise. **This is the
+   test `refactor-guard` cannot be.** Its footer lists what a PASS does not cover.
+
+**Still owed after step 3's engine half:** `de_sync_position` is still process-wide (it takes no
+instance), the Swift frame worker is still one per process, and nothing yet runs two instances
+CONCURRENTLY on two threads — `present-race-check` covers one instance only.
 
 Step 1 is deliberately first and deliberately boring: it changes only the shape, on one engine, where
 every existing gate still applies.

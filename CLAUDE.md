@@ -636,6 +636,17 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
                              ⚠ Its own output-equality assertion caught the first version measuring the
                              BASELINE 3× slow (unreset echo state decaying into denormals) — a benchmark
                              whose variants do not start from identical state measures nothing
+             instance-check/  THE ACCEPTANCE TEST for the per-instance engine work: can ONE process run N
+                             INDEPENDENT engines? `bash tools/instance-check/run.sh` creates two via
+                             `de_instance_create`, drives them with DIFFERENT transport, and asserts their
+                             frames and audio differ. ⚠ This is the thing `refactor-guard` structurally
+                             CANNOT check — the guard runs ONE instance, so it proves a state move changed
+                             nothing and can never prove two instances are strangers (a variable wrongly left
+                             SHARED does not change a single-instance render). NEGATIVE CONTROL: two fresh
+                             instances driven the SAME must be byte-identical, else "they differ" is measuring
+                             noise. Sibling of engine-dylib-spike, same assertions from the other mechanism —
+                             that one gets separation from dyld (K copies, hard cap), this from the context
+                             (one image, no cap). The probe's own footer lists what a PASS does NOT cover
              engine-dylib-spike/  PASSED probe: **K independent engines in ONE process**, by loading the
                              engine as a dylib K times instead of refactoring its globals. `bash run.sh`.
                              WHY: two AUv3 instances land in one extension process (measured) and engine

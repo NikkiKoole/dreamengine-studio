@@ -986,7 +986,19 @@ static DeSound de_snd_default = {
     .g_spatial_rolloff = 1.0f,
     .g_spatial_c = 340.0f,
 };
-static DeSound *de_snd = &de_snd_default;
+
+/* THE POINTER THE MACROS EXPAND THROUGH — thread-local, and defaulted to the template above.
+ *
+ * Thread-local because a plug-in process runs SEVERAL engines: the seam sets this from the
+ * instance on entry and restores it on the way out, so two racks rendering on two threads
+ * never see each other. A plain global here would be the UI-thread/audio-thread race the
+ * whole refactor exists to remove.
+ *
+ * The DEFAULT matters as much as the type: a thread that never entered a seam call — the
+ * desktop Raylib build, which owns its own main() and never calls de_frame, and raylib's own
+ * audio thread calling sound_callback directly — sees the default instance, which IS that
+ * host's one engine. That is why the single-engine path is untouched by any of this. */
+static _Thread_local DeSound *de_snd = &de_snd_default;
 
 /* the access block: every name the engine already uses, pointed at the context.
  * Step B swaps de_snd for a per-instance pointer; NOTHING below this line changes. */

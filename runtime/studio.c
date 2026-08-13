@@ -2891,10 +2891,16 @@ static void de_setup_baked_fonts(void) {
 // state moves into this struct next (docs/design/engine-instance-seam.md, step 2), and at that point
 // nothing on the host side has to change again.
 struct DeInstance {
-    int id;            // 0 for the default instance; distinct once there is more than one
-    int booted;        // guards a second create from re-running the cart's init()
+    int     id;        // 0 for the default instance; distinct once there is more than one
+    int     booted;    // guards a second create from re-running the cart's init()
+    DeSound snd;       // this engine's audio state  (sound_ctx.h)
+    DeVideo vid;       // this engine's video state  (studio_ctx.h)
 };
+// Instance 0 is the DEFAULT engine, and it deliberately keeps pointing at the generated templates
+// rather than owning copies: the desktop build and every existing gate run on it, so the
+// single-engine path stays byte-for-byte what it was. Instances 1..N are heap-allocated copies.
 static struct DeInstance de_inst_default = { 0, 0 };
+static int de_inst_next_id = 1;
 
 // The context the CART API resolves through. Set on entry to a seam call that runs engine or cart
 // code, restored on the way out — `spr()` and `note_on()` cannot grow a parameter without changing
@@ -2904,19 +2910,43 @@ static struct DeInstance de_inst_default = { 0, 0 };
 // UI and audio threads never write each other's slot, and it never outlives the call that set it.
 static _Thread_local struct DeInstance *de_cur;
 
-#define DE_ENTER(in_)  struct DeInstance *de_prev_ = de_cur; de_cur = (in_)
-#define DE_LEAVE()     de_cur = de_prev_
+// Establish an instance for the duration of a seam call, and put it back afterwards. The context
+// POINTERS are what the ~800 generated macros expand through, so setting them here is what makes
+// `spr()` and `note_on()` reach the right engine without any cart or call site changing.
+//
+// Instance 0 keeps the templates (see above), which is why the desktop path is untouched.
+#define DE_ENTER(in_)                                                              \
+    struct DeInstance *de_prev_ = de_cur;                                          \
+    DeSound *de_prev_snd_ = de_snd; DeVideo *de_prev_vid_ = de_vid;                \
+    de_cur = (in_);                                                                \
+    if ((in_) && (in_)->id != 0) { de_snd = &(in_)->snd; de_vid = &(in_)->vid; }
+#define DE_LEAVE()     de_cur = de_prev_; de_snd = de_prev_snd_; de_vid = de_prev_vid_
 
 static void de_init_impl(DeRenderer renderer);
 
+// The FIRST call returns the default engine (instance 0), so every existing host — the desktop
+// build, the standalone app, all the harnesses — behaves exactly as before. Each later call
+// allocates a real instance whose state starts as a copy of the generated templates, which is the
+// same state a fresh process would have booted into.
 DeInstance *de_instance_create(DeRenderer renderer) {
-    struct DeInstance *in = &de_inst_default;   // step 2: allocate + copy the default templates
-    if (!in->booted) { DE_ENTER(in); de_init_impl(renderer); DE_LEAVE(); in->booted = 1; }
+    if (!de_inst_default.booted) {
+        DE_ENTER(&de_inst_default); de_init_impl(renderer); DE_LEAVE();
+        de_inst_default.booted = 1;
+        return &de_inst_default;
+    }
+    struct DeInstance *in = (struct DeInstance *)calloc(1, sizeof *in);
+    if (!in) return NULL;
+    in->id  = de_inst_next_id++;
+    in->snd = de_snd_default;   // the compile-time template: exactly a fresh process's state
+    in->vid = de_vid_default;
+    DE_ENTER(in); de_init_impl(renderer); DE_LEAVE();
+    in->booted = 1;
     return in;
 }
 
 void de_instance_destroy(DeInstance *in) {
-    (void)in;   // step 2: free the contexts. Nothing to release while the state is still file-scope.
+    if (!in || in->id == 0) return;   // instance 0 is static and outlives everything
+    free(in);
 }
 
 static void de_init_impl(DeRenderer renderer) {

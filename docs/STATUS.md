@@ -630,8 +630,17 @@ Detail lives in the linked design doc in every case; that is where it was always
 > the one the assertions describe. On: contention 3.3% → 16.2% of frames, two residents heading for the
 > same thing 6.0% → 22.7%, beds empty 06:00–13:00 and full 18:00–21:00 instead of flat across 24 hours.
 > **Why it's a decision and not a task:** committing them rewrites case 1's converse, the cart's
-> headline assertion, and the phase is still wrong (they sleep late afternoon). Both halves want the
-> maker's eye, not a gate. Resume: HANDOFF's `tenement` lane · `node tools/cart-todos.js tenement`.
+> headline assertion, and the phase is still wrong (they sleep late afternoon).
+>
+> **PARKED 2026-08-13 on the maker's verdict, which is the entry worth reading:** the cart reads as
+> **too minimal and not meaningful enough, and D+R does not change that.** Reached with 242 assertions
+> green, contention up 3.3% → 16.2%, `canvas-diff` and `ui-audit` clean: the textbook
+> [ADR-0022](decisions/0022-collaboration-is-the-north-star.md) failure, clearing the verifiable half
+> of the bar and not the other one. The residents are the least visible thing on screen in a game
+> about people sharing a building, and nothing can go wrong (`econ.h`: "no eviction, no game over, no
+> score, no consequence"), so the sim is now more truthful than the picture can express. Next work is
+> legibility and stakes, not simulation. Resume: HANDOFF's `tenement` lane ·
+> `node tools/cart-todos.js tenement`.
 
 > ### ✅ FIXED — `piano`'s two dead sliders were one bound in the engine (and the bug class remains)
 >

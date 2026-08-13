@@ -67,14 +67,33 @@ a broken doc link or `#section`).
 > the obvious thing to try: a rhythm on the DECAY RATE synchronises nobody (an 8-hour sleep resets a
 > resident to the top of its own cycle, so each free-runs and drifts), and moving the hour into the
 > BID was necessary but not sufficient without the floor.
-> **▶ NEXT ACTION: the maker play-tests D+R and answers two things no oracle can.** Does it read as a
-> building with a life in it, or as a stampede where everyone does the same thing at once (the
-> ADR-0022 half nothing checks)? And the phase is visibly wrong, they sleep late afternoon and are up
-> all night: do we want a literal human day, or is a building on odd hours funnier? Turning the
-> toggles on for real means rewriting case 1's converse, the cart's headline assertion, which is why
-> they are keys and not a commit. **Counter-intuitive, already measured, do not re-derive:** a
-> SHARPER day makes a QUIETER building (REST appeal amp 70 → 95 drops contention 16.2% → 12.2%),
-> because residents pinned into one narrow window stop overlapping at its edges.
+> **▶ THE MAKER'S VERDICT IS IN (2026-08-13), and it reorders the lane: the cart reads as TOO MINIMAL
+> and not meaningful enough, and D+R does not change that.** Reached with 242 assertions green,
+> contention up from 3.3% to 16.2% of frames, and `canvas-diff` + `ui-audit` both clean, which is
+> exactly the ADR-0022 failure mode: it cleared the verifiable half of the bar and not the other one.
+> **The diagnosis, from reading real frames rather than the numbers.** (1) In a game about people
+> sharing a building, the PEOPLE are the least visible thing on screen: one-tile blobs in the same
+> colour family as the furniture and the floor, no rim, no contrast, so they read as more furniture,
+> and everything a viewer knows comes from the text band. The picture is an architectural diagram with
+> a caption. (2) **Nothing can go wrong** — `econ.h` says so in its own header ("no eviction, no game
+> over, no score, no consequence") and arrears is "A RECORD, not a punishment" that nothing reads. And
+> there is no MEMORY, so every minute is independent, nothing accumulates into a nameable situation,
+> and no mess is anybody's fault. Both were principled deferrals (§8a), and principled deferrals add
+> up to a cart with no stakes. **So D+R made the simulation more truthful than the picture can
+> express, which is backwards for a cart whose thesis is that the sim reports whether your space
+> works.**
+> **▶ NEXT ACTION, and it is NOT simulation work.** In order: (a) make the residents the loudest thing
+> on screen (rim, per-household colour, posture carrying the worst need — the rim also makes a queue
+> of three COUNTABLE, which is a second item it closes); (b) put the events in the picture rather than
+> the news line, above the resident's head, `fxicons.h` being the precedent for a shared glyph
+> vocabulary; (c) let something be LOST, which is the real design conversation — eviction, or the
+> smaller version where needs leave traces the building keeps so a neglected flat LOOKS neglected.
+> **The D/R decision is PARKED behind all three**: you cannot judge whether a building has a life in
+> it until you can see who lives there. Committing them would also rewrite case 1's converse, the
+> cart's headline assertion, which is why they are keys and not a commit. **Counter-intuitive, already
+> measured, do not re-derive:** a SHARPER day makes a QUIETER building (REST appeal amp 70 → 95 drops
+> contention 16.2% → 12.2%), because residents pinned into one narrow window stop overlapping at its
+> edges. The phase is also still wrong (they sleep late afternoon), which is tuning, not structure.
 > **Hot files:** `runtime/tenement/offer.h` (the score, `TN_APPEAL`, `TN_BORED`), `runtime/tenement/agents.h`
 > (the state machine), `tools/carts/tenement.c` (the toggles + the `DE_TRACE` contention instrument
 > that found all four findings and should be re-run after any score/decay/offer-table change).

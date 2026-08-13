@@ -2489,6 +2489,20 @@
     "teaches": []
   },
   {
+    "title": "epiano jam",
+    "description": "Generates jazz/pop chord progressions with the shared harmony brain and plays them OUT over MIDI -- point it at a piano in any DAW and it jams on its own. The cart makes no sound itself; harmony.h picks the chords and your DAW's instrument plays them. Thirteen styles are on the number keys -- bossa, cocktail, city pop, minor pop, blues, cinematic, and the modal ones -- each a different set of WEIGHTS over the same roman-numeral vocabulary, so the same brain sounds like a lounge or like a sad-pop record depending on which table it reads. What makes it listenable rather than a chord-quiz is the VOICING: each chord's four tones are placed in the octave nearest where the last chord's voices were, so the inner parts creep by a semitone or two instead of jumping in parallel blocks -- that is the difference between 'a computer naming chords' and 'someone playing piano'. Three feels (block, arpeggio, offbeat stabs) and a bass note underneath. The panel shows the roman numeral, the chord name, and the actual MIDI notes going out. SPACE plays/stops. 1-9 and 0 pick the style (Q/W/E for three more). LEFT/RIGHT tempo, UP/DOWN transpose the key. F cycles the feel (block / arp / stabs). B toggles the bass note.",
+    "file": "epianojam.cart.png",
+    "created": "2026-08-13",
+    "kind": [
+      "tech-demo",
+      "toy"
+    ],
+    "teaches": [
+      "algorithm-visualization"
+    ],
+    "lineage": "Made for fun, to point the new MIDI-out seam at something musical: harmony.h generates the progression, midi_output.h sends it, and the sound is whatever instrument you point it at -- an ePiano in GarageBand was the first. The cart the maker asked for after midiout proved the wire works: 'can you create a temp cart that midi creates interesting epiano chord progressions to play them in garageband'."
+  },
+  {
     "title": "eq",
     "description": "A 2-band shelving EQ that can BOOST as well as cut - the library's first effect that can lift a band (the SVF filters only cut). A SAW bass + a bright SQUARE lead loop play; drag the LOW (~80 Hz) and HIGH (~6 kHz) faders +/-12 dB each and watch the response curve bend - up = boost, down = cut. Route the EQ over the WHOLE mix (eq) or just the BASS (instrument_eq), or hit AMP to stack DRIVE_ASYM + a mid-forward EQ for a guitar-amp tone. A cycles the route, B toggles AMP, arrows nudge each band.",
     "file": "eq.cart.png",

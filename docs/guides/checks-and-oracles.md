@@ -220,6 +220,58 @@ Two rules that fall out of the same day:
    and record what it *actually* does; then decide which behaviour is right, and fix the code or
    the prose accordingly. Here the behaviour was right and the prose was wrong.
 
+## The OTHER way a green check lies: it was never measuring the thing
+
+Everything above is about the checker being **wrong** — a heuristic with false positives, an
+analyser that misreads — and its remedy is a known-answer fixture. This section is about the
+opposite and sneakier case: the checker is **completely correct and entirely irrelevant**. Nothing
+is miscomputed, so no fixture can help; the assertion is simply true whether or not the property it
+names holds.
+
+Three of these landed in one session (2026-08-13, the MIDI-out work), each for a *different*
+reason, and every one was caught by a **control** rather than by the assertion itself:
+
+| what was asserted | why it was green while broken |
+|---|---|
+| "every note-on is matched by a note-off" | **Wrong axis.** The defect was that drum notes were ZERO-LENGTH (on and off in the same millisecond, which records wrong in a DAW). A zero-length note is perfectly balanced, so the pair count was not merely blind to the bug — it *rewarded* it. Found by the maker's ear in GarageBand, not by the gate. |
+| `sync_automated` (ignore a real clock in automated runs) | **The code never ran.** Its assignment sat inside `#ifdef DE_SPEC`, which only `spec.js` defines — so in every `play.js` run it was meant to protect, the flag stayed 0. Every sync gate passed, because `--midi-clock` runs take an earlier branch and those are the runs the gates exercise. |
+| "quitting never leaves a note droning" | **True by luck.** `MIDIReceived` is asynchronous, and the shutdown flush disposed the endpoint on the next line, dropping the note-offs in flight. It passed once, then failed with exactly the two notes still held. A pass that depends on a race is not a pass. |
+
+**The one question that catches all three:** *what would I have to break to make this go red?* If you
+cannot name a specific edit, the assertion is decoration. Run it on the three above: break the gate
+length → the pair counter stays green. Delete `sync_automated` → every sync gate stays green. No-op
+the shutdown flush → green, most of the time.
+
+This is rule 3 above ("watch every assertion fail once"), but the fixture framing hides it — these
+are **end-to-end gates over live behaviour**, not linters with a fixture directory, so nobody reaches
+for a `--selfcheck` and the discipline quietly does not apply. The cheap form for that kind of gate
+is a **negative control in the gate itself**: a second run with the feature disabled, asserted to
+produce the opposite result. `input-ring-check` and `present-race-check` have carried one for
+exactly this reason (`-bypass` rebuilds without the safety and **must FAIL**); `midi-check` now runs
+three (no `--midi-out` must publish nothing · CC 74 read on an unused channel must be `-1` · the
+receiving cart with autoplay off must render silence).
+
+**Where a control earns its cost** — it is not free, and blanket application is the wrong lesson.
+`midi-check`'s cart-to-cart control doubles that phase's runtime. Spend it where **PASS is the
+steady state and failure is silent**: timing, threading, guards that suppress behaviour, and
+anything whose "correct" output looks identical to its broken one. A link checker does not need one;
+its failures are loud and self-describing.
+
+**Two shapes worth recognising before you write the assertion:**
+
+- **A control must vary ONLY the mechanism.** The first cart-to-cart control ran the receiver while
+  the previous sender was still alive — `play.js` spawns the cart as a child, so killing the node
+  parent orphans it — and measured 0.407 where silence was required. A control that does not
+  actually remove the thing proves nothing, and it fails *safe-looking*.
+- **Watch for the confounder that makes noise for you.** The same receiver (`epiano`) autoplays a
+  triad every two beats by default. A naive run makes plenty of sound while proving nothing about
+  MIDI; turning autoplay off is what produced a `-inf` baseline against which `0.39` means one
+  thing only.
+
+Coverage is tracked: **`node tools/gate-controls.js`** lists gates that have neither a self-test nor
+a negative control (advisory row in `repo-doctor`). It cannot tell you a gate is *good* — only that
+nothing in it has ever been shown to fail.
+
 ## Orienting *before* a change (don't dive in blind)
 
 | You want to know… | Run |

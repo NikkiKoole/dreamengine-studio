@@ -73,6 +73,7 @@ const CHECKS = [
   { name: "selftest: links",   tool: "lint-docs.js",       args: ["--selfcheck"], gate: true },
   { name: "selftest: lanes",   tool: "handoff.js",         args: ["--selfcheck"], gate: true },
   { name: "selftest: cap claims", tool: "lint-capability-claims.js", args: ["--selfcheck"], gate: true },
+  { name: "selftest: gate ctl",  tool: "gate-controls.js",           args: ["--selfcheck"], gate: true },
   { name: "selftest: fxicons", tool: "lint-fxicons.js",    args: ["--selfcheck"], gate: true },
   { name: "selftest: aux params", tool: "lint-aux-params.js", args: ["--selfcheck"], gate: true },
   { name: "selftest: carts",   tool: "lint-carts.js",      args: ["--selfcheck"], gate: true },
@@ -119,6 +120,10 @@ const CHECKS = [
   // Graduate it to a gate (--strict) if it holds at 0 through a few real staleness cycles.
   { name: "cap claims",   tool: "lint-capability-claims.js", args: [], warn: num(/SHIPPED CAPABILITY.*?\((\d+)\)/) },
   { name: "doc freshness",tool: "stale-doc-check.js",    args: [],              warn: num(/(\d+) broken/) },
+  // ADVISORY and it should stay that way: a gate without a control is a QUESTION ("what would you
+  // break to make this go red?"), not a defect — plenty of gates fail loudly and need nothing. It is
+  // here for the same reason --selfcheck spread from 4 audio tools to 15: nobody fixes what nobody counts.
+  { name: "gate controls",tool: "gate-controls.js",      args: ["--quiet"],     warn: num(/· (\d+) with neither/) },
 ];
 
 // For a clean check the tool's own final summary line is the row. For a non-clean

@@ -724,6 +724,20 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
                              is caught; surfaced by cart-status.js). Same two-door pattern as driftable-docs.
                              `--selfcheck` = known-answer fixture (all five lane judgements + all three false
                              positives this tool once shipped; dates are TEMPLATED so it can't rot), gated
+             gate-controls.js  which of our GATES can prove they are able to FAIL? A gate never seen to go
+                             red is indistinguishable from one gone BLIND, and nothing tells you which — so
+                             this counts the ones carrying evidence (a `--selfcheck` known-answer fixture, or
+                             a NEGATIVE CONTROL / `-bypass` that must fail). `--list` = the work-list ·
+                             `--excluded` = what it dropped · `--quiet` = the repo-doctor row. ADVISORY: a
+                             missing control is a QUESTION, not a defect (loud failures need none) — spend one
+                             where PASS is the steady state and failure is SILENT (timing, threading,
+                             suppressing guards). Born from three assertions that were green while the thing
+                             they named was broken, each differently: a pair-counter blind to TIMING, a guard
+                             inert inside an `#ifdef`, and a flush that won a RACE. Two precision rules it
+                             learned: a control must be STRUCTURAL (the word "control" in prose does not
+                             count) and exiting nonzero on BAD USAGE is not judging (that draft reported 60
+                             "gates", half of them generators). `--selfcheck` = 11 known answers, mutation-
+                             tested. docs/guides/checks-and-oracles.md → "The OTHER way a green check lies"
              repo-doctor.js  ONE health strip over every meta-check (lint-docs/lint-carts + the build-* --check
                              staleness gates as ✗, the advisory linters as ⚠) run in parallel, counts only —
                              listings via --full or the named tool itself; embedded in bare orient. --quiet = CI

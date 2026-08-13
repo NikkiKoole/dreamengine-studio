@@ -30,24 +30,37 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <sys/time.h>
 
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
 
 static unsigned long clocks = 0;
 
+// Milliseconds since the first message. Printed on every line because a MIDI defect can live
+// entirely in the TIMING — a note whose off arrives in the same millisecond as its on is legal,
+// balanced, and still wrong, and a gate that only counts on/off pairs cannot see it.
+static double t0 = -1;
+static double now_ms(void) {
+    struct timeval tv; gettimeofday(&tv, NULL);
+    double t = tv.tv_sec * 1000.0 + tv.tv_usec / 1000.0;
+    if (t0 < 0) t0 = t;
+    return t - t0;
+}
+
 // Decode a packet's bytes. Same shape as midi_input.h's parser (system-realtime first,
 // because those bytes arrive INTERLEAVED inside other messages), so if this disagrees with
 // the engine's own parser about a byte, that disagreement is itself worth knowing.
 static void decode(const unsigned char *d, unsigned n) {
+    double ms = now_ms();
     unsigned k = 0;
     while (k < n) {
         if (d[k] >= 0xF8) {
             switch (d[k]) {
                 case 0xF8: clocks++; break;                 // counted, not printed (24/quarter is a flood)
-                case 0xFA: printf("start\n");    break;
-                case 0xFB: printf("continue\n"); break;
-                case 0xFC: printf("stop\n");     break;
+                case 0xFA: printf("[%8.1f] start\n", ms);    break;
+                case 0xFB: printf("[%8.1f] continue\n", ms); break;
+                case 0xFC: printf("[%8.1f] stop\n", ms);     break;
                 default: break;                             // active-sensing / reset: ignored
             }
             k += 1; continue;
@@ -58,13 +71,13 @@ static void decode(const unsigned char *d, unsigned n) {
             // A note-on with velocity 0 is a note-off on the wire. Print what it MEANS, so a
             // sender that uses either form reads the same here — the gate is about intent.
             int on = (status == 0x90 && d[k + 2] > 0);
-            printf("note %s ch=%d note=%d vel=%d\n", on ? "on " : "off", ch, d[k + 1], d[k + 2]);
+            printf("[%8.1f] note %s ch=%d note=%d vel=%d\n", ms, on ? "on " : "off", ch, d[k + 1], d[k + 2]);
             k += 3;
         } else if (status == 0xB0 && k + 2 < n) {
-            printf("cc       ch=%d cc=%d val=%d\n", ch, d[k + 1], d[k + 2]);
+            printf("[%8.1f] cc       ch=%d cc=%d val=%d\n", ms, ch, d[k + 1], d[k + 2]);
             k += 3;
         } else if (status == 0xE0 && k + 2 < n) {
-            printf("bend     ch=%d val=%d\n", ch, (((int)d[k + 2] << 7) | d[k + 1]) - 8192);
+            printf("[%8.1f] bend     ch=%d val=%d\n", ms, ch, (((int)d[k + 2] << 7) | d[k + 1]) - 8192);
             k += 3;
         } else if (status == 0xC0 || status == 0xD0) { k += 2;
         } else { k += 1;

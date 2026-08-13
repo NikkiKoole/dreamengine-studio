@@ -64,6 +64,7 @@ static int midi_out_automated = 0;   // set by studio.c after flag parsing
 static int midi_out_force     = 0;   // --midi-out
 
 static void midi_output_init(void);        // defined per-backend below; idempotent
+static void midi_out_all_notes_off(void);  // defined with the public API below (needs midi_out_raw)
 
 // LAZY INIT — the source is created on the first send, never at startup. Deliberate:
 // MIDISourceCreate publishes "dreamengine" into every DAW's and monitor's input list, and
@@ -120,6 +121,7 @@ static void midi_output_init(void) {
 }
 
 static void midi_output_shutdown(void) {
+    midi_out_all_notes_off();   // BEFORE disposing the port — after it, there is nothing to send on
     if (midi_out_src)    MIDIEndpointDispose(midi_out_src);
     if (midi_out_client) MIDIClientDispose(midi_out_client);
     midi_out_src = 0; midi_out_client = 0; midi_out_live = 0;
@@ -163,6 +165,14 @@ static inline uint8_t midi_ch_nib(int ch) {
     return (uint8_t)(ch - 1);
 }
 
+// Which notes we have started and not yet stopped, so shutdown can release them. 2KB, and it
+// buys the one guarantee a cart cannot make for itself: QUITTING NEVER LEAVES A NOTE DRONING in
+// whatever instrument you were driving. A cart can always exit on a frame where a note is held —
+// the window closes, the process dies, and the note-off it was going to send next frame never
+// happens. Found by the gate's gate-length work: the drum hits gained a real length, and two of
+// them were still held when the run ended (on=68, off=66).
+static uint8_t midi_out_on[16][128];
+
 void midi_send_note(int ch, int note, int vel, int on) {
     midi_out_ensure();
     if (note < 0 || note > 127) return;
@@ -171,8 +181,23 @@ void midi_send_note(int ch, int note, int vel, int on) {
     // A note-on with velocity 0 IS a note-off on the wire, and plenty of gear only sends
     // that form — but we emit a real 0x80 so a receiver that distinguishes them (and a
     // human reading a MIDI monitor) sees the intent. Both are legal.
-    uint8_t b[3] = { (uint8_t)((on ? 0x90 : 0x80) | midi_ch_nib(ch)), (uint8_t)note, (uint8_t)vel };
+    uint8_t nib = midi_ch_nib(ch);
+    midi_out_on[nib][note] = on ? 1 : 0;
+    uint8_t b[3] = { (uint8_t)((on ? 0x90 : 0x80) | nib), (uint8_t)note, (uint8_t)vel };
     midi_out_raw(b, 3);
+}
+
+// Release every note we started. Called on shutdown; also worth exposing one day as a cart-facing
+// panic, but no cart has needed it yet, so it stays internal rather than growing the API.
+static void midi_out_all_notes_off(void) {
+    if (!midi_out_live) return;
+    for (int c = 0; c < 16; c++)
+        for (int n = 0; n < 128; n++)
+            if (midi_out_on[c][n]) {
+                uint8_t b[3] = { (uint8_t)(0x80 | c), (uint8_t)n, 0 };
+                midi_out_raw(b, 3);
+                midi_out_on[c][n] = 0;
+            }
 }
 
 void midi_send_cc(int ch, int cc, int val) {

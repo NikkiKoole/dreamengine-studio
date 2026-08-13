@@ -105,6 +105,26 @@ ck "transport START"                       1  "start"
 
 # no stuck notes: every on has an off. Counted rather than matched pairwise — a leak shows as
 # a mismatch, which is the failure that matters (a receiver left droning after the cart quits).
+# GATE LENGTH — a note-off must arrive some milliseconds AFTER its note-on, not in the same
+# instant. This check exists because the maker found the defect it catches by playing into
+# GarageBand, while the on/off balance check below sat green: a zero-length note is perfectly
+# balanced. Live-monitoring one is an inaudible blip, but a DAW that RECORDS it stores two events
+# at the same timestamp and normalises them on playback, so the recording gains notes you never
+# heard. The pair-counting check cannot see that; only the clock can.
+MINGATE=$(awk '
+  /note on / { split($0,a,"["); split(a[2],b,"]"); t=b[1]+0
+               n=$0; sub(/.*ch=/,"",n); split(n,f," "); key=f[1]; sub(/note=/,"",f[2]); key=key" "f[2]
+               on[key]=t; next }
+  /note off/ { split($0,a,"["); split(a[2],b,"]"); t=b[1]+0
+               n=$0; sub(/.*ch=/,"",n); split(n,f," "); key=f[1]; sub(/note=/,"",f[2]); key=key" "f[2]
+               if (key in on) { d=t-on[key]; if (min=="" || d<min) min=d; delete on[key] } }
+  END { if (min=="") print -1; else printf "%.0f", min }' "$LOG")
+if [[ "$MINGATE" != "-1" ]] && (( MINGATE >= 20 )); then
+  printf '  \033[32m✓\033[0m %-46s (%sms)\n' "shortest note has a real gate length" "$MINGATE"
+else
+  printf '  \033[31m✗\033[0m %-46s (%sms, want >=20)\n' "ZERO-LENGTH NOTE (records wrong)" "$MINGATE"; fail=1
+fi
+
 ON=$(grep -c "note on " "$LOG" || true); OFF=$(grep -c "note off" "$LOG" || true)
 if [[ "$ON" == "$OFF" ]]; then printf '  \033[32m✓\033[0m %-46s (%s=%s)\n' "every note-on matched by a note-off" "$ON" "$OFF"
 else                           printf '  \033[31m✗\033[0m %-46s (on=%s off=%s)\n' "STUCK NOTES: on/off mismatch" "$ON" "$OFF"; fail=1; fi

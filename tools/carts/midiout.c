@@ -67,6 +67,35 @@ static int held      = -1;   // the bassline note currently sounding, -1 = none
 static int last_cc   = -1;   // only send CC when the value CHANGES (a 0..127 knob at 60fps is a flood)
 static int clk_sent  = 0;    // ticks emitted this run
 
+// ── drum GATE LENGTH: a hit is short, but it is NOT zero ──
+// The first cut fired note-on and note-off back to back in the same frame, reasoning that a drum
+// has no length. That is legal MIDI, balanced (every on had an off), and WRONG — found by the
+// maker playing into GarageBand, not by the gate, which counted the pairs and was happy.
+//
+// A zero-length note is handled inconsistently by receivers: monitoring one live is a blip you
+// may not even hear, but a DAW that RECORDS it stores two events at the same timestamp and
+// normalises them to some minimum length on playback. So the recording sounds different from
+// what you heard — fuller, with notes appearing that were inaudible live. Real drum machines
+// send the off tens of milliseconds later, and so do we now.
+#define DRUM_GATE_FRAMES 3          // ~50ms at 60fps — short enough to stay a hit, long enough to record
+#define NPEND 16
+static struct { int ch, note, left; } pend[NPEND];
+
+static void note_hit(int ch, int note, int vel) {   // note-on now, note-off in a few frames
+    midi_send_note(ch, note, vel, 1);
+    for (int i = 0; i < NPEND; i++)
+        if (pend[i].left <= 0) { pend[i].ch = ch; pend[i].note = note; pend[i].left = DRUM_GATE_FRAMES; return; }
+    midi_send_note(ch, note, 0, 0);   // table full (never seen): release immediately rather than hang a note
+}
+static void pend_tick(void) {
+    for (int i = 0; i < NPEND; i++)
+        if (pend[i].left > 0 && --pend[i].left == 0) midi_send_note(pend[i].ch, pend[i].note, 0, 0);
+}
+static void pend_flush(void) {      // release everything NOW (stop / mute) — never leave a note hanging
+    for (int i = 0; i < NPEND; i++)
+        if (pend[i].left > 0) { midi_send_note(pend[i].ch, pend[i].note, 0, 0); pend[i].left = 0; }
+}
+
 // ── the IN direction, so this one cart covers both halves of the wire ──
 // Not decoration: CC-in is the newer path of the two and the channel nibble is the part most
 // likely to be silently wrong, so the gate reads these back out of a --trace.
@@ -90,7 +119,7 @@ static double beats_now(void) { return frame() / 60.0 * (tempo / 60.0); }
 
 static void all_off(void) {
     if (held >= 0) { midi_send_note(CH_BASS, held, 0, 0); held = -1; }
-    // Drums are one-shots (note-off sent immediately), so nothing to release there.
+    // Drum hits are released by pend_flush(), NOT here — they now have a real gate length.
 }
 
 void update(void) {
@@ -100,15 +129,17 @@ void update(void) {
     int c, n, v;
     while (midi_cc_get(&c, &n, &v)) { in_ch = c; in_cc = n; in_val = v; in_count++; }
 
+    pend_tick();   // release any drum note whose gate has run out (see DRUM_GATE_FRAMES)
+
     if (keyp(' ')) {
         playing = !playing;
         if (playing) { midi_send_start(1); logmsg("START"); step = -1; }
-        else         { all_off(); midi_send_stop(); logmsg("STOP"); }
+        else         { all_off(); pend_flush(); midi_send_stop(); logmsg("STOP"); }
     }
     if (keyp(KEY_RIGHT) && tempo < 200) tempo += 5;
     if (keyp(KEY_LEFT)  && tempo > 40)  tempo -= 5;
     if (keyp('C')) send_clk  = !send_clk;
-    if (keyp('D')) send_drum = !send_drum;
+    if (keyp('D')) { send_drum = !send_drum; if (!send_drum) pend_flush(); }
     // B mutes the BASSLINE, which matters for testing against a host that is not multi-timbral.
     // GarageBand plays the selected track's instrument no matter what channel a note arrived on,
     // and the bassline's notes (36/48/43/39/46/41) are all drum-kit notes too — so on a drum
@@ -147,9 +178,9 @@ void update(void) {
         // note-off — a drum hit has no length, and a receiver that waits for the off would
         // otherwise hold a sample forever.
         if (send_drum) {
-            if (KICK[s])  { midi_send_note(CH_DRUM, GM_KICK, 110, 1);  midi_send_note(CH_DRUM, GM_KICK, 0, 0);  logmsg("ch%-2d KICK  %d", CH_DRUM, GM_KICK); }
-            if (SNARE[s]) { midi_send_note(CH_DRUM, GM_SNARE, 100, 1); midi_send_note(CH_DRUM, GM_SNARE, 0, 0); logmsg("ch%-2d SNARE %d", CH_DRUM, GM_SNARE); }
-            if (HAT[s])   { midi_send_note(CH_DRUM, GM_HAT, 70, 1);    midi_send_note(CH_DRUM, GM_HAT, 0, 0);   logmsg("ch%-2d HAT   %d", CH_DRUM, GM_HAT); }
+            if (KICK[s])  { note_hit(CH_DRUM, GM_KICK, 110); logmsg("ch%-2d KICK  %d", CH_DRUM, GM_KICK); }
+            if (SNARE[s]) { note_hit(CH_DRUM, GM_SNARE, 100); logmsg("ch%-2d SNARE %d", CH_DRUM, GM_SNARE); }
+            if (HAT[s])   { note_hit(CH_DRUM, GM_HAT, 70);   logmsg("ch%-2d HAT   %d", CH_DRUM, GM_HAT); }
         }
     }
 

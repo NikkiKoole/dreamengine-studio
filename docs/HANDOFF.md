@@ -101,6 +101,101 @@ a broken doc link or `#section`).
 > plus the cart's own punch list, `node tools/cart-todos.js tenement` (12 items, the D/R decision first).
 
 > **▶ ACTIVE THREAD (2026-08-13) — EXTERNAL CLOCK + the AUv3 on macOS: a cart can be slaved, and acidcandy is a GarageBand plug-in.**
+> **▶▶ START HERE IN A FRESH SESSION (rewritten 2026-08-13 end-of-day). GOAL: a well-behaved macOS
+> AUv3.** No iPad — macOS IS the target. Everything you need to act is in THIS block; the shipped history
+> follows it, and inside that history the block headed `▼ superseded` is factually WRONG and kept only so
+> the trail of how it was believed is readable.
+>
+> **STATE: it works, except for one thing.** The plug-in plays, follows the host's tempo and transport,
+> survives a whole song, converts to any host sample rate, shows our own panel, and the panel is attached
+> to the audio unit you can hear (confirmed in GarageBand by the maker). Seven gates in `bash ios/mac.sh`,
+> 31 assertions, green. **The ONE live defect is (B): two tracks share one engine.** Load the plug-in on
+> two GarageBand tracks and "the sound goes weird" — both audio units are in ONE extension process and
+> engine state is process-global, so both render blocks push `de_sync_position` into the same engine and
+> both signal the one frame worker. The rack is driven twice per host buffer by two transports.
+>
+> **▶ THE NEXT JOB, and it is implementation rather than research — every unknown is measured.**
+> Ship the engine as a DYLIB and load it once per instance. `tools/engine-dylib-spike` proved the
+> mechanism on the real engine and the sandbox allows it. Order:
+> 1. **An engine dylib target** in `ios/project-mac.yml`: `type: library.dynamic`, sources
+>    `../runtime/studio.c` + `../runtime/raylib_compat.c` + `gen/macau/cart.c`, and it MUST link
+>    `CoreMIDI` + `CoreFoundation` (`midi_output.h` is not gated off under `DE_NO_RAYLIB`). The appex
+>    depends on it `embed: true, link: false` with **`copy: {destination: frameworks}`** — left alone,
+>    xcodegen embeds into `Contents/Resources`, where a dylib is signed as a RESOURCE, not as code, and
+>    `dlopen` is refused for a reason that has nothing to do with your change. This shape is verified —
+>    it is what the sandbox probe used, and it is written out here because the probe was removed rather
+>    than committed, so there is nothing to copy it from:
+> ```yaml
+>   TinyjamEngine:                 # alongside TinyjamMacAU in project-mac.yml
+>     type: library.dynamic
+>     platform: iOS
+>     sources: [../runtime/studio.c, ../runtime/raylib_compat.c, gen/macau/cart.c]
+>     settings:
+>       base: { SUPPORTS_MACCATALYST: YES, SUPPORTED_PLATFORMS: macosx,
+>               PRODUCT_NAME: engine1, SKIP_INSTALL: YES, DYLIB_INSTALL_NAME_BASE: "@rpath",
+>               GCC_PREPROCESSOR_DEFINITIONS: [$(inherited), DE_NO_RAYLIB=1, SCALE=1],
+>               OTHER_CFLAGS: [-fno-modules],          # the curses echo()/filter() collision
+>               OTHER_LDFLAGS: [-framework, CoreMIDI, -framework, CoreFoundation] }
+>   # …and on TinyjamMacAU:
+>     dependencies:
+>       - target: TinyjamEngine
+>         embed: true
+>         link: false                                  # dlopen it; linking proves nothing
+>         copy: { destination: frameworks }            # NOT Resources — see above
+> ```
+> 2. **K pre-signed copies** — `engine1.dylib`…`engineK.dylib`, built once and copied at BUILD time.
+> 3. **`TinyjamAU` takes the next free copy per instance**: `dlopen`, resolve the `engine.h` seam into a
+>    struct of function pointers, and call through it instead of calling `de_*` directly. Instance K+1
+>    refuses politely rather than garbling. Drop `bootEngineOnce`'s idempotence — that exists only
+>    because instances shared an engine.
+> 4. **Three statics that are NOT C globals and so do not duplicate:** the Swift-side frame worker (one
+>    `static` per process today — needs one per instance) · the CoreMIDI virtual source (K instances would
+>    publish K sources with the SAME name) · `save_bytes` (K instances, one `cart.blob` — `de_set_save_dir`
+>    already exists to scope it).
+> 5. **Gate it:** two instances, driven with different transport, must produce different frames — the
+>    `--panel` verdict already distinguishes "this panel's own audio unit renders" from "instance N
+>    renders, this panel holds M", so a fixed build should never print the second string again.
+>
+> **▶ SETTLED BY MEASUREMENT — do NOT re-derive any of these.**
+> · **The panel is connected.** `PANEL CONNECTED — this panel's own audio unit is the one being rendered`,
+>   in GarageBand. Defect (A) never existed; the finding that created it was a diagnostic whose
+>   "connected" branch was unreachable by construction. The whole four-way fork it spawned (park /
+>   per-instance state / parameter-bound UI / ship pixels over XPC) was answering a closed question.
+> · **In-process AUv3 loading needs a NATIVE macOS code bundle.** `AudioComponentBundle` +
+>   `factoryFunction` DO make a host dlopen your bundle — GarageBand said so while refusing the plug-in
+>   outright: `incompatible platform (have 'MacCatalyst', need 'macOS')`. Ours is Catalyst because every
+>   pixel of our UI is UIKit. Getting in-process therefore costs an AppKit canvas view, the "second host
+>   view to maintain forever" Catalyst was chosen to avoid. **Product decision, not cleanup.**
+> · **A sandboxed appex CAN dlopen a signed dylib from its own bundle** (`SBPROBE bundled dylib LOADED
+>   under the sandbox`). That is what makes the next job possible.
+> · **It CANNOT load a dylib it wrote itself** — refused as *"library load disallowed by system policy"*,
+>   and macOS throws user-visible Gatekeeper MALWARE dialogs at the user. Hence pre-shipped copies.
+> · **Two AU instances always land in ONE process.** No host setting changes this, so there is no
+>   configuration escape from (B).
+>
+> **⛔ DO NOT.**
+> · Point `AudioComponentBundle` at a Catalyst framework. It breaks the plug-in in every DAW while every
+>   other gate stays green. `au-transport-check --loadable` (the FIRST gate in `mac.sh`) now catches it.
+> · Copy a dylib at runtime and load it. See above — it fails, and it accuses the user of running malware.
+> · Attempt the globals→context-struct refactor. ~204 statics in the two files CLAUDE.md names as hot and
+>   shared between parallel agents, plus per-cart globals in 553 carts, plus every determinism gate
+>   downstream. The dylib route buys the same property for a fraction of the blast radius.
+> · Trust an outcome without checking the mechanism's own error. This cost two wrong conclusions in one
+>   day: `.loadInProcess` "was denied" (it was attempted and failed on the platform, then **silently fell
+>   back**), and "the extension logged nothing" (`log` is a **zsh builtin** — use `/usr/bin/log`).
+>
+> **FALLBACK, if step 1–3 dies on something not yet seen:** elect ONE instance to drive transport and the
+> frame, so track 2 becomes a second window onto the SAME rack — coherent instead of garbled, and an
+> honest limitation a buyer can be told. It permanently caps the plug-in at one rack per project, which is
+> why it is the fallback and not the plan.
+>
+> **Handy:** `/usr/bin/log stream --predicate 'eventMessage CONTAINS "[tinyjam] PANEL"'` gives the panel's
+> live verdict in any host. Full arc, the results tables, and the twelve wrong turns:
+> [`ios-plan.md → UNPARKED 2026-08-13`](design/ios-plan.md#-unparked-2026-08-13-later-the-same-day-the-panel-was-never-orphaned-and-the-diagnostic-that-said-it-was-could-not-have-said-anything-else).
+>
+> **▼ Everything from here down is SHIPPED HISTORY and the trail of how the above was reached.**
+> Read it for the design points worth not re-deriving; nothing below is an open action.
+>
 > Started from "does Tiny Acid Jam do AUv3 or MIDI in?" (it did neither). **SHIPPED, both verified by the
 > maker on real gear:** `runtime/sync.h` + the five `sync_*` API functions (an external clock a cart
 > FOLLOWS — MIDI clock from Ableton over the IAC bus, *and* an AUv3 host's transport), and **acidcandy
@@ -200,85 +295,6 @@ a broken doc link or `#section`).
 > processes stay two processes. Scale if ever taken: ~204 engine statics (58 studio.c, 146 sound.h)
 > plus each cart's own (acidcandy ~120); `de_switch_cart` does not help — it is a config-log replay
 > that switches one cart at a time, not concurrent instances.
-> **▶▶ START HERE IN A FRESH SESSION (rewritten 2026-08-13, later the same day — the block below it
-> is now WRONG and kept only for the trail). GOAL: a well-behaved macOS AUv3.** There is no iPad —
-> macOS IS the target.
-> **DEFECT (A) — "the panel is orphaned" — DOES NOT EXIST as characterised. The measurement that
-> found it was a tautology.** The old `[tinyjam] PANEL …` line compared the pid in a message-channel
-> reply against the view controller's own pid, and the channel was fetched from the view controller's
-> OWN local audio unit — so the call never left the process and those two numbers were equal by
-> construction. `PANEL TALKING TO ITSELF` was the only string that code could print; its "connected"
-> branch was unreachable. The parameter probe fails the same way: a write from the UI observed in the
-> UI process is *exactly* what a correctly connected AUv3 does. Both rows of the closing evidence are
-> consistent with a panel that works.
-> **What is true, now measured with a diagnostic that CAN go red:** the view controller loads in the
-> same process as the host's audio unit and holds the instance being rendered
-> (`PANEL CONNECTED — this panel's own audio unit is the one being rendered`). Gated by
-> `ios/au-transport-check --panel`, the sixth gate in `mac.sh`; it reads the extension's own verdict
-> out of the unified log and demands BOTH verdicts in one run as its control.
-> **The `AudioComponentBundle` + `factoryFunction` lead was RIGHT about the mechanism, and it hits a
-> PLATFORM WALL. Built, tried in GarageBand, REVERTED.** A host really does dlopen the bundle those
-> keys name — GarageBand said so while refusing to open the plug-in at all (orange !):
-> `dlopen(…TinyjamAUKernel): incompatible platform (have 'MacCatalyst', need 'macOS')`. **In-process
-> loading needs a NATIVE macOS code bundle; ours is Catalyst because every pixel of our UI is UIKit.**
-> Those two are incompatible, so in-process costs an AppKit canvas view — the "second host view to
-> maintain forever" Catalyst was picked to avoid. Product decision, not cleanup.
-> ⚠ **Two things to carry from how that went wrong.** (1) A probe watched `.loadInProcess` and saw the
-> engine answer from another pid, and that was written up as "in-process is impossible". It was
-> *attempted* and failed on the platform mismatch, after which a native host **silently falls back**;
-> the probe measured the outcome and never looked for the mechanism's own error. (2) **All six gates
-> passed on a plug-in GarageBand could not load** — they are hosted by a native binary that falls back
-> silently. The gates cover the AU; nothing covers whether a DAW can load it.
-> **So the only live defect is (B), and it is the one worth the effort:** engine state is
-> process-global (~204 statics in studio.c/sound.h plus acidcandy's ~120), `mac.sh` itself now prints
-> `2 instance(s) in this process`, and two GarageBand tracks are two front-ends over one rack.
-> **✅ CONFIRMED IN GARAGEBAND (the maker, 2026-08-13).** One track, play:
-> `PANEL CONNECTED — this panel's own audio unit is the one being rendered`. **(A) is dead**, and with
-> it the whole four-way fork it created (park / per-instance state / parameter-bound UI / ship pixels)
-> — that fork was answering a question that was never open. **Two tracks reproduce "it goes super
-> weird" and the same lines explain it:** both audio units are in ONE extension process (same pid) and
-> the "which instance renders" stamp FLIPS between 1 and 2, so both render blocks are pushing
-> `de_sync_position` into the one process-global engine and both signal the one frame worker — the rack
-> is driven twice per host buffer by two transports. No host gives each track its own process, so
-> per-instance engine state is the only real fix.
-> **▶▶ AND IT IS CHEAP — `tools/engine-dylib-spike` PASSES (2026-08-13). THIS IS THE NEXT JOB.**
-> Asked at the scale of "20 audio apps", a hack costs 20× and an engine fix costs 1× — so you want the
-> refactor, and the refactor is unlandable (~204 statics in the two hot shared files, plus per-cart
-> globals in 553 carts, plus every determinism gate downstream). **Third route, measured on the real
-> engine: dyld keys images by FILE, so two COPIES of one engine dylib are two data segments — every
-> static duplicated, including each cart's own, with ZERO source changes.** `engine.h` is already the
-> interface. Ship K pre-built, pre-signed copies in the bundle; instance K+1 refuses politely. 9 MB for
-> two engines, and a SECOND CART ran alongside the first at its own canvas size (something
-> `de_switch_cart` cannot do). Carries a negative control.
-> **✅ AND THE KILLER UNKNOWN IS ANSWERED — YES.** Measured in the real plug-in (a temporary dylib in
-> the appex's `Frameworks/`, dlopen'd from `bootEngineOnce`, then REMOVED again): `SBPROBE bundled dylib
-> LOADED under the sandbox`. A sandboxed, hardened-runtime appex CAN dlopen a signed dylib from its own
-> bundle. **Runtime COPYING is closed** — refused as *"library load disallowed by system policy"*, and
-> worse, macOS threw user-visible Gatekeeper MALWARE dialogs at the maker, which is disqualifying
-> whatever the API allows. So **pre-ship K signed copies**, which was the plan anyway. ⚠ One run DID
-> load a copy — after the maker granted permission for that one file on this one machine. That is not a
-> measurement of the default and must not be read as "runtime copying works".
-> **Three smaller things remain:** the Swift-side frame worker (one `static` per process today) · K
-> same-named CoreMIDI virtual sources · K instances sharing one `cart.blob` (`de_set_save_dir` exists).
-> **▶ NEXT: build it for real** — the engine as a dylib in the appex, K signed copies, one per instance.
-> Detail + the
-> results table: [`ios-plan.md`](design/ios-plan.md#-and-per-instance-state-is-cheap-after-all--toolsengine-dylib-spike-passes-2026-08-13).
-> **✅ DONE — the LOAD gate exists now** (`au-transport-check --loadable`, the FIRST gate in `mac.sh`,
-> 7 gates / 31 assertions green). It instantiates nothing: it reads what the extension DECLARES and
-> checks the declaration is honest — if `AudioComponentBundle` names a bundle other than the appex, that
-> bundle must be dlopen-able by a NATIVE macOS process, because that is exactly what a host does. Nothing
-> else could see this class, because everything else instantiates through AVAudioUnit, **which silently
-> falls back to out-of-process when in-process loading fails** — so the plug-in kept working for us and
-> died in the DAW. It carries a control (Catalyst code must fail to load: "wrong platform to load into
-> process") and was exercised RED against a hand-broken copy. Same shape as `tools/build-nr.sh` sitting
-> red for hours (CoreMIDI, now fixed): **the seams only humans exercise rot.**
-> The cheaper mitigation stays in the pocket if the sandbox kills the dylib route: elect one instance to
-> drive transport + the frame, making track 2 a second window on the SAME rack — coherent instead of
-> garbled, and an honest limitation. Read the panel verdict any time with
-> `/usr/bin/log stream --predicate 'eventMessage CONTAINS "[tinyjam] PANEL"'` (`log` is a **zsh
-> builtin** — the absolute path matters). Full arc, the twelfth wrong turn, and why each item above is
-> a measurement:
-> [`ios-plan.md → UNPARKED 2026-08-13`](design/ios-plan.md#-unparked-2026-08-13-later-the-same-day-the-panel-was-never-orphaned-and-the-diagnostic-that-said-it-was-could-not-have-said-anything-else).
 >
 > **▼ superseded, kept for the trail (written earlier on 2026-08-13):**
 > **TWO SEPARATE DEFECTS, do not conflate them:**
@@ -479,7 +495,10 @@ a broken doc link or `#section`).
 > **Hot files:** `runtime/sync.h`, `runtime/midi_input.h`, `ios/AU/TinyjamAU.swift`, and note that
 > `ios/project.yml` (iOS) and `ios/project-mac.yml` (Mac) are SEPARATE on purpose — don't merge them, and
 > don't let a Mac build stage into `gen/app`/`gen/au`.
-> **Resume-at:** [ios-plan.md → macOS: hosting the AUv3 in GarageBand and Logic](design/ios-plan.md#macos-hosting-the-auv3-in-garageband-and-logic)
+> **Resume-at:** the `▶▶ START HERE` block at the TOP of this lane — it carries the next job, what is
+> already settled by measurement, and what not to do. Its owning section is
+> [ios-plan.md → per-instance state is cheap after all](design/ios-plan.md#-and-per-instance-state-is-cheap-after-all--toolsengine-dylib-spike-passes-2026-08-13).
+> Background, only if you need it: [ios-plan.md → macOS: hosting the AUv3 in GarageBand and Logic](design/ios-plan.md#macos-hosting-the-auv3-in-garageband-and-logic)
 > for the AU arc (incl. the three signing/entitlement gates and their symptoms), and
 > [external-clock-sync.md](design/external-clock-sync.md) for the clock seam itself.
 

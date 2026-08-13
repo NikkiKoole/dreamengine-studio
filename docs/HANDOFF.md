@@ -200,7 +200,21 @@ a broken doc link or `#section`).
 > processes stay two processes. Scale if ever taken: ~204 engine statics (58 studio.c, 146 sound.h)
 > plus each cart's own (acidcandy ~120); `de_switch_cart` does not help — it is a config-log replay
 > that switches one cart at a time, not concurrent instances.
-> **▶ NEXT ACTION, and it is a LOOK not a build (2026-08-13).** The panel is wired to pull its frame
+> **⛔ ANSWERED 2026-08-13 IN GARAGEBAND: option 4 is CLOSED.** `PANEL TALKING TO ITSELF — channel
+> engine pid 96523 · this UI process pid 96523`. The channel from the view controller's own AU loops
+> back to the LOCAL instance; the UI extension makes its own `TinyjamAU` and no API hands it the
+> rendering one. Apple's route for UI↔DSP is the PARAMETER TREE, which is why commercial AUv3s are
+> built that way. **This overturns the "ship pixels, it's just plumbing" call made hours earlier** —
+> the spike measured HOST→AU and the panel needs UI-extension→AU, a hop that does not exist. The
+> transport numbers are real and were answering the wrong question. It also explains the free-running
+> playhead: the panel's engine never sees host transport, so it boots playing=1 while the audible one
+> sits stopped. **Live fork now: park (1) · parameter-bound UI (3, the only supported route, costs the
+> pixel canvas in the plug-in) · or a hybrid syncing two engines through the parameter tree (keeps the
+> canvas, carries silent determinism drift).** The channel + `CanvasView.remoteFrame` are KEPT and
+> inert (5/5 gates green) for the one-line `[tinyjam] PANEL …` diagnostic, which now answers "is the
+> panel connected?" in every case where it used to take sampling a wedged host.
+>
+> **▶ superseded — the LOOK described below has been done, and its answer is above (2026-08-13).** The panel is wired to pull its frame
 > through the channel (`CanvasView.remoteFrame`, `TinyjamCanvasChannel` op=frame, measured 0.32ms for
 > 160x100, byte-exact and non-black). **But the spike proved the HOST→AU hop, and the panel needs the
 > UI-EXTENSION→AU hop, which is NOT the same**: `TinyjamAUViewController.createAudioUnit` builds a

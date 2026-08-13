@@ -27,7 +27,47 @@ public final class TinyjamAUViewController: AUViewController, AUAudioUnitFactory
     public func createAudioUnit(with componentDescription: AudioComponentDescription) throws -> AUAudioUnit {
         let a = try TinyjamAU(componentDescription: componentDescription, options: [])
         au = a
+        connectPanel()          // the view may already be up — see connectPanel()
         return a
+    }
+
+    // ── connect the panel to the engine that is actually making sound ──────────────────────────
+    // Called from BOTH createAudioUnit and viewDidLoad, because the host may do those in either
+    // order and neither one alone is enough. The first version probed only in viewDidLoad behind
+    // `if let a = au` — and GarageBand calls createAudioUnit LAST, so `au` was nil, the block was
+    // skipped, AND the "no channel" fallback log sat inside the same `if`, so it could not report
+    // its own failure. Result: no line at all in a real host, which reads as "the check did not run"
+    // and is indistinguishable from "the check found nothing". A diagnostic that can be silently
+    // skipped is not a diagnostic. It now runs on whichever call completes the pair, once.
+    private var panelConnected = false
+    private func connectPanel() {
+        guard !panelConnected, let a = au, let c = canvas else { return }
+        panelConnected = true
+        let mypid = Int(ProcessInfo.processInfo.processIdentifier)
+        guard #available(macCatalyst 16.0, iOS 16.0, macOS 13.0, *) else {
+            NSLog("[tinyjam] PANEL no channel — AUMessageChannel needs 16.0+ · this UI process pid %d", mypid)
+            return
+        }
+        let ch = a.messageChannel(for: "com.tinyjam.canvas")
+        guard let call = ch.callAudioUnit, !call(["op": "nonce"]).isEmpty else {
+            NSLog("[tinyjam] PANEL no channel — host wired none; blitting THIS process's own engine · pid %d", mypid)
+            return
+        }
+        let who = call(["op": "nonce"])
+        let theirpid = (who["pid"] as? Int) ?? -1
+        let connected = theirpid > 0 && theirpid != mypid
+        NSLog("[tinyjam] PANEL %@ — channel engine pid %d nonce %@ · this UI process pid %d",
+              connected ? "CONNECTED to another process (the audio one)"
+                        : "TALKING TO ITSELF (same process = still the wrong engine)",
+              theirpid, String(describing: who["nonce"] ?? "?"), mypid)
+        if connected {
+            c.remoteFrame = {
+                let r = call(["op": "frame"])
+                guard let px = r["px"] as? Data,
+                      let w = r["w"] as? Int, let h = r["h"] as? Int else { return nil }
+                return (px: px, w: w, h: h)
+            }
+        }
     }
 
     public override func viewDidLoad() {
@@ -39,49 +79,9 @@ public final class TinyjamAUViewController: AUViewController, AUAudioUnitFactory
         preferredContentSize = CGSize(width: 640, height: 400)
         let c = CanvasView(frame: view.bounds, hosted: true)
 
-        // ── connect the panel to the engine that is actually making sound ───────────────────────
-        // In an out-of-process host, createAudioUnit above builds a TinyjamAU IN THIS (UI) process,
-        // and blitting its framebuffer is the disconnect: a panel drawn by an engine nobody hears.
-        // If a message channel is reachable, pull frames through it instead.
-        //
-        // ⚠ OPEN, and stated plainly because it is the one thing this is not yet known to fix:
-        // `au` here is the instance THIS process created. Whether a channel taken from it reaches
-        // the RENDERING instance depends on the host wiring the view controller to its own AU proxy
-        // — some do, and AUv3 does not oblige them to. The nonce op exists to settle that in a real
-        // host rather than by argument: if the panel's nonce differs from the one a host-side spike
-        // reports, this is still two engines and the parameter-bound route (option 3) is the answer.
-        if #available(macCatalyst 16.0, iOS 16.0, macOS 13.0, *), let a = au {
-            let ch = a.messageChannel(for: "com.tinyjam.canvas")
-            if let call = ch.callAudioUnit, !call(["op": "nonce"]).isEmpty {
-                let who = call(["op": "nonce"])
-                // ⚠ SELF-CONTAINED, and it has to be. The first version told the maker to compare
-                // this nonce against one printed by a host-side spike run — which is meaningless: the
-                // nonce is per PROCESS, and those are two different host sessions, so they would
-                // ALWAYS differ and "different" would have looked like proof of the bug. The only
-                // comparison that means anything is inside ONE session: is the engine the channel
-                // reached a DIFFERENT process from this panel's own?
-                let mypid = Int(ProcessInfo.processInfo.processIdentifier)
-                let theirpid = (who["pid"] as? Int) ?? -1
-                let connected = theirpid > 0 && theirpid != mypid
-                NSLog("[tinyjam] PANEL %@ — channel engine pid %d nonce %@ · this UI process pid %d",
-                      connected ? "CONNECTED to another process (the audio one)"
-                                : "TALKING TO ITSELF (same process = still the wrong engine)",
-                      theirpid, String(describing: who["nonce"] ?? "?"), mypid)
-                c.remoteFrame = {
-                    let r = call(["op": "frame"])
-                    guard let px = r["px"] as? Data,
-                          let w = r["w"] as? Int, let h = r["h"] as? Int else { return nil }
-                    return (px: px, w: w, h: h)
-                }
-            } else {
-                NSLog("[tinyjam] no panel channel — falling back to this process's own engine")
-            }
-        }
-        // The panel must live even when the host is stopped and pulling no audio — otherwise the
-        // engine never ticks, the picture freezes and the rack's own controls stop responding.
-        c.onDisplayTick = { [weak self] in self?.au?.uiTick() }
         c.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         view.addSubview(c)
         canvas = c
+        connectPanel()          // the AU may already exist — see connectPanel()
     }
 }

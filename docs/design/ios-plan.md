@@ -325,7 +325,44 @@ default:
 **Do not start 2, 3 or 4 without deciding which product the plug-in is for.** They are different
 plug-ins.
 
-#### MEASURED 2026-08-13: option 4's transport is a non-issue (`ios/au-msgchannel-spike.swift`)
+#### ⛔ SETTLED 2026-08-13: option 4 is CLOSED — the panel cannot reach the audio engine
+
+Measured in GarageBand, which is the only place that counts:
+
+```
+[tinyjam] PANEL TALKING TO ITSELF (same process = still the wrong engine)
+          — channel engine pid 96523 nonce 62414 · this UI process pid 96523
+```
+
+The channel taken from the view controller's own AU **loops back to the local instance**. The UI
+extension constructs its own `TinyjamAU` (`TinyjamAUViewController.createAudioUnit`) and there is no
+API to hand it the *rendering* one. Apple's model is that UI and DSP talk through the **parameter
+tree** — which is exactly why every commercial AUv3 is built that way, and it is not a detail we can
+route around.
+
+**This overturns the "ship pixels" call made earlier the same day, and the failure is worth naming:
+the spike measured the HOST → audio-AU hop and I read it as settling the fork.** The panel needs
+UI-extension → audio-AU, a different hop that does not exist. The transport numbers below are real
+and still true; they were simply answering a question nobody was asking. A measurement can be
+perfectly sound and still be of the wrong thing.
+
+It also explains the free-running playhead the maker noticed: the panel's own engine never receives
+host transport, so it boots `playing = 1` and runs on its own while the engine you can hear sits
+stopped. That symptom WAS the disconnect, visible without any tooling.
+
+**What survives, and is kept:** `TinyjamCanvasChannel` (echo/nonce/frame) and
+`CanvasView.remoteFrame` are inert — `remoteFrame` stays nil, so the view uses exactly the old path
+and all five `mac.sh` gates pass with them in. They are kept for the DIAGNOSTIC: the
+`[tinyjam] PANEL …` line now answers "is the panel connected?" in one line of Console, in every case
+(connected · talking to itself · no channel · OS too old), where before it took sampling a wedged
+host. If a future host or OS does bridge the two, the frame path is already written and measured.
+
+**So the live fork is now:** park the plug-in (1) · a parameter-bound UI (3, the only supported
+route, and it costs the pixel canvas in the plug-in) · or a hybrid that keeps the canvas by running
+the UI-process engine and syncing it to the audio one through the parameter tree — which carries the
+determinism-drift risk where the panel silently shows a *different* rack.
+
+#### MEASURED 2026-08-13: the transport itself is fast (`ios/au-msgchannel-spike.swift`)
 
 The cost that made option 4 read as "a lot of new surface" was guessed, so it got measured. An
 `AUMessageChannel` round trip, **out-of-process** (`isLoadedInProcess` asserted false), 60 reps:

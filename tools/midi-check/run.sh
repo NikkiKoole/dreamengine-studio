@@ -1,5 +1,5 @@
 #!/bin/zsh
-# run.sh — the MIDI gate, BOTH directions (phase A = out, phase B = in). Does the engine actually put the right bytes on the wire?
+# run.sh — the MIDI gate: phase A = out, phase B = CC in, phase C = cart-to-cart. Does the engine actually put the right bytes on the wire?
 #
 # The twin of tools/sync-spike/run.sh (which gates the IN direction) and the reason there is
 # "no excuse for shipping this one on a listen": a cart's own screen showing "sent note 36"
@@ -26,6 +26,12 @@
 #   · the omni read (ch 0) agrees with the per-channel one
 #   · channel ISOLATION — cc 74 read on channel 2 is -1, which is the only check that can
 #     actually see a thrown-away channel nibble (see the note at that assertion)
+#
+# PHASE C (cart to cart) runs epianojam INTO epiano and asserts on the receiver's rendered audio:
+#   · the receiver SOUNDS, playing notes it was sent — the only end-to-end cover of the note
+#     input path (parse → ring → midi_get → keybed.h → a voice), which A and B never touch
+#   · and it is SILENT with no sender (epiano's autoplay switched off), without which "it made
+#     noise" would prove nothing at all
 
 set -u
 cd "$(dirname "$0")/../.."
@@ -196,6 +202,54 @@ else
   ckt "channel isolation: ch2 cc74 unseen (-1)" '"cc2_74":"-1"'
 fi
 
+# ══ PHASE C: CART TO CART — one cart's notes played by another cart's voice ══
+# The maker's idea, and it closes the one real hole in this gate: phases A and B cover sending
+# and CC-in, but NOTHING exercised the note INPUT path end to end (midi_input.h's note parse →
+# the ring → midi_get() → keybed.h → an actual voice). Here `epianojam` sends and `epiano`
+# receives, through real CoreMIDI, across two processes, with no DAW anywhere.
+#
+# The oracle is AUDIO, which is the honest one: the receiver renders to a WAV and it must be
+# LOUD. What makes that mean something is the control — `epiano` autoplays a triad every two
+# beats by default (autoplay = true), so a naive run makes plenty of sound while proving
+# nothing. The script below presses M to turn autoplay OFF, which leaves the cart with no way
+# to produce a note it was not sent: measured, that renders peak -inf, every second 0.000.
+# So loud-vs-silent has exactly one explanation left.
+echo "midi-check: phase C — cart to cart (epianojam → epiano)…"
+CSCRIPT="$OUT/noauto.script"
+printf '# M turns epiano AUTOPLAY off, so the only notes it can play are ones it RECEIVES\ndown 10 M\nup   16 M\n' > "$CSCRIPT"
+
+peak_of() { node tools/wav-analyze.js "$1" 2>/dev/null | sed -n 's/.*peak .*(\([0-9.]*\)).*/\1/p' | head -1; }
+
+# ⚠ CONTROL FIRST, and never `kill` the sender. play.js SPAWNS the cart as a child process, so
+# killing the node parent leaves the cart binary orphaned and still sending — which is exactly how
+# the first version of this phase failed: the "control" ran while a supposedly-dead sender was
+# still playing, measured 0.407 instead of silence, and would have reported the whole phase as
+# meaningless. Running the control before any sender exists removes the race instead of managing
+# it, and the sender below is sized to finish on its own and simply waited for.
+node tools/play.js epiano script "$CSCRIPT" --frames 600 --wav "$OUT/c-ctrl.wav" > "$OUT/c-ctrl.txt" 2>&1
+
+# now the paired run. Sender first, with time to COMPILE before the receiver starts compiling —
+# both play.js invocations write build/cart.c, so two simultaneous compiles clobber each other.
+# 2100 frames = 35s, enough to cover the receiver's compile (~6s) and its 10s render from +12s.
+node tools/play.js epianojam script "$SCRIPT" --frames 2100 --midi-out > "$OUT/c-sender.txt" 2>&1 &
+SEND_PID=$!
+sleep 12
+node tools/play.js epiano script "$CSCRIPT" --frames 600 --wav "$OUT/c-recv.wav" > "$OUT/c-recv.txt" 2>&1
+wait $SEND_PID 2>/dev/null   # let it end on its own — see the warning above
+
+RECV=$(peak_of "$OUT/c-recv.wav"); CTRL=$(peak_of "$OUT/c-ctrl.wav")
+RECV=${RECV:-0}; CTRL=${CTRL:-0}
+if awk -v v="$RECV" 'BEGIN{exit !(v > 0.05)}'; then
+  printf '  \033[32m✓\033[0m %-46s (peak %s)\n' "receiver SOUNDED on received notes" "$RECV"
+else
+  printf '  \033[31m✗\033[0m %-46s (peak %s, want >0.05)\n' "receiver heard nothing" "$RECV"; fail=1
+fi
+if awk -v v="$CTRL" 'BEGIN{exit !(v < 0.001)}'; then
+  printf '  \033[32m✓\033[0m %-46s (peak %s)\n' "silent with no sender (control)" "$CTRL"
+else
+  printf '  \033[31m✗\033[0m %-46s (peak %s, want <0.001)\n' "CONTROL NOT SILENT: proves nothing" "$CTRL"; fail=1
+fi
+
 (( VERBOSE )) && { echo "--- listener log ---"; cat "$LOG"; echo "--- reader trace (last line) ---"; tail -1 "$TRACE" 2>/dev/null; }
 if (( fail )); then echo "midi-check: \033[31mFAIL\033[0m  (logs: $OUT)"; exit 1; fi
-echo "midi-check: \033[32mPASS\033[0m  (out + in)"
+echo "midi-check: \033[32mPASS\033[0m  (out + CC in + cart-to-cart)"

@@ -45,6 +45,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include <unistd.h>   // usleep, for the shutdown flush below
 
 // A cart called a midi_send_* fn → the host may need to ask for MIDI access (mirrors
 // midi_g_wanted on the input side; the web bridge polls it before prompting).
@@ -122,6 +123,12 @@ static void midi_output_init(void) {
 
 static void midi_output_shutdown(void) {
     midi_out_all_notes_off();   // BEFORE disposing the port — after it, there is nothing to send on
+    // …and then WAIT, because MIDIReceived is asynchronous: it hands the packets to the server and
+    // returns, so disposing the endpoint on the very next line can throw the note-offs away before
+    // they leave. That makes "quitting never leaves a note droning" true only by luck — it passed
+    // the gate once and failed the next run with exactly the two notes that were still held.
+    // 20ms at process exit costs nothing and nobody is waiting on it.
+    if (midi_out_live) usleep(20000);
     if (midi_out_src)    MIDIEndpointDispose(midi_out_src);
     if (midi_out_client) MIDIClientDispose(midi_out_client);
     midi_out_src = 0; midi_out_client = 0; midi_out_live = 0;

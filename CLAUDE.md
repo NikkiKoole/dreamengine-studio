@@ -297,14 +297,23 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
                              is never a destination, so an output port has nothing to push into) sending CC on
                              channels 1/10/16, asserted out of the cart's `--trace`; the check that carries the
                              weight is **channel ISOLATION** — cc74 read on ch2 must be -1, since per-cc checks
-                             alone cannot see a dropped channel nibble. Needs NO IAC bus and no DAW, unlike
-                             sync-spike. Run after touching runtime/midi_output.h or midi_input.h's CC path.
+                             alone cannot see a dropped channel nibble. Phase C (CART TO CART): `epianojam`
+                             sends, `epiano` RECEIVES and renders to a WAV that must be loud — the only
+                             end-to-end cover of the NOTE input path (parse → ring → midi_get → keybed.h →
+                             a voice), which A and B never touch. Its control turns epiano's AUTOPLAY off
+                             (on by default, a triad every 2 beats), without which "it made noise" proves
+                             nothing; that control measures peak -inf. Needs NO IAC bus and no DAW, unlike
+                             sync-spike. Run after touching runtime/midi_output.h or midi_input.h.
                              THREE traps it documents, each of which made a healthy engine look broken: det-turbo
                              compressing a 7s run into ~100ms (the port is born and disposed between polls — hence
                              no `--headless` on the timed runs) · `CFRunLoopRunInMode` returning INSTANTLY when the
                              run loop has no sources, so a "wait 12s" loop finishes in microseconds · and a
                              long-lived CoreMIDI client needing a NOTIFY PROC + a pumped run loop, or
-                             `MIDIGetNumberOfSources()` answers 0 forever while a fresh process sees the port fine
+                             `MIDIGetNumberOfSources()` answers 0 forever while a fresh process sees the port fine.
+                             Plus two the gate itself got wrong: `kill`ing a play.js PID leaves the CART
+                             orphaned and still sending (so phase C runs its control FIRST rather than
+                             managing the race), and MIDIReceived is ASYNC so disposing the endpoint right
+                             after the shutdown note-offs drops them — which made "no stuck notes" pass by luck
              net-check.js    the one-liner LOCKSTEP GATE (netplay twin of tune-check): echo-mirror + netdemo
                              pair + relay wire-protocol sim, PASS/FAIL; run after touching net.h / the net seams
              webrtc-spike/   PASSED probe (multiplayer rung 5b): browser WebRTC P2P DataChannel, Mac↔iPhone at

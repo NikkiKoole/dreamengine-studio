@@ -216,11 +216,19 @@ a broken doc link or `#section`).
 > (`PANEL CONNECTED — this panel's own audio unit is the one being rendered`). Gated by
 > `ios/au-transport-check --panel`, the sixth gate in `mac.sh`; it reads the extension's own verdict
 > out of the unified log and demands BOTH verdicts in one run as its control.
-> **The `AudioComponentBundle` + `factoryFunction` lead is also CLOSED, by measurement.** It is
-> implemented (the AU code now lives in a real `TinyjamAUKernel` framework, Apple's shape, six gates
-> green) and it changes nothing: `.loadInProcess` is still answered from another process, before and
-> after. An `.appex` is a process the system launches, not a bundle a host dlopens. Kept as correct
-> packaging, NOT as a fix.
+> **The `AudioComponentBundle` + `factoryFunction` lead was RIGHT about the mechanism, and it hits a
+> PLATFORM WALL. Built, tried in GarageBand, REVERTED.** A host really does dlopen the bundle those
+> keys name — GarageBand said so while refusing to open the plug-in at all (orange !):
+> `dlopen(…TinyjamAUKernel): incompatible platform (have 'MacCatalyst', need 'macOS')`. **In-process
+> loading needs a NATIVE macOS code bundle; ours is Catalyst because every pixel of our UI is UIKit.**
+> Those two are incompatible, so in-process costs an AppKit canvas view — the "second host view to
+> maintain forever" Catalyst was picked to avoid. Product decision, not cleanup.
+> ⚠ **Two things to carry from how that went wrong.** (1) A probe watched `.loadInProcess` and saw the
+> engine answer from another pid, and that was written up as "in-process is impossible". It was
+> *attempted* and failed on the platform mismatch, after which a native host **silently falls back**;
+> the probe measured the outcome and never looked for the mechanism's own error. (2) **All six gates
+> passed on a plug-in GarageBand could not load** — they are hosted by a native binary that falls back
+> silently. The gates cover the AU; nothing covers whether a DAW can load it.
 > **So the only live defect is (B), and it is the one worth the effort:** engine state is
 > process-global (~204 statics in studio.c/sound.h plus acidcandy's ~120), `mac.sh` itself now prints
 > `2 instance(s) in this process`, and two GarageBand tracks are two front-ends over one rack.

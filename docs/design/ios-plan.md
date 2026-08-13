@@ -331,24 +331,43 @@ plug-ins.
 that renders — measured, and now gated. What follows supersedes the ⛔ PARKED section below; that
 section's *observations* are still accurate, its *conclusion* is not.
 
-**1. The `AudioComponentBundle` / `factoryFunction` lead: implemented, measured, CLOSED.** The AU's
-code now lives in a real framework (`TinyjamAUKernel`, `ios/project-mac.yml`) with both keys declared
-exactly as Apple's AUv3 samples declare them. It changes nothing about how the AU loads: a host asking
-for `kAudioComponentInstantiation_LoadInProcess` is still answered from another process, before *and*
-after the change.
+**1. The `AudioComponentBundle` / `factoryFunction` lead: RIGHT about the mechanism, and it hits a
+platform wall. Implemented, REVERTED, and the wall is now named.** The AU's code was factored into a
+real framework (`TinyjamAUKernel`) with both keys declared as Apple's samples declare them. Then
+GarageBand refused to open the plug-in at all — orange (!), the failure mode the entitlements bug used
+to produce — and said exactly why:
 
-| request | before the framework | after |
-|---|---|---|
-| `.loadInProcess` | instantiates, engine in another pid | instantiates, engine in another pid |
-| `.loadOutOfProcess` | another pid | another pid |
-| `[]` (host's choice) | another pid | another pid |
+```
+GarageBand: Error loading …/TinyjamAUKernel.framework/TinyjamAUKernel (107):
+  dlopen(…): incompatible platform (have 'MacCatalyst', need 'macOS')
+```
 
-So an AUv3 delivered as an **app extension** appears not to be in-process-loadable at all on this
-machine, whatever the plist says — which is coherent, since an `.appex` is a process the system
-launches, not a bundle a host dlopens. **The framework is KEPT** anyway: it is the shape Apple's own
-samples use, all six `mac.sh` gates pass with it, and it is the prerequisite for in-process loading if
-that route ever opens (e.g. shipping the AU as a `.component` alongside the appex). It is not a fix,
-and nothing should be built on the belief that it was.
+**So a host DOES dlopen the bundle those two keys name — the lead's mechanism was correct.** It fails
+because our framework is a **Mac Catalyst** binary and GarageBand is a native **macOS** process, and a
+native process cannot dlopen Catalyst code. That is the real wall, and it is a much sharper statement
+than "the panel is orphaned":
+
+> **In-process AUv3 loading requires the AU's code bundle to be native macOS. Ours is Catalyst,
+> because every pixel of our UI is UIKit (`Sources/CanvasView.swift`) — the deliberate choice at the
+> top of `project-mac.yml`. Those two facts are incompatible.** Getting in-process loading therefore
+> costs an AppKit canvas view, i.e. exactly the "second host view to maintain forever" that Catalyst
+> was chosen to avoid. That is a product decision, not a cleanup.
+
+⚠ **And note how the first reading of this went wrong, because it is the session's second instance of
+the same mistake.** A probe measured `.loadInProcess` and saw the engine answer from another pid,
+before *and* after the framework — and that was written up as "in-process loading is denied, an
+`.appex` is not dlopen-able, the lead is closed". Wrong: in-process *was attempted* and failed on the
+platform mismatch, after which a well-behaved host silently falls back to out-of-process. The probe
+watched the **outcome** (which pid answered) and never looked at the **attempt** (was there a dlopen
+error). GarageBand simply doesn't fall back, so it was the only observer that showed the truth.
+**When a mechanism is expected to engage and the outcome looks unchanged, look for the mechanism's
+own error before concluding it cannot engage.**
+
+**REVERTED** (`ios/project-mac.yml` is back to the appex compiling the AU directly): a packaging that
+no DAW can load is not "correct packaging", whatever Apple's samples do. **The failure was invisible
+to all six gates** — they are hosted by a native macOS binary that falls back silently, so every one
+of them passed on a plug-in that GarageBand could not open. That is the sharpest gate lesson of the
+stretch: *the gates covered the AU, and nothing covered whether a DAW can load it.*
 
 **2. The measurement that closed both routes was a tautology.** The old `[tinyjam] PANEL …` line asked
 the view controller's own local `TinyjamAU` for a message-channel nonce and compared the pid in the

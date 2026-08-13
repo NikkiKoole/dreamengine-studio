@@ -35,13 +35,6 @@ targets:
     dependencies:
       - target: TinyjamMacAU
         embed: true
-      # EMBED the kernel framework, do NOT link it. The app compiles its own copy of the engine
-      # (studio.c is in its sources above) and must not also load a second one; it carries the
-      # framework purely so the system can find it — an AUv3's code bundle is looked up in the
-      # containing app's Frameworks/, and the appex reaches it by rpath. See AU/TinyjamAUKernel.h.
-      - target: TinyjamAUKernel
-        embed: true
-        link: false
     entitlements:
       path: Mac.entitlements
       properties:
@@ -74,26 +67,11 @@ targets:
         OTHER_CFLAGS: [-fno-modules]
         MARKETING_VERSION: "1.0"   # MUST match the extension's, or registration can be refused
         CURRENT_PROJECT_VERSION: "1"
-  # ── the AU's CODE, in a loadable bundle ────────────────────────────────────────────────────────
-  # Everything that used to sit in the appex lives here. The reason is IN-PROCESS LOADING, and it is
-  # measured rather than assumed: with the AU code in the .appex (an executable, not a loadable
-  # bundle) a host asking for `.loadInProcess` was silently handed an out-of-process instance
-  # anyway — which is the case where the view controller builds its own audio unit and the panel
-  # ends up driving an engine nobody can hear. Apple's own AUv3 samples and every working
-  # third-party AUv3 are shaped this way. Full rationale: AU/TinyjamAUKernel.h.
-  TinyjamAUKernel:
-    type: framework
+  TinyjamMacAU:
+    type: app-extension
     platform: iOS
     sources:
-      - AU/TinyjamAU.swift
-      - AU/TinyjamAUViewController.swift
-      - AU/RateConvert.swift
-      # PUBLIC headers, not just compiled ones: the umbrella is how this framework's Swift sees the C
-      # engine now that a bridging header is unavailable (frameworks reject them outright).
-      - path: AU/TinyjamAUKernel.h
-        attributes: [Public]
-      - path: Sources/engine.h
-        attributes: [Public]
+      - AU
       # The plug-in's VIEW is the SAME CanvasView the standalone app uses (hosted: true switches it to
       # blit-only). AU_EXT keeps the app's AVAudioEngine/mic plumbing out of the extension, which never
       # owns audio — the host does.
@@ -105,47 +83,13 @@ targets:
       base:
         SUPPORTS_MACCATALYST: YES
         SUPPORTED_PLATFORMS: macosx
-        # MANDATORY, and its absence does not read like a missing plist: with no Info.plist the
-        # framework builds fine and then CODESIGN fails on Versions/A with "bundle format
-        # unrecognized, invalid, or unsuitable". It is also the thing that gives the framework the
-        # CFBundleIdentifier that AudioComponentBundle looks it up by, so there is no version of this
-        # target that works without it.
-        GENERATE_INFOPLIST_FILE: YES
-        # This id is what the extension's AudioComponentBundle key names. Change one, change both.
-        PRODUCT_BUNDLE_IDENTIFIER: com.tinyjam.mac.AUKernel
-        PRODUCT_MODULE_NAME: TinyjamAUKernel
-        # The umbrella-header mechanism only works with a module defined.
-        DEFINES_MODULE: YES
-        # Loaded into an app extension, so it must stay inside the extension-safe API surface — the
-        # same restriction the appex itself compiled under before the move.
-        APPLICATION_EXTENSION_API_ONLY: YES
+        GENERATE_INFOPLIST_FILE: NO
+        PRODUCT_BUNDLE_IDENTIFIER: com.tinyjam.mac.AU
+        SWIFT_OBJC_BRIDGING_HEADER: AU/AU-Bridging-Header.h
         HEADER_SEARCH_PATHS: [$(SRCROOT)/../runtime, $(SRCROOT)/gen/macau, $(SRCROOT)/Sources]
         GCC_PREPROCESSOR_DEFINITIONS: [$(inherited), DE_NO_RAYLIB=1, SCALE=1]
         SWIFT_ACTIVE_COMPILATION_CONDITIONS: [$(inherited), AU_EXT]
         OTHER_CFLAGS: [-fno-modules]   # the curses echo()/filter() collision — see the app target
-        MARKETING_VERSION: "1.0"   # MUST match the extension's, or registration can be refused
-        CURRENT_PROJECT_VERSION: "1"
-  TinyjamMacAU:
-    type: app-extension
-    platform: iOS
-    sources:
-      # ONE stub file — see AU/ExtensionStub.swift for why it is not empty. All the real code is in
-      # TinyjamAUKernel now.
-      - AU/ExtensionStub.swift
-    dependencies:
-      # LINK, do not embed: the framework ships in the containing app's Frameworks/ (the app embeds
-      # it) and this reaches it by the rpath below. Embedding a second copy inside the appex would
-      # give the system two bundles with one identifier.
-      - target: TinyjamAUKernel
-        embed: false
-    settings:
-      base:
-        SUPPORTS_MACCATALYST: YES
-        SUPPORTED_PLATFORMS: macosx
-        GENERATE_INFOPLIST_FILE: NO
-        PRODUCT_BUNDLE_IDENTIFIER: com.tinyjam.mac.AU
-        # .appex/Contents/MacOS → up 4 → TinyjamMac.app/Contents, i.e. where the app embedded it.
-        LD_RUNPATH_SEARCH_PATHS: [$(inherited), "@executable_path/../../../../Frameworks"]
         MARKETING_VERSION: "1.0"   # MUST match the extension's, or registration can be refused
         CURRENT_PROJECT_VERSION: "1"
     entitlements:
@@ -169,16 +113,9 @@ targets:
           # view, and the principal class must then be the AUViewController that also implements
           # AUAudioUnitFactory. With the plain identifier a host shows its own generic sliders.
           NSExtensionPointIdentifier: com.apple.AudioUnit-UI
-          # NOT $(PRODUCT_MODULE_NAME) any more: the class lives in the KERNEL framework's module, not
-          # in the appex's. Using the appex's own module name here would make NSClassFromString fail
-          # and the extension load with no principal class.
-          NSExtensionPrincipalClass: TinyjamAUKernel.TinyjamAUViewController
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).TinyjamAUViewController
           NSExtensionAttributes:
-            # THE KEY THAT ENABLES IN-PROCESS LOADING. It must name a bundle the system can actually
-            # load, i.e. the framework — pointing it at $(PRODUCT_BUNDLE_IDENTIFIER) (the .appex,
-            # which is an executable) is accepted and then silently ignored: a host requesting
-            # `.loadInProcess` got an out-of-process instance anyway, which is the orphaned panel.
-            AudioComponentBundle: com.tinyjam.mac.AUKernel
+            AudioComponentBundle: $(PRODUCT_BUNDLE_IDENTIFIER)
             AudioComponents:
               # DISTINCT 4-char codes from the iOS spec's tnyj/Tnyj: the two can be registered on
               # one machine and a collision would make the host pick whichever it saw first.
@@ -189,10 +126,6 @@ targets:
                 name: "Mipolai: Tiny Acid Jam"
                 version: 1
                 sandboxSafe: true
-                # The other half of in-process loading: the class inside AudioComponentBundle that
-                # conforms to AUAudioUnitFactory. For an AUv3 WITH a view that is the view controller
-                # itself, which is exactly what makes the panel and the DSP one object.
-                factoryFunction: TinyjamAUKernel.TinyjamAUViewController
                 tags:
                   - Synthesizer
 schemes:

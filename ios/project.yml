@@ -87,19 +87,14 @@ targets:
     # host MIDI (de_midi_event) → the cart's keybed plays it, sample-clocks de_frame() (the
     # sequencer/voice bookkeeping), and pulls de_audio_render() — same engine the app runs.
     sources:
-      # ⚠ EXCLUDES, because globbing `AU` sweeps in files that belong to the MAC plug-in only.
-      #   · TinyjamAUViewController.swift — this extension is AUDIO-ONLY (`com.apple.AudioUnit`, with
-      #     TinyjamAUFactory as its principal class, see the plist below); it has no panel and so no
-      #     CanvasView in its sources, which the view controller needs. Globbed in, it FAILED THE
-      #     BUILD WITH "cannot find type 'CanvasView' in scope" — and did so silently from the day
-      #     the mac plug-in gained a view, because store builds strip this whole target (de:au-begin)
-      #     and nothing else built the iOS AU. Fixed 2026-08-13.
-      #   · ExtensionStub.swift / TinyjamAUKernel.h — the mac spec factors the AU code into a
-      #     TinyjamAUKernel FRAMEWORK (in-process loading, see project-mac.yml). The stub imports a
-      #     module that does not exist here, and the umbrella header is that framework's substitute
-      #     for the bridging header this target still uses.
+      # ⚠ EXCLUDE the view controller: this extension is AUDIO-ONLY (`com.apple.AudioUnit`, with
+      # TinyjamAUFactory as its principal class, see the plist below). It has no panel and so no
+      # CanvasView in its sources, which the view controller needs. Globbed in, it FAILED THE BUILD
+      # WITH "cannot find type 'CanvasView' in scope" — and did so silently from the day the mac
+      # plug-in gained a view, because store builds strip this whole target (de:au-begin) and nothing
+      # else built the iOS AU. Fixed 2026-08-13.
       - path: AU
-        excludes: [TinyjamAUViewController.swift, ExtensionStub.swift, TinyjamAUKernel.h]
+        excludes: [TinyjamAUViewController.swift]
       - ../runtime/studio.c
       - ../runtime/raylib_compat.c
       - gen/au/cart.c

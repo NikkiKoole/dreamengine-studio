@@ -13,6 +13,7 @@
 //   ./au-transport-check --rate 48000   # the same transport checks, host rendering at 48k
 //   ./au-transport-check --wav /tmp/x   # also dump what it rendered → /tmp/x-<rate>.wav, to LISTEN
 //   ./au-transport-check --view      # is the UI extension wired? (the picture still needs eyes)
+//   ./au-transport-check --realtime  # pace to the wall clock: exercises the FRAME WORKER path
 //
 // Requires the plug-in registered (zsh ios/mac.sh). Run from ios/; mac.sh runs it for you.
 //
@@ -74,6 +75,12 @@ func flagValue(_ flag: String, _ fallback: Double) -> Double {
     return v
 }
 let freeRun  = argv.contains("--free")
+// The plug-in runs the cart's frame on a WORKER thread in realtime, and INLINE when the host declares
+// it is rendering OFFLINE (a bounce), where exactness beats latency. AVAudioEngine's manual-rendering
+// mode sets isRenderingOffline for us, so the default run here takes the inline path and stays
+// deterministic. `--realtime` paces the loop to the wall clock instead, which leaves the WORKER path
+// engaged — the arrangement a live DAW actually uses, and worth running after touching either.
+let realtime = argv.contains("--realtime")
 let hostRate = flagValue("--rate", ENGINE_SR)
 // --wav <prefix> dumps what was rendered → <prefix>-<rate>.wav. Not a check, a listening aid: the
 // fastest way to answer "does 48k sound in tune" is still to play the file.
@@ -99,6 +106,7 @@ guard let avAU = au else {
     print("✗ could not instantiate aumu/tacj/Mpla — is it registered? run: zsh ios/mac.sh")
     exit(1)
 }
+
 
 // ── THE FAKE HOST. These two blocks are the entire point: they are what a DAW supplies and what
 //    auval never does. `hostBeat` is advanced by the render loop from samples rendered. ──
@@ -186,6 +194,10 @@ final class Rig {
         while hostBeat < until {
             guard (try? engine.renderOffline(2048, to: buf)) == .success else { break }
             let n = Int(buf.frameLength)
+            // --realtime: hand the wall clock back, so the frame worker gets to run between buffers
+            // exactly as it would under a live host. Without this the CPU renders minutes of audio a
+            // second and no worker on earth keeps up.
+            if realtime { usleep(useconds_t(Double(n) / sr * 1_000_000.0)) }
             if let w = wav { try? w.write(from: buf) }
             if let ch = buf.floatChannelData {
                 for i in 0..<n {

@@ -52,7 +52,24 @@ a broken doc link or `#section`).
 > TWO shapes — MIDI clock is *incremental* (measure the tempo, infer the transport), a host and Link are
 > *absolute* (they state both). `sync_beats()` is the common currency and a cart DERIVES its step counter
 > from it. That is why AUv3 transport needed **zero cart changes**: it was the other shape of the same seam.
-> **▶ NEXT ACTION: open GarageBand and LOOK at the plug-in's panel.** The AUv3 **VIEW is WIRED**
+> **▶ NEXT ACTION: play-test again in GarageBand (the first one, 2026-08-13, found two things).**
+> **(a) A SAVED CART STATE CAN BOOT THE PLUG-IN SILENT** and there is no reset. acidcandy persists its
+> banks with `save_bytes`, the plug-in has its own container, and after the maker's session every gate
+> and every build rendered silence — including builds that had passed an hour before. It presents
+> exactly like a code regression and survives a rebuild, so it sends you bisecting ghosts (it did).
+> The cure is `mv ~/Library/Containers/com.tinyjam.mac.AU/Data/cart.blob` aside: 0 onsets → 124,
+> confirmed both directions. The PRODUCT problem is the bigger one: a user can wedge their rack silent
+> with no recourse. Open: a reset affordance, and per-instance state via the host's `fullState` rather
+> than one global blob. **(b) THE FRAME RAN ON THE AUDIO THREAD** — a sample taken while the host was
+> wedged shows the render thread inside `de_frame → draw → sw_pset → blend_nearest`, i.e. the cart's
+> whole software-rasterised UI. Measured 0.13–0.25 ms at -O2 and 0.40–0.94 ms (2 ms peak) at -O0:
+> fine on a 512-sample buffer, over budget on a 64. Fixed by a FRAME WORKER (the render block signals,
+> never waits; offline renders stay inline where exactness beats latency) and by `mac.sh` finally
+> building **Release** instead of Debug. ⚠ Neither is PROVEN to be the hang: by the time the processes
+> were sampled both were idle and healthy, our view was blitting and our audio rendering. Also open
+> from that session: hovering does not move the cursor (a Catalyst mouse-move is not a touch, so the
+> pixel cursor only jumps on click — needs a hover seam).
+> **Older next-action, still true: LOOK at the panel.** The AUv3 **VIEW is WIRED**
 > (2026-08-12, `ios/AU/TinyjamAUViewController.swift` + `CanvasView(hosted: true)`, gated by
 > `ios/au-transport-check --view`: the host is handed an `AUAudioUnitRemoteViewController` whose view
 > loads at 492×308). What no gate can answer is whether the PICTURE is right — size, scaling, whether

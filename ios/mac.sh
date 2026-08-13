@@ -73,15 +73,20 @@ xcodegen generate --spec project-mac.yml >/dev/null
 # the build succeeds, the .appex embeds, and the system then silently ignores it (codesign shows
 # Signature=adhoc / TeamIdentifier=not set, and pluginkit lists nothing). That cost a whole round.
 TEAM="${TEAM:-JH2ZCZH58D}"
-echo "▸ building for Mac Catalyst, signed (team $TEAM)…"
+# RELEASE by default. This built Debug until 2026-08-13, and for a plug-in that software-rasterises a
+# whole UI that is not a detail: -O0 makes the frame 3-4x more expensive (0.4-0.9 ms vs 0.13-0.25 ms
+# measured on acidcandy), and the frame used to run on the audio thread. `CONFIG=Debug zsh ios/mac.sh`
+# when you actually want to attach a debugger.
+CONFIG="${CONFIG:-Release}"
+echo "▸ building for Mac Catalyst, $CONFIG, signed (team $TEAM)…"
 xcodebuild -project TinyjamMac.xcodeproj -scheme TinyjamMac \
-  -destination 'platform=macOS,variant=Mac Catalyst' -configuration Debug \
+  -destination 'platform=macOS,variant=Mac Catalyst' -configuration "$CONFIG" \
   -derivedDataPath build-mac -allowProvisioningUpdates \
   GCC_PREPROCESSOR_DEFINITIONS="$DEFS" \
   DEVELOPMENT_TEAM="$TEAM" CODE_SIGN_STYLE=Automatic \
   build 2>&1 | tail -6
 
-APP="$(ls -d build-mac/Build/Products/Debug-maccatalyst/TinyjamMac.app 2>/dev/null || true)"
+APP="$(ls -d "build-mac/Build/Products/$CONFIG-maccatalyst/TinyjamMac.app" 2>/dev/null || true)"
 [ -n "$APP" ] || { echo "✗ no .app produced — see the build output above"; exit 1; }
 echo "▸ built $APP"
 if [ -d "$APP/Contents/PlugIns" ]; then
@@ -140,6 +145,12 @@ xcrun swiftc -O -o au-transport-check au-transport-check.swift -framework AVFoun
 # of that wrong and the plug-in still passes auval and still plays, while every DAW quietly shows its
 # own generic sliders. Whether the picture is RIGHT needs eyes in GarageBand; the pixel path itself is
 # gated by tools/present-race-check.
+# ...and once PACED TO THE WALL CLOCK, which is the only mode that exercises the FRAME WORKER. The
+# runs above take the inline path, because AVAudioEngine's manual rendering declares itself offline.
+# Costs ~12s and it is worth it: the worker is what keeps the cart's update+draw off the audio thread.
+echo "▸ frame-worker gate (--realtime, ~12s)"
+./au-transport-check --realtime
+
 echo "▸ plug-in view gate (--view)"
 ./au-transport-check --view
 

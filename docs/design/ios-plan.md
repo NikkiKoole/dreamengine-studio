@@ -271,6 +271,52 @@ the real struct — 220.000 Hz at every rate, level held, the 11025 case rejecti
 instead of folding it down to 3.9 kHz, and a nonsense rate falling back to passthrough rather than
 hanging the audio thread in a pull loop that never terminates.
 
+### The first real play-test, and the two things it found (2026-08-13)
+
+The maker put the plug-in on a track in GarageBand and played it. Two findings, and **the one that
+looked most alarming was not a bug in our code at all**.
+
+**1. A SAVED CART STATE CAN BOOT THE PLUG-IN SILENT, and there is no way to reset it.** After the
+session, the plug-in rendered pure silence — every gate, every build, including builds that had
+passed an hour earlier. That is what makes it worth writing down: it presents exactly like a code
+regression, and it survives a rebuild, so a bisect chases ghosts. The cause is
+`~/Library/Containers/com.tinyjam.mac.AU/Data/cart.blob`: acidcandy persists its pattern banks with
+`save_bytes`, the plug-in has its own container, and whatever state the last session left is restored
+on every launch. Move the blob aside and the rack plays again (0 onsets → 124, confirmed both ways).
+
+The product consequence is bigger than the debugging one: **a user can put the rack into a silent
+state and has no recourse.** No reset, no visible indication that a saved state is even in play.
+Open work: a "reset rack" affordance, and/or a plug-in that does not persist to a shared container
+without the host's state mechanism (`fullState`, which is how a DAW expects to save per-instance
+settings — a plug-in with ONE global saved state is wrong for a host that has many instances anyway).
+
+**2. The frame ran on the audio thread, which is a deadline we cannot meet.** The sample taken while
+GarageBand was wedged shows the render thread inside `de_frame → draw → line → sw_pset →
+blend_nearest`: the cart's entire software-rasterised UI, on the render thread. Measured on acidcandy:
+
+| build | de_frame avg | peak | 512-buf (11.6 ms) | 128-buf (2.9 ms) | 64-buf (1.45 ms) |
+|---|---|---|---|---|---|
+| `-O2` | 0.13–0.25 ms | 0.83 ms | ok | ok | ok |
+| `-O0` (what `mac.sh` shipped) | 0.40–0.94 ms | 2.08 ms | ok | ok | **MISS** |
+
+So it fits a normal buffer and misses a small one. Two fixes: the frame moved to a **worker thread**
+(the render block signals it and never waits; offline renders still run inline, where exactness beats
+latency and there is no deadline), and `mac.sh` now builds **Release** — it built Debug until today,
+which for a plug-in that software-rasterises a UI is a 3–4× tax on the hot path. The worker also
+moves every allocation the frame can make (the framebuffer realloc on resize, the present buffer's
+growth) off the audio thread, which was the last realtime sin in the render block.
+
+⚠ **Not proven to be the hang.** The wedged transport was not reproducible from the sampled state:
+both processes were idle and healthy by the time they were inspected, our view was blitting, our audio
+was rendering. The deadline hazard is real and measured and now gone, but nobody has shown it caused
+GarageBand's transport to stop. Treat that as open until a play-test says otherwise.
+
+Two smaller things the same session surfaced: **hovering does not move the cursor** (the view feeds
+`de_touch_*` from UIKit touches, and a Catalyst mouse-move is not a touch, so the cart's pixel cursor
+only jumps on click — needs a hover seam), and **`build/` is shared between agents**, which
+contaminated this very investigation twice (a `headless-nr` rebuilt for another cart made "the
+software path is silent" look like an engine regression).
+
 ### The plug-in view (phase 3)
 
 `AU/TinyjamAUViewController.swift`. Wired and gated 2026-08-12; **not yet judged by eye in a DAW**,

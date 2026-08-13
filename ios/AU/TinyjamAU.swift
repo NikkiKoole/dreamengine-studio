@@ -9,17 +9,16 @@ import CoreAudio
 // by host MIDI. It runs the same engine the standalone app does. Each render block, in order:
 //
 //   1. feed host MIDI into the engine's ring (de_midi_event), parsed from the realtime event list.
-//   2. de_frame() advances one 60Hz tick of cart logic — the cart's keybed drains the MIDI ring
-//      (keybed_update → note_on/off) and plays. SAMPLE-CLOCKED — one frame per 735 rendered samples
-//      (44100/60), NOT a wall-clock timer — so it stays correct under a host's OFFLINE render too.
+//   2. SIGNAL a frame — one per 735 rendered samples (44100/60), so the cart's clock is driven by
+//      RENDERED AUDIO and not by a wall-clock timer. The frame itself runs on the worker thread (see
+//      "THE FRAME WORKER"); under an OFFLINE render it runs inline, where exactness beats latency.
 //   3. de_audio_render() = sound.h's mixer, filling interleaved stereo.
 //   4. if the host asked for a rate other than 44100, RESAMPLE to it (see "the rate seam" below).
 //
-// All of it runs on the audio thread, in order, so there are NO cross-thread races on engine state
-// (the MIDI ring's producer and consumer are the same thread here). The staged cart (gen/au/cart.c)
-// is a KEYBED instrument (epiano): silent until the host sends notes, then it plays them. One engine
-// instance per process: studio.c/sound.h use file-scope globals; iOS loads the AUv3 out-of-process,
-// and one hosted rack is the case we support (multiple instances in one process would share state).
+// Steps 1, 3 and 4 are the audio thread's whole job. The cart's update+draw is NOT on it — that was
+// the arrangement until 2026-08-13, and it cost a wedged GarageBand transport. One engine instance per
+// process: studio.c/sound.h use file-scope globals; iOS loads the AUv3 out-of-process, and one hosted
+// rack is the case we support (multiple instances in one process would share state).
 //
 // ── the rate seam ────────────────────────────────────────────────────────────────────────────────
 // The engine is COMPILE-TIME 44.1 kHz: SOUND_SAMPLE_RATE sizes every delay line and envelope, every
@@ -85,11 +84,58 @@ public final class TinyjamAU: AUAudioUnit {
     public override var outputBusses: AUAudioUnitBusArray { _outputBusArray }
     public override var inputBusses: AUAudioUnitBusArray { _inputBusArray }
 
+    // ══ THE FRAME WORKER ════════════════════════════════════════════════════════════════════════
+    // de_frame() does not run on the audio thread. It used to, and that is a plug-in writing a cheque
+    // its render deadline cannot cash: a frame is the cart's whole update AND its whole software-
+    // rasterised UI. Measured on this cart, 0.4–0.9 ms typical and 2 ms peak in a Debug build (0.13–0.25
+    // ms at -O2) — comfortably inside a 512-sample buffer's 11.6 ms, and comfortably OUTSIDE a
+    // 64-sample buffer's 1.45 ms. A host at a small buffer therefore overruns periodically, and the
+    // symptom is not a crash: GarageBand stops the transport and will not start again.
+    //
+    // So the render block SIGNALS this worker (never waits on it) and returns to doing only audio.
+    // That restores the arrangement the standalone app always had — a game thread producing into
+    // sound.h's SPSC queue, an audio thread consuming it — and as a bonus moves every allocation the
+    // frame can make (the framebuffer realloc on resize, the present buffer's growth) off the audio
+    // thread too, which was the other realtime sin left in here.
+    //
+    // Cost: note timing is quantised to the worker's wakeup rather than the exact sample, a jitter of
+    // at most one frame. That is precisely what the standalone app has always done, and it is
+    // inaudible next to an overrun.
+    private var worker: Thread?
+    private let frameSignal = DispatchSemaphore(value: 0)
+    private var workerStop = false
+
+    private func workerLoop() {
+        while true {
+            frameSignal.wait()
+            if workerStop { break }
+            frame.pointee &+= 1
+            de_frame(Double(frame.pointee) / 60.0)
+        }
+    }
+    private func startWorker() {
+        guard worker == nil else { return }
+        workerStop = false
+        let t = Thread { [weak self] in self?.workerLoop() }
+        t.name = "dreamengine.frame"
+        t.qualityOfService = .userInteractive   // it feeds the sequencer; it must not be starved
+        t.start()
+        worker = t
+    }
+    private func stopWorker() {
+        guard let t = worker else { return }
+        workerStop = true
+        frameSignal.signal()
+        while !t.isFinished { usleep(500) }
+        worker = nil
+    }
+
     // The host's rate is only knowable here: it sets the bus format, and it may set a DIFFERENT one
     // later (a user changing interface or project rate re-allocates). So configure per allocation and
     // reset the converter's state, rather than reading the rate once at init.
     public override func allocateRenderResources() throws {
         try super.allocateRenderResources()
+        startWorker()
         let host = _outputBusArray[0].format.sampleRate
         var s = RateState()
         s.rc.configure(engineRate: TinyjamAU.ENGINE_RATE, hostRate: host)
@@ -97,9 +143,14 @@ public final class TinyjamAU: AUAudioUnit {
         acc.pointee = 0                      // the fast path's sample clock; stale after a rate change
     }
 
+    public override func deallocateRenderResources() {
+        stopWorker()               // before super: the worker calls into the engine this tears down
+        super.deallocateRenderResources()
+    }
+
     public override var internalRenderBlock: AUInternalRenderBlock {
         let scratch = self.scratch, cap = self.scratchCap, acc = self.acc, frame = self.frame
-        let echunk = self.echunk, rate = self.rate
+        let echunk = self.echunk, rate = self.rate, signal = self.frameSignal
         let spf = TinyjamAU.SAMPLES_PER_FRAME
         // Capture SELF unretained, not the two host blocks themselves. The host assigns
         // musicalContextBlock / transportStateBlock AFTER it fetches this render block, so reading
@@ -146,6 +197,7 @@ public final class TinyjamAU: AUAudioUnit {
                 ev = UnsafePointer(e.pointee.head.next)
             }
             let abl = UnsafeMutableAudioBufferListPointer(outputData)
+            let offline = me.isRenderingOffline
 
             if rate.pointee.rc.passthrough {
                 // ── 2a) THE HOST IS AT OUR RATE (44100): the original path, byte for byte. ────────
@@ -154,8 +206,11 @@ public final class TinyjamAU: AUAudioUnit {
                 acc.pointee += n
                 while acc.pointee >= spf {
                     acc.pointee -= spf
-                    frame.pointee &+= 1
-                    de_frame(Double(frame.pointee) / 60.0)
+                    // OFFLINE (a bounce) runs the frame INLINE: there is no deadline to miss, and a
+                    // bounce must be exact — handing it to a worker would let audio render ahead of
+                    // the sequencer that is supposed to be driving it. Realtime signals instead.
+                    if offline { frame.pointee &+= 1; de_frame(Double(frame.pointee) / 60.0) }
+                    else       { signal.signal() }
                 }
                 de_audio_render(scratch, Int32(n))                   // sound.h mixer → interleaved L,R
             } else {
@@ -168,8 +223,8 @@ public final class TinyjamAU: AUAudioUnit {
                 for j in 0..<n {
                     while st.rc.needsFrame {
                         if st.eIdx >= spf {
-                            frame.pointee &+= 1
-                            de_frame(Double(frame.pointee) / 60.0)
+                            if offline { frame.pointee &+= 1; de_frame(Double(frame.pointee) / 60.0) }
+                            else       { signal.signal() }        // see the fast path's note
                             de_audio_render(echunk, Int32(spf))
                             st.eIdx = 0
                         }

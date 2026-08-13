@@ -11,6 +11,62 @@
 > [`ios-plan.md`](ios-plan.md) (the AUv3 extension), [`product-notes.md`](product-notes.md)
 > (Link on the wishlist), [`audio-timing.md`](audio-timing.md) (the engine's own clock).
 
+## The whole outward surface — what ships, what is open, and the ReBirth comparison
+
+Added 2026-08-13, because the maker asked "what is the simplest thing ReBirth did that we don't?"
+and the answer was scattered across four docs with no single view. **This table is that view.** Every
+row is verified against the code, not remembered; the ReBirth column is flagged where it is recall
+rather than fact, because getting that wrong would be worse than leaving it open.
+
+| capability | direction | ours today | ReBirth |
+|---|---|---|---|
+| **MIDI clock IN** — slave to a DAW or a drum machine | in | ✅ **SHIPPED** (`sync.h` + CoreMIDI), **macOS desktop only** — the iOS backend is open | ✅ incl. the iPad app |
+| **Host transport** (AUv3 `musicalContextBlock`) | in | ✅ **SHIPPED** on macOS; the panel/process fork is open ([ios-plan.md](ios-plan.md#the-out-of-process-wall-the-open-fork-2026-08-13)) | ReWire was its equivalent |
+| **Ableton Link** — peer tempo with phones in the room | both | ✗ **OPEN.** Same `sync_push_pos()` call, so small — but the lib is dual-licensed, check that FIRST | n/a (Link postdates it) |
+| **MIDI notes IN** — play the instrument | in | ✅ engine-wide (`midi_input.h`, keybed carts). ⚠ **acidcandy reads none** — it is a sequencer, which is why recording a GarageBand instrument track captures nothing | ✅ |
+| **MIDI CC IN** — turn its knobs from a controller or DAW automation | in | ✗ **NOT BUILT, and it is one line**: `midi_input.h` parses the byte and drops it — `status == 0xB0 … // CC / poly-AT — skip (future)`. **This is the cheapest missing piece of the whole story** | ✅ (recall — this is the gap the maker was reaching for) |
+| **MIDI clock OUT** — drive other gear from a cart | out | ✗ **NOT BUILT AT ALL.** There is no MIDI output path in the engine; `midi_input.h` is input-only by design. See [`midi-out.md`](midi-out.md) (EXPLORING) | ✗ ReWire instead (recall) |
+| **MIDI notes OUT** — a cart as a sequencer for outboard | out | ✗ not built (same missing path) | ✗ (recall) |
+| **Audio INTO another app / DAW** | out | AUv3 — plays, but the panel is not honestly wired (the fork above) | ✅ ReWire on desktop; **Audiobus** on iPad |
+| **In-app EXPORT of your track** | out | ✗ **`acidcandy` cannot.** `acidrack` can (engine live capture), so the surface exists | ✅ **iTunes + SoundCloud** |
+| **Background audio while slaved** (iOS) | — | ✗ open, and it is the pairing ReBirth shipped | ✅ |
+| **Who owns the tempo** | — | the cart, until a clock arrives; `sync_transport()` says whether that clock drives start/stop too, so a tempo-only clock never steals the play button | — |
+
+### What ReBirth for iPad actually had (researched 2026-08-13, not recalled)
+
+Its 1.3 update is the one that matters, and the feature list is short: **MIDI sync** ("sync ReBirth to
+your DAW, MIDI hardware or other apps"), **background mode** ("keep ReBirth playing in the background
+when slaved to other apps"), **SoundCloud sharing**, **iTunes export** ("export your track to your
+computer"), Duo mode, and Audiobus
+([Synthtopia](https://www.synthtopia.com/content/2012/11/27/rebirth-for-ipad-reborn/)). No AUv3 — it
+predates it and Propellerhead never added one. No Ableton Link. No MIDI out.
+
+So its outward surface was: **be a slave, keep playing in the background, route audio to other apps,
+and GET YOUR TRACK OUT.** Two of those four we do not have:
+
+- **In-app EXPORT.** ReBirth let you export the track to iTunes or SoundCloud. `acidcandy` cannot
+  export at all (`acidrack` can — "WAV export via the engine's live capture" — so the engine surface
+  exists and the shipping cart just does not use it). **This is the honest answer to "recording it in
+  GarageBand does nothing":** ReBirth never relied on the host for that either. It shipped its own way
+  out.
+- **Background audio on iOS** (with MIDI clock in), which is exactly the pairing ReBirth shipped and
+  our lane still lists as open.
+
+### What the market expects now (same research)
+
+The live 303-alikes on iOS set the baseline: **Troublemaker** (Bram Bos) has AUv3, **Ableton Link**,
+**MIDI CC mapping**, Core/Virtual/Bluetooth MIDI in, Audiobus 2. **Pure Acid** has Link. **2xB303** has
+Link, IAA/Audiobus/AUM routing, MIDI sync and audio-loop export. Against that list we have AUv3
+(panel unfinished) and MIDI clock in on desktop; **Link, CC and export are all table stakes we lack.**
+
+**So the short answer to the question.** The simplest thing: **MIDI CC in.** One `else if` in
+`midi_input.h` throws the bytes away, and with it goes "tweak the cutoff from a knob box / automate it
+from the DAW" — which for an acid box is most of the fun, and which ReBirth had. The *biggest* thing is
+ReWire, and our answer to that is the AUv3: shipped, playing, and stuck on the out-of-process wall.
+
+Neither is scheduled. They are listed here so the next session finds them in one place instead of
+re-deriving the list from four docs, which is exactly what happened to produce this table.
+
 ## The problem
 
 A groovebox cart owns its tempo. Put it next to anything else that owns a tempo, and one of

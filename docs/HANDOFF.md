@@ -135,6 +135,25 @@ a broken doc link or `#section`).
 > nothing because acidcandy reads no MIDI (expected, not a bug: a 303 sequencer taking MIDI notes is its
 > own design question).
 >
+> **⚠ TWO PRODUCT RISKS found by that research, neither fixed** (both in
+> [`product-notes.md` → the trademark flag](design/product-notes.md#-the-rule-is-currently-broken-by-our-own-live-listing-found-2026-08-13)
+> and the table below): **(1)** ReBirth was **pulled from the App Store in June 2017 after Roland
+> claimed IP infringement** — so this is the documented cause of death of the app we are an homage to —
+> while our own PAID listing, already pushed to ASC, is titled "**303** Groovebox" with `rebirth`, `338`
+> and `tb303` in the keyword field, breaking a rule `product-notes.md` wrote down years earlier
+> ("nothing Roland-named crosses a paywall"). The market's answer is Troublemaker's: sell the SOUND,
+> never wear the trademark. No tool enforces this — a trademark screen belongs in the `aso-*` pipeline.
+> **(2)** `acidcandy` **cannot export a track**, and in-app export is what ReBirth shipped instead of
+> relying on a host — which is the real answer to "recording it in GarageBand does nothing".
+> `acidrack` can export via the engine's live capture, so the surface exists and the shipping cart
+> just does not use it.
+>
+> **The outward surface in ONE table** (asked for 2026-08-13, was scattered over four docs):
+> [`external-clock-sync.md` → The whole outward surface](design/external-clock-sync.md#the-whole-outward-surface--what-ships-what-is-open-and-the-rebirth-comparison)
+> — MIDI clock in ✅ (macOS only) · host transport ✅ · Link ✗ (licence first) · notes in ✅ (but
+> acidcandy reads none) · **CC in ✗ — one dropped `else if` in `midi_input.h`, and the cheapest missing
+> piece there is** · clock/notes OUT ✗ (no output path at all) · audio into a DAW = the AUv3.
+>
 > **The gates, all in `zsh ios/mac.sh` (Release by default now; `CONFIG=Debug` to attach a debugger):**
 > `rate-convert-check` (a 220 Hz sine through the real converter) · `au-transport-check` at 44.1k AND
 > 48k (plays · follows tempo · stops · **restarts** · survives a 128-beat backward LOOP · plays after

@@ -96,6 +96,39 @@ marks. The rule, adopted now so naming never has to be unwound:
 > the free gallery. Conveniently, the strongest half of the rack table (Western,
 > Fairground, Radiophonic, Toy-Town…) is original IP already.
 
+### ⚠ The rule is currently BROKEN by our own live listing (found 2026-08-13)
+
+Researched because the maker asked what happened to ReBirth. **It was pulled from the App Store on
+15 June 2017 after Roland claimed IP infringement** — Propellerhead chose not to contest it and
+discontinued the product outright ([Fact](https://www.factmag.com/2017/06/13/propellerhead-rebirth-ipad-discontinued-roland-ip-infringement/),
+[Synthtopia](https://www.synthtopia.com/content/2017/06/12/rebirth-is-dead-for-real-this-time/),
+[MusicRadar](https://www.musicradar.com/news/propellerheads-rebirth-is-saying-its-final-goodbye-as-roland-says-that-it-infringes-its-ip-rights)).
+So this is not a theoretical risk in this exact product category: it is the documented cause of death
+of the app Tiny Acid Jam is an homage to.
+
+Meanwhile `apps/tinyacidjam/app.json` — a **paid** ($1.99) listing, already pushed to App Store
+Connect — reads:
+
+| field | value |
+|---|---|
+| title | Tiny Acid Jam: **303** Groovebox |
+| subtitle | **808**, **909**, house in your pocket |
+| keywords | `808,909,emulator,techno,bassline,drum,synth,sequencer,rave,`**`rebirth`**`,`**`338`**`,`**`tb303`**`,dance,operator,loop` |
+
+That is Roland's model numbers in the title and subtitle, plus **`rebirth` and `338`** — Reason
+Studios' marks — in the keyword field. By our own rule, none of it should cross a paywall.
+
+**How the market solves it, and it is instructive:** Bram Bos's **Troublemaker** is marketed as
+explicitly *"not a 303"* and sells fine on the sound alone
+([Synthtopia](https://www.synthtopia.com/content/2017/01/09/new-troublemaker-synth-not-a-303-it-just-sounds-like-one-and-works-in-your-ios-daw/)).
+**Pure Acid** says "inspired by … like the legendary TB-303" rather than claiming to be one. The
+pattern is: describe the SOUND and the LINEAGE, never wear the trademark.
+
+**Not fixed here** — renaming a listing is the maker's call and touches the store metadata, the ASO
+brief and the icon. But `aso-lint`/`aso-compose` happily packed those keywords because they optimise
+for reach, not for legal exposure: **a trademark screen belongs in that pipeline**, and today no tool
+enforces the rule this doc wrote down.
+
 ## Open questions
 
 - Pricing shape: one app with rack IAPs (Pocket-Operator-catalog feel) vs an app

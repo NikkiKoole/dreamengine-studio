@@ -1,5 +1,9 @@
 # MIDI out — carts as controllers / sequencers
 
+> **The whole outward surface in ONE table** — what ships, what is open, and how it compares to
+> ReBirth: [`external-clock-sync.md` → The whole outward surface](external-clock-sync.md#the-whole-outward-surface--what-ships-what-is-open-and-the-rebirth-comparison).
+> Read that first; this doc is the OUT half only.
+
 > **STATUS: EXPLORING (idea, 2026-07-11; demand-confirmed 2026-07-19).** Captured from a
 > session sparked by "does MIDI out always make sense — e.g. in the 303?" Nothing built yet;
 > there is **no MIDI-output path in the engine today** (`runtime/midi_input.h` is input-only

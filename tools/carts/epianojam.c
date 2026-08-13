@@ -14,7 +14,7 @@
   "lineage": "Made for fun, to point the new MIDI-out seam at something musical: harmony.h generates the progression, midi_output.h sends it, and the sound is whatever instrument you point it at -- an ePiano in GarageBand was the first. The cart the maker asked for after midiout proved the wire works: 'can you create a temp cart that midi creates interesting epiano chord progressions to play them in garageband'.",
   "description": {
     "summary": "Generates jazz/pop chord progressions with the shared harmony brain and plays them OUT over MIDI -- point it at a piano in any DAW and it jams on its own.",
-    "detail": "The cart makes no sound itself; harmony.h picks the chords and your DAW's instrument plays them. Thirteen styles are on the number keys -- bossa, cocktail, city pop, minor pop, blues, cinematic, and the modal ones -- each a different set of WEIGHTS over the same roman-numeral vocabulary, so the same brain sounds like a lounge or like a sad-pop record depending on which table it reads. What makes it listenable rather than a chord-quiz is the VOICING: each chord's four tones are placed in the octave nearest where the last chord's voices were, so the inner parts creep by a semitone or two instead of jumping in parallel blocks -- that is the difference between 'a computer naming chords' and 'someone playing piano'. Three feels (block, arpeggio, offbeat stabs) and a bass note underneath. The panel shows the roman numeral, the chord name, and the actual MIDI notes going out.",
+    "detail": "The cart makes no sound itself; harmony.h picks the chords and your DAW's instrument plays them. Thirteen styles are on the number keys -- bossa, cocktail, city pop, minor pop, blues, cinematic, and the modal ones -- each a different set of WEIGHTS over the same roman-numeral vocabulary, so the same brain sounds like a lounge or like a sad-pop record depending on which table it reads. What makes it listenable rather than a chord-quiz is the VOICING: each new pitch is matched to whichever of the previous chord's voices sits nearest it, so shared tones stay exactly where they are and only the rest move a step or two -- that is the difference between 'a computer naming chords' and 'someone playing piano'. Doing it the obvious way instead, tone 1 to voice 1, looks the same in the code and comes out as parallel blocks. Three feels (block, arpeggio, offbeat stabs) and a bass note underneath. The panel shows the roman numeral, the chord name, and the actual MIDI notes going out.",
     "controls": "SPACE plays/stops. 1-9 and 0 pick the style (Q/W/E for three more). LEFT/RIGHT tempo, UP/DOWN transpose the key. F cycles the feel (block / arp / stabs). B toggles the bass note."
   }
 }
@@ -86,11 +86,12 @@ static const HbVocab *vocab_of(const HbStyle *st) { return st->vocab ? st->vocab
 
 // ── VOICE LEADING — the thing that makes this sound played rather than spelled ──
 // harmony.h hands back four PITCH CLASSES (0..11). Dropping them into a fixed octave gives
-// parallel block chords that lurch around the keyboard: correct, and immediately robotic.
-// Instead, put each tone in whichever octave sits nearest the voice it is replacing, so the
-// inner parts move by a semitone or two and the chord "resolves" the way a pianist's hand does.
-// Cheap version of what rad_lead_to does for the radio carts — kept local because that one is
-// wired to radio.h's voice model, and this cart owns nothing but MIDI note numbers.
+// parallel block chords that lurch around the keyboard: correct, and immediately robotic. Good
+// voicing holds whatever tones the two chords share and moves the rest by a step or two, which is
+// what a pianist's hand actually does. Cheap version of what rad_lead_to does for the radio carts,
+// kept local because that one is wired to radio.h's voice model and this cart owns nothing but
+// MIDI note numbers.
+
 // Nearest MIDI note of pitch class `pc` to `near`, kept inside the right-hand register.
 static int nearest_pc(int pc, int near) {
     int base = near - (near % 12) + pc, best = base, bestd = 999;
@@ -214,38 +215,47 @@ void draw(void) {
     const HbVocab *vb = vocab_of(st);
 
     print("EPIANO JAM", 8, 6, CLR_WHITE);
+    // ALWAYS on screen, both lines. This cart is silent by design, and a silent cart reads as a
+    // broken one — so it has to say, on its own face, that the sound is supposed to come out of
+    // something else. Written for whoever opens this cold in a year with no idea why it does
+    // nothing. (The screen is 320px on an 8px font = 40 characters; every line here is counted.)
+    print("makes NO sound - it sends MIDI OUT", 8, 16, CLR_INDIGO);
+    print("to a DAW: GarageBand, Logic, Ableton", 8, 26, CLR_INDIGO);
     bool live = midi_out_ready();
-    print(live ? "out: dreamengine" : "out: not sending", 8, 16, live ? CLR_GREEN : CLR_MEDIUM_GREY);
+    print(live ? "out: dreamengine (pick me as the input)"
+               : "out: not sending (run it natively)", 8, 38, live ? CLR_GREEN : CLR_MEDIUM_GREY);
 
     snprintf(b, sizeof b, "%s   key %s   %d bpm", STYLES[styleIx].name, PC_NAME[keyPc], tempo);
-    print(b, 8, 30, CLR_YELLOW);
+    print(b, 8, 52, CLR_YELLOW);
     snprintf(b, sizeof b, "feel %s   bass %s", FEEL_NAME[feel], want_bass ? "on" : "off");
-    print(b, 8, 40, CLR_LIGHT_GREY);
+    print(b, 8, 62, CLR_LIGHT_GREY);
 
     // the chord, big-ish: roman numeral + real name
     if (playing) {
         int root = (keyPc + vb->off[fn]) % 12;
         snprintf(b, sizeof b, "%s   %s%s", vb->fname[fn], PC_NAME[root], hb_qname[vb->qual[fn]]);
-        print(b, 8, 58, CLR_ORANGE);
+        print(b, 8, 78, CLR_ORANGE);
 
         snprintf(b, sizeof b, "notes  %d %d %d %d   bass %d",
                  voiced[0], voiced[1], voiced[2], voiced[3], want_bass ? bass_note : -1);
-        print(b, 8, 70, CLR_MEDIUM_GREY);
+        print(b, 8, 90, CLR_MEDIUM_GREY);
 
         // a little keyboard: which of the 12 pitch classes are sounding
         for (int i = 0; i < 12; i++) {
             int on = 0;
             for (int v = 0; v < NVOICE; v++) if (voiced[v] % 12 == i) on = 1;
-            rectfill(8 + i * 14, 84, 12, 16, on ? CLR_WHITE : CLR_DARK_GREY);
-            print(PC_NAME[i], 9 + i * 14, 102, on ? CLR_WHITE : CLR_DARKER_GREY);
+            rectfill(8 + i * 14, 102, 12, 12, on ? CLR_WHITE : CLR_DARK_GREY);
+            print(PC_NAME[i], 9 + i * 14, 116, on ? CLR_WHITE : CLR_DARKER_GREY);
         }
     } else {
-        print("press SPACE, then aim a DAW piano at us", 8, 58, CLR_MEDIUM_GREY);
+        print("1. add a software instrument track", 8, 78, CLR_WHITE);
+        print("2. select it (only that one listens)", 8, 88, CLR_WHITE);
+        print("3. press SPACE here", 8, 98, CLR_WHITE);
     }
 
-    print("styles:", 8, 116, CLR_MEDIUM_GREY);
+    print("styles:", 8, 126, CLR_MEDIUM_GREY);
     for (int i = 0; i < NSTYLE; i++) {
-        int x = 8 + (i % 4) * 78, y = 126 + (i / 4) * 10;
+        int x = 8 + (i % 4) * 78, y = 136 + (i / 4) * 10;
         // 1..9 then 0 for the tenth — matching the keyp() bindings above. Writing '1'+i for all
         // ten runs past '9' and labels the tenth style ':', which is not a key anyone can press.
         char k = i < 9 ? (char)('1' + i) : i == 9 ? '0' : "QWE"[i - 10];
@@ -253,6 +263,6 @@ void draw(void) {
         print(b, x, y, i == styleIx ? CLR_WHITE : CLR_DARK_GREY);
     }
 
-    print("SPACE play   1-9/QWE style", 8, SCREEN_H - 26, CLR_DARK_GREY);
-    print("F feel   B bass   <> bpm   ^v key", 8, SCREEN_H - 14, CLR_DARK_GREY);
+    print("SPACE play   1-9/QWE style", 8, SCREEN_H - 20, CLR_DARK_GREY);
+    print("F feel   B bass   <> bpm   ^v key", 8, SCREEN_H - 10, CLR_DARK_GREY);
 }

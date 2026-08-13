@@ -110,6 +110,23 @@ a broken doc link or `#section`).
 > TWO shapes — MIDI clock is *incremental* (measure the tempo, infer the transport), a host and Link are
 > *absolute* (they state both). `sync_beats()` is the common currency and a cart DERIVES its step counter
 > from it. That is why AUv3 transport needed **zero cart changes**: it was the other shape of the same seam.
+> **▶ NEXT SESSION: BUILD IN-APP EXPORT. Decided by the maker 2026-08-13 — do this before the fork
+> below.** Nothing of ours can get a track out today, which is what ReBirth shipped *instead* of relying
+> on a host, and it is the real answer to "recording it in GarageBand does nothing". Three pieces, only
+> the first is cart work, full detail (incl. what `acidrack`'s existing "export" really is) at
+> [`external-clock-sync.md` → what export would actually take](design/external-clock-sync.md#what-export-would-actually-take-and-what-acidrack-really-does):
+> **(1)** promote the capture to the API — `capture_begin(path, secs)` in `studio.h` and the four
+> places from CLAUDE.md's "Adding a new API function", so it stops depending on the debug harness's
+> `.bake/wav_request` file and on the working directory (the engine side, `sound_wavcap_begin`, already
+> exists and works — it is capped at 60s, which is a loop and not a track, so decide whether to raise
+> it); **(2)** a writable destination via the `de_set_save_dir` seam the iOS host already supplies;
+> **(3)** the last mile — a share sheet / Files hand-off in `ios/Sources/`, HOST work, which is what
+> makes the file reachable at all inside a sandboxed container. Then wire the button in `acidcandy`
+> (`acidrack` has the UI precedent: a WAV button in the MASTER strip that restarts the song from the top
+> so the take covers the whole arrangement). ⚠ Gate it honestly — a capture is trivially assertable
+> headlessly (render, then read the WAV back with `tools/wav-analyze.js`), so there is no excuse for
+> shipping this one on a listen.
+>
 > **▶ THE STATE OF PLAY (2026-08-13, session closed here).** The plug-in RUNS in GarageBand: it plays,
 > follows the host's tempo and transport, survives a whole song (the bar-33 wedge is gone), converts to
 > any host sample rate, and shows our own panel. Five gates in `mac.sh` cover it. **But it is not

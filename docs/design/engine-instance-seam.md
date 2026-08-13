@@ -157,7 +157,26 @@ Named so the next session does not assume otherwise:
   makes per-instance naming *possible*; someone still has to decide the naming.
 - **`save_dir`.** Per-instance `save_dir` is the mechanical fix and is strictly better than today's
   shared `cart.sav`. The right AUv3 answer is probably the AU's `fullState` so a saved session
-  restores each rack — a product decision, out of scope here.
+  restores each rack — a product decision, out of scope here. **How this work relates to it**, since
+  it is the obvious next question:
+  - **Per-instance state is a PRECONDITION, not a coincidence.** `fullState` is defined over an
+    instance; today the engine has no "this rack's state" to hand back, so it is not implementable.
+  - **But the context struct is the WRONG thing to serialize**: it holds pointers and GPU handles,
+    and most of it is derived DSP scratch (delay lines, filter memory, LFO phase) that is megabytes
+    and meaningless to restore. `fullState` wants user INTENT.
+  - **The right shape already exists in embryo.** `de_state()` is one contiguous zero-filled block
+    holding a cart's whole state, `save_bytes`/`load_bytes` already serializes it, and **`ctx_log` is
+    already a replay log of the cart's configuration calls** (built for `de_switch_cart`). So a
+    restore has a natural shape: create a fresh instance from the generated default template, replay
+    the config log, restore the `de_state()` block. Intent, not scratch.
+  - **Ladder:** per-instance context (now) → per-instance `save_dir` → swap the file for a
+    host-provided blob. Nothing built now needs undoing for it.
+  - ⚠ **The rule it would impose:** `de_state()` is only serializable if carts keep no POINTERS in it.
+    The `STATE{}` idiom encourages flat data but nothing enforces it; committing to this route means
+    making that a rule, and probably a lint.
+  - Note the plug-in does **no** state handling today at all (no `fullState`, no `parameterTree`, no
+    presets), so a reopened session starts every rack at defaults — a separate user-visible gap from
+    the two-racks-interfere bug.
 - **`colorkey()`**, which destroys and rebuilds the shared sprite-sheet texture from a cart API.
   Needs its own decision (per-instance texture variant, or software-only).
 

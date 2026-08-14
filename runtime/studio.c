@@ -3207,7 +3207,21 @@ void de_set_backing_scale(DeInstance *in, float k) {
 // Host points persistence at a writable app dir (Android internalDataPath, iOS Documents). Call
 // BEFORE de_init so the cart's init() can load_int(). Twin of the desktop --save-dir flag; if the
 // host never sets it, save_dir stays "." (the cwd) and saves silently no-op on a sandboxed OS.
-void de_set_save_dir(DeInstance *in, const char *dir) { (void)in; if (dir && *dir) save_dir_set(dir); }
+// ⚠ Same shape as de_resize: called from the HOST's thread, BEFORE de_init, so the thread-local
+// names the DEFAULT engine and instance 3's save dir would land on instance 0. Reach the instance
+// through the handle, exactly like the resize seam. (This does NOT solve N racks sharing one
+// cart.sav — that needs distinct DIRECTORIES, and it is the host that has to choose them. Filed in
+// docs/design/per-instance-remaining.md.)
+void de_set_save_dir(DeInstance *in, const char *dir) {
+    if (!dir || !*dir) return;
+    DeVideo *v = de_vid_of(in);
+    snprintf(v->save_dir_, sizeof v->save_dir_, "%s", dir);
+    char tmp[512];
+    snprintf(tmp, sizeof tmp, "%s", v->save_dir_);
+    for (char *p = tmp + 1; *p; p++)
+        if (*p == '/') { *p = '\0'; de_mkdir(tmp); *p = '/'; }
+    de_mkdir(tmp);
+}
 
 #else  // !DE_NO_RAYLIB — the Raylib desktop/web build owns main()
 

@@ -641,11 +641,17 @@ Detail lives in the linked design doc in every case; that is where it was always
 > survive, the whole dictionary survives a **property-list round trip** byte-for-byte (a DAW writes
 > `fullState` into the project FILE, and anything not plist-representable is dropped silently), and a
 > blob with a mangled fingerprint is refused without wedging the plug-in. 8/8.
-> ⚠ **One number to decide on:** the blob is **589 KB**, dominated by `SaveBank`'s seven `SaveBlob`s
-> (the autosave + six song slots — the player's whole song bank). That makes a project portable, which
-> is arguably right, but it is duplicated per instance and also lives in `cart.blob` on disk. The
-> idiomatic split if you want it smaller is `fullState` = the current rack only, `fullStateForDocument`
-> = plus the bank; only `fullState` is implemented today, so the bank rides along in every preset.
+> **SIZE: SOLVED (2026-08-14).** The engine blob is 589 KB and **measured 99.5% zero bytes** — the rack
+> is mostly empty pattern arrays (steps × voices × patterns, times the autosave plus six song slots).
+> The AU now zlib-packs it into a self-describing `DEZ1` container: **589,032 → 3,560 bytes, 165×**,
+> asserted in the gate (a container that compressed *nothing* would still carry the right magic and
+> quietly ship half a megabyte per track). Compression sits in Swift, not the engine — what is big is
+> the HOST's project file and the host is Apple-specific, whereas `studio.c` has to stay portable and
+> ships an INflater only (stb_image). The DES1 wire format is unchanged, and a raw `DES1` blob is still
+> read straight through, so projects saved before this keep loading (gated). Because the bank now costs
+> ~3.5 KB, keeping it in the project is no longer a trade-off: a project stays portable — open it on
+> another machine and your songs are there — so the `fullState`/`fullStateForDocument` split is not
+> needed and was not built.
 > Two things the plan below had wrong, both
 > corrected in [`design/engine-instance-seam.md`](design/engine-instance-seam.md): the `de_state()`
 > block cannot be copied verbatim (its arena header IS pointers), and the "no pointers" rule was

@@ -167,6 +167,46 @@ public final class TinyjamAU: AUAudioUnit {
     // would strip it; setting ours without passing the rest on would drop it.
     private static let stateKey = "dreamengineRack"
 
+    // ── COMPRESSION ─────────────────────────────────────────────────────────────────────────────
+    // The engine's blob is ~589 KB and MEASURED 99.5% ZERO BYTES: the rack is mostly pattern arrays
+    // (steps × voices × patterns, times the autosave plus six song slots) and almost all of it is
+    // empty. gzip took a real 437 KB on-disk bank to 774 bytes. So this is not a micro-optimisation,
+    // it is the difference between a project file carrying half a megabyte per track and carrying
+    // about a kilobyte.
+    //
+    // WHY IN SWIFT AND NOT THE ENGINE: what is big is the HOST's project file, and the host is
+    // Apple-specific. A deflate compressor in studio.c would either add a dependency the engine does
+    // not have (stb_image ships an INflater only) or tie it to Apple's libcompression, and the engine
+    // has to stay portable. Nothing about the on-the-wire DES1 format changes.
+    //
+    // SELF-DESCRIBING, so old projects keep working: compressed blobs carry a "DEZ1" header + the
+    // original length; a raw engine blob still starts "DES1" and is passed straight through. The
+    // maker already saved test projects with raw blobs, and those must keep loading.
+    private static let zMagic = Data("DEZ1".utf8)
+
+    private static func pack(_ raw: Data) -> Data {
+        guard let z = try? (raw as NSData).compressed(using: .zlib) as Data else { return raw }
+        var out = zMagic
+        var n = UInt32(raw.count).littleEndian
+        withUnsafeBytes(of: &n) { out.append(contentsOf: $0) }
+        out.append(z)
+        // A pathological rack could in principle deflate larger than it started; then just ship raw.
+        return out.count < raw.count ? out : raw
+    }
+
+    private static func unpack(_ d: Data) -> Data? {
+        guard d.count >= 8, d.prefix(4).elementsEqual(zMagic) else { return d }   // raw DES1, or legacy
+        var n: UInt32 = 0
+        _ = withUnsafeMutableBytes(of: &n) { d.subdata(in: 4..<8).copyBytes(to: $0) }
+        guard let un = try? (Data(d.dropFirst(8)) as NSData).decompressed(using: .zlib) as Data
+        else { NSLog("[tinyjam] STATE could not inflate a %d-byte blob", d.count); return nil }
+        guard un.count == Int(UInt32(littleEndian: n)) else {
+            NSLog("[tinyjam] STATE inflated to %d bytes, header said %u", un.count, UInt32(littleEndian: n))
+            return nil
+        }
+        return un
+    }
+
     public override var fullState: [String: Any]? {
         get {
             var s = super.fullState ?? [:]
@@ -178,7 +218,7 @@ public final class TinyjamAU: AUAudioUnit {
                 }
                 if wrote > 0 {
                     d.count = Int(wrote)
-                    s[TinyjamAU.stateKey] = d
+                    s[TinyjamAU.stateKey] = TinyjamAU.pack(d)
                 } else {
                     NSLog("[tinyjam] STATE save produced nothing (need=%d) — rack will not persist", need)
                 }
@@ -189,7 +229,8 @@ public final class TinyjamAU: AUAudioUnit {
             super.fullState = newValue
             // No key = a project saved by a build before this shipped. Correct behaviour is to leave
             // the rack at its defaults, not to complain.
-            guard let d = newValue?[TinyjamAU.stateKey] as? Data, !d.isEmpty else { return }
+            guard let packed = newValue?[TinyjamAU.stateKey] as? Data, !packed.isEmpty else { return }
+            guard let d = TinyjamAU.unpack(packed) else { return }   // unpack already said why
             let accepted: Int32 = d.withUnsafeBytes { raw in
                 de_load_state(engine, raw.baseAddress, Int32(d.count))
             }

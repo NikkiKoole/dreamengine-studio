@@ -418,10 +418,33 @@ if argv.contains("--state") {
           data == nil ? "no \"\(KEY)\" key — the engine half never reached the host"
                       : "\(data!.count) bytes under \"\(KEY)\"")
 
-    // It must be the ENGINE's format, not an empty placeholder that happens to be non-nil.
-    let magic: String? = (data?.count ?? 0) >= 4 ? String(bytes: data![0..<4], encoding: .ascii) : nil
-    check("and it is the engine's own format", magic == "DES1",
-          "magic = \(magic ?? "none") (de_save_state writes DES1)")
+    // It must be OUR container, not an empty placeholder that happens to be non-nil.
+    let magic: String? = (data?.count ?? 0) >= 4 ? String(bytes: data!.prefix(4), encoding: .ascii) : nil
+    check("and it is our compressed container", magic == "DEZ1",
+          "magic = \(magic ?? "none") (the AU packs the engine's DES1 blob as DEZ1)")
+
+    // The whole reason compression is here: the engine's blob is ~589 KB and ~99.5% zero bytes.
+    // Assert the SAVING, not just the format — a container that compressed nothing would still
+    // carry the right magic and quietly put half a megabyte per track in the project file.
+    var rawLen = 0
+    if let d = data, d.count >= 8 {
+        var n: UInt32 = 0
+        _ = withUnsafeMutableBytes(of: &n) { d.subdata(in: 4..<8).copyBytes(to: $0) }
+        rawLen = Int(UInt32(littleEndian: n))
+    }
+    let stored = data?.count ?? 0
+    check("and it actually compressed", rawLen > 0 && stored * 10 < rawLen,
+          "\(stored) bytes stored for a \(rawLen)-byte rack" +
+          (rawLen > 0 ? " (\(String(format: "%.0f", Double(rawLen) / Double(max(stored, 1))))× smaller)" : ""))
+
+    // and what is inside must be the engine's own format
+    let inner: Data? = {
+        guard let d = data, d.count > 8, magic == "DEZ1" else { return nil }
+        return try? (Data(d.dropFirst(8)) as NSData).decompressed(using: .zlib) as Data
+    }()
+    check("the packed payload inflates to the engine's DES1 blob",
+          inner != nil && inner!.count == rawLen && String(bytes: inner!.prefix(4), encoding: .ascii) == "DES1",
+          inner == nil ? "could not inflate it" : "\(inner!.count) bytes, magic \(String(bytes: inner!.prefix(4), encoding: .ascii) ?? "?")")
 
     // super's keys are what let the host re-instantiate us at all. Returning only ours would strip them.
     check("super's fullState keys are preserved", state.count > 1,
@@ -447,15 +470,42 @@ if argv.contains("--state") {
     check("the plug-in still renders after a restore", after.peak > 0.01,
           "peak \(String(format: "%.3f", after.peak)) over 4 beats")
 
-    // NEGATIVE CONTROL: the engine REFUSES a blob whose layout fingerprint disagrees (a different
-    // build), and refusing has to be graceful — the rack stays at defaults and keeps playing. If this
-    // silences or wedges the plug-in, "refused" is not a safe outcome and the check above proves little.
-    var corrupt = state
-    if var d = data, d.count > 8 { d[8] ^= 0xFF; corrupt[KEY] = d }
-    avAU.auAudioUnit.fullState = corrupt
-    let afterBad = rig.render(beats: 4)
-    check("a corrupted blob is refused WITHOUT wedging the plug-in", afterBad.peak > 0.01,
-          "peak \(String(format: "%.3f", afterBad.peak)) after setting a blob with a mangled fingerprint")
+    // BACKWARDS COMPATIBILITY: projects saved before compression landed hold a RAW DES1 blob, and the
+    // maker has some. The setter must recognise those by their magic and pass them straight through.
+    // ⚠ What this proves is that a legacy blob is not mistaken for a compressed one and does not wedge
+    // the plug-in — not that the engine accepted it, which needs an observable the host does not have.
+    if let raw = inner {
+        var legacy = state
+        legacy[KEY] = raw
+        avAU.auAudioUnit.fullState = legacy
+        let afterLegacy = rig.render(beats: 4)
+        check("a LEGACY uncompressed DES1 blob still loads", afterLegacy.peak > 0.01,
+              "peak \(String(format: "%.3f", afterLegacy.peak)) — old projects keep working")
+    }
+
+    // TWO NEGATIVE CONTROLS, because compression added a SECOND way to reject a blob and they fail in
+    // different layers. Neither may wedge the plug-in: if "refused" silenced the rack then refusing
+    // would not be the safe outcome the engine advertises, and the checks above would prove little.
+    //
+    // (a) the CONTAINER is damaged → the AU's own unpack rejects it before the engine sees anything.
+    var badZip = state
+    if var d = data, d.count > 12 { d[12] ^= 0xFF; badZip[KEY] = d }   // into the deflate stream
+    avAU.auAudioUnit.fullState = badZip
+    let afterBadZip = rig.render(beats: 4)
+    check("a damaged CONTAINER is rejected WITHOUT wedging the plug-in", afterBadZip.peak > 0.01,
+          "peak \(String(format: "%.3f", afterBadZip.peak)) after mangling the deflate stream")
+
+    // (b) the container is fine but the ENGINE's layout fingerprint disagrees (a different build).
+    // Corrupt the INNER blob and repack, so the rejection has to happen in de_load_state.
+    if var raw = inner, raw.count > 8 {
+        raw[raw.startIndex + 8] ^= 0xFF                                // the fingerprint word
+        var badInner = state
+        badInner[KEY] = raw                                            // raw path: the engine judges it
+        avAU.auAudioUnit.fullState = badInner
+        let afterBadInner = rig.render(beats: 4)
+        check("a blob from another BUILD is refused WITHOUT wedging the plug-in", afterBadInner.peak > 0.01,
+              "peak \(String(format: "%.3f", afterBadInner.peak)) after mangling the layout fingerprint")
+    }
 
     print(failures == 0 ? "\nPASS — fullState reaches the host, survives a project save, and refuses safely."
                         : "\n\(failures) check(s) FAILED — a saved project would not restore this rack.")

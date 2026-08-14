@@ -349,6 +349,24 @@ a broken doc link or `#section`).
 > · Also logged: `colorkey()` destroys and rebuilds a SHARED GPU texture from a cart API;
 >   `fp_cache`'s key omits the palette; and an unrelated latent `web_px` overflow after a canvas grow.
 >
+> **✅ STEP 4 IS UNDER WAY — ROUTE (b) CHOSEN, PROVEN ON `ui.h` (2026-08-14).** The maker picked the
+> declared-seam route over build-time copies, because with ~20 AUv3 apps the plug-in build IS the
+> product and a permanent gap between the code you read and the code that ships is a tax paid forever.
+> · **`ui.h` now declares its state ONCE, as a `UI_STATE(X)` list, expanded two ways:** by DEFAULT
+>   into exactly the statics that were there (all 553 carts byte-identical, 580/580 build,
+>   refactor-guard green), and into a PER-INSTANCE context when a cart defines `DE_CART_CTX`. **No
+>   call site in ui.h changed.**
+> · **New engine API: `de_state_for(key, bytes)`** — a slice of the instance's own `de_state()` block,
+>   keyed by the ADDRESS of a file-scope sentinel (unique per TU, so no slot numbers and no registry).
+>   The arena lives INSIDE the per-instance block, so nothing new had to be made per-instance.
+>   ⚠ **Never cache what it returns**: registering another key can grow the block and move every slice.
+> · **Gated by `bash tools/instance-check/run-uictx.sh`**, which builds the probe TWICE and asserts
+>   OPPOSITE things — default shared, opted-in not. Measured: A writes 7, B reads 7 (default) vs B
+>   reads 0 (opted in).
+> **NEXT: the same treatment for ~29 more cart-land headers, then the cart's own 120 statics.** Only
+> then do two racks actually work — this slice proves the MECHANISM, not the product. The recipe for
+> the next header is in [`design/engine-context.md`](design/engine-context.md) → "Doing the next header".
+>
 > **▶ STEP 4 IS A DECISION, NOT A TASK — MEASURED 2026-08-14, read before starting it.** The plan
 > said "acidcandy's statics → `de_state()`" on a figure of ~20. It is **209 statics in the cart's
 > TU**: 120 in the cart, 19 in `ui.h`, 10 across `tr808/tr909/cursor.h`, 60 unattributed. **The

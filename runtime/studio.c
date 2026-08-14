@@ -5977,6 +5977,43 @@ void *de_state(int bytes) {
     return de_state_mem;
 }
 
+// ── PER-INSTANCE STATE FOR A CART-LAND HEADER ───────────────────────────────────────────────────
+//
+// de_state() is ONE block per instance, which is right for a cart but not enough for the headers a
+// cart includes: ui.h, the drum banks, the cursor all hold state, and two instances of one cart
+// share it because a cart is a single translation unit. They cannot each call de_state() — there is
+// only one block — and they cannot be aggregated into the cart's struct without an include-ordering
+// knot, because the struct would have to be built from types the headers have not declared yet.
+//
+// So: a tiny arena INSIDE that same block, keyed by ADDRESS. A header passes the address of one of
+// its own file-scope sentinels, which is unique per translation unit by construction — no slot
+// numbers to collide, no registry to keep in sync, and nothing new to make per-instance because the
+// arena lives in the per-instance block it carves up.
+//
+// ⚠ DO NOT CACHE THE RETURNED POINTER ACROSS CALLS. Registering a new key can grow (realloc) the
+// block and move every slice. The access macros call this each time, which is what makes that safe.
+#define DE_ARENA_MAX 24
+typedef struct { const void *key; int off, size; } DeArenaEnt;
+typedef struct { int n; int used; DeArenaEnt e[DE_ARENA_MAX]; } DeArena;
+
+void *de_state_for(const void *key, int bytes) {
+    if (!key || bytes <= 0) return NULL;
+    int base = (int)sizeof(DeArena);
+    DeArena *a = (DeArena *)de_state(base);          // the arena header lives at the front
+    if (!a) return NULL;
+    for (int i = 0; i < a->n; i++)
+        if (a->e[i].key == key)
+            return (unsigned char *)de_state(base) + a->e[i].off;   // re-fetch: the block may have moved
+    if (a->n >= DE_ARENA_MAX) return NULL;           // out of slots: caller gets NULL, not a shared block
+    int off = a->used > base ? a->used : base;
+    int need = off + bytes;
+    a = (DeArena *)de_state(need);                   // may realloc + zero the new tail
+    if (!a) return NULL;
+    a->e[a->n].key = key; a->e[a->n].off = off; a->e[a->n].size = bytes;
+    a->n++; a->used = need;
+    return (unsigned char *)a + off;
+}
+
 // EXPERIMENTAL (see de_data_path_v): the --data <file> path, or $DE_DATA, or NULL.
 const char *de_data_path(void) { return de_data_path_v ? de_data_path_v : getenv("DE_DATA"); }
 

@@ -145,6 +145,63 @@ call so the cart API and the macro accesses need no change. Build the handle BEF
 reads `watches`/`watch_count` to dump them; a handler takes no argument. Either keep a static
 "last active instance" for it to walk, or drop the watch dump from the crash path. Design, not macro.
 
+
+## Cart-land: the same problem, one layer up
+
+The engine's state is per-instance, but a cart is ONE translation unit, so two instances of one cart
+share everything the cart and its headers declare `static`. Measured on `acidcandy`: **209 statics in
+its TU** — 120 the cart's own, the rest in `ui.h`, `tr808.h`, `tr909.h`, `cursor.h` and friends. A
+rack whose widget table is shared is not a second rack.
+
+Route **(b)** was chosen over generating transformed copies at build time, because with ~20 AUv3 apps
+planned the plug-in build IS the product, and a permanent gap between the code you read and the code
+that ships is a comprehension tax paid forever. See
+[`engine-instance-seam.md`](engine-instance-seam.md) for the three routes and their costs.
+
+### The pattern, proven on `ui.h`
+
+Declare the header's state ONCE, as a list, and expand it two ways:
+
+```c
+#define UI_STATE(X)                               \
+    X(UiWid, ui_wids,   [UI_MAX_WID], {0})        \
+    X(int,   ui_wid_n,  ,            0)           \
+    …
+
+#ifndef DE_CART_CTX
+#define UI_DECL_(t, n, d, i) static t n d = i;    /* DEFAULT: exactly the statics that were here */
+UI_STATE(UI_DECL_)
+#else
+typedef struct { … } UiCtx;                       /* OPTED IN: the same list, as a context */
+static char ui_ctx_key_;                          /* the key is an ADDRESS: unique per TU */
+static UiCtx *ui_ctx_(void) { … de_state_for(&ui_ctx_key_, sizeof(UiCtx)) … }
+#define ui_wid_n (ui_ctx_()->ui_wid_n)            /* no call site in the file changes */
+#endif
+```
+
+**Why it costs the other 552 carts nothing:** the default expansion is the declarations that were
+there before, so a single-instance cart compiles to the same thing. Verified: 580/580 carts build and
+`refactor-guard` is byte-identical.
+
+**Where the state lives.** `de_state()` is one block per instance, which is right for a cart but not
+enough for the headers it includes — and they cannot be aggregated into the cart's struct without an
+include-ordering knot, since the struct would need types the headers have not declared yet. So
+`de_state_for(key, bytes)` carves a slice of that same block, keyed by the ADDRESS of a file-scope
+sentinel: unique per TU by construction, no slot numbers, no registry, and nothing new to make
+per-instance because the arena lives inside the per-instance block it carves up.
+⚠ **Never cache what it returns** — registering another key can grow the block and move every slice,
+which is why the access macros re-fetch every time.
+
+**Gated by `bash tools/instance-check/run-uictx.sh`**, which builds the probe TWICE and asserts
+OPPOSITE things: the default path must stay shared, the opted-in path must not. A seam checked only
+in its enabled state is half a seam, and the half nobody checks is the one every cart uses.
+
+### Doing the next header
+
+Add its list, wrap its declarations in the same `#ifndef DE_CART_CTX` fork, and give it its own
+sentinel key. Remaining: ~29 cart-land headers, then the cart's own 120 statics. Only then do two
+racks actually work — this slice proves the mechanism, not the product.
+
 ## Memory
 
 `size -m` on a compiled `studio.o`: the engine's mutable statics are **6.2 MB**, and a context is

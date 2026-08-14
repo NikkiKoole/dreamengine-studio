@@ -636,6 +636,12 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
                              ⚠ Its own output-equality assertion caught the first version measuring the
                              BASELINE 3× slow (unreset echo state decaying into denormals) — a benchmark
                              whose variants do not start from identical state measures nothing
+             instance-check/run-uictx.sh  the CART-LAND half: does a cart-land header's state become
+                             PER-INSTANCE when a cart opts in (`-DDE_CART_CTX`)? Builds the probe TWICE and
+                             asserts OPPOSITE things — the DEFAULT path must stay shared (that is what all
+                             553 carts compile, and it must not change), the opted-in path must not. A seam
+                             checked only in its enabled state is half a seam. Pattern + how to do the next
+                             header: docs/design/engine-context.md → "Cart-land"
              instance-check/  THE ACCEPTANCE TEST for the per-instance engine work: can ONE process run N
                              INDEPENDENT engines? `bash tools/instance-check/run.sh` creates two via
                              `de_instance_create`, drives them with DIFFERENT transport, and asserts their

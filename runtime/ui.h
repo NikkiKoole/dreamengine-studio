@@ -171,35 +171,133 @@ typedef struct {        // a contact that owns a widget
 
 typedef struct { int id, x, y, over; } UiPress;  // over = press was on the lens panel
 
-static UiWid   ui_wids[UI_MAX_WID];   static int ui_wid_n = 0;
-static UiCap   ui_caps[UI_MAX_CAP];   static int ui_cap_n = 0;
-static UiPress ui_press[UI_MAX_PRESS]; static int ui_press_n = 0;
-static int     ui_seen[UI_MAX_SEEN];  static int ui_seen_n = 0;
-static void   *ui_grab_evt[UI_MAX_EVT]; static int ui_grab_n = 0;
-static void   *ui_rel_evt[UI_MAX_EVT];  static int ui_rel_n = 0;
+// ══ UI.H'S STATE, DECLARED ONCE SO IT CAN LIVE IN TWO PLACES ════════════════════════════════════
+//
+// WHY. An AUv3 puts every plug-in instance in one process, and a cart is ONE translation unit — so
+// two racks running the same cart shared this widget table, and a rack whose widget state is shared
+// is not a second rack however independent the ENGINE underneath it is (docs/design/engine-context.md
+// fixed the engine; this is the cart-land half).
+//
+// HOW. Every entry is X(type, name, dims, init). It expands TWO ways:
+//   · by DEFAULT, into exactly the file-scope statics that were written here before — so all 553
+//     carts are byte-for-byte unaffected and pay nothing;
+//   · into a cart's PER-INSTANCE context when that cart opts in by defining DE_CART_CTX, which
+//     collects these members and points the names at them. No call site in this file changes.
+//
+// The two-expansion trick is the same one tools/tls-spike/state.h uses, and the same shape
+// tools/ctx-gen.js generates for the engine. Adding state here means adding ONE line to this list.
+//
+// ⚠ NOT IN THE LIST, deliberately: the `#ifdef DE_TRACE` tripwires below. They are harness state,
+// and the engine's own classification keeps harness state shared — a debug counter does not need to
+// be per-rack, and listing it would put it in every shipped context for nothing.
+#define UI_STATE(X)                                  \
+    X(UiWid,   ui_wids,      [UI_MAX_WID],   {0})    \
+    X(int,     ui_wid_n,     ,               0)      \
+    X(UiCap,   ui_caps,      [UI_MAX_CAP],   {0})    \
+    X(int,     ui_cap_n,     ,               0)      \
+    X(UiPress, ui_press,     [UI_MAX_PRESS], {0})    \
+    X(int,     ui_press_n,   ,               0)      \
+    X(int,     ui_seen,      [UI_MAX_SEEN],  {0})    \
+    X(int,     ui_seen_n,    ,               0)      \
+    X(void *,  ui_grab_evt,  [UI_MAX_EVT],   {0})    \
+    X(int,     ui_grab_n,    ,               0)      \
+    X(void *,  ui_rel_evt,   [UI_MAX_EVT],   {0})    \
+    X(int,     ui_rel_n,     ,               0)      \
+    X(int,     ui_frame_ct,  ,               0)      \
+    X(int,     ui_focus_on,  ,               0)      \
+    X(int,     ui_focus_i,   ,               0)      \
+    X(int,     ui_foc_count, ,               0)      \
+    X(int,     ui_foc_n,     ,               0)      \
+    X(float,   ui_adj,       ,               0)      \
+    X(int,     ui_activate,  ,               0)      \
+    X(int,     ui_hold_l,    ,               0)      \
+    X(int,     ui_hold_r,    ,               0)      \
+    X(int,     ui_loupe_on,  ,               0)      \
+    X(int,     ui_loupe_show,,               0)      \
+    X(int,     ui_loupe_pos, ,               UI_NO_FINGER) \
+    X(int,     ui_loupe_px,  ,               0)      \
+    X(int,     ui_loupe_py,  ,               0)      \
+    X(float,   ui_loupe_sx,  ,               0)      \
+    X(float,   ui_loupe_sy,  ,               0)
 
-static int   ui_frame_ct = 0;
+// the loupe sentinel is used by the list above, so it has to precede it
+#define UI_NO_FINGER 0x7fffffff
+
+#ifndef DE_CART_CTX
+// DEFAULT: plain file-scope statics, exactly as before. A single-instance cart pays nothing.
+#define UI_DECL_(t, n, d, i) static t n d = i;
+UI_STATE(UI_DECL_)
+#undef UI_DECL_
+#else
+// OPTED IN: the same list becomes a per-instance context, and every name below points at it. No
+// code in this file changes — that is the whole point of declaring the state in one list.
+typedef struct {
+#define UI_MEMBER_(t, n, d, i) t n d;
+    UI_STATE(UI_MEMBER_)
+#undef UI_MEMBER_
+    int ui_ctx_inited_;
+} UiCtx;
+
+// The key is the ADDRESS of this sentinel — unique per translation unit, so no slot numbers and no
+// registry. de_state_for carves a slice out of the instance's own state block.
+static char ui_ctx_key_;
+
+static UiCtx *ui_ctx_(void) {
+    UiCtx *c = (UiCtx *)de_state_for(&ui_ctx_key_, (int)sizeof(UiCtx));
+    if (c && !c->ui_ctx_inited_) {
+        // Initialised on FIRST ACCESS rather than by an init the cart must remember to call, so this
+        // stays a drop-in: it lands exactly where a static's compile-time initialiser would have.
+        // de_state_for zero-fills, so ONLY the non-zero defaults need writing. One line today; if
+        // the list grows another non-zero initialiser, it needs a line here too.
+        c->ui_loupe_pos = UI_NO_FINGER;
+        c->ui_ctx_inited_ = 1;
+    }
+    return c;
+}
+
+// ⚠ Re-fetched on every access, never cached: registering another header's key can grow the block
+// and move this slice (see de_state_for).
+#define ui_wids       (ui_ctx_()->ui_wids)
+#define ui_wid_n      (ui_ctx_()->ui_wid_n)
+#define ui_caps       (ui_ctx_()->ui_caps)
+#define ui_cap_n      (ui_ctx_()->ui_cap_n)
+#define ui_press      (ui_ctx_()->ui_press)
+#define ui_press_n    (ui_ctx_()->ui_press_n)
+#define ui_seen       (ui_ctx_()->ui_seen)
+#define ui_seen_n     (ui_ctx_()->ui_seen_n)
+#define ui_grab_evt   (ui_ctx_()->ui_grab_evt)
+#define ui_grab_n     (ui_ctx_()->ui_grab_n)
+#define ui_rel_evt    (ui_ctx_()->ui_rel_evt)
+#define ui_rel_n      (ui_ctx_()->ui_rel_n)
+#define ui_frame_ct   (ui_ctx_()->ui_frame_ct)
+#define ui_focus_on   (ui_ctx_()->ui_focus_on)
+#define ui_focus_i    (ui_ctx_()->ui_focus_i)
+#define ui_foc_count  (ui_ctx_()->ui_foc_count)
+#define ui_foc_n      (ui_ctx_()->ui_foc_n)
+#define ui_adj        (ui_ctx_()->ui_adj)
+#define ui_activate   (ui_ctx_()->ui_activate)
+#define ui_hold_l     (ui_ctx_()->ui_hold_l)
+#define ui_hold_r     (ui_ctx_()->ui_hold_r)
+#define ui_loupe_on   (ui_ctx_()->ui_loupe_on)
+#define ui_loupe_show (ui_ctx_()->ui_loupe_show)
+#define ui_loupe_pos  (ui_ctx_()->ui_loupe_pos)
+#define ui_loupe_px   (ui_ctx_()->ui_loupe_px)
+#define ui_loupe_py   (ui_ctx_()->ui_loupe_py)
+#define ui_loupe_sx   (ui_ctx_()->ui_loupe_sx)
+#define ui_loupe_sy   (ui_ctx_()->ui_loupe_sy)
+#endif
 #ifdef DE_TRACE
 static int   ui_ended = 1, ui_warned = 0;   // tripwire: did ui_end() run after the last widget-drawing ui_begin()?
 static int   ui_inside = 0, ui_noframe_warned = 0;   // …and the other half: was ui_begin() called AT ALL?
 #endif
-static int   ui_focus_on = 0;
-static int   ui_focus_i = 0;
-static int   ui_foc_count = 0;   // focusables registered last frame
-static int   ui_foc_n = 0;       // focusables registered so far this frame
-static float ui_adj = 0;         // focused-value delta this frame (left/right)
-static int   ui_activate = 0;    // A pressed this frame (focused button fires)
-static int   ui_hold_l = 0, ui_hold_r = 0;
+// focus state (ui_focus_on/_i, ui_foc_count/_n, ui_adj, ui_activate, ui_hold_l/_r) is declared in
+// the UI_STATE list above — one place, so it can be per-instance when a cart asks for it.
 
 // loupe — a magnifier for tiny targets (docs/design/loupe-notes.md). Off by
 // default; a cart opts in with ui_loupe(1). Touch ids can be negative (desktop
 // mouse = -2), so "no finger" is a sentinel no real contact can take.
-#define UI_NO_FINGER 0x7fffffff
-static int   ui_loupe_on  = 0;             // feature enabled by the cart
-static int   ui_loupe_show = 0;            // lens currently visible (parked/dragging)
-static int   ui_loupe_pos = UI_NO_FINGER;  // finger positioning the lens
-static int   ui_loupe_px = 0, ui_loupe_py = 0;   // panel top-left, canvas space
-static float ui_loupe_sx = 0, ui_loupe_sy = 0;   // sampled center, board space
+// loupe state (ui_loupe_on/_show/_pos/_px/_py/_sx/_sy) is declared in the UI_STATE list above.
+// UI_NO_FINGER is defined there too, because the list's initialiser for ui_loupe_pos needs it.
 
 // ── internals ────────────────────────────────────────────────────────────
 

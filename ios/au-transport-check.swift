@@ -470,6 +470,32 @@ if argv.contains("--state") {
     check("the plug-in still renders after a restore", after.peak > 0.01,
           "peak \(String(format: "%.3f", after.peak)) over 4 beats")
 
+    // ROUND-TRIP EQUALITY, which is what upgrades the check above from "did not crash" to "kept the
+    // rack". Save again and compare the ENGINE-level bytes: a restore that had silently fallen back to
+    // defaults, or a container that mangled/truncated/reordered anything, would differ wholesale.
+    // ⚠ Not asserted as EXACT. A few live counters (per-voice trigger levels, the rolling autosave)
+    // move every frame and a frame has to run for the restore to apply at all, so a handful of bytes
+    // legitimately differ. The discriminating question is 99% vs 50%, not 100% vs 99.9%.
+    if let before = inner,
+       let again = (avAU.auAudioUnit.fullState?[KEY] as? Data).flatMap({ d -> Data? in
+           guard d.count > 8, d.prefix(4).elementsEqual(Data("DEZ1".utf8)) else { return d }
+           return try? (Data(d.dropFirst(8)) as NSData).decompressed(using: .zlib) as Data
+       }) {
+        var differing = 0
+        if again.count == before.count {
+            before.withUnsafeBytes { a in again.withUnsafeBytes { b in
+                let pa = a.bindMemory(to: UInt8.self), pb = b.bindMemory(to: UInt8.self)
+                for i in 0..<pa.count where pa[i] != pb[i] { differing += 1 }
+            }}
+        }
+        let pct = before.count > 0 ? 100.0 * Double(differing) / Double(before.count) : 100.0
+        check("re-saving the restored rack reproduces it",
+              again.count == before.count && pct < 1.0,
+              again.count == before.count
+                ? "\(differing) of \(before.count) bytes differ (\(String(format: "%.3f", pct))%) — live counters only"
+                : "length changed: \(before.count) → \(again.count)")
+    }
+
     // BACKWARDS COMPATIBILITY: projects saved before compression landed hold a RAW DES1 blob, and the
     // maker has some. The setter must recognise those by their magic and pass them straight through.
     // ⚠ What this proves is that a legacy blob is not mistaken for a compressed one and does not wedge

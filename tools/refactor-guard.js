@@ -232,6 +232,17 @@ function provenanceFiles() {
   return files.filter(f => fs.existsSync(path.join(ROOT, f)));
 }
 
+/* `git status --porcelain` → the paths, nothing else.
+ *
+ * ⚠ DO NOT TRIM THE WHOLE OUTPUT BEFORE SPLITTING. Porcelain lines begin with a two-char status
+ * field which is very often " M", so trimming the output eats the FIRST line's leading space, and a
+ * fixed slice(3) then shaves a character off the first path only — "ools/carts/drawall.c". That is
+ * a real bug this tool shipped for about a minute, caught by its own dirty-refusal control. Strip
+ * the status field per line, and keep it a pure function so the fixture can pin it. */
+function parsePorcelain(out) {
+  return out.split('\n').filter(l => l.trim()).map(l => l.replace(/^.{2}\s*/, '').trim());
+}
+
 function engineContext() {
   // recorded for information only — during this refactor the engine WILL change and the output
   // must NOT, so gating on the engine's own hash would be exactly backwards.
@@ -251,11 +262,7 @@ function engineContext() {
     // this gate's business, and refusing on it would make the tool unusable with parallel agents.
     const out = execSync(`git status --porcelain -- ${provenanceFiles().map(f => `'${f}'`).join(' ')}`,
                          { cwd: ROOT }).toString();
-    // ⚠ do NOT trim `out` before splitting: porcelain lines start with a two-char status field that
-    // is often " M", so trimming the whole output eats the first line's leading space and a fixed
-    // slice(3) then shaves a character off the FIRST path only ("ools/carts/drawall.c"). Strip the
-    // status field per line instead. Caught by this tool's own dirty-refusal negative control.
-    dirty = out.split('\n').filter(l => l.trim()).map(l => l.replace(/^.{2}\s*/, '').trim());
+    dirty = parsePorcelain(out);
   } catch (_) {}
   return { commit, dirty, files: h };
 }
@@ -439,6 +446,32 @@ function selfCheck() {
   t('a perturbed engine changes the sha',      () => normal && perturbed && normal.wav.sha !== perturbed.wav.sha);
   t('and the drift is located, not just seen', () => normal && perturbed &&
         firstDiff(normal.wav.chunks, perturbed.wav.chunks) >= 0);
+
+  /* 4. PROVENANCE. Added after this gate spent a day RED for a reason that was not a regression:
+   *    it recorded content hashes of three ENGINE files while every probe is a CART, so a baseline
+   *    blessed from a tree whose cart differed looked perfectly sound — the engine hashes matched to
+   *    the character. These assertions exist because the hardening itself was unverified, which is
+   *    the same shape as the bug: `gate-controls` counts a `--selfcheck` as a control without being
+   *    able to tell whether it covers the gate's CURRENT code. */
+  const prov = provenanceFiles();
+  t('provenance records the engine files',      () => prov.includes('runtime/sound.h') &&
+                                                     prov.includes('runtime/studio.c'));
+  t('provenance records every probe CART',      () => PROBES.every(p => prov.includes(`tools/carts/${p.cart}.c`)));
+  t('and the clips that DRIVE those probes',    () => PROBES.filter(p => p.script)
+                                                     .every(p => prov.includes(p.script)));
+  t('it is more than the three engine files',   () => prov.length > 3);
+
+  /* the porcelain parse, pinned in the exact shape that broke: a worktree-only modification is
+   * " M path", and the bug ate the leading space and then a character of the path. */
+  t('porcelain " M path" yields the full path', () => parsePorcelain(' M tools/carts/drawall.c')[0] === 'tools/carts/drawall.c');
+  t('staged "M  path" too',                     () => parsePorcelain('M  runtime/sound.h')[0] === 'runtime/sound.h');
+  t('and "??" untracked',                       () => parsePorcelain('?? tools/carts/new.c')[0] === 'tools/carts/new.c');
+  t('several lines, all paths intact',          () => {
+        const r = parsePorcelain(' M a/one.c\nMM b/two.c\n?? c/three.c\n');
+        return r.length === 3 && r[0] === 'a/one.c' && r[1] === 'b/two.c' && r[2] === 'c/three.c';
+      });
+  t('a clean tree parses to nothing',           () => parsePorcelain('').length === 0 &&
+                                                      parsePorcelain('\n').length === 0);
 
   const pass = checks.filter(c => c[1]).length;
   for (const [name, ok] of checks) if (!ok) console.log('  ✗ ' + name);

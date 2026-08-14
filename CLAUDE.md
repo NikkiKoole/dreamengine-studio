@@ -797,7 +797,17 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
                              why they are SCRATCH. Found a real one on its FIRST run — `acidcandy`'s
                              `nav_poison[6]`, an array of WIDGET POINTERS inside the saved CartState,
                              committed an hour earlier under a comment claiming there were none.
-                             `--selfcheck` = 10 known answers in BOTH DIRECTIONS (the same list on the
+                             Also enforces **APPEND-ONLY** against a committed layout snapshot
+                             (`tools/saved-state-layout.json`, `--bless-layout` to re-record). WHY: the
+                             engine matches a blob to its slice by (index, SIZE), so it catches a slice
+                             that GREW and is structurally blind to a REORDER — same size, fingerprint
+                             still matches, every restored value lands in the wrong field, silently.
+                             Only a record of the old order can see that. RECURSIVE, because the
+                             top-level view missed the point: `SaveBlob`/`P808`/`P909` are NESTED in
+                             acidcandy's `CartState` and hold most of the saved bytes. Unparsable member
+                             lines are REPORTED, never dropped — which is how a real parser bug was
+                             found (a `//` comment containing a `;` split mid-comment).
+                             `--selfcheck` = 23 known answers in BOTH DIRECTIONS (the same list on the
                              SCRATCH macro must be silent), because this lint's failure mode is not a
                              false positive but going quietly blind. Runtime behaviour: tools/state-check
              lint-fxicons.js every `FX_*` insert kind must have a shared GLYPH in runtime/fxicons.h

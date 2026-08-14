@@ -21,6 +21,23 @@
 #include <stdarg.h>
 #include "../../runtime/platform.h"
 
+// The heap meter for the destroy section below. macOS's own allocator statistics rather than an
+// external tool, so the assertion lives inside the gate and runs on every invocation.
+// ⚠ LeakSanitizer is NOT the alternative here: it is unsupported on Darwin/arm64, which is the only
+// platform this probe builds on (it links CoreMIDI). `leaks(1)` would work but needs a second
+// process and would answer "did the process leak", not "does destroy give an instance back".
+#ifdef __APPLE__
+#include <malloc/malloc.h>
+static size_t heap_in_use(void) {
+    malloc_statistics_t st;
+    malloc_zone_statistics(malloc_default_zone(), &st);
+    return st.size_in_use;
+}
+#define HAVE_HEAP_METER 1
+#else
+static size_t heap_in_use(void) { return 0; }
+#endif
+
 // The host transport seam. It lives in runtime/sync.h, which is only ever compiled inside studio.c,
 // so declare it rather than include it. ⚠ NOT instance-scoped yet — see the note at the bottom.
 void de_sync_position(DeInstance *in, double beats, double bpm, int playing);
@@ -58,7 +75,12 @@ static int flat(const uint32_t *px, int n) {
     return 1;
 }
 
-int main(void) {
+int main(int argc, char **argv) {
+    // -bypass: the NEGATIVE CONTROL for the destroy section — skip de_instance_destroy entirely and
+    // require the heap meter to go red. Without it a broken meter and a clean destroy print the same
+    // green, which is the failure mode gate-controls.js exists to name.
+    const int bypass = (argc > 1 && strcmp(argv[1], "-bypass") == 0);
+
     printf("▸ two instances from de_instance_create, driven INTERLEAVED with different transport\n");
 
     DeInstance *a = de_instance_create(DE_RENDERER_SOFTWARE);
@@ -200,6 +222,47 @@ int main(void) {
     free(pa); free(pb);
 
     de_instance_destroy(b); de_instance_destroy(c); de_instance_destroy(d);
+
+    // ── DESTROY GIVES THE MEMORY BACK (2026-08-14) ──────────────────────────────────────────────
+    // Until today `de_instance_destroy` freed the DeInstance struct and nothing the instance had
+    // allocated: the framebuffer, the rotation layer, the published frame, the cart's persistent
+    // block and the sample slots all stayed on the heap. Every gate sat green through it, this one
+    // included — it called destroy three times and asserted nothing about the result. A host that
+    // opens and closes racks (every DAW session) leaks a canvas per open.
+    //
+    // The shape of the assertion matters. A single create/destroy pair proves nothing: the FIRST
+    // instance warms up process-wide allocations (the audio stream, the decoded sheet, the map) that
+    // are correctly not an instance's to free, so its footprint never comes back and should not. So
+    // measure across ROUNDS after a warm-up round, where the only thing repeating is one instance's
+    // own life. A leak shows up as a slope; process-wide warm-up does not.
+    printf("▸ DESTROY GIVES THE MEMORY BACK%s\n", bypass ? "  (BYPASS: destroy skipped — must FAIL)" : "");
+#ifdef HAVE_HEAP_METER
+    const int ROUNDS = 8;
+    size_t base = 0, after = 0;
+    for (int r = 0; r <= ROUNDS; r++) {
+        DeInstance *t = de_instance_create(DE_RENDERER_SOFTWARE);
+        if (t) {
+            de_resize(t, 200, 120);                       // force a framebuffer realloc, like a host does
+            int n = 0; float pk = 0.0f;
+            uint32_t *px = run(t, 8, 120.0, 1, &n, &pk);  // publish a frame → pres_buf, run the cart → de_state
+            free(px);
+            if (!bypass) de_instance_destroy(t);
+        }
+        if (r == 0) base = heap_in_use();                 // after the warm-up round: process-wide is paid for
+    }
+    after = heap_in_use();
+    long grew = (long)after - (long)base;
+    long per  = grew / ROUNDS;
+    // One instance's own buffers at this canvas are ~200 KB (sw_cbuf + sw_world_buf + pres_buf +
+    // the cart block); the struct on top is ~4 MB. 32 KB per round is comfortably below the first
+    // and nowhere near the second, so it separates "gave it back" from either failure.
+    ok((bypass ? per > 32 * 1024 : per < 32 * 1024),
+       bypass ? "CONTROL: skipping destroy DOES show up (the meter works)"
+              : "8 create/destroy rounds leave the heap flat",
+       "%+ld B over %d rounds = %+ld B/round", grew, ROUNDS, per);
+#else
+    ok(1, "heap meter unavailable on this platform — destroy is UNCHECKED here", "not Darwin");
+#endif
 
     // ⚠ WHAT A PASS DOES NOT EARN:
     //   · de_sync_position is PROCESS-WIDE (no instance argument) and QUEUED: a push is CONSUMED by

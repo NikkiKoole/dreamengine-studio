@@ -8,6 +8,13 @@
 #
 #   bash tools/instance-check/run.sh              the gate
 #   CART=epiano bash tools/instance-check/run.sh  a different cart in both engines
+#   ./build/instance-check -bypass                NEGATIVE CONTROL for the destroy section: skip
+#                                                 de_instance_destroy, and the heap meter must go red
+#
+# It also gates DESTROY (2026-08-14): 8 create/destroy rounds must leave the heap flat. That found
+# two leaks the day it was written — de_instance_destroy freed the struct and none of its buffers,
+# and de_init_impl re-decoded the SHARED sprite sheet + font tables per instance, orphaning the
+# previous copy. Against the pre-fix engine this section reports ~1 MB leaked per rack opened.
 #
 # Sibling of tools/engine-dylib-spike, asserting the same things from a different mechanism: the
 # spike got its separation from dyld (two copies of a dylib), this gets it from de_instance_create

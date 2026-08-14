@@ -8358,4 +8358,17 @@ static void sound_shutdown(void) {
 #endif
 }
 
+// Release THIS context's heap — for de_instance_destroy (studio.c), which is the only caller: the
+// process-exit path never needs it. Everything else DeSound owns is an inline array and goes with
+// the struct, so this is the whole list: the capture ring and the sample slots. Deliberately NOT
+// sound_shutdown() — that unloads the shared audio stream, which is the process's, not an
+// instance's. Caller guarantees this engine is no longer being rendered (see de_instance_destroy).
+static void sound_free_buffers(void) {
+    free(rec_ring); rec_ring = NULL; rec_arm = 0; rec_w = 0; rec_total = 0;
+    for (int i = 0; i < SOUND_SAMPLE_SLOTS; i++) {
+        free(sound_samples[i].data);
+        sound_samples[i].data = NULL; sound_samples[i].len = 0; sound_samples[i].loaded = false;
+    }
+}
+
 #endif // SOUND_H

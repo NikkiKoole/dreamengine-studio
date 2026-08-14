@@ -225,6 +225,14 @@ static int             loc_blend_mode  = -1;   // BLEND_AVG/ADD/MUL/SUB
 // Built ONCE from base_palette[] (the RGB mixing happens here, at build time; the framebuffer only
 // ever holds palette colors) — dynamic build, no baked constants, so a future palette swap just
 // rebuilds. blend_mode is sticky drawing-scope state like pal()/fillp(); NONE = plain overwrite.
+// SHARED, not per-instance (2026-08-14): every instance fills base_palette[] with the same
+// compile-time literals in de_palette_init(), so this 20 KB table was byte-identical in each copy —
+// 58% of DeVideo, rebuilt by ~1M inner iterations per instance boot. The `ready` latch makes
+// instances 2..N skip the build. ⚠ IT MOVES BACK the day base_palette becomes writable (a real
+// palette_set(), palette-and-color.md Layer 2): palette_hex() writes only the LIVE palette[], which
+// stays per-instance. A concurrent double-build is benign (identical bytes from a constant input).
+static unsigned char blend_lut[5][PALETTE_SIZE][PALETTE_SIZE];
+static bool          blend_lut_ready = false;
 // runtime colorkey() on the software canvas: the GPU path bakes the keyed colour into the
 // `spritesheet` texture (alpha 0); the canvas samples the pristine `spritesheet_img`, so it
 // must skip the key itself. Snapshot the RGB at colorkey() time (matches when the GPU bakes it).
@@ -739,9 +747,12 @@ static int blend_nearest(int r, int g, int b) {
     }
     return best;
 }
-// build the three preset tables from base_palette[] — the RGB mix happens here, once. Cheap
-// (~3·64² nearest searches); call after base_palette is populated (and on any future palette swap).
+// build the three preset tables from base_palette[] — the RGB mix happens here, once per PROCESS
+// (the table is shared; see its declaration). ~4·64² nearest searches over 64 colours each.
+// A future palette swap must clear blend_lut_ready first — and at that point the table stops being
+// a constant and has to move back into DeVideo.
 static void blend_tables_build(void) {
+    if (blend_lut_ready) return;        // shared table, constant input — instances 2..N inherit it
     for (int s = 0; s < PALETTE_SIZE; s++) for (int d = 0; d < PALETTE_SIZE; d++) {
         DeColor cs = base_palette[s], cd = base_palette[d];
         blend_lut[BLEND_AVG][s][d] = blend_nearest((cs.r+cd.r)/2, (cs.g+cd.g)/2, (cs.b+cd.b)/2);
@@ -2878,7 +2889,17 @@ static void de_bind_font(Font *fnt, Image *img, const DeBakedFont *b) {
     }
     *img = (Image){ (void*)b->atlas, b->atlasW, b->atlasH, 1, PIXELFORMAT_UNCOMPRESSED_R8G8B8A8 };
 }
+// ONCE PER PROCESS, not once per instance (2026-08-14). The six Font/Image globals it fills are
+// SHARED (ctx-classification.json → studio_c.shared: one atlas serves every engine), but this ran
+// from de_init_impl, i.e. per instance — so instance N's malloc'd recs/glyphs REPLACED instance
+// N-1's in the shared slot and orphaned them: ~76 KB leaked per rack a host opened, found by the
+// heap meter in tools/instance-check. Worse than the leak: it publishes a fresh pointer into a
+// global a sibling engine may be reading inside print() on another thread. The tables are a pure
+// function of the baked ROM (fonts_baked.h), so building them once is also what they meant.
 static void de_setup_baked_fonts(void) {
+    static bool bound = false;
+    if (bound) return;
+    bound = true;
     de_bind_font(&game_font,  &game_font_img,  &DE_BAKED_FONTS[DE_FONT_GAME]);
     de_bind_font(&font_small, &font_small_img, &DE_BAKED_FONTS[DE_FONT_SMALL]);
     de_bind_font(&font_tiny,  &font_tiny_img,  &DE_BAKED_FONTS[DE_FONT_TINY]);
@@ -3008,8 +3029,41 @@ DeInstance *de_instance_create(DeRenderer renderer) {
 DeSync *de_instance_sync(DeInstance *in) { return (in && in->id != 0) ? &in->syn : &de_sync_default; }
 DeMidi *de_instance_midi(DeInstance *in) { return (in && in->id != 0) ? &in->mid : &de_midi_default; }
 
+// Release an instance and EVERYTHING IT ALLOCATED. `free(in)` alone gets only the struct — the
+// context's inline arrays ride along with it, but its heap buffers do not, and until 2026-08-14 this
+// leaked every one of them (a plug-in instance is ~4 MB of struct plus these). They are reached
+// through the macros, so ENTER the instance first: on a host thread `de_vid`/`de_snd` name the
+// DEFAULT engine, and freeing through them here would free rack #1's canvas while destroying rack #2.
+//
+// ⚠ PRECONDITION, and it is the host's to keep: this engine must no longer be rendered or read.
+// `pres_buf` is the published frame a viewer thread copies out of (see de_copy_frame's seqlock), so
+// destroying an instance whose view is still blitting is a use-after-free — the same hazard
+// `present-race-check` gates for resize. Stop the audio unit and the display link first.
 void de_instance_destroy(DeInstance *in) {
     if (!in || in->id == 0) return;   // instance 0 is static and outlives everything
+    {
+        DE_ENTER(in);
+        free(sw_cbuf);       sw_cbuf = NULL;
+#ifdef DE_NO_RAYLIB
+        free(sw_world_buf);  sw_world_buf = NULL;
+        sw_dst = NULL;                                   // aliased one of the two above
+#endif
+        // The published frame. Only the CURRENT buffer: de_publish_frame deliberately leaks the
+        // previous one on every grow (a reader may be mid-copy), and those are unreachable by now.
+        free(atomic_load_explicit(&de_pres_buf, memory_order_relaxed));
+        atomic_store_explicit(&de_pres_buf, NULL, memory_order_relaxed);
+        de_pres_cap = 0;
+        free(de_state_mem);  de_state_mem = NULL; de_state_cap = 0;   // the cart's persistent block
+#ifndef PLATFORM_WEB
+        // raylib path only. On web `pget_snapshot.data` aliases a process-wide static reused every
+        // frame, and on the software build it is never filled (pget reads sw_cbuf directly).
+        if (pget_snapshot.data) UnloadImage(pget_snapshot);
+        pget_snapshot = (Image){0}; pget_snapshot_valid = false;
+#endif
+        if (smooth_rt_ok) { UnloadRenderTexture(smooth_rt); smooth_rt_ok = false; }
+        sound_free_buffers();                            // rec_ring + the sample slots (sound.h)
+        DE_LEAVE();
+    }
     free(in->ss_pend);                // a blob accepted but never applied (destroyed before a frame ran)
     free(in);
 }
@@ -3022,15 +3076,19 @@ static void de_init_impl(DeRenderer renderer) {
     init_touch_layout();
     de_load_map();
     de_setup_baked_fonts();
+    // The decoded sheet is SHARED (studio_c.shared), so decode it ONCE PER PROCESS — the `.data`
+    // test is the latch, no extra flag needed. Same bug as the fonts above: this ran per instance,
+    // overwriting the shared Image and orphaning the previous decode (~70 KB per rack opened).
+    // The bytes are a compile-time constant, so every instance was decoding the identical PNG.
 #ifdef SPRITES_MULTI
     for (int i = 0; i < SPRITES_MULTI; i++) {   // per-cart sheets on the SW path (iOS): pre-load all
-        if (SPRITES_SHEET_LENS[i] == 0) continue;
+        if (SPRITES_SHEET_LENS[i] == 0 || sheet_imgs[i].data) continue;
         Image s = de_image_decode(SPRITES_SHEETS[i], SPRITES_SHEET_LENS[i]);
         if (s.width > 0) sheet_imgs[i] = s;     // sw_blit/img_texel read this CPU image (no GPU texture)
     }
-    de_sheet_select(0);                         // boot cart is ctx 0
+    de_sheet_select(0);                         // boot cart is ctx 0 — cheap, and per instance on purpose
 #else
-    if (SPRITES_DATA_LEN > 0) {                 // decode the embedded sheet (stb_image) for the SW sprite path
+    if (SPRITES_DATA_LEN > 0 && !spritesheet_img.data) {   // decode the embedded sheet (stb_image) for the SW sprite path
         Image s = de_image_decode(SPRITES_DATA, SPRITES_DATA_LEN);
         if (s.width > 0) {
             spritesheet_img = s;                // sw_blit/img_texel read this CPU image (no GPU texture)

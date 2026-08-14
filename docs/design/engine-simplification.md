@@ -338,6 +338,10 @@ Same rules as round 1: line numbers rot, the function name is the anchor, every 
 | dead iOS spike layer | `ios/history/` | `canvas.h` declared `de_framebuffer` with the wrong arity AND return type |
 | `mac.sh` gated a stale binary | `ios/mac.sh` | compiled `au-transport-check` three lines AFTER the gate that runs it |
 | `platform.h` framebuffer origin | `runtime/platform.h` | said top-left; it is bottom-up |
+| `blend_lut` duplicated per instance | `runtime/studio.c` | 20,480 B of constant table in every engine, rebuilt by ~1M iterations per boot. Shared again: `DeVideo` 31,432 → 10,952 B |
+| an instance's heap was never given back | `runtime/studio.c`, `runtime/sound.h` | `de_instance_destroy` freed the struct only. Now frees what it allocated, through the instance rather than the thread-local |
+| the shared sheet + fonts were rebuilt per instance | `runtime/studio.c` | `de_init_impl` overwrote SHARED globals with a fresh `malloc` each boot — a leak, and a pointer swapped under a sibling mid-`print()`. Once per process now |
+| destroy had no gate | `tools/instance-check/` | the probe called it three times and asserted nothing. New heap-meter section + a `-bypass` control; goes red against `HEAD` at ~1 MB per rack |
 
 ### Open — `studio.c`
 
@@ -353,15 +357,39 @@ Same rules as round 1: line numbers rot, the function name is the anchor, every 
       GPU-only too: `sw_zoom_rect` already used `de_sh`, so iOS/Android were never affected. **Still
       ungated** — `canvas-diff drawall` proves fixed carts unchanged (0px) but cannot see the
       resizable case.
-- [ ] **`blend_lut` is 20,480 B — 58% of `DeVideo` — and byte-identical in every instance.** A pure
-      function of a compile-time-constant palette, rebuilt by ~1M inner iterations per instance boot.
-      Hoist back to shared + record in `ctx-classification.json`; `DeVideo` 35,528 → 14,792. ⚠
-      conditional on `base_palette` staying immutable — `palette_hex()`'s own comment flags a
-      pending real `palette_set()`.
-- [ ] **`de_instance_destroy` frees the struct and nothing it allocated** — `sw_cbuf`,
-      `sw_world_buf`, `pres_buf`, `de_state_mem`, `pget_snapshot.data`, sound's allocations.
-      `sizeof(DeInstance)` is 4,121,400 B. Android now calls it; **no Swift caller does**, and
-      `TinyjamAU`'s `deinit` cannot fire anyway (see the Swift list).
+- [x] **`blend_lut` is 20,480 B — 58% of `DeVideo` — and byte-identical in every instance.** LANDED
+      2026-08-14. Hoisted back to a file-scope static beside the blend shader handles, recorded in
+      `ctx-classification.json` → `studio_c.shared`, and `blend_tables_build()` now early-returns on
+      its own latch, so instances 2..N skip ~1M inner iterations instead of recomputing a constant.
+      Measured at 320×200: **`DeVideo` 31,432 → 10,952 B** (−20,480 exactly, −65%). `blend_lut_ready`
+      was write-only while it was per-instance — nothing read it — and is now what makes the skip
+      work. Gates: `refactor-guard` (6/6 byte-identical), `canvas-diff drawall`, and a
+      `DE_SOFTWARE_CANVAS=on` frame dump of **`blendfx`** against a worktree at `HEAD` — byte-identical,
+      which is the one that matters, since `blend_lut` is read only on the software blend path.
+      ⚠ The conditional in the original note still governs and is written at the declaration: this
+      moves back the day `base_palette` becomes writable. `palette_hex()` writes only the LIVE
+      `palette[]`, which stays per-instance.
+- [x] **`de_instance_destroy` frees the struct and nothing it allocated** — LANDED 2026-08-14. It now
+      enters the instance (on a host thread the macros name the DEFAULT engine — freeing through them
+      would have freed rack #1's canvas while destroying rack #2) and releases `sw_cbuf`,
+      `sw_world_buf`, `pres_buf`, `de_state_mem`, `pget_snapshot`, `smooth_rt`, plus `rec_ring` and the
+      sample slots via a new `sound_free_buffers()` in `sound.h`. The documented precondition is the
+      host's: `pres_buf` is what `de_copy_frame` reads, so a view still blitting is a use-after-free.
+      **Chasing it turned up a second, larger leak nobody had named** — see below.
+- [x] **`de_init_impl` re-decoded the SHARED sprite sheet and font tables PER INSTANCE.** LANDED
+      2026-08-14, found by the new heap meter, not by reading. `game_font`/`font_*_img` and
+      `spritesheet_img` are classified `studio_c.shared` ("one atlas serves every engine"), but the
+      code that fills them runs per instance — so instance N's `malloc` REPLACED instance N-1's
+      pointer in the shared slot and orphaned it (~146 KB per rack opened, more than the buffers the
+      item above is about). Two of them are worse than a leak: publishing a fresh `recs`/`glyphs`
+      pointer into a global that a sibling engine may be inside `print()` on. Both inputs are
+      compile-time constants, so both are now built once per process (`de_setup_baked_fonts` takes a
+      latch; the sheet decode uses `spritesheet_img.data` as its own). Same shape as `blend_lut`.
+      **Gate: `tools/instance-check` grew a `▸ DESTROY GIVES THE MEMORY BACK` section** — 8
+      create/destroy rounds, macOS allocator statistics, measured after a warm-up round so
+      process-wide init is not counted as a leak. **Green after (+0 B/round), and RED against a
+      worktree at `HEAD` (+1,002,496 B/round)**, which is the evidence that the gate sees the real
+      bug and not merely a skipped call. `-bypass` is the standing control (+4.98 MB/round).
 - [x] **`circfill_pat`/`ovalfill_pat` were dead** — LANDED 2026-08-14. `-Wunused-function` flagged
       `circfill_pat` in BOTH configs and `ovalfill_pat`'s only caller was `circfill_pat`. Deleted
       with their two forward decls; `build-all` 581/581, `canvas-diff drawall` 0px.

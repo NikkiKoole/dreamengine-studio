@@ -420,6 +420,14 @@
     "line": 257
    },
    "_shader_note": "A uniform LOCATION is a property of the program, never of an instance. Each *_shader_ok latch must move (or not move) with its shader or you get a shader used before compile.",
+   "blend_lut": {
+    "line": 232,
+    "note": "HOISTED BACK OUT of DeVideo 2026-08-14 (round 2). 20,480 B = 58% of DeVideo, byte-identical in every instance: a pure function of base_palette[], which de_palette_init() fills with the same compile-time literals everywhere. palette_hex() writes only the LIVE palette[] (still per-instance), so nothing makes an instance's table differ. ⚠ MOVES BACK the day a real palette_set() lands (palette-and-color.md Layer 2)"
+   },
+   "blend_lut_ready": {
+    "line": 233,
+    "note": "the once-per-PROCESS latch for the above — was write-only while per-instance (nothing read it); now it is what makes instances 2..N skip a ~1M-iteration build"
+   },
    "tritex_fast_on": {
     "line": 286,
     "note": "boot-only env A/B, never written after main()"
@@ -682,10 +690,6 @@
    "sw_canvas_active": {
     "line": 309,
     "note": "looks like the twin of a boot env flag; is recomputed EVERY FRAME (2593) and read as a live draw-path gate by ~25 primitives"
-   },
-   "blend_lut_ready": {
-    "line": 240,
-    "note": "looks like a process-init latch; guards a table derived from the PER-INSTANCE base_palette"
    },
    "sav_loaded": {
     "line": 5941,

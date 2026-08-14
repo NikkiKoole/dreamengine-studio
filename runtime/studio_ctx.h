@@ -62,8 +62,9 @@ typedef struct {
     float cur_pal_rgb[PALETTE_SIZE * 3];
     bool cur_pal_dirty;
     int blend_mode;
-    unsigned char blend_lut[5][PALETTE_SIZE][PALETTE_SIZE];
-    bool blend_lut_ready;
+    /* blend_lut / blend_lut_ready are SHARED, not members — HAND-REMOVED 2026-08-14 and recorded in
+     * ctx-classification.json (studio_c.shared). They were 20,480 of DeVideo's 35,528 bytes and are a
+     * pure function of base_palette[], which every instance fills with the same compile-time literals. */
     bool sw_colorkey_on;
     DeColor sw_colorkey_rgb;
     RenderTexture2D smooth_rt;
@@ -254,8 +255,7 @@ static _Thread_local DeVideo *de_vid = &de_vid_default;
 #define cur_pal_rgb         (de_vid->cur_pal_rgb)
 #define cur_pal_dirty       (de_vid->cur_pal_dirty)
 #define blend_mode          (de_vid->blend_mode)
-#define blend_lut           (de_vid->blend_lut)
-#define blend_lut_ready     (de_vid->blend_lut_ready)
+/* blend_lut / blend_lut_ready: no alias — they stayed file-scope statics in studio.c (see above). */
 #define sw_colorkey_on      (de_vid->sw_colorkey_on)
 #define sw_colorkey_rgb     (de_vid->sw_colorkey_rgb)
 #define smooth_rt           (de_vid->smooth_rt)

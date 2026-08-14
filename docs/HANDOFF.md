@@ -62,12 +62,22 @@ a broken doc link or `#section`).
 > paths · `pget`/loupe flipped about compile-time `SCREEN_H` on a resizable canvas · 4 `SR_*` kinds
 > classified by neither switch, so the config log grew unbounded.
 >
+> ALSO SHIPPED (second pass, same day): **`blend_lut` is shared again** — 20,480 B of constant table
+> was in every engine and rebuilt by ~1M iterations per boot; `DeVideo` 31,432 → 10,952 B ·
+> **`de_instance_destroy` gives the memory back**, entering the instance first (on a host thread the
+> macros name the DEFAULT engine, so freeing through them would free rack #1 while destroying rack #2)
+> · and the leak that was found while gating that one: **`de_init_impl` re-decoded the SHARED sprite
+> sheet and font tables per instance**, orphaning the previous copy in the shared slot — ~146 KB per
+> rack, and a `recs`/`glyphs` pointer swapped under a sibling that may be inside `print()`.
+> **`tools/instance-check` now gates destroy** (8 create/destroy rounds must leave the heap flat;
+> `-bypass` control) and goes RED against a worktree at the previous `HEAD` at ~1 MB per rack opened.
+>
 > **Resume-at: [the round-2 open list](design/engine-simplification.md#round-2--after-the-per-instance-refactor-2026-08-14)** — every open item names its gate, and the
 > re-verified WON'T-DO list is there too (round 1's three calls still hold; I checked rather than
-> assumed). Biggest remaining: `blend_lut` (20.5 KB/instance, 58% of `DeVideo`, byte-identical every
-> time, rebuilt by ~1M iterations per boot) · the `DRIVE_*` waveshaper switch written twice (the
-> header says so) · `de_instance_destroy` frees the struct and **nothing it allocated** (4.1 MB) ·
-> `TinyjamAU.uiTick()` is orphaned, so **a stopped host freezes the panel and swallows every tap**.
+> assumed). Biggest remaining: the `DRIVE_*` waveshaper switch written twice (the header says so) ·
+> the 9 diverged copies of "ensure FX_X is in bus b's chain" · `TinyjamAU.uiTick()` is orphaned, so
+> **a stopped host freezes the panel and swallows every tap** · and no Swift caller invokes
+> `de_instance_destroy` at all, so the fix above is only half-spent until `TinyjamAU` can deinit.
 >
 > ⚠ TWO THINGS A FRESH SESSION SHOULD NOT RE-LEARN THE HARD WAY. **`midi-check` phase B is flaky** —
 > it failed once and passed twice on identical code, and only a throwaway `git worktree --detach` at

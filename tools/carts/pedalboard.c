@@ -75,10 +75,9 @@ de:meta */
 #include "fxicons.h"      // shared effect icons + colours (also used by the epiano)
 #include "ampcab.h"       // the shared amp/cab voicing table — the CABINET slot's "guitar amp" tenant
 #include <math.h>
-extern void de_resize(int w, int h);   // engine seam: set the active canvas (acidcandy's chunky-canvas trick)
 
 // DEVICE REFLOW (device-adaptive-layout.md) — LANDSCAPE-only, authored at 320x200. We never scale
-// the render (that desyncs ui.h/tapp; see CLAUDE.md); instead de_resize() to a small canvas that
+// the render (that desyncs ui.h/tapp; see CLAUDE.md); instead canvas_resize() to a small canvas that
 // MATCHES the window's aspect ratio so the design scales up crisp with NO letterbox bars, then the
 // layout below reads screen_w()/screen_h() and spreads into the leftover. Base 320x200 (ratio 1.6):
 // a wider window locks HEIGHT 200 + widens (more of the pedal chain shows); a narrower/taller window
@@ -94,7 +93,7 @@ static void fit_canvas(void) {
     int tw, th;
     if (r >= 1.6f) { th = 200; tw = (int)(200.0f * r + 0.5f); }   // wide  → lock height, widen the board
     else           { tw = 320; th = (int)(320.0f / r + 0.5f); }   // narrow→ lock width, grow downward
-    if (tw != cw || th != ch) de_resize(tw, th);
+    if (tw != cw || th != ch) canvas_resize(tw, th);
     safe_rect(&saX, &saY, &saW, &saH);   // read AFTER the resize (it rescales to the reflowed canvas)
 }
 

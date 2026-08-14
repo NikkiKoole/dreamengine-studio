@@ -55,11 +55,8 @@
 #include "game_rect.h"   // window↔canvas placement transform (touch-controls Phase 1.5 chokepoint)
 #include "studio_ctx.h"   // GENERATED per-instance context (tools/ctx-gen.js)
 
-// The canvas dimensions stay FILE-SCOPE for now, with the rest of the framebuffer group. See the
-// note at the top of studio_ctx.h: their siblings sw_cbuf/sw_dst/sw_world_buf are inside
-// `#ifdef DE_NO_RAYLIB` and cannot be moved yet, and a half-moved group crashes.
-static int fb_w = SCREEN_W, fb_h = SCREEN_H;
-static int de_sw = SCREEN_W, de_sh = SCREEN_H;
+// The canvas dimensions are PER-INSTANCE, in DeVideo with the rest of the framebuffer group — see
+// "THE FRAMEBUFFER + PRESENT GROUP" in studio_ctx.h for why the whole group had to move at once.
 
 // where the canvas sits in the window + the single window↔canvas transform (see game_rect.h).
 // Phase 1.5 pins it to the full window (origin 0,0; scale = SCALE) → identity, byte-identical to
@@ -354,8 +351,10 @@ int device_class(void) {
 // sw_cbuf, un-rotated. Primitives write sw_dst — the framebuffer, or the world buffer while a
 // rotated camera_ex is active. (det-probes/rotfill is the per-primitive study; this is the
 // whole-layer composite, which keeps every primitive on its fast axis-aligned path.)
-static uint32_t       *sw_world_buf = NULL;   // heap, sized to fb_w×fb_h alongside sw_cbuf (grows with it)
-static uint32_t       *sw_dst = NULL;         // → sw_cbuf (or sw_world_buf mid camera_ex); set at alloc time
+// sw_world_buf + sw_dst are PER-INSTANCE (DeVideo) — they are sized by, and point into, a canvas
+// that is now per-instance. sw_dst's macro lives here rather than in studio_ctx.h because it forks
+// on the renderer: a real pointer on this side, a plain alias for sw_cbuf on the other.
+#define sw_dst (de_vid->sw_dst)
 static bool            sw_rot_active = false;
 static float           sw_rot_angle  = 0.0f;
 static void            sw_rot_composite(void);            // defined near camera(); called from de_frame()
@@ -2932,6 +2931,23 @@ static _Thread_local struct DeInstance *de_cur;
     }
 #define DE_LEAVE()     de_cur = de_prev_; de_snd = de_prev_snd_; de_vid = de_prev_vid_; de_sync = de_prev_syn_
 
+/* Resolve an instance to its video state WITHOUT entering it.
+ *
+ * For the handful of seam functions that run on the HOST's own thread — de_resize,
+ * de_set_safe_area, de_set_backing_scale, de_copy_frame — the thread-local is not just unhelpful,
+ * it is actively wrong: those threads never entered a seam call, so `de_vid` there is the DEFAULT
+ * instance no matter which plug-in is asking. A view controller resizing rack #2 would resize
+ * rack #1. They take a handle precisely so they do not have to guess, and this is how they spend it.
+ *
+ * ⚠ The `id != 0` test is not optional and must match DE_ENTER's exactly. Instance 0 keeps the
+ * generated TEMPLATE rather than owning a copy (that is what leaves the desktop path untouched), so
+ * `de_inst_default.vid` is a zeroed struct nobody ever reads — writing a pending resize into it
+ * would go nowhere at all, silently, on the single-instance path every gate in the repo runs. */
+static DeVideo *de_vid_of(struct DeInstance *in) {
+    if (!in) return de_vid;                       // no handle offered → whichever instance this thread is inside
+    return in->id != 0 ? &in->vid : &de_vid_default;
+}
+
 static void de_init_impl(DeRenderer renderer);
 
 // The FIRST call returns the default engine (instance 0), so every existing host — the desktop
@@ -3036,10 +3052,9 @@ void de_input_beginframe(void);   // raylib_compat.c — applies the host's queu
 //      events, so last-writer-wins and a few atomics beat a queue.
 //   2. THE BLIT — the host must not read sw_cbuf while the engine draws into it. de_copy_frame()
 //      below hands out a SNAPSHOT of the last completed frame instead.
-static atomic_int de_pend      = 0;   // bit 0 = canvas, 1 = safe area, 2 = backing scale
-static atomic_int de_pend_w    = 0, de_pend_h  = 0;
-static atomic_int de_pend_sl   = 0, de_pend_st = 0, de_pend_sr = 0, de_pend_sb = 0;
-static atomic_int de_pend_bs   = 0;   // backing scale × 256 (an int keeps it lock-free everywhere)
+// de_pend* is PER-INSTANCE (DeVideo). It has to be: two plug-in panels are two layout passes, and
+// while these were shared each view's size overwrote the other's every frame — which is what made
+// two open panels flicker. See "THE FRAMEBUFFER + PRESENT GROUP" in studio_ctx.h.
 
 static void de_apply_pending(void) {
     int f = atomic_exchange_explicit(&de_pend, 0, memory_order_acquire);
@@ -3079,10 +3094,8 @@ static void de_apply_pending(void) {
 // lets a reader pair the OLD (smaller) pointer with the NEW (larger) dimensions and read past its end.
 // Nothing is freed, so it is not a use-after-free — it is an out-of-bounds read, which is no better.
 // So the growth happens INSIDE the window, and the reader loads the pointer inside it too.
-static uint32_t * _Atomic de_pres_buf = NULL;
-static size_t      de_pres_cap = 0;          // in pixels; engine thread only
-static atomic_int  de_pres_seq = 0;          // odd = a publish is in progress
-static atomic_int  de_pres_w   = 0, de_pres_h = 0;
+// The whole seqlock is PER-INSTANCE (DeVideo): one published frame per engine, or two panels blit
+// the same buffer and each sees whichever engine rendered last. See studio_ctx.h.
 
 static void de_publish_frame(void) {
     size_t need = (size_t)de_sw * (size_t)de_sh;
@@ -3113,20 +3126,23 @@ static void de_publish_frame(void) {
 // (the AUv3 view). Bottom-up rows, exactly like de_framebuffer(). Returns 1 and sets *w/*h on
 // success; 0 if no frame has been published yet or `cap_px` is too small to hold it — in which case
 // *w/*h still report the size needed, so the host can grow its buffer and ask again.
+// ⚠ Reads THIS instance's frame via de_vid_of(in) rather than the macros: it is called from the
+// host's UI thread, where the thread-local names the default engine. Two panels went through here
+// and both got the same picture, which is the flicker.
 int de_copy_frame(DeInstance *in, uint32_t *dst, int cap_px, int *w, int *h) {
-    (void)in;   // step 2: read THIS instance's published frame
+    DeVideo *v = de_vid_of(in);
     for (int attempt = 0; attempt < 8; attempt++) {
-        int s1 = atomic_load_explicit(&de_pres_seq, memory_order_acquire);
+        int s1 = atomic_load_explicit(&v->pres_seq, memory_order_acquire);
         if (s1 & 1) continue;                                     // a publish is mid-flight
-        int pw = atomic_load_explicit(&de_pres_w, memory_order_relaxed);
-        int ph = atomic_load_explicit(&de_pres_h, memory_order_relaxed);
-        uint32_t *src = atomic_load_explicit(&de_pres_buf, memory_order_relaxed);   // inside the window
+        int pw = atomic_load_explicit(&v->pres_w, memory_order_relaxed);
+        int ph = atomic_load_explicit(&v->pres_h, memory_order_relaxed);
+        uint32_t *src = atomic_load_explicit(&v->pres_buf, memory_order_relaxed);   // inside the window
         if (pw <= 0 || ph <= 0 || !src) return 0;                  // nothing published yet
         if (w) *w = pw;
         if (h) *h = ph;
         if (!dst || cap_px < pw * ph) return 0;                    // caller must grow and retry
         memcpy(dst, src, (size_t)pw * ph * sizeof(uint32_t));
-        if (atomic_load_explicit(&de_pres_seq, memory_order_acquire) == s1) return 1;   // clean read
+        if (atomic_load_explicit(&v->pres_seq, memory_order_acquire) == s1) return 1;   // clean read
     }
     return 0;   // pathologically unlucky (or the engine is publishing far faster than we read)
 }
@@ -3156,25 +3172,37 @@ int de_active_screen_h(void) { return de_sh; }
 // de_resize reallocs the framebuffer, which is fatal to a frame being drawn on another thread.
 // Deferral is invisible to the standalone app: CanvasView already re-reads de_screen_w/h AFTER
 // de_frame (a cart can resize itself mid-frame), which is exactly when a pending resize lands.
+// ⚠ All three reach the instance through de_vid_of(in), NOT through the `de_pend_*` macros. They
+// run on the host's layout thread, which never entered a seam call, so the thread-local points at
+// the default engine — a second panel resizing itself would have resized the first.
 void de_resize(DeInstance *in, int w, int h) {
-    (void)in;
-    atomic_store_explicit(&de_pend_w, w, memory_order_relaxed);
-    atomic_store_explicit(&de_pend_h, h, memory_order_relaxed);
-    atomic_fetch_or_explicit(&de_pend, 1, memory_order_release);
+    DeVideo *v = de_vid_of(in);
+    atomic_store_explicit(&v->pend_w, w, memory_order_relaxed);
+    atomic_store_explicit(&v->pend_h, h, memory_order_relaxed);
+    atomic_fetch_or_explicit(&v->pend, 1, memory_order_release);
 }
 int  de_is_resizable(DeInstance *in) { (void)in; return de_reflow ? 1 : 0; }
+// The CART-facing twin, and a different operation despite the shared verb: the host says "my view
+// resized" and hands a handle, a cart says "give me a canvas this size" from inside its own frame,
+// where the thread-local already names the right instance. It exists because carts were declaring
+// `extern void de_resize(int, int)` themselves — against a function that has taken a DeInstance*
+// since the seam landed. That is undefined behaviour the compiler cannot see across translation
+// units, and it was live in face.h and 7 carts: the width went into the instance parameter. It only
+// looked harmless while the parameter was `(void)in`; the moment this file dereferenced it, the cart
+// crashed with in = 0xa7, which is 167, which was the canvas width it asked for.
+void canvas_resize(int w, int h) { de_resize(NULL, w, h); }
 void de_set_safe_area(DeInstance *in, int l, int t, int r, int b) {
-    (void)in;   // host reports notch/home-bar insets (px)
-    atomic_store_explicit(&de_pend_sl, l, memory_order_relaxed);
-    atomic_store_explicit(&de_pend_st, t, memory_order_relaxed);
-    atomic_store_explicit(&de_pend_sr, r, memory_order_relaxed);
-    atomic_store_explicit(&de_pend_sb, b, memory_order_relaxed);
-    atomic_fetch_or_explicit(&de_pend, 2, memory_order_release);
+    DeVideo *v = de_vid_of(in);   // host reports notch/home-bar insets (px)
+    atomic_store_explicit(&v->pend_sl, l, memory_order_relaxed);
+    atomic_store_explicit(&v->pend_st, t, memory_order_relaxed);
+    atomic_store_explicit(&v->pend_sr, r, memory_order_relaxed);
+    atomic_store_explicit(&v->pend_sb, b, memory_order_relaxed);
+    atomic_fetch_or_explicit(&v->pend, 2, memory_order_release);
 }
 void de_set_backing_scale(DeInstance *in, float k) {
-    (void)in;   // host reports pt-per-logical-px (iOS pixelChunk); feeds finger_px()
-    atomic_store_explicit(&de_pend_bs, (int)(k * 256.0f), memory_order_relaxed);
-    atomic_fetch_or_explicit(&de_pend, 4, memory_order_release);
+    DeVideo *v = de_vid_of(in);   // host reports pt-per-logical-px (iOS pixelChunk); feeds finger_px()
+    atomic_store_explicit(&v->pend_bs, (int)(k * 256.0f), memory_order_relaxed);
+    atomic_fetch_or_explicit(&v->pend, 4, memory_order_release);
 }
 // Host points persistence at a writable app dir (Android internalDataPath, iOS Documents). Call
 // BEFORE de_init so the cart's init() can load_int(). Twin of the desktop --save-dir flag; if the
@@ -3192,6 +3220,9 @@ void de_set_save_dir(DeInstance *in, const char *dir) { (void)in; if (dir && *di
 // honest (only -DDE_RESIZABLE carts opt into live window→canvas reflow).
 void de_resize(DeInstance *in, int w, int h) { (void)in; de_set_canvas(w, h); }
 int  de_is_resizable(DeInstance *in) { (void)in; return de_reflow ? 1 : 0; }
+// the cart-facing twin — see the long note beside the DE_NO_RAYLIB copy. This build owns main() and
+// runs one engine, so it is a direct call; the shape is what matters, not the indirection.
+void canvas_resize(int w, int h) { de_set_canvas(w, h); }
 
 #ifdef DE_NET_BUILD
 // Windows starts the window HIDDEN (see InitWindow) to avoid the undrawn-white flash; this reveals

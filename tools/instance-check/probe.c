@@ -146,9 +146,6 @@ int main(void) {
     // instance had booted carried LIVE POINTERS, so two engines reallocated and freed one
     // framebuffer. malloc caught it in de_ensure_fb, only under a host that resizes.
     //
-    // ⚠ This does NOT assert two instances hold different canvas SIZES — they cannot yet. fb_w/fb_h
-    // stay file-scope until their `#ifdef DE_NO_RAYLIB` siblings (sw_cbuf/sw_dst/sw_world_buf) can
-    // move with them; moving half that group is what produced the crash.
     printf("▸ surviving a resize (the shallow-copy trap)\n");
     de_resize(a, 200, 120);
     de_resize(b, 288, 176);
@@ -163,6 +160,44 @@ int main(void) {
     ok(pr > 0.0f, "both instances still run after a resize",
        "peak %.4f — no heap corruption on the next allocation", pr);
 
+    // ── THE PICTURE (2026-08-14) ────────────────────────────────────────────────────────────────
+    // Now assertable, and it was not before: the framebuffer group and the published-frame seqlock
+    // are per-instance, so de_copy_frame hands each host its OWN engine's last frame. While they
+    // were shared, two plug-in panels blitted one buffer that alternated between the two engines —
+    // which is exactly what the maker saw as flickering.
+    //
+    // The two instances were just resized to DIFFERENT canvases, so the sizes alone settle it: one
+    // shared framebuffer cannot be 200x120 and 288x176 at the same time. Sizes are also the honest
+    // signal here — both racks are playing the same cart from the same seed, so their PIXELS could
+    // legitimately agree, and asserting "the images differ" would be asserting a coincidence.
+    printf("▸ THE PICTURE: each instance publishes its OWN frame\n");
+    int aw = 0, ah = 0, bw = 0, bh = 0;
+    int gota = de_copy_frame(a, NULL, 0, &aw, &ah) || (aw > 0 && ah > 0);
+    int gotb = de_copy_frame(b, NULL, 0, &bw, &bh) || (bw > 0 && bh > 0);
+    ok(gota && gotb, "both instances have published a frame", "A %dx%d · B %dx%d", aw, ah, bw, bh);
+    ok(aw != bw || ah != bh, "THE POINT: the two frames are DIFFERENT SIZES",
+       "A %dx%d · B %dx%d — one shared buffer cannot be both", aw, ah, bw, bh);
+    // ⚠ Do NOT assert the sizes we asked for. This cart is a device FACE: face_resize() re-derives
+    // its own chunky canvas from the RATIO it was handed, every frame, so 200x120 comes back 167x100
+    // and 288x176 comes back 164x100. That is the cart working correctly, and an earlier version of
+    // this check called it a failure. What the host request survives as is the ASPECT, so that is
+    // what gets asserted — and it is still per-instance evidence, since a shared canvas could only
+    // carry one of the two.
+    float ra = (float)aw / (float)ah, rb = (float)bw / (float)bh;
+    ok(ra > 200.0f/120.0f - 0.03f && ra < 200.0f/120.0f + 0.03f,
+       "A kept the aspect A was given", "%.3f vs 1.667 (asked 200x120, cart chose %dx%d)", ra, aw, ah);
+    ok(rb > 288.0f/176.0f - 0.03f && rb < 288.0f/176.0f + 0.03f,
+       "B kept the aspect B was given", "%.3f vs 1.636 (asked 288x176, cart chose %dx%d)", rb, bw, bh);
+    // LIVENESS: a pair of all-one-colour frames would satisfy the sizes above while proving nothing
+    // about what was drawn into them.
+    int npa = 0, npb = 0;
+    uint32_t *pa = (uint32_t *)malloc((size_t)aw * ah * 4), *pb = (uint32_t *)malloc((size_t)bw * bh * 4);
+    if (pa && de_copy_frame(a, pa, aw * ah, &aw, &ah)) npa = aw * ah;
+    if (pb && de_copy_frame(b, pb, bw * bh, &bw, &bh)) npb = bw * bh;
+    ok(npa && npb && !flat(pa, npa) && !flat(pb, npb),
+       "and both actually drew something", "%d and %d px, neither a single flat colour", npa, npb);
+    free(pa); free(pb);
+
     de_instance_destroy(b); de_instance_destroy(c); de_instance_destroy(d);
 
     // ⚠ WHAT A PASS DOES NOT EARN:
@@ -171,11 +206,14 @@ int main(void) {
     //     each AU's render block pushes its own, which is fine while both see the same host
     //     transport, and wrong the moment they do not — an offline bounce of one track while another
     //     plays realtime. Not covered here, and not supported.
-    //   · de_pres_* is process-wide too, so per-instance FRAMES are unproven (see above).
     //   · Nothing here runs two instances on two THREADS at once. present-race-check covers one.
-    //   · THE CART'S OWN STATE IS STILL SHARED (see the control above). Until a cart keeps its state
-    //     in de_state(), two racks cannot both play, however independent the ENGINE is. Everything
-    //     this gate asserts is about the engine; the cart is the next step.
+    //   · The frame check above asserts each instance publishes its OWN canvas, not that the two
+    //     PICTURES differ — both racks run the same cart from the same seed, so identical pixels
+    //     would be legitimate. Sizes are the honest discriminator; the flat-colour check is only a
+    //     liveness guard.
+    //   · THE CART'S state is per-instance only when the cart opts in with DE_CART_CTX (acidcandy
+    //     does). A cart that does not is still one rack shared, however independent the engine is —
+    //     tools/instance-check/run-uictx.sh is what covers both paths.
     printf("\n%s\n", failures ? "FAILED" : "PASS — interleaved, the engines are strangers.");
     return failures ? 1 : 0;
 }

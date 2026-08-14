@@ -12,14 +12,14 @@
   "teaches": [],
   "description": {
     "summary": "The device-matrix WIREFRAME tool for the acidrack redesign — CLICKABLE/TAPPABLE (touch+mouse): flip acidrack's four-state layout through every device shape and click the controls (mute, patterns, open a strip, focus, tabs) to study the interaction, not just the pixels.",
-    "detail": "A design tool for the acidrack redesign (device-adaptive-layout.md Phase 3, brief acidrack-layout-brief.md). The window is fixed (940x700); pressing a key calls de_resize() to shrink the CANVAS to the exact logical @ K=2 size of each device in device-matrix.md §2 (iPhone SE ... iPad 13 landscape). The engine letterboxes it, so you watch acidrack reflow at each TRUE shape - no fake nested device rect (the field-018 honesty win: lay.h + screen_w()/screen_h() see the real size, same path production acidrack uses). Because the canvas is already K=2 logical px, a 44pt finger is a constant 22 logical px - so every control's finger-comfort is honest. It draws the three-state strip model (folded/compact/expanded) and the per-shape arrangements from the brief: roomy=all-compact rack, tall=one expanded + compact + folded, short-wide=tabs. It's the vehicle for the brief's open compact-strip taste calls - tweak the compact layout here and eyeball it across all shapes.",
+    "detail": "A design tool for the acidrack redesign (device-adaptive-layout.md Phase 3, brief acidrack-layout-brief.md). The window is fixed (940x700); pressing a key calls canvas_resize() to shrink the CANVAS to the exact logical @ K=2 size of each device in device-matrix.md §2 (iPhone SE ... iPad 13 landscape). The engine letterboxes it, so you watch acidrack reflow at each TRUE shape - no fake nested device rect (the field-018 honesty win: lay.h + screen_w()/screen_h() see the real size, same path production acidrack uses). Because the canvas is already K=2 logical px, a 44pt finger is a constant 22 logical px - so every control's finger-comfort is honest. It draws the three-state strip model (folded/compact/expanded) and the per-shape arrangements from the brief: roomy=all-compact rack, tall=one expanded + compact + folded, short-wide=tabs. It's the vehicle for the brief's open compact-strip taste calls - tweak the compact layout here and eyeball it across all shapes.",
     "controls": "TAP/CLICK: a strip NAME opens it (compact->expanded->focus) - the M button (un)mutes - a pattern chip selects it - a landscape TAB name opens it + its M mutes without opening - in FOCUS the instrument NAME (‹) is the back button (no X; [M][fx] sit top-right) - the bottom-left label flips to the next device. KEYS mirror it: ]/->/space/` (key left of 1) next shape - [/<- prev - 1-9 jump - w cycle which strip is expanded (also toggles the iPad all-compact rack) - f FOCUS the working strip fullscreen (drum full grid / 303 programmer; f or the X closes) - m (un)mute the working strip - p cycle its pattern (6 per instrument) - s toggle the device SAFE-AREA skin (notch/Dynamic Island/rounded corners/home bar/status bar + the dashed keep-out boundary) - g toggle the 1-FINGER reference grid (44pt cells — anything smaller than a cell is sub-finger) - h hide the label"
   }
 }
 de:meta */
 // ACIDWIRE — the wireframe tool for the acidrack device-adaptive redesign.
 // See docs/design/device-matrix.md (§2 shapes) + acidrack-layout-brief.md (the
-// three-state strip model this draws). Fixed window; de_resize() reshapes the
+// three-state strip model this draws). Fixed window; canvas_resize() reshapes the
 // CANVAS to each device's logical @ K=2 size, letterboxed by the engine.
 
 #include "studio.h"
@@ -30,7 +30,6 @@ de:meta */
                   // wireframe's controls actually MOVE (no sound; just honest finger-ergonomics)
 #include "disclose.h"   // the shape classify + finger-budget accordion pass (R2 — this cart is its proof)
 
-extern void de_resize(int w, int h);   // engine seam (platform.h): set the active canvas size
 
 #define KEY_GRAVE 96                    // the key left of `1` (a `§` on ISO Mac boards)
 
@@ -590,7 +589,7 @@ void update(void) {
     if (keyp('P')) patn[sel] = (patn[sel] + 1) % NPAT;    // cycle its 6 patterns
     if (keyp('F')) focused = (focused == sel) ? -1 : sel; // FOCUS the working strip / X-close
 #ifndef DE_RESIZABLE
-    if (cur != applied) { de_resize(DEV[cur].w, DEV[cur].h); applied = cur; }   // design tool: force the fake device size
+    if (cur != applied) { canvas_resize(DEV[cur].w, DEV[cur].h); applied = cur; }   // design tool: force the fake device size
 #endif
 }
 

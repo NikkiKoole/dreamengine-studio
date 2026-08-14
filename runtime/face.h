@@ -61,7 +61,6 @@
 #include "studio.h"
 #include "lay.h"
 
-extern void de_resize(int w, int h);   // engine seam (studio.c): set the active canvas — cart-drivable
 
 #ifndef FACE_MAX_ZONES
 #define FACE_MAX_ZONES 10
@@ -99,7 +98,7 @@ static inline void face_resize_to(int dw, int dh) {
     int tw, th;
     if (r >= dr) { th = dh; tw = (int)(dh * r + 0.5f); }   // wider than design → keep height, extend width
     else         { tw = dw; th = (int)(dw / r + 0.5f); }   // taller than design → keep width, extend height
-    if (tw != cw || th != ch) de_resize(tw, th);
+    if (tw != cw || th != ch) canvas_resize(tw, th);
 }
 // the landscape candy-family default (160×100). Portrait/other faces call face_resize_to().
 static inline void face_resize(void) { face_resize_to(160, 100); }

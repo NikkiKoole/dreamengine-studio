@@ -13,7 +13,7 @@
   "lineage": "acidwire",
   "description": {
     "summary": "A single-machine FULL-FACE wireframe (the 'Acid Pure' idiom, on Elektron x Roland x0x bones): one acid box given the whole phone screen — 6 knobs, a context DISPLAY flanked by 6 soft-keys, a lane strip, the 16-STEP BUTTON ROW (double-duty: step-select for the note lane, drum cells for a drum voice), and a keybed. The counter-proposal to acidwire's collapsing multi-machine rack: don't fold the band, show ONE machine as real hardware and switch fast.",
-    "detail": "A design-play wireframe, born from a maker sketch (2026-07-13) after seeing the 'Acid Pure' app. Hardware lineage: the screen-flanked-by-soft-keys is Elektron (Digitakt/Rytm); the 16-step button row + acid voice are Roland x0x (TB-303/TR-808/909). Where acidwire (its lineage) fits acidrack's 4-5 machines onto a phone by an accordion (fold/compact/expand), this asks the opposite: give ONE machine the entire screen as a purpose-built hardware face. The 6 orange SOFT-KEYS flanking the display swap the flow (SEQ step/kit inspector / PAT / SONG / MIX / FX / SCOPE). The LANE STRIP (NOTE + BD/SD/CH/OH drum voices) picks what the 16-STEP ROW edits — the maker's key idea: those buttons do DOUBLE DUTY. NOTE lane = each button selects that step and the KEYBED sets its pitch (303 step-entry); a DRUM lane = each button toggles that voice's hit (a drum cell, 808/909 style). SHIFT flips the whole row to pattern-select. The SEQ display pairs with the row: NOTE shows the selected step's pitch + ACC/SLD/TIE toggles, a drum lane shows the whole-kit overview. Same device-honest scaffolding as acidwire: fixed 940x700 window, de_resize() reshapes the CANVAS to each device's logical @K=2 size (letterboxed), so a 44pt finger is a constant ~22 logical px and finger-comfort is HONEST across the device matrix. It's a feel-it-on-glass toy, not a spec — play it, then decide if the full-face model beats the accordion for a phone.",
+    "detail": "A design-play wireframe, born from a maker sketch (2026-07-13) after seeing the 'Acid Pure' app. Hardware lineage: the screen-flanked-by-soft-keys is Elektron (Digitakt/Rytm); the 16-step button row + acid voice are Roland x0x (TB-303/TR-808/909). Where acidwire (its lineage) fits acidrack's 4-5 machines onto a phone by an accordion (fold/compact/expand), this asks the opposite: give ONE machine the entire screen as a purpose-built hardware face. The 6 orange SOFT-KEYS flanking the display swap the flow (SEQ step/kit inspector / PAT / SONG / MIX / FX / SCOPE). The LANE STRIP (NOTE + BD/SD/CH/OH drum voices) picks what the 16-STEP ROW edits — the maker's key idea: those buttons do DOUBLE DUTY. NOTE lane = each button selects that step and the KEYBED sets its pitch (303 step-entry); a DRUM lane = each button toggles that voice's hit (a drum cell, 808/909 style). SHIFT flips the whole row to pattern-select. The SEQ display pairs with the row: NOTE shows the selected step's pitch + ACC/SLD/TIE toggles, a drum lane shows the whole-kit overview. Same device-honest scaffolding as acidwire: fixed 940x700 window, canvas_resize() reshapes the CANVAS to each device's logical @K=2 size (letterboxed), so a 44pt finger is a constant ~22 logical px and finger-comfort is HONEST across the device matrix. It's a feel-it-on-glass toy, not a spec — play it, then decide if the full-face model beats the accordion for a phone.",
     "controls": "TAP/CLICK: a SOFT-KEY (orange, flanking the screen) picks the display flow - a KNOB drag-turns - a LANE chip (NOTE/BD/SD/CH/OH) picks what the 16-step row edits - a STEP BUTTON: in NOTE lane SELECTS the step (then a KEYBED key sets its pitch + advances), in a drum lane TOGGLES that voice's hit - CLR/RND (lane strip) wipe/re-roll the active lane's pattern - ACC/SLD/TIE (in the SEQ display) flag the selected note step - LOK (in the SEQ display, NOTE lane) arms PARAMETER LOCK: the 6 top knobs turn amber and edit the SELECTED step instead of the patch (turning one stamps a per-step value; locked steps get an amber pip) - CLR/RND ops live in the display - < > (transport) step the pattern - ▶ plays (animates the playhead across the row). KEYS: ]/->/space/` next device shape - [/<- prev - 1-9 jump - l cycle lane - w SHIFT (row -> pattern-select) - k LOCK - , . pattern prev/next - s safe-area skin - g 1-finger grid - h hide the label."
   }
 }
@@ -21,7 +21,7 @@ de:meta */
 // ACIDFACE — the single-machine full-face wireframe (the "Acid Pure" idiom).
 // The counter-proposal to acidwire's collapsing rack: one machine, the whole
 // screen, as real hardware. Same honest-device scaffolding as acidwire —
-// de_resize() reshapes the CANVAS per device (device-matrix.md §2), letterboxed,
+// canvas_resize() reshapes the CANVAS per device (device-matrix.md §2), letterboxed,
 // so finger-comfort is honest at every shape. See acidrack-layout-brief.md.
 
 #include "studio.h"
@@ -31,7 +31,6 @@ de:meta */
 #include "ui.h"   // real widgets (ui_knob/ui_slider) — per-finger capture + fat hit pads, so the
                   // wireframe's controls actually MOVE (no sound; just honest finger-ergonomics)
 
-extern void de_resize(int w, int h);   // engine seam (platform.h): set the active canvas size
 #define KEY_GRAVE 96                   // the key left of `1` (a `§` on ISO Mac boards)
 
 // ───────── device matrix (device-matrix.md §2) — logical @ K=2 + safe hardware (from acidwire) ─────────
@@ -451,7 +450,7 @@ void update(void) {
     if (lane != LN_NOTE) locking = 0;                      // p-locks are a NOTE-lane feature
     if (playing) phase += 0.08f;   // playhead advance (constant; a tempo knob can drive this later)
 #ifndef DE_RESIZABLE
-    if (cur != applied) { de_resize(DEV[cur].w, DEV[cur].h); applied = cur; }
+    if (cur != applied) { canvas_resize(DEV[cur].w, DEV[cur].h); applied = cur; }
 #endif
 }
 

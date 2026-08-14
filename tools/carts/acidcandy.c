@@ -87,7 +87,6 @@ de:meta */
 #include "acidcandy_state.h"   // GENERATED per-instance context (tools/ctx-gen.js)
                       // the live canvas in LANDSCAPE via lay_split/lay_grid + finger_px() (FU) — never
                       // a camera scale (that desyncs ui.h; see CLAUDE.md). One focused face, spread to fill.
-extern void de_resize(int w, int h);   // engine seam (platform.h): set the active canvas size. We drive
                                        // it to a CHUNKY ratio-matched canvas (see draw) so the 160×100
                                        // scales up crisp + the leftover ratio-offset spreads, no bars.
 
@@ -3479,7 +3478,7 @@ void draw(void) {
               if (r >= 1.6f) { th = 100; tw = (int)(100.0f * r + 0.5f); }
               else           { tw = 160; th = (int)(160.0f / r + 0.5f); }
           }
-          if (tw != cw || th != ch) de_resize(tw, th);
+          if (tw != cw || th != ch) canvas_resize(tw, th);
       } }
 
     cls(CLR_DARK_PURPLE);                       // the candy shell — BLEEDS to every screen edge (fills margins, no black bars)

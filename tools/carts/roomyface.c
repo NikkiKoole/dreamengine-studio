@@ -20,7 +20,6 @@ de:meta */
 #include "lay.h"
 #include "face.h"
 
-extern void de_resize(int w, int h);
 
 // iPad-Pro spread study — B (tile the rack) vs C (unhide one). Draw-only.
 static int arr = 0;   // 0 = B tiled, 1 = C unhidden
@@ -206,7 +205,7 @@ static void draw_rebirth(Box area) {
 }
 
 void draw(void) {
-    de_resize(420, 315);                       // force an iPad-Pro-ish 4:3 canvas for the study
+    canvas_resize(420, 315);                       // force an iPad-Pro-ish 4:3 canvas for the study
     if (keyp('1')) arr = 0;
     if (keyp('2')) arr = 1;
     if (keyp('3')) arr = 2;

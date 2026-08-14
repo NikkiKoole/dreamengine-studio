@@ -36,13 +36,13 @@
 #define TOUCH_CONTROLS_DEFAULT 0
 #endif
 #define VT_MAX           16
-/* ⚠ NOT HERE, DELIBERATELY: fb_w / fb_h / de_sw / de_sh — the canvas dimensions.
- * They belong to the framebuffer group, and the rest of that group (sw_cbuf, sw_dst,
- * sw_world_buf) is declared inside `#ifdef DE_NO_RAYLIB`, which this generator refuses to move
- * because it only sees one configuration. Moving HALF the group is worse than moving none:
- * per-instance dimensions with a shared destination buffer made cls() write fb_w*fb_h pixels into
- * another instance's smaller canvas. Crash, found by tools/instance-check's resize coverage.
- * They move when their siblings can — see docs/design/engine-instance-seam.md. */
+/* fb_w / fb_h / de_sw / de_sh — the canvas dimensions — are per-instance as of 2026-08-14, ADDED
+ * BY HAND at the bottom of the struct with the rest of the framebuffer group. The generator still
+ * cannot produce them (their siblings sw_dst/sw_world_buf sit inside `#ifdef DE_NO_RAYLIB`, and it
+ * reads one configuration), which is why they are not in the generated run above. The warning that
+ * used to live here still stands and is repeated where they are declared: moving HALF this group is
+ * worse than moving none — per-instance dimensions with a shared destination buffer made cls()
+ * write fb_w*fb_h pixels into another instance's smaller canvas. */
 typedef struct {
     char name[24];
     char value[40];
@@ -163,6 +163,40 @@ typedef struct {
     int de_state_cap;
     int kv_count;
     bool kv_loaded;
+
+    /* ══ HAND-ADDED (2026-08-14): THE FRAMEBUFFER + PRESENT GROUP ═══════════════════════════════
+     * Not from the generator, and it could not be: `sw_dst`/`sw_world_buf` live inside
+     * `#ifdef DE_NO_RAYLIB`, and ctx-gen reads ONE configuration and refuses anything conditional.
+     * It also refuses to re-run on studio.c at all (it would rebuild the context from the handful
+     * of statics that remain), so this header is now partly hand-maintained. Add here, not there.
+     *
+     * ⚠ THIS GROUP MOVES TOGETHER OR NOT AT ALL. `sw_cbuf` went per-instance in an earlier batch
+     * while the dimensions that SIZE it stayed shared, and `cls()` promptly wrote fb_w*fb_h pixels
+     * into another instance's smaller canvas. Every member below is either a canvas dimension, a
+     * buffer sized by one, or a snapshot of one.
+     *
+     * WHY IT MATTERS: this is what made two open plug-in panels flicker. Both views pushed their
+     * own size into the ONE `de_pend_*` slot (last writer won, every frame), and both blitted the
+     * ONE `de_pres_*` buffer, which alternated between the two engines' renders. */
+    int fb_w, fb_h;              // the ALLOCATED framebuffer (>= the active canvas)
+    int de_sw, de_sh;            // the ACTIVE canvas — screen_w()/screen_h()
+    uint32_t *sw_dst;            // → sw_cbuf, or sw_world_buf while a rotated camera_ex is open
+    uint32_t *sw_world_buf;      // the rotation world layer, sized alongside sw_cbuf
+
+    /* the published frame (a seqlock — see de_publish_frame). Grow-only; the old allocation is
+     * deliberately leaked because a reader on another thread may be mid-copy out of it. */
+    uint32_t * _Atomic pres_buf;
+    size_t     pres_cap;      // in pixels; engine thread only
+    atomic_int pres_seq;      // odd = a publish is in progress
+    atomic_int pres_w, pres_h;
+
+    /* the host→engine deferred requests. Written from the HOST's layout thread, applied at the top
+     * of de_frame. Idempotent state rather than events, so last-writer-wins is correct — but only
+     * WITHIN one instance, which is exactly what was broken. */
+    atomic_int pend;                                    // bit 0 = canvas, 1 = safe area, 2 = backing scale
+    atomic_int pend_w, pend_h;
+    atomic_int pend_sl, pend_st, pend_sr, pend_sb;
+    atomic_int pend_bs;                                 // backing scale × 256 (an int keeps it lock-free everywhere)
 } DeVideo;
 
 /* the compile-time defaults — one line per static that carried a non-zero initialiser */
@@ -189,6 +223,9 @@ static DeVideo de_vid_default = {
     .pget_snapshot = (Image){0},
     .watch_show = true,
     .save_dir = ".",
+    // the hand-added framebuffer group: the canvas boots at the compiled-in size, as it always did
+    .fb_w = SCREEN_W, .fb_h = SCREEN_H,
+    .de_sw = SCREEN_W, .de_sh = SCREEN_H,
 };
 
 /* THE POINTER THE MACROS EXPAND THROUGH — thread-local, and defaulted to the template above.
@@ -318,5 +355,27 @@ static _Thread_local DeVideo *de_vid = &de_vid_default;
 #define de_state_cap        (de_vid->de_state_cap)
 #define kv_count            (de_vid->kv_count)
 #define kv_loaded           (de_vid->kv_loaded)
+
+/* the hand-added framebuffer + present group. `sw_dst` is NOT here: it forks on the renderer
+ * (a real pointer under DE_NO_RAYLIB, a plain alias for sw_cbuf otherwise), so its definition
+ * stays in studio.c beside the fork it belongs to. */
+#define fb_w                (de_vid->fb_w)
+#define fb_h                (de_vid->fb_h)
+#define de_sw               (de_vid->de_sw)
+#define de_sh               (de_vid->de_sh)
+#define sw_world_buf        (de_vid->sw_world_buf)
+#define de_pres_buf         (de_vid->pres_buf)
+#define de_pres_cap         (de_vid->pres_cap)
+#define de_pres_seq         (de_vid->pres_seq)
+#define de_pres_w           (de_vid->pres_w)
+#define de_pres_h           (de_vid->pres_h)
+#define de_pend             (de_vid->pend)
+#define de_pend_w           (de_vid->pend_w)
+#define de_pend_h           (de_vid->pend_h)
+#define de_pend_sl          (de_vid->pend_sl)
+#define de_pend_st          (de_vid->pend_st)
+#define de_pend_sr          (de_vid->pend_sr)
+#define de_pend_sb          (de_vid->pend_sb)
+#define de_pend_bs          (de_vid->pend_bs)
 
 #endif

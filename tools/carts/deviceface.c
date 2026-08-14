@@ -21,7 +21,6 @@ de:meta */
 #include "ui.h"
 #include "cursor.h"
 
-extern void de_resize(int w, int h);   // engine seam (studio.c): set the active canvas — cart-drivable
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  DEVICE-FACE STARTER — the responsive-first template.
@@ -149,7 +148,7 @@ void draw(void) {
           int tw, th;
           if (r >= 1.6f) { th = 100; tw = (int)(100.0f * r + 0.5f); }   // wide → keep height
           else           { tw = 160; th = (int)(160.0f / r + 0.5f); }   // tall → keep width
-          if (tw != cw || th != ch) de_resize(tw, th);
+          if (tw != cw || th != ch) canvas_resize(tw, th);
       } }
 
     cls(CLR_DARK_PURPLE);

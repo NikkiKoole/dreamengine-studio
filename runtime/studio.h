@@ -47,6 +47,7 @@ int  screen_h(void);   // active canvas height in px (== SCREEN_H unless the car
 void safe_rect(int *x, int *y, int *w, int *h);   // usable area after device safe-area insets (notch/home-bar); lay controls inside it, bleed the background to screen_w/h. All-screen (0,0,screen_w,screen_h) on desktop.
 int  finger_px(void);       // logical px for a comfortable ~44pt touch target (from the device backing scale; 22 at the iOS 2× chunk). Size finger controls to this — never a raw px guess (that only works by SCALE=1 coincidence).
 int  device_class(void);    // classify the live screen: 0 = TALL (phone portrait) · 1 = WIDE (phone landscape) · 2 = ROOMY (tablet). Pick arrangements off this, not a device name.
+void canvas_resize(int w, int h);   // set THIS cart's logical canvas to w x h (screen_w()/screen_h() follow). For a cart that picks its own chunky size — e.g. matching the window's ratio. Call it from update()/draw(); it lands next frame. Ex: canvas_resize(192, 120);
 
 // ------------------------------------------------------------
 // buttons

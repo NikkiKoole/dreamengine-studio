@@ -19,7 +19,6 @@ de:meta */
 #include "studio.h"
 #include "lay.h"
 
-extern void de_resize(int w, int h);
 
 // ── fake 303 pattern (16 steps) ──────────────────────────────────────────────
 static const int p_on[16]  = { 1,1,0,1, 1,0,1,1, 1,1,0,1, 1,0,1,1 };
@@ -388,7 +387,7 @@ void draw(void) {
     { int cw = screen_w(), ch = screen_h();
       if (cw > 0 && ch > 0) { float r = (float)cw / (float)ch;
           int tw = (int)(100.0f * r + 0.5f), th = 100;
-          if (tw != cw || th != ch) de_resize(tw, th); } }
+          if (tw != cw || th != ch) canvas_resize(tw, th); } }
 
     cls(CLR_DARK_PURPLE);
     Box full = box(0, 0, screen_w(), screen_h());

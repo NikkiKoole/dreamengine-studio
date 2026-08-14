@@ -514,6 +514,14 @@ Same rules as round 1: line numbers rot, the function name is the anchor, every 
       cart that opts into `DE_CART_CTX` **and** drives a stateful LFO fast enough to step, and
       nothing on the shelf does both. The move is still obviously right — a shared modulator seed
       across instances is wrong on its face — but it rests on reading, not on a red-then-green.
+- [x] **Five write-only overflow counters with no reader** — LANDED 2026-08-15, and the file's own
+      culture picked the remedy: give them a reader, do not delete them. `grain_overflow`,
+      `shim_overflow`, `fx_bus_overflow`, `rvb_bus_overflow` and `bow_body_overflow` had been counted
+      since they were written and read by nobody, so a cart asking for a third granular tank or a
+      ninth aux bus got `-1`, the caller quietly did nothing, and the effect was **silently absent** —
+      no error, no silence where sound should be, just a delay that never appears. They now print one
+      deduped `[sound] WARNING` each, next to the two tripwires that already existed. `soundcheck`
+      stays silent, so nothing on the shelf currently exhausts a pool.
 - [ ] Smaller: CLAV/WURLITZER e-piano blocks are ~20 identical lines apart from their tables (and
       unlike 808-vs-909 the navkit UPSTREAM is itself parameterised, so this one is real) · five
       write-only overflow counters with no reader anywhere (give them a reader, don't delete — the
@@ -602,6 +610,19 @@ Same rules as round 1: line numbers rot, the function name is the anchor, every 
       ⚠ Phase C has the same SHAPE (a sender sized in wall clock, a receiver started after
       `sleep 12`) but ~20 s of slack rather than ~5 s, and was sized deliberately. Left as-is;
       if it ever flakes, this is the first thing to look at.
+- [x] **`ctx-gen --verify` now covers FUNCTION-LOCAL statics too** — extended 2026-08-15, one day
+      after it shipped, because it failed to notice a new one being added. `engine-statics --list`
+      emitted only file-scope statics (function-locals escaped as a bare COUNT), so the check was
+      blind to exactly the category `lfo_seed_ctr` belonged to — the one classified CRITICAL. Names
+      are emitted now, tagged `scope: 'function'`, and the report names the different remedy (a
+      `#define` cannot reach a function-local; the declaration has to move). ⚠ The generator is
+      explicitly guarded to keep ignoring them, or it would emit an alias that silently does nothing
+      to the local while renaming every other use of that name. 137 → **158 statics checked**, and
+      the 21 it surfaced are now classified — including a 13-variable memoisation cache in
+      `poly_clamp_scan` that is **safe to share by construction** (the cache key captures every
+      input, so a hit returns what a recompute would, whoever computed it) and should NOT be
+      "fixed" per-instance, plus `seen_real_touch`, which is a fact about the DEVICE and is more
+      correct shared than duplicated. `--check` 26 → 28.
 - [x] **`ctx-gen --verify`** — LANDED 2026-08-14, and it earned its keep on the first run. Every live
       engine static must be either moved into a context or written down in `ctx-classification.json`
       with a group saying why it stays shared; `--quiet` gates and it is a `repo-doctor` row now.

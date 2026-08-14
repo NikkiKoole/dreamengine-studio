@@ -290,7 +290,7 @@ function analyze(rows, only) {
   }
 
   const perFile = {};
-  for (const f of files) perFile[f] = { total: 0, nonZeroInit: 0, zeroOrNone: 0, localStatics: 0, nonZero: [], all: [] };
+  for (const f of files) perFile[f] = { total: 0, nonZeroInit: 0, zeroOrNone: 0, localStatics: 0, nonZero: [], all: [], localNames: [] };
   for (const r of uniq) {
     const e = perFile[r.file]; if (!e) continue;
     e.total++;
@@ -299,7 +299,15 @@ function analyze(rows, only) {
     if (v === null || ZERO.test(v) || /^\{0[,0\s]*\}$/.test(v)) e.zeroOrNone++;
     else { e.nonZeroInit++; e.nonZero.push({ line: r.line, name: r.name, type: r.type, value: v.length > 44 ? v.slice(0, 44) + '…' : v }); }
   }
-  for (const r of localStatics) if (perFile[r.file]) perFile[r.file].localStatics++;
+  // Names, not just a count. A function-local static is process-global state that a `#define`
+  // alias CANNOT reach (the declaration itself has to move), which is why the classification has a
+  // `function_local` group at all — and `lfo_seed_ctr`, the one classified CRITICAL, was one. Until
+  // 2026-08-15 only the count escaped this function, so `ctx-gen --verify` could not see the
+  // category and a new one could be added without anybody being asked about it.
+  for (const r of localStatics) if (perFile[r.file]) {
+    perFile[r.file].localStatics++;
+    perFile[r.file].localNames.push({ line: r.line, name: r.name, type: r.type, fn: r.fn || null });
+  }
 
   return { perFile, collisions, files, repair };
 }
@@ -329,6 +337,9 @@ function report(res, opts) {
   if (opts.list) {
     const out = [];
     for (const f of files) for (const v of perFile[f].all) out.push({ file: f, ...v });
+    // function-local statics ride the same list, tagged, so a consumer can include or ignore them
+    // by scope rather than by not knowing they exist.
+    for (const f of files) for (const v of perFile[f].localNames) out.push({ file: f, scope: 'function', ...v });
     console.log(JSON.stringify(out, null, 1));
     // stdout stays valid JSON for ctx-gen; the complaint goes to stderr. The nonzero exit is
     // deliberate and makes ctx-gen's execFileSync throw — a generator must NOT run on a list that

@@ -2055,6 +2055,29 @@ static void sound_tick(float dt) {
         printh("[sound] WARNING: cart-context log overflow — %d config call(s) not recorded (de_switch_cart restore will be incomplete). Raise SOUND_CTX_LOG or report this.", ctx_overflow);
         ctx_overflow_reported = ctx_overflow;
     }
+
+    // …and the same for the fixed POOLS, which had been counted since they were written and READ BY
+    // NOBODY (2026-08-15). Each allocator below returns -1 when its pool is empty and every caller
+    // then quietly does nothing, so the symptom is an effect that is simply ABSENT — no error, no
+    // silence where there should be sound, just a granular delay or a shimmer that never appears on
+    // the third instrument that asked. That is the hardest kind of "it didn't work" to chase, and
+    // this file's culture is fail-loud (§6, "no silent caps"), so: one line each, deduped like the
+    // two tripwires above. `pool_reported` is the ONLY new state — a table keeps it to one static
+    // rather than five (it is classified in ctx-classification.json under function_local).
+    static int pool_reported[5] = { 0 };
+    const struct { int now; const char *what; const char *cap; } pools[5] = {
+        { grain_overflow,    "granular tank",     "SOUND_GRAIN_TANKS" },
+        { shim_overflow,     "shimmer tank",      "SOUND_SHIM_TANKS"  },
+        { fx_bus_overflow,   "instrument FX bus", "SOUND_FX_BUSES"    },
+        { rvb_bus_overflow,  "reverb send-bus",   "SOUND_FX_BUSES"    },
+        { bow_body_overflow, "bowed body",        "SOUND_BOW_BODIES"  },
+    };
+    for (int i = 0; i < 5; i++)
+        if (pools[i].now > pool_reported[i]) {
+            printh("[sound] WARNING: %s pool exhausted — %d request(s) got nothing, so that effect is SILENTLY ABSENT. Raise %s, or share one across instruments.",
+                   pools[i].what, pools[i].now, pools[i].cap);
+            pool_reported[i] = pools[i].now;
+        }
 }
 
 // dur_samples: 0 = use default 250ms (for note/schedule); >0 = custom note length (for hit).

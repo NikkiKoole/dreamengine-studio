@@ -101,7 +101,12 @@ function loadStatics() {
   const args = ['tools/engine-statics.js', '--list'];
   if (TARGET_KEY === 'cart') args.push('--tu', TARGET, '--files', TARGET);   // the cart IS the TU
   const out = execFileSync('node', args, { cwd: ROOT, maxBuffer: 1 << 26 }).toString();
-  return JSON.parse(out).filter(v => v.file === TARGET);
+  // ⚠ FILE-SCOPE ONLY. --list also carries function-local statics (tagged `scope: 'function'`) so
+  // that --verify can ask about them, but the GENERATOR must never see one: its whole technique is
+  // a `#define name (ctx->name)` alias, and a declaration inside a function body cannot be reached
+  // that way — the declaration itself has to move, by hand. Feeding one in here would emit an alias
+  // that silently does nothing to the local while renaming every OTHER use of that name.
+  return JSON.parse(out).filter(v => v.file === TARGET && v.scope !== 'function');
 }
 
 // Names a `#define name (ctx->name)` would break: a local, a parameter, or a STRUCT FIELD. The
@@ -803,6 +808,14 @@ function selfCheck() {
       () => u([{ file: 'runtime/sound.h', line: 1, name: '_why', type: 'int' }], C).includes('_why'));
     t('verify: an empty classification reports everything  [no vacuous pass]',
       () => u(L, {}).length === L.length);
+    // FUNCTION-LOCAL statics ride the same list (tagged by engine-statics). They are the category
+    // `lfo_seed_ctr` belonged to — the one classified CRITICAL — and until 2026-08-15 only their
+    // COUNT escaped engine-statics, so this check could not see them and a new one could be added
+    // without anybody being asked. Covered in both directions.
+    const FL = [{ file: 'runtime/sound.h', line: 9, name: 'fl_loose', type: 'int', scope: 'function' }];
+    t('verify: an unclassified FUNCTION-LOCAL is reported', () => u(FL, C).includes('fl_loose'));
+    t('verify: ...and a classified one is not',
+      () => !u(FL, { function_local: { fl_loose: {} } }).includes('fl_loose'));
   }
   t('non-zero initialiser detected',  () => !ZERO.test('0.35f') && !ZERO.test('PAN_LINEAR'));
 
@@ -920,7 +933,9 @@ function verify(o = {}) {
   for (const f of Object.keys(byFile)) {
     const whole = byFile[f].length === totalByFile[f];
     console.log(`  ${f}  (${byFile[f].length} of ${totalByFile[f]}${whole ? ' — the WHOLE FILE: never classified' : ''})`);
-    for (const s of byFile[f]) console.log(`    ${String(s.line).padStart(5)}  ${s.name}  [${s.type}]`);
+    for (const s of byFile[f])
+      console.log(`    ${String(s.line).padStart(5)}  ${s.name}  [${s.type}]` +
+                  (s.scope === 'function' ? `  ⚠ FUNCTION-LOCAL${s.fn ? ' in ' + s.fn : ''} — a #define cannot reach it; the declaration must MOVE` : ''));
     console.log('');
   }
   console.log('  Each one either moves into its context, or goes in tools/ctx-classification.json');

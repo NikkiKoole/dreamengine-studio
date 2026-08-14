@@ -117,15 +117,10 @@
    "fn": "sound_aw_process",
    "note": "web-only scratch, fully overwritten before read; static only to keep it off the 8KB worklet stack. Wants a per-callback buffer, not a context field"
   },
-  "rs_q": {
-   "file": "runtime/mic.h",
-   "line": 117,
-   "fn": "mic_input_push",
-   "note": "OUTSIDE sound.h but on the same mic path as the extin_* question below"
-  },
-  "rs_prev": {
-   "file": "runtime/mic.h",
-   "line": 117
+  "pool_reported": {
+   "line": 2035,
+   "fn": "sound_tick",
+   "note": "dedup latch for the five POOL-EXHAUSTED warnings (added 2026-08-15 when those counters finally got a reader). Shared is right and harmless: worst case one instance suppresses a duplicate of another instance warning about the SAME process-wide pool, which is the truth anyway."
   }
  },
  "lazy": {
@@ -735,64 +730,74 @@
    }
   },
   "function_local": {
-   "_why": "Declared inside a function body — a macro cannot rewrite these, the declaration itself must move.",
-   "seen_real_touch": {
-    "line": 1354,
-    "fn": "poll_virtual_touches",
-    "severity": "HIGH",
-    "note": "a latch meaning 'this device has fingers, stop synthesizing a mouse touch'. One instance seeing a touch would silently kill mouse-synthesized touch in every other panel"
+   "_why": "Declared INSIDE a function body, so a `#define name (ctx->name)` cannot rewrite them — the declaration itself would have to move. Listed here because they are process-global state and somebody has to have decided that is fine, not because they are invisible.",
+   "bound": {
+    "line": 2891,
+    "fn": "de_setup_baked_fonts",
+    "note": "once-per-process latch for binding the six baked fonts. The Font/Image globals it fills are themselves SHARED (studio_c.shared), so the latch must be too — it is what stops each instance re-mallocing recs/glyphs over the shared slot and orphaning the last one (the leak fixed 2026-08-14)."
    },
-   "poly_clamp_cache": {
-    "line": 5522,
+   "c_valid": {
+    "line": 5640,
     "fn": "poly_clamp_scan",
-    "vars": "c_lox c_loy c_hix c_hiy c_valid s_tx s_ty s_ox s_oy s_rot s_zoom s_vw s_vh",
-    "severity": "HIGH",
-    "note": "a camera-derived AABB cache. A cross-instance hit silently clamps one rack's polygons to ANOTHER rack's camera — wrong pixels, no crash"
+    "note": "SAFE TO SHARE BY CONSTRUCTION, and do not \"fix\" this by duplicating 13 variables per instance — it buys nothing. It is a MEMOISATION of the visible-world AABB, and the cache KEY captures every input (cam.target/offset/rotation/zoom + the viewport, all per-instance reads). A hit therefore returns exactly what a recompute would, whoever computed it; two instances with different cameras simply miss and recompute. ⚠ Honest caveat: the key/value pair is not atomic, so two instances rendering on different threads could tear a read and get a wrong clamp box (a visual glitch, not a crash). Nothing has been seen; recorded because the memoisation argument is a SINGLE-THREADED one."
    },
-   "str_bufs": {
-    "line": 5915,
-    "fn": "str",
-    "vars": "bufs which",
-    "severity": "HIGH",
-    "note": "the returned-string ring. Two instances calling str() clobber each other's still-live returned pointers"
+   "c_lox": {
+    "line": 5640,
+    "note": "see c_valid"
    },
-   "save_path_buf": {
-    "line": 2865,
-    "fn": "save_path",
-    "severity": "HIGH",
-    "note": "returns a pointer into ONE shared buffer — moving save_dir per-instance WITHOUT this just relocates the bug"
+   "c_loy": {
+    "line": 5640,
+    "note": "see c_valid"
+   },
+   "c_hix": {
+    "line": 5640,
+    "note": "see c_valid"
+   },
+   "c_hiy": {
+    "line": 5640,
+    "note": "see c_valid"
+   },
+   "s_tx": {
+    "line": 5640,
+    "note": "cache key — see c_valid"
+   },
+   "s_ty": {
+    "line": 5640,
+    "note": "cache key"
+   },
+   "s_ox": {
+    "line": 5640,
+    "note": "cache key"
+   },
+   "s_oy": {
+    "line": 5640,
+    "note": "cache key"
+   },
+   "s_rot": {
+    "line": 5640,
+    "note": "cache key"
+   },
+   "s_zoom": {
+    "line": 5640,
+    "note": "cache key"
+   },
+   "s_vw": {
+    "line": 5640,
+    "note": "cache key"
+   },
+   "s_vh": {
+    "line": 5640,
+    "note": "cache key"
+   },
+   "seen_real_touch": {
+    "line": 1260,
+    "fn": "poll_virtual_touches",
+    "note": "A fact about the DEVICE, not about an instance: \"this machine has fingers, so stop synthesizing mouse-as-touch\". Two plug-in instances run on the same physical hardware, so sharing is not merely tolerable here, it is MORE correct than per-instance — one rack learning the device is touch should settle it for the other too."
    },
    "chunk": {
-    "line": 2188,
+    "line": 2083,
     "fn": "micwav_pump",
-    "note": "harness scratch"
-   },
-   "ev_push_cap": {
-    "line": 2748,
-    "fn": "ev_push",
-    "note": "harness; the only record of replay_ev's allocation size — must move WITH it if that ever moves"
-   },
-   "web_audio_up": {
-    "line": 2311,
-    "note": "web-only; a genuine process does-once latch → correctly shared"
-   },
-   "web_seed": {
-    "line": 2336,
-    "note": "web-only"
-   },
-   "web_stall_t0": {
-    "line": 2384,
-    "note": "web-only"
-   },
-   "nt_3406": {
-    "line": 3406,
-    "fn": "main",
-    "note": "desktop-only window title scratch; no action"
-   },
-   "nt_3626": {
-    "line": 3626,
-    "fn": "main",
-    "note": "same"
+    "note": "HARNESS scratch (the DE_MIC_WAV debug feed), fully overwritten before it is read. Static only to keep 8KB off the stack — the same shape as sound.h function_local.itl. Wants a per-call buffer, not a context field."
    }
   },
   "open_questions": {
@@ -878,6 +883,17 @@
    "mic_yin_d": {
     "line": 61,
     "note": "pitch-detection scratch for the one stream"
+   }
+  },
+  "function_local": {
+   "_why": "Declared inside mic_input_push. Process-wide like the rest of the mic path (one capture device); moved here from the top-level function_local group 2026-08-15, where they had been filed under sound.h scope and so read as unclassified.",
+   "rs_q": {
+    "line": 99,
+    "fn": "mic_input_push"
+   },
+   "rs_prev": {
+    "line": 99,
+    "fn": "mic_input_push"
    }
   }
  },

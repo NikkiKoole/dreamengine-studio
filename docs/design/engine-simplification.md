@@ -571,14 +571,24 @@ Same rules as round 1: line numbers rot, the function name is the anchor, every 
       literals, and `vox_cons_name`. `--selfcheck` 18 → 26, the new guards mutation-tested by making
       an unkeyed file read as clean — which reproduces exactly the blindness the check exists for,
       and takes it to 24/26.
-- [ ] **`midi_out_on` is a FLAG where a shared MIDI port needs a REFCOUNT** — found by `--verify`
-      above, 2026-08-14, and left unfixed. Sharing is the RIGHT scope (one process-wide virtual
-      CoreMIDI source, so the table tracks what is on the WIRE), but `midi_send_note` writes
-      `midi_out_on[ch][note] = on ? 1 : 0`. Two racks playing the same channel+note: A's note-on sets
-      it, B's sets it, A's note-off CLEARS it while B is still sounding — and `midi_out_all_notes_off`
-      then leaves B **droning at shutdown**, which is the one guarantee that table exists to make.
-      Narrow (needs the same ch+note from two instances). ⚠ Gate first: `midi-check` phase B is the
-      known-flaky one, so establish a baseline in a throwaway worktree before believing any run.
+- [x] ~~**`midi_out_on` is a FLAG where a shared MIDI port needs a REFCOUNT**~~ — **WITHDRAWN
+      2026-08-15. I got this wrong when I first wrote it down, and the correction is the finding.**
+      `midi_send_note` updates the table and sends the message *unconditionally and together*, so the
+      table mirrors THE LAST NOTE MESSAGE PUT ON THE WIRE — which, with one shared port, is exactly
+      the receiver's state, whichever instance sent it. A flag is the correct type. A refcount would
+      be strictly WORSE: `A on, B on, A off` puts a note-off on the wire (the receiver stops), while
+      the refcount would still read 1, so the table would claim a note is held that nobody is
+      playing, and shutdown would send a note-off into silence.
+      **The real collision is one layer up and is not a bookkeeping bug**: two racks sharing one port
+      AND one channel means A's note-off genuinely cuts B's note on the receiver. Nothing this table
+      can do about that — it needs per-instance channels or per-instance ports, which is its own
+      design question (`engine-dylib-spike` already lists "K same-named CoreMIDI virtual sources" as
+      unresolved).
+      ⚠ What IS real, and narrow: the table write and the send are two steps, so two instances
+      calling concurrently from different audio threads can interleave as
+      `A: table=1 · B: table=0 · B: send(off) · A: send(on)` — leaving the wire ON and the table 0,
+      i.e. a note that shutdown will not release. Ordering/atomicity, not a refcount. Not fixed;
+      recorded because it is the actual hazard, unlike the one this item used to claim.
 - [ ] **`mic_rec` is a 1.4 MB capture ring two instances would fight over** — same first run. One
       capture device makes the mic path process-wide on purpose, but two instances calling
       `mic_record_start()` race for one buffer. Nothing does yet, and duplicating 1.4 MB per rack to

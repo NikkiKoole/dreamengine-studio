@@ -905,7 +905,7 @@
    },
    "midi_out_on": {
     "line": 181,
-    "note": "⚠ SHARED IS THE RIGHT SCOPE AND THE TYPE IS WRONG. It tracks what is sounding on a SHARED wire, so it must be shared — but it is a FLAG, and a shared wire needs a per-note REFCOUNT. Two racks playing the same channel+note: A note-on sets 1, B note-on sets 1, A note-off clears it, and B is still sounding with the table saying nothing is. midi_out_all_notes_off then leaves B DRONING at shutdown, which is the one guarantee this table exists to make. Narrow (needs the same ch+note from two instances) and unfixed; see engine-simplification.md"
+    "note": "SHARED IS RIGHT AND SO IS THE TYPE. midi_send_note updates this table and sends the message unconditionally and together, so it mirrors the last note message put on the WIRE — which with one shared port is exactly the receivers state, whichever instance sent it. (An earlier note here claimed it should be a per-note REFCOUNT: that was wrong and would be worse — A on, B on, A off puts a note-off on the wire while a refcount would still read 1, so shutdown would release a note nobody is playing. Withdrawn 2026-08-15, see engine-simplification.md.) ⚠ The real narrow hazard is that the table write and the send are two steps, so two instances on different audio threads can interleave and leave the wire ON with the table 0."
    }
   }
  }

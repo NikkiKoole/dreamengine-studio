@@ -30,7 +30,21 @@ cart's starts as a copy of a compile-time template).
 
 ## ▶ BLOCKS TWO RACKS (do these, in this order)
 
-### 1. `de_pres_*` — the published FRAME is still process-wide
+### ✅ DONE — `de_pres_*`, the framebuffer group, and `de_pend_*` (2026-08-14)
+The whole group moved at once into `DeVideo`: `fb_w`/`fb_h`/`de_sw`/`de_sh`, `sw_dst`/`sw_world_buf`,
+the `de_pres_*` seqlock and the `de_pend_*` deferred-request block. **This is what made two open
+panels flicker** — both views pushed their own size into the ONE pending slot, and both blitted the
+ONE published buffer, which alternated between the two engines' renders.
+
+Added BY HAND (ctx-gen refuses conditionals and refuses to re-run on `studio.c`), so `studio_ctx.h`
+is now partly hand-maintained and says so. The other half is `de_vid_of(in)`: the four seam functions
+that run on the HOST's thread reach the instance through the handle rather than the thread-local,
+which there names the default engine.
+
+`instance-check` gained the assertion it structurally could not make before — each instance publishes
+its OWN frame, proven by the two frames differing in SIZE.
+
+### ~~1. `de_pres_*` — the published FRAME is still process-wide~~ (superseded by the above)
 Inside `#ifdef DE_NO_RAYLIB`, so `ctx-gen` refuses it (it sees one configuration). Consequence: two
 panels cannot show different pictures, and `instance-check` says so explicitly — it asserts
 independence on AUDIO only, because comparing frames would compare one shared buffer at two times.

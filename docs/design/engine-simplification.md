@@ -375,7 +375,7 @@ Same rules as round 1: line numbers rot, the function name is the anchor, every 
       SILENTLY (`pal_shader_ok` stays false and sprites just draw unswapped) — the gate must be run.
 - [ ] **Two boot sequences** (`de_init_impl` vs `main()`'s block) do the same six steps; the sheet
       upload is the near-verbatim pair. This is the `de_process_init` split
-      `per-instance-remaining.md` already names.
+      [`per-instance-remaining.md`](per-instance-remaining.md) already names.
 - [ ] `loop_step` is 428 lines with three comment-delimited seams (pause menu, pget snapshot,
       present). Removes ~0 lines — legibility only, and the `goto draw_window` makes the pause
       extraction non-trivial. `DeRenderer`'s GPU arm is unreachable and fails silently (+3 lines to

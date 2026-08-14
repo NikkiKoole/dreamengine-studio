@@ -159,13 +159,27 @@ a broken doc link or `#section`).
 > Every piece of shared state that made two tracks one rack is gone: engine (601 → 148 statics, the
 > rest recorded decisions), all 8 cart-land headers, and the cart's own 198. Measured, not inferred.
 >
-> **▶ NEXT ACTION: the PICTURE.** The published frame (`de_pres_*`) is the one shared thing left, so
-> two open panels cannot yet show different pictures — the sound is right and the view may be the
-> other rack's. It sits inside `#ifdef DE_NO_RAYLIB`, so `ctx-gen` refuses it (it reads one
-> configuration), and it must move together with `fb_w`/`fb_h`/`de_sw`/`de_sh` and the `sw_*`
-> buffers: a half-moved framebuffer group already made `cls()` write past the end of another
-> instance's canvas once. Order and reasoning: items 1–3 of
-> [`design/per-instance-remaining.md`](design/per-instance-remaining.md).
+> **✅ AND THE PICTURE IS PER-INSTANCE TOO (2026-08-14).** The framebuffer group moved as one unit —
+> `fb_w`/`fb_h`/`de_sw`/`de_sh`, `sw_dst`/`sw_world_buf`, the `de_pres_*` seqlock and the whole
+> `de_pend_*` block. **That is what made two open panels flicker:** both views pushed their own size
+> into the ONE pending slot (last writer won, every frame), and both blitted the ONE published buffer,
+> which alternated between the two engines' renders. `instance-check` now asserts each instance
+> publishes its own frame, which it structurally could not before.
+>
+> **▶ NEXT ACTION: TEST TWO PANELS OPEN AT ONCE, and the HOME toggle.** The sound is verified; the
+> picture is not. Also retest the iPad-layout HOME toggle in GarageBand — it has never worked, but
+> two plausible causes have been fixed since it was last observed (the panel was creating its OWN
+> second engine, and the canvas dimensions the toggle changes were process-global until today), so it
+> wants a fresh look before any theory. If it is still broken, the lead is that the toggle resizes the
+> canvas from ~167x100 to ~380x320: watch whether the picture, the touch mapping, or both go wrong.
+>
+> ⚠ **A LATENT BUG THIS TURNED UP, worth knowing before touching any cart's canvas:** `face.h` and 7
+> carts declared their own `extern void de_resize(int, int)` against a function that has taken a
+> `DeInstance *` since the seam landed. Undefined behaviour no compiler can see across translation
+> units, harmless only while the parameter was `(void)in` — the moment `studio.c` dereferenced it, the
+> cart crashed with `in = 0xa7`, which is 167, which was the canvas width it had asked for. The
+> operation is now a real API, **`canvas_resize(w, h)`** in `studio.h`. Do not re-hand-roll an extern
+> for an engine seam; if a cart needs one, the seam is missing an API.
 >
 > **STATE: it works, except for one thing.** The plug-in plays, follows the host's tempo and transport,
 > survives a whole song, converts to any host sample rate, shows our own panel, and the panel is attached

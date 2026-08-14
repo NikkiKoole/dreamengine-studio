@@ -7,9 +7,10 @@
 >
 > **Progress: the engine went from 601 process-global mutable statics to 148**, and every one of the
 > 148 is a recorded decision rather than a leftover. Live numbers: `node tools/engine-statics.js`.
-> **The CART is done too** (2026-08-14): `acidcandy`'s 198 are per-instance, so the thing that
-> actually blocked two racks is gone. What is left below is a published FRAME that is still shared
-> (two panels cannot yet show different pictures) plus a list of correctness gaps.
+> **The CART is done too, and so is the PICTURE** (2026-08-14). `acidcandy`'s 198 statics are
+> per-instance, and so are the framebuffer group and the published frame — so two racks are
+> independent in both sound and image. **Two GarageBand tracks sound correct, verified by the maker.**
+> Nothing below blocks two racks any more; what remains is a list of correctness gaps to decide.
 
 ## The goal, stated once
 
@@ -44,20 +45,12 @@ which there names the default engine.
 `instance-check` gained the assertion it structurally could not make before — each instance publishes
 its OWN frame, proven by the two frames differing in SIZE.
 
-### ~~1. `de_pres_*` — the published FRAME is still process-wide~~ (superseded by the above)
-Inside `#ifdef DE_NO_RAYLIB`, so `ctx-gen` refuses it (it sees one configuration). Consequence: two
-panels cannot show different pictures, and `instance-check` says so explicitly — it asserts
-independence on AUDIO only, because comparing frames would compare one shared buffer at two times.
-
-### 2. `fb_w` / `fb_h` / `de_sw` / `de_sh` — taken back OUT of the context
-They must move WITH their siblings `sw_cbuf` / `sw_dst` / `sw_world_buf`, which are also inside
-`#ifdef DE_NO_RAYLIB`. A half-moved framebuffer group made `cls()` write `fb_w*fb_h` pixels into
-another instance's smaller canvas. **Needs 3 and 4 together**, and both need:
-
-### 3. `ctx-gen` must reason across BOTH build configurations
-It takes one AST, so anything inside a preprocessor conditional is refused (12 lines in `studio.c`).
-The fix is to union the statics from a `DE_NO_RAYLIB` dump and a Raylib dump, dedupe by name, and
-refuse only on a genuine type conflict.
+### ▶ THE ONE THING LEFT HERE: `ctx-gen` cannot reason across BOTH build configurations
+It takes one AST, so anything inside a preprocessor conditional is refused. That is why the group
+above had to be added by hand, and why `studio_ctx.h` is now partly hand-maintained. The fix is to
+union the statics from a `DE_NO_RAYLIB` dump and a Raylib dump, dedupe by name, and refuse only on a
+genuine type conflict. **Not a blocker** — nothing is waiting on it — but every future hand-add is a
+chance to get wrong what a generator would have got right.
 
 ---
 

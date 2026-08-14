@@ -8,6 +8,7 @@
 // the OS pointer and blits its own cursor at native resolution: pixel-coherent
 // at any scale AND present in every capture. Engine deliberately does NOT own
 // this (decision-0006 lane); carts #include it. Everything is static — each
+#include "cart_ctx.h"   // per-instance state seam (docs/design/engine-context.md)
 // cart compiles its own copy (the ui.h / pointer.h pattern).
 //
 // Usage — call cursor_draw() LAST in draw(), on top of everything:
@@ -95,9 +96,26 @@ static const Cursor__Shape cursor__shapes[CUR__COUNT] = {
     [CUR_MOVE]  = { cursor__move,   9, 9, 4, 4 },
 };
 
-static int   cursor__has_mouse = 0;
-static int   cursor__os_hidden = 0;
-static int   cursor__px = -9999, cursor__py = -9999;
+#define CURSOR_STATE(X) \
+    X(int,      cursor__has_mouse, ,              0) \
+    X(int,      cursor__os_hidden, ,              0) \
+    X(int,      cursor__px,        ,              -9999) \
+    X(int,      cursor__py,        ,              -9999)
+
+#ifndef DE_CART_CTX
+DE_CTX_STATICS(CURSOR_STATE)
+#else
+DE_CTX_BLOCK(cursor, Cursor, CURSOR_STATE)
+// defined BEFORE the access macros below: after them, `c->name` would expand to
+// `c->(ctx_()->name)`, because the member names are macros from that point on.
+static void cursor_ctx_init_(CursorCtx *c) {
+    c->cursor__px = c->cursor__py = -9999;   // "no cursor yet" sentinel, not zero
+}
+#define cursor__has_mouse (cursor_ctx_()->cursor__has_mouse)
+#define cursor__os_hidden (cursor_ctx_()->cursor__os_hidden)
+#define cursor__px        (cursor_ctx_()->cursor__px)
+#define cursor__py        (cursor_ctx_()->cursor__py)
+#endif
 
 static void cursor__blit(const Cursor__Shape *s, int px, int py, int fill) {
     for (int r = 0; r < s->n; r++)               // black halo first (outline)

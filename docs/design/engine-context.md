@@ -198,9 +198,38 @@ in its enabled state is half a seam, and the half nobody checks is the one every
 
 ### Doing the next header
 
-Add its list, wrap its declarations in the same `#ifndef DE_CART_CTX` fork, and give it its own
-sentinel key. Remaining: ~29 cart-land headers, then the cart's own 120 statics. Only then do two
-racks actually work — this slice proves the mechanism, not the product.
+`runtime/cart_ctx.h` holds the shared half: `DE_CTX_STATICS(LIST)` for the default path and
+`DE_CTX_BLOCK(lc, Uc, LIST)` for the struct + key + accessor. A header supplies its list, its
+`#define name (lc_ctx_()->name)` lines (the preprocessor cannot generate those), and an init for any
+NON-ZERO default — `de_state_for` zero-fills, so most headers need none.
+
+⚠ **Put the init DEFINITION above the access macros.** After them the member names are macros, so
+`c->dk_base` expands to `c->(dk_ctx_()->dk_base)` and will not compile. `DE_CTX_BLOCK` forward-declares
+it for exactly this reason.
+
+**HOW MANY HEADERS ACTUALLY NEED THIS — measured, after three wrong answers.** 30 cart-land headers
+exist; **8 hold mutable file-scope state**. The other 22 are pure functions and tables, or keep their
+state in a struct the CART owns (`acid303.h` is the model — it was multi-instance-safe by design).
+
+| header | statics | status |
+|---|---|---|
+| `keybed.h` | 15 | todo |
+| `solo.h` | ~10 | todo |
+| `gestures.h` · `radio.h` · `tr808.h` | ~6 each | todo |
+| `ui.h` | 28 | **done** |
+| `cursor.h` | 3 | **done** |
+| `drumkit.h` · `tr909.h` | 1 each | **done** |
+
+⚠ **ENUMERATE WITH THE COMPILER, NOT A REGEX.** Getting a header's static list wrong leaves
+declarations behind that then collide with the access macros, and it fails as
+*"invalid storage class specifier in function declarator"*, which points nowhere near the cause. My
+AST attribution missed two of `solo.h`'s and my source scan counted function PARAMETERS as
+declarations — the fourth and fifth bad counts of this refactor, both from not asking clang.
+`tools/engine-statics.js` has the validated approach (AST + source-verified attribution); point it at
+the header's TU rather than writing another scan.
+
+Remaining after the headers: the cart's own 120 statics. Only then do two racks actually work — this
+proves the mechanism, not the product.
 
 ## Memory
 

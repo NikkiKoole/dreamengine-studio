@@ -4,6 +4,11 @@
 // seam exists to make impossible.
 #include "studio.h"
 #include "ui.h"
+// the other opted-in headers, so the OPT-IN path is at least compile-checked for each of them.
+// (Only ui.h's behaviour is asserted below; these prove their fork expands and builds both ways.)
+#include "cursor.h"
+#include "tr909.h"
+#include "drumkit.h"
 
 int probe_write = 0;    // set by the harness: write this into ui_wid_n on the next frame
 int probe_seen  = -1;   // what ui_wid_n looked like on this frame, BEFORE any write

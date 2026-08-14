@@ -13,6 +13,7 @@
 // cart's arrays, passed in.
 //
 //   #include "studio.h"
+#include "cart_ctx.h"   // per-instance state seam (docs/design/engine-context.md)
 //   #include "tr909.h"
 //   static float ktune[TR9_NV], kdecay[TR9_NV], kcolor[TR9_NV];
 //   static float mcut = 0.40f, mres = 0.33f;              // the metal-filter XY
@@ -73,7 +74,20 @@ static int tr909__vv(int base, int boost) { int v = base + boost; return v < 0 ?
 // apart, which is the standing rule for this pair — an 808 snare and a 909 snare are not the same drum.
 // If you change the CURVE here, change it in tr808.h too, or the two will drift.
 //   0 = as shipped (one fixed balance) · 1 = one step per unit of boost · 2 = double.
-static int tr909_snare_dyn = 1;
+#define TR909_STATE(X) \
+    X(int,      tr909_snare_dyn,   ,              1)
+
+#ifndef DE_CART_CTX
+DE_CTX_STATICS(TR909_STATE)
+#else
+DE_CTX_BLOCK(tr909, Tr909, TR909_STATE)
+// defined BEFORE the access macros below: after them, `c->name` would expand to
+// `c->(ctx_()->name)`, because the member names are macros from that point on.
+static void tr909_ctx_init_(Tr909Ctx *c) {
+    c->tr909_snare_dyn = 1;   // the only non-zero default; de_state_for zero-fills the rest
+}
+#define tr909_snare_dyn (tr909_ctx_()->tr909_snare_dyn)
+#endif
 
 // Linear in boost, NOT `(boost*dyn+1)/2` — boost only ever spans 0..2 here, so that rounding collapsed
 // boost 1 and boost 2 onto the same tilt and the balance stopped varying with velocity at all. See the

@@ -18,6 +18,7 @@
 //
 // Usage:
 //   #include "drumkit.h"
+#include "cart_ctx.h"   // per-instance state seam (docs/design/engine-context.md)
 //   void init(void)   { dk_use(&DK_ELECTRO, 20); }          // voice slots 20..20+DK_N-1
 //   void update(void) { if (keyp('A')) dk_fire(DK_KICK, 0, 6); }
 //
@@ -50,7 +51,20 @@ typedef struct {
     void (*build)(int base);   // voice slots base..base+DK_N-1 (this is the SOUND)
 } DrumKitDef;
 
-static int dk_base = 20;       // current kit's first sound slot (set by dk_use)
+#define DRUMKIT_STATE(X) \
+    X(int,      dk_base,           ,              20)
+
+#ifndef DE_CART_CTX
+DE_CTX_STATICS(DRUMKIT_STATE)
+#else
+DE_CTX_BLOCK(dk, Dk, DRUMKIT_STATE)
+// defined BEFORE the access macros below: after them, `c->name` would expand to
+// `c->(ctx_()->name)`, because the member names are macros from that point on.
+static void dk_ctx_init_(DkCtx *c) {
+    c->dk_base = 20;
+}
+#define dk_base (dk_ctx_()->dk_base)
+#endif       // current kit's first sound slot (set by dk_use)
 
 // fire a role at velocity 1..7 and pitch `midi` (0 = the role default), delayed
 // `delay_ms` (0 = now). The slot's own envelope shapes the real tail.

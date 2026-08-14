@@ -260,7 +260,6 @@ static int             loc_scale_gamma   = -1;
 #define SMOOTH_H (de_sh * 2)
 // The poly-fill / disc-fill / blit / clamp-cache A/B flags were RETIRED 2026-07-10 after
 // 2–3½ weeks soaking as the sole real-world path (their fast paths are now unconditional).
-static bool            tritex_fast_on = true;        // false → legacy sw_tritex (A/B; env DE_TRITEX_FAST=off). Fast path: bbox clamped to the visible region + hoisted row-write plot (zoom==1 canvas). Last A/B flag — kept (newest, ~1wk soak)
 // NB: a branchless masked-blend inner loop was tried here (write EVERY pixel, blend by an alpha
 // mask, no per-pixel branch → auto-vectorizable) and MEASURED 1.5× SLOWER on bunnymark (37 vs 24
 // ms/frame, bit-identical). It's a TRADE, not a dead end — which side wins depends on sprite
@@ -922,37 +921,16 @@ static void sw_blit(int sx, int sy, int sw, int sh, int dx, int dy, int dw, int 
 static float sw_edge(float ax,float ay,float bx,float by,float px,float py){ return (bx-ax)*(py-ay)-(by-ay)*(px-ax); }
 static int   sw_topleft(float ax,float ay,float bx,float by){ float dx=bx-ax,dy=by-ay; return (dy<0.f)||(dy==0.f&&dx<0.f); }
 // ── A/B SWITCH (temporary, 2026-07) ─────────────────────────────────────────
-// The original sw_tritex, kept verbatim while the clamped/hoisted path below soaks
-// (DE_TRITEX_FAST=off routes here). Its flaw: the scan box is the RAW vertex bbox —
-// a face projected near the 3D camera lands coordinates in the thousands, so one
-// triangle scans millions of never-plotted pixels (infiniminer: 1.2s/frame).
-// TODO: once the fast path is trusted, delete this + the flag.
-static void sw_tritex_legacy(float x0,float y0,float u0,float v0, float x1,float y1,float u1,float v1, float x2,float y2,float u2,float v2){
-    if (!spritesheet_img.data) return;
-    float area = sw_edge(x0,y0,x1,y1,x2,y2);
-    if (area == 0.f) return;
-    if (area < 0.f) { float t; t=x1;x1=x2;x2=t; t=y1;y1=y2;y2=t; t=u1;u1=u2;u2=t; t=v1;v1=v2;v2=t; area=-area; }
-    int minx=(int)floorf(fminf(x0,fminf(x1,x2))), maxx=(int)ceilf(fmaxf(x0,fmaxf(x1,x2)));
-    int miny=(int)floorf(fminf(y0,fminf(y1,y2))), maxy=(int)ceilf(fmaxf(y0,fmaxf(y1,y2)));
-    int tl0=sw_topleft(x1,y1,x2,y2), tl1=sw_topleft(x2,y2,x0,y0), tl2=sw_topleft(x0,y0,x1,y1);
-    for (int py=miny; py<=maxy; py++) for (int px=minx; px<=maxx; px++) {
-        float fx=px+0.5f, fy=py+0.5f;
-        float w0=sw_edge(x1,y1,x2,y2,fx,fy), w1=sw_edge(x2,y2,x0,y0,fx,fy), w2=sw_edge(x0,y0,x1,y1,fx,fy);
-        int in0=(w0>0.f)||(w0==0.f&&tl0), in1=(w1>0.f)||(w1==0.f&&tl1), in2=(w2>0.f)||(w2==0.f&&tl2);
-        if (in0 && in1 && in2) {
-            float l0=w0/area, l1=w1/area, l2=w2/area;
-            int iu=(int)(l0*u0+l1*u1+l2*u2), iv=(int)(l0*v0+l1*v1+l2*v2);
-            if ((unsigned)iu<(unsigned)spritesheet_img.width && (unsigned)iv<(unsigned)spritesheet_img.height) {
-                DeColor cc = img_texel(&spritesheet_img, iu, iv);
-                // plot via pset_rgb (arbitrary sampled RGB, no palette index) → backend-agnostic:
-                // on-canvas → sw_pset → cbuf; off-canvas (DE_CPU_RASTER) → DrawPixel. tritex uses the
-                // keyed sheet; no pal swap (matches GPU).
-                if (cc.a >= 128 && !sw_keyed(cc)) pset_rgb(px, py, (cc.r << 16) | (cc.g << 8) | cc.b);
-            }
-        }
-    }
-}
-// The optimized path. Coverage + texel DECISIONS are the legacy float math verbatim
+// THE textured-triangle rasterizer. It had an A/B twin (`sw_tritex_legacy`, env DE_TRITEX_FAST=off)
+// while this clamped/hoisted version soaked; both were retired 2026-08-15 after the fast path had
+// been the sole real-world renderer for ~6 weeks, and after one last A/B across six tritex carts
+// (drawall, 26-first3d, boxlab, carfit, citydrive, cityview) came back byte-identical over 30 frames
+// each — with the toggle itself proven to still switch paths, so "identical" could not mean "the
+// flag stopped working". The retired twin's flaw, for the record, is the reason this one exists: its
+// scan box was the RAW vertex bbox, so a face projected near the 3D camera landed coordinates in the
+// thousands and one triangle scanned millions of never-plotted pixels (infiniminer: 1.2s/frame).
+//
+// Coverage + texel DECISIONS are float math chosen to be reproducible
 // (same sw_edge order, same w/area divisions), so every plotted pixel is byte-identical.
 // Two changes, both to what's ITERATED / how an already-decided pixel is WRITTEN:
 //   1. the scan box is intersected with the visible region (poly_clamp_scan — the same
@@ -963,7 +941,6 @@ static void sw_tritex_legacy(float x0,float y0,float u0,float v0, float x1,float
 //      loop bounds once, and the write is a direct cbuf row store (sw_blit's pattern).
 //      zoom!=1 (block footprint) and off-canvas DE_CPU_RASTER keep the pset_rgb plot.
 static void sw_tritex(float x0,float y0,float u0,float v0, float x1,float y1,float u1,float v1, float x2,float y2,float u2,float v2){
-    if (!tritex_fast_on) { sw_tritex_legacy(x0,y0,u0,v0, x1,y1,u1,v1, x2,y2,u2,v2); return; }
     if (!spritesheet_img.data) return;
     float area = sw_edge(x0,y0,x1,y1,x2,y2);
     if (area == 0.f) return;
@@ -3436,7 +3413,6 @@ static bool env_is(const char *name, const char *val) {
 int main(int argc, char **argv) {
     // A/B toggles — a DE_* env var flips a fast/legacy path without recompiling (see each flag's decl).
     if (env_is("DE_BATCH_PSET",     "on"))     pset_batch         = true;   // coalesce psets into one draw call
-    if (env_is("DE_TRITEX_FAST",    "off"))    tritex_fast_on     = false;  // legacy unclamped sw_tritex
     if (env_is("DE_SOFTWARE_CANVAS","on"))     { sw_canvas_enabled = true; sw_canvas_active = true; }  // Phase 0 probe
     if (env_is("DE_CPU_RASTER",     "on"))     cpu_raster_enabled = true;   // line()/rectfill_rot → CPU everywhere
     if (env_is("DE_AUDIO",          "off"))    audio_off          = true;   // skip all audio

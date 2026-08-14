@@ -75,8 +75,7 @@ a broken doc link or `#section`).
 > **STATE 2026-08-15: 22 of 35 closed.** Everything self-gateable in `studio.c` / `sound.h` / `tools`
 > is done or explicitly parked. What is LEFT needs the maker or a real host: the five **Swift/iOS**
 > items (`uiTick()` orphaned = a stopped host freezes the panel; `TinyjamAU` can never deinit, so the
-> `de_instance_destroy` fix is still half-spent), the `sw_tritex_legacy` soak — **a policy call, not a
-> technical one** — and four legibility-only splits nobody needs yet (`loop_step`, `sound_callback`,
+> `de_instance_destroy` fix is still half-spent) and four legibility-only splits nobody needs yet (`loop_step`, `sound_callback`,
 > the twice-written shaders, the two boot sequences).
 >
 > THIRD PASS (the `sound.h` dedups): the `DRIVE_*` waveshaper switch and the PLUCK/GUITAR

@@ -78,6 +78,13 @@ Why env var, not a `#define` or a key:
 Keep the legacy path until the new one has soaked across many carts; then delete it + the
 flag in a dedicated commit. Mark it `TODO` so it doesn't become permanent.
 
+**When you retire one, do the final A/B *and prove the toggle still works* — in that order.**
+After weeks of nobody flipping it, "the two paths are identical" and "the flag stopped switching
+anything" produce the same green, and the second one silently retires an untested path. Cheapest
+proof is a temporary `printh` in the legacy branch: it must fire with the env var set and not
+without. (Done for `DE_TRITEX_FAST` on retirement, 2026-08-15 — 1 hit vs 0, then six carts
+byte-identical over 30 frames each, then the delete, then the same six re-run unchanged.)
+
 **A/B any cart, headless:**
 ```bash
 ab() { rm -f build/perf.json; env "$1" node tools/play.js "$2" script /dev/null --headless --frames 240 >/dev/null 2>&1;
@@ -222,7 +229,7 @@ no per-row division) was considered and parked: `tristress` BIG (8 large) 0.33ms
 clamp cost — is sub-millisecond even in torture. A documented **seam** is left in `trifill`
 (`studio.c`) and the rig is `tools/carts/tristress.c` (BIG/MANY scenes).
 
-### Textured triangles (`sw_tritex`) — SHIPPED (`DE_TRITEX_FAST=off`)
+### Textured triangles (`sw_tritex`) — SHIPPED (A/B flag `DE_TRITEX_FAST` RETIRED 2026-08-15)
 The software-canvas `tritex` rasterizer scanned the **raw vertex bounding box** — no clamp to
 the visible region. Harmless for 2D use, catastrophic for the 3D pipeline it serves
 (rot3→project3→zsort→tritex): a face near the 3D camera projects to coordinates in the
@@ -357,7 +364,7 @@ competitive, which is the point of the toggle.)
 | 2026-06-25 | software canvas (rotated blits) | texel-read (`img_texel`) + no-scale fast path + inline-plot + camera/row-pointer hoist on `de_cpu_img_rot`/`sw_blit`/`sw_tritex` | `canvas-diff` 0px (byte-identical), `build-all` | `rotstress` 12.70→8.14ms @4000 (~36%); slowdown vs GPU ~11×→7×; **flipped `cityview` to a SW win** | full write-up in [software-canvas.md](../design/software-canvas.md) "Rotated-sampling optimization" |
 | 2026-06-25 | software canvas (sprite blit) | `sw_blit` fast path: direct `uint32` row-copy for the axis-aligned/unscaled/unflipped/`zoom==1`/no-pal/RGBA8 case (skips per-pixel `img_texel`/`sw_keyed`/`sw_pset`/`sw_w2s`/`sw_pack` + the `i*sw/dw` divide; clip once) | `canvas-diff bunnymark` frame 0 = 0px (byte-identical to GPU, path on & off), `build-all` 436/436 | `bunnymark` software 3.25→0.59ms @1200 (**5.5×**); SW-vs-HW sprite gap ~12×→~2× | `DE_BLIT_FAST=off` · `aeebfddd` |
 | 2026-07-10 | per-pixel coverage scans | scan-box clamp (`poly_clamp_scan`) on the 8 remaining unclamped loops: `circ`, `oval`, `circfill`/`ovalfill` fallbacks (rotated cam / `fillp`), `sector_draw` (arc/ring family), `thick_draw`, `rrect`/`rrectfill` | 30-frame dumps byte-identical (`drawall`/`orbit`/off-screen probe); `canvas-diff drawall` divergence confirmed pre-existing on HEAD | off-screen probe (10 huge R≈300–500 shapes) **76.4→1.16ms (66×)**; on-screen unchanged | no flag (clamp-only, byte-identical) |
-| 2026-07-02 | software canvas (textured tris / 3D) | `sw_tritex` scan-box clamp (`poly_clamp_scan` — the raw vertex bbox scanned millions of off-screen cells for near-projected 3D faces) + hoisted row-write plot on the zoom==1 canvas (camera offset/clip folded into loop bounds; decisions = legacy float math verbatim) | 5-cart SW frame dumps byte-identical legacy-vs-fast (textured3d/podracer/citydrive/infiniminer/drawall) + determinism control; `canvas-diff drawall` unchanged vs legacy | **`infiniminer` 1204→3.4ms (358×, now beats its 3.8ms GPU path)**, `podracer` 19.1→1.6ms (12×), `citydrive` 1.5×, `textured3d` 1.15× | `DE_TRITEX_FAST=off` · `0b7af3d2` |
+| 2026-07-02 | software canvas (textured tris / 3D) | `sw_tritex` scan-box clamp (`poly_clamp_scan` — the raw vertex bbox scanned millions of off-screen cells for near-projected 3D faces) + hoisted row-write plot on the zoom==1 canvas (camera offset/clip folded into loop bounds; decisions = legacy float math verbatim) | 5-cart SW frame dumps byte-identical legacy-vs-fast (textured3d/podracer/citydrive/infiniminer/drawall) + determinism control; `canvas-diff drawall` unchanged vs legacy | **`infiniminer` 1204→3.4ms (358×, now beats its 3.8ms GPU path)**, `podracer` 19.1→1.6ms (12×), `citydrive` 1.5×, `textured3d` 1.15× | ~~`DE_TRITEX_FAST=off`~~ · `0b7af3d2`. **Flag + legacy path deleted 2026-08-15** after ~6 weeks as the sole renderer: one last 6-cart A/B (drawall, 26-first3d, boxlab, carfit, citydrive, cityview) byte-identical over 30 frames each, with the toggle proven to still switch paths first |
 
 ---
 

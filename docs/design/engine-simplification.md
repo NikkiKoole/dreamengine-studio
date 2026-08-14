@@ -446,10 +446,20 @@ Same rules as round 1: line numbers rot, the function name is the anchor, every 
 - [x] **`circfill_pat`/`ovalfill_pat` were dead** — LANDED 2026-08-14. `-Wunused-function` flagged
       `circfill_pat` in BOTH configs and `ovalfill_pat`'s only caller was `circfill_pat`. Deleted
       with their two forward decls; `build-all` 581/581, `canvas-diff drawall` 0px.
-- [ ] **`sw_tritex_legacy` is 5 weeks past its own soak deadline** (labelled "temporary, 2026-07 …
-      delete once the fast path is trusted"); the four sibling flags were retired after 2–3½ weeks.
-      ~29 lines. A policy call, not a technical one. ⚠ `pset_batch` reads like a sibling and is NOT
-      one — it is a per-platform default.
+- [x] **`sw_tritex_legacy` is 5 weeks past its own soak deadline** — RETIRED 2026-08-15 on the
+      maker's call, which is what it was waiting for: the technical question had been settled for
+      weeks, only the "has it soaked long enough" one was open. Gone: the legacy rasterizer (30
+      lines), the `tritex_fast_on` flag, the `DE_TRITEX_FAST` env toggle and the per-call fork.
+      **Used the flag one last time for the thing it existed for** — an A/B across six tritex carts
+      (`drawall`, `26-first3d`, `boxlab`, `carfit`, `citydrive`, `cityview`), byte-identical over 30
+      frames each on the software canvas — and, because "identical" is also what a flag that stopped
+      working looks like, **proved the toggle still switched paths first** (a temporary probe in the
+      legacy branch: 1 hit with `DE_TRITEX_FAST=off`, 0 without). Re-ran the same six after the
+      delete: unchanged. Gates: `canvas-diff drawall`, `refactor-guard` 6/6, `det-probes` (which
+      carries the `stritex` probe), `build-all` 581/581.
+      ⚠ `pset_batch` reads like a sibling and is NOT one — it is a per-platform default
+      (`DE_BATCH_PSET_DEFAULT` 0 native / 1 web), so retiring it would change platform behaviour
+      rather than remove dead code. **With this, the soak-flag scaffolding is fully gone.**
 - [ ] **Every fragment shader is written twice** (web GLSL-100 / desktop GLSL-330), 102 lines of
       literal for 2 shaders, differing only in the prologue. Worse, the nearest-palette metric now
       lives in 5 places across two languages and C and GLSL must agree. ⚠ a broken shader fails

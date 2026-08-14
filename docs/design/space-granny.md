@@ -1,8 +1,8 @@
 # Space Granny — the mascot
 
-**STATUS: EXPLORING (2026-08-14)** — character and head shape LOCKED (#3 squat bouffant), first
-pixel conversion done and measured. Open: whether she goes on the store at all, how four app icons
-tell each other apart, the in-cart palette question, and the final icon art.
+**STATUS: EXPLORING (2026-08-14)** — character and head shape LOCKED (#3 squat bouffant); per-app
+differentiation resolved (two crops of one artwork). Open: whether she goes on the store at all, the
+in-cart palette question, and the final icon art.
 
 An ancient, intergalactic grandmother who sits in a flying saucer and plays every instrument in the
 shelf, badly, with opinions about your mix. She came out of a memory the maker has of being a
@@ -141,9 +141,35 @@ So: **afro = hero art** (store shots, press, splash, trailer), **bun head = icon
 are clearly the same person; the question was never which granny but which one goes where.
 
 ⚠ **Consequence for the family plan:** a head crop cannot show her at a 303, so "same nan, different
-gear" cannot be carried by the icon after all. Differentiation has to come from the background colour
-or a hint at face level (headphones, a knob reflected in the lens, a machine's silhouette behind her
-head). Unresolved.
+gear" cannot be carried by a portrait icon. **Resolved below — two crops of one artwork.**
+
+### Two crops, one artwork (`15`, `16`)
+
+The per-app scenes (`15` — Rhodes with a lamp and plant, Guitar with a starfield and pedalboard,
+Acid House Jam with smileys and cable spaghetti) solve differentiation beautifully **at large sizes**
+and fail at icon sizes in the worst possible direction: the gear is the smallest, most detailed
+element in each, so **the differentiator dies first** and all three converge on "purple blob over
+pink blob" exactly where they most need to be apart.
+
+Measured (`16`, the same acid tile at 60px both ways):
+
+- **whole scene** — the glasses reduce to a thin pink line and the face is a smudge; the sacred
+  element is gone, and the `303`/`808`/`909` labels are unreadable by 128px
+- **zoomed** — the glasses dominate, the white eyes read inside them, and the 808's LED row survives
+  as an orange band
+
+So each app gets a signature **colour band along the bottom edge** (orange LEDs = acid, black/white
+keys = Rhodes, the neck's diagonal = guitar): big simple shapes, which survive precisely where the
+detailed scene collapses.
+
+**The split, no art redrawn:**
+
+| crop | where it goes |
+|---|---|
+| **whole scene** | App Store product page, press kit, in-app rack-picker tiles, the trailer |
+| **zoomed (top ~60%: head + the top edge of the gear)** | the app icon |
+
+What the zoom discards — lamp, plant, pedals, cable spaghetti — was already invisible below 128px.
 
 Correction to an earlier note in this doc: the antenna does **not** inherently vanish at small sizes.
 It survives when the head fills the tile (`09`) and dies in any framing that also carries the body.
@@ -261,6 +287,8 @@ Two things this sheet fixed that are not about hair:
 | `12-head-shape-explorations.png` | six hair shapes over one identical face at 32/16/12/8px + silhouettes — the sheet the spec above is read off |
 | `13-squat-bouffant-locked.png` | **the locked head shape**, #3, at 32/16/12/8px |
 | `14-silhouettes-16px.png` | the six silhouettes at 16px (hair + saucer only — the glasses are invisible in solid fill) |
+| `15-app-scenes-rhodes-guitar-acid.png` | the three per-app scenes: store/press/rack-tile art |
+| `16-scene-vs-zoom-at-60px.png` | the same acid tile at 60px, whole scene vs zoomed — why the icon is the zoom |
 
 Related: [`store-agents.md`](store-agents.md) (the ASO tooling) ·
 [`app-icon-mask.md`](app-icon-mask.md) (the mask and what it shaves) ·

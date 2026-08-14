@@ -64,6 +64,14 @@
   ]
 }
 de:meta */
+// THIS CART IS A PLUG-IN RACK — an AUv3 host can load it TWICE, and both copies land in ONE
+// process. A cart is one translation unit, so without this every `static` in the cart AND in every
+// header it includes would be shared: two DAW tracks fighting over one sequencer, one drum tuning,
+// one widget table. DE_CART_CTX forks the cart's state (acidcandy_state.h) and the cart-land
+// headers (runtime/cart_ctx.h) onto the per-instance path — each instance gets its own slice,
+// found by address through de_state_for. Every other cart leaves this undefined and pays nothing.
+// docs/design/engine-context.md; gated by tools/instance-check/.
+#define DE_CART_CTX
 #include "studio.h"
 #define UI_MAX_WID 256   // iPad rack mode draws all 5 machines at once → far more than the default 64 widgets/frame; without this, every tap past widget #64 silently drops (dead panels)
 #include "ui.h"
@@ -76,73 +84,31 @@ de:meta */
 #include "tr909.h"    // ...and the TR-909 (the 909 face's SOUND)
 #include <string.h>  // memcpy/memset/memcmp — the SaveBlob snapshot/restore + autosave dirty-check
 #include "lay.h"      // responsive containers (device-adaptive-layout.md): the faces reflow to fill
+#include "acidcandy_state.h"   // GENERATED per-instance context (tools/ctx-gen.js)
                       // the live canvas in LANDSCAPE via lay_split/lay_grid + finger_px() (FU) — never
                       // a camera scale (that desyncs ui.h; see CLAUDE.md). One focused face, spread to fill.
 extern void de_resize(int w, int h);   // engine seam (platform.h): set the active canvas size. We drive
                                        // it to a CHUNKY ratio-matched canvas (see draw) so the 160×100
                                        // scales up crisp + the leftover ratio-offset spreads, no bars.
 
-#define NSLOT 6   // hoisted with the two SONG panels' state below (a macro body is only text until expanded)
 // ── state that used to be FUNCTION-LOCAL statics ──────────────────────────────
 // Hoisted to file scope so the per-instance context can hold it: `#define name (de_cart->name)`
 // rewrites USES, and a declaration inside a function body is not a use. Same storage, same
 // compile-time initialisers, same lifetime — a static is a static wherever it is written. The
 // names that appeared twice are the only ones that changed (two SONG panels each had shf/confirm).
-static float aS[4] = { -1, -1, -1, -1 }, aComp = -1, aBpm = -1, aEf = -1;
-static int   aMode = -2, aEt = -1;
-static int aCrush = -1;
-static int aGate = -1;
-static float aFlm = -2, aFlf = -2, aPhm = -2, aPhf = -2, aSwpRate = -2; static int aFlon = -1, aPhon = -1;
-static float aVw = -2, aVq = -2, aVm = -2;
-static float aRv[4] = { -1, -1, -1, -1 };
-static float aD8 = -1, aD9 = -1;
-static float aLv[4] = { -1, -1, -1, -1 };
-static char bpm3_buf[4];
-static int use_bars = 1;
-static unsigned tick = 0;
-static int note_erase;
-static int sng_shf[NSLOT] = { 0 };
-static int r2sng_shf[NSLOT] = { 0 };
-static int sng_confirm = -1;
-static int r2sng_confirm = -1;
 
 // ACID CANDY — a candy-toy acid RACK on the device-face skeleton, 160x100. The
 // nav spine is a strip of colour CARTRIDGES you focus machines through (nav=faces);
 // the acid VOICE is the shared runtime/acid303.h. This cart is the FACE + the rack.
 
-#define STEPS 16
 // knob-feel tunables (dial these while play-testing)
 #define KNOB_SWEEP   24.0f   // canvas px for a full 0..1 on a straight vertical drag (smaller = snappier)
 #define KNOB_GEAR    22.0f   // sideways px per +1x of fine gear
 #define KNOB_GEARMAX 2.0f    // cap so FINE still covers real ground (max sweep = SWEEP*this)
 
 // ── the rack: one cartridge per machine, all on one transport ────────────────
-enum { M_303A, M_303B, M_808, M_909, M_MST, M_N };
-enum { MK_303, MK_DRUM, MK_MST };
-typedef struct { const char *name; int kind; int col, lo; int mute; } Machine;
-static Machine mac[M_N] = {
-    { "303", MK_303,  CLR_PINK,      CLR_DARK_PURPLE, 1 },   // pink 303 (bass) — MUTED by default (bring it in on record)
-    { "303", MK_303,  CLR_ORANGE,    CLR_DARK_ORANGE, 1 },   // orange 303 (lead) — MUTED by default
-    { "808",  MK_DRUM, CLR_TRUE_BLUE, CLR_DARK_BLUE,   0 },
-    { "909",  MK_DRUM, CLR_YELLOW,    CLR_DARK_ORANGE, 0 },
-    { "MST",  MK_MST,  CLR_GREEN,     CLR_DARK_GREEN,  0 },
-};
-static int face = M_303A;
-static int rack_view = -1;   // LAYOUT: -1 = auto (from device_class on frame 0) · 0 = phone single-face+tabs · nonzero (2) = iPad ROOMY rack (draw_rack2 — sticky-focus, one big shared screen). HOME/nav toggles phone⇄ROOMY. (The old 2×2 draw_rack was removed 2026-07-23 — ROOMY is THE tablet view.)
-static int r2_focus   = 0;   // ROOMY: which machine owns the big shared screen (0=303a 1=303b 2=808 3=909 4=MST) — sticky focus, set by tapping a nameplate. Play stays live for ALL regardless.
-static int r2_selmach = M_808;   // ROOMY: the last-picked DRUM machine (M_808/M_909) — the shared context panel + its ring colour follow it (voice = dsel/d9sel)
-static int r2_dpaint  = 0;       // ROOMY drum grid paint tool: 0=HIT (toggle) · 1=ACC · 2=PROB · 3=STRK (909) — the drum twin of the 303's `armed` flag palette
-static int r2_octpen[2] = { 0, 0 };   // ROOMY 303 "active draw octave" pen, per line: +1 up / 0 center / -1 down. A note drawn on the roll lands at this octave; tapping the matching note erases it.
-static int r2_303panel[2] = { 0, 0 }; // ROOMY 303: which control panel is REVEALED, per line (0 = none / roll gets the room · 1 = PERF · 2 = GEN), toggled by the bottom-left chips.
-static int r2_drumpanel[2] = { 1, 1 };// ROOMY drum: which panel is REVEALED, per machine (0 = none · 1 = FLAG/paint · 2 = GEN · 3 = PERF), toggled by the bottom-left chips. Default FLAG so the paint tools are up.
-static int r2_mstpanel = 0;           // ROOMY master: which panel is REVEALED (0 = none / mixer+lanes all-at-once · 1 = GEN song-generator · 2 = SONG save/load slots · 3 = DLY delay division · 4 SWP · 5 VOW · 6 MIDI out), toggled by the bottom-left chips.
-static int r2_mstlane  = -1;          // ROOMY master: which automation lane is EXPANDED to full height for precise editing (-1 = the 3-up overview · 0 = PCF · 1 = CRUSH · 2 = GATE). Tap a lane's label to toggle.
-static int r2_dark     = 0;           // ROOMY chassis theme: 0 = salmon candy skin · 1 = dark. Toggled by the tiny header button (flips R2_PNL/INK/DIM).
 
 // the two TB-303 lines (index 0/1 == machine M_303A/M_303B). Pattern lives here.
-static Acid ac[2];
-static int  s_on[2][STEPS], pit[2][STEPS], acc[2][STEPS], sld[2][STEPS];
-static int  s_sel[2] = { 0, 0 };
 // the note-bar editor snaps pitch to a chosen KEY (root + scale, set on the MST face) so it
 // stays musical. DEFAULT = minor pentatonic at root 0 → byte-identical to the original snap.
 // (avoid the name SCALE — that's the engine's -D pixel-scale flag.)
@@ -156,44 +122,20 @@ static const KeyScale SCALES[] = {
     { "CHROM",  13, { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12 } },  // out-of-key acid
 };
 #define NSCALE (int)(sizeof(SCALES) / sizeof(SCALES[0]))
-static int mroot[2]  = { 0, 0 };                               // PER-303 KEY root, 0..11 semitones (0 = original); added to that line's notes
-static int mscale[2] = { 0, 0 };                               // PER-303 scale index into SCALES (0 = minor pentatonic = original)
-static int loct[2]   = { 0, 0 };                               // PER-303 whole-line OCTAVE shift (played as +loct*12; 0 = original). NB distinct from the per-STEP OCT flag (oct[])
 static const char *NOTE[12] = { "C","C#","D","D#","E","F","F#","G","G#","A","A#","B" };
 static int scale_idx(int sc, int semi) { const KeyScale *S = &SCALES[sc]; for (int k = 0; k < S->n; k++) if (S->deg[k] == semi) return k; return 0; }
 // SEQ note-bar paint drag: grab pos + axis-lock (0=undecided 1=pitch 2=on/off) + values
-static int drag_gx, drag_gy, drag_axis, drag_paint, drag_on0;
 // per-step DEPTH (the 303 flags) + polymeter
-static int  tie[2][STEPS], oct[2][STEPS];   // TIE = hold prev note; OCT = octave -1/0/+1
-static int  plen[2] = { STEPS, STEPS };     // per-line LENGTH (short = polymeter drift)
-static int  lpos[2] = { 0, 0 };             // per-line playhead
-enum { PS_SEQ, PS_FLAG, PS_FX, PS_GEN, PS_KEY, PS_PAT, PS_PERF };  // 303 LCD content: roll / flags / FX / generate / KEY (root·scale·octave) / PAT (A-D banks) / PERF (live play lenses)
-static int  pscreen[2] = { PS_SEQ, PS_SEQ };  // per-303 screen mode (SEQ/FLAG/FX soft-keys)
-static int  kpage[2];                        // per-303 knob page: 0 = vanilla, 1 = DEEP (Devil Fish + drive)
-static int  seq_grid = 0;                     // 0 = the tall NOTE BARS (default, old); 1 = the editable wide GRID (drag notes on the SEQ screen). STAGE 1 of the acidwide-style layout.
 static const int grid_view_on = 0;            // the BARS→GRID toggle is HIDDEN — the note-bars are the shipping view (the maker's call). The GRID view is kept fully intact; flip this to 1 to expose the chip again.
-static int  keys_mode = 0;                    // GRID bottom row: 0 = STEP strip · 1 = KEYS keypad (13 chromatic notes + OCT-/OCT+/SLIDE, 303 step-entry into sel[i]). Stage 2. Toggled by the STEP/KEYS chip.
-static int  key_oct   = 0;                    // KEYS entry octave offset (-1..+2), written into oct[i][sel]
-enum { FL_NOTE, FL_ACC, FL_SLD, FL_TIE, FL_OCTU, FL_OCTD, FL_N };   // FL_NOTE = toggle the note itself (so you add notes WITHOUT leaving FLAG for SEQ). (LEN moved out — it's a per-LINE loop length, now a draggable handle at the end of the note-bars, not a per-step flag)
-static int  s_armed = FL_NOTE;                 // which flag a bar-tap paints (default NOTE = add notes right from the FLAG screen)
 static const char *FLNAME[FL_N] = { "NOTE", "ACC", "SLD", "TIE", "OCT+", "OCT-" };
-enum { LK_TUNE, LK_DEC, LK_CHAR, LK_VOL, LK_PAN, LK_N };    // continuous-lane params (doff[] index). VOL = per-step level (velocity); PAN = per-step stereo
 // drum-depth flags. STRK = 909-only. The continuous lanes (TUN/DEC/CHAR/VOL) map to LK_* by
 // darmed = DD_TUN + lane.lk (a STABLE id, NOT the button's row position — a lane after the
 // optional CHAR would otherwise land on the wrong slot). DD_* stays PARALLEL to LK_*.
-enum { DD_ACC, DD_PROB, DD_STRK, DD_TUN, DD_DEC, DD_CHAR, DD_VOL, DD_PAN, DD_N };
 static const char *DDNAME[DD_N] = { "ACC", "PROB", "STRK", "TUN", "DEC", "CHR", "VOL", "PAN" };
-enum { DS_VCE, DS_KIT, DS_FLAG, DS_GEN, DS_MIX, DS_PAT, DS_PERF };     // drum LCD: VCE (tone+mix knobs, one panel) / kit / flags / generate / (DS_MIX retired — folded into VCE) / PAT (A-D banks) / PERF (ROLL·ACC)
-static int  dscreen = DS_VCE;                 // (a voice tap snaps machine-scoped screens GEN/PAT/PERF/KIT to VCE; VCE/FLAG stay sticky)
-static int  darmed = DD_ACC;                  // which drum flag a cell paints (FLAG mode)
 // What a voice-pad tap DOES (drum faces): the DEFAULT is select — audition fires only while
 // STOPPED (the kept PICK rule: an off-grid hit would smear a running groove; while playing, REC
 // is the audible opt-in). Two modeless latches re-flavour it (both tap=latch / hold=momentary,
 // the PERF-lens grammar — the old 4-way PICK/PLAY/MUTE/REC cycle tool is GONE):
-static int  dmut_latch, dmut_hold, dmut_now;  // MUT (left soft-key col): pads MUTE directly — each tap toggles, no hold delay (live mutes must land on the beat)
-static int  drec_latch, drec_hold, drec_now;  // REC (far-right strip): lit + playing → a pad tap ALSO punches onto the current step (live/overdub record)
-static int  dmute[TR_NV]  = { 0 };            // per-808-voice mute (in addition to the machine mute); toggled by a pad tap while MUT is live
-static int  d9mute[TR9_NV] = { 0 };           // per-909-voice mute
 // 2-char pad abbreviations (indexed by voice enum) — so all 16/11 fit one picker row
 static const char *AB8[TR_NV]  = { "BD","SD","LT","MT","HT","LC","MC","HC","RS","CL","CP","MA","CB","CY","OH","CH" };
 static const char *AB9[TR9_NV] = { "BD","SD","LT","MT","HT","RS","CP","CH","OH","CC","RC" };
@@ -201,7 +143,6 @@ static const char *AB9[TR9_NV] = { "BD","SD","LT","MT","HT","RS","CP","CH","OH",
 // circuit reads the color param (mirrors tr808.c/tr909.c K2LABEL); NULL = just TUNE + DEC.
 static const char *CH8[TR_NV]  = { 0,"SNPY","THUD","THUD","THUD",0,0,0,0,0,0,0,"TONE","TONE","RING",0 };
 static const char *CH9[TR9_NV] = { "ATTK","SNPY","CLIK","CLIK","CLIK",0,0,0,0,"TONE",0 };
-static int  paint_val = 0;                    // what a FLAG paint-drag writes (decided on the first cell)
 static int flag_get(int i, int s, int f) {
     switch (f) {
     case FL_NOTE: return s_on[i][s];
@@ -229,32 +170,10 @@ static void flag_set(int i, int s, int f, int v) {
 // Derived, not hard-coded: tr808.h grew from 14 to 16 slots (the cymbal's MID/HIGH bands, §J5), and a
 // literal 23 here silently overlapped the 808's new top two slots.
 #define D909_BASE (TR808_BASE + TR808_NSLOT)
-static int   dgrid[TR_NV][STEPS];                          // the drum pattern
-static float dtune[TR_NV], ddecay[TR_NV], dcolor[TR_NV];   // per-voice knobs (0.5 = neutral)
-static float dvol[TR_NV];                                  // per-voice LEVEL (0.5 = unity); rides the per-hit velocity — line-scope base the VOL lane offsets around
-static float dpan[TR_NV];                                  // per-voice PAN (0.5 = centre); applied via tr808_pan() around each fire (voice snapshots slot pan at note-on)
-static float dpanlast[TR_NV];                              // last PAN pushed per voice — instrument_pan is a QUEUED set-and-hold ctrl, so only re-push on CHANGE (else the fire loop floods the control queue → clicks)
-static float dfine[TR_NV];                                 // per-voice FINE tune (0.5 = 0; ±0.5 semitone = ±50 cents) — the MICROTUNE trim (null a kick beat); the coarse TUNE knob keeps its semitone steps
-static float dtunefine[TR_NV];                             // last FINE detune pushed via instrument_tune — push on CHANGE only (it's a queued set-and-hold ctrl)
 // SEAM: toms/congas share a slot → they pan as a GROUP (hardware-honest). Independent
 // tom/conga pan = splitting the 14-slot bank into per-voice slots (device-face §2c). Deferred.
-static int   dsel = TR_BD;                                 // selected drum voice
-static float dtrig[TR_NV];                                 // per-voice flash: 1 on fire, decays (picker pad lights up)
 // the 909 drum face — voices from the shared tr909.h
-static int   d9grid[TR9_NV][STEPS];
-static float d9tune[TR9_NV], d9decay[TR9_NV], d9color[TR9_NV];
-static float d9vol[TR9_NV];                                // per-voice LEVEL (0.5 = unity) — see dvol
-static float d9pan[TR9_NV];                                // per-voice PAN (0.5 = centre) — see dpan
-static float d9panlast[TR9_NV];                            // last PAN pushed per voice — see dpanlast
-static float d9fine[TR9_NV];                               // per-voice FINE tune — see dfine
-static float d9tunefine[TR9_NV];                           // last FINE detune pushed per voice — see dtunefine
-static int   d9sel = TR9_BD;
-static float d9trig[TR9_NV];
-static float m9cut = 0.40f, m9res = 0.33f;                 // the 909 metal-filter XY
 // drum DEPTH — per-voice-per-step, painted in FLAG mode (mirrors the 303 flags)
-static int   dacc[TR_NV][STEPS],  dprob[TR_NV][STEPS];                             // 808: accent flag + trig-prob %
-static int   d9acc[TR9_NV][STEPS], d9prob[TR9_NV][STEPS], d9strk[TR9_NV][STEPS];   // 909: + stroke type (TR9_ST_*)
-static float doff[LK_N][TR_NV][STEPS], d9off[LK_N][TR9_NV][STEPS];                 // per-step p-lock OFFSETs (TUNE/DEC/CHAR) from the voice knobs: -1..+1 (0 = follow the voice)
 // (swing is now a single master g_swing, MST face — was per-machine swing8/swing9)
 
 // ── per-step automation LANES (the growth point) ─────────────────────────────
@@ -291,18 +210,6 @@ static int drum_lanes(int m, int v, Lane L[LK_N]) {
 }
 
 // the MST master/mix face
-static float mglu = 0.30f, mflt = 0.5f, mfres = 0.35f, mfb = 0.35f, mpump = 0.0f;
-static int   mdiv = 2;                                      // delay div: 0=1/16 1=1/8 2=dotted 3=1/4
-static float msend[4] = { 0.10f, 0.10f, 0.0f, 0.0f };      // per-machine delay send: 303a 303b 808 909
-static float fxverb[4] = { 0, 0, 0, 0 };                   // per-machine reverb send: 303a/b → warm hall (tank 0), 808 → tank 2, 909 → tank 1
-static float dist8 = 0, dist9 = 0;                          // per-machine drum drive — ADDS on top of the kit's baked kick drive
-static float level[M_N] = { 1, 1, 1, 1, 1 };                // per-machine TAB fader (1 = unity/stock); 4 = MST (master wire TODO)
-static int   mpcf[STEPS];                                   // pattern-controlled filter: cutoff level 0..7 per step (7 = open)
-static int   mcrush[STEPS];                                 // pattern-controlled CRUSH: bitcrush level 0..7 per step (0 = clean; the PCF's texture twin)
-static int   mgate[STEPS];                                  // pattern-controlled GATE: openness 0..7 per step (7 = open, down = chop; the rhythm twin)
-static int   mstflow = 0;                                   // MST screen: 0 = MIX meters, 1 = PCF lane, 2 = CRUSH lane, 3 = GATE lane, 4 = GEN, 5 = SONG, 7 = DLY delay-div picker, 8 = the FX HUB (was 6 = the old SWEEP page, folded into the hub), 9 = MIDI OUT
-static float flmix = 0.5f, flfb = 0.5f, phmix = 0.5f, phfb = 0.5f;   // PER-DEVICE mix/depth + feedback — FLANGER (fl*) and PHASER (ph*) each own their knobs so you can BLEND them independently
-static int   flon = 0, phon = 0, mswdiv = 0;                         // the two INDEPENDENT sweep DEVICES: FLANGER on + PHASER on (run 2 / 1 / 0 at once) + shared rate div (0 = 1-bar, 1 = 2-bar, 2 = 4-bar, tempo-synced)
 
 // ── the FX HUB: master effect DEVICES behind one soft-key ─────────────────────
 // The phone's MST soft-key column was full (MIX/PCF/CRU/GAT + one key per device doesn't scale),
@@ -311,9 +218,6 @@ static int   flon = 0, phon = 0, mswdiv = 0;                         // the two 
 // Chip grammar: TAP = arm/disarm (instant, the beat-critical action) · HOLD = open its knob page
 // (not beat-critical, so it gets the slow gesture — the deliberate INVERSE of the hold-to-mute
 // lesson that hold felt late for a beat-critical drop).
-static int   fxpage = -1;                    // -1 = the chip grid · else the FX_* kind whose knob page is open
-static int   fxdry_latch = 0;                // the DRY kill: TAP = latch (own line so ab-render can A/B it)
-static int   fxdry_hold = 0;                 // ...and HOLD = momentary (the PERF/MUT latch grammar)
 // DRY holds every master device dry WITHOUT clearing its arm flag, so lifting it restores your exact
 // blend (the same principle the mute/solo note insists on: never wipe the maker's settings).
 #define FXDRY (fxdry_latch || fxdry_hold > 0)
@@ -329,10 +233,6 @@ static int   fxdry_hold = 0;                 // ...and HOLD = momentary (the PER
 // Mid-MIX does carry phase-cancellation notches (a filtered copy blended against dry combs — the
 // synth-secrets audit §B8 / effects-recipes.md). Real, but it reads as colour on a busy acid mix, and
 // it's not a reason to avoid the one knob that actually dials the effect in.
-static int   vowon = 0;                      // armed (0 = dry — the rack still boots with no master colour)
-static float vowvow = 0.5f;                  // VOWEL 0..1 sweeps OO→OH→AH→EH→EE — the axis you sweep to make it talk
-static float vowq   = 0.6f;                  // Q 0..1 = broad/hollow → pinched/nasal (character, and it pushes level)
-static float vowmix = 0.7f;                  // dry..wet = THE depth knob. 0.7 = plainly a talkbox, still some air left
 // SPEAK — the syllable-per-note mode (under the SPK toggle): every fresh 303 note-on advances to the
 // next vowel in a little WORD, and the vowel GLIDES there instead of jumping, so the rack pronounces
 // a diphthong per note ("wow", "yeah") instead of clicking between static vowels.
@@ -341,10 +241,6 @@ static float vowmix = 0.7f;                  // dry..wet = THE depth knob. 0.7 =
 // snap on a step edge. It is the one thing this device can do that no other master effect here can.
 // formant() has no trigger input, so the CART drives it: vow_attack() per note, vow_tick() per frame.
 // Mechanism cribbed from pedalboard's VOWEL pedal STEP mode (fmt_on_attack + formant_tick).
-static int   vowspeak = 0;                   // the SPK toggle
-static float vowglide = 0.35f;               // slew toward the new vowel (VOWL becomes GLID while SPEAK is on)
-static float vowcur = 0.5f, vowtgt = 0.5f;   // the gliding vowel + the current note's target
-static int   vowstep = 0;                    // position in the word
 // The word needs PAUSES or it is not speech, it is one long slur. A continuous vowel-per-note stream
 // babbles (measured: SPEAK moved the spectrum but did NOT raise its variance — the phrase had no
 // boundary you could hear). So the word carries explicit RESTS: on a rest slot the voice LETS GO
@@ -364,20 +260,16 @@ static const float VOW_WORD[8] = { 0.0f, 0.5f, 1.0f, 0.75f, 0.5f, 0.75f, 0.25f, 
 // mid-phrase breath (slot 3), then the finer ones. DENS 0.5 (the default) rests exactly slots 3 and
 // 7, which reproduces the committed two-breath-group word note for note.
 static const float VOW_RESTAT[8] = { 9.0f, 0.85f, 9.0f, 0.35f, 9.0f, 0.60f, 9.0f, 0.15f };
-static float vowdens = 0.5f;                 // how MANY rests. Swept: 0.0 = none (a gapless slur) · 0.25 = {7} · 0.5 = {3,7} (the default) · 0.7 = {3,5,7} · 0.95 = {1,3,5,7}, a rest every other note
-static float vowgate = 1.0f, vowgtgt = 1.0f; // the VOICE gate: 1 = speaking, 0 = mid-pause (glided, not switched)
 // GAP — how much of a pause a REST slot actually takes. DEPTH, not density: 0 = the rest does not
 // close at all (the gapless slur this started as, kept as an in-instrument A/B), 1 = the voice stops
 // dead, and the middle is a DIP where it ducks without stopping. Chosen over rest-density because
 // every position on it is musical and the deterministic two-breath-group phrase survives intact,
 // where sprinkling random rests would trade the word for a stutter.
-static float vowgap = 1.0f;                    // default = a full stop on a rest, the version the maker approved
 // ONE SYLLABLE PER FRAME. Both 303 lines feed the word, and when they land on the same tick the word
 // used to advance TWICE in one frame — which skipped slots, and a skipped REST is a pause that never
 // happens. That is why the pauses came out erratic (traced: vstep walking 0,2,4,6 and only 6% of
 // frames paused instead of 2-in-8). A mouth says one syllable at a time: simultaneous notes are ONE
 // attack. vow_tick clears this at the top of each frame, before the sequencer runs.
-static int   vowfired = 0;
 static float vow_live(void) { return vowspeak ? vowcur : vowvow; }   // which vowel actually reaches formant()
 static float vow_wet(void)  { return vowspeak ? vowmix * vowgate : vowmix; }   // ...and how wet, so a pause can duck it
 static void  vow_attack(void) {              // a fresh 303 note landed (NOT a tie — a tie holds, so it is no new syllable)
@@ -406,15 +298,6 @@ static void  vow_tick(void) {                // every frame: ease the vowel + th
 // timbre once and switch which pattern plays it). Live edits happen on the live arrays;
 // switching SAVES the live arrays into the old slot and LOADS the new one (copy-on-switch,
 // so the draw/fire code stays unchanged).b_curpat[machine] = 0 holds today's default beat.
-#define NPAT 4
-typedef struct { int b_on[STEPS], b_pit[STEPS], b_acc[STEPS], b_sld[STEPS], b_tie[STEPS], b_oct[STEPS], b_plen; } P303;
-typedef struct { int grid[TR_NV][STEPS], b_acc[TR_NV][STEPS], prob[TR_NV][STEPS]; float off[LK_N][TR_NV][STEPS]; } P808;
-typedef struct { int grid[TR9_NV][STEPS], b_acc[TR9_NV][STEPS], prob[TR9_NV][STEPS], strk[TR9_NV][STEPS]; float off[LK_N][TR9_NV][STEPS]; } P909;
-static P303 pat303[2][NPAT];        // [line][slot]
-static P808 pat808[NPAT];
-static P909 pat909[NPAT];
-static int  curpat[M_N] = { 0, 0, 0, 0, 0 };   // current slot per machine (303a/303b/808/909/-); MST unused
-static int  armpat[M_N] = { -1, -1, -1, -1, -1 };  // QUEUED next slot per machine (-1 = none): tapped while PLAYING, lands on the next bar downbeat so the rack switches in time
 
 static void pat_io_303(int i, int s, int save) { P303 *p = &pat303[i][s];   // save!=0 : live→slot ; else slot→live
     for (int k = 0; k < STEPS; k++) {
@@ -447,12 +330,6 @@ static void pat_switch(int m, int s) {
 }
 
 // transport (shared across the rack)
-static int   playing = 1, s_step = 0, laststep = -1, laststep303[2] = { -1, -1 };   // laststep303[i] = each 303 line's OWN (swung, PERF-speed-lensed) step trigger
-static float mbop = 0;
-static float g_bpm = 132;                                   // master TEMPO (rack-scope, MST face); drives the step clock + the tempo-synced delay
-static float bpm01 = 0.5143f;                               // MST TEMPO-knob proxy (0..1 → g_bpm 60..200; 0.5143 → 132, matches g_bpm's init)
-static float g_phase = 0, g_last_t = 0;                     // accumulated 16th-note phase, so a live bpm change changes the RATE, never JUMPS the counter
-static float g_swing = 0;                                   // master SWING (rack-scope, MST face) — one global shuffle for ALL machines (ReBirth's model); 0 = straight, delays the odd 16ths by up to 0.6 of a step
 
 // PERF lenses — NON-DESTRUCTIVE performance transforms over the 303 read path (per line).
 // The pattern arrays are untouched; the transport just READS them through whichever lens is
@@ -460,29 +337,13 @@ static float g_swing = 0;                                   // master SWING (rac
 // across faces — 303a keeps doubling while you work 303b) OR HOLD=momentary (on while held).
 // pf_* = the EFFECTIVE per-frame state read by the step clock; recomputed in draw() from the
 // persistent latch + the focused line's held buttons.
-enum { PL_HALF, PL_ACC, PL_OCT, PL_STAC, PL_GLIDE, PL_REV, PL_ROLL, PL_N };   // lens index (for pf_latch/pf_hold). Speed = just HALF (2X/8-12 dropped); accent cross-rhythms (AC3/AC4) dropped — didn't add much
 #define PERF_TAP 12                  // release within this many frames (~200ms) = a TAP (toggle latch); longer = a momentary HOLD
 #define ROLL_RATE 2.0f               // 303 ROLL retrigger subdivisions per 16th (2 = 32nd-note roll; 4 = 64th buzz, 1.5 = 16th-triplet). Tune the fill's speed by ear here.
-static int pf_latch[PL_N][2];        // persistent per-lens-per-line LATCH (tap-toggled; holds across faces + stop/start)
-static int pf_hold[PL_N][2];         // frames each button has been held (for the tap-vs-hold split)
-static int pf_half[2];               // effective speed lens: half-time (the one that survived — clean 2:1 → phase-locked to the drums)
-static int pf_acc[2];                // effective total-accent: every fired note gets the accent (the 909 "accent everything" move)
-static int pf_oct[2];                // effective OCTAVE-JUMP lens: every OTHER step (odd counter) drops an octave — the classic acid octave bounce, live-only (pattern untouched)
-static int pf_stac[2], pf_glide[2];  // effective slide lens: STAC forces all slides OFF (plucky), GLIDE forces them ALL on (a smooth river)
-static int pf_rev[2];                // effective REVERSE lens: read the pattern backwards (step index mirrored) — an instant melodic flip / turnaround
-static int pf_roll[2];               // effective ROLL lens: while held, retrigger the last played note at ROLL_RATE (a stutter/fill — momentary by nature)
-static int rollctr[2] = { -1, -1 };  // ROLL sub-step counter (reset to -1 when not rolling → clean re-engage)
-static int roll_pit[2] = { 24, 24 }, roll_acc[2];   // the last played note (midi + accent) ROLL repeats
 
 // Drum PERF (per machine: 0 = 808, 1 = 909) — live variation that all flows through the STEP GRID, so
 // it's grid-locked by construction. BEAT-REPEAT (RP1/RP2/RP4) loops the last 1/2/4-step slice; DENSITY
 // (THIN drops the kit to downbeats+accents, BUSY fills the SELECTED voice's off-16ths); ACC accents every hit. Same
 // TAP=latch / HOLD=momentary model as the 303 PERF; seeded from the latch in draw() so it holds.
-enum { DPL_RP1, DPL_RP2, DPL_RP4, DPL_THIN, DPL_BUSY, DPL_ACC, DPL_N };
-static int dpf_latch[DPL_N][2], dpf_hold[DPL_N][2];   // per-lens-per-machine latch + hold frames
-static int pf_rp1[2], pf_rp2[2], pf_rp4[2];           // effective beat-repeat holds (1/2/4-step slice), per machine
-static int pf_thin[2], pf_busy[2], pf_dacc[2];        // effective DENSITY (thin/busy) + accent-all, per machine
-static int rpt_base[2], rpt_n[2], rpt_was[2];         // beat-repeat slice capture (frozen N-aligned start)
 
 // beat-repeat: map the real transport `step` to a FROZEN, N-aligned slice that loops (grid-locked).
 // m = 0 (808) / 1 (909). Returns `step` unchanged when no RP button is held for that machine.
@@ -755,8 +616,6 @@ static void plabel(const char *s, int cx, int y, int col) { print(s, cx - text_w
 // that lands as a stray tap (muted a cartridge in a playtest). Ignore nav taps for a
 // short window after any drag was held. (acidrack's fix, ported.)
 #define TAP_SETTLE 12   // ~200ms; the observed bounce lagged the release by 8 frames
-static int g_drag_frame = -100;             // last frame a drag widget was captured (ui_frame_ct clock)
-static int g_drag_y = 100;                   // ...and WHERE it was (canvas y) — a bounce lands near here,
                                              // so a nav tap only blocks when THIS was near the tab band (drag_bounce)
 static int tap_settled(void) { return ui_frame_ct - g_drag_frame >= TAP_SETTLE; }
 
@@ -788,7 +647,6 @@ static int drag_bounce(int y, int h) {
 //   through (it's now >TAP_SETTLE past the knob). So while a poisoned bounce is held,
 //   RE-ARM the settle clock: the quiet window restarts on every bounce and only
 //   reopens once the finger truly settles (TAP_SETTLE frames with no new bounce).
-static void *nav_poison[6]; static int nav_poison_n;
 static int nav_clean(void *wid) {
     int poisoned = 0;
     for (int i = 0; i < nav_poison_n; i++) if (nav_poison[i] == wid) { poisoned = 1; break; }
@@ -2247,44 +2105,9 @@ static void draw_mst(Box stage) {
 // (NSLOT is #defined just above draw_mst so the SONGS page can size its grid.)
 #define SAVE_MAGIC 0xACCA0002u   // v2 — added per-machine mutes (mmute[]); v1 saves ignored. Bump on any SaveBlob layout change
 
-typedef struct {                 // the sound-defining half of an Acid — NOT its live handles/change-guards
-    float p[ACID_NPARAM];
-    int   wave, drvmode, sweep, base, classic, clean;
-    float cut_top, drift, echo_send, rev_send;
-} AcidSnap;
 
-typedef struct {
-    // sequences — every pattern bank of every machine + which bank each has selected
-    P303 b_pat303[2][NPAT];
-    P808 b_pat808[NPAT];
-    P909 b_pat909[NPAT];
-    int  b_curpat[M_N];
-    // 303 sound (per line)
-    AcidSnap b_ac[2];
-    int  b_mroot[2], b_mscale[2], b_loct[2], b_kpage[2], b_plen[2];
-    // drum sound (global, per voice)
-    float b_dtune[TR_NV], b_ddecay[TR_NV], b_dcolor[TR_NV], b_dvol[TR_NV], b_dpan[TR_NV], b_dfine[TR_NV];
-    float b_d9tune[TR9_NV], b_d9decay[TR9_NV], b_d9color[TR9_NV], b_d9vol[TR9_NV], b_d9pan[TR9_NV], b_d9fine[TR9_NV];
-    float b_m9cut, b_m9res;
-    int   mmute[M_N];                // per-MACHINE mute (the cartridge-LED mute); MST's entry is unused
-    int   b_dmute[TR_NV], b_d9mute[TR9_NV];
-    // master fx + transport
-    float b_mglu, b_mflt, b_mfres, b_mfb, b_mpump, b_msend[4], b_fxverb[4], b_dist8, b_dist9, b_level[M_N];
-    int   b_mdiv, b_mpcf[STEPS], b_mcrush[STEPS], b_mgate[STEPS];
-    float g_bpm_s, bpm01_s, g_swing_s;
-} SaveBlob;
 
-typedef struct {
-    unsigned      magic;
-    int           cur;             // last active/loaded named slot (UI highlight); -1 = none
-    int           autos_used;      // 1 = the rolling autosave holds real state (else boot keeps the generated default)
-    unsigned char used[NSLOT];     // 1 = that named slot holds a saved song
-    SaveBlob      autos;           // rolling autosave — resume-where-you-left-off, SEPARATE from the six deliberate slots
-    SaveBlob      slot[NSLOT];     // the six song slots
-} SaveBank;
 
-static SaveBank g_bank;            // in-memory mirror of the save file (BSS — big, do not put on the stack)
-static SaveBlob g_scratch;         // dirty-check scratch for the autosave (BSS, not stack)
 
 static void acid_snap_save(AcidSnap *s, Acid *a) {
     for (int i = 0; i < ACID_NPARAM; i++) s->p[i] = a->p[i];
@@ -2388,7 +2211,6 @@ static int bank_load(void) {   // 1 = a valid bank was read into g_bank; 0 = non
 
 // autosave: capture the live rack ~3×/s, and when it actually CHANGED, debounce a
 // file write. No per-edit-site wiring (the change-detect replaces mark_dirty()).
-static int save_cooldown = 0;
 static void autosave_tick(void) {
     if ((tick++ % 20) == 0) {                       // cheap change-detect a few times a second
         song_capture(&g_scratch);
@@ -2438,9 +2260,7 @@ static const int MO_GM909[TR9_NV] = {  // TR9_BD SD LT MT HT RS CP CH OH CC RC
     36, 38, 41, 45, 48, 37, 39, 42, 46, 49, 51
 };
 
-static int mout_on  = 0;       // OFF by default: enabling publishes a MIDI port into the user's
                                // system, which nobody asked for by booting a groovebox
-static int mout_clk = 1;       // mirror our transport + 24ppqn clock, so outboard gear follows us
 
 // Drum hits need a real GATE LENGTH — on and off in the same frame is legal, balanced, and
 // records WRONG (a DAW that captures it normalises the pair on playback, so a take gains notes
@@ -2448,8 +2268,6 @@ static int mout_clk = 1;       // mirror our transport + 24ppqn clock, so outboa
 #define MO_GATE   3            // ~50ms at 60fps
 #define MO_NPEND  32
 static struct { int ch, note, left; } mo_pend[MO_NPEND];
-static int mo_held[2]  = { -1, -1 };   // the 303 note currently sounding per line
-static int mo_clk_sent = 0, mo_was_playing = 0;
 
 static void mo_hit(int ch, int note, int vel) {
     if (note < 0 || note > 127) return;
@@ -2755,8 +2573,6 @@ void update(void) {
 // SWAP into those globals around its draw call (exchange in, draw, exchange back) —
 // zero edits inside the 800-line drum functions, and phone mode (one drum at a time)
 // is untouched. The 303s (sel[2]/pscreen[2]/kpage[2]) are already independent.
-typedef struct { int scr, arm, ml, mh, mn, rl, rh, rn; } DrumUI;
-static DrumUI drum_ui[2] = { { DS_VCE, DD_ACC, 0,0,0, 0,0,0 }, { DS_VCE, DD_ACC, 0,0,0, 0,0,0 } };
 static void drum_ui_swap(DrumUI *u) {   // exchange the shared drum globals ⇄ this store
     int t;
     t = dscreen;    dscreen    = u->scr; u->scr = t;

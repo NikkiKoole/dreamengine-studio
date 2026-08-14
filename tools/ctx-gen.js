@@ -75,7 +75,16 @@ const TARGET_KEY = (() => {
   return k;
 })();
 const TARGET = TARGETS[TARGET_KEY].file;
-const CTX_HEADER = TARGETS[TARGET_KEY].header;
+// A cart's context header is named after the CART, not after "cart": runtime/ is on the include
+// path for every build, so a generic cart_state.h would be clobbered the moment a second cart
+// becomes a plug-in rack — silently, by whichever one was generated last.
+const CTX_HEADER = TARGET_KEY !== 'cart' ? TARGETS[TARGET_KEY].header : (() => {
+  try {
+    const m = /"slug"\s*:\s*"([a-z0-9_-]+)"/.exec(fs.readFileSync(path.join(ROOT, TARGET), 'utf8').slice(0, 8000));
+    if (m) return m[1] + '_state.h';
+  } catch (_) {}
+  return TARGETS[TARGET_KEY].header;
+})();
 const CTX_TYPE = TARGETS[TARGET_KEY].type;
 const CTX_PTR = TARGETS[TARGET_KEY].ptr;
 
@@ -185,7 +194,11 @@ function addressTakenAtFileScope(src, name) {
     // ⚠ A FUNCTION DEFINITION also starts with `static`, and joining lines until a `;` swallows its
     // whole BODY — which made this report `&de_pend` (an atomic_fetch_or inside de_resize) and
     // `&show_touch_ui` as file-scope address-takes. Both were false. Only DATA declarations count.
-    const looksLikeFn = /[A-Za-z_]\w*\s*\([^)]*\)\s*[{;]?\s*$/.test(line) && !/=/.test(line.split('(')[0]);
+    // ⚠ And the brace must NOT be anchored to end-of-line: acidcandy writes whole functions on one
+    // line (`static void bank_write(void) { … save_bytes(&g_bank, …); }`), which an end-anchored
+    // test reads as a data declaration and then reports as a file-scope address-take. Four false
+    // positives, each of them a &name that is plainly inside a body.
+    const looksLikeFn = /[A-Za-z_]\w*\s*\([^)]*\)\s*[{;]/.test(line) && !/=/.test(line.split('(')[0]);
     if (depth === 0 && /^\s*static\b/.test(line) && !looksLikeFn) {
       let text = line, j = i;
       while (!/;/.test(text) && j + 1 < src.length && j - i < 40) { j++; text += ' ' + stripComment(src[j]); }
@@ -483,6 +496,8 @@ function emitHeader(move, macroSpans = [], src = []) {
   }
   L.push('typedef struct {');
   for (const m of move) L.push('    ' + m.member);
+  // the cart's opt-in path copies the template lazily and needs somewhere to record that it did
+  if (TARGET_KEY === 'cart') L.push('    int de_ctx_inited_;   // set once, when this instance copies the template below');
   L.push('} ' + CTX_TYPE + ';');
   L.push('');
   const inits = move.filter(m => m.init);
@@ -491,6 +506,54 @@ function emitHeader(move, macroSpans = [], src = []) {
   for (const m of inits) L.push(`    .${m.name} = ${m.init},`);
   L.push('};');
   L.push('');
+
+  /* A CART reaches its instance differently from the ENGINE. The engine has a seam — every host
+     entry point takes a DeInstance* and sets the thread-local on the way in. A cart has no seam:
+     draw()/update() take nothing, and by the time they run the engine already knows which instance
+     is rendering. So the cart asks for its slice by ADDRESS, exactly as the cart-land headers do
+     (runtime/cart_ctx.h), and forks on DE_CART_CTX so the 552 carts that are not plug-in racks
+     compile to precisely the statics they had before. */
+  if (TARGET_KEY === 'cart') {
+    L.push('/* HOW THE MACROS FIND THE STATE — the same fork every cart-land header takes (cart_ctx.h).');
+    L.push(' *');
+    L.push(' * DEFAULT: the template IS the state. `de_cart->x` folds to `de_cart_default.x`, which is');
+    L.push(' * the same file-scope storage the statics had, so a cart that is not a plug-in rack pays');
+    L.push(' * nothing and renders byte-identically. That path is what almost every cart compiles.');
+    L.push(' *');
+    L.push(' * OPT-IN (a rack an AUv3 can load twice): each instance gets its OWN copy of the template');
+    L.push(' * through de_state_for, keyed by the address of a sentinel this translation unit owns —');
+    L.push(' * unique by construction, so nothing needs a registry. The copy is what carries the 59');
+    L.push(' * non-zero defaults: de_state_for hands back ZEROED memory, and a sequencer booting with');
+    L.push(' * every tempo and level at 0 is not the same instrument.');
+    L.push(' *');
+    L.push(' * ⚠ NEVER CACHE the returned pointer. Another header registering its key can grow the');
+    L.push(' * state block and move every slice; a pointer held across calls is a use-after-realloc.');
+    L.push(' * ⚠ The template is READ-ONLY in the opt-in path — nothing writes through it, so instance');
+    L.push(' * 7 copies the same pristine values instance 0 did. (The engine had to learn this the');
+    L.push(' * hard way: it copied a template instance 0 had already mutated, and shipped live heap');
+    L.push(' * pointers to a second instance, which corrupted the heap in GarageBand.) */');
+    L.push('#ifndef DE_CART_CTX');
+    L.push('#define ' + CTX_PTR + ' (&' + CTX_PTR + '_default)');
+    L.push('#else');
+    L.push('static char ' + CTX_PTR + '_key_;');
+    L.push('static ' + CTX_TYPE + ' *' + CTX_PTR + '_(void) {');
+    L.push('    ' + CTX_TYPE + ' *c = (' + CTX_TYPE + ' *)de_state_for(&' + CTX_PTR + '_key_, (int)sizeof(' + CTX_TYPE + '));');
+    L.push('    if (c && !c->de_ctx_inited_) { *c = ' + CTX_PTR + '_default; c->de_ctx_inited_ = 1; }');
+    L.push('    return c;');
+    L.push('}');
+    L.push('#define ' + CTX_PTR + ' ' + CTX_PTR + '_()');
+    L.push('#endif');
+    L.push('');
+    L.push('/* the access block: every name the cart already uses, pointed at the context.');
+    L.push(' * NOTHING below this line changes between the two paths above. */');
+    const wc = Math.max(...move.map(m => m.name.length));
+    for (const m of move) L.push(`#define ${m.name.padEnd(wc)} (${CTX_PTR}->${m.name})`);
+    L.push('');
+    L.push('#endif');
+    L.push('');
+    return L.join('\n');
+  }
+
   L.push('/* THE POINTER THE MACROS EXPAND THROUGH — thread-local, and defaulted to the template above.');
   L.push(' *');
   L.push(' * Thread-local because a plug-in process runs SEVERAL engines: the seam sets this from the');
@@ -571,8 +634,12 @@ function probe(res) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ctxgen-'));
   const rt = path.join(dir, 'runtime');
   execFileSync('cp', ['-r', path.join(ROOT, 'runtime'), rt]);
+  // The cart target rewrites build/cart.c, which lives OUTSIDE the runtime copy — make its home
+  // before apply() writes into it, or the probe dies with ENOENT before compiling anything.
+  if (TARGET_KEY === 'cart') fs.mkdirSync(path.join(dir, 'build'), { recursive: true });
   apply(rt, res);
   console.log('  generated engine at ' + rt);
+  if (TARGET_KEY === 'cart') return probeCart(dir, rt);
 
   // Compile EVERY configuration, not just the default one. The AST is dumped without -DDE_TRACE,
   // so any static inside `#ifdef DE_TRACE` is invisible to the generator — and DE_TRACE is exactly
@@ -636,6 +703,45 @@ function probe(res) {
   return allOk;
 }
 
+/* A CART is a different translation unit from the engine: it includes studio.h (never sound.h or
+   studio.c), and it is what play.js compiles with -DDE_TRACE. So the probe compiles the rewritten
+   build/cart.c itself, in the configurations the harness actually builds. Same sentinel discipline
+   as the engine probe — a green that never read the generated header would mean nothing. */
+function probeCart(dir, rt) {
+  const cart = path.join(dir, 'build', 'cart.c');
+  const inc = ['-I', rt, '-I', path.join(ROOT, 'build')];
+  let raylibInc = null;
+  try { raylibInc = execFileSync('brew', ['--prefix', 'raylib'], { stdio: ['ignore','pipe','ignore'] }).toString().trim() + '/include'; } catch (_) {}
+  if (raylibInc && fs.existsSync(path.join(raylibInc, 'raylib.h'))) inc.push('-I', raylibInc);
+  // the cart's own compile-time geometry, read from its de:settings so arrays sized off it are real
+  let geom = ['-DSCREEN_W=320', '-DSCREEN_H=200', '-DSCALE=2', '-DMAP_W=128', '-DMAP_H=64', '-DCELL_W=16', '-DCELL_H=16'];
+  try {
+    const m = /"de:settings"?\s*:\s*(\{[^}]*\})/.exec(fs.readFileSync(path.join(ROOT, TARGET), 'utf8').slice(0, 8000));
+    if (m) { const s = JSON.parse(m[1]);
+      geom = ['-DSCREEN_W=' + (s.screenW||320), '-DSCREEN_H=' + (s.screenH||200), '-DSCALE=' + (s.scale||2),
+              '-DMAP_W=' + (s.mapW||128), '-DMAP_H=' + (s.mapH||64), '-DCELL_W=' + (s.cellW||16), '-DCELL_H=' + (s.cellH||16)]; }
+  } catch (_) {}
+
+  const sentinel = '#error DE_CTX_PROBE_REACHED_GENERATED_HEADER';
+  fs.appendFileSync(path.join(rt, CTX_HEADER), '\n#ifdef DE_CTX_PROBE_SENTINEL\n' + sentinel + '\n#endif\n');
+  let reached = false;
+  try {
+    execFileSync('clang', ['-fsyntax-only', cart, ...inc, ...geom, '-DDE_CTX_PROBE_SENTINEL'], { cwd: ROOT, stdio: 'pipe' });
+  } catch (e) { reached = /DE_CTX_PROBE_REACHED_GENERATED_HEADER/.test((e.stderr || Buffer.from('')).toString()); }
+  console.log('  probe reaches the generated header … ' + (reached ? 'yes' : 'NO — this probe proves NOTHING'));
+  if (!reached) return false;
+
+  let allOk = true;
+  for (const cfg of [{ name: 'plain', extra: [] }, { name: 'DE_TRACE', extra: ['-DDE_TRACE'] },
+                     { name: 'DE_SPEC', extra: ['-DDE_SPEC'] }, { name: 'DE_CART_CTX', extra: ['-DDE_TRACE', '-DDE_CART_CTX'] }]) {
+    process.stdout.write('  compiling (' + cfg.name + ') … ');
+    try { execFileSync('clang', ['-fsyntax-only', cart, ...inc, ...geom, ...cfg.extra], { cwd: ROOT, stdio: 'pipe' }); console.log('ok'); }
+    catch (e) { allOk = false; console.log('FAILED'); console.log((e.stderr || Buffer.from('')).toString().split('\n').slice(0, 20).join('\n')); }
+  }
+  console.log('  (generated cart at ' + cart + ')');
+  return allOk;
+}
+
 function report(res, opts) {
   console.log(`\nCONTEXT GENERATION PLAN for ${TARGET}${opts.primitive ? '  [batch: primitive types only]' : ''}\n`);
   console.log(`  would move   ${res.move.length} variables into ${CTX_TYPE}`);
@@ -685,9 +791,12 @@ function selfCheck() {
     '    atomic_fetch_or_explicit(&de_pend, 1, memory_order_release);',
     '}',
     'static atomic_int de_pend = 0;',
+    'static SaveBank g_bank;',
+    'static void bank_write(void) { g_bank.magic = 1; save_bytes(&g_bank, sizeof g_bank); }',
   ];
   t('a file-scope &address IS caught',  () => addressTakenAtFileScope(srcAddr, 'game_font') === true);
   t('an &address in a FUNCTION is not', () => addressTakenAtFileScope(srcAddr, 'de_pend') === false);
+  t('a ONE-LINE function body is not',  () => addressTakenAtFileScope(srcAddr, 'g_bank') === false);
 
   // the emitter: a member, its designated initialiser, and its macro must agree on the name
   const hdr = emitHeader([{ name: 'echo_fb', member: 'float echo_fb;', init: '0.35f' },

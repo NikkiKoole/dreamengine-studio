@@ -147,6 +147,66 @@ head). Unresolved.
 Correction to an earlier note in this doc: the antenna does **not** inherently vanish at small sizes.
 It survives when the head fills the tile (`09`) and dies in any framing that also carries the body.
 
+Also framing, not art: a **full-bleed** crop (hair running off the tile edges instead of fitted inside
+it) rescues the afro at 60px, because the face gets the frame and the eye completes the hair. Twice
+now a framing problem was first mistaken for a defect in the character.
+
+## The spec — what is sacred, and the one rule
+
+Priority order (the maker's, 2026-08-14), highest first:
+
+1. **Cat-eye glasses** — sacred, never compromised
+2. **Huge alien eyes inside them** — this is what makes the alien/granny collision work
+3. **Compact head/hair mass** — exists to let 1 and 2 dominate
+4. **Saucer** — the broad base of the silhouette, but **only as a wide THIN band** (see below)
+5. **Antenna** — alien punctuation; survives on CONTRAST, not size (a bright dot at 12px, where a
+   1px purple stalk died)
+6. **Hairdo** — interchangeable, an expression of the character rather than the character
+
+Deliberately stupid proportions: massive glasses → tiny smiling mouth → surprisingly small fluffy
+hair → one ridiculous antenna → enormous flat saucer. A stack of primitive shapes, which is what
+makes a thing mascot-able.
+
+### The rule: hair may grow UP, never SIDEWAYS
+
+**Everything is allowed to be wide. Only the glasses are allowed to be tall.**
+
+The cat-eye wings are a *horizontal* feature, and so is an afro, so they compete for one axis — and
+the glasses lose, because the hair is the bigger mass. This single line explains every result above,
+including why the bun beat the afro: the afro was never the problem, *sideways* was. Likewise the
+saucer, which is free as a wide thin band and ruinous the moment it grows vertically (that is what
+killed the head-and-hands crop, `10`).
+
+### Head-shape explorations (`12`)
+
+Six hair shapes over an identical face, glasses and saucer — a clean experiment, so the hair really
+is the only variable. Judged by magnifying the sheet's own 12px, 8px and 16px-silhouette rows:
+
+| # | shape | axis | at 12px |
+|---|---|---|---|
+| 1 | tiny bun | up | clean glasses; nub survives |
+| 2 | fluffy perm | **sideways** | hair starts competing with the wings |
+| **3** | **squat bouffant** | **up** | **the boldest, widest-reading glasses of all six** |
+| 4 | mini topknot | up | near-identical to #1 |
+| 5 | side puff | **sideways** | the only asymmetric silhouette, but bought in the expensive currency |
+| 6 | puffy puff | **sideways** | biggest mass, taxes the wings most |
+
+**Pick: #3 SQUAT BOUFFANT.** The only one with a bold distinctive hair shape that spends none of the
+horizontal budget. Note the glasses in #3 are drawn identically to the others and simply *read*
+wider, which is the rule above made visible.
+
+**Worth one sketch: #3 leaning** — the bouffant stacked up AND offset to one side. Asymmetry is the
+rarest property in a grid of home-screen icons (every other icon is bilaterally symmetric), and #5
+proves it is achievable; doing it vertically gets it without paying the wings.
+
+Two things this sheet fixed that are not about hair:
+
+- **The eyes.** Big whites with highlights inside the frames. The earlier art had small dark lenses
+  that turned into two smudges at 12px; this is what makes the alien half survive shrinking, and it
+  matters more than the hair choice.
+- **The pearl necklace**, which at 16px is a bright horizontal band separating face from saucer —
+  the separation the earlier versions lacked.
+
 ## Open
 
 - Ship the granny at all, or keep the knob-on-dark-grey. Cheap test: **post the character sheet**
@@ -178,6 +238,7 @@ It survives when the head fills the tile (`09`) and dies in any framing that als
 | `09-icon-afro-head-1024.png` | afro head crop: best illustration, loses the face when small |
 | `10-icon-afro-headhands-1024.png` | the failed compromise — gear hint costs the glasses |
 | `11-icon-bun-head-sizes.png` | the winner at every real display size, light + dark |
+| `12-head-shape-explorations.png` | six hair shapes over one identical face at 32/16/12/8px + silhouettes — the sheet the spec above is read off |
 
 Related: [`store-agents.md`](store-agents.md) (the ASO tooling) ·
 [`app-icon-mask.md`](app-icon-mask.md) (the mask and what it shaves) ·

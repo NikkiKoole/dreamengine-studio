@@ -4,9 +4,31 @@ STATUS: BUILDING (2026-07-16) — spikes 0–4 ✅ **done**: the real engine cro
 and a `NativeActivity` host (in `android/`) renders it **pixel-perfect** on an emulator (arm64 + x86_64), with
 AAudio pulling the mixer and touch driving the cart — all frameworkless (`-DDE_NO_RAYLIB`), zero
 engine surgery. `android/build.sh` is the one-command loop (`CART=<name> ./build.sh`). Persistence
-works: the host sets `de_set_save_dir(internalDataPath/saves)` before `de_init`, and `save_int()`
+works: the host sets `de_set_save_dir(NULL, internalDataPath/saves)` before creating the instance,
+and `save_int()`
 round-trips across relaunches (verified boot #1→#2→#3, `cart.kv` in the app-private dir). What remains
 is Gradle-signed packaging → `.aab` (5), Play Billing (6), and the multi-cart app (7).
+
+> **⚠ THE PORT SPENT ~3 WEEKS UNBUILDABLE AND NOTHING SAID SO (fixed 2026-08-14).** The
+> per-instance refactor changed every entry point to take a `DeInstance *` and replaced
+> `de_init(DeRenderer)` with `de_instance_create` — and `android/app/src/main/cpp/engine.h` is a
+> HAND-COPY of `runtime/platform.h`, so it kept declaring the old shapes while `main.c` called
+> them. It could not link. Nobody noticed because iOS is the port that gets exercised, and
+> `tools/lint-engine-seam.js` only walked `ios/` and `runtime/`. **It walks `android/` now** — that
+> is the actual fix; the migration itself was 14 call sites and an hour.
+>
+> Two things came out of re-running it on the emulator, both worth keeping:
+> * **`android_immersive` aborted the process ~13s into every launch.** It touches the decor view
+>   from `android_main`'s thread, which is NOT the UI thread, so `setDecorFitsSystemWindows` threw
+>   `CalledFromWrongThreadException`. Its single trailing `ExceptionCheck`/`Clear` could never
+>   catch that: CheckJNI aborts at the *next* JNI call while an exception is pending, long before
+>   the end of the block. Every view-touching call is now checked immediately. **Still open:** the
+>   insets/decor work needs `runOnUiThread` to actually take effect — today it degrades to a no-op
+>   and the fullscreen you get comes from `ANativeActivity_setWindowFlags`, which the glue
+>   marshals for us.
+> * There was **no baseline to A/B against** — the pre-migration port does not compile, so "was
+>   this already broken?" could only be answered by reading. Worth remembering the next time a
+>   parked target comes back.
 This doc is the execution companion — the Android twin of [`ios-plan.md`](ios-plan.md). It owns the
 *how-do-we-build-it* ladder; the strategy lives in the shared docs:
 

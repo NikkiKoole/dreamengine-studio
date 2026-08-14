@@ -230,14 +230,20 @@ function run() {
   // disagree with today's seam — that IS the history. Excluded by name rather than by a rule about
   // directory names, so adding another archive stays a decision somebody makes on purpose.
   const ARCHIVED = p => rel(p).startsWith('ios/history/');
+  // ⚠ android/ IS IN SCOPE. It was not, and the entire port silently rotted: every declaration in
+  // its hand-copied engine.h lost touch with the seam, `de_init(DeRenderer)` outlived its own
+  // deletion, and main.c called all of it — a port that could not link, reported by nothing,
+  // under a header whose comment said "byte-for-byte the same contract as ios/Sources/engine.h".
   const hostFiles = [...walk(path.join(ROOT, 'ios'), ['.swift']),
+                     ...walk(path.join(ROOT, 'android'), ['.c']),
                      ...walk(path.join(ROOT, 'tools'), ['.c'])].filter(f => !ARCHIVED(f));
   // The seam headers are the DEFINITION check C measures against, so they cannot be redeclarations
   // of themselves. Everything else that declares a de_* is fair game.
   const SEAM_HEADERS = ['runtime/platform.h', 'runtime/studio.h'];
   const cartFiles = [...walk(path.join(ROOT, 'tools', 'carts'), ['.c']),
                      ...walk(path.join(ROOT, 'runtime'), ['.h']),
-                     ...walk(path.join(ROOT, 'ios'), ['.h'])]
+                     ...walk(path.join(ROOT, 'ios'), ['.h']),
+                     ...walk(path.join(ROOT, 'android'), ['.h'])]
                     .filter(f => !SEAM_HEADERS.includes(rel(f)) && !ARCHIVED(f));
   const arity = seamArity();
   const findings = [

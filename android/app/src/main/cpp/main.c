@@ -33,6 +33,14 @@ static EGLContext g_ctx = EGL_NO_CONTEXT;
 static GLuint g_tex = 0, g_prog = 0;
 static GLint  g_aPos = -1, g_aUV = -1, g_uTex = -1;
 static int    g_view_w = 0, g_view_h = 0;     // full surface size (px)
+// de:engine-owner — this file owns the process's ONE engine. Created in android_main before the
+// audio stream starts, then PASSED to every seam call: de_frame + de_touch_* on the main thread,
+// de_audio_render on the AAudio callback thread. Written once before any of them run, so the
+// cross-thread read is safe without a barrier. One rack per process here (unlike an AUv3, where a
+// host puts several in one), which is exactly why the handle must be explicit rather than implied:
+// the engine no longer has a singleton to fall back on.
+static DeInstance *g_engine = NULL;
+
 static int    g_sw = 0, g_sh = 0;             // engine framebuffer size
 static int    g_ready = 0;
 
@@ -64,7 +72,7 @@ static aaudio_data_callback_result_t audio_cb(
         AAudioStream *s, void *ud, void *audioData, int32_t numFrames) {
     (void)s; (void)ud;
     // de_audio_render fills STEREO INTERLEAVED floats for `numFrames` frames.
-    de_audio_render((float *)audioData, numFrames);
+    de_audio_render(g_engine, (float *)audioData, numFrames);
     return AAUDIO_CALLBACK_RESULT_CONTINUE;
 }
 
@@ -194,8 +202,26 @@ static void mic_poll(struct android_app *app) {
 // re-applied on APP_CMD_GAINED_FOCUS (and after a rotation), not just once at startup.
 // targetSdk 35 ignores the legacy setSystemUiVisibility flags, so we prefer
 // WindowInsetsController (API 30+) and fall back to setSystemUiVisibility for API 26-29.
-// Twin of the iOS edge-gesture deferral (ios/…UIKit-lifecycle root). All JNI is
-// exception-guarded: a wrong-thread throw degrades to a no-op, never a crash.
+// Twin of the iOS edge-gesture deferral (ios/…UIKit-lifecycle root).
+//
+// ⚠ EVERY view-touching call is checked IMMEDIATELY, not once at the end. This block used to
+// carry a single ExceptionCheck/Clear after all the JNI, with a comment promising "a wrong-thread
+// throw degrades to a no-op, never a crash" — and that is not how CheckJNI works. It aborts at the
+// NEXT JNI call made while an exception is pending, so the trailing clear was never reached:
+// `setDecorFitsSystemWindows` threw CalledFromWrongThreadException ("Only the original thread that
+// created a view hierarchy can touch its views. Expected: main Calling: Thread-2"), the throw sat
+// pending, and the following GetMethodID aborted the process ~13s in, every launch.
+//
+// THE DEEPER ISSUE IS STILL OPEN: android_main is NOT the UI thread, so these calls cannot
+// actually succeed from here — they need runOnUiThread. What this guard buys is the documented
+// behaviour (degrade to a no-op) instead of a SIGABRT. The fullscreen you DO get comes from
+// ANativeActivity_setWindowFlags below, which the glue marshals to the UI thread for us.
+static int jni_threw(JNIEnv *env) {          // pending → clear it and tell the caller to stop
+    if (!(*env)->ExceptionCheck(env)) return 0;
+    (*env)->ExceptionClear(env);
+    return 1;
+}
+
 static void android_immersive(struct android_app *app) {
     if (!app || !app->activity || !app->activity->vm) return;
 
@@ -218,16 +244,20 @@ static void android_immersive(struct android_app *app) {
 
     jmethodID getWindow = (*env)->GetMethodID(env, acls, "getWindow", "()Landroid/view/Window;");
     jobject window = getWindow ? (*env)->CallObjectMethod(env, activity, getWindow) : NULL;
+    if (jni_threw(env)) { (*vm)->DetachCurrentThread(vm); return; }
     jclass  wcls   = window ? (*env)->GetObjectClass(env, window) : NULL;
 
     if (window && wcls && sdk >= 30) {
         // window.setDecorFitsSystemWindows(false) → content draws edge-to-edge
         jmethodID setDecor = (*env)->GetMethodID(env, wcls, "setDecorFitsSystemWindows", "(Z)V");
         if (setDecor) (*env)->CallVoidMethod(env, window, setDecor, JNI_FALSE);
+        // the FIRST wrong-thread throw lands here — stop, or the next GetMethodID aborts
+        if (jni_threw(env)) { (*vm)->DetachCurrentThread(vm); return; }
         // WindowInsetsController c = window.getInsetsController();
         jmethodID getCtl = (*env)->GetMethodID(env, wcls, "getInsetsController",
                                                "()Landroid/view/WindowInsetsController;");
         jobject ctl = getCtl ? (*env)->CallObjectMethod(env, window, getCtl) : NULL;
+        if (jni_threw(env)) { (*vm)->DetachCurrentThread(vm); return; }
         if (ctl) {
             jclass ccls = (*env)->GetObjectClass(env, ctl);
             int bars = 0;                            // WindowInsets.Type.systemBars()
@@ -238,20 +268,24 @@ static void android_immersive(struct android_app *app) {
             }
             jmethodID hide = (*env)->GetMethodID(env, ccls, "hide", "(I)V");
             if (hide && bars) (*env)->CallVoidMethod(env, ctl, hide, bars);
+            if (jni_threw(env)) { (*vm)->DetachCurrentThread(vm); return; }
             // setSystemBarsBehavior(BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE = 2): a swipe shows
             // the bars transiently, then they auto-hide — so nav never sticks around mid-game
             jmethodID setBehav = (*env)->GetMethodID(env, ccls, "setSystemBarsBehavior", "(I)V");
             if (setBehav) (*env)->CallVoidMethod(env, ctl, setBehav, 2);
+            if (jni_threw(env)) { (*vm)->DetachCurrentThread(vm); return; }
         }
     } else if (window && wcls) {
         // API 26-29: window.getDecorView().setSystemUiVisibility(immersive-sticky flags)
         jmethodID getDecor = (*env)->GetMethodID(env, wcls, "getDecorView", "()Landroid/view/View;");
         jobject decor = getDecor ? (*env)->CallObjectMethod(env, window, getDecor) : NULL;
+        if (jni_threw(env)) { (*vm)->DetachCurrentThread(vm); return; }
         if (decor) {
             jclass dcls = (*env)->GetObjectClass(env, decor);
             jmethodID setVis = (*env)->GetMethodID(env, dcls, "setSystemUiVisibility", "(I)V");
             // LAYOUT_STABLE|LAYOUT_HIDE_NAVIGATION|LAYOUT_FULLSCREEN|HIDE_NAVIGATION|FULLSCREEN|IMMERSIVE_STICKY
             if (setVis) (*env)->CallVoidMethod(env, decor, setVis, 0x100|0x200|0x400|0x2|0x4|0x1000);
+            if (jni_threw(env)) { (*vm)->DetachCurrentThread(vm); return; }
         }
     }
 
@@ -349,9 +383,9 @@ static void compute_letterbox(void) {
 
 static void draw_frame(void) {
     if (!g_ready) return;
-    de_frame(now_seconds() - g_t0);            // engine draws into sw_cbuf
+    de_frame(g_engine, now_seconds() - g_t0);            // engine draws into sw_cbuf
 
-    const uint32_t *fb = de_framebuffer();
+    const uint32_t *fb = de_framebuffer(g_engine);
     glBindTexture(GL_TEXTURE_2D, g_tex);
     glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, g_sw, g_sh, GL_RGBA, GL_UNSIGNED_BYTE, fb);
 
@@ -408,7 +442,7 @@ static int32_t handle_input(struct android_app *app, AInputEvent *ev) {
         case AMOTION_EVENT_ACTION_POINTER_DOWN: {
             int id = AMotionEvent_getPointerId(ev, idx);
             map_touch(AMotionEvent_getX(ev, idx), AMotionEvent_getY(ev, idx), &fx, &fy);
-            de_touch_begin(id, fx, fy);
+            de_touch_begin(g_engine, id, fx, fy);
             break;
         }
         case AMOTION_EVENT_ACTION_MOVE: {
@@ -416,7 +450,7 @@ static int32_t handle_input(struct android_app *app, AInputEvent *ev) {
             for (size_t i = 0; i < n; i++) {
                 int id = AMotionEvent_getPointerId(ev, i);
                 map_touch(AMotionEvent_getX(ev, i), AMotionEvent_getY(ev, i), &fx, &fy);
-                de_touch_moved(id, fx, fy);
+                de_touch_moved(g_engine, id, fx, fy);
             }
             break;
         }
@@ -425,7 +459,7 @@ static int32_t handle_input(struct android_app *app, AInputEvent *ev) {
         case AMOTION_EVENT_ACTION_CANCEL: {
             int id = AMotionEvent_getPointerId(ev, idx);
             map_touch(AMotionEvent_getX(ev, idx), AMotionEvent_getY(ev, idx), &fx, &fy);
-            de_touch_ended(id, fx, fy);
+            de_touch_ended(g_engine, id, fx, fy);
             break;
         }
         default: return 0;
@@ -476,15 +510,16 @@ void android_main(struct android_app *app) {
     if (app->activity && app->activity->internalDataPath) {
         char sdir[1024];
         snprintf(sdir, sizeof sdir, "%s/saves", app->activity->internalDataPath);
-        de_set_save_dir(sdir);
+        de_set_save_dir(NULL, sdir);   // NULL = before the instance exists; see engine.h
         LOGI("save dir: %s", sdir);
     } else {
         LOGE("no internalDataPath — saves disabled this run");
     }
 
-    de_init(DE_RENDERER_SOFTWARE);
-    g_sw = de_screen_w();
-    g_sh = de_screen_h();
+    g_engine = de_instance_create(DE_RENDERER_SOFTWARE);
+    if (!g_engine) { LOGE("de_instance_create failed — nothing to run"); return; }
+    g_sw = de_screen_w(g_engine);
+    g_sh = de_screen_h(g_engine);
     LOGI("engine init: framebuffer %dx%d", g_sw, g_sh);
 
     audio_start();               // once — independent of the window; survives rotation
@@ -495,7 +530,8 @@ void android_main(struct android_app *app) {
         // don't block while we have a window to animate; block (-1) when we don't
         while (ALooper_pollOnce(g_ready ? 0 : -1, NULL, &events, (void **)&src) >= 0) {
             if (src) src->process(app, src);
-            if (app->destroyRequested) { mic_close(); audio_stop(); egl_teardown(); return; }
+            if (app->destroyRequested) { mic_close(); audio_stop(); egl_teardown();
+                                         de_instance_destroy(g_engine); g_engine = NULL; return; }
         }
         if (g_audio_reopen) {    // a real route change disconnected the stream — reopen it
             g_audio_reopen = 0;
@@ -506,6 +542,8 @@ void android_main(struct android_app *app) {
         draw_frame();
     }
     mic_close();
-    audio_stop();
+    audio_stop();          // stops the thread that calls de_audio_render(g_engine)
     egl_teardown();
+    de_instance_destroy(g_engine);   // LAST: nothing may still be holding the handle
+    g_engine = NULL;
 }

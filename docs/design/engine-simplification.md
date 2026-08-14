@@ -1,6 +1,11 @@
 # Engine simplification backlog — duplication, missing helpers, naming
 
-> **STATUS: DONE** (2026-07-09; last landed 2026-07-12) —
+> **STATUS: ROUND 2 OPEN** (2026-08-14). Round 1 below is closed 33/33 and its ❌ won't-do calls were
+> RE-VERIFIED this round, not assumed — see [Round 2](#round-2--after-the-per-instance-refactor-2026-08-14).
+>
+> ⚠ Round 1's STATUS line is preserved verbatim below for the trail.
+
+> **STATUS (round 1): DONE** (2026-07-09; last landed 2026-07-12) —
 > **33/33 closed, 0 open.** The bare "8 left" the checkbox count used to show was misleading. Of the 33
 > closed: **28 landed** as behaviour-preserving refactors (incl. the final three header-dedups — `net.h`
 > packet helpers, `ui_button_core()`/`ui_wid_hash()`, `radio.h` `rad_knob`/`rad_iabs`/`rad_footer` — landed
@@ -306,3 +311,165 @@ Prove with `tune-check` (pitched) / `fx-check` / `level-check`.
 
 See also [`runtime-safety-audit.md`](runtime-safety-audit.md) — the sibling sweep covering
 correctness & memory-safety bugs (this one is duplication/helpers/naming).
+
+---
+
+## Round 2 — after the per-instance refactor (2026-08-14)
+
+Found by four read-only agents sweeping `runtime/sound.h`, `runtime/studio.c` + the host seam,
+`ios/`, and the ctx refactor as a whole. **The headline is that the code was cleaner than the brief
+assumed** — `#ifdef DE_NO_RAYLIB` appears 17 times in 6606 lines of `studio.c` (the backend fork is a
+1–4 line runtime branch at 34 sites, everything else absorbed by `raylib_compat.c`'s link-time shim);
+`sound.h` has zero direct `de_snd` accesses, zero unused params under `-Wunused-*`, zero dead statics,
+zero `#if 0`. **The residue was not sloppy code. It was half-moved state groups, and instruments that
+could not see them.**
+
+Same rules as round 1: line numbers rot, the function name is the anchor, every item names its gate.
+
+### Landed this round
+
+| what | where | note |
+|---|---|---|
+| `engine-statics.js` dropped 30 rows silently | `tools/` | counted them, returned the count, never printed it. `kv_data`/`fp_cache` lost to a stale line cursor (`RecordDecl` filtered out before it could move it); `de_data_path_v`/`uiaudit_path` lost to `isConst` treating `const char *p` as const. `--check` 13 → 18, each guard mutation-tested |
+| `midi_input.h` never measured | `runtime/midi_ctx.h` | absent from `ENGINE_FILES` for the whole refactor. 14 statics → 0; `de_midi_*` name their instance |
+| seam lint blind spots | `tools/lint-engine-seam.js` | check B read one file, check C required `extern`, and neither could see a seam fn that never TOOK a handle → new check D. `--selfcheck` 14 → 22 |
+| the Android port could not link | `android/` | every declaration pre-refactor, `de_init(DeRenderer)` outliving its deletion. Migrated + verified on the emulator; the lint walks `android/` now |
+| `sound_reset_state` reset only part of the engine | `runtime/sound.h` | 34 config members never re-set → leaked cart→cart through both restore paths. `SR_CART_SWITCH`/`SR_STATE_RESTORE` collapsed into `sound_ctx_activate()` first, so the fix landed once |
+| dead iOS spike layer | `ios/history/` | `canvas.h` declared `de_framebuffer` with the wrong arity AND return type |
+| `mac.sh` gated a stale binary | `ios/mac.sh` | compiled `au-transport-check` three lines AFTER the gate that runs it |
+| `platform.h` framebuffer origin | `runtime/platform.h` | said top-left; it is bottom-up |
+
+### Open — `studio.c`
+
+- [ ] **`fb_w`/`fb_h` are provably always `== de_sw`/`de_sh`.** One write site (`de_ensure_fb`), and
+      all three callers pass the values that become `de_sw`/`de_sh`. A fossil of the abandoned
+      grow-only scheme: 2 fields, ~14 use sites, ~25 lines of comment explaining a distinction with
+      no content. **Doing it makes the next item unrepeatable.** Gate: `refactor-guard`,
+      `canvas-diff drawall`, a `--resize` run.
+- [ ] **`pget_texel` bounds-checks `de_sh` then flips against compile-time `SCREEN_H`.** On a
+      `DE_RESIZABLE` cart every `pget()`/`touching_color()` reads the wrong row. Same at
+      `zoom_rect`'s GPU path (= `ui.h`'s loupe). **No gate covers this today**, which is why it is
+      still there. 2 lines.
+- [ ] **`blend_lut` is 20,480 B — 58% of `DeVideo` — and byte-identical in every instance.** A pure
+      function of a compile-time-constant palette, rebuilt by ~1M inner iterations per instance boot.
+      Hoist back to shared + record in `ctx-classification.json`; `DeVideo` 35,528 → 14,792. ⚠
+      conditional on `base_palette` staying immutable — `palette_hex()`'s own comment flags a
+      pending real `palette_set()`.
+- [ ] **`de_instance_destroy` frees the struct and nothing it allocated** — `sw_cbuf`,
+      `sw_world_buf`, `pres_buf`, `de_state_mem`, `pget_snapshot.data`, sound's allocations.
+      `sizeof(DeInstance)` is 4,121,400 B. Android now calls it; **no Swift caller does**, and
+      `TinyjamAU`'s `deinit` cannot fire anyway (see the Swift list).
+- [ ] **`circfill_pat`/`ovalfill_pat` are dead** — `-Wunused-function` says so in both build configs;
+      `ovalfill_pat` is transitively dead through it. 17 lines, nil risk.
+- [ ] **`sw_tritex_legacy` is 5 weeks past its own soak deadline** (labelled "temporary, 2026-07 …
+      delete once the fast path is trusted"); the four sibling flags were retired after 2–3½ weeks.
+      ~29 lines. A policy call, not a technical one. ⚠ `pset_batch` reads like a sibling and is NOT
+      one — it is a per-platform default.
+- [ ] **Every fragment shader is written twice** (web GLSL-100 / desktop GLSL-330), 102 lines of
+      literal for 2 shaders, differing only in the prologue. Worse, the nearest-palette metric now
+      lives in 5 places across two languages and C and GLSL must agree. ⚠ a broken shader fails
+      SILENTLY (`pal_shader_ok` stays false and sprites just draw unswapped) — the gate must be run.
+- [ ] **Two boot sequences** (`de_init_impl` vs `main()`'s block) do the same six steps; the sheet
+      upload is the near-verbatim pair. This is the `de_process_init` split
+      `per-instance-remaining.md` already names.
+- [ ] `loop_step` is 428 lines with three comment-delimited seams (pause menu, pget snapshot,
+      present). Removes ~0 lines — legibility only, and the `goto draw_window` makes the pause
+      extraction non-trivial. `DeRenderer`'s GPU arm is unreachable and fails silently (+3 lines to
+      reject or log). The palette→float-triples loop is written 4×.
+
+### Open — `sound.h`
+
+- [ ] **The `DRIVE_*` waveshaper switch exists twice, verbatim** — and the header says so
+      ("drive_shape below = a verbatim copy of that switch"). −18 lines. Gate: `refactor-guard`
+      (fma contraction is the only risk), then `click-check`.
+- [ ] **Karplus-Strong seeding duplicated between PLUCK and GUITAR**, differing only in pick
+      position. The precedent already exists — `ks_seed_bore` is shared by REED/PIPE/BRASS under
+      this file's own "write the technique once" rule. −28 lines.
+- [ ] **"ensure FX_X is in bus b's chain" is written 9 times and the copies diverged** — two
+      different bound constants (`N_INSERTS` 19 vs `FX_ORDER_SLOTS` 16, one of which cannot
+      round-trip `fx_order`'s 16-slot packing), and 7 of 9 sites clear `insert_inst` while the two
+      `FX_GRAINS` ones do not. −14 lines, both divergences made impossible.
+- [ ] **Four `SR_*` kinds are in NEITHER classification switch** (`SR_INPUT_MONITOR`,
+      `SR_INSTR_GLIDE`, `SR_INSTR_GLIDE_SCALE`, `SR_INSTR_TRIGGER`) so they silently fall through to
+      `CTXK_APPEND`. A cart riding `instrument_glide()` from a knob appends one log entry per call
+      until `ctx_overflow` trips, after which restore is documented as incomplete. Every kind must be
+      registered in three places across two files — the same shape `lint-aux-params.js` exists for.
+      Either an `SR_LIST(X)` X-macro (−50 lines) or a `lint-sound-reqs.js`.
+- [ ] `sound_callback` is 466 lines with a 273-line per-voice body; the seam is
+      `sound_render_voice()`. Removes ~0 lines — buys a readable callback, a profilable voice
+      renderer, and a smaller collision target in the file CLAUDE.md says to edit only with targeted
+      `Edit`s. Do it AFTER the dedups so there is less to move.
+- [ ] `lfo_seed_ctr` is still a function-local static and is classified **CRITICAL** — two instances
+      interleaving note starts both lose determinism, and `refactor-guard` would sit green through
+      it. Belongs to the per-instance lane, not this list. ⚠ `ctx-classification.json` records its
+      line as 5822; the real one is 4933.
+- [ ] Smaller: CLAV/WURLITZER e-piano blocks are ~20 identical lines apart from their tables (and
+      unlike 808-vs-909 the navkit UPSTREAM is itself parameterised, so this one is real) · five
+      write-only overflow counters with no reader anywhere (give them a reader, don't delete — the
+      file's culture is fail-loud) · `at_psola_slot`'s `formant` param is clamped and then never used
+      · twelve mutually-exclusive per-engine `*_on` bools that could be one `eng_armed` ·
+      `sound_push_req`/`sound_push_ctrl` duplicate the lock-free publish protocol · `ms_samp()` for
+      the 18 hand-written `(x * SOUND_SAMPLE_RATE) / 1000` with inconsistent clamps.
+
+### Open — Swift / iOS
+
+- [ ] **`TinyjamAU.uiTick()` is orphaned** — nothing assigns `CanvasView.onDisplayTick`. It was wired
+      to fix "the panel freezes when the host is stopped", then removed when the panel owned a second
+      engine; that reason died when the panel started getting the AU's own engine. Hosted touches
+      enter the input ring, drained only inside `de_frame`, which on that path runs only when audio
+      is pulled → **stopped host = frozen panel and every tap swallowed.** One line. No gate can see
+      it: `--panel`/`--view`/`--realtime` all render audio.
+- [ ] **The canvas message channel is a `static let`** — N instances share one channel and one
+      `owner`, which is the exact "panel showing an engine nobody can hear" bug its own comment says
+      it exists to prevent.
+- [ ] **`TinyjamAU` can never deallocate**: `Thread { [weak self] in self?.workerLoop() }` takes a
+      strong ref for a call that never returns, so `deinit` never fires, four manual allocations
+      leak, and `de_instance_destroy` is never called.
+- [ ] `AudioEngine`'s render callback does ARC and can `malloc` on the audio thread — `TinyjamAU`
+      went to real trouble to avoid both · `CanvasView.tick()` copies the frame up to 4× per display
+      tick, one of them a fresh `Data` allocation · `44100` is stated 4× in Swift and 0× from the
+      engine · `TinyjamAUFactory` is dead and is the hazard its neighbour warns about · two shipped
+      comments assert the opposite of what the engine now does.
+- [ ] `ios/AUProbeKit.swift` for the probes' shared HOST scaffolding (~−55 lines). **The bright
+      line: a probe may share host plumbing, never the decoder/format/constant it asserts** — the
+      DEZ1 decoder, the `"dreamengineRack"` key and the probes' hardcoded `44100` are known answers
+      and must stay duplicated.
+
+### Open — gates and measurement
+
+- [ ] **`midi-check` phase B is flaky** — failed once and passed twice on identical code; only a
+      throwaway worktree at `HEAD` established that the failure was not a regression. A gate whose
+      failure is indistinguishable from a real one will eventually be believed wrongly.
+- [ ] **`ctx-gen --verify`** — assert every live static in a processed target is classified or
+      hand-annotated. `ctx-gen --check` self-tests the parser, not the source, and both generated
+      headers are now partly hand-maintained. This closes the half-moved-group CLASS rather than its
+      instances, and would have caught `kv_data` and `sw_rot_*` the day they landed.
+- [ ] `sw_rot_active`/`sw_rot_angle` are shared while every buffer they steer is per-instance —
+      `DE_NO_RAYLIB` only, i.e. exactly the AUv3 build. `kv_data` shared while `kv_count`/`kv_loaded`
+      are per-instance. Both violate the "this group moves together or not at all" warning in
+      `studio_ctx.h`.
+- [ ] `de_audio_input`/`de_mic_wanted`/`de_mic_set_active` are waived as process-wide (one capture
+      device). Revisit if an instance ever needs its own mic routing.
+
+### Deliberately NOT doing — re-verified this round
+
+Round 1's three ❌ calls still hold, and I checked each rather than trusting the note: the
+`sw_sline`/`de_cpu_line` merge (a plot callback is an un-inlinable indirect call **per pixel**), the
+`circfill`/`ovalfill` merge (`disc_inside` is exact float arithmetic where `ellipse_inside` divides
+then squares — delegating flips boundary pixels), and the 6× outline-ring predicate (it runs 5× per
+pixel over an O(r²) bbox). Add to them:
+
+- **The software rasterizer stays its own implementation.** `det-probes/` exists because it must be
+  bit-identical on arm64/x86-64/wasm; any shared-primitive proposal must clear `det-probes/run.sh`,
+  not just `canvas-diff`.
+- **808 vs 909 and the twelve engine `*_start`/`*_sample` pairs** are different circuits and
+  different physical models, not parameter sets.
+- **The `X()`/`instrument_X()`/`fx_set_X()` API triples** (~20 sets) are macro-generatable and
+  should not be: this is the beginner-legible public surface the north star protects, and the
+  scaling genuinely varies per call.
+- **The `#define name (ctx->name)` mechanism.** 548 aliases, contained (each `*_ctx.h` has exactly
+  one includer), zero collisions; `tls-spike` measured the alternative as free and the repo chose
+  knowingly. One narrow ask: have `ctx-gen` refuse members under ~4 chars — `#define sc (de_snd->sc)`
+  is a two-character global macro.
+- **`CanvasView.remoteFrame` + `TinyjamCanvasChannel`** are inert but documented as deliberately
+  kept, and `au-msgchannel-spike` actively exercises the channel.

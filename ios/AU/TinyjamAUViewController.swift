@@ -81,7 +81,14 @@ public final class TinyjamAUViewController: AUViewController, AUAudioUnitFactory
         } else if r.rendering == r.mine {
             verdict = "CONNECTED — this panel's own audio unit is the one being rendered"
         } else {
-            verdict = "CONNECTED through the shared per-process engine — instance \(r.rendering) renders, this panel holds \(r.mine); one engine per process, so the picture is the audible one"
+            // ⚠ This branch used to say "one engine per process, so the picture is the audible one".
+            // That stopped being true on 2026-08-14: engine state is per-instance now, so instance
+            // \(r.rendering) and this panel's \(r.mine) are genuinely different racks. What is STILL
+            // process-wide is the published FRAME (de_pres_*), which is why the picture can belong to
+            // the other one — the last remaining shared thing, tracked in per-instance-remaining.md.
+            // With two instances both rendering, renderedBy flips every block, so seeing this line
+            // alternate is expected and is not itself a defect.
+            verdict = "SOUND IS FINE, PICTURE MAY NOT BE — instance \(r.rendering) rendered last, this panel holds \(r.mine); the engines are separate but the published frame is still process-wide"
         }
         guard verdict != lastVerdict else { return }        // only when it CHANGES, so play/stop reads clean
         lastVerdict = verdict

@@ -88,10 +88,17 @@ frames from a worker while the view copies on another thread.
   work but the work is separate.
 - **GarageBand's iPad-layout toggle has never worked** for this plug-in. Pre-dates all of this; the
   CART is fine (`play.js acidcandy --resize` reflows correctly). Filed in `STATUS.md`.
-- **The `--panel` gate is RED and unexplained.** It reports no `[tinyjam] PANEL` line from the audio
-  unit's process. Not the crash (fixed, confirmed). Whether it predates this work is UNVERIFIED —
-  and this session already found one gate (`present-race-check`) that had been silently dead for
-  weeks, so do not assume.
+- **The `--panel` gate is RED, and what it is failing on is now narrower.** Re-run 2026-08-14 after
+  the cart move: **not one `[tinyjam] PANEL` line was logged at all** — not even the pre-render
+  "NO AUDIO HAS RENDERED" one, which is the gate's OWN negative control and fires before any
+  connection question arises. So `reportAudibility` never ran in the harness (the view controller's
+  `au` is nil, or the view is never asked for on that path), and the gate cannot currently tell
+  "the panel is orphaned" from "the panel was never opened". Its headline —
+  *"the panel may be driving an engine nobody hears"* — is therefore not what the evidence says.
+  Counter-evidence: the `--view` gate passes (a host is handed the view controller and it lays out),
+  and the maker has watched the panel work in GarageBand. **Fix the observation before believing the
+  verdict.** Still UNVERIFIED whether it predates this work; this session already found one gate
+  (`present-race-check`) silently dead for weeks, so do not assume.
 
 ---
 

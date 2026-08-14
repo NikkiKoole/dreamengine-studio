@@ -227,10 +227,14 @@ const ENGINE_INTERNALS = new Set([
   'mic.h', 'mic_desktop.h', 'midi_input.h', 'sync.h',          // host input plumbing (sync.h = the external-clock seam; API in studio.h)
   'midi_output.h',                                             // the OUT direction's twin of midi_input.h — CoreMIDI virtual source, compiled inside studio.c; cart-facing API is midi_send_* in studio.h
   'stb_image.h', 'studio_tcc_symbols.h',                       // vendored / generated
-  // the GENERATED per-instance context headers (tools/ctx-gen.js). Not cart-land: they hold the
-  // engine's own state and the macro block it reads it through, and are compiled only inside their
-  // owning engine file. Documented in docs/design/engine-context.md, not the cart-authoring table.
-  'sound_ctx.h', 'studio_ctx.h', 'sync_ctx.h',
+  // the per-instance context headers. Not cart-land: they hold the engine's own state and the
+  // macro block it reads it through, and are compiled only inside their owning engine file.
+  // Documented in docs/design/engine-context.md, not the cart-authoring table.
+  // The first three are GENERATED (tools/ctx-gen.js); midi_ctx.h is the same shape written by
+  // HAND, because ctx-gen refuses to re-run on a processed target and midi_input.h was never one
+  // of its targets — it was missing from engine-statics.js's file list, so its state was never
+  // measured or offered to the generator at all.
+  'sound_ctx.h', 'studio_ctx.h', 'sync_ctx.h', 'midi_ctx.h',
 ]);
 // Generated, not shelf. `_state.h` is one CART's per-instance context (tools/ctx-gen.js --target
 // cart writes runtime/<slug>_state.h): it is nobody's to reach for, it is regenerated rather than

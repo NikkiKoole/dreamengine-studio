@@ -34,15 +34,13 @@
 #include <string.h>
 
 // ── platform-independent event ring + live state (also the web backend's target) ──
-#define MIDI_RING 256   // power of two
-typedef struct { int8_t type; uint8_t note; uint8_t vel; } MidiEv;   // type: +1 on, -1 off
-static MidiEv            midi_ring[MIDI_RING];
-static volatile unsigned midi_w = 0, midi_r = 0;
-static volatile uint8_t  midi_down[128];
-static volatile int      midi_bend_v = 0;     // -8192..8191
-static volatile int      midi_dev_count = 0;
-static char              midi_dev_name[64] = {0};   // name of the connected keyboard (CoreMIDI / Web MIDI)
-static volatile int      midi_g_wanted = 0;   // a cart called a midi_* read fn → host may ask for MIDI access (web opt-in, mirrors mic_g_wanted). See de_midi_wanted() in studio.c + runtime/web_midi.js.
+// The state itself is PER-INSTANCE and lives in midi_ctx.h — `midi_ring`, `midi_r` and the rest
+// below are macros onto this thread's context, so everything here reads exactly as it did when
+// they were file-scope statics. midi_r/midi_ccr are consumer cursors, which is why they could not
+// stay shared: two racks drained one stream and each note reached only one of them.
+#include "midi_ctx.h"
+
+DeMidi *de_instance_midi(DeInstance *in);   // studio.c — this instance's MIDI-input context
 
 // ── CC (knobs) — channel-aware, unlike the note path above ──
 // WHY the channel is kept here and thrown away for notes: a keybed cart has ONE voice, so
@@ -51,13 +49,7 @@ static volatile int      midi_g_wanted = 0;   // a cart called a midi_* read fn 
 // channel 10", which is exactly how a DAW automates a multi-timbral instrument. So notes
 // stay omni (simple, and no cart asked otherwise) and CC carries the channel.
 // See docs/design/midi-out.md for the channel map this mirrors.
-#define MIDI_CCRING 128   // power of two
-typedef struct { uint8_t ch, cc, val; } MidiCC;        // ch 0..15 on the wire (public API is 1..16)
-static MidiCC            midi_ccring[MIDI_CCRING];
-static volatile unsigned midi_ccw = 0, midi_ccr = 0;
-static int16_t           midi_cc_v[16][128];           // last value per channel, -1 = never seen
-static int16_t           midi_cc_any[128];             // last value on ANY channel (the omni read)
-static volatile int      midi_cc_init_done = 0;
+// (MIDI_CCRING, MidiCC and the four members are in midi_ctx.h with the rest of the state.)
 
 static void de_midi_push_cc(int ch, int cc, int val) {
     if (ch < 0 || ch > 15 || cc < 0 || cc > 127 || val < 0 || val > 127) return;
@@ -253,9 +245,31 @@ static void midi_input_shutdown(void) {}
 // On iOS we sample-clock de_frame() in the AU render block, so producer (these) and
 // consumer (midi_get in the cart's update) are the SAME audio thread — no cross-thread race.
 //   type: +1 note-on, -1 note-off ; note 0..127 ; vel 1..127
-void de_midi_event(int type, int note, int vel) { de_midi_push(type, note, vel); }
-void de_midi_bend(int v)                         { midi_bend_v = v; }          // -8192..8191
-void de_midi_cc(int ch, int cc, int val)         { de_midi_push_cc(ch, cc, val); }   // ch 0..15, as it arrives on the wire
+//
+// ⚠ THESE NAME THEIR INSTANCE, for the reason de_sync_position spells out one file over: an event
+// pushed here is CONSUMED by whoever drains it (midi_get advances midi_r past it), so while the
+// ring was process-wide two racks SPLIT one keyboard — each host note-on arriving at exactly one
+// of them, whichever asked first. And in an AUv3 the events are not even from a shared source:
+// each instance's render block hands over its OWN track's events, so they must not meet at all.
+// The swap-push-restore below is the same shape as de_sync_position, deliberately.
+void de_midi_event(DeInstance *in, int type, int note, int vel) {
+    DeMidi *prev = de_midi;
+    if (in) de_midi = de_instance_midi(in);
+    de_midi_push(type, note, vel);
+    de_midi = prev;
+}
+void de_midi_bend(DeInstance *in, int v) {                                     // -8192..8191
+    DeMidi *prev = de_midi;
+    if (in) de_midi = de_instance_midi(in);
+    midi_bend_v = v;
+    de_midi = prev;
+}
+void de_midi_cc(DeInstance *in, int ch, int cc, int val) {   // ch 0..15, as it arrives on the wire
+    DeMidi *prev = de_midi;
+    if (in) de_midi = de_instance_midi(in);
+    de_midi_push_cc(ch, cc, val);
+    de_midi = prev;
+}
 #endif
 
 #ifdef PLATFORM_WEB

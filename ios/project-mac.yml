@@ -22,7 +22,7 @@ targets:
     platform: iOS          # + SUPPORTS_MACCATALYST below == build for "My Mac (Mac Catalyst)"
     sources:
       - path: Sources
-        excludes: [canvas.c, canvas.h, audio.c, audio.h, Tinyjam.storekit]
+        excludes: [Tinyjam.storekit]
       - path: ../runtime/studio.c
       - path: ../runtime/raylib_compat.c
       # gen/mac + gen/macau are OUR OWN staging dirs. The iOS spec uses gen/app + gen/au, and those

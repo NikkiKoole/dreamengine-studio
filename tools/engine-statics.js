@@ -56,6 +56,12 @@ const ENGINE_FILES = [
   'runtime/sync.h',
   'runtime/mic.h',
   'runtime/midi_output.h',
+  // ⚠ midi_input.h was missing from this list for the whole refactor, though studio.c includes it
+  // unconditionally — so its statics were never measured, never classified, and 14 of them were
+  // being mis-attributed to sync.h and then dropped. Among them `midi_r`/`midi_ccr`: single-CONSUMER
+  // ring cursors, which two instances would split an event stream over (each host note-on reaching
+  // exactly one rack). A file absent from this list is not at zero, it is unmeasured.
+  'runtime/midi_input.h',
 ];
 
 // --tu / --files let this be pointed at ANY translation unit, not just the engine's. That is the
@@ -84,7 +90,15 @@ function parseDump(text) {
   let curFile = '?';
   let curLine = 0;
   for (const L of text.split('\n')) {
-    if (!/(VarDecl|FunctionDecl|FieldDecl)/.test(L)) continue;
+    const isDecl = /(VarDecl|FunctionDecl|FieldDecl)/.test(L);
+    // ⚠ A RecordDecl/EnumDecl yields no ROW but MUST move the cursor. `static struct { … } x;`
+    // dumps the anonymous struct's RecordDecl — which is the line that carries `<line:N:…>` —
+    // and THEN a VarDecl showing only `<col:1, col:65>`. Skip the RecordDecl and the line stays
+    // stale from the previous declaration, `claims()` below fails, and the static is dropped
+    // SILENTLY. That is exactly how `kv_data` and `fp_cache` went unmeasured — and `kv_data`
+    // then shipped as a half-moved group (shared table, per-instance count).
+    const isCursor = !isDecl && /(RecordDecl|EnumDecl)/.test(L);
+    if (!isDecl && !isCursor) continue;
     // ⚠ A FieldDecl must NOT update the current file/line. The dump only names a file when it
     // CHANGES, and every later declaration inherits it — so letting struct fields (which live in
     // whatever header defined the struct) move that cursor silently re-attributes the statics that
@@ -98,6 +112,7 @@ function parseDump(text) {
       if (m && m[1] !== 'line' && m[1] !== 'col') { curFile = m[1]; curLine = +m[2]; }
       else { const lm = first.match(/^line:(\d+)/); if (lm) curLine = +lm[1]; }
     }
+    if (isCursor) continue;                       // cursor moved; a struct definition is not state
     const q = L.indexOf("'");
     if (q < 0) continue;
     const name = (L.slice(0, q).trim().match(/([A-Za-z_][A-Za-z0-9_]*)$/) || [])[1];
@@ -112,11 +127,21 @@ function parseDump(text) {
       topLevel: /^[|`]-/.test(indent + L.trim()[0] === undefined ? L : L) && /^[|`]-/.test(L),
       isStatic: /\bstatic\b/.test(tail),
       isExtern: /\bextern\b/.test(tail),
-      isConst: /\bconst\b/.test(type),
+      isConst: isConstObject(type),
       hasInit: /\bcinit\b/.test(L),
     });
   }
   return rows;
+}
+
+// Is the OBJECT const, or merely what it points AT? `static const char *p` is a MUTABLE POINTER
+// to const chars: the pointer is state, two instances share it, and both of ours are written at
+// runtime from argv (`de_data_path_v`, `uiaudit_path`). A leading `const` qualifies the POINTEE;
+// only a `const` after the last `*` — or a `const` on a non-pointer — freezes the object itself.
+// Testing the whole type string for /const/ excluded both as if they were lookup tables.
+function isConstObject(type) {
+  const star = type.lastIndexOf('*');
+  return /\bconst\b/.test(star < 0 ? type : type.slice(star));
 }
 
 function relative(f) {
@@ -125,6 +150,10 @@ function relative(f) {
   const rel = path.relative(ROOT, abs);
   return rel.startsWith('..') ? f : rel;
 }
+
+// RecordDecl/EnumDecl carry no state but DO carry the line cursor (see parseDump), so they have to
+// survive the streaming filter — dropping them here is what made the cursor go stale downstream.
+const KEEP = /(VarDecl|FunctionDecl|FieldDecl|RecordDecl|EnumDecl)/;
 
 function dumpAst(cb) {
   const args = ['-Xclang', '-ast-dump', '-fno-color-diagnostics', '-fsyntax-only',
@@ -138,10 +167,10 @@ function dumpAst(cb) {
     buf += chunk;
     const lines = buf.split('\n');
     buf = lines.pop();
-    for (const L of lines) if (/(VarDecl|FunctionDecl|FieldDecl)/.test(L)) kept += L + '\n';
+    for (const L of lines) if (KEEP.test(L)) kept += L + '\n';
   });
   p.on('close', (code) => {
-    if (buf && /(VarDecl|FunctionDecl|FieldDecl)/.test(buf)) kept += buf + '\n';
+    if (buf && KEEP.test(buf)) kept += buf + '\n';
     if (!kept) { console.error('engine-statics: clang produced no AST (exit ' + code + ')'); process.exit(2); }
     cb(kept);
   });
@@ -206,8 +235,14 @@ function readSource(file) {
 // appear at that line in that file. If it does not, look for the engine file that does have it
 // there, and correct the attribution. This makes the line number the evidence rather than the
 // inherited filename.
+// ⚠ AND SAY SO WHEN IT CANNOT. A row this function gives up on is not a rounding error: it never
+// reaches --list, so ctx-gen never offers it, and the generator's "every static is either moved or
+// explicitly skipped" invariant — documented as the ONLY thing that can catch a silent drop,
+// because refactor-guard cannot — passes VACUOUSLY. The count was computed here from the first
+// version and returned to a caller that never printed it, which is how 30 rows stayed invisible.
 function repairAttribution(rows, files) {
-  let fixed = 0, dropped = 0;
+  let fixed = 0;
+  const droppedNames = [];
   for (const r of rows) {
     if (r.kind !== 'var' || !r.topLevel || !r.isStatic) continue;
     // Strict: the line must actually BE a file-scope static declaration naming this variable.
@@ -223,9 +258,9 @@ function repairAttribution(rows, files) {
     if (files.includes(r.file) && claims(r.file)) continue;      // the claim checks out
     const real = files.filter(claims);
     if (real.length === 1) { if (r.file !== real[0]) fixed++; r.file = real[0]; }
-    else if (files.includes(r.file)) { r.file = '(unverifiable)'; dropped++; }
+    else if (files.includes(r.file)) { droppedNames.push(r.name + '  (claimed ' + r.file + ':' + r.line + ')'); r.file = '(unverifiable)'; }
   }
-  return { fixed, dropped };
+  return { fixed, dropped: droppedNames.length, droppedNames };
 }
 
 function analyze(rows, only) {
@@ -271,6 +306,20 @@ function analyze(rows, only) {
 
 /* ---------------------------------------------------------------------- output */
 
+// The unaccounted-for list, printed in EVERY human-readable mode and exiting nonzero. A static this
+// tool cannot place is worse than one it counts wrong: the number looks healthy and the variable is
+// never processed. Do not silence this by widening `claims()` — fix the parse.
+function reportDropped(res) {
+  const dn = (res.repair && res.repair.droppedNames) || [];
+  if (!dn.length) return;
+  console.log('\n⚠ UNACCOUNTED FOR — ' + dn.length + ' static' + (dn.length === 1 ? '' : 's') +
+              ' this tool could not attribute to a source line:');
+  for (const n of dn) console.log('    ' + n);
+  console.log('  These are INVISIBLE downstream: absent from --list, never offered by ctx-gen, and the');
+  console.log('  "every static moved or explicitly skipped" invariant passes vacuously over them.');
+  process.exitCode = 1;
+}
+
 function report(res, opts) {
   const { perFile, collisions, files } = res;
 
@@ -281,16 +330,34 @@ function report(res, opts) {
     const out = [];
     for (const f of files) for (const v of perFile[f].all) out.push({ file: f, ...v });
     console.log(JSON.stringify(out, null, 1));
+    // stdout stays valid JSON for ctx-gen; the complaint goes to stderr. The nonzero exit is
+    // deliberate and makes ctx-gen's execFileSync throw — a generator must NOT run on a list that
+    // is knowingly incomplete, which is the whole failure this guard exists to stop.
+    if (res.repair && res.repair.dropped) {
+      console.error('engine-statics --list: ⚠ ' + res.repair.dropped + ' static(s) UNACCOUNTED FOR and absent ' +
+                    'from this list:\n    ' + res.repair.droppedNames.join('\n    '));
+      process.exitCode = 1;
+    }
     return;
   }
   const tot = (k) => files.reduce((s, f) => s + perFile[f][k], 0);
 
-  if (opts.json) { console.log(JSON.stringify(res, null, 1)); return; }
+  if (opts.json) {
+    console.log(JSON.stringify(res, null, 1));
+    if (res.repair && res.repair.dropped) {
+      console.error('engine-statics --json: ⚠ ' + res.repair.dropped + ' static(s) UNACCOUNTED FOR (see .repair.droppedNames)');
+      process.exitCode = 1;
+    }
+    return;
+  }
 
   if (opts.quiet) {
     const c = Object.keys(collisions).length;
+    const d = res.repair ? res.repair.dropped : 0;
     console.log(`engine statics: ${tot('total')} mutable file-scope · ${tot('nonZeroInit')} non-zero initialisers · ` +
-                `${tot('localStatics')} function-local · ${c} #define collision${c === 1 ? '' : 's'}`);
+                `${tot('localStatics')} function-local · ${c} #define collision${c === 1 ? '' : 's'}` +
+                (d ? ` · ⚠ ${d} UNACCOUNTED FOR` : ''));
+    if (d) process.exitCode = 1;
     return;
   }
 
@@ -324,6 +391,8 @@ function report(res, opts) {
       for (const v of e.nonZero) console.log('    ' + String(v.line).padStart(5) + '  ' + v.name.padEnd(24) + ' = ' + v.value);
     }
   }
+
+  reportDropped(res);
 }
 
 /* ------------------------------------------------------------------ self-test */
@@ -344,6 +413,9 @@ extern int external;                       // NOT counted: not ours
 static char buf[8] = {0};                  // counted: brace-zero is still zero
 static int  wrapped =
     5;                                     // counted: NON-ZERO across two lines
+static const char *ptr_to_const = 0;       // counted: a MUTABLE pointer — const is the POINTEE
+static char *const const_ptr = 0;          // NOT counted: here the OBJECT itself is const
+static struct { int a; int b; } anon[4];   // counted: the kv_data shape — anonymous struct, one line
 static void fn(int shadow) {               // 'shadow' collides with the static below
     static int fn_local = 2;               // function-local static
     (void)shadow; (void)fn_local;
@@ -376,6 +448,29 @@ int main(void){ fn(plain+commented+zeroed+wrapped+buf[0]+constant+shadow+(int)mu
     ['function-local static is separated',      () => e.localStatics === 1],
     ['a shadowing parameter is a collision',    () => 'shadow' in res.collisions],
     ['a non-shadowed static is not',            () => !('plain' in res.collisions)],
+
+    // ── the three ways this tool was silently UNDER-reporting ──────────────────────────────────
+    // Each pins a shape that produced a real half-moved group or an unmeasured file. All three
+    // failed the same way — a healthy-looking number with the variable simply absent — so assert
+    // presence AND the evidence, never just the count.
+    ['a mutable pointer-to-const IS state',     () => !!e.all.find(v => v.name === 'ptr_to_const')],
+    ['a const POINTER is not',                  () => !e.all.find(v => v.name === 'const_ptr')],
+    ['a static behind an anonymous struct is found',
+                                                () => !!e.all.find(v => v.name === 'anon')],
+    // the anonymous-struct RecordDecl carries the line; if it stops moving the cursor the row
+    // survives with a STALE line, which is what made `claims()` reject kv_data and fp_cache
+    ['…and its line is real evidence',          () => {
+      const r = e.all.find(v => v.name === 'anon');
+      const src = _srcCache['fixture.c'][r.line - 1] || '';
+      return /^\s*static\b/.test(src) && /\banon\b/.test(src);
+    }],
+    ['an unattributable static is REPORTED, not swallowed', () => {
+      // line 1 of the fixture holds no declaration, so this row cannot be verified by anyone
+      const ghost = [{ kind: 'var', topLevel: true, isStatic: true, isConst: false,
+                       file: 'fixture.c', line: 1, name: 'ghost' }];
+      const rep = repairAttribution(ghost, ['fixture.c']);
+      return rep.dropped === 1 && rep.droppedNames.length === 1 && /ghost/.test(rep.droppedNames[0]);
+    }],
   ];
   let pass = 0;
   for (const [name, fn] of checks) {

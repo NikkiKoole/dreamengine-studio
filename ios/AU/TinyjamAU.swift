@@ -409,14 +409,14 @@ public final class TinyjamAU: AUAudioUnit {
                     if m.length >= 3 {
                         let status = m.data.0 & 0xF0, d1 = Int(m.data.1), d2 = Int(m.data.2)
                         switch status {
-                        case 0x90: de_midi_event(d2 > 0 ? 1 : -1, Int32(d1), Int32(d2))   // note-on (vel 0 = off)
-                        case 0x80: de_midi_event(-1, Int32(d1), Int32(d2))                // note-off
-                        case 0xE0: de_midi_bend(Int32(((d2 << 7) | d1) - 8192))           // pitch-bend
+                        case 0x90: de_midi_event(engine, d2 > 0 ? 1 : -1, Int32(d1), Int32(d2))   // note-on (vel 0 = off)
+                        case 0x80: de_midi_event(engine, -1, Int32(d1), Int32(d2))                // note-off
+                        case 0xE0: de_midi_bend(engine, Int32(((d2 << 7) | d1) - 8192))           // pitch-bend
                         // CONTROL CHANGE — the host's MOD WHEEL is CC1, and a DAW's automation lanes
                         // ride this too, so until now NO continuous host control reached the engine at
                         // all. The channel nibble is KEPT (the engine's CC path is channel-aware by
                         // design, unlike its omni note path).
-                        case 0xB0: de_midi_cc(Int32(m.data.0 & 0x0F), Int32(d1), Int32(d2))
+                        case 0xB0: de_midi_cc(engine, Int32(m.data.0 & 0x0F), Int32(d1), Int32(d2))
                         default: break
                         }
                     }

@@ -17,3 +17,23 @@ soon catches the iOS launch-zoom animation (washed-out, wallpaper showing throug
 | `spike5-appgroup.png` | 2026-06-29 | App Group entitlement sharing: the magenta dot (left of the green store gate) lights when the shared App Group suite reports unlocked racks — i.e. the Store mirrored its StoreKit entitlements into the container an AUv3 extension reads. Test proves app-writes/reader-sees. (Cyan squares ~8 = many launches by now.) |
 | _(spike 7 — headless, no screenshot)_ | 2026-06-29 | AUv3 extension: the rack reuses the C synth and loads as a real Audio Unit. Proven by `AUHostTests` (our own minimal host finds it via `AVAudioUnitComponentManager`, instantiates + renders offline, peak 0.180) — no host app/device needed. Evidence is the test log, not a screen. |
 | `spike8-omnichord.png` | 2026-06-29 | **Phase 2 — the REAL engine on iOS.** omnichord (the actual `studio.c`+`sound.h`, zero Raylib, via `-DDE_NO_RAYLIB`) renders pixel-correct + upright: the OMNICHORD chrome, rainbow strumplate, and full chord grid, all from the engine's software canvas blitted by `CanvasView` (bottom-up `sw_cbuf` flipped). CoreAudio pulls the real mixer (`de_audio_render`); UIKit touch → `de_touch_*` drives the strum. No more stand-in canvas/audio. |
+
+## The spike stand-in sources
+
+`canvas.{c,h}` and `audio.{c,h}` live here too — the stand-in software canvas and stand-in synth
+that produced `spike1-canvas-loop.png` and `spike2-audio-vu.png` before the real engine replaced
+them (`spike8-omnichord.png`). Kept for the same reason as the screenshots.
+
+They moved out of `ios/Sources/` on 2026-08-14 because sitting there made them a hazard rather than
+a record. Two targets excluded them BY NAME, so a future spec globbing `Sources` would have compiled
+them silently — and `canvas.h` declares:
+
+```c
+const uint8_t* de_framebuffer(void);        // the spike
+const uint32_t *de_framebuffer(DeInstance *in);   // runtime/platform.h — the real seam
+```
+
+Wrong arity *and* wrong return type. That is undefined behaviour no compiler can see across
+translation units, and it is precisely how `face.h`'s stale `extern void de_resize(int, int)`
+crashed with `in = 0xa7` (167 — the canvas width the cart had asked for). Nothing here is compiled
+by anything; if you want to read how a spike worked, read it. Don't wire it back up.

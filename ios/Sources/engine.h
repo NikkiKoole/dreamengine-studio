@@ -54,9 +54,13 @@ void            de_audio_render(DeInstance *in, float *out, int frames);
 // capture device + permission flow and PUSHES captured MONO frames in; the engine only analyzes
 // them (mic_level/mic_pitch). de_mic_wanted() tells the host when a cart asked for the mic (via
 // mic_start()) so it opens capture + prompts for permission lazily; de_mic_set_active reports back.
-void de_audio_input(const float *mono, int n, int sample_rate);
-int  de_mic_wanted(void);
-void de_mic_set_active(int on);
+// These three name no instance BY DESIGN — there is one capture device per process, so the state
+// behind them is legitimately process-wide (recorded in tools/ctx-classification.json, which keeps
+// runtime/mic.h's statics shared for the same reason). If a second instance ever needs its own mic
+// routing that decision changes, and so do these three lines.
+void de_audio_input(const float *mono, int n, int sample_rate);  // seam-lint-ignore: one capture device per process
+int  de_mic_wanted(void);                                        // seam-lint-ignore: one capture device per process
+void de_mic_set_active(int on);                                  // seam-lint-ignore: one capture device per process
 
 void de_touch_begin(DeInstance *in, int id, float x, float y);
 void de_touch_moved(DeInstance *in, int id, float x, float y);
@@ -65,14 +69,18 @@ void de_touch_ended(DeInstance *in, int id, float x, float y);
 // Host MIDI → engine (the AUv3 render block feeds these from its event list). type: +1
 // note-on, -1 note-off; note 0..127; vel 1..127. de_midi_bend: -8192..8191 (0 = centre).
 // A keybed cart (epiano/moog/…) drains them via the engine's midi_get() and plays notes.
-void de_midi_event(int type, int note, int vel);
-void de_midi_bend(int v);
+// ⚠ NAME THEIR INSTANCE, for the same reason de_sync_position does below. midi_get() ADVANCES a
+// read cursor past each event, so while this ring was process-wide two racks SPLIT one keyboard —
+// every host note-on landing in exactly one of them. In an AUv3 the events are not even shared:
+// each instance's render block hands over its own track's.
+void de_midi_event(DeInstance *in, int type, int note, int vel);
+void de_midi_bend(DeInstance *in, int v);
 // CONTROL CHANGE — the mod wheel is CC1. `ch` is 0..15 as it arrives on the wire and is KEPT (unlike
 // the note path, which is omni): a rack with several machines wants "cutoff on channel 1" to reach a
 // different machine than channel 10. A cart reads it with midi_cc(ch, cc) / midi_cc_get().
 // ⚠ This declaration is the whole reason the mod wheel did nothing until 2026-08-14 — the engine has
 // implemented de_midi_cc since runtime/midi_input.h:258 and it was simply never exported to Swift.
-void de_midi_cc(int ch, int cc, int val);
+void de_midi_cc(DeInstance *in, int ch, int cc, int val);
 
 // HOST TRANSPORT (runtime/sync.h) — the AUv3 render block pushes the host's playhead here every
 // block, and a cart reads it through sync_active()/sync_playing()/sync_beats()/sync_bpm(). beats =

@@ -27,12 +27,27 @@
  *    DEFAULT engine. It never fails loudly: the function compiles, returns plausible values, and
  *    silently drives the wrong rack — and the handle sitting in the signature makes it READ as done.
  *    A legitimate one (de_is_resizable reads a compile-time flag) says so with `seam-lint-ignore`.
+ *    ⚠ It scans EVERY engine .c, not just studio.c. While it read one file, the four input-ring
+ *    entry points in raylib_compat.c were outside its view — a check's blind spot is not a pass.
  *
- * C. A CART DECLARING ITS OWN `extern` FOR AN ENGINE FUNCTION.  `face.h` and 7 carts declared
+ * C. A REDECLARED ENGINE FUNCTION WITH THE WRONG SIGNATURE.  `face.h` and 7 carts declared
  *    `extern void de_resize(int, int)` against a function that had taken a `DeInstance *` for weeks.
  *    That is undefined behaviour the compiler CANNOT see across translation units, and it surfaced
  *    as a crash with `in = 0xa7` — which was 167, the canvas width the cart had asked for.
  *    THE RULE: if a cart needs an extern for an engine function, THE SEAM IS MISSING AN API.
+ *    ⚠ `extern` is not part of the defect — a bare prototype is the same UB, and `ios/` is where
+ *    they live (a bridging header IS a hand-copied seam). Checking only `extern`, only under
+ *    tools/carts + runtime, missed `ios/Sources/canvas.h`'s `const uint8_t *de_framebuffer(void)`
+ *    against the engine's `const uint32_t *de_framebuffer(DeInstance *)` — wrong arity AND wrong
+ *    return type, sitting in the tree the whole time this check was green.
+ *
+ * D. A SEAM FUNCTION THAT NEVER TOOK A HANDLE AT ALL.  B's blind twin, and structurally invisible
+ *    to it: B looks for a handle being DISCARDED, so an entry point that never had one is not a
+ *    finding — it is not even a candidate. `de_sync_position` was exactly this, and the header
+ *    still records what it cost ("the FIRST instance swallowed the START edge and every other one
+ *    joined mid-flow and stayed silent — two DAW tracks, one playing"). Its surviving twins are the
+ *    MIDI trio. THE RULE: everything Swift can call names its engine, or says in a `seam-lint-ignore`
+ *    comment why the state behind it is legitimately process-wide (the mic: one capture device).
  *
  * Everything it reports is a real defect shape with a real incident behind it; there are no style
  * findings here. `--selfcheck` carries a fixture for each check IN BOTH DIRECTIONS, because a lint
@@ -52,7 +67,10 @@ function walk(dir, exts, out = []) {
   let ents = [];
   try { ents = fs.readdirSync(dir, { withFileTypes: true }); } catch (_) { return out; }
   for (const e of ents) {
-    if (e.name === 'build' || e.name === 'gen' || e.name === 'node_modules' || e.name.startsWith('.')) continue;
+    // ⚠ `build-mac` too, not just `build`. Xcode COPIES engine.h into the built framework, so the
+    // products tree holds a frozen snapshot of an older seam — 14 arity "mismatches" that are just
+    // last month's header. A lint that reports build output teaches people to ignore it.
+    if (/^build(-|$)/.test(e.name) || e.name === 'gen' || e.name === 'node_modules' || e.name.startsWith('.')) continue;
     const p = path.join(dir, e.name);
     if (e.isDirectory()) walk(p, exts, out);
     else if (exts.some(x => e.name.endsWith(x))) out.push(p);
@@ -60,6 +78,17 @@ function walk(dir, exts, out = []) {
   return out;
 }
 const rel = p => path.relative(ROOT, p);
+
+// The comment block attached to the declaration at `i`, however long it is. A FIXED lookback was
+// wrong in the direction that matters: both waivers here demand a REASON, reasons run to several
+// lines, and a 4-line window silently failed to see one — the waiver looked ignored and the finding
+// looked unwaivable. Walk back over contiguous comment/blank lines instead and stop at real code,
+// so the block cannot reach past the previous declaration to borrow its waiver.
+function commentBlockAbove(lines, i) {
+  let j = i - 1;
+  while (j >= 0 && /^\s*(\/\/|\*|\/\*|$)/.test(lines[j])) j--;
+  return lines.slice(j + 1, i).join('\n');
+}
 // strip // and /* */ so a rule never fires on prose ABOUT the rule — this file's own header would
 // otherwise trip every check it defines.
 function decomment(src) {
@@ -119,10 +148,8 @@ function checkSeamHandles(file) {
       if (depth <= 0) break;
     }
     if (!/\(\s*void\s*\)\s*in\s*;/.test(body)) continue;
-    // the waiver may sit in the body, or in the comment block above it — which is usually several
-    // lines, because the rule demands a REASON and a reason rarely fits on one line
-    const above = lines.slice(Math.max(0, i - 4), i).join('\n');
-    if (/seam-lint-ignore/.test(body) || /seam-lint-ignore/.test(above)) continue;
+    // the waiver may sit in the body, or anywhere in the comment block above it
+    if (/seam-lint-ignore/.test(body) || /seam-lint-ignore/.test(commentBlockAbove(lines, i))) continue;
     const name = (L.match(/([A-Za-z_]\w*)\s*\(\s*DeInstance/) || [])[1] || '?';
     out.push({ check: 'B', file: rel(file), line: i + 1,
       msg: `${name}() takes a DeInstance* and discards it with (void)in — it will silently act on whichever engine the CURRENT THREAD last entered, which on a host thread is the default one. Use the handle, or mark it "seam-lint-ignore" with the reason.` });
@@ -148,19 +175,49 @@ function seamArity() {
 }
 const argc = a => (a.trim() === '' || a.trim() === 'void') ? 0 : a.split(',').length;
 
+// `extern` is OPTIONAL here on purpose — a bare prototype in a header is the identical UB, and it is
+// the shape the ios/ bridging headers use. The seam headers themselves are excluded by the caller:
+// they are the definition this is measured against, not a redeclaration of it.
 function checkCartExterns(files, arity) {
   const out = [];
   for (const f of files) {
     const src = decomment(fs.readFileSync(f, 'utf8'));
-    for (const d of src.matchAll(/\bextern\s+[A-Za-z_][\w\s*]*\b(de_\w+)\s*\(([^;)]*)\)\s*;/g)) {
+    for (const d of src.matchAll(/(?:^|\n)\s*(?:extern\s+)?[A-Za-z_][\w\s*]*?\b(de_\w+)\s*\(([^;)]*)\)\s*;/g)) {
       const [, name, args] = d;
       const real = arity.get(name);
       if (real === undefined) continue;                 // not a seam function we can check
       const got = argc(args);
       if (got === real) continue;                       // matches — still hand-rolled, but not UB
-      out.push({ check: 'C', file: rel(f), line: lineOf(src, d.index),
-        msg: `declares its own "extern ${name}(${got} arg${got === 1 ? '' : 's'})" but the engine defines ${real} — UNDEFINED BEHAVIOUR no compiler sees across translation units. If a cart needs this, the seam is missing an API (that is how canvas_resize was born).` });
+      // ⚠ line from the NAME, not the match start: the leading `\s*` swallows the blank lines a
+      // decommented doc block leaves behind, so d.index lands on the PREVIOUS declaration.
+      out.push({ check: 'C', file: rel(f), line: lineOf(src, d.index + d[0].indexOf(name)),
+        msg: `declares its own "${name}(${got} arg${got === 1 ? '' : 's'})" but the engine defines ${real} — UNDEFINED BEHAVIOUR no compiler sees across translation units. If a cart needs this, the seam is missing an API (that is how canvas_resize was born).` });
     }
+  }
+  return out;
+}
+
+/* ────────────────────────────────── D. a seam function with no handle ───────── */
+
+// Every de_* Swift can call must name the engine it means. The waiver is a MARKER next to the
+// declaration, not a list in here — same reason as check A: a new entry point cannot forget to be
+// added to a list that does not exist, and the reason stays where the reader is.
+function checkHandleless(file, arity) {
+  const out = [];
+  let raw;
+  try { raw = fs.readFileSync(file, 'utf8'); } catch (_) { return out; }
+  const lines = raw.split('\n');
+  const src = decomment(raw);
+  for (const d of src.matchAll(/(?:^|\n)\s*[A-Za-z_][\w\s*]*?\b(de_\w+)\s*\(([^;)]*)\)\s*;/g)) {
+    const [, name, args] = d;
+    if (/DeInstance\s*\*/.test(args)) continue;              // names its instance — the whole point
+    if (name === 'de_instance_create') continue;             // it RETURNS the handle; it cannot take one
+    const line = lineOf(src, d.index + d[0].indexOf(name));   // the NAME's line — see check C
+    // the reason may sit on the declaration itself or anywhere in its comment block
+    if (/seam-lint-ignore/.test(lines[line - 1] || '') ||
+        /seam-lint-ignore/.test(commentBlockAbove(lines, line - 1))) continue;
+    out.push({ check: 'D', file: rel(file), line,
+      msg: `${name}() is callable from Swift but names no engine — with more than one instance in the process it acts on whichever the calling thread last entered. That is what made de_sync_position drop the START edge for every rack but the first. Give it a DeInstance*, or mark it "seam-lint-ignore" with why its state is legitimately process-wide.` });
   }
   return out;
 }
@@ -168,14 +225,27 @@ function checkCartExterns(files, arity) {
 /* ─────────────────────────────────────────────────────────────────── report ── */
 
 function run() {
+  // ios/history/ is an ARCHIVE, not source: the spike stand-ins that produced the milestone
+  // screenshots, compiled by nothing, carrying a README that says so. Their signatures deliberately
+  // disagree with today's seam — that IS the history. Excluded by name rather than by a rule about
+  // directory names, so adding another archive stays a decision somebody makes on purpose.
+  const ARCHIVED = p => rel(p).startsWith('ios/history/');
   const hostFiles = [...walk(path.join(ROOT, 'ios'), ['.swift']),
-                     ...walk(path.join(ROOT, 'tools'), ['.c'])];
+                     ...walk(path.join(ROOT, 'tools'), ['.c'])].filter(f => !ARCHIVED(f));
+  // The seam headers are the DEFINITION check C measures against, so they cannot be redeclarations
+  // of themselves. Everything else that declares a de_* is fair game.
+  const SEAM_HEADERS = ['runtime/platform.h', 'runtime/studio.h'];
   const cartFiles = [...walk(path.join(ROOT, 'tools', 'carts'), ['.c']),
-                     ...walk(path.join(ROOT, 'runtime'), ['.h'])];
+                     ...walk(path.join(ROOT, 'runtime'), ['.h']),
+                     ...walk(path.join(ROOT, 'ios'), ['.h'])]
+                    .filter(f => !SEAM_HEADERS.includes(rel(f)) && !ARCHIVED(f));
+  const arity = seamArity();
   const findings = [
     ...checkEngineOwners(hostFiles),
-    ...checkSeamHandles(path.join(ROOT, 'runtime', 'studio.c')),
-    ...checkCartExterns(cartFiles, seamArity()),
+    // every engine .c, not just studio.c — raylib_compat.c holds the whole input seam
+    ...walk(path.join(ROOT, 'runtime'), ['.c']).flatMap(checkSeamHandles),
+    ...checkCartExterns(cartFiles, arity),
+    ...checkHandleless(path.join(ROOT, 'ios', 'Sources', 'engine.h'), arity),
   ];
 
   if (QUIET) {
@@ -185,14 +255,15 @@ function run() {
   const TITLES = {
     A: 'TWO ENGINES IN ONE HOST — de_instance_create allocates now; it used to be a singleton',
     B: 'A SEAM FUNCTION IGNORES ITS HANDLE — it will act on the wrong engine, silently',
-    C: 'A CART DECLARES ITS OWN ENGINE EXTERN — undefined behaviour across translation units',
+    C: 'AN ENGINE FUNCTION IS REDECLARED WITH THE WRONG SIGNATURE — UB across translation units',
+    D: 'A SEAM FUNCTION NAMES NO ENGINE — process-wide state behind a per-instance boundary',
   };
   if (!findings.length) {
     console.log('\nENGINE SEAM: ok\n  one engine per host · every seam uses its handle · no cart-declared engine externs\n');
     return findings;
   }
   console.log(`\nENGINE SEAM — ${findings.length} finding(s)\n`);
-  for (const k of ['A', 'B', 'C']) {
+  for (const k of ['A', 'B', 'C', 'D']) {
     const g = findings.filter(f => f.check === k);
     if (!g.length) continue;
     console.log(`  ${TITLES[k]}`);
@@ -241,6 +312,30 @@ function selfcheck() {
   t('C: an arity MISMATCH is caught',          checkCartExterns([cBad], ar).length === 1);
   t('C: a matching extern is not',             checkCartExterns([cOk], ar).length === 0);
   t('C: an unknown function is not guessed at', checkCartExterns([cUnk], ar).length === 0);
+  // `extern` was never the defect — a bare prototype is identical UB, and it is the shape the ios/
+  // bridging headers use. This is the assertion that would have caught ios/Sources/canvas.h.
+  const cProto = w('c4.h', 'const uint8_t* de_resize(int w, int h);\n');
+  const cPrOk  = w('c5.h', 'void de_resize(DeInstance *in, int w, int h);\n');
+  t('C: a BARE PROTOTYPE mismatch is caught too', checkCartExterns([cProto], ar).length === 1);
+  t('C: a bare prototype that matches is not',    checkCartExterns([cPrOk], ar).length === 0);
+  // the line must point at the DECLARATION, not at whatever preceded a decommented doc block —
+  // an off-by-six here sends the reader to the wrong function and the finding reads as a false one
+  const cLine = w('c6.h', 'void de_frame(DeInstance *in, double t);\n\n// a doc block\n// on two lines\nvoid de_resize(int w, int h);\n');
+  t('C: the reported line is the declaration\'s', checkCartExterns([cLine], ar)[0].line === 5);
+
+  // ── D, both directions
+  const dBad   = w('d1.h', 'void de_midi_event(int type, int note, int vel);\n');
+  const dOk    = w('d2.h', 'void de_sync_position(DeInstance *in, double b);\n');
+  const dWaive = w('d3.h', '// seam-lint-ignore: one capture device per process\nint de_mic_wanted(void);\n');
+  const dCreate= w('d4.h', 'DeInstance *de_instance_create(DeRenderer r);\n');
+  t('D: a handle-less seam fn IS caught',      checkHandleless(dBad, ar).length === 1);
+  t('D: one that names its instance is not',   checkHandleless(dOk, ar).length === 0);
+  t('D: a waived one is not',                  checkHandleless(dWaive, ar).length === 0);
+  t('D: de_instance_create RETURNS the handle', checkHandleless(dCreate, ar).length === 0);
+  // D is B's blind twin: B only sees a handle being DISCARDED, so it is structurally incapable of
+  // reporting a function that never had one. Assert that gap explicitly, or D looks redundant and
+  // someone deletes it.
+  t('D: check B is blind to this shape (why D exists)', checkSeamHandles(dBad).length === 0);
 
   // the arity table must actually be populated from the header, or C passes vacuously forever
   const real = seamArity();

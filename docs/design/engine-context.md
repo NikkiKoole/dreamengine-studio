@@ -1,9 +1,16 @@
 # The engine context — giving `sound.h` and `studio.c` per-instance state
 
-> **STATUS: building. `sound.h` IS DONE and byte-identical** — 327 of its 340 statics live in the
-> context struct; `node tools/engine-statics.js` reads **13** for that file, and every one of the 13
-> is a recorded decision (1 shared, 5 harness, 5 deferred, 2 dead-weight), not a leftover. Next:
-> `studio.c` (222). Lane: [`HANDOFF.md`](../HANDOFF.md) → the AUv3 thread.
+> **STATUS: building — the engine files are done; the tail is function-local statics.**
+> `sound.h` (byte-identical), `studio.c`, `sync.h` and `midi_input.h` have all moved, and so have
+> all 8 cart-land headers. What is left is the part a `#define` cannot fix: **20 function-local
+> statics**, whose declarations have to move by hand, `lfo_seed_ctr` (a determinism decision, not a
+> move) foremost. Lane: [`HANDOFF.md`](../HANDOFF.md) → the AUv3 thread.
+>
+> ⚠ **Do not trust a static COUNT written in prose here — run `node tools/engine-statics.js`.**
+> Every number in this doc has been overtaken at least once, and until 2026-08-14 the tool itself
+> under-reported: it silently dropped 30 rows it could not attribute and never printed the count,
+> which is how `kv_data` shipped as a half-moved group and how `midi_input.h` stayed outside the
+> measurement set entirely. It now names anything it cannot place and exits nonzero.
 > **What is LEFT before this is done: [`per-instance-remaining.md`](per-instance-remaining.md)** — the
 > single checklist, in order, with what is already finished.
 > Sibling docs: [`engine-instance-seam.md`](engine-instance-seam.md) (the host-facing handle — DESIGN THAT FIRST,
@@ -217,7 +224,7 @@ state in a struct the CART owns (`acid303.h` is the model — it was multi-insta
 | header | statics | status |
 |---|---|---|
 | `ui.h` | 28 | **done** |
-| `keybed.h` | 18 | **deferred — needs a type hoist**, see below |
+| `keybed.h` | 18 | **done** — the type hoist it needed is at `keybed.h:75-86` |
 | `solo.h` | 10 | **done** |
 | `gestures.h` | 8 | **done** |
 | `radio.h` | 7 | **done** |
@@ -225,11 +232,12 @@ state in a struct the CART owns (`acid303.h` is the model — it was multi-insta
 | `cursor.h` | 3 | **done** |
 | `drumkit.h` · `tr909.h` | 1 each | **done** |
 
-**7 of 8 done.** `keybed.h` is deferred for a structural reason worth knowing: its declarations are
-INTERLEAVED with code that uses them (`kb_slot` is read at line 78, `KbPtr` is declared at 125), so
-the fork block has no valid position — before the code that uses the names, it precedes a type the
-struct needs; after that type, it follows uses of its own names. It needs the same transitive
-**type-hoist** `ctx-gen` does for `sound.h`. Every other header declared its state in one run.
+**8 of 8 done.** `keybed.h` was the last and the only hard one, for a structural reason worth
+keeping: its declarations were INTERLEAVED with the code that uses them, so the fork block had no
+valid position — before that code it precedes a type the struct needs, after it it follows uses of
+its own names. The fix was the same transitive **type-hoist** `ctx-gen` does for `sound.h`, done by
+hand at `keybed.h:75-86`, plus two callback typedefs the X-list could not express. The fork is at
+`:108`/`:114`, `kb_ctx_init_` at `:117`. Every other header declared its state in one run.
 
 **Four bugs the generation hit, all worth knowing before doing `keybed.h`:**
 1. **An array with no initialiser needs `{0}`, not `0`** — `static int a[128] = 0;` does not compile.

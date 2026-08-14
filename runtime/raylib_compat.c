@@ -295,10 +295,17 @@ static void de_in_push(int kind, int id, float x, float y) {
 // The host side: append only. Cheap enough to call from a UIKit touch handler with 10 fingers.
 // A touch belongs to the panel it landed on, so these name their instance. The ring itself is still
 // process-wide while the state is (step 2 gives each instance its own).
-void de_touch_begin(DeInstance *in, int id, float x, float y) { (void)in; de_in_push(DE_IN_TOUCH_BEGIN, id, x, y); }
-void de_touch_moved(DeInstance *in, int id, float x, float y) { (void)in; de_in_push(DE_IN_TOUCH_MOVED, id, x, y); }
-void de_touch_ended(DeInstance *in, int id, float x, float y) { (void)in; de_in_push(DE_IN_TOUCH_ENDED, id, x, y); }
-void de_key_event(DeInstance *in, int key, int down)          { (void)in; de_in_push(DE_IN_KEY, key, down ? 1.0f : 0.0f, 0); }
+//
+// seam-lint-ignore: the handle is accepted and deliberately unused UNTIL that step lands. Everything
+// downstream is one shared pool — de_in_ring, de_touch[], the synthesised mouse, the key arrays —
+// so honouring `in` here would route into per-instance storage that does not exist yet, which reads
+// as fixed and is not. The consequence while this stands: TWO AUv3 PANELS SHARE ONE TOUCH POOL, so
+// a finger on one plug-in window is visible to the other. Delete this waiver in the same commit
+// that makes the pool per-instance; the four (void)in casts go with it.
+void de_touch_begin(DeInstance *in, int id, float x, float y) { (void)in; de_in_push(DE_IN_TOUCH_BEGIN, id, x, y); }  // seam-lint-ignore: shared pool, see above
+void de_touch_moved(DeInstance *in, int id, float x, float y) { (void)in; de_in_push(DE_IN_TOUCH_MOVED, id, x, y); }  // seam-lint-ignore: shared pool, see above
+void de_touch_ended(DeInstance *in, int id, float x, float y) { (void)in; de_in_push(DE_IN_TOUCH_ENDED, id, x, y); }  // seam-lint-ignore: shared pool, see above
+void de_key_event(DeInstance *in, int key, int down)          { (void)in; de_in_push(DE_IN_KEY, key, down ? 1.0f : 0.0f, 0); }  // seam-lint-ignore: shared pool, see above
 
 // The engine side: everything below runs on the thread that calls de_frame, and owns the pool.
 static DeTouchPoint *de_touch_find(int id) {

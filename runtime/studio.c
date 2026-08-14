@@ -2901,6 +2901,7 @@ struct DeInstance {
     DeSound snd;       // this engine's audio state     (sound_ctx.h)
     DeVideo vid;       // this engine's video state     (studio_ctx.h)
     DeSync  syn;       // this engine's host transport  (sync_ctx.h)
+    DeMidi  mid;       // this engine's MIDI input      (midi_ctx.h)
     // A session blob de_load_state has ACCEPTED but not yet applied. The host sets state on ITS
     // thread while the frame worker runs, so the apply waits for the top of de_frame, where the
     // cart's state is nobody else's (de_ss_apply). Owned here, freed on apply or destroy.
@@ -2929,12 +2930,13 @@ static _Thread_local struct DeInstance *de_cur;
 #define DE_ENTER(in_)                                                              \
     struct DeInstance *de_prev_ = de_cur;                                          \
     DeSound *de_prev_snd_ = de_snd; DeVideo *de_prev_vid_ = de_vid;                \
-    DeSync  *de_prev_syn_ = de_sync;                                               \
+    DeSync  *de_prev_syn_ = de_sync; DeMidi *de_prev_mid_ = de_midi;               \
     de_cur = (in_);                                                                \
     if ((in_) && (in_)->id != 0) {                                                 \
         de_snd = &(in_)->snd; de_vid = &(in_)->vid; de_sync = &(in_)->syn;         \
+        de_midi = &(in_)->mid;                                                     \
     }
-#define DE_LEAVE()     de_cur = de_prev_; de_snd = de_prev_snd_; de_vid = de_prev_vid_; de_sync = de_prev_syn_
+#define DE_LEAVE()     de_cur = de_prev_; de_snd = de_prev_snd_; de_vid = de_prev_vid_; de_sync = de_prev_syn_; de_midi = de_prev_mid_
 
 /* Resolve an instance to its video state WITHOUT entering it.
  *
@@ -2973,12 +2975,14 @@ static void de_init_impl(DeRenderer renderer);
 static DeSound de_snd_pristine;
 static DeVideo de_vid_pristine;
 static DeSync  de_sync_pristine;
+static DeMidi  de_midi_pristine;
 static int     de_pristine_taken = 0;
 static void de_take_pristine(void) {
     if (de_pristine_taken) return;
     de_snd_pristine  = de_snd_default;
     de_vid_pristine  = de_vid_default;
     de_sync_pristine = de_sync_default;
+    de_midi_pristine = de_midi_default;
     de_pristine_taken = 1;
 }
 
@@ -2995,6 +2999,7 @@ DeInstance *de_instance_create(DeRenderer renderer) {
     in->snd = de_snd_pristine;   // the PRISTINE template, not the live one instance 0 is using
     in->vid = de_vid_pristine;
     in->syn = de_sync_pristine;
+    in->mid = de_midi_pristine;
     DE_ENTER(in); de_init_impl(renderer); DE_LEAVE();
     in->booted = 1;
     return in;
@@ -3003,6 +3008,7 @@ DeInstance *de_instance_create(DeRenderer renderer) {
 // The accessor sync.h needs: it is included before DeInstance is defined, so it asks for the
 // context rather than reaching into the struct.
 DeSync *de_instance_sync(DeInstance *in) { return (in && in->id != 0) ? &in->syn : &de_sync_default; }
+DeMidi *de_instance_midi(DeInstance *in) { return (in && in->id != 0) ? &in->mid : &de_midi_default; }
 
 void de_instance_destroy(DeInstance *in) {
     if (!in || in->id == 0) return;   // instance 0 is static and outlives everything

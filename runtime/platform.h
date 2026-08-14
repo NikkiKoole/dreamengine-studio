@@ -85,7 +85,11 @@ void de_instance_destroy(DeInstance *in);
 void de_frame(DeInstance *in, double t);
 
 // SOFTWARE renderer: pointer to the finished frame, RGBA8888, de_screen_w()*
-// de_screen_h() pixels, row-major top-left origin. Returns NULL under DE_RENDERER_GPU.
+// de_screen_h() pixels, row-major and BOTTOM-UP — row 0 is the BOTTOM of the picture, so the
+// blit must flip Y (iOS does it with a row-wise copy, Android in the GLES shader). This line
+// said "top-left origin" until 2026-08-14, which is upside down and cost a new backend author
+// their first render; the store it describes is studio.c:777, `(de_sh - 1 - sy) * fb_w + sx`.
+// Returns NULL under DE_RENDERER_GPU.
 // ONLY SAFE ON THE THREAD THAT CALLS de_frame — it is the engine's live canvas, not a snapshot.
 const uint32_t *de_framebuffer(DeInstance *in);
 

@@ -2,9 +2,24 @@
 #define DE_ANDROID_ENGINE_H
 #include <stdint.h>
 
-// The dreamengine platform seam, as the Android host sees it. Byte-for-byte the same
-// contract as ios/Sources/engine.h (mirrors runtime/platform.h) — studio.c +
-// raylib_compat.c under DE_NO_RAYLIB provide the bodies.
+// The dreamengine platform seam, as the Android host sees it.
+//
+// ⚠⚠ THIS WHOLE FILE IS STALE AND THE PORT WILL NOT BUILD (noticed 2026-08-14). It was written
+// against the pre-per-instance seam, and EVERY declaration below is now wrong: the engine takes a
+// `DeInstance *` first argument on de_frame/de_framebuffer/de_screen_w/de_screen_h/de_resize/
+// de_is_resizable/de_set_safe_area/de_set_backing_scale/de_set_save_dir/de_audio_render/
+// de_touch_*/de_midi_*, and `de_init(DeRenderer)` no longer exists at all — it is
+// `DeInstance *de_instance_create(DeRenderer)`. main.c calls the old shapes throughout.
+//
+// It says "byte-for-byte the same contract as ios/Sources/engine.h" below. That was true when
+// written and is exactly the kind of sentence this repo has learned to distrust: nothing checked
+// it, because tools/lint-engine-seam.js only walks ios/ and runtime/. Do NOT patch individual
+// lines here — a half-migrated header reads as done and is worse than an obviously broken one.
+// Migrating the port is one job: this header, main.c's call sites, and one engine owner
+// (`de:engine-owner`) holding the instance main.c currently keeps implicitly.
+//
+// Was: byte-for-byte the same contract as ios/Sources/engine.h (mirrors runtime/platform.h) —
+// studio.c + raylib_compat.c under DE_NO_RAYLIB provide the bodies.
 //
 // Render: SOFTWARE — de_frame() fills a CPU framebuffer; de_framebuffer() returns it
 //   (RGBA8888 = bytes R,G,B,A per sw_pack, de_screen_w()*de_screen_h(), BOTTOM-UP —

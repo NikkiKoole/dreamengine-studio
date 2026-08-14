@@ -140,15 +140,23 @@ xcrun swiftc -O -o rate-convert-check rate-convert-check.swift AU/RateConvert.sw
 # SILENTLY FALLS BACK to out-of-process when in-process loading fails — so the plug-in kept working for
 # us and died in the DAW. This one instantiates nothing; it checks the declaration is honest.
 echo "▸ loadability gate (--loadable) — can a DAW load our code at all?"
+# ⚠ THE COMPILE BELONGS ABOVE THE FIRST GATE THAT RUNS THE BINARY, not next to the second one.
+# It used to sit below --loadable, which meant this gate ran the PREVIOUS build of its own source:
+# edit --loadable, run mac.sh, and you have gated the old code — green, and blind. On a fresh clone
+# it fails differently and louder (the binary is gitignored, so `set -euo pipefail` kills the script
+# here before any gate runs at all). Keep every ./au-transport-check invocation after this line.
+xcrun swiftc -O -o au-transport-check au-transport-check.swift -framework AVFoundation -framework CoreAudioKit
 ./au-transport-check --loadable
 
 echo "▸ host-transport gate (ios/au-transport-check.swift)"
-xcrun swiftc -O -o au-transport-check au-transport-check.swift -framework AVFoundation -framework CoreAudioKit
 ./au-transport-check
 # Again at 48k. The engine is compile-time 44.1k, so this is NOT a duplicate run: it guards the
 # property that the sequencer stays on the HOST's grid at any rate (the step comes from sync_beats,
-# which the rate never touches). Both runs pass; what 48k DOES break is pitch, measured separately by
-# ./au-transport-check --pitch — deliberately not run here, see ios-plan.md "the sample-rate risk".
+# which the rate never touches). Both runs pass. PITCH at 48k is a separate question and is gated by
+# the rate-converter run at the top of this file — NOT by a flag here: `--pitch` was deleted, because
+# its zero-crossing estimator moved with the sample rate and so reported the rate ratio as if it were
+# a detuning. au-transport-check.swift's header tells that story in full; rate-convert-check.swift is
+# the oracle that replaced it (a 220 Hz sine, where the answer is 220.000 at every rate).
 ./au-transport-check --rate 48000
 # VIEW gate (phase 3). Narrow on purpose: it proves the UI extension is WIRED — the -UI extension
 # point, an AUViewController that is also the factory, and the view loading when a host asks. Get any

@@ -536,9 +536,29 @@ Same rules as round 1: line numbers rot, the function name is the anchor, every 
       throughout; width 7, 2 declarations, 2 bounds, 7 copies, 12 modes.
       **The general rule this earns:** a `--selfcheck` row proves the checker works, only a real run
       proves it is still looking at the repo. Every lint with the first row wants the second.
-- [ ] **`midi-check` phase B is flaky** — failed once and passed twice on identical code; only a
-      throwaway worktree at `HEAD` established that the failure was not a regression. A gate whose
-      failure is indistinguishable from a real one will eventually be believed wrongly.
+- [x] **`midi-check` phase B is flaky** — DIAGNOSED AND FIXED 2026-08-14, and it was the gate, not
+      the engine. **The sender's lifetime was a fixed 12 s of WALL CLOCK while the cart's start time
+      is a VARIABLE**: `play.js` recompiles the engine on every invocation, and the CC arrives at the
+      cart's *frame 1*, so the only thing this phase needs is for the sender to still exist when the
+      cart's engine initialises. Measured compile: **3.9 s idle · 8.2 s under one concurrent
+      `build-all` · 13.7 s under three.** Past ~11.3 s the cart boots after the sender has exited and
+      **all six assertions fail together**, which reads exactly like a broken CC parser. This repo
+      runs several agents on one working tree, so "somebody else is compiling" is the normal state.
+      Reproduced on demand by running three `build-all` sweeps alongside it.
+      Fix: the sender now outlives any plausible compile (180 s), and the `kill` after the cart is
+      what actually ends it — the bound is a safety net, not a schedule. Plus a **new
+      discriminator**: run.sh checks whether the sender was still alive when the cart exited and
+      reports `THE GATE RACED, not the engine` instead of six parse failures. Verified in both
+      directions — the same three-sweep load now passes, and forcing a 3 s sender fires the new
+      message.
+      ⚠ **CORRECTION TO THE ORIGINAL NOTE.** "Only a throwaway worktree at `HEAD` established that
+      the failure was not a regression" — that inference was wrong. A worktree changes the *machine
+      load at that moment*, not the code under test; it passed because the machine happened to be
+      quieter, and it would have passed just as well with a genuinely broken parser. The variable
+      was never the tree.
+      ⚠ Phase C has the same SHAPE (a sender sized in wall clock, a receiver started after
+      `sleep 12`) but ~20 s of slack rather than ~5 s, and was sized deliberately. Left as-is;
+      if it ever flakes, this is the first thing to look at.
 - [x] **`ctx-gen --verify`** — LANDED 2026-08-14, and it earned its keep on the first run. Every live
       engine static must be either moved into a context or written down in `ctx-classification.json`
       with a group saying why it stays shared; `--quiet` gates and it is a `repo-doctor` row now.

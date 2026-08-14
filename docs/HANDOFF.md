@@ -96,11 +96,18 @@ a broken doc link or `#section`).
 > Swift items need a real host to confirm; everything self-gateable in `studio.c`/`sound.h` that was
 > open this morning is now landed or documented as reverted.
 >
-> ⚠ TWO THINGS A FRESH SESSION SHOULD NOT RE-LEARN THE HARD WAY. **`midi-check` phase B is flaky** —
-> it failed once and passed twice on identical code, and only a throwaway `git worktree --detach` at
-> HEAD proved the failure was not mine. Do that before believing it. And **the Android port had no
-> baseline to A/B against** (the pre-migration code does not compile), so "was this already broken?"
-> could only be answered by reading — which is how its ~13s JNI crash turned out to be pre-existing.
+> ⚠ ONE THING A FRESH SESSION SHOULD NOT RE-LEARN THE HARD WAY: **the Android port had no baseline
+> to A/B against** (the pre-migration code does not compile), so "was this already broken?" could
+> only be answered by reading — which is how its ~13s JNI crash turned out to be pre-existing.
+>
+> ~~`midi-check` phase B is flaky~~ **DIAGNOSED AND FIXED 2026-08-14 — it was the gate, not the
+> engine.** The sender lived a fixed 12s of wall clock while the cart's start time is a variable
+> compile (measured 3.9s idle, 13.7s under three concurrent `build-all` sweeps), and the CC arrives
+> at frame 1 — so past ~11.3s the cart booted after the sender exited and all six assertions failed
+> together, looking exactly like a broken CC parser. Reproduced on demand, fixed, and it now reports
+> `THE GATE RACED, not the engine` when it happens. ⚠ **And the old advice here was wrong**: a
+> throwaway worktree at HEAD proved nothing about the code — it changed the machine load, not the
+> tree's behaviour, and would have passed with a genuinely broken parser too.
 >
 > Hot files: `runtime/sound.h`, `runtime/studio.c` (targeted `Edit`s only), `tools/lint-engine-seam.js`.
 

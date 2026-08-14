@@ -318,10 +318,18 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
                              run loop has no sources, so a "wait 12s" loop finishes in microseconds · and a
                              long-lived CoreMIDI client needing a NOTIFY PROC + a pumped run loop, or
                              `MIDIGetNumberOfSources()` answers 0 forever while a fresh process sees the port fine.
-                             Plus two the gate itself got wrong: `kill`ing a play.js PID leaves the CART
+                             Plus THREE the gate itself got wrong: `kill`ing a play.js PID leaves the CART
                              orphaned and still sending (so phase C runs its control FIRST rather than
-                             managing the race), and MIDIReceived is ASYNC so disposing the endpoint right
+                             managing the race), MIDIReceived is ASYNC so disposing the endpoint right
                              after the shutdown note-offs drops them — which made "no stuck notes" pass by luck
+                             — and phase B's sender lived a FIXED 12s of wall clock while the cart's start
+                             time is a VARIABLE compile (3.9s idle, 13.7s under three concurrent build-alls),
+                             so on a busy machine the cart booted after the sender exited and all six
+                             assertions failed together, looking like a broken CC parser. Fixed 2026-08-14:
+                             the sender outlives any compile and run.sh now reports `THE GATE RACED, not
+                             the engine`. ⚠ Windows are DELIBERATE (no `--headless`, see det-turbo above):
+                             you see ONE cart window through phases A/B, and TWO during phase C's paired
+                             run (epianojam + epiano overlapping) — that is the gate working, not a bug
              net-check.js    the one-liner LOCKSTEP GATE (netplay twin of tune-check): echo-mirror + netdemo
                              pair + relay wire-protocol sim, PASS/FAIL; run after touching net.h / the net seams
              webrtc-spike/   PASSED probe (multiplayer rung 5b): browser WebRTC P2P DataChannel, Mac↔iPhone at

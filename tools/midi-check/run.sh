@@ -171,7 +171,21 @@ clang -O1 -o "$OUT/send-cc" tools/midi-check/send-cc.c \
       -framework CoreMIDI -framework CoreFoundation || { echo "FAIL: sender did not build"; exit 1; }
 
 TRACE="$OUT/in.trace.jsonl"
-"$OUT/send-cc" 12 > "$OUT/send.txt" 2>&1 &
+# ⚠ THE SENDER'S LIFETIME IS A SAFETY NET, NOT A SCHEDULE — and getting that wrong is what made
+# this phase FLAKY for weeks (diagnosed 2026-08-14; it "failed once and passed twice on identical
+# code", and a throwaway worktree at HEAD was wrongly read as proof the engine was fine).
+#
+# The race, measured: the CC arrives at the cart's FRAME 1, so the only thing this phase needs is
+# for the sender to still exist when the cart's engine initialises. But the sender used to live a
+# fixed 12s of WALL CLOCK, while the cart's start time is a VARIABLE: play.js recompiles the engine
+# on every invocation, and that compile was measured at 3.9s idle, 8.2s under one concurrent
+# `build-all`, and 13.7s under three. Past ~11.3s the cart boots after the sender has exited and
+# ALL SIX assertions fail together — which reads exactly like a broken CC parser.
+#
+# This repo runs several agents on one working tree, so "somebody else is compiling" is the normal
+# state, not an unusual one. Hence: the sender now outlives any plausible compile, and the `kill`
+# below is what actually ends it on the happy path. The bound only stops an orphan if run.sh dies.
+"$OUT/send-cc" 180 > "$OUT/send.txt" 2>&1 &
 SPID=$!
 sleep 0.7   # publish before the cart scans for sources
 
@@ -179,6 +193,10 @@ sleep 0.7   # publish before the cart scans for sources
 # to overlap the sender. --trace is where the assertions come from.
 node tools/play.js midiout script /dev/null --frames 240 --trace "$TRACE" \
      > "$OUT/in-cart.txt" 2>&1 || { echo "FAIL: the reader cart did not run"; cat "$OUT/in-cart.txt"; kill $SPID 2>/dev/null; exit 1; }
+# Was the sender STILL ALIVE when the cart finished? With the bound above this should always be
+# true — and if it ever is not, say so instead of reporting six parse failures. A gate whose
+# failure is indistinguishable from a real one will eventually be believed wrongly.
+SENDER_ALIVE=0; kill -0 $SPID 2>/dev/null && SENDER_ALIVE=1
 kill $SPID 2>/dev/null; wait $SPID 2>/dev/null
 
 # watch() values are STRINGS in a trace line (debug-harness.md), hence the quoted patterns.
@@ -186,7 +204,14 @@ ckt() {  # ckt <description> <json-fragment>
   if grep -q -- "$2" "$TRACE" 2>/dev/null; then printf '  \033[32m✓\033[0m %-46s\n' "$1"
   else printf '  \033[31m✗\033[0m %-46s (no %s)\n' "$1" "$2"; fail=1; fi
 }
-if [[ ! -s "$TRACE" ]]; then
+if (( ! SENDER_ALIVE )); then
+  # The gate raced; the engine was never asked. Distinguishing this from a real failure is the
+  # whole point — every assertion below would go red and blame the CC parser.
+  printf '  \033[31m✗\033[0m %-46s\n' "THE GATE RACED, not the engine"
+  printf '      the sender exited before the cart booted (a slow compile under load — see the\n'
+  printf '      note above the sender). Nothing was measured. Re-run on a quieter machine.\n'
+  fail=1
+elif [[ ! -s "$TRACE" ]]; then
   printf '  \033[31m✗\033[0m %-46s\n' "reader produced no trace"; fail=1
 else
   ckt "CC arrived at all"                    '"in_n":"[1-9]'

@@ -119,8 +119,8 @@ static char          wavcap_path[512];
 // existing carts + the --det gates are untouched. The ring is malloc'd on arm.
 // The main thread snapshots the last N seconds into a sample slot via record_grab().
 // Piece 2: SOUND_SAMPLE_SLOTS PCM buffers an INSTR_SAMPLE voice plays back at pitch.
-#ifndef SOUND_SAMPLE_SLOTS
-#endif
+// (SOUND_SAMPLE_SLOTS itself now lives in sound_ctx.h — the type-hoist moved it out and left
+// this #ifndef wrapped around nothing at all.)
 #define SOUND_REC_SECONDS  8
 #define SOUND_REC_LEN      (SOUND_SAMPLE_RATE * SOUND_REC_SECONDS)
 
@@ -5121,6 +5121,33 @@ static void sound_choke_group(int instr_slot) {
     }
 }
 
+static void sound_fire_req(SoundReq r);     // sound_ctx_activate replays a log THROUGH it
+
+// Reset to a boot-clean slate and replay ONE context's config log over it — the whole of both
+// SR_CART_SWITCH and SR_STATE_RESTORE. They differ only in whether the context CHANGES: a restore
+// lands in the one you are already in, so it passes ctx_active and the assignment is a no-op.
+//
+// THE RESET IS THE LOAD-BEARING PART. A config log holds append-only entries (a wavetable define,
+// an auto-bus allocation) as well as keyed knobs, so replaying it over an engine that already ran
+// init() would allocate a SECOND bus rather than re-set the first. Replaying over a boot-clean
+// slate is what makes it exact.
+//
+// ⚠ WRITTEN ONCE ON PURPOSE. These were two copies of the same eight lines, and every fix to
+// sound_reset_state's contents lands right here — correct one arm and not the other and session
+// restore drifts from cart switch silently, with no gate able to see the difference.
+static void sound_ctx_activate(int ctx) {
+    float tailL = 0.0f, tailR = 0.0f;          // declick: fade the outgoing rack's last sample out
+    for (int i = 0; i < SOUND_VOICES; i++)     // instead of hard-cutting every voice to zero
+        if (voices[i].active) { tailL += voices[i].last_outL; tailR += voices[i].last_outR; }
+    delayed_count = 0;                         // scheduled notes must not fire into the new rack
+    sound_reset_state();                       // the same reset libtcc hot-reload relies on. Says
+                                               // nothing about a CART's own step counter.
+    ctx_active = ctx;
+    for (int i = 0; i < ctx_log_n[ctx]; i++)   // replay = reconfigure through the normal dispatch;
+        sound_fire_req(ctx_log[ctx][i]);       // a log never contains SR_CART_SWITCH (an event kind)
+    steal_tailL += tailL; steal_tailR += tailR;
+}
+
 // Fire a request now (called on the audio thread).
 static void sound_fire_req(SoundReq r) {
     switch (r.kind) {
@@ -6047,34 +6074,11 @@ static void sound_fire_req(SoundReq r) {
     } break;
     case SR_CART_SWITCH: {     // a=context id — umbrella-app cart switch (de_switch_cart, share-panel.md)
         int ctx = r.a;
-        if (ctx >= 0 && ctx < SOUND_CART_CTX && ctx != ctx_active) {
-            float tailL = 0.0f, tailR = 0.0f;                  // declick: fade the old cart's last sample out
-            for (int i = 0; i < SOUND_VOICES; i++)             // instead of hard-cutting every voice to zero
-                if (voices[i].active) { tailL += voices[i].last_outL; tailR += voices[i].last_outR; }
-            delayed_count = 0;                                 // the old cart's scheduled notes must not fire into the new one
-            sound_reset_state();                               // boot-clean slate (the same reset libtcc hot-reload relies on)
-            ctx_active = ctx;
-            for (int i = 0; i < ctx_log_n[ctx]; i++)           // replay = reconfigure through the normal dispatch;
-                sound_fire_req(ctx_log[ctx][i]);               // a log never contains SR_CART_SWITCH (it's an event kind)
-            steal_tailL += tailL; steal_tailR += tailR;
-        }
+        if (ctx >= 0 && ctx < SOUND_CART_CTX && ctx != ctx_active) sound_ctx_activate(ctx);
     } break;
-    case SR_STATE_RESTORE: {   // (no payload) — session restore: reset + replay THIS context's log
-        // The same three moves as SR_CART_SWITCH above, minus the context change, because a restore
-        // lands in the context you are already in. The RESET is the load-bearing part: a config log
-        // holds append-only entries (a wavetable define, an auto-bus allocation) as well as keyed
-        // knobs, so replaying it over an engine that already ran init() would allocate a SECOND bus
-        // rather than re-set the first. Replaying over a boot-clean slate is what makes it exact.
-        float tailL = 0.0f, tailR = 0.0f;                  // declick, exactly as the switch path does
-        for (int i = 0; i < SOUND_VOICES; i++)
-            if (voices[i].active) { tailL += voices[i].last_outL; tailR += voices[i].last_outR; }
-        delayed_count = 0;                                 // scheduled notes must not fire into the restored rack
-        sound_reset_state();                               // → no held voices, nothing scheduled. Says
-                                                           // nothing about a CART's own step counter.
-        for (int i = 0; i < ctx_log_n[ctx_active]; i++)
-            sound_fire_req(ctx_log[ctx_active][i]);
-        steal_tailL += tailL; steal_tailR += tailR;
-    } break;
+    case SR_STATE_RESTORE:     // (no payload) — session restore lands in the context we are in
+        sound_ctx_activate(ctx_active);
+        break;
     }
 }
 
@@ -8275,6 +8279,38 @@ static void sound_reset_state(void) {
         insert_order[b][N_PEDALS + 3] = FX_RINGMOD;                  // + ring mod as the 12th pedal (dormant until ringmod() → byte-identical)
         insert_order_n[b] = N_PEDALS + 4;                            // FX_REVERB is never in the default chain — reverb_bus() places it
     }
+
+    // ── SET-AND-HOLD CONFIG THAT USED TO SURVIVE THIS RESET ──────────────────────────────────
+    // 34 members reached only by their SR_* config handler, and this function had never re-set
+    // any of them. That made the reset a partial one, which matters because BOTH restore paths
+    // (sound_ctx_activate: umbrella-app cart switch AND session restore) are built on "reset to
+    // boot state, then replay the target's log": a value the reset misses is not in the incoming
+    // log either — nothing overwrites it — so cart A's pan_law / vocoder / spring reverb / drive
+    // voicing / autotune stayed in force for cart B. Silent, and invisible to every gate, because
+    // a single-cart run never resets at all.
+    //
+    // ⚠ Values come from de_snd_default's designated initialisers, NOT from zero: 12 of these have
+    // non-zero boot values (am_T 300, g_spatial_c 340, am_gain 1.0 …), so memset-to-zero would have
+    // traded a leak for a wrong default. Keep this block in step with that template.
+    // ⚠ NOT reset here, deliberately: rec_ring/rec_arm/rec_w/rec_total (malloc'd recorder state),
+    // scope_*/scope2_* (tap gates), sound_samples[].data, ctx_log*/ctx_active — a reset that threw
+    // those away would break the very replay it exists to enable.
+    echo_ins_bbd = 0.0f;  echo_ins_tone = 0.55f;   // (echo_ins_tone_coef is set below, from 0.5f —
+                                                   //  a pre-existing mismatch, left alone: changing
+                                                   //  it would move the DSP, not just the state)
+    rvb_spring = 0.0f;    rvb_spring_disp = SPRING_DISP;
+    drvins_voice = 0;     drvins_tone = 0.5f;
+    g_pan_law = PAN_LINEAR;
+    g_listener_x = g_listener_y = g_listener_vx = g_listener_vy = 0.0f;
+    g_spatial_ref = 24.0f; g_spatial_max = 400.0f; g_spatial_rolloff = 1.0f; g_spatial_c = 340.0f;
+    voc_on = false; voc_mix = 0.0f; voc_mod = 0.0f; voc_uv_amt = 0.0f; voc_mic_amt = 0.0f;
+    extin_mon_on = 0; extin_mon_gain = 0.0f;
+    am_on = 0; am_amt = 0.0f; am_mode = AM_SNAP; am_nv = 1; am_gain = 1.0f;
+    am_T = 300.0f; am_ea = 0.0f; am_pd = 0.0f; am_root = 0; am_scale = 1; am_semis = 0;
+    fxmod_any = 0;
+    // the per-insert instance tag, cleared with the chain it indexes: fx_order writes FX_INST(kind,n)
+    // here, so a later auto-placed insert landing on that slot would inherit a tag it never set.
+    memset(insert_inst, 0, sizeof(insert_inst));
 
     // user waves default to a sine, so playing INSTR_USER* before wave_set isn't silence
     for (int w = 0; w < SOUND_USER_WAVES; w++)

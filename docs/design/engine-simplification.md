@@ -536,10 +536,17 @@ Same rules as round 1: line numbers rot, the function name is the anchor, every 
       in-range call is byte-identical. NOT folded in and said so at the declaration: the two echo
       `ms * (float)RATE / 1000.0f` sites (a float delay-line position) and the one `long long`
       declick floor whose result stays 64-bit for the comparison it feeds.
+- [x] **`sound_push_req`/`sound_push_ctrl` duplicated the lock-free publish protocol** — LANDED
+      2026-08-15 as `sound_push(SoundReq)`; the two remain as the two payload shapes. Worth doing
+      even though it removes ~10 lines: duplicating a MEMORY-ORDERING argument is the worst kind of
+      duplication to leave lying around, because both copies compile, both look right, and a later
+      "small fix" to one is a heisenbug in the other that no test on this machine reproduces.
+      Checked before merging that neither copy left a `SoundReq` field stale from the previous
+      occupant of the slot — both set all nine, so the merge is byte-safe rather than
+      byte-safe-looking. Gate: `refactor-guard` 6/6, `state-check`, `soundcheck`, `spec` 2027.
 - [ ] Smaller, still open: CLAV/WURLITZER e-piano blocks are ~20 identical lines apart from their
       tables (and unlike 808-vs-909 the navkit UPSTREAM is itself parameterised, so this one is
-      real) · twelve mutually-exclusive per-engine `*_on` bools that could be one `eng_armed` ·
-      `sound_push_req`/`sound_push_ctrl` duplicate the lock-free publish protocol.
+      real) · twelve mutually-exclusive per-engine `*_on` bools that could be one `eng_armed`.
       *(The other three from this line landed 2026-08-15 and have their own entries above: the five
       write-only overflow counters, `at_psola_slot`'s dead `formant` param, and `ms_samp()`.)*
 

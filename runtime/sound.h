@@ -2081,33 +2081,37 @@ static void sound_tick(float dt) {
 }
 
 // dur_samples: 0 = use default 250ms (for note/schedule); >0 = custom note length (for hit).
-static void sound_push_req(SoundReqKind kind, int a, int b, int c, int delay_samples, int dur_samples) {
+// THE lock-free publish, written once. Reserve the slot the producer owns, fill it, then advance
+// the head with a RELEASE store so the consumer cannot see the index before the entry's writes.
+// Full → drop and trip the wire, because a queue that silently overwrites is a lost note.
+//
+// This protocol existed in TWO copies until 2026-08-15, differing only in which payload fields the
+// caller filled. Duplicating a memory-ordering argument is the worst kind of duplication to leave
+// lying around: both copies compile, both look right, and a later "small fix" to one of them is a
+// heisenbug in the other that no test on this machine will reproduce.
+static void sound_push(SoundReq r) {
     int h = atomic_load_explicit(&req_head, memory_order_relaxed);   // producer owns head
     int next = (h + 1) % SOUND_REQ_QUEUE;
     if (next == atomic_load_explicit(&req_tail, memory_order_acquire)) {   // full — drop (trip the wire)
         atomic_fetch_add_explicit(&sound_dropped, 1, memory_order_relaxed); return;
     }
-    req_queue[h].kind          = kind;
-    req_queue[h].a             = a;
-    req_queue[h].b             = b;
-    req_queue[h].c             = c;
-    req_queue[h].delay_samples = delay_samples;
-    req_queue[h].dur_samples   = dur_samples;
-    req_queue[h].e0 = req_queue[h].e1 = req_queue[h].e2 = 0;
+    req_queue[h] = r;
     atomic_store_explicit(&req_head, next, memory_order_release);   // publish — entry writes happen-before the head advance
+}
+
+// The two payload shapes. Both designated initialisers, so every field of SoundReq is set either
+// explicitly or to zero — no field can carry over from whatever occupied the slot last cycle.
+static void sound_push_req(SoundReqKind kind, int a, int b, int c, int delay_samples, int dur_samples) {
+    sound_push((SoundReq){ .kind = kind, .a = a, .b = b, .c = c,
+                           .delay_samples = delay_samples, .dur_samples = dur_samples,
+                           .e0 = 0, .e1 = 0, .e2 = 0 });
 }
 
 // Push a control request carrying the extra e0/e1/e2 payload (used by instrument()).
 static void sound_push_ctrl(SoundReqKind kind, int a, int b, int c, int e0, int e1, int e2) {
-    int h = atomic_load_explicit(&req_head, memory_order_relaxed);   // producer owns head
-    int next = (h + 1) % SOUND_REQ_QUEUE;
-    if (next == atomic_load_explicit(&req_tail, memory_order_acquire)) {   // full — drop (trip the wire)
-        atomic_fetch_add_explicit(&sound_dropped, 1, memory_order_relaxed); return;
-    }
-    req_queue[h] = (SoundReq){ .kind = kind, .a = a, .b = b, .c = c,
-                               .delay_samples = 0, .dur_samples = 0,
-                               .e0 = e0, .e1 = e1, .e2 = e2 };
-    atomic_store_explicit(&req_head, next, memory_order_release);   // publish — entry writes happen-before the head advance
+    sound_push((SoundReq){ .kind = kind, .a = a, .b = b, .c = c,
+                           .delay_samples = 0, .dur_samples = 0,
+                           .e0 = e0, .e1 = e1, .e2 = e2 });
 }
 
 // ───────── helpers ─────────

@@ -42,6 +42,41 @@ a broken doc link or `#section`).
 > What a reader needs to *choose* a lane is in the front-door output; what they need to *resume*
 > one is in the lane itself. A summary in between is a third copy, and it is the copy nobody
 > updates. If you find yourself writing one again, teach `handoff.js` to print it instead.
+> **▶ ACTIVE THREAD (2026-08-14) — ENGINE SIMPLIFICATION ROUND 2: the instruments were under-reporting, and three ports/paths were quietly broken behind them.**
+>
+> Four read-only sweeps (sound.h · studio.c + the host seam · ios/ · the ctx refactor) after the
+> per-instance work. **The finding that reframes the rest: the code was CLEANER than expected** —
+> 17 `#ifdef`s in 6606 lines of `studio.c`, zero dead statics / `#if 0` / unused params in
+> `sound.h`. The residue was **half-moved state groups, and the instruments that should have seen
+> them looking elsewhere.**
+>
+> SHIPPED: `engine-statics.js` silently dropped **30** statics (counted them, never printed it) —
+> that is how `kv_data` shipped half-moved and how **`midi_input.h` was never measured at all**;
+> now loud, `--check` 13→18, every new guard mutation-tested · `midi_input.h` 14 statics → **0**
+> (`midi_ctx.h`), `de_midi_*` name their instance — its ring cursors are single-CONSUMER, so two
+> racks were splitting one keyboard · `lint-engine-seam` scanned one file, required `extern`, and
+> could not see a seam fn that never TOOK a handle → **new check D**, `--selfcheck` 14→22 · **the
+> Android port could not link** (every declaration pre-refactor, `de_init` outliving its deletion)
+> — migrated and verified ON THE EMULATOR, and the lint walks `android/` now · **`sound_reset_state`
+> was resetting only part of the engine** — 34 config members leaked cart→cart through both restore
+> paths · `pget`/loupe flipped about compile-time `SCREEN_H` on a resizable canvas · 4 `SR_*` kinds
+> classified by neither switch, so the config log grew unbounded.
+>
+> **Resume-at: [the round-2 open list](design/engine-simplification.md#round-2--after-the-per-instance-refactor-2026-08-14)** — every open item names its gate, and the
+> re-verified WON'T-DO list is there too (round 1's three calls still hold; I checked rather than
+> assumed). Biggest remaining: `blend_lut` (20.5 KB/instance, 58% of `DeVideo`, byte-identical every
+> time, rebuilt by ~1M iterations per boot) · the `DRIVE_*` waveshaper switch written twice (the
+> header says so) · `de_instance_destroy` frees the struct and **nothing it allocated** (4.1 MB) ·
+> `TinyjamAU.uiTick()` is orphaned, so **a stopped host freezes the panel and swallows every tap**.
+>
+> ⚠ TWO THINGS A FRESH SESSION SHOULD NOT RE-LEARN THE HARD WAY. **`midi-check` phase B is flaky** —
+> it failed once and passed twice on identical code, and only a throwaway `git worktree --detach` at
+> HEAD proved the failure was not mine. Do that before believing it. And **the Android port had no
+> baseline to A/B against** (the pre-migration code does not compile), so "was this already broken?"
+> could only be answered by reading — which is how its ~13s JNI crash turned out to be pre-existing.
+>
+> Hot files: `runtime/sound.h`, `runtime/studio.c` (targeted `Edit`s only), `tools/lint-engine-seam.js`.
+
 > **▶ ACTIVE THREAD (2026-08-14) — `tenement`: the item economy is switched on, and storage finally COSTS something.**
 > The sim of several households sharing one building, built contract-first then fanned out to eight
 > agents (ADR-0034). **SHIPPED:** the frozen contract `runtime/tenement/model.h` plus twelve modules
@@ -156,8 +191,14 @@ a broken doc link or `#section`).
 >
 > **✅ TWO GARAGEBAND TRACKS SOUND CORRECT (maker, 2026-08-14).** Defect (B) — the live defect this
 > whole lane existed to fix, "load the plug-in on two tracks and the sound goes weird" — is CLOSED.
-> Every piece of shared state that made two tracks one rack is gone: engine (601 → 148 statics, the
-> rest recorded decisions), all 8 cart-land headers, and the cart's own 198. Measured, not inferred.
+> Every piece of shared state that made two tracks one rack is gone: the engine, all 8 cart-land
+> headers (keybed.h included — it was the last and the doc said "deferred" for a while after it
+> landed), and the cart's own 198. Measured, not inferred.
+>
+> ⚠ **This lane used to quote "601 → 148 statics". Do not trust a static COUNT written in prose —
+> run `node tools/engine-statics.js`.** That 148 was measured by a tool which silently dropped 30
+> rows it could not attribute AND had never been pointed at `runtime/midi_input.h` at all. Both are
+> fixed (2026-08-14); the tool now names anything it cannot place and exits nonzero.
 >
 > **✅ AND THE PICTURE IS PER-INSTANCE TOO (2026-08-14).** The framebuffer group moved as one unit —
 > `fb_w`/`fb_h`/`de_sw`/`de_sh`, `sw_dst`/`sw_world_buf`, the `de_pres_*` seqlock and the whole
@@ -493,7 +534,9 @@ a broken doc link or `#section`).
 > **▶▶ WHAT IS LEFT, ON ONE PAGE: [`design/per-instance-remaining.md`](design/per-instance-remaining.md).**
 > Read that first — it lists every remaining item in the order to do them, separates "blocks two
 > racks" from "correctness gap" from "found along the way", and records what is DONE so nobody
-> redoes it. Live progress number: `node tools/engine-statics.js` (601 → 148).
+> redoes it. Live progress number: `node tools/engine-statics.js` — and read it from the tool, not
+> from here: every number this doc has quoted has been overtaken, and until 2026-08-14 the tool
+> itself under-reported (30 dropped rows, `midi_input.h` unmeasured).
 > **The state-sharing blockers are now CLEARED**; what remains is the shared published FRAME plus a
 > list of gaps to decide, not gates to pass.
 >

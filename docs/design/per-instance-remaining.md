@@ -148,7 +148,11 @@ frames from a worker while the view copies on another thread.
   not plist-representable is dropped silently, so an in-memory test cannot see it). 8/8.
 - **GarageBand's iPad-layout toggle has never worked** for this plug-in. Pre-dates all of this; the
   CART is fine (`play.js acidcandy --resize` reflows correctly). Filed in `STATUS.md`.
-- **The `--panel` gate is RED, and what it is failing on is now narrower.** Re-run 2026-08-14 after
+- **▼ SUPERSEDED — the `--panel` gate went GREEN later the same day; see
+  [the §"✅ The `--panel` gate is GREEN"](#-the---panel-gate-is-green-as-of-2026-08-14--re-verify-before-believing-it-is-broken)
+  block above.** Kept for the trail of how it was diagnosed, because the reasoning ("fix the
+  observation before believing the verdict") is the reusable part. Do NOT act on the text below.
+  ~~**The `--panel` gate is RED, and what it is failing on is now narrower.**~~ Re-run 2026-08-14 after
   the cart move: **not one `[tinyjam] PANEL` line was logged at all** — not even the pre-render
   "NO AUDIO HAS RENDERED" one, which is the gate's OWN negative control and fires before any
   connection question arises. So `reportAudibility` never ran in the harness (the view controller's

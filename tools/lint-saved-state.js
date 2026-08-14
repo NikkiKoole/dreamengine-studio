@@ -121,17 +121,18 @@ function structMembers(src, typeName) {
  * live. Reordering a field in one of those changes the layout exactly as much as reordering a
  * top-level one, and the fingerprint cannot see either, because the SIZE does not move. */
 function reachableLayout(src, rootType, rows) {
-  const layout = {}; const problems = [];
+  const layout = {}; const problems = []; const members = {};
   const seen = new Set();
-  const visit = (typeName, members) => {
-    if (!members || seen.has(typeName)) return;
+  const visit = (typeName, mem) => {
+    if (!mem || seen.has(typeName)) return;
     seen.add(typeName);
-    layout[typeName] = members.map(r => `${r.type}${r.dims} ${r.name}`);
-    if (members.unparsed && members.unparsed.length)
-      problems.push({ typeName, unparsed: members.unparsed });
-    if (members.conditional && members.conditional.length)
-      problems.push({ typeName, conditional: members.conditional });
-    for (const r of members) {
+    layout[typeName] = mem.map(r => `${r.type}${r.dims} ${r.name}`);
+    members[typeName] = mem;
+    if (mem.unparsed && mem.unparsed.length)
+      problems.push({ typeName, unparsed: mem.unparsed });
+    if (mem.conditional && mem.conditional.length)
+      problems.push({ typeName, conditional: mem.conditional });
+    for (const r of mem) {
       // strip qualifiers/pointers to get a bare type name, then see if this file declares it
       const bare = r.type.replace(/\b(const|volatile|unsigned|signed|struct)\b/g, '')
                          .replace(/[*]/g, '').trim().split(/\s+/).pop();
@@ -142,7 +143,7 @@ function reachableLayout(src, rootType, rows) {
     }
   };
   visit(rootType, rows);
-  return { layout, problems };
+  return { layout, problems, members };
 }
 
 function judge(members, where, slice) {
@@ -166,8 +167,15 @@ function scanFile(file, src) {
   const rel = path.relative(ROOT, file);
 
   const record = (sliceName, rows) => {
-    const { layout, problems } = reachableLayout(src, sliceName, rows);
+    const { layout, problems, members } = reachableLayout(src, sliceName, rows);
     for (const [t, rowsOut] of Object.entries(layout)) layouts[`${rel}:${t}`] = rowsOut;
+    // ⚠ JUDGE THE NESTED TYPES TOO. This was a real hole: the snapshot recursed into nested structs
+    // while the pointer/handle check only ever saw the slice's TOP-LEVEL members — so acidcandy's
+    // `Machine mac[M_N]` passed (an array, not a pointer) while `Machine.name` was a `const char *`
+    // being restored from another process. It cost the nav labels on every reopened project, and the
+    // tool that existed to prevent exactly that printed a clean bill of health.
+    for (const [t, mem] of Object.entries(members || {}))
+      if (t !== sliceName) findings.push(...judge(mem, rel, t));
     for (const p of problems) {
       if (p.conditional)
         findings.push({ level: 'advisory', where: rel, slice: p.typeName, member: '(conditional)', type: '',

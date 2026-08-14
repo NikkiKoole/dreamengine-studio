@@ -203,7 +203,6 @@
    "int bend_range"
   ],
   "runtime/acidcandy_state.h:Machine": [
-   "const char * name",
    "int kind",
    "int col",
    "int lo",

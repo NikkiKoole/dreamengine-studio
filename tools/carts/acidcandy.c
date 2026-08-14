@@ -394,9 +394,23 @@ static float flt_live(void) {
 // Every acid_note goes through ac_note() so the bend has a BASE to offset from — the Acid struct does
 // not store the note it is sounding, and adding a field to it would have grown CartState and
 // invalidated every saved project for a value nobody wants back.
+// Push the CURRENT bend onto whatever line `i` is holding. At rest it returns immediately and never
+// touches the voice, which is what keeps a 303 SLIDE (itself a note_pitch glide) intact.
+static void ac_bend_push(int i) {
+    if (bend_last == 0 || last_midi[i] <= 0) return;
+    float semis = (bend_last / 8192.0f) * (float)bend_range;
+    if (ac[i].h    >= 0) note_pitch(ac[i].h,    last_midi[i] + semis);
+    if (ac[i].hsub >= 0) note_pitch(ac[i].hsub, last_midi[i] - 12 + semis);   // sub-osc, an octave down
+}
+
 static void ac_note(Acid *a, int midi, int accent, int slide) {
-    last_midi[a == &ac[1] ? 1 : 0] = midi;
+    int i = (a == &ac[1]) ? 1 : 0;
+    last_midi[i] = midi;
     acid_note(a, midi, accent, slide);   // the header's real trigger — NOT ac_note (that is this fn)
+    // ⚠ AND RE-APPLY A HELD BEND. acid_note takes an INTEGER midi, so a note fired while the wheel is
+    // held would start UNBENT — the bend would only be audible if you happened to catch a note already
+    // ringing. That reads as "the bend is flaky" rather than "the bend is wrong", which is worse.
+    ac_bend_push(i);
 }
 
 // Ride the bend onto whatever each line is holding. ⚠ ON CHANGE ONLY, not every frame: a 303 SLIDE is
@@ -404,13 +418,17 @@ static void ac_note(Acid *a, int midi, int accent, int slide) {
 // and flatten every slide in the pattern. At rest the bend never touches the voice at all.
 static void bend_ride(void) {
     int b = midi_bend();                                  // -8192..8191, 0 = centre
-    if (b == bend_last) return;
+    if (b == bend_last) return;                           // ON CHANGE ONLY — see ac_bend_push
+    int was = bend_last;
     bend_last = b;
-    float semis = (b / 8192.0f) * (float)bend_range;   // per-project, saved (default 2)
     for (int i = 0; i < 2; i++) {
-        if (last_midi[i] <= 0) continue;
-        if (ac[i].h    >= 0) note_pitch(ac[i].h,    last_midi[i] + semis);
-        if (ac[i].hsub >= 0) note_pitch(ac[i].hsub, last_midi[i] - 12 + semis);   // sub-osc, an octave down
+        if (b != 0) { ac_bend_push(i); continue; }
+        // RETURNING TO CENTRE needs an explicit push, or a bent note stays bent for the rest of its
+        // life: ac_bend_push deliberately does nothing at 0, so restore the unbent pitch here.
+        if (was != 0 && last_midi[i] > 0) {
+            if (ac[i].h    >= 0) note_pitch(ac[i].h,    (float)last_midi[i]);
+            if (ac[i].hsub >= 0) note_pitch(ac[i].hsub, (float)last_midi[i] - 12);
+        }
     }
 }
 
@@ -1017,8 +1035,8 @@ static void cartridge(Box c, int m) {
     if (foc) { blend(BLEND_AVG); line(x + 2, y + 1, x + w - 3, y + 1, CLR_WHITE); blend_reset(); }   // top sheen
     rrect(x, y, w, h, 2, (foc || hotf) ? CLR_WHITE : CLR_BROWNISH_BLACK);
     font(FONT_TINY);
-    int tx = x + (bodyW - text_width(mac[m].name)) / 2; if (tx < x) tx = x;   // centre in the body, but never spill left of the cartridge
-    print(mac[m].name, tx, y + (h - 5) / 2, foc ? CLR_BROWNISH_BLACK : mac[m].col);
+    int tx = x + (bodyW - text_width(MAC_NAME[m])) / 2; if (tx < x) tx = x;   // centre in the body, but never spill left of the cartridge
+    print(MAC_NAME[m], tx, y + (h - 5) / 2, foc ? CLR_BROWNISH_BLACK : mac[m].col);
     int lx = x + bodyW + ledW / 2, ly = y + h / 2;               // mute LED, centred in its slot
     circfill(lx, ly, 2, live ? (foc ? CLR_LIME_GREEN : CLR_DARK_GREEN) : CLR_DARKER_PURPLE);
     circ(lx, ly, 2, (hotm && live) ? CLR_WHITE : CLR_BROWNISH_BLACK);
@@ -2747,7 +2765,7 @@ static void r2_header(Box hd, int m) {
     rrectfill(x, y, w, h, 2, foc ? mac[m].col : mac[m].lo);
     rrect(x, y, w, h, 2, (foc || hotf) ? CLR_WHITE : CLR_BROWNISH_BLACK);
     font(FONT_NORMAL);   // the dos_8x8 in-game font reads best on the instrument nameplates (the maker's call)
-    print(mac[m].name, x + 3, y + (h - 8) / 2, foc ? CLR_BROWNISH_BLACK : mac[m].col);
+    print(MAC_NAME[m], x + 3, y + (h - 8) / 2, foc ? CLR_BROWNISH_BLACK : mac[m].col);
     // LED lives in the header's top-right. On the wide top-strip headers (303/MST, h≈12) that's
     // already the vertical centre; on the TALL left-strip drum headers (h large) a centred dot
     // lands smack on the "808"/"909" digits — so anchor it to the top there (the maker's ask).
@@ -3190,7 +3208,7 @@ static void r2_bigscreen(Box c, int focus) {
     rect(x, y, w, h, mac[focus].lo); rect(x + 1, y + 1, w - 2, h - 2, CLR_BLACK);
     static const char *ROLE[M_N] = { "NOTE GRID", "NOTE GRID", "16 VOICES", "11 VOICES", "MIX+FX" };
     font(FONT_TINY);
-    print(mac[focus].name, x + 4, y + 3, mac[focus].col);
+    print(MAC_NAME[focus], x + 4, y + 3, mac[focus].col);
     print(ROLE[focus], x + 34, y + 3, CLR_MEDIUM_GREEN);
     // BPM, top-right — prefixed EXT when an outside clock owns it (the LCD's half of the knob's story)
     if (sync_active()) { print("EXT", x + w - 40, y + 3, CLR_MEDIUM_GREEN); print(bpm3(), x + w - 24, y + 3, CLR_LIME_GREEN); }

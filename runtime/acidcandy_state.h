@@ -27,7 +27,12 @@
 #define STEPS 16
 enum { M_303A, M_303B, M_808, M_909, M_MST, M_N };
 enum { MK_303, MK_DRUM, MK_MST };
-typedef struct { const char *name; int kind; int col, lo; int mute; } Machine;
+/* ⚠ NO `name` HERE. A machine's LABEL is compile-time data, not state, and this struct lives inside
+ * the SAVED CartState — so a `const char *` here was restored from ANOTHER PROCESS's address space.
+ * It cost the nav labels on every reopened project (and was a wild pointer handed to print()).
+ * The labels live in MAC_NAME[] below; only `mute` is genuinely per-project state. */
+typedef struct { int kind; int col, lo; int mute; } Machine;
+static const char *const MAC_NAME[M_N] = { "303", "303", "808", "909", "MST" };
 enum { PS_SEQ, PS_FLAG, PS_FX, PS_GEN, PS_KEY, PS_PAT, PS_PERF };  // 303 LCD content: roll / flags / FX / generate / KEY (root·scale·octave) / PAT (A-D banks) / PERF (live play lenses)
 enum { FL_NOTE, FL_ACC, FL_SLD, FL_TIE, FL_OCTU, FL_OCTD, FL_N };   // FL_NOTE = toggle the note itself (so you add notes WITHOUT leaving FLAG for SEQ). (LEN moved out — it's a per-LINE loop length, now a draggable handle at the end of the note-bars, not a per-step flag)
 enum { LK_TUNE, LK_DEC, LK_CHAR, LK_VOL, LK_PAN, LK_N };    // continuous-lane params (doff[] index). VOL = per-step level (velocity); PAN = per-step stereo
@@ -286,7 +291,8 @@ typedef struct {
 
 /* the compile-time defaults — one line per static that carried a non-zero initialiser */
 static CartState de_cart_default = {
-    .bend_range = 2,           /* semitones — the standard synth default, so behaviour is unchanged */
+    .bend_range = 5,           /* semitones — a PERFECT FOURTH at full deflection (the maker's call:
+                              * 2 was too polite for acid). Per project, so it can be retuned. */
     .aS = { -1, -1, -1, -1 },
     .aComp = -1,
     .aBpm = -1,
@@ -312,7 +318,7 @@ static CartState de_cart_default = {
     .use_bars = 1,
     .sng_confirm = -1,
     .r2sng_confirm = -1,
-    .mac = {     { "303", MK_303,  CLR_PINK,      CLR_DARK_PURPLE, 1 },        { "303", MK_303,  CLR_ORANGE,    CLR_DARK_ORANGE, 1 },        { "808",  MK_DRUM, CLR_TRUE_BLUE, CLR_DARK_BLUE,   0 },     { "909",  MK_DRUM, CLR_YELLOW,    CLR_DARK_ORANGE, 0 },     { "MST",  MK_MST,  CLR_GREEN,     CLR_DARK_GREEN,  0 }, },
+    .mac = { { MK_303,  CLR_PINK,      CLR_DARK_PURPLE, 1 }, { MK_303,  CLR_ORANGE,    CLR_DARK_ORANGE, 1 }, { MK_DRUM, CLR_TRUE_BLUE, CLR_DARK_BLUE,   0 }, { MK_DRUM, CLR_YELLOW,    CLR_DARK_ORANGE, 0 }, { MK_MST,  CLR_GREEN,     CLR_DARK_GREEN,  0 }, },
     .face = M_303A,
     .rack_view = -1,
     .r2_selmach = M_808,

@@ -38,6 +38,14 @@ const has = (f) => args.includes(f)
 // Paths come from env so --selfcheck can point them at tools/fixtures/lint-aux-params/*.
 function analyze() {
   const sound  = fs.readFileSync(process.env.DE_AUX_SOUND_H  || path.join(ROOT, 'runtime', 'sound.h'), 'utf8')
+  // The DECLARATIONS moved. The per-instance refactor lifted every file-scope struct out of sound.h
+  // into the generated sound_ctx.h, and both `float eng_p[7];` went with them — so this lint scanned
+  // sound.h, found ZERO declarations, and had been RED since, unseen (repo-doctor ran its
+  // --selfcheck, which passes on a fixture, and never the lint itself). Read both, and treat the ctx
+  // header as optional so a fixture that keeps everything in one file still works.
+  const soundCtxPath = process.env.DE_AUX_SOUND_CTX_H || path.join(ROOT, 'runtime', 'sound_ctx.h')
+  const soundCtx = fs.existsSync(soundCtxPath) ? fs.readFileSync(soundCtxPath, 'utf8') : ''
+  const soundDecls = sound + '\n' + soundCtx
   const studio = fs.readFileSync(process.env.DE_AUX_STUDIO_H || path.join(ROOT, 'runtime', 'studio.h'), 'utf8')
   const docs   = fs.readFileSync(process.env.DE_AUX_DOCS_JS  || path.join(ROOT, 'editor', 'src', 'studioDocs.js'), 'utf8')
   const shell  = fs.readFileSync(process.env.DE_AUX_SHELL_JS || path.join(ROOT, 'editor', 'src', 'shell.js'), 'utf8')
@@ -47,9 +55,9 @@ function analyze() {
   const bad = (kind, msg) => problems.push({ kind, msg })
 
   // 1. every `eng_p[N]` DECLARATION must agree (the Instrument bank + the Voice)
-  const decls = [...sound.matchAll(/^\s*float\s+eng_p\[(\d+)\]\s*;/gm)].map(m => +m[1])
+  const decls = [...soundDecls.matchAll(/^\s*float\s+eng_p\[(\d+)\]\s*;/gm)].map(m => +m[1])
   if (decls.length < 2)
-    bad('decl-count', `expected ≥2 eng_p[] declarations in sound.h, found ${decls.length}`)
+    bad('decl-count', `expected ≥2 eng_p[] declarations in sound.h + sound_ctx.h, found ${decls.length} — if they moved again, update this lint`)
   const width = decls[0]
   if (!decls.every(w => w === width))
     bad('decl-disagree', `eng_p[] declarations disagree: ${decls.join(' vs ')} — the Instrument bank and the Voice must be the same width`)
@@ -107,6 +115,10 @@ if (has('--selfcheck')) {
                // `.h.txt` / `.js.txt`, never `.h` / `.js`: a fixture header is never compiled, and a
                // real .h here makes clangd index it and report phantom errors at you.
                DE_AUX_SOUND_H:  path.join(d, 'sound.h.txt'),
+               // Only split/ has one. The others keep everything in sound.h.txt, and the reader
+               // treats a missing ctx header as empty — so those three cases are unchanged, which
+               // is what makes this addition a pure extension of the fixture set.
+               DE_AUX_SOUND_CTX_H: path.join(d, 'sound_ctx.h.txt'),
                DE_AUX_STUDIO_H: path.join(d, 'studio.h.txt'),
                DE_AUX_DOCS_JS:  path.join(d, 'studioDocs.js.txt'),
                DE_AUX_SHELL_JS: path.join(d, 'shell.js.txt') },
@@ -116,7 +128,7 @@ if (has('--selfcheck')) {
     return JSON.parse(raw)
   }
 
-  const broken = run('broken'), clean = run('clean'), stale = run('stale')
+  const broken = run('broken'), clean = run('clean'), stale = run('stale'), split = run('split')
   const kinds = (g) => g.problems.map(p => p.kind)
   const saw = (g, kind) => kinds(g).includes(kind)
   const about = (g, kind, name) => g.problems.some(p => p.kind === kind && p.msg.includes(name))
@@ -149,6 +161,19 @@ if (has('--selfcheck')) {
     saw(stale, 'bound-count'))
   t('stale: a vanished MODE_* roster is reported, not passed vacuously  [rot guard]',
     saw(stale, 'no-modes') && stale.modes.length === 0)
+
+  // ── split/ — THE REGRESSION THIS LINT ACTUALLY SUFFERED (2026-08-14). The per-instance refactor
+  // moved both eng_p[] declarations out of sound.h into the generated sound_ctx.h. The lint read
+  // only sound.h, found zero, and reported three findings on a healthy engine for weeks — while
+  // repo-doctor showed green, because it ran --selfcheck (a fixture) and never the lint itself.
+  // A blind lint and a healthy engine are indistinguishable from the outside, so pin BOTH halves:
+  // it must find the declarations across the split, AND still say nothing about a correct channel.
+  t('split: declarations living in sound_ctx.h are found  [the 2026-08-14 blindness]',
+    split.decls.length === 2 && split.width === 4)
+  t('split: ...and the channel is then judged clean, not merely quiet  [blind-pass guard]',
+    split.problems.length === 0 && split.bounds.length === 2 && split.copies.length === 4)
+  t('split: a case with NO ctx header is unaffected  [the other three cases still hold]',
+    clean.width === 4 && clean.decls.length === 2)
 
   const failed = T.filter(x => !x.ok)
   for (const x of T) console.log(`  ${x.ok ? '\x1b[32m✓\x1b[0m' : '\x1b[31m✗\x1b[0m'} ${x.n}`)

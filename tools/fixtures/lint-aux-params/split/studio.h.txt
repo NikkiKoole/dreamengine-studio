@@ -1,0 +1,6 @@
+// FIXTURE — a stand-in runtime/studio.h MODE_* roster, all in range + registered.
+// Index reuse across engines is legal (per-engine namespaces), so MODE_CLEAN_A and
+// MODE_CLEAN_C sharing 0 must NOT be flagged.
+#define MODE_CLEAN_A 0
+#define MODE_CLEAN_B 3
+#define MODE_CLEAN_C 0

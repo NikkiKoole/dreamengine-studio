@@ -1,0 +1,11 @@
+// FIXTURE — a stand-in runtime/sound_ctx.h, the GENERATED per-instance context header.
+// The declarations the lint needs live HERE now, which is the whole point of the split/ case.
+// Line-anchored shape, exactly like the real header (see clean/sound.h.txt on why that matters).
+
+typedef struct Instrument {
+  float eng_p[4];
+} Instrument;
+
+typedef struct Voice {
+  float eng_p[4];
+} Voice;

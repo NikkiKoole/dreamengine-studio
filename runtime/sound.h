@@ -766,12 +766,15 @@ static void fx_set_crush(int b, int i, float bits, float rate, float mix) {
 // A whole-bus saturator: the sibling of the per-voice instrument_drive(). Per-voice drive sits
 // POST-FILTER inside a voice (resonance screams into it — the 303/acid interaction); this drives
 // the SUMMED bus (tube/tape glue at gentle settings, a lo-fi wall when cranked, grit on the drums
-// too). Stateless waveshaping (no buffer), so it runs on any bus. It REUSES the exact DRIVE_*
-// shaper curves from the voice path (drive_shape below = a verbatim copy of that switch) so the
-// character A/Bs against per-voice drive. Dormant until drive_insert() raises mix → byte-identical.
+// too). Stateless waveshaping (no buffer), so it runs on any bus. It uses the exact DRIVE_* shaper
+// curves of the voice path, because that is now the SAME FUNCTION (drive_shape below, which the
+// per-voice path calls too), so the character A/Bs against per-voice drive by construction rather
+// than by hand. Dormant until drive_insert() raises mix → byte-identical.
 
-// the DRIVE_* curves, identical to the per-voice path: g grows from 0 (shape(s·g)/shape(g) → s as
-// g → 0, so amount 0 is a true bypass), normalized by shape(g) so full-scale stays full-scale.
+// THE DRIVE_* CURVES — the one definition, called from both the per-voice path (sound_callback) and
+// the mix-bus insert above. It was written out twice, verbatim, until 2026-08-14.
+// g grows from 0 (shape(s·g)/shape(g) → s as g → 0, so amount 0 is a true bypass), normalized by
+// shape(g) so full-scale stays full-scale.
 static float drive_shape(float s, int mode, float dr) {
     float g = dr * dr * 24.0f;
     switch (mode) {
@@ -2133,7 +2136,25 @@ static inline float sound_osc(int wave, float phase, float duty, int *noise_stat
 // the EXCITATION here (timbre/morph) and the FEEDBACK there (harmonics). The buffer is
 // allocated at 2x the note period (capped) and the excitation TILED across it, so the
 // fractional read tap can swing a full octave downward without leaving valid signal.
-static void sound_pluck_start(Voice *v) {
+// PLUCK A STRING — size the delay line for v->freq, fill one period with a pick, and tile it.
+// Shared by INSTR_PLUCK and INSTR_GUITAR, which had this written out twice and differed in ONE
+// expression: where the pick lands. So that is the parameter, and everything else is written once,
+// under this file's own "write the technique once" rule (the same call ks_seed_bore made for the
+// bore engines, which is why the precedent was already there).
+//
+//   pick_frac = pick position along the string, as a fraction of the period. Comb-filter the
+//   excitation by SUBTRACTING a shifted copy (the sign matters — see the piano's AVERAGING twin in
+//   sound_piano_start), which notches the harmonics a real pluck point cancels. Near 0 = at the
+//   bridge (full spectrum), 0.5 = mid-string (hollow). PLUCK sweeps it from `morph`; GUITAR bakes
+//   it at 1/4 string, because there `morph` carries the mute instead.
+//
+// The 0.55 coefficient attenuates the notched harmonics ~14-30dB rather than nulling them, which
+// looks like a magic number but is defensible: on a real guitar the body immediately puts them back
+// ("the plate passes some energy back, exciting new modes in the string itself, including modes that
+// were not present in the original vibration" — Synth Secrets Part 28), so a partial notch is closer
+// to the instrument than a perfect null. Measured at 1.0 = every 2nd harmonic down 14-30dB, at
+// 0.638 = every 3rd. Audit §H1/§H2.
+static void ks_pluck_excite(Voice *v, float pick_frac) {
     int period = (int)((float)SOUND_SAMPLE_RATE / (v->freq > 20.0f ? v->freq : 20.0f));
     if (period < 2) period = 2;
     if (period > SOUND_KS_MAX) period = SOUND_KS_MAX;
@@ -2142,8 +2163,8 @@ static void sound_pluck_start(Voice *v) {
     v->ks_len  = alloc;
     v->ks_widx = 0;
     v->ks_last = 0.0f;
-    // timbre = pick brightness: one-pole lowpass over the noise burst
-    // (0 = soft felt thud, 1 = hard pick, full spectrum)
+    // timbre = pick/string brightness: one-pole lowpass over the noise burst
+    // (0 = soft felt thud / warm nylon, 1 = hard pick / bright steel, full spectrum)
     float k  = 0.04f + 0.96f * v->timb * v->timb;
     float lp = 0.0f;
     for (int i = 0; i < period; i++) {
@@ -2151,15 +2172,7 @@ static void sound_pluck_start(Voice *v) {
         lp += k * (n - lp);
         v->ks_buf[i] = lp;
     }
-    // morph = pick position: comb-filter the excitation (SUBTRACT a shifted copy — the sign matters, see
-    // the piano's AVERAGING twin in sound_piano_start) — notches the harmonics a real pluck point cancels.
-    // 0 = near the bridge (full), 1 = mid-string (hollow). The 0.55 coefficient attenuates the notched
-    // harmonics ~14–30dB rather than nulling them, which looks like a magic number but is defensible: on a
-    // real guitar the body immediately puts them back ("the plate passes some energy back, exciting new
-    // modes in the string itself, including modes that were not present in the original vibration" —
-    // Synth Secrets Part 28), so a partial notch is closer to the instrument than a perfect null. Measured
-    // at 1.0 = every 2nd harmonic down 14–30dB, at 0.638 = every 3rd. Audit §H1/§H2.
-    int pos = (int)(period * (0.04f + 0.46f * v->mor));
+    int pos = (int)(period * pick_frac);
     if (pos > 0) {
         float tmp[SOUND_KS_MAX];
         memcpy(tmp, v->ks_buf, period * sizeof(float));
@@ -2181,6 +2194,10 @@ static void sound_pluck_start(Voice *v) {
         for (int i = 0; i < period; i++) v->ks_buf[i] *= g;
     }
     for (int i = period; i < alloc; i++) v->ks_buf[i] = v->ks_buf[i % period];   // tile
+}
+
+static void sound_pluck_start(Voice *v) {
+    ks_pluck_excite(v, 0.04f + 0.46f * v->mor);   // morph = pick position: bridge → mid-string
 }
 
 // MALLET note-on: strike the bar. The voice's four modes get their initial energy here;
@@ -3900,36 +3917,7 @@ static inline float sound_biquad_run(SoundBiquad *bq, float in) {
 // note-on: excite the string (noise burst → timbre lowpass → fixed pick comb → DC-remove +
 // normalize + tile, the pluck recipe) then voice the body resonator from harmonics.
 static void sound_guitar_start(Voice *v) {
-    int period = (int)((float)SOUND_SAMPLE_RATE / (v->freq > 20.0f ? v->freq : 20.0f));
-    if (period < 2) period = 2;
-    if (period > SOUND_KS_MAX) period = SOUND_KS_MAX;
-    int alloc = period * 2 + 4;
-    if (alloc > SOUND_KS_MAX) alloc = SOUND_KS_MAX;
-    v->ks_len  = alloc;
-    v->ks_widx = 0;
-    v->ks_last = 0.0f;
-    // timbre = string brightness: lowpass the noise burst (0 = warm nylon, 1 = bright steel)
-    float k  = 0.04f + 0.96f * v->timb * v->timb;
-    float lp = 0.0f;
-    for (int i = 0; i < period; i++) {
-        float n = voice_white(v);
-        lp += k * (n - lp);
-        v->ks_buf[i] = lp;
-    }
-    // fixed pick comb at ~1/4 string — pick position is baked here (morph carries mute, not pick pos)
-    int pos = (int)(period * 0.25f);
-    if (pos > 0) {
-        float tmp[SOUND_KS_MAX];
-        memcpy(tmp, v->ks_buf, period * sizeof(float));
-        for (int i = 0; i < period; i++) v->ks_buf[i] = tmp[i] - 0.55f * tmp[(i + pos) % period];
-    }
-    float mean = 0.0f;
-    for (int i = 0; i < period; i++) mean += v->ks_buf[i];
-    mean /= (float)period;
-    float peak = 0.0f;
-    for (int i = 0; i < period; i++) { v->ks_buf[i] -= mean; float a = fabsf(v->ks_buf[i]); if (a > peak) peak = a; }
-    if (peak > 0.0001f) { float g = 0.9f / peak; for (int i = 0; i < period; i++) v->ks_buf[i] *= g; }
-    for (int i = period; i < alloc; i++) v->ks_buf[i] = v->ks_buf[i % period];   // tile
+    ks_pluck_excite(v, 0.25f);   // fixed pick comb at ~1/4 string (morph carries mute, not pick pos)
     // harmonics = body: lerp the 4 formant modes between an OPEN/dark anchor (harp/oud: broad, low,
     // quiet — minimal box) and a RESONANT/bright anchor (banjo/koto: sharp, high, loud).
     float h = v->harm;
@@ -5099,6 +5087,28 @@ static int fx_instr_bus(int slot) {
     return fx_bus_for(slot);
 }
 
+// AUTO-PLACE: make sure `fx` runs somewhere in bus `b`'s insert chain, appending it if it is not
+// there yet. Every effect that is NOT in the default ladder (GRAINS/GATE/MULTIBAND/SHALLOW, and the
+// reverb-tail insert) does this right after its setter, so a cart that never calls fx_order() still
+// hears it. Ride-the-knob calls land on the `already present` path, so this is not a per-frame cost.
+//
+// It was written out NINE times, and the copies had drifted apart in two ways, neither visible at
+// any one site (2026-08-14):
+//   · TWO BOUNDS. Six sites stopped at FX_ORDER_SLOTS (16), three at N_INSERTS (19). 19 is the
+//     ARRAY's size, so neither overflows — but fx_order() packs a chain into 16 one-byte slots, so
+//     a 17th insert exists in the engine and cannot be represented by the API that reorders it.
+//     The min is the only bound that is right for both, and SR_FX_ORDER already took it.
+//   · insert_inst. Seven sites cleared it, the two FX_GRAINS ones did not, so a grains insert
+//     appended over a slot a longer previous chain had used inherited THAT effect's instance index.
+static void fx_chain_ensure(int b, int fx) {
+    for (int s = 0; s < insert_order_n[b]; s++) if (insert_order[b][s] == fx) return;
+    const int cap = N_INSERTS < FX_ORDER_SLOTS ? N_INSERTS : FX_ORDER_SLOTS;
+    if (insert_order_n[b] >= cap) return;                 // chain full — the request is dropped, as before
+    insert_inst [b][insert_order_n[b]] = 0;               // these effects are one-per-bus: instance 0
+    insert_order[b][insert_order_n[b]] = fx;
+    insert_order_n[b]++;
+}
+
 // ~3ms amplitude ramp when a voice is choked. Longer than the ~2.8ms steal-tail decay it
 // replaces, but it fades the LIVE oscillating voice (spectrum intact) instead of DC-decaying a
 // single held sample, so a very bright voice (909 open hat) can't leave a spectral-cliff click.
@@ -5595,10 +5605,7 @@ static void sound_fire_req(SoundReq r) {
             case FX_CHORUS: fx_set_chorus(bus, a, b, c); break;  // rate, depth, mix (mix 0 = off)
             default: return;                  // only these 4 make sense (+fit 3 params) on a reverb tail
         }
-        // ensure fx runs AFTER the reverb: append to the bus chain if not already present
-        bool present = false;
-        for (int s = 0; s < insert_order_n[bus]; s++) if (insert_order[bus][s] == fx) present = true;
-        if (!present && insert_order_n[bus] < N_INSERTS) { insert_inst[bus][insert_order_n[bus]] = 0; insert_order[bus][insert_order_n[bus]++] = fx; }
+        fx_chain_ensure(bus, fx);   // ensure fx runs AFTER the reverb
     } break;
     case SR_REVERB_INSERT: {  // a=size*1000, b=damp*1000, c=mix*1000 — master mix-reverb INSERT (bus 0, tank 1)
         float size = r.a / 1000.0f; size = clamp01(size);
@@ -5647,9 +5654,7 @@ static void sound_fire_req(SoundReq r) {
     } break;
     case SR_GRAINS: {       // master granular delay (bus 0): a=grain_ms, b=density*100, c=position*1000, e0=scatter*1000, e1=feedback*1000, e2=mix*1000
         fx_set_grains(0, (float)r.a, r.b / 100.0f, r.c / 1000.0f, r.e0 / 1000.0f, r.e1 / 1000.0f, r.e2 / 1000.0f);
-        bool present = false;   // auto-place FX_GRAINS in bus 0's chain (not in the default ladder, like FX_ECHO)
-        for (int s = 0; s < insert_order_n[0]; s++) if (insert_order[0][s] == FX_GRAINS) present = true;
-        if (!present && insert_order_n[0] < N_INSERTS) insert_order[0][insert_order_n[0]++] = FX_GRAINS;
+        fx_chain_ensure(0, FX_GRAINS);   // not in the default ladder, like FX_ECHO
     } break;
     case SR_INSTR_GRAINS: { // per-instrument: a=slot, b=grain_ms, c=density*100, e0=position*1000, e1=scatter*1000, e2=PACK(feedback,mix)
         int b = fx_instr_bus(r.a);
@@ -5657,9 +5662,7 @@ static void sound_fire_req(SoundReq r) {
             float feedback = (r.e2 / 1001) / 100.0f;   // unpack: e2 = feedback*100 *1001 + mix*1000
             float mix      = (r.e2 % 1001) / 1000.0f;
             fx_set_grains(b, (float)r.b, r.c / 100.0f, r.e0 / 1000.0f, r.e1 / 1000.0f, feedback, mix);
-            bool present = false;
-            for (int s = 0; s < insert_order_n[b]; s++) if (insert_order[b][s] == FX_GRAINS) present = true;
-            if (!present && insert_order_n[b] < N_INSERTS) insert_order[b][insert_order_n[b]++] = FX_GRAINS;
+            fx_chain_ensure(b, FX_GRAINS);
         }
     } break;
     case SR_GRAINS_FREEZE: {        // a=on
@@ -5764,47 +5767,35 @@ static void sound_fire_req(SoundReq r) {
     } break;
     case SR_GATE: {         // master noise gate (bus 0): a=threshold(×1000), b=attack_ms, c=release_ms
         fx_set_gate(0, r.a / 1000.0f, r.b, r.c);
-        bool present = false;               // auto-place FX_GATE in bus 0's chain (not in the default ladder)
-        for (int s = 0; s < insert_order_n[0]; s++) if (insert_order[0][s] == FX_GATE) present = true;
-        if (!present && insert_order_n[0] < FX_ORDER_SLOTS) { insert_order[0][insert_order_n[0]] = FX_GATE; insert_inst[0][insert_order_n[0]] = 0; insert_order_n[0]++; }
+        fx_chain_ensure(0, FX_GATE);        // not in the default ladder
     } break;
     case SR_INSTR_GATE: {   // per-instrument: a=slot, b=threshold(×1000), c=attack_ms, e0=release_ms
         int b = fx_instr_bus(r.a);
         if (b >= 1) {
             fx_set_gate(b, r.b / 1000.0f, r.c, r.e0);
-            bool present = false;
-            for (int s = 0; s < insert_order_n[b]; s++) if (insert_order[b][s] == FX_GATE) present = true;
-            if (!present && insert_order_n[b] < FX_ORDER_SLOTS) { insert_order[b][insert_order_n[b]] = FX_GATE; insert_inst[b][insert_order_n[b]] = 0; insert_order_n[b]++; }
+            fx_chain_ensure(b, FX_GATE);
         }
     } break;
     case SR_MULTIBAND: {       // master multiband squash (bus 0): a=low, b=mid, c=high, e0=up, e1=mix (×1000)
         fx_set_squash(0, r.a / 1000.0f, r.b / 1000.0f, r.c / 1000.0f, r.e0 / 1000.0f, r.e1 / 1000.0f);
-        bool present = false;               // auto-place FX_MULTIBAND in bus 0's chain (not in the default ladder, like FX_GATE)
-        for (int s = 0; s < insert_order_n[0]; s++) if (insert_order[0][s] == FX_MULTIBAND) present = true;
-        if (!present && insert_order_n[0] < FX_ORDER_SLOTS) { insert_order[0][insert_order_n[0]] = FX_MULTIBAND; insert_inst[0][insert_order_n[0]] = 0; insert_order_n[0]++; }
+        fx_chain_ensure(0, FX_MULTIBAND);   // not in the default ladder, like FX_GATE
     } break;
     case SR_INSTR_MULTIBAND: { // per-instrument: a=slot, b=low, c=mid, e0=high, e1=up, e2=mix (×1000)
         int b = fx_instr_bus(r.a);
         if (b >= 1) {
             fx_set_squash(b, r.b / 1000.0f, r.c / 1000.0f, r.e0 / 1000.0f, r.e1 / 1000.0f, r.e2 / 1000.0f);
-            bool present = false;
-            for (int s = 0; s < insert_order_n[b]; s++) if (insert_order[b][s] == FX_MULTIBAND) present = true;
-            if (!present && insert_order_n[b] < FX_ORDER_SLOTS) { insert_order[b][insert_order_n[b]] = FX_MULTIBAND; insert_inst[b][insert_order_n[b]] = 0; insert_order_n[b]++; }
+            fx_chain_ensure(b, FX_MULTIBAND);
         }
     } break;
     case SR_SHALLOW: {      // master shallow water (bus 0): a=rate, b=depth, c=mix (×1000)
         fx_set_shallow(0, r.a / 1000.0f, r.b / 1000.0f, r.c / 1000.0f);
-        bool present = false;               // auto-place FX_SHALLOW in bus 0's chain (not in the default ladder, like FX_GRAINS)
-        for (int s = 0; s < insert_order_n[0]; s++) if (insert_order[0][s] == FX_SHALLOW) present = true;
-        if (!present && insert_order_n[0] < FX_ORDER_SLOTS) { insert_order[0][insert_order_n[0]] = FX_SHALLOW; insert_inst[0][insert_order_n[0]] = 0; insert_order_n[0]++; }
+        fx_chain_ensure(0, FX_SHALLOW);     // not in the default ladder, like FX_GRAINS
     } break;
     case SR_INSTR_SHALLOW: { // per-instrument: a=slot, b=rate, c=depth, e0=mix (×1000)
         int b = fx_instr_bus(r.a);
         if (b >= 1) {
             fx_set_shallow(b, r.b / 1000.0f, r.c / 1000.0f, r.e0 / 1000.0f);
-            bool present = false;
-            for (int s = 0; s < insert_order_n[b]; s++) if (insert_order[b][s] == FX_SHALLOW) present = true;
-            if (!present && insert_order_n[b] < FX_ORDER_SLOTS) { insert_order[b][insert_order_n[b]] = FX_SHALLOW; insert_inst[b][insert_order_n[b]] = 0; insert_order_n[b]++; }
+            fx_chain_ensure(b, FX_SHALLOW);
         }
     } break;
     case SR_LESLIE: {       // master Leslie (bus 0): a=speed, b=drive, c=balance, e0=doppler, e1=mix (×1000 except speed)
@@ -6326,27 +6317,12 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
             // normalizing by shape(g) keeps full-scale at full-scale — character, not volume.
             // drv_mode picks the waveshaper (DRIVE_*); all four bypass at 0 and hold full-scale.
             if (v->sfx_idx < 0 && v->drv > 0.001f) {
-                float dr = v->drv;
-                float g  = dr * dr * 24.0f;
-                switch (v->drv_mode) {
-                    case 1: {  // DRIVE_HARD — hard clip, normalized so g<1 is bypass, g>=1 clips
-                        float hg = g < 1.0f ? g : 1.0f;
-                        float c  = s * g;
-                        c = c < -1.0f ? -1.0f : (c > 1.0f ? 1.0f : c);
-                        s = c / hg;
-                    } break;
-                    case 2: {  // DRIVE_FOLD — sine wavefolder, dry/wet by amount (bounded, no divide)
-                        float w = de_sinf(s * (1.0f + dr * 6.0f) * 1.2f);
-                        s = s * (1.0f - dr) + w * dr;
-                    } break;
-                    case 3: {  // DRIVE_ASYM — even-harmonic tube: softer negative half, asymmetry grows with drive
-                        float ng = de_tanhf(g);
-                        s = (s >= 0.0f) ? de_tanhf(s * g) / ng
-                                        : de_tanhf(s * g * (1.0f - 0.4f * dr)) / ng;
-                    } break;
-                    default:   // DRIVE_SOFT (0) — tanh soft-clip (bit-identical to pre-modes)
-                        s = de_tanhf(s * g) / de_tanhf(g);
-                }
+                // The four curves live in drive_shape() (declared with the drive INSERT, which is the
+                // OTHER customer). They used to be written out again here, verbatim; the insert's own
+                // comment called itself "a verbatim copy of that switch", which is how you find out
+                // that the copy is the thing you are reading. One definition now, so the insert and
+                // the per-voice path cannot drift into sounding different.
+                s = drive_shape(s, v->drv_mode, v->drv);
                 // DC blocker: tanh of an asymmetric wave (e.g. a driven organ registration)
                 // injects a DC offset, which the per-note env ramp turns into a click/thump on
                 // attack + release. One-pole HP ~7Hz removes it. Only runs when driven, so clean

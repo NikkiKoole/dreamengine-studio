@@ -1,0 +1,28 @@
+// FIXTURE — a stand-in runtime/sound.h AFTER the per-instance refactor. See ../README.md.
+//
+// This is the shape that made the real lint go blind: the two `float eng_p[N];` declarations are
+// NOT here any more. They moved into the generated context header (sound_ctx.h.txt beside this
+// file), and the lint kept reading only this one. It found ZERO declarations, so `width` was
+// undefined and the bound checks compared every bound against `undefined` — three findings, none
+// of them true, on a healthy engine. It stayed red and unnoticed because repo-doctor ran the
+// --selfcheck (green, on a fixture) and never the lint itself.
+//
+// The rest of the channel is correct and identical to clean/, so the ONLY thing this case can
+// report is a failure to look in both files.
+
+void instrument_mode(int slot, int idx, float v) {
+  if (idx < 0 || idx >= 4) return;
+  queue_request(SR_ENG_TUNE, slot, idx, v);
+}
+
+static void handle_eng_tune(int slot, int idx, float v) {
+  if (idx < 0 || idx >= 4) return;
+  g_ins[slot].eng_p[idx] = v;
+}
+
+static void voice_note_on(Voice *v, Instrument *ins) {
+  v->eng_p[0] = ins->eng_p[0];
+  v->eng_p[1] = ins->eng_p[1];
+  v->eng_p[2] = ins->eng_p[2];
+  v->eng_p[3] = ins->eng_p[3];
+}

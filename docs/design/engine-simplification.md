@@ -411,16 +411,26 @@ Same rules as round 1: line numbers rot, the function name is the anchor, every 
 
 ### Open — `sound.h`
 
-- [ ] **The `DRIVE_*` waveshaper switch exists twice, verbatim** — and the header says so
-      ("drive_shape below = a verbatim copy of that switch"). −18 lines. Gate: `refactor-guard`
-      (fma contraction is the only risk), then `click-check`.
-- [ ] **Karplus-Strong seeding duplicated between PLUCK and GUITAR**, differing only in pick
-      position. The precedent already exists — `ks_seed_bore` is shared by REED/PIPE/BRASS under
-      this file's own "write the technique once" rule. −28 lines.
-- [ ] **"ensure FX_X is in bus b's chain" is written 9 times and the copies diverged** — two
-      different bound constants (`N_INSERTS` 19 vs `FX_ORDER_SLOTS` 16, one of which cannot
-      round-trip `fx_order`'s 16-slot packing), and 7 of 9 sites clear `insert_inst` while the two
-      `FX_GRAINS` ones do not. −14 lines, both divergences made impossible.
+- [x] **The `DRIVE_*` waveshaper switch exists twice, verbatim** — LANDED 2026-08-14. The per-voice
+      path calls `drive_shape()` now, which is where the mix-bus insert already went. The insert's
+      own comment ("a verbatim copy of that switch") is gone with the copy. **Coverage, because the
+      probe set alone would not have earned it:** `ab-render drivemodes --set mode=0,1,2,3` renders
+      all four curves and every sha matches a worktree at `HEAD` — `456d0e05ea3d` / `1fecd6fe27fc` /
+      `efa77be1aa7f` / `8f89a7647d7c`. `refactor-guard` 6/6. `click-check` flags the same 64 events
+      before and after (a mode flip mid-note through a hard clipper genuinely steps).
+- [x] **Karplus-Strong seeding duplicated between PLUCK and GUITAR** — LANDED 2026-08-14. Extracted
+      as `ks_pluck_excite(v, pick_frac)`; the single expression they differed in is now the
+      parameter (PLUCK sweeps it from `morph`, GUITAR bakes 1/4 string because its `morph` carries
+      the mute). Same move `ks_seed_bore` made for the bore engines. A/B vs `HEAD`: `bitcrush` +
+      `bossa` (PLUCK), `air` + `aquapuss` (GUITAR), all byte-identical **and all four verified
+      non-silent first** — the two obvious PLUCK carts (`chordblossom`, `afxkeys`) render `-inf`
+      without input, so comparing those would have proved nothing.
+- [x] **"ensure FX_X is in bus b's chain" is written 9 times and the copies diverged** — LANDED
+      2026-08-14 as `fx_chain_ensure(bus, fx)`. Both divergences are now unrepresentable: the bound
+      is `min(N_INSERTS, FX_ORDER_SLOTS)` (the only one right for both — 19 is the array, 16 is what
+      `fx_order` can pack, and `SR_FX_ORDER` already took the min), and `insert_inst` is always
+      cleared, which the two `FX_GRAINS` sites did not do. A/B vs `HEAD`: `grainstest`, `gatetest`,
+      `afrobeat`, `caustics` byte-identical; `fx-check` reports the same three pre-existing warnings.
 - [x] **Four `SR_*` kinds were in NEITHER classification switch** — LANDED 2026-08-14.
       `SR_INPUT_MONITOR` → `CTXK_K` (a master knob beside the other mic kinds), and
       `SR_INSTR_GLIDE`/`_GLIDE_SCALE`/`_TRIGGER` → `CTXK_KA` (a = instrument slot, exactly like
@@ -476,6 +486,19 @@ Same rules as round 1: line numbers rot, the function name is the anchor, every 
 
 ### Open — gates and measurement
 
+- [x] **`lint-aux-params` had been RED against the real source, and `repo-doctor` showed green.**
+      LANDED 2026-08-14, found by running it while gating something else. The per-instance refactor
+      moved both `float eng_p[7];` out of `sound.h` into the generated `sound_ctx.h`; the lint read
+      only `sound.h`, found **zero** declarations, and so reported three findings on a healthy
+      engine — `width` was `undefined`, and both bound checks compared against it. **The reason
+      nobody saw it is the interesting half:** `repo-doctor` ran `--selfcheck`, which passes on a
+      fixture, and never ran the lint itself. So the lint now reads both files, `repo-doctor` gained
+      an `aux params` row beside the `selftest: aux params` one, and the fixture gained a `split/`
+      case reproducing exactly this shape (`--selfcheck` 14 → 17, mutation-tested by hiding the ctx
+      header: it reproduces all three original findings). Engine unchanged — it was healthy
+      throughout; width 7, 2 declarations, 2 bounds, 7 copies, 12 modes.
+      **The general rule this earns:** a `--selfcheck` row proves the checker works, only a real run
+      proves it is still looking at the repo. Every lint with the first row wants the second.
 - [ ] **`midi-check` phase B is flaky** — failed once and passed twice on identical code; only a
       throwaway worktree at `HEAD` established that the failure was not a regression. A gate whose
       failure is indistinguishable from a real one will eventually be believed wrongly.

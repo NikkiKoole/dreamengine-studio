@@ -191,6 +191,24 @@ a broken doc link or `#section`).
 > is exactly why two of the three double-engine bugs shipped: the AUv3 never had them, `instance-check`
 > creates its own instances, and `refactor-guard` runs the desktop build, which has no `CanvasView`.
 >
+> **✅ SESSION STATE SHIPPED (2026-08-14) — the plug-in remembers, and the maker verified it in
+> GarageBand** (toggled instruments + an added acid note came back after a save/reopen).
+> `de_save_state`/`de_load_state` + `fullState`, serialising INTENT (the `ctx_log` config + cart slices
+> marked `de_state_for_saved`), zlib-packed 589,032 → 3,560 bytes. Gated three ways:
+> `bash tools/state-check/run.sh` (20, engine), `./au-transport-check --state` (12, the real
+> out-of-process plug-in incl. the property-list round trip a host performs), `tools/lint-saved-state.js`.
+>
+> ⚠ **BUT ONE THING IS NOT OPTIONAL BEFORE THE APP REACHES ANYBODY: there is no migration.** The layout
+> fingerprint is `(format version, slice index, slice size)` with no cart-level version, so **one new
+> knob invalidates every saved project** — it refuses and falls back to defaults, `NSLog` the only
+> trace. The route (restore a shorter blob as a PREFIX of the template; relax the size check; enforce
+> **append-only**, because REORDERING keeps the size and so passes the fingerprint while landing every
+> value in the wrong field silently) is written up at
+> [`design/engine-instance-seam.md` → the per-instance/session-state block](design/engine-instance-seam.md).
+> Ranked with the three smaller leftovers (unverified `fullStateForDocument`, no `factoryPresets`, and
+> N racks still sharing one on-disk `cart.blob`) in the [`STATUS.md`](STATUS.md) entry
+> "AUv3 session state — SHIPPED, and four things left".
+>
 > **▶ NEXT ACTION (2026-08-14, the maker's call): WIRE THE HOST'S MOD WHEEL AND PITCH BEND.**
 > GarageBand draws two controls above its keyboard — **modulatiewiel** (mod wheel = MIDI CC1) and
 > **toonhoogte** (pitch bend) — on **both macOS and iPadOS**, and neither does anything. ⚠ **This one

@@ -248,6 +248,26 @@ Named so the next session does not assume otherwise:
 
       **The lesson worth keeping:** "field X is in the saved struct" does not tell you X is restored
       state. Check who WRITES it each frame first. Reading the struct is not enough.
+    - ▶ **OPEN, AND THE ONE THAT MATTERS BEFORE USERS HAVE THE APP: there is no migration.** The
+      fingerprint is `(DE_SS_VERSION, slice index, slice size)` — nothing carries a *cart-level*
+      version. Add one knob to the panel, `CartState` grows, the fingerprint moves, and **every
+      previously saved project refuses and falls back to defaults**, with an `NSLog` as the only trace.
+      Refusing is correct for a blob from an unknown build; it is the wrong answer to *our own next
+      release*.
+
+      **Route, and it fits what is already here:** a saved slice starts life as a copy of the cart's
+      compile-time template (`de_cart_default`), so a **shorter** saved blob can be restored as a
+      PREFIX — copy the bytes that are present and leave everything new at its template default. That
+      makes *appending* a field a non-event. It needs the fingerprint relaxed from "size must match" to
+      "saved size ≤ current size, same slice index", and it needs one discipline:
+
+      ⚠ **APPEND ONLY — never reorder or retype a saved field.** Reordering is the trap, and it is
+      worse than the problem being fixed: it keeps the struct the SAME SIZE, so the fingerprint still
+      matches, the restore is accepted, and every value lands in the wrong field *silently*. A size
+      check cannot see it. So the discipline has to be enforced rather than remembered —
+      `tools/lint-saved-state.js` is the natural home (it already parses saved slices; it would need a
+      committed snapshot of each saved layout to diff against, which is the same shape as
+      `refactor-guard`'s baseline and carries the same lesson about recording provenance honestly).
   - Note the plug-in does **no** state handling today at all (no `fullState`, no `parameterTree`, no
     presets), so a reopened session starts every rack at defaults — a separate user-visible gap from
     the two-racks-interfere bug.

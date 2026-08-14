@@ -629,51 +629,51 @@ Detail lives in the linked design doc in every case; that is where it was always
 > Related: [`design/engine-instance-seam.md`](design/engine-instance-seam.md),
 > [`design/device-adaptive-layout.md`](design/device-adaptive-layout.md).
 
-> ### The AUv3 plug-in has NO session state — a reopened DAW project starts every rack at defaults
+> ### AUv3 session state — SHIPPED, and four things left (one before anybody has the app)
 >
-> **DONE 2026-08-14 (engine + Swift written and building; the ENGINE half is gated).**
-> `de_save_state` / `de_load_state` ship in `runtime/platform.h`, `fullState` is implemented on
-> `ios/AU/TinyjamAU.swift`, and `bash tools/state-check/run.sh` passes 20 assertions with four
-> negative controls. What travels is INTENT — the sound config log + cart slices marked
-> `de_state_for_saved` — never the ~4 MB context struct. **The Swift half is gated too** as of the same
-> day: `./au-transport-check --state` (in `ios/mac.sh`) drives the REAL out-of-process plug-in and
-> checks what only a host reveals — the blob reaches the host as our own `DES1` format, `super`'s keys
-> survive, the whole dictionary survives a **property-list round trip** byte-for-byte (a DAW writes
-> `fullState` into the project FILE, and anything not plist-representable is dropped silently), and a
-> blob with a mangled fingerprint is refused without wedging the plug-in. 8/8.
-> **SIZE: SOLVED (2026-08-14).** The engine blob is 589 KB and **measured 99.5% zero bytes** — the rack
-> is mostly empty pattern arrays (steps × voices × patterns, times the autosave plus six song slots).
-> The AU now zlib-packs it into a self-describing `DEZ1` container: **589,032 → 3,560 bytes, 165×**,
-> asserted in the gate (a container that compressed *nothing* would still carry the right magic and
-> quietly ship half a megabyte per track). Compression sits in Swift, not the engine — what is big is
-> the HOST's project file and the host is Apple-specific, whereas `studio.c` has to stay portable and
-> ships an INflater only (stb_image). The DES1 wire format is unchanged, and a raw `DES1` blob is still
-> read straight through, so projects saved before this keep loading (gated). Because the bank now costs
-> ~3.5 KB, keeping it in the project is no longer a trade-off: a project stays portable — open it on
-> another machine and your songs are there — so the `fullState`/`fullStateForDocument` split is not
-> needed and was not built.
-> Two things the plan below had wrong, both
-> corrected in [`design/engine-instance-seam.md`](design/engine-instance-seam.md): the `de_state()`
-> block cannot be copied verbatim (its arena header IS pointers), and the "no pointers" rule was
-> already violated by `ui.h` — while `keybed.h`/`solo.h`/`radio.h` hold live voice HANDLES, which are
-> plain ints and so invisible to a pointer lint. Hence per-slice opt-in with **scratch as the
-> default**. The lint IS written (`tools/lint-saved-state.js`, in repo-doctor) and **caught a real one on its
-> first run**: `acidcandy`'s `nav_poison[6]`, an array of widget POINTERS inside the saved `CartState`,
-> committed an hour earlier under a comment asserting there were none. Moved to a scratch slice.
+> Opened 2026-08-13 (a reopened DAW project started every rack at factory defaults, silently — the
+> first-save bug, unlike the shared-engine one which needed two instances to appear). **Save/restore
+> SHIPPED 2026-08-14 and the maker verified it in GarageBand** — toggled instruments and an added acid
+> note came back. It stays in Open for the four items below.
 >
-> Opened 2026-08-13, found while designing the instance seam. `ios/AU/TinyjamAU.swift` implements no
-> `fullState`, no `parameterTree`, no presets — nothing. So a buyer who saves a song and reopens it
-> gets their racks back at factory defaults, silently. **This is a DIFFERENT gap from the "two tracks
-> share one engine" defect** the context refactor is fixing, and arguably the more visible one: the
-> shared-engine bug needs two instances to show up, this one shows up the first time anybody saves.
-> The route is a rung on the same ladder and needs nothing undone — per-instance state
-> (**DONE 2026-08-14: engine, cart-land headers, and the cart's own 198; two GarageBand tracks
-> verified in sound and picture**) → per-instance `save_dir` (**HALF done**: `de_set_save_dir` now
-> reaches its own instance, but nothing hands the instances distinct DIRECTORIES, and the host is what
-> must choose them) → swap the file for a host-provided blob. What gets serialized is INTENT,
-> not the context struct: `de_state()` (one flat block) replayed over `ctx_log` (already a log of the
-> cart's config calls, built for `de_switch_cart`). Detail + the rule it would impose (carts must keep
-> no pointers in `de_state()`): [`design/engine-instance-seam.md`](design/engine-instance-seam.md).
+> **▶ 1. AN APP UPDATE WILL INVALIDATE EVERY SAVED PROJECT. Close this before users have it.** The
+> layout fingerprint is `(format version, slice index, slice size)` and there is **no cart-level
+> version and no migration**. So one new knob on the panel grows `CartState`, the fingerprint moves,
+> and every v1.0 project refuses and falls back to defaults — with an `NSLog` nobody reads as the only
+> trace. "Refuse rather than corrupt" is the right call and it is *not* the right answer to a shipped
+> update. **Tractable route:** a saved slice starts life as a copy of `de_cart_default`, so a SHORTER
+> blob can be restored as a PREFIX — copy what is there, leave new fields at their template defaults.
+> That makes *appending* a field safe, at the price of a discipline (**append only** — never reorder or
+> retype a saved field) which wants enforcing in `tools/lint-saved-state.js`. Reordering is the trap:
+> it keeps the same size, so the fingerprint still matches and the restore is silently wrong.
+> **2. `fullStateForDocument` is unverified.** GarageBand round-tripping a project is real evidence,
+> but which of the two it used is unknown, and other hosts may use the document variant. One assertion
+> in the `--state` gate settles it.
+> **3. No `factoryPresets` / `parameterTree`.** The preset dropdown is empty, and whether saving a
+> GarageBand *patch* (as opposed to a project) carries the rack is untested — patches are how people
+> reuse an instrument, so worth a look.
+> **4. N racks still share one `cart.blob` on disk.** Project state is per-instance and correct now,
+> but the cart's own rolling autosave is not: two tracks overwrite each other's "last session".
+> Harmless while projects carry the real state; it is the unfinished half of per-instance `save_dir`.
+>
+> **WHAT SHIPPED** (full detail + the two things the original plan had wrong:
+> [`design/engine-instance-seam.md`](design/engine-instance-seam.md)). `de_save_state`/`de_load_state`
+> in `runtime/platform.h` + `fullState` on `ios/AU/TinyjamAU.swift`. What travels is INTENT — the sound
+> config log (`ctx_log`) plus cart slices marked `de_state_for_saved` — never the ~4 MB context struct.
+> Per-slice opt-in with **scratch as the default**, because forgetting to mark loses a setting
+> (recoverable) where the other default restores a stale handle (corruption). Gated three ways:
+> `bash tools/state-check/run.sh` (20 assertions, four negative controls, engine half),
+> `./au-transport-check --state` in `ios/mac.sh` (12, the real out-of-process plug-in, including the
+> **property-list round trip** a host performs when it writes the project file — anything not
+> plist-representable is dropped silently), and `tools/lint-saved-state.js`, which caught a real defect
+> on its first run (`acidcandy`'s `nav_poison[6]`, widget POINTERS inside the saved slice).
+> **Size solved the same day:** the blob is 589 KB and **99.5% zero bytes**, so the AU zlib-packs it
+> into a self-describing `DEZ1` container — **589,032 → 3,560 bytes, 165×**, with the ratio itself
+> asserted (a container that compressed nothing would carry the right magic and still ship half a
+> megabyte per track). Compression is in Swift, not the engine: what is big is the HOST's project file,
+> and `studio.c` must stay portable (stb_image ships an INflater only). Raw `DES1` blobs are still read
+> straight through, so projects saved before compression keep loading. At ~3.5 KB the song bank is no
+> longer a trade-off, so the `fullState`/`fullStateForDocument` split floated earlier was not built.
 
 > ### `tenement` — the D/R fork: the building contends now, and nobody has decided whether it should
 >

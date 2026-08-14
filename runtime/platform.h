@@ -137,9 +137,19 @@ void de_set_save_dir(DeInstance *in, const char *dir);
 // (or too small a `max`) to get the REQUIRED size back without writing — call it twice, size then fill.
 // Call on any thread that is not driving de_frame; it only reads.
 int de_save_state(DeInstance *in, void *out, int max);
-// de_load_state: returns 1 if the blob was ACCEPTED, 0 if REFUSED — refused means a different build
-// or architecture wrote it (the layout fingerprint disagrees), and the rack is left at defaults
-// rather than filled with mismatched bytes. Nothing is ever half-applied.
+// de_load_state: 1 = ACCEPTED · 2 = ACCEPTED WITH MIGRATION · 0 = REFUSED.
+//
+// MIGRATION is what stops an app update from throwing away everyone's saved songs. A slice that GREW
+// since the blob was written (you added a knob) is restored as a PREFIX — the saved bytes land, the new
+// fields keep their template defaults — and the call returns 2 so the host can say so. A slice that
+// SHRANK, a different saved-slice set, a foreign ABI, or a version from the future are all REFUSED, and
+// refused means the rack stays at defaults rather than being filled with mismatched bytes. Nothing is
+// ever half-applied.
+//
+// ⚠ The one thing this CANNOT check is a REORDER or RETYPE of existing fields: the size does not move,
+// so every runtime test passes and every value lands in the wrong field. That is enforced at build time
+// by tools/lint-saved-state.js, whose rule is APPEND-ONLY. Runtime migration and that lint are one
+// design — neither is sufficient alone.
 // ⚠ The blob is copied and applied at the top of the NEXT de_frame, not inline: the host sets state
 // on its own thread while the frame worker runs, and the cart's state belongs to de_frame. So a
 // return of 1 means "accepted", and the rack changes one frame later. `blob` is yours again on return.

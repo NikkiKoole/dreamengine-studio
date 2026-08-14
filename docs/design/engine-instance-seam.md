@@ -248,26 +248,32 @@ Named so the next session does not assume otherwise:
 
       **The lesson worth keeping:** "field X is in the saved struct" does not tell you X is restored
       state. Check who WRITES it each frame first. Reading the struct is not enough.
-    - ▶ **OPEN, AND THE ONE THAT MATTERS BEFORE USERS HAVE THE APP: there is no migration.** The
-      fingerprint is `(DE_SS_VERSION, slice index, slice size)` — nothing carries a *cart-level*
-      version. Add one knob to the panel, `CartState` grows, the fingerprint moves, and **every
-      previously saved project refuses and falls back to defaults**, with an `NSLog` as the only trace.
-      Refusing is correct for a blob from an unknown build; it is the wrong answer to *our own next
-      release*.
+    - ✅ **MIGRATION — BUILT 2026-08-14 (format v2).** This was the update cliff: v1 folded each slice's
+      SIZE into the fingerprint, so shipping one new knob would have refused every already-saved project.
+      v2 hashes the SHAPE (which slices, in what order) plus an **ABI tag**, and checks sizes per slice:
+      **saved < current → PREFIX-RESTORE** (saved bytes land, anything added since keeps its template
+      default), **== → exact**, **> → REFUSE** (the struct shrank; we cannot know which bytes left).
+      `de_load_state` returns **2** for a migrated load so the host can report it rather than migrating
+      silently. **v1 blobs still restore exactly** — they exist in real projects — via a kept
+      `de_ss_fingerprint_v1`, gated by a test-only `DE_SS_WRITE_V1` writer.
 
-      **Route, and it fits what is already here:** a saved slice starts life as a copy of the cart's
-      compile-time template (`de_cart_default`), so a **shorter** saved blob can be restored as a
-      PREFIX — copy the bytes that are present and leave everything new at its template default. That
-      makes *appending* a field a non-event. It needs the fingerprint relaxed from "size must match" to
-      "saved size ≤ current size, same slice index", and it needs one discipline:
+      The ABI tag earns its place: without it, "saved < current" on a foreign ABI would prefix-restore
+      misaligned bytes. It deliberately matches between arm64 and x86-64 (same pointer/long/float sizes,
+      same endianness, same padding for the plain members a saved slice may contain) and differs for
+      32-bit or big-endian, which is exactly the line worth refusing at.
 
-      ⚠ **APPEND ONLY — never reorder or retype a saved field.** Reordering is the trap, and it is
-      worse than the problem being fixed: it keeps the struct the SAME SIZE, so the fingerprint still
-      matches, the restore is accepted, and every value lands in the wrong field *silently*. A size
-      check cannot see it. So the discipline has to be enforced rather than remembered —
-      `tools/lint-saved-state.js` is the natural home (it already parses saved slices; it would need a
-      committed snapshot of each saved layout to diff against, which is the same shape as
-      `refactor-guard`'s baseline and carries the same lesson about recording provenance honestly).
+      **How it is gated, and why it needed a new shape:** the cliff cannot be tested in one process,
+      because a build cannot grow its own struct. `tools/state-check/run.sh` therefore builds the probe
+      TWICE — `-DSC_GROWN` appends one field, standing in for the next release — and moves a blob between
+      the builds through a file. The load-side assertion that matters is that **the added field holds its
+      default (77) rather than bytes read past the end of the shorter blob**.
+
+      ⚠ **Still cannot see a REORDER or RETYPE** — same size, so every runtime check passes and every
+      value lands in the wrong field. Enforced at build time by `tools/lint-saved-state.js`'s layout
+      snapshot (append-only). Runtime migration and that lint are ONE design; neither works alone.
+      ⚠ **The lint does not understand `#ifdef`** — a saved struct with conditional members has more than
+      one shape, so the snapshot describes only the default one. It reports that rather than guessing.
+
   - Note the plug-in does **no** state handling today at all (no `fullState`, no `parameterTree`, no
     presets), so a reopened session starts every rack at defaults — a separate user-visible gap from
     the two-racks-interfere bug.

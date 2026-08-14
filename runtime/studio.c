@@ -6132,19 +6132,70 @@ void *de_state_for_saved(const void *key, int bytes) { return de_state_for_(key,
 // that layout means a blob from a different build (a struct grew, a header was added, a different
 // architecture padded differently) is REFUSED rather than copied into mismatched slices.
 #define DE_SS_MAGIC   0x31534544   /* "DES1" */
-#define DE_SS_VERSION 1
+#define DE_SS_VERSION 2   /* what we WRITE */
+#define DE_SS_VER_MIN 1   /* oldest we can still READ — v1 blobs exist in real saved projects */
 #define DE_SS_NHDR    6            /* int32 header words before the payload */
 #define DE_SS_REQW    9            /* int32 words per logged SoundReq */
 
-static unsigned de_ss_fingerprint(const DeArena *a) {
+/* THE MIGRATION RULE, and why the fingerprint had to change.
+ *
+ * v1 folded each slice's SIZE into the fingerprint. That made a grown slice a different rack, so
+ * shipping ONE NEW KNOB would have refused every project a player had already saved — the update
+ * cliff. The size is exactly the thing that must be allowed to move.
+ *
+ * v2 hashes the SHAPE instead: which slices are saved and in what order, plus an ABI tag. Sizes are
+ * then checked PER SLICE with the asymmetric rule below, which is what makes an append survivable:
+ *
+ *   saved < current  → the struct GREW: copy the saved bytes as a PREFIX and leave the tail at the
+ *                      template defaults, so a knob added in v1.1 simply starts where it would in a
+ *                      fresh instance. This is the whole point.
+ *   saved == current → exact restore.
+ *   saved > current  → the struct SHRANK (a field removed): REFUSE. We cannot know which bytes went.
+ *
+ * ⚠ WHAT THIS CANNOT SEE, stated because it is the price of the above: a REORDER or a RETYPE keeps the
+ * size, so it passes every runtime check and lands every value in the wrong field. Nothing at runtime
+ * can catch it — nothing at runtime knows what the fields used to mean. That is enforced at BUILD time
+ * by tools/lint-saved-state.js against a committed layout snapshot, and the discipline it enforces is
+ * APPEND-ONLY. The two halves are one design; neither works alone. */
+static unsigned de_ss_abi(void) {
+    /* Refuse across genuinely different layouts (32- vs 64-bit, byte order) while staying identical
+     * between arm64 and x86-64, which agree on all of these and on padding for the plain int/float
+     * members a saved slice is allowed to contain. Without this, "saved < current" on a foreign ABI
+     * would prefix-restore misaligned bytes. */
+    unsigned h = 2166136261u, probe = 1;
+    h = (h ^ (unsigned)sizeof(void *)) * 16777619u;
+    h = (h ^ (unsigned)sizeof(long))   * 16777619u;
+    h = (h ^ (unsigned)sizeof(float))  * 16777619u;
+    h = (h ^ (unsigned)*(const unsigned char *)&probe) * 16777619u;   /* endianness */
+    return h;
+}
+
+/* v1, kept ONLY to read blobs written before migration existed (the maker has some). Sizes ARE part
+ * of its identity, so those blobs restore exactly or not at all — which is what they promised. */
+static unsigned de_ss_fingerprint_v1(const DeArena *a) {
     unsigned h = 2166136261u;
-    h = (h ^ (unsigned)DE_SS_VERSION) * 16777619u;
+    h = (h ^ 1u) * 16777619u;
     if (a && a->magic == DE_ARENA_MAGIC)
         for (int i = 0; i < a->n; i++) {
             if (!a->e[i].saved) continue;
             h = (h ^ (unsigned)i) * 16777619u;
             h = (h ^ (unsigned)a->e[i].size) * 16777619u;
         }
+    return h;
+}
+
+static unsigned de_ss_fingerprint(const DeArena *a) {
+    unsigned h = 2166136261u;
+    h = (h ^ (unsigned)DE_SS_VERSION) * 16777619u;
+    h = (h ^ de_ss_abi()) * 16777619u;
+    int n = 0;
+    if (a && a->magic == DE_ARENA_MAGIC)
+        for (int i = 0; i < a->n; i++) {
+            if (!a->e[i].saved) continue;
+            h = (h ^ (unsigned)i) * 16777619u;   // WHICH slices, in order — but NOT their sizes
+            n++;
+        }
+    h = (h ^ (unsigned)n) * 16777619u;
     return h;
 }
 
@@ -6174,8 +6225,15 @@ static int de_save_state_(unsigned char *out, int max) {
 
     unsigned char *p = out;
     de_ss_put(&p, DE_SS_MAGIC);
+#ifdef DE_SS_WRITE_V1
+    /* TEST-ONLY (tools/state-check/run.sh): emit the PRE-MIGRATION format so the v1 READ path has a
+     * gate. Never defined in a shipping build — v1 is a format we read, not one we write. */
+    de_ss_put(&p, 1);
+    de_ss_put(&p, (int)de_ss_fingerprint_v1(a));
+#else
     de_ss_put(&p, DE_SS_VERSION);
     de_ss_put(&p, (int)de_ss_fingerprint(a));
+#endif
     de_ss_put(&p, need);
     de_ss_put(&p, nlog);
     de_ss_put(&p, nsl);
@@ -6196,23 +6254,30 @@ static int de_save_state_(unsigned char *out, int max) {
 
 // Validate ONLY — the apply is deferred to the top of de_frame (de_ss_apply). Returns the accepted
 // blob's length, or 0 if it is refused. Nothing is half-applied on a refusal.
-static int de_ss_validate(const unsigned char *b, int len) {
+static int de_ss_validate(const unsigned char *b, int len, int *migrated) {
     if (!b || len < DE_SS_NHDR * 4) return 0;
     const unsigned char *p = b;
-    if (de_ss_get(&p) != DE_SS_MAGIC)   return 0;
-    if (de_ss_get(&p) != DE_SS_VERSION) return 0;
+    if (de_ss_get(&p) != DE_SS_MAGIC) return 0;
+    int ver = de_ss_get(&p);
+    if (ver < DE_SS_VER_MIN || ver > DE_SS_VERSION) return 0;   // from a future build: refuse
     unsigned fp = (unsigned)de_ss_get(&p);
     int total = de_ss_get(&p), nlog = de_ss_get(&p), nsl = de_ss_get(&p);
     if (total != len || nlog < 0 || nlog > SOUND_CTX_LOG || nsl < 0 || nsl > DE_ARENA_MAX) return 0;
     DeArena *a = de_ss_arena();
-    if (fp != de_ss_fingerprint(a)) return 0;   // different build/arch → refuse, do not misapply
+    unsigned want_fp = (ver == 1) ? de_ss_fingerprint_v1(a) : de_ss_fingerprint(a);
+    if (fp != want_fp) return 0;                // incompatible shape/ABI → refuse, do not misapply
     // the body must be exactly as long as the header claims
     int want = DE_SS_NHDR * 4 + nlog * DE_SS_REQW * 4;
     const unsigned char *q = b + want;
     for (int s = 0; s < nsl; s++) {
         if (q + 8 > b + len) return 0;
         const unsigned char *t = q; int idx = de_ss_get(&t), sz = de_ss_get(&t);
-        if (!a || idx < 0 || idx >= a->n || !a->e[idx].saved || sz != a->e[idx].size) return 0;
+        if (!a || idx < 0 || idx >= a->n || !a->e[idx].saved || sz < 0) return 0;
+        // v1 promised exact sizes; v2 allows a SHORTER slice and prefix-restores it (see the rule
+        // above the fingerprints). A LONGER saved slice is refused in both: the struct shrank and we
+        // cannot know which bytes left.
+        if (ver == 1 ? (sz != a->e[idx].size) : (sz > a->e[idx].size)) return 0;
+        if (migrated && sz < a->e[idx].size) *migrated = 1;   // a grown slice: prefix-restored
         q = t + sz;
         if (q > b + len) return 0;
     }
@@ -6267,15 +6332,18 @@ int de_save_state(DeInstance *in, void *out, int max) {
 
 int de_load_state(DeInstance *in, const void *blob, int len) {
     if (!in || !blob || len <= 0) return 0;
-    int ok;
-    DE_ENTER(in); ok = de_ss_validate((const unsigned char *)blob, len); DE_LEAVE();
+    int ok, migrated = 0;
+    DE_ENTER(in); ok = de_ss_validate((const unsigned char *)blob, len, &migrated); DE_LEAVE();
     if (!ok) return 0;
     unsigned char *copy = (unsigned char *)malloc((size_t)len);   // the host's buffer is not ours to keep
     if (!copy) return 0;
     memcpy(copy, blob, (size_t)len);
     free(in->ss_pend);                        // a second load before the next frame replaces the first
     in->ss_pend = copy; in->ss_pend_len = len;
-    return 1;
+    // 2 = accepted, and at least one slice was SHORTER than this build's — an older project restored
+    // as a prefix with new fields left at their defaults. Worth surfacing rather than swallowing: it
+    // is the difference between "your rack came back" and "your rack came back, plus new controls".
+    return migrated ? 2 : 1;
 }
 #endif  /* DE_NO_RAYLIB */
 

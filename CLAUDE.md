@@ -662,8 +662,14 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
                              block) · the scratch slice must NOT travel (else saving EVERYTHING, incl.
                              live voice handles, looks perfect) · a mangled FINGERPRINT must be REFUSED
                              and leave the rack alone · a TRUNCATED blob too. Also asserts
-                             save(restore(save(A))) == save(A). ⚠ Covers the ENGINE half only; nothing in
-                             the repo instantiates the AU's Swift object graph
+                             save(restore(save(A))) == save(A). Also gates MIGRATION — the update cliff —
+                             by building the probe TWICE (`-DSC_GROWN` appends a field = "the next
+                             release") and moving a blob between the builds through a FILE, because a
+                             build cannot grow its own struct: an older/shorter blob must prefix-restore
+                             (returning 2) with the added field at its DEFAULT rather than bytes read past
+                             the end, a LARGER blob must be refused (the struct shrank), and a v1
+                             pre-migration blob must still restore exactly. ⚠ The Swift half is gated
+                             separately by `./au-transport-check --state` in ios/mac.sh
              instance-check/  THE ACCEPTANCE TEST for the per-instance engine work: can ONE process run N
                              INDEPENDENT engines? `bash tools/instance-check/run.sh` creates two via
                              `de_instance_create`, drives them with DIFFERENT transport, and asserts their

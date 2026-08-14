@@ -234,12 +234,14 @@ public final class TinyjamAU: AUAudioUnit {
             let accepted: Int32 = d.withUnsafeBytes { raw in
                 de_load_state(engine, raw.baseAddress, Int32(d.count))
             }
-            // REFUSED is a real outcome, not an error to swallow: a blob whose layout fingerprint
-            // disagrees was written by a different build or architecture, and the engine deliberately
-            // leaves the rack at defaults rather than filling it with mismatched bytes. Say so, or
-            // "my sounds came back wrong" has no trail.
-            if accepted != 1 {
-                NSLog("[tinyjam] STATE refused a %d-byte blob (different build?) — rack stays at defaults", d.count)
+            // Three outcomes, all worth a line. REFUSED is not an error to swallow ("my sounds came
+            // back wrong" needs a trail), and MIGRATED is the one that says an update did NOT eat a
+            // saved song: an older project whose slices are shorter than this build's is prefix-
+            // restored, with anything added since left at its default.
+            switch accepted {
+            case 1: break                                     // exact restore, the quiet common case
+            case 2: NSLog("[tinyjam] STATE migrated a %d-byte blob from an older build — restored, new controls at their defaults", d.count)
+            default: NSLog("[tinyjam] STATE refused a %d-byte blob (incompatible layout or ABI) — rack stays at defaults", d.count)
             }
         }
     }

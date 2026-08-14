@@ -636,16 +636,23 @@ Detail lives in the linked design doc in every case; that is where it was always
 > SHIPPED 2026-08-14 and the maker verified it in GarageBand** — toggled instruments and an added acid
 > note came back. It stays in Open for the four items below.
 >
-> **▶ 1. AN APP UPDATE WILL INVALIDATE EVERY SAVED PROJECT. Close this before users have it.** The
-> layout fingerprint is `(format version, slice index, slice size)` and there is **no cart-level
-> version and no migration**. So one new knob on the panel grows `CartState`, the fingerprint moves,
-> and every v1.0 project refuses and falls back to defaults — with an `NSLog` nobody reads as the only
-> trace. "Refuse rather than corrupt" is the right call and it is *not* the right answer to a shipped
-> update. **Tractable route:** a saved slice starts life as a copy of `de_cart_default`, so a SHORTER
-> blob can be restored as a PREFIX — copy what is there, leave new fields at their template defaults.
-> That makes *appending* a field safe, at the price of a discipline (**append only** — never reorder or
-> retype a saved field) which wants enforcing in `tools/lint-saved-state.js`. Reordering is the trap:
-> it keeps the same size, so the fingerprint still matches and the restore is silently wrong.
+> **✅ 1. MIGRATION — DONE 2026-08-14, and it was the update cliff.** Until this, the fingerprint folded
+> each slice's SIZE into its identity, so shipping **one new knob** would have refused every project a
+> player had already saved. Format **v2** hashes the SHAPE instead (which slices, in what order, plus an
+> ABI tag) and checks sizes per slice with an asymmetric rule: **saved < current → prefix-restore** (the
+> saved bytes land, anything added since keeps its template default), **== → exact**, **> → REFUSE** (the
+> struct shrank; we cannot know which bytes went). `de_load_state` now returns **2 = accepted with
+> migration** so the host can say so instead of migrating silently. **v1 blobs still load exactly** —
+> they exist in real saved projects, and that path has its own gate via a test-only writer.
+> Gated by three new paths in `tools/state-check/run.sh`, which builds the probe **twice** (`-DSC_GROWN`
+> appends a field = "the next release") and moves a blob between the builds through a file — the update
+> cliff cannot be tested in one process, because a build cannot grow its own struct. Asserted: the older
+> blob migrates, the fields that existed come back, **the added field holds its default rather than
+> bytes read past the end**, the shrink direction is refused, and v1 restores exactly.
+> ⚠ **What migration CANNOT see, by construction:** a REORDER or RETYPE keeps the size, so it passes
+> every runtime check and lands every value in the wrong field. That is enforced at BUILD time by
+> `tools/lint-saved-state.js` against a committed layout snapshot, whose rule is **append-only**. The two
+> halves are one design; neither is sufficient alone.
 > **2. `fullStateForDocument` is unverified.** GarageBand round-tripping a project is real evidence,
 > but which of the two it used is unknown, and other hosts may use the document variant. One assertion
 > in the `--state` gate settles it.

@@ -24,7 +24,7 @@
 #include "../../runtime/platform.h"
 
 // the cart's handshake globals (tools/state-check/statecart.c)
-extern int sc_write_knob, sc_fire, sc_seen_knob, sc_seen_p0, sc_seen_ticks;
+extern int sc_write_knob, sc_fire, sc_seen_knob, sc_seen_p0, sc_seen_ticks, sc_seen_added;
 
 static int failures = 0;
 static void ok(int cond, const char *what, const char *fmt, ...) {
@@ -65,7 +65,79 @@ static float fire_peak(DeInstance *in) {
     return pk;
 }
 
-int main(void) {
+// ── MIGRATION MODES ───────────────────────────────────────────────────────────────────────────────
+// The update cliff cannot be tested inside one process: a build cannot grow its own struct. So run.sh
+// builds this probe twice — once normally, once with -DSC_GROWN appending a field to the saved slice —
+// and moves a blob between them through a file. `--save` writes one, `--load` reads it and asserts.
+static int mode_save(const char *path) {
+    DeInstance *in = de_instance_create(DE_RENDERER_SOFTWARE);
+    if (!in) { printf("  could not create an instance\n"); return 1; }
+    free(drive(in, 4, NULL, NULL));
+    sc_write_knob = 6;                                     // something distinctive to look for later
+    free(drive(in, 4, NULL, NULL));
+    int need = de_save_state(in, NULL, 0);
+    unsigned char *blob = (unsigned char *)malloc((size_t)need);
+    int n = de_save_state(in, blob, need);
+    FILE *f = fopen(path, "wb");
+    if (!f || n <= 0 || (int)fwrite(blob, 1, (size_t)n, f) != n) { printf("  could not write %s\n", path); return 1; }
+    fclose(f); free(blob);
+    printf("  wrote %s — %d bytes, knob=%d, sizeof(saved slice) as built here\n", path, n, sc_seen_knob);
+    return 0;
+}
+
+static int mode_load(const char *path, const char *expect) {
+    DeInstance *in = de_instance_create(DE_RENDERER_SOFTWARE);
+    if (!in) { printf("  could not create an instance\n"); return 1; }
+    free(drive(in, 4, NULL, NULL));
+    int fresh_knob = sc_seen_knob, fresh_added = sc_seen_added;
+
+    FILE *f = fopen(path, "rb");
+    if (!f) { printf("  could not read %s\n", path); return 1; }
+    static unsigned char buf[1 << 20];
+    int n = (int)fread(buf, 1, sizeof buf, f);
+    fclose(f);
+
+    int rc = de_load_state(in, buf, n);
+    if (!strcmp(expect, "refuse")) {
+        // THE SHRINK CASE: a blob whose saved slice is LONGER than this build's. We cannot know which
+        // bytes were removed, so it must be refused outright rather than prefix-restored into the
+        // wrong fields — the one direction migration must NOT be lenient about.
+        ok(rc == 0, "a blob from a LARGER struct is refused", "de_load_state returned %d (want 0)", rc);
+        free(drive(in, 2, NULL, NULL));
+        ok(sc_seen_knob == fresh_knob, "and the rack was left at its defaults",
+           "knob %d (fresh was %d)", sc_seen_knob, fresh_knob);
+    } else {
+        if (!strcmp(expect, "exact")) {
+            // V1 COMPATIBILITY: blobs written before migration existed are in real saved projects.
+            // They must still restore EXACTLY (rc == 1), because that is what their format promised.
+            ok(rc == 1, "a PRE-MIGRATION (v1) blob still restores exactly",
+               "de_load_state returned %d (want 1; 0 would mean the maker's saved projects broke)", rc);
+            free(drive(in, 2, NULL, NULL));
+            ok(sc_seen_knob == 6, "and its values came back", "knob = %d (want 6)", sc_seen_knob);
+            return failures ? 1 : 0;
+        }
+        ok(rc == 2, "an OLDER, SHORTER blob is accepted WITH MIGRATION",
+           "de_load_state returned %d (want 2 = migrated; 1 would mean sizes matched, 0 refused)", rc);
+        free(drive(in, 2, NULL, NULL));
+        ok(sc_seen_knob == 6, "the fields that EXISTED then are restored", "knob = %d (want 6)", sc_seen_knob);
+        // ⚠ THE ASSERTION THE WHOLE FEATURE IS FOR: the field this build ADDED must hold its template
+        // default, not bytes read past the end of an older blob.
+        ok(sc_seen_added == 77, "and the field ADDED since holds its default, not garbage",
+           "added = %d (want 77; fresh boot gave %d)", sc_seen_added, fresh_added);
+    }
+    return failures ? 1 : 0;
+}
+
+int main(int argc, char **argv) {
+    const char *savef = NULL, *loadf = NULL, *expect = "migrate";
+    for (int i = 1; i < argc; i++) {
+        if      (!strcmp(argv[i], "--save")   && i + 1 < argc) savef  = argv[++i];
+        else if (!strcmp(argv[i], "--load")   && i + 1 < argc) loadf  = argv[++i];
+        else if (!strcmp(argv[i], "--expect") && i + 1 < argc) expect = argv[++i];
+    }
+    if (savef) return mode_save(savef);
+    if (loadf) { printf("\n▸ migration: %s\n", expect); return mode_load(loadf, expect); }
+
     printf("\n▸ save a rack, restore it into a DIFFERENT instance\n");
 
     DeInstance *A = de_instance_create(DE_RENDERER_SOFTWARE);

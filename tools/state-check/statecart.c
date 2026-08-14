@@ -13,8 +13,20 @@
 #include "studio.h"
 
 // ── the SAVED slice: knob + pattern, i.e. intent ─────────────────────────────────────────────────
-typedef struct { int knob; int pattern[4]; int inited; } ScSaved;
-static ScSaved sc_saved_default = { .knob = 3, .pattern = { 1, 0, 1, 0 } };
+// ⚠ SC_GROWN simulates THE NEXT RELEASE: one field APPENDED, exactly the change that used to refuse
+// every saved project. run.sh builds this file both ways and passes a blob from the small build into
+// the grown one, which is the only way to test migration — a single build cannot change its own struct.
+typedef struct {
+    int knob; int pattern[4]; int inited;
+#ifdef SC_GROWN
+    int added;              /* "the new knob in v1.1" — must come back at its DEFAULT, not as garbage */
+#endif
+} ScSaved;
+static ScSaved sc_saved_default = { .knob = 3, .pattern = { 1, 0, 1, 0 }
+#ifdef SC_GROWN
+    , .added = 77           /* distinctive: a prefix-restore must leave exactly this */
+#endif
+};
 static char sc_saved_key_;
 static ScSaved *sc_saved_(void) {
     ScSaved *c = (ScSaved *)de_state_for_saved(&sc_saved_key_, (int)sizeof(ScSaved));
@@ -43,6 +55,8 @@ int sc_fire       = 0;    // host → cart: play ONE note on the next frame
 int sc_seen_knob  = -1;   // cart → host: the knob this frame
 int sc_seen_p0    = -1;   // cart → host: pattern[0] this frame
 int sc_seen_ticks = -1;   // cart → host: the SCRATCH counter this frame
+int sc_seen_added = -1;   // cart → host: the APPENDED field (SC_GROWN builds only; -1 elsewhere).
+                          // Declared in BOTH builds so the probe can reference it unconditionally.
 
 void init(void) { }
 
@@ -60,6 +74,9 @@ void update(void) {
     sc_seen_p0   = SC->pattern[0];
     SCR->ticks++;
     sc_seen_ticks = SCR->ticks;
+#ifdef SC_GROWN
+    sc_seen_added = SC->added;
+#endif
     // Host-triggered rather than every(8): `every` is BEAT-based, so at the default tempo nothing
     // fires inside the handful of frames this gate runs, and the sound half silently went untested.
     // INSTR_SQUARE is slot 0 — the same slot instrument_level trims above — so the level that

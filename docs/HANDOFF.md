@@ -198,15 +198,17 @@ a broken doc link or `#section`).
 > `bash tools/state-check/run.sh` (20, engine), `./au-transport-check --state` (12, the real
 > out-of-process plug-in incl. the property-list round trip a host performs), `tools/lint-saved-state.js`.
 >
-> ⚠ **BUT ONE THING IS NOT OPTIONAL BEFORE THE APP REACHES ANYBODY: there is no migration.** The layout
-> fingerprint is `(format version, slice index, slice size)` with no cart-level version, so **one new
-> knob invalidates every saved project** — it refuses and falls back to defaults, `NSLog` the only
-> trace. The route (restore a shorter blob as a PREFIX of the template; relax the size check; enforce
-> **append-only**, because REORDERING keeps the size and so passes the fingerprint while landing every
-> value in the wrong field silently) is written up at
-> [`design/engine-instance-seam.md` → the per-instance/session-state block](design/engine-instance-seam.md).
-> Ranked with the three smaller leftovers (unverified `fullStateForDocument`, no `factoryPresets`, and
-> N racks still sharing one on-disk `cart.blob`) in the [`STATUS.md`](STATUS.md) entry
+> **✅ AND THE UPDATE CLIFF IS CLOSED (2026-08-14): session state MIGRATES.** Format v2 hashes the
+> SHAPE plus an ABI tag instead of folding each slice's SIZE into its identity — so a slice that GREW
+> (you added a knob) is restored as a PREFIX with anything new left at its default, `== ` restores
+> exactly, and a SHRUNK slice is refused. `de_load_state` returns **2** for a migrated load so it is
+> reported, not silent; **v1 blobs still restore exactly** (they are in real saved projects). Gated by
+> three paths in `tools/state-check/run.sh`, which builds the probe TWICE (`-DSC_GROWN` = the next
+> release) and passes a blob between the builds — the cliff cannot be tested in one process.
+> ⚠ A REORDER still cannot be caught at runtime (same size), which is why `tools/lint-saved-state.js`
+> enforces **append-only** against a committed layout snapshot. Both halves are one design.
+> Remaining leftovers (unverified `fullStateForDocument`, no `factoryPresets`, N racks sharing one
+> on-disk `cart.blob`) are ranked in the [`STATUS.md`](STATUS.md) entry
 > "AUv3 session state — SHIPPED, and four things left".
 >
 > **✅ MOD WHEEL + PITCH BEND SHIPPED (2026-08-14).** The plumbing was two lines (`case 0xB0:` keeping

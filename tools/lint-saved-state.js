@@ -90,10 +90,14 @@ function structMembers(src, typeName) {
   const body = src.slice(open + 1, close)
                   .replace(/\/\*[\s\S]*?\*\//g, '')
                   .replace(/\/\/[^\n]*/g, '');
-  const out = []; const unparsed = [];
+  const out = []; const unparsed = []; const conditional = [];
   for (const raw of body.split(';')) {
     const ln = raw.replace(/\s+/g, ' ').trim();
     if (!ln) continue;
+    // A PREPROCESSOR CONDITIONAL is a different problem from an unreadable line, and worth saying so:
+    // the struct has more than one shape, so a snapshot can only describe ONE of them. Reported rather
+    // than resolved — picking a branch would silently protect one variant and leave the other open.
+    if (ln.includes('#')) { conditional.push(ln); continue; }
     // leading type words (`unsigned char`, `struct Foo`, `const char`), then one or more declarators
     const m = /^((?:[A-Za-z_]\w*)(?:\s+[A-Za-z_]\w*)*)\s+(.+)$/.exec(ln);
     if (!m) { unparsed.push(ln); continue; }
@@ -105,6 +109,7 @@ function structMembers(src, typeName) {
     }
   }
   out.unparsed = unparsed;
+  out.conditional = conditional;
   return out;
 }
 
@@ -124,6 +129,8 @@ function reachableLayout(src, rootType, rows) {
     layout[typeName] = members.map(r => `${r.type}${r.dims} ${r.name}`);
     if (members.unparsed && members.unparsed.length)
       problems.push({ typeName, unparsed: members.unparsed });
+    if (members.conditional && members.conditional.length)
+      problems.push({ typeName, conditional: members.conditional });
     for (const r of members) {
       // strip qualifiers/pointers to get a bare type name, then see if this file declares it
       const bare = r.type.replace(/\b(const|volatile|unsigned|signed|struct)\b/g, '')
@@ -161,9 +168,14 @@ function scanFile(file, src) {
   const record = (sliceName, rows) => {
     const { layout, problems } = reachableLayout(src, sliceName, rows);
     for (const [t, rowsOut] of Object.entries(layout)) layouts[`${rel}:${t}`] = rowsOut;
-    for (const p of problems)
-      findings.push({ level: 'advisory', where: rel, slice: p.typeName, member: '(unparsed)', type: '',
-        why: `${p.unparsed.length} member line(s) in ${p.typeName} could not be parsed, so a reorder involving them would NOT be caught: ${p.unparsed.slice(0, 2).join(' | ')}` });
+    for (const p of problems) {
+      if (p.conditional)
+        findings.push({ level: 'advisory', where: rel, slice: p.typeName, member: '(conditional)', type: '',
+          why: `${p.typeName} has members inside a PREPROCESSOR CONDITIONAL, so it has more than one shape and the snapshot describes only the default one — a reorder in the other variant would NOT be caught: ${p.conditional.slice(0, 2).join(' | ')}` });
+      else
+        findings.push({ level: 'advisory', where: rel, slice: p.typeName, member: '(unparsed)', type: '',
+          why: `${p.unparsed.length} member line(s) in ${p.typeName} could not be parsed, so a reorder involving them would NOT be caught: ${p.unparsed.slice(0, 2).join(' | ')}` });
+    }
   };
 
   // shape 1: DE_CTX_BLOCK_SAVED(lc, Uc, LIST)

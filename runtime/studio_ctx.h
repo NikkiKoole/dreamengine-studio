@@ -40,13 +40,13 @@
  * below is written in them, so they have to precede the struct. */
 #define KV_MAX     64
 #define KV_KEYLEN  24
-/* fb_w / fb_h / de_sw / de_sh — the canvas dimensions — are per-instance as of 2026-08-14, ADDED
+/* de_sw / de_sh / de_sw / de_sh — the canvas dimensions — are per-instance as of 2026-08-14, ADDED
  * BY HAND at the bottom of the struct with the rest of the framebuffer group. The generator still
  * cannot produce them (their siblings sw_dst/sw_world_buf sit inside `#ifdef DE_NO_RAYLIB`, and it
  * reads one configuration), which is why they are not in the generated run above. The warning that
  * used to live here still stands and is repeated where they are declared: moving HALF this group is
  * worse than moving none — per-instance dimensions with a shared destination buffer made cls()
- * write fb_w*fb_h pixels into another instance's smaller canvas. */
+ * write de_sw*de_sh pixels into another instance's smaller canvas. */
 typedef struct {
     char name[24];
     char value[40];
@@ -181,14 +181,13 @@ typedef struct {
      * of statics that remain), so this header is now partly hand-maintained. Add here, not there.
      *
      * ⚠ THIS GROUP MOVES TOGETHER OR NOT AT ALL. `sw_cbuf` went per-instance in an earlier batch
-     * while the dimensions that SIZE it stayed shared, and `cls()` promptly wrote fb_w*fb_h pixels
+     * while the dimensions that SIZE it stayed shared, and `cls()` promptly wrote de_sw*de_sh pixels
      * into another instance's smaller canvas. Every member below is either a canvas dimension, a
      * buffer sized by one, or a snapshot of one.
      *
      * WHY IT MATTERS: this is what made two open plug-in panels flicker. Both views pushed their
      * own size into the ONE `de_pend_*` slot (last writer won, every frame), and both blitted the
      * ONE `de_pres_*` buffer, which alternated between the two engines' renders. */
-    int fb_w, fb_h;              // the ALLOCATED framebuffer (>= the active canvas)
     int de_sw, de_sh;            // the ACTIVE canvas — screen_w()/screen_h()
     uint32_t *sw_dst;            // → sw_cbuf, or sw_world_buf while a rotated camera_ex is open
     uint32_t *sw_world_buf;      // the rotation world layer, sized alongside sw_cbuf
@@ -239,7 +238,6 @@ static DeVideo de_vid_default = {
     .watch_show = true,
     .save_dir = ".",
     // the hand-added framebuffer group: the canvas boots at the compiled-in size, as it always did
-    .fb_w = SCREEN_W, .fb_h = SCREEN_H,
     .de_sw = SCREEN_W, .de_sh = SCREEN_H,
 };
 
@@ -374,8 +372,6 @@ static _Thread_local DeVideo *de_vid = &de_vid_default;
 /* the hand-added framebuffer + present group. `sw_dst` is NOT here: it forks on the renderer
  * (a real pointer under DE_NO_RAYLIB, a plain alias for sw_cbuf otherwise), so its definition
  * stays in studio.c beside the fork it belongs to. */
-#define fb_w                (de_vid->fb_w)
-#define fb_h                (de_vid->fb_h)
 #define de_sw               (de_vid->de_sw)
 #define de_sh               (de_vid->de_sh)
 #define sw_world_buf        (de_vid->sw_world_buf)

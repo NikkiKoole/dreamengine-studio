@@ -105,8 +105,21 @@ const shortSha = (buf) => sha(buf).slice(0, 12);
 function tmpdir() { return fs.mkdtempSync(path.join(os.tmpdir(), 'refguard-')); }
 
 function runCart(p, dir, extraArgs = []) {
+  // ⚠ ISOLATE THE SAVE DIR, AND WIPE IT. Without this a probe inherits build/saves/<cart>/, which is
+  // untracked, mutable, and REWRITTEN BY EVERY RUN — so the baseline silently encodes whatever rack
+  // state the cart happened to have persisted, and any later run from a different history "drifts".
+  //
+  // That is not hypothetical: `acidcandy` persists its whole rack to a 437 KB cart.blob, and this
+  // gate reported `audio diverges at 0.0s … state diverges at frame 0` — with the SAME numbers on an
+  // unmodified tree — purely because the blob had been deleted between bless and compare. A gate
+  // whose headline is "a state move that changes output is a BUG in the refactor" must not be able
+  // to say that about a file nobody edited. Same class as the trap it caught: the run has to start
+  // from a KNOWN state, and "whatever was on disk" is not one.
+  const saveRel = `saves/.refguard/${p.cart}`;
+  fs.rmSync(path.join(ROOT, 'build', saveRel), { recursive: true, force: true });
   const args = ['tools/play.js', p.cart, 'script', p.script || '/dev/null',
-                '--headless', '--frames', String(p.frames), '--seed', String(p.seed || 1)];
+                '--headless', '--frames', String(p.frames), '--seed', String(p.seed || 1),
+                '--save-dir', saveRel];
   if (p.wav)   args.push('--wav',   path.join(dir, 'out.wav'));
   if (p.trace) args.push('--trace', path.join(dir, 'trace.jsonl'));
   if (p.dumpEvery) args.push('--dump', path.join(dir, 'frames'), '--dump-every', String(p.dumpEvery));

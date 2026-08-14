@@ -345,9 +345,28 @@ Same rules as round 1: line numbers rot, the function name is the anchor, every 
 
 ### Open — `studio.c`
 
-- [ ] **`fb_w`/`fb_h` are `== de_sw`/`de_sh` at every point a CALLER can observe — but NOT inside
-      `de_grow_gpu`, and that is where the removal breaks.** ⚠ **ATTEMPTED AND REVERTED 2026-08-14.
-      Read this before trying again.** The claim as it was written here ("provably always equal")
+- [x] **`fb_w`/`fb_h` are provably always `== de_sw`/`de_sh`.** LANDED 2026-08-15. 2 fields, 33 use
+      sites and ~25 lines of comment describing a distinction no caller can observe, gone;
+      `de_ensure_fb` is folded into `de_set_canvas`, which is now the single funnel.
+      ⚠ **THIS WAS "REVERTED AS UNSAFE" ON 2026-08-14 AND THAT WAS A MEASUREMENT ERROR.** The
+      superseded note is kept below because the way it was wrong is worth more than the item.
+      **What actually happened:** the A/B compared a `--resize` sweep of `acidcandy` between the
+      working tree and a worktree at `HEAD` — and `acidcandy` persists its entire rack to a 437 KB
+      `build/saves/acidcandy/cart.blob` which it REWRITES EVERY RUN. The two trees had different
+      blobs, so the two runs started from different rack state. That is the whole difference. It
+      moved the audio too, which I read as "a state divergence, not a rendering one" — correct
+      reasoning, wrong subject: the state that diverged was the cart's saved knobs, not the engine's.
+      **Redone with the save dir controlled** (wipe `build/saves/acidcandy` before each run): the
+      main tree then reproduces the worktree's hash exactly, and the removal is **byte-identical to
+      `HEAD` in both frames and audio** across the same five-step sweep. Gates: `refactor-guard` 6/6,
+      `canvas-diff drawall`, `build-all` 581/581, `build-nr`, `instance-check`, `present-race-check`,
+      `state-check`, `det-probes`.
+      **THE REAL FINDING IS THE ORACLE, NOT THE REFACTOR** — see the `refactor-guard` item under
+      gates below, which had the same defect and was reporting it about a file nobody edited.
+
+      <details><summary>superseded 2026-08-14 note, kept for the trail</summary>
+
+      The claim as it was written here ("provably always equal")
       is false, and the falsifying window is the one the merge collapses:
 
       `de_ensure_fb` sets `fb_*` and calls `de_grow_gpu()` **while `de_sw`/`de_sh` still hold the
@@ -378,6 +397,12 @@ Same rules as round 1: line numbers rot, the function name is the anchor, every 
       against another. Worth doing, once the above is understood. Gate: `refactor-guard`,
       `canvas-diff drawall`, **and a `--resize` sweep A/B'd against a worktree at `HEAD` — the first
       two are green for this change and only the third catches it.**
+
+      *(That last sentence is exactly the trap. The third "gate" was the only one comparing across
+      two trees, so it was the only one exposed to the uncontrolled save blob — its extra
+      sensitivity was noise, not power. A comparison that disagrees with every other gate deserves
+      suspicion of ITSELF first.)*
+      </details>
 - [x] **`pget_texel` bounds-checked `de_sh` then flipped against compile-time `SCREEN_H`.** LANDED
       2026-08-14, both it and `zoom_rect`'s GPU path (= `ui.h`'s loupe). **LATENT, not live**: no
       shipped cart is currently both `resizable: true` AND a pget/loupe/zoom_rect user (checked all
@@ -522,6 +547,24 @@ Same rules as round 1: line numbers rot, the function name is the anchor, every 
       and must stay duplicated.
 
 ### Open — gates and measurement
+
+- [x] **`refactor-guard`'s baseline silently encoded `build/saves/<cart>/`** — FOUND AND FIXED
+      2026-08-15, and it is the most consequential thing in this round because of WHICH gate it is.
+      Every probe ran with the default `--save-dir saves/<cart>`: untracked, mutable, and rewritten
+      by every run. So the baseline quietly recorded whatever rack state the cart had persisted, and
+      a later run from a different history "drifted". `acidcandy` persists a **437 KB `cart.blob`**,
+      and deleting it made the gate report `audio diverges at 0.0s … state diverges at frame 0` —
+      **with identical numbers on an unmodified tree**, under a headline that reads "a state move
+      that changes output is a BUG in the refactor, not a new baseline". That is the worst shape a
+      gate can fail in: confident, specific, and about a file nobody edited.
+      Fix: each probe now runs in an isolated `saves/.refguard/<cart>` that is WIPED before the run,
+      so bless and compare both start from a known state. Verified in both directions — green with
+      the live blob deleted, and green again with a foreign tree's blob restored, where the old code
+      went red for each. Baseline re-blessed (the fingerprints legitimately change: the probes now
+      boot from no-saves rather than from an accumulated rack).
+      ⚠ **The same trap applies to any hand-rolled A/B**, which is how it was found: comparing a
+      cart across two worktrees compares their save blobs too. Wipe or isolate the save dir, or use
+      a cart that does not persist.
 
 - [x] **`lint-aux-params` had been RED against the real source, and `repo-doctor` showed green.**
       LANDED 2026-08-14, found by running it while gating something else. The per-instance refactor

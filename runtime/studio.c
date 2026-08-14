@@ -253,11 +253,11 @@ static int             loc_scale_gamma   = -1;
 // then scale it to the canvas in one blit (sharp-bilinear) — so a fractional camera
 // zoom no longer re-rasterizes thin world lines every frame (no crawl). The offscreen
 // is 2× the canvas so any zoom >= 0.5 has coverage. Toggle with one call; default off.
-// the smooth-zoom supersample offscreen is 2× the framebuffer. Keyed off the runtime fb_w/fb_h so it
+// the smooth-zoom supersample offscreen is 2× the framebuffer. Keyed off the runtime de_sw/de_sh so it
 // tracks a resizable cart's grown canvas (== SCREEN_W/H*2 for a fixed cart → unchanged). Expanded at
-// use sites (all after fb_w's declaration); smooth_rt is reallocated to match in de_grow_gpu.
-#define SMOOTH_W (fb_w * 2)
-#define SMOOTH_H (fb_h * 2)
+// use sites (all after de_sw's declaration); smooth_rt is reallocated to match in de_grow_gpu.
+#define SMOOTH_W (de_sw * 2)
+#define SMOOTH_H (de_sh * 2)
 // The poly-fill / disc-fill / blit / clamp-cache A/B flags were RETIRED 2026-07-10 after
 // 2–3½ weeks soaking as the sole real-world path (their fast paths are now unconditional).
 static bool            tritex_fast_on = true;        // false → legacy sw_tritex (A/B; env DE_TRITEX_FAST=off). Fast path: bbox clamped to the visible region + hoisted row-write plot (zoom==1 canvas). Last A/B flag — kept (newest, ~1wk soak)
@@ -297,9 +297,9 @@ static bool            cpu_raster_enabled = CPU_RASTER_DEFAULT;   // env DE_CPU_
 // profiles (the audio thread stops polluting `sample`), real savings on sound-free carts, a low-end
 // lever. Cart audio calls become harmless no-ops (queues are never drained). Default on.
 static bool            audio_off = false;
-// CPU framebuffer (Fork 1: RGBA on desktop). Phase 1b(B): a HEAP buffer sized to fb_w×fb_h so a
+// CPU framebuffer (Fork 1: RGBA on desktop). Phase 1b(B): a HEAP buffer sized to de_sw×de_sh so a
 // resizable cart can GROW it past the compile-time SCREEN_W/H (de_ensure_fb). Allocated at boot to
-// SCREEN_W×SCREEN_H; a fixed cart never grows it, so fb_w==SCREEN_W and everything is byte-identical.
+// SCREEN_W×SCREEN_H; a fixed cart never grows it, so de_sw==SCREEN_W and everything is byte-identical.
 
 // device-adaptive-layout.md: the PHYSICAL framebuffer dimensions — the row STRIDE for every sw_cbuf
 // index. Grows (grow-only, high-water-mark) when a resizable cart's active size exceeds it; the
@@ -375,18 +375,18 @@ static void            sw_rot_composite(void);            // defined near camera
 // clamped to DE_MAX_DIM so a runaway window can't allocate gigabytes. Called at boot with SCREEN_W/H
 // and whenever a resizable cart's active size CHANGES (de_set_canvas). Reallocs to EXACTLY the active
 // size (fb==de always) — see the note below on why not grow-only. A fixed cart allocates ONCE at boot
-// and fb_w/fb_h stay SCREEN_W/H forever → byte-identical to the old static arrays.
+// and de_sw/de_sh stay SCREEN_W/H forever → byte-identical to the old static arrays.
 #define DE_MAX_DIM 4096
-static void de_grow_gpu(void);   // realloc the GPU canvas/canvas_snap to fb_w×fb_h (no-op on the SW-only build)
-static void de_ensure_fb(int need_w, int need_h) {
+static void de_grow_gpu(void);   // realloc the GPU canvas/canvas_snap to de_sw×de_sh (no-op on the SW-only build)
+static void de_set_canvas(int need_w, int need_h) {
     if (need_w < 1) need_w = 1; else if (need_w > DE_MAX_DIM) need_w = DE_MAX_DIM;
     if (need_h < 1) need_h = 1; else if (need_h > DE_MAX_DIM) need_h = DE_MAX_DIM;
-    if (sw_cbuf && need_w == fb_w && need_h == fb_h) return;   // already EXACTLY this size
+    if (sw_cbuf && need_w == de_sw && need_h == de_sh) return;   // already EXACTLY this size
     // realloc the framebuffer to EXACTLY the active size — NOT grow-only. Grow-only leaves fb taller
     // than de after a shrink, and the GPU draws the cart at the buffer top while the present samples a
-    // fixed-height sub-rect → the image slides up by (fb_h-de_sh). Keeping fb==de sidesteps all of it.
-    fb_w = need_w; fb_h = need_h;
-    size_t n = (size_t)fb_w * (size_t)fb_h * sizeof(uint32_t);
+    // fixed-height sub-rect → the image slides up by (de_sh-de_sh). Keeping fb==de sidesteps all of it.
+    de_sw = need_w; de_sh = need_h;
+    size_t n = (size_t)de_sw * (size_t)de_sh * sizeof(uint32_t);
     sw_cbuf = (uint32_t *)realloc(sw_cbuf, n);
 #ifdef DE_NO_RAYLIB
     sw_world_buf = (uint32_t *)realloc(sw_world_buf, n);
@@ -394,39 +394,31 @@ static void de_ensure_fb(int need_w, int need_h) {
 #endif
     de_grow_gpu();   // resize the GPU render targets to match (skips at boot before the canvas exists)
 }
-// set the ACTIVE canvas size (a reflow / resize): clamp to the safety max, grow the framebuffer to
-// fit, then publish de_sw/de_sh. The one funnel every size change goes through (boot, reflow, sweep).
-static void de_set_canvas(int w, int h) {
-    if (w < 1) w = 1; else if (w > DE_MAX_DIM) w = DE_MAX_DIM;
-    if (h < 1) h = 1; else if (h > DE_MAX_DIM) h = DE_MAX_DIM;
-    de_ensure_fb(w, h);
-    de_sw = w; de_sh = h;
-}
 #ifdef DE_NO_RAYLIB
 static void de_grow_gpu(void) {}   // software-only build has no GPU render targets
 #else
-// resize the GPU render targets (canvas + canvas_snap) to EXACTLY fb_w×fb_h. No-op at boot (the
-// canvas isn't created yet — its creation reads fb_w/fb_h directly) and whenever they already match
+// resize the GPU render targets (canvas + canvas_snap) to EXACTLY de_sw×de_sh. No-op at boot (the
+// canvas isn't created yet — its creation reads de_sw/de_sh directly) and whenever they already match
 // fb. Called between frames from de_ensure_fb (never inside a BeginTextureMode), so unload/reload is
 // safe. The fresh canvas starts black; the cart repaints it fully next frame.
 static void de_grow_gpu(void) {
     if (canvas.id == 0) return;                                             // not created yet (boot)
-    if (canvas.texture.width == fb_w && canvas.texture.height == fb_h) return;   // already exact
+    if (canvas.texture.width == de_sw && canvas.texture.height == de_sh) return;   // already exact
     UnloadRenderTexture(canvas);
-    canvas = LoadRenderTexture(fb_w, fb_h);
+    canvas = LoadRenderTexture(de_sw, de_sh);
     SetTextureFilter(canvas.texture, TEXTURE_FILTER_POINT);
 #if SCALE_FILTER == 1
     SetTextureFilter(canvas.texture, TEXTURE_FILTER_BILINEAR);
 #endif
     BeginTextureMode(canvas); ClearBackground(palette[0]); EndTextureMode();
     UnloadRenderTexture(canvas_snap);
-    canvas_snap = LoadRenderTexture(fb_w, fb_h);
+    canvas_snap = LoadRenderTexture(de_sw, de_sh);
     SetTextureFilter(canvas_snap.texture, TEXTURE_FILTER_POINT);
     UnloadRenderTexture(blend_snap);
-    blend_snap = LoadRenderTexture(fb_w, fb_h);
+    blend_snap = LoadRenderTexture(de_sw, de_sh);
     SetTextureFilter(blend_snap.texture, TEXTURE_FILTER_POINT);
     if (smooth_rt_ok &&   // resize the smooth-zoom supersample offscreen too (only if a cart allocated it)
-        (smooth_rt.texture.width != fb_w * 2 || smooth_rt.texture.height != fb_h * 2)) {
+        (smooth_rt.texture.width != de_sw * 2 || smooth_rt.texture.height != de_sh * 2)) {
         UnloadRenderTexture(smooth_rt);
         smooth_rt = LoadRenderTexture(SMOOTH_W, SMOOTH_H);
         SetTextureFilter(smooth_rt.texture, TEXTURE_FILTER_BILINEAR);
@@ -783,7 +775,7 @@ static inline uint32_t sw_blend_packed(uint32_t src_p, uint32_t dst_p) {
 static inline void sw_plot1(int sx, int sy, uint32_t p) {
     if (clip_active && (sx < clip_cx || sx >= clip_cx + clip_cw || sy < clip_cy || sy >= clip_cy + clip_ch)) return;
     if ((unsigned)sx < (unsigned)de_sw && (unsigned)sy < (unsigned)de_sh) {
-        size_t off = (size_t)(de_sh - 1 - sy) * fb_w + sx;
+        size_t off = (size_t)(de_sh - 1 - sy) * de_sw + sx;
         if (blend_mode) p = sw_blend_packed(p, sw_dst[off]);   // mix with what's already on the canvas
         sw_dst[off] = p;
     }
@@ -823,9 +815,9 @@ static void sw_fillrect(int x, int y, int w, int h, DeColor c) {
     if (x0<0) x0=0; if (y0<0) y0=0; if (x1>de_sw) x1=de_sw; if (y1>de_sh) y1=de_sh;
     uint32_t p = sw_pack(c);
     if (blend_mode)   // per-pixel mix (rectfill/circfill spans) — the glow/shadow case; slower, only when a blend is live
-        for (int yy = y0; yy < y1; yy++) { uint32_t *row = &sw_dst[(de_sh-1-yy)*fb_w]; for (int xx = x0; xx < x1; xx++) row[xx] = sw_blend_packed(p, row[xx]); }
+        for (int yy = y0; yy < y1; yy++) { uint32_t *row = &sw_dst[(de_sh-1-yy)*de_sw]; for (int xx = x0; xx < x1; xx++) row[xx] = sw_blend_packed(p, row[xx]); }
     else
-        for (int yy = y0; yy < y1; yy++) { uint32_t *row = &sw_dst[(de_sh-1-yy)*fb_w]; for (int xx = x0; xx < x1; xx++) row[xx] = p; }
+        for (int yy = y0; yy < y1; yy++) { uint32_t *row = &sw_dst[(de_sh-1-yy)*de_sw]; for (int xx = x0; xx < x1; xx++) row[xx] = p; }
 }
 // one fill-scanline span: cbuf row write under the software canvas, else the GPU DrawRectangle.
 // Lets the circ/oval/poly span fast-paths stay span-based (not per-pixel) on the canvas.
@@ -899,7 +891,7 @@ static void sw_blit(int sx, int sy, int sw, int sh, int dx, int dy, int dw, int 
         uint32_t key = (uint32_t)sw_colorkey_rgb.r | ((uint32_t)sw_colorkey_rgb.g << 8) | ((uint32_t)sw_colorkey_rgb.b << 16);
         for (int j = j0; j < j1; j++) {
             const uint32_t *srow = src + (size_t)(sy + j) * srcw + sx;
-            uint32_t *drow = &sw_dst[(size_t)(de_sh - 1 - (oy + j)) * fb_w + ox];
+            uint32_t *drow = &sw_dst[(size_t)(de_sh - 1 - (oy + j)) * de_sw + ox];
             for (int i = i0; i < i1; i++) {
                 uint32_t s = srow[i];
                 if (!(s & 0x80000000u)) continue;                     // alpha < 128 → transparent
@@ -993,7 +985,7 @@ static void sw_tritex(float x0,float y0,float u0,float v0, float x1,float y1,flo
         if (minx < sxlo + camdx) minx = sxlo + camdx;  if (maxx > sxhi - 1 + camdx) maxx = sxhi - 1 + camdx;
         if (miny < sylo + camdy) miny = sylo + camdy;  if (maxy > syhi - 1 + camdy) maxy = syhi - 1 + camdy;
         for (int py=miny; py<=maxy; py++) {
-            uint32_t *row = &sw_dst[(de_sh - 1 - (py - camdy)) * fb_w];
+            uint32_t *row = &sw_dst[(de_sh - 1 - (py - camdy)) * de_sw];
             float fy = py + 0.5f;
             for (int px=minx; px<=maxx; px++) {
                 float fx = px + 0.5f;
@@ -3071,7 +3063,7 @@ void de_instance_destroy(DeInstance *in) {
 static void de_init_impl(DeRenderer renderer) {
     (void)renderer;                              // software canvas only for now
     sw_canvas_enabled = sw_canvas_active = true;
-    de_ensure_fb(SCREEN_W, SCREEN_H);            // heap framebuffer(s), grows if a resizable cart enlarges
+    de_set_canvas(SCREEN_W, SCREEN_H);            // heap framebuffer(s), grows if a resizable cart enlarges
     load_palette();
     init_touch_layout();
     de_load_map();
@@ -3678,7 +3670,7 @@ int main(int argc, char **argv) {
 #endif
     SetTargetFPS(det_turbo ? 0 : 60);   // raylib: target < 1 → no frame wait (the present is also skipped below)
 
-    de_ensure_fb(de_sw, de_sh);   // heap framebuffer sized to the (possibly window-seeded) canvas; == SCREEN_W/H for a fixed cart
+    de_set_canvas(de_sw, de_sh);   // heap framebuffer sized to the (possibly window-seeded) canvas; == SCREEN_W/H for a fixed cart
     load_palette();
     pal_shader_init();   // pal()-on-sprites swap shader (needs the GL context from InitWindow)
     blend_shader_init(); // blend()-on-GPU mix shader (same — needs the GL context)
@@ -3687,9 +3679,9 @@ int main(int argc, char **argv) {
 
     de_load_map();
 
-    // low-res canvas — all drawing goes here, then scaled up. Sized to fb_w×fb_h (== SCREEN_W/H for a
+    // low-res canvas — all drawing goes here, then scaled up. Sized to de_sw×de_sh (== SCREEN_W/H for a
     // fixed cart; the window-seeded size for a resizable one). Grows later via de_grow_gpu on resize.
-    canvas = LoadRenderTexture(fb_w, fb_h);
+    canvas = LoadRenderTexture(de_sw, de_sh);
     SetTextureFilter(canvas.texture, TEXTURE_FILTER_POINT);
     // One-time clear: LoadRenderTexture leaves the texture as uninitialised GPU memory.
     // A cart that never cls()es and doesn't paint every pixel would show that garbage on
@@ -3700,9 +3692,9 @@ int main(int argc, char **argv) {
 #if SCALE_FILTER == 1
     SetTextureFilter(canvas.texture, TEXTURE_FILTER_BILINEAR);  // mode 1: smooth present
 #endif
-    canvas_snap = LoadRenderTexture(fb_w, fb_h);
+    canvas_snap = LoadRenderTexture(de_sw, de_sh);
     SetTextureFilter(canvas_snap.texture, TEXTURE_FILTER_POINT);
-    blend_snap = LoadRenderTexture(fb_w, fb_h);
+    blend_snap = LoadRenderTexture(de_sw, de_sh);
     SetTextureFilter(blend_snap.texture, TEXTURE_FILTER_POINT);
 
     static const struct { const unsigned char *data; int len; int first_char; } FONT_SRC[FONT_COUNT] = {
@@ -4136,7 +4128,7 @@ void cls(int color) {
     last_cls_color = color & (PALETTE_SIZE - 1);
     if (sw_canvas_active) {
         uint32_t p = sw_pack(palette[last_cls_color]);
-        for (int i = 0; i < fb_w * fb_h; i++) sw_dst[i] = p;
+        for (int i = 0; i < de_sw * de_sh; i++) sw_dst[i] = p;
         return;
     }
     ClearBackground(palette[last_cls_color]);
@@ -4314,7 +4306,7 @@ static void blend_gpu_begin(void) {
     EndTextureMode();
     BeginTextureMode(canvas);
     if (wascam) BeginMode2D(cam);
-    float res[2] = { (float)fb_w, (float)fb_h };
+    float res[2] = { (float)de_sw, (float)de_sh };
     BeginShaderMode(blend_shader);   // enable FIRST — SetShaderValueTexture binds to the active shader's slot
     SetShaderValue(blend_shader, loc_blend_res, res, SHADER_UNIFORM_VEC2);
     SetShaderValue(blend_shader, loc_blend_mode, &blend_mode, SHADER_UNIFORM_INT);
@@ -4545,7 +4537,7 @@ static void de_cpu_img_rot(Image *img, int sx, int sy, int sw, int sh, int dx, i
             int syc = py - camdy;
             if ((unsigned)syc >= (unsigned)de_sh) continue;
             if (clip_active && (syc < clip_cy || syc >= clip_cy + clip_ch)) continue;
-            row = &sw_dst[(de_sh - 1 - syc) * fb_w];
+            row = &sw_dst[(de_sh - 1 - syc) * de_sw];
         }
         for (int px = x0; px <= x1; px++) {
             float ddx = px + 0.5f - px0, ddy = py + 0.5f - py0;
@@ -5209,7 +5201,7 @@ static int palette_index_of(DeColor c) {
 // limit). Returns false (leaving *out) when read-back is off / no snapshot yet / off-canvas — each
 // caller picks its own empty sentinel. RT data is bottom-up so flip Y about the ACTIVE height.
 // ⚠ de_sh, NOT SCREEN_H. The snapshot is LoadImageFromTexture(canvas.texture) and `canvas` is
-// LoadRenderTexture(fb_w, fb_h), so it is fb_h == de_sh tall — which only equals the compile-time
+// LoadRenderTexture(de_sw, de_sh), so it is de_sh == de_sh tall — which only equals the compile-time
 // SCREEN_H for a FIXED cart. A -DDE_RESIZABLE cart that reflowed read the wrong row from every
 // pget()/pget_rgb()/touching_color() (and off the end when it grew). Nothing gates this today.
 static bool pget_texel(int x, int y, DeColor *out) {
@@ -5296,8 +5288,8 @@ static void sw_rot_composite(void) {
             int sx = (int)floorf( cs*rx + sn*ry + ox + 0.5f);
             int sy = (int)floorf(-sn*rx + cs*ry + oy + 0.5f);
             if ((unsigned)sx < (unsigned)de_sw && (unsigned)sy < (unsigned)de_sh) {
-                uint32_t p = sw_world_buf[(de_sh - 1 - sy) * fb_w + sx];
-                if (p & 0xFF000000u) sw_cbuf[(de_sh - 1 - dy) * fb_w + dx] = p;
+                uint32_t p = sw_world_buf[(de_sh - 1 - sy) * de_sw + sx];
+                if (p & 0xFF000000u) sw_cbuf[(de_sh - 1 - dy) * de_sw + dx] = p;
             }
         }
     }
@@ -5331,7 +5323,7 @@ void camera_ex(int x, int y, float zoom, float angle) {
     // camera() reset / present. Renders correctly rotated, fully on the software canvas.
     if (angle != 0.0f) {
         if (!sw_rot_active) {                            // begin the rotated world layer
-            for (int i = 0; i < fb_w * fb_h; i++) sw_world_buf[i] = 0;   // transparent
+            for (int i = 0; i < de_sw * de_sh; i++) sw_world_buf[i] = 0;   // transparent
             sw_dst = sw_world_buf; sw_rot_active = true;
         }
         sw_rot_angle = angle;
@@ -5390,7 +5382,7 @@ static void sw_zoom_rect(int sx, int sy, int sw, int sh, int dx, int dy, int dw,
     for (int j = 0; j < dh; j++) {
         int syy = sy + (int)((j + 0.5f) * sh / dh);
         if ((unsigned)syy >= (unsigned)de_sh) continue;
-        const uint32_t *srow = &sw_cbuf[(de_sh - 1 - syy) * fb_w];
+        const uint32_t *srow = &sw_cbuf[(de_sh - 1 - syy) * de_sw];
         for (int i = 0; i < dw; i++) {
             int sxx = sx + (int)((i + 0.5f) * sw / dw);
             if ((unsigned)sxx >= (unsigned)de_sw) continue;
@@ -5418,7 +5410,7 @@ void zoom_rect(int sx, int sy, int sw, int sh, int dx, int dy, int dw, int dh) {
     // snap.texture is a bottom-up RT holding the ACTIVE canvas, blitted de_sw×de_sh just above;
     // consistent with the engine's full {0,0,W,-H} blit, logical rows [sy,sy+sh] read from texture
     // y = de_sh-sy-sh with the -sh flip.
-    // ⚠ de_sh, NOT SCREEN_H — same fix as pget_texel. canvas_snap is LoadRenderTexture(fb_w, fb_h),
+    // ⚠ de_sh, NOT SCREEN_H — same fix as pget_texel. canvas_snap is LoadRenderTexture(de_sw, de_sh),
     // so "FULL-size (SCREEN_H)" was only ever true for a fixed cart; on a reflowed resizable one the
     // loupe (ui.h's magnifier, the main caller) sampled the wrong rows.
     DrawTexturePro(canvas_snap.texture,

@@ -166,12 +166,18 @@ a broken doc link or `#section`).
 > which alternated between the two engines' renders. `instance-check` now asserts each instance
 > publishes its own frame, which it structurally could not before.
 >
-> **▶ NEXT ACTION: TEST TWO PANELS OPEN AT ONCE, and the HOME toggle.** The sound is verified; the
-> picture is not. Also retest the iPad-layout HOME toggle in GarageBand — it has never worked, but
-> two plausible causes have been fixed since it was last observed (the panel was creating its OWN
-> second engine, and the canvas dimensions the toggle changes were process-global until today), so it
-> wants a fresh look before any theory. If it is still broken, the lead is that the toggle resizes the
-> canvas from ~167x100 to ~380x320: watch whether the picture, the touch mapping, or both go wrong.
+> **✅ VERIFIED BY THE MAKER (2026-08-14): two panels open at once behave, no flickering, and the
+> iPad-view HOME toggle now works both ways.** That toggle had NEVER worked; two of its plausible
+> causes were both fixed in this lane (the panel used to create its own second engine, and the canvas
+> dimensions the toggle changes were process-global until today). **The per-instance lane has met its
+> goal in sound AND picture.**
+>
+> **▶ NEXT ACTION — pick from `per-instance-remaining.md`; nothing there blocks two racks any more.**
+> By impact: (1) **session state / `fullState`** — a reopened DAW project starts every rack at
+> defaults, which is the biggest thing between this and a plug-in people would keep. (2) **N racks
+> still share one `cart.sav`** — the host has to hand each instance its own directory. (3) **no gate
+> runs two instances on two THREADS**, which is exactly what a DAW does. (4) the `--panel` gate's
+> observation is broken (it cannot tell an orphaned panel from one never opened).
 >
 > ⚠ **A LATENT BUG THIS TURNED UP, worth knowing before touching any cart's canvas:** `face.h` and 7
 > carts declared their own `extern void de_resize(int, int)` against a function that has taken a

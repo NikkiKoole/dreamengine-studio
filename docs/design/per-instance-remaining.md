@@ -61,10 +61,26 @@ chance to get wrong what a generator would have got right.
 byte-reproducible. Shared, two instances interleaving note starts **both** lose determinism — and
 `refactor-guard` sits green through it, because one instance is unaffected.
 
-### `save_dir` — a live defect today
-N instances write one `cart.sav` / `cart.kv`. Worse, the in-memory mirrors are written back WHOLE, so
-it is last-writer-wins at FILE granularity, not per key. `save_path()`'s `static char buf[600]` must
-move with it or the bug just relocates.
+### `save_dir` — HALF fixed
+`de_set_save_dir` now reaches its instance through the handle (it used to `(void)in` and write the
+DEFAULT engine's dir, so instance 3's save location landed on instance 0). But **N racks still write
+one `cart.sav` / `cart.kv`**, because nothing gives them distinct DIRECTORIES — and the host is what
+has to choose them. The in-memory mirrors are written back WHOLE, so it is last-writer-wins at FILE
+granularity, not per key. `save_path()`'s `static char buf[600]` must move too or the bug relocates.
+
+### ⚠ A BUG CLASS, not a list of bugs: a seam function that IGNORES its handle
+Six found in one day — `de_resize`, `de_copy_frame`, `de_set_save_dir`, `de_framebuffer`,
+`de_screen_w`, `de_screen_h`. Each took a `DeInstance *`, dropped it, and read through the
+thread-local, which on the HOST's thread names the default engine. **It never fails loudly.** The
+function compiles, returns plausible values, and silently operates on the wrong rack — and having a
+handle in the signature makes it read as already done. `(void)in` is the marker to grep for. Only
+`de_is_resizable` legitimately keeps it (`de_reflow` is a compile-time flag).
+
+⚠ The same shape crosses translation units, where the compiler cannot see it at all: `face.h` and 7
+carts declared `extern void de_resize(int, int)` against the 3-argument definition. That is undefined
+behaviour, it was live for weeks, and it surfaced as a crash with `in = 0xa7` — the canvas width. If
+a cart needs an `extern` for an engine function, **the seam is missing an API** (that one became
+`canvas_resize`).
 
 ### `crash_handler` cannot reach a context
 Registered with the OS, reads `watches`/`watch_count`. A signal handler takes no argument, so it needs

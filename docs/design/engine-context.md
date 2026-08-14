@@ -213,12 +213,30 @@ state in a struct the CART owns (`acid303.h` is the model — it was multi-insta
 
 | header | statics | status |
 |---|---|---|
-| `keybed.h` | 15 | todo |
-| `solo.h` | ~10 | todo |
-| `gestures.h` · `radio.h` · `tr808.h` | ~6 each | todo |
 | `ui.h` | 28 | **done** |
+| `keybed.h` | 18 | **deferred — needs a type hoist**, see below |
+| `solo.h` | 10 | **done** |
+| `gestures.h` | 8 | **done** |
+| `radio.h` | 7 | **done** |
+| `tr808.h` | 6 | **done** |
 | `cursor.h` | 3 | **done** |
 | `drumkit.h` · `tr909.h` | 1 each | **done** |
+
+**7 of 8 done.** `keybed.h` is deferred for a structural reason worth knowing: its declarations are
+INTERLEAVED with code that uses them (`kb_slot` is read at line 78, `KbPtr` is declared at 125), so
+the fork block has no valid position — before the code that uses the names, it precedes a type the
+struct needs; after that type, it follows uses of its own names. It needs the same transitive
+**type-hoist** `ctx-gen` does for `sound.h`. Every other header declared its state in one run.
+
+**Four bugs the generation hit, all worth knowing before doing `keybed.h`:**
+1. **An array with no initialiser needs `{0}`, not `0`** — `static int a[128] = 0;` does not compile.
+2. **A multi-declarator line's later names inherit the BASE type.** Taking "everything before the
+   name" made `int g_fsx[GEST_MAXF],` the *type* of `g_fsy`.
+3. **Place the fork at the LAST declaration**, not the first, so every type the struct needs is
+   already declared — unless declarations are interleaved with uses, which is exactly `keybed.h`.
+4. **The generated struct name can COLLIDE with the header's own vocabulary.** `solo.h` already had a
+   public `SoloCtx` (its per-call API context), so the generated one became `DeSoloState`. Check the
+   header's existing type names before picking one.
 
 ⚠ **ENUMERATE WITH THE COMPILER, NOT A REGEX.** Getting a header's static list wrong leaves
 declarations behind that then collide with the access macros, and it fails as

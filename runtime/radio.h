@@ -22,6 +22,7 @@
 #define RADIO_H
 
 #include "studio.h"
+#include "cart_ctx.h"   // per-instance state seam (docs/design/engine-context.md)
 #include "ui.h"      // cross-input widget plumbing — the draggable control knobs
                      // below reuse its per-finger capture (carts bracket draw()
                      // with ui_begin()/ui_end(); see rad_knob_int/_sel/_float)
@@ -208,13 +209,35 @@ enum {
 #define RAD_STATIC_SLOT 31           // reserved noise slot for the static (carts use <= ~15)
 #endif
 
-static bool  rad_tuning   = false;
-static float rad_tune_t   = 0;       // 0..1 sweep progress
-static float rad_from_freq = 98.0f;  // needle start (the station we're leaving)
-static float rad_to_freq   = 98.0f;  // needle target (the new station)
-static float rad_last_freq = 98.0f;  // last real freq drawn — the "from" for the next sweep
-static int   rad_static_h  = -1;
-static bool  rad_static_ready = false;
+#define RADIO_STATE(X) \
+    X(bool,  rad_tuning,       , false) \
+    X(float, rad_tune_t,       , 0) \
+    X(float, rad_from_freq,    , 98.0f) \
+    X(float, rad_to_freq,      , 98.0f) \
+    X(float, rad_last_freq,    , 98.0f) \
+    X(int,   rad_static_h,     , -1) \
+    X(bool,  rad_static_ready, , false)
+
+#ifndef DE_CART_CTX
+DE_CTX_STATICS(RADIO_STATE)
+#else
+DE_CTX_BLOCK(rad, Rad, RADIO_STATE)
+// defined BEFORE the access macros: after them the member names are macros, so `c->x` would
+// expand to `c->(rad_ctx_()->x)`.
+static void rad_ctx_init_(RadCtx *c) {
+    c->rad_from_freq = 98.0f;
+    c->rad_to_freq = 98.0f;
+    c->rad_last_freq = 98.0f;
+    c->rad_static_h = -1;
+}
+#define rad_tuning       (rad_ctx_()->rad_tuning)
+#define rad_tune_t       (rad_ctx_()->rad_tune_t)
+#define rad_from_freq    (rad_ctx_()->rad_from_freq)
+#define rad_to_freq      (rad_ctx_()->rad_to_freq)
+#define rad_last_freq    (rad_ctx_()->rad_last_freq)
+#define rad_static_h     (rad_ctx_()->rad_static_h)
+#define rad_static_ready (rad_ctx_()->rad_static_ready)
+#endif
 
 static bool rad_is_tuning(void) { return rad_tuning; }
 

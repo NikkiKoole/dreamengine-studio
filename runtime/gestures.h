@@ -6,6 +6,7 @@
 // header judges every finger on its own history, so a swipe completes correctly
 // while other fingers drum, drag, or rest. Engine deliberately does NOT wrap
 // gestures (decision in touch-notes §4); carts #include this instead.
+#include "cart_ctx.h"   // per-instance state seam (docs/design/engine-context.md)
 //
 // Built on the touch-release API (touch_ended_*): a swipe is "where did this
 // finger land, where did it LIFT, how fast" — judged at lift time.
@@ -44,16 +45,37 @@
 
 #define GEST_MAXF 12
 
-static int g_fid[GEST_MAXF];                    // tracked finger ids
-static int g_fsx[GEST_MAXF], g_fsy[GEST_MAXF];  // where each finger landed
-static int g_ffr[GEST_MAXF];                    // frame it landed
-static int g_fn = 0;
-static int g_frame = 0;
 
 // this frame's completed swipes (one per lifted finger, max 4 a frame is plenty)
 typedef struct { int dir, sx, sy; } GestSwipe;
-static GestSwipe g_swipes[4];
-static int g_swipe_n = 0;
+#define GESTURES_STATE(X) \
+    X(int,       g_fid,     [GEST_MAXF], {0}) \
+    X(int,       g_fsx,     [GEST_MAXF], {0}) \
+    X(int,       g_fsy,     [GEST_MAXF], {0}) \
+    X(int,       g_ffr,     [GEST_MAXF], {0}) \
+    X(int,       g_fn,      ,            0) \
+    X(int,       g_frame,   ,            0) \
+    X(GestSwipe, g_swipes,  [4],         {0}) \
+    X(int,       g_swipe_n, ,            0)
+
+#ifndef DE_CART_CTX
+DE_CTX_STATICS(GESTURES_STATE)
+#else
+DE_CTX_BLOCK(gest, Gest, GESTURES_STATE)
+// defined BEFORE the access macros: after them the member names are macros, so `c->x` would
+// expand to `c->(gest_ctx_()->x)`.
+static void gest_ctx_init_(GestCtx *c) {
+    (void)c;   // every default is zero, and de_state_for zero-fills
+}
+#define g_fid     (gest_ctx_()->g_fid)
+#define g_fsx     (gest_ctx_()->g_fsx)
+#define g_fsy     (gest_ctx_()->g_fsy)
+#define g_ffr     (gest_ctx_()->g_ffr)
+#define g_fn      (gest_ctx_()->g_fn)
+#define g_frame   (gest_ctx_()->g_frame)
+#define g_swipes  (gest_ctx_()->g_swipes)
+#define g_swipe_n (gest_ctx_()->g_swipe_n)
+#endif
 
 // call at the TOP of update(), once per frame
 static void gest_update(void) {

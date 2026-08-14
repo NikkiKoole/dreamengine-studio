@@ -28,6 +28,11 @@
  *   node tools/engine-statics.js --json        machine-readable
  *   node tools/engine-statics.js --check       self-test: known answers on a fixture TU
  *   node tools/engine-statics.js --file <f>    just one engine file
+ *   node tools/engine-statics.js --tu <c> --files <a.h,b.h>
+ *                                              measure ANY translation unit — e.g. a cart-land
+ *                                              header, by compiling a TU that includes it. Use this
+ *                                              instead of writing a scan: every regex attempt at this
+ *                                              in the per-instance refactor was wrong.
  *
  * As the refactor lands, every number here should fall toward zero. A file at 0 is a file whose
  * state is per-instance; the job is done when the engine files are all 0.
@@ -52,6 +57,15 @@ const ENGINE_FILES = [
   'runtime/mic.h',
   'runtime/midi_output.h',
 ];
+
+// --tu / --files let this be pointed at ANY translation unit, not just the engine's. That is the
+// whole point: getting a file's static list from a regex has been wrong four times in this refactor
+// (function parameters counted as declarations, an attribution that silently dropped two), and each
+// time the fix was to ask clang. A cart-land header is measured by compiling a TU that includes it.
+const ARGV = process.argv.slice(2);
+function argOf(flag) { const i = ARGV.indexOf(flag); return i >= 0 ? ARGV[i + 1] : null; }
+const TU = argOf('--tu') || 'runtime/studio.c';
+const FILES_OVERRIDE = argOf('--files');
 
 const CFLAGS = [
   '-I', 'runtime', '-I', 'build',
@@ -114,7 +128,7 @@ function relative(f) {
 
 function dumpAst(cb) {
   const args = ['-Xclang', '-ast-dump', '-fno-color-diagnostics', '-fsyntax-only',
-                'runtime/studio.c', ...CFLAGS];
+                TU, ...CFLAGS];
   const p = spawn('clang', args, { cwd: ROOT });
   let buf = '';
   let kept = '';
@@ -215,7 +229,7 @@ function repairAttribution(rows, files) {
 }
 
 function analyze(rows, only) {
-  const files = only ? [only] : ENGINE_FILES;
+  const files = only ? [only] : (FILES_OVERRIDE ? FILES_OVERRIDE.split(',') : ENGINE_FILES);
   const repair = repairAttribution(rows, files);
   const inScope = (r) => files.includes(r.file);
 

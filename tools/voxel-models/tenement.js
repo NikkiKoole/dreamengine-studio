@@ -380,6 +380,47 @@ module.exports = {
       1,
     ]},
 
+    // ── the figure, CARRYING SOMETHING. ──
+    // The punch list called this out: "a resident carrying an item looks identical to one walking
+    // empty-handed, and hauling is how goods move in this sim". It was invisible for a deeper reason
+    // than art, though — work.h sold every good where it was made and deleted it in the same breath,
+    // so `carrying` was never once set in a running game and there was nothing to draw.
+    //
+    // THE LOAD IS THE SILHOUETTE, not the arms. Same rule this file keeps relearning: at 4x2px per
+    // voxel an outline reads and a detail does not. So the box sits PROUD in front of the chest in
+    // +y, breaking the figure's vertical edge exactly the way the sitting pose's thighs do, and the
+    // arms are only wide enough to explain it. It is WOOD, not shirt, so the thing being carried
+    // does not read as part of the person — a household-coloured box would just look like a fat torso.
+    //
+    // +y is FORWARD, the same convention person_work uses, so the renderer's existing "point at the
+    // thing" turn works on this model with no new rule.
+    person_haul: { layers: [
+      ['.j.j.',
+       '.....',
+       '.....',
+       '.....'],
+      4,
+      ['bbbbb',
+       '.....',
+       '.....',
+       '.....'],
+      1,
+      ['bbbbb',
+       'b...b',
+       '.www.',
+       '.www.'],
+      1,
+      ['.bbb.',
+       '.....',
+       '.....',
+       '.....'],
+      ['.hhh.',
+       '.....',
+       '.....',
+       '.....'],
+      1,
+    ]},
+
     // ── the figure: 12 voxels tall = 24px. ──
     // Arms out at torso level so the shoulder line is wider than the head. That contrast is what
     // makes a small figure read as a person; the 32px first cut had none and read as a lamp.

@@ -12,6 +12,7 @@
 // it's mouse-and-touch for free) — so it MUST be called between ui_begin() and
 // ui_end(), exactly like the rad_knob_* controls. radio.h already pulls ui.h
 // in; just #include "solo.h" after it.
+#include "cart_ctx.h"   // per-instance state seam (docs/design/engine-context.md)
 //
 // Usage — the station fills a SoloCtx from data it already has, then calls the
 // strip once in draw() (between ui_begin/ui_end):
@@ -167,17 +168,44 @@ typedef struct {
                               // "the station holds the chord, you just strum it" feel.
 } SoloCtx;
 
-static bool solo_open_f  = false;
-static int  solo_handle  = -1;     // the held mono voice (-1 = silent)
-static int  solo_curMidi = -1;     // what's sounding (display / trace)
-static int  solo_curCell = -1;     // the held finger's cell INDEX (re-pitch only when this moves —
                                    // so a chord-lock chord change under a still finger doesn't slide)
-static float solo_curY   = -1;     // last vertical position 0..1 (-1 = silent)
-static bool solo_pending = false;  // a press waiting for its 16th (quantize)
-static int  solo_pendMidi = -1;
-static long solo_pendStep = 0;
-static int  solo_oct      = 0;     // octave shift of the playable window (- / + buttons)
-static int  solo_lock     = -1;    // LIVE chord-lock: -1 = uninit (seed from cx->chordLock on
+#define SOLO_STATE(X) \
+    X(bool,  solo_open_f,   , false) \
+    X(int,   solo_handle,   , -1) \
+    X(int,   solo_curMidi,  , -1) \
+    X(int,   solo_curCell,  , -1) \
+    X(float, solo_curY,     , -1) \
+    X(bool,  solo_pending,  , false) \
+    X(int,   solo_pendMidi, , -1) \
+    X(long,  solo_pendStep, , 0) \
+    X(int,   solo_oct,      , 0) \
+    X(int,   solo_lock,     , -1)
+
+#ifndef DE_CART_CTX
+DE_CTX_STATICS(SOLO_STATE)
+#else
+DE_CTX_BLOCK(solo, DeSoloState, SOLO_STATE)
+// defined BEFORE the access macros: after them the member names are macros, so `c->x` would
+// expand to `c->(solo_ctx_()->x)`.
+static void solo_ctx_init_(DeSoloStateCtx *c) {
+    c->solo_handle = -1;
+    c->solo_curMidi = -1;
+    c->solo_curCell = -1;
+    c->solo_curY = -1;
+    c->solo_pendMidi = -1;
+    c->solo_lock = -1;
+}
+#define solo_open_f   (solo_ctx_()->solo_open_f)
+#define solo_handle   (solo_ctx_()->solo_handle)
+#define solo_curMidi  (solo_ctx_()->solo_curMidi)
+#define solo_curCell  (solo_ctx_()->solo_curCell)
+#define solo_curY     (solo_ctx_()->solo_curY)
+#define solo_pending  (solo_ctx_()->solo_pending)
+#define solo_pendMidi (solo_ctx_()->solo_pendMidi)
+#define solo_pendStep (solo_ctx_()->solo_pendStep)
+#define solo_oct      (solo_ctx_()->solo_oct)
+#define solo_lock     (solo_ctx_()->solo_lock)
+#endif
                                    // first draw), 0 = scale-lock, 1 = chord-lock. The "ch"/"sc"
                                    // button (and SOLO_LOCK_KEY) flip it — the player can loosen
                                    // a chord-locked station back to free scale play, or tighten.

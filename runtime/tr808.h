@@ -13,6 +13,7 @@
 // subset, or none (acidcandy uses neutral) without the voice changing.
 //
 //   #include "studio.h"
+#include "cart_ctx.h"   // per-instance state seam (docs/design/engine-context.md)
 //   #include "tr808.h"
 //   static float ktune[TR_NV], kdecay[TR_NV], kcolor[TR_NV];   // your knobs (0.5 = neutral)
 //   void init(void) {
@@ -71,7 +72,35 @@ enum { TRS_BD, TRS_SDB, TRS_SDN, TRS_TOM, TRS_TOMN, TRS_CON, TRS_RS, TRS_CLV,
 // ✅ DEFAULT IS NOW 1 — the owner's ear picked the three-band cymbal (2026-07-28), A/B'd against the stock
 // voice as rendered WAVs. 0 is KEPT reachable (key C in the tr808 cart), not removed: it is the sound the
 // cart shipped with for a year and a byte-identical render proves it is still exactly that.
-static int tr808_cym3 = 1;
+#define TR808_STATE(X) \
+    X(int, tr808_cym3,         , 1) \
+    X(int, tr808_cym3_mid_hz,  , 5200) \
+    X(int, tr808_cym3_hi_hz,   , 7100) \
+    X(int, tr808_cym3_vel,     , -3) \
+    X(int, tr808_cym3_members, , 3) \
+    X(int, tr808_snare_dyn,    , 1)
+
+#ifndef DE_CART_CTX
+DE_CTX_STATICS(TR808_STATE)
+#else
+DE_CTX_BLOCK(tr808, Tr808, TR808_STATE)
+// defined BEFORE the access macros: after them the member names are macros, so `c->x` would
+// expand to `c->(tr808_ctx_()->x)`.
+static void tr808_ctx_init_(Tr808Ctx *c) {
+    c->tr808_cym3 = 1;
+    c->tr808_cym3_mid_hz = 5200;
+    c->tr808_cym3_hi_hz = 7100;
+    c->tr808_cym3_vel = -3;
+    c->tr808_cym3_members = 3;
+    c->tr808_snare_dyn = 1;
+}
+#define tr808_cym3         (tr808_ctx_()->tr808_cym3)
+#define tr808_cym3_mid_hz  (tr808_ctx_()->tr808_cym3_mid_hz)
+#define tr808_cym3_hi_hz   (tr808_ctx_()->tr808_cym3_hi_hz)
+#define tr808_cym3_vel     (tr808_ctx_()->tr808_cym3_vel)
+#define tr808_cym3_members (tr808_ctx_()->tr808_cym3_members)
+#define tr808_snare_dyn    (tr808_ctx_()->tr808_snare_dyn)
+#endif
 
 // The two colour bands' centre frequencies. Hoisted out of the build so they can be swept with
 // ab-render, because where the TOP band sits is NOT a free choice. Swept on an isolated crash:
@@ -92,8 +121,6 @@ static int tr808_cym3 = 1;
 // filter, so the post-VCA highpasses get folded into the band frequency instead — two corners rather
 // than one corner and two highpasses. Same three-unequal-decay structure, and it moves the spectrum
 // MORE than stacking both upper paths on one corner would.
-static int tr808_cym3_mid_hz = 5200;
-static int tr808_cym3_hi_hz  = 7100;
 
 // The three UNEQUAL decays are the §J5 structure itself, not incidental tuning — "this inequality of
 // decay times allows the TR808 to change the mix … as the sound progresses". Named so tr808_selfcheck()
@@ -121,7 +148,6 @@ static int tr808_cym3_hi_hz  = 7100;
 // the ear likes this cymbal, the proper fix is to make acidcandy/dubjam's mixer loops scale relative to
 // a per-slot base instead of setting it absolutely, and then trim these two slots with instrument_level.
 // Not done yet on purpose: that touches three carts' mixers for a feature still defaulting to OFF.
-static int tr808_cym3_vel = -3;
 
 // How many of the three bank members each COLOUR band gets (1 or 3). The low band always gets all three,
 // as it always did. 3 is the default because it is the version the owner's ear approved (2026-07-28).
@@ -139,7 +165,6 @@ static int tr808_cym3_vel = -3;
 // substituting that for the take that was actually listened to would be a silent change of the verdict.
 // Switch to 1 if voice pressure ever bites. Note vel bottoms out one step earlier here (-3 goes silent,
 // since a lone member fires at VV(2) and the clamp is at 0).
-static int tr808_cym3_members = 3;
 
 // ── SNARE: does a harder hit read NOISIER, or just louder? (plan 1.2b/1.3 · audit §J9) ─────────
 // Part 35 on snare drums gives two dynamics a fixed layer balance can't express: harder strikes make
@@ -167,7 +192,6 @@ static int tr808_cym3_members = 3;
 // CAVEAT on 2: with the SNPY knob centred the body sits at 4, so a tilt of 4 zeroes it and an accent
 // becomes pure noise with no pitch left. That is a usable gated-snare effect, not a subtler version of 1 —
 // and it only degenerates near centre (SNPY toward body puts the body at 8, where 2 is merely strong).
-static int tr808_snare_dyn = 1;
 
 // Velocity steps to tip, given a hit's boost. Positive for the noise layer, negative for the body.
 //

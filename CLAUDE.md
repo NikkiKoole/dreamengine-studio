@@ -248,7 +248,7 @@ runtime/   studio.h (public API: constants + declarations), studio.c (Raylib imp
                        ONCE as an X-list, then forks: DE_CTX_STATICS(LIST) by DEFAULT (exactly the
                        statics that were there, so all 553 carts pay nothing) or DE_CTX_BLOCK(...) when
                        a cart defines DE_CART_CTX (a per-instance slice via de_state_for, keyed by an
-                       ADDRESS so headers cannot collide). Done: ui/cursor/drumkit/tr909; 4 left.
+                       ADDRESS so headers cannot collide). Done: 7 of the 8 headers that hold state; keybed.h needs a type hoist first.
                        Recipe + the compile-order trap: docs/design/engine-context.md
            lockup/    NOT shelf — ONE cart's private modules (the `lockup` prison sim), on the
                       include path only because -I runtime already is. model.h is a FROZEN CONTRACT

@@ -154,7 +154,7 @@ typedef struct {
     WatchEntry watches[WATCH_MAX];
     int watch_count;
     bool watch_show;
-    char save_dir_[512];   // renamed: host-thread code needs `v->save_dir_`, which the macro below would otherwise rewrite
+    char save_dir[512];
     int last_cls_color;
     double timer_base;
     int sav_data[64];
@@ -222,7 +222,7 @@ static DeVideo de_vid_default = {
     .cam = {                                   .offset   = { SCREEN_W / 2.0f, SCREEN_H / 2.0f },     .target   = { SCREEN_W / 2.0f, SCREEN_H / 2.0f },     .rotation = 0.0f,     .zoom     = 1.0f, },
     .pget_snapshot = (Image){0},
     .watch_show = true,
-    .save_dir_ = ".",
+    .save_dir = ".",
     // the hand-added framebuffer group: the canvas boots at the compiled-in size, as it always did
     .fb_w = SCREEN_W, .fb_h = SCREEN_H,
     .de_sw = SCREEN_W, .de_sh = SCREEN_H,
@@ -346,7 +346,7 @@ static _Thread_local DeVideo *de_vid = &de_vid_default;
 #define watches             (de_vid->watches)
 #define watch_count         (de_vid->watch_count)
 #define watch_show          (de_vid->watch_show)
-#define save_dir            (de_vid->save_dir_)
+#define save_dir            (de_vid->save_dir)
 #define last_cls_color      (de_vid->last_cls_color)
 #define timer_base          (de_vid->timer_base)
 #define sav_data            (de_vid->sav_data)

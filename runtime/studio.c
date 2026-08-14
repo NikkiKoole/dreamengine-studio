@@ -3154,9 +3154,27 @@ void de_frame(DeInstance *in, double t) { DE_ENTER(in); de_host_time = t; de_app
 // stereo floats in [-1,1] @ SOUND_SAMPLE_RATE. The same mixer the Raylib AudioStream
 // drives; reentrant/lock-free, safe from the audio thread while de_frame runs on main.
 void de_audio_render(DeInstance *in, float *out, int frames) { DE_ENTER(in); sound_callback((void *)out, (unsigned)frames); DE_LEAVE(); }
-const uint32_t *de_framebuffer(DeInstance *in) { (void)in; return (const uint32_t*)sw_cbuf; }
-int de_screen_w(DeInstance *in) { (void)in; return de_sw; }   // active canvas dims (== SCREEN_W until the host resizes)
-int de_screen_h(DeInstance *in) { (void)in; return de_sh; }
+// ⚠ All three go through de_vid_of(in), not the macros — the host calls them from ITS thread (the
+// standalone view's syncSize, the plug-in's touch mapping), where the thread-local names the DEFAULT
+// engine. A second rack would have been told instance 0's canvas size and handed instance 0's
+// pixels. Third instance of this bug shape today; see de_resize and de_set_save_dir.
+//
+// The macros have to come OFF to write this: every one expands `x->name` into `x->(de_vid->name)`,
+// so naming an explicit instance is impossible while they are in scope. Same push_macro/undef
+// technique this file already uses to shield stb_image's `palette` parameter, and scoped just as
+// tightly — three lines, popped immediately.
+#pragma push_macro("sw_cbuf")
+#pragma push_macro("de_sw")
+#pragma push_macro("de_sh")
+#undef sw_cbuf
+#undef de_sw
+#undef de_sh
+const uint32_t *de_framebuffer(DeInstance *in) { return (const uint32_t*)de_vid_of(in)->sw_cbuf; }
+int de_screen_w(DeInstance *in) { return de_vid_of(in)->de_sw; }   // active canvas dims (== SCREEN_W until the host resizes)
+int de_screen_h(DeInstance *in) { return de_vid_of(in)->de_sh; }
+#pragma pop_macro("de_sh")
+#pragma pop_macro("de_sw")
+#pragma pop_macro("sw_cbuf")
 // The same two, for ENGINE-INTERNAL callers (raylib_compat's GetScreenWidth/Height). They run
 // underneath a seam call that already established the instance, so they have no handle to pass and
 // should not pretend to: the handle-taking pair above is the HOST seam, this pair is the engine
@@ -3212,16 +3230,19 @@ void de_set_backing_scale(DeInstance *in, float k) {
 // through the handle, exactly like the resize seam. (This does NOT solve N racks sharing one
 // cart.sav — that needs distinct DIRECTORIES, and it is the host that has to choose them. Filed in
 // docs/design/per-instance-remaining.md.)
+#pragma push_macro("save_dir")
+#undef save_dir
 void de_set_save_dir(DeInstance *in, const char *dir) {
     if (!dir || !*dir) return;
     DeVideo *v = de_vid_of(in);
-    snprintf(v->save_dir_, sizeof v->save_dir_, "%s", dir);
+    snprintf(v->save_dir, sizeof v->save_dir, "%s", dir);
     char tmp[512];
-    snprintf(tmp, sizeof tmp, "%s", v->save_dir_);
+    snprintf(tmp, sizeof tmp, "%s", v->save_dir);
     for (char *p = tmp + 1; *p; p++)
         if (*p == '/') { *p = '\0'; de_mkdir(tmp); *p = '/'; }
     de_mkdir(tmp);
 }
+#pragma pop_macro("save_dir")
 
 #else  // !DE_NO_RAYLIB — the Raylib desktop/web build owns main()
 

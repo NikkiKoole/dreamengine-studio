@@ -13,6 +13,7 @@
 // THE NEGATIVE CONTROL IS THE POINT. Two fresh instances driven the SAME way must come back
 // byte-identical. Without it, "their frames differ" could be instance-to-instance noise rather than
 // independence, and the headline result would mean nothing.
+// de:engine-owner multi — this probe EXISTS to run several engines at once
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

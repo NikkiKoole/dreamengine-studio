@@ -26,6 +26,7 @@ int main(int argc, char **argv) {
     const char *ppm = (argc > 2) ? argv[2] : "build/headless_nr.ppm";
     const char *wav = (argc > 3) ? argv[3] : NULL;
 
+    // de:engine-owner — the headless harness owns its single engine
     DeInstance *in = de_instance_create(DE_RENDERER_SOFTWARE);
 
     short *pcm = wav ? malloc((size_t)frames * PER_FRAME * 2 * sizeof(short)) : NULL;

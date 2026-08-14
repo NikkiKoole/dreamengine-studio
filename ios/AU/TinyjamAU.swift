@@ -73,6 +73,8 @@ public final class TinyjamAU: AUAudioUnit {
                          options: AudioComponentInstantiationOptions = []) throws {
         // BEFORE super.init: Swift requires every `let` initialized first, and this unit's engine is
         // one. de_instance_create is a plain C call with no dependency on the AU being constructed.
+        // de:engine-owner — an audio unit IS a rack; it creates the engine and hands the SAME pointer to
+        // its view (that is why the AUv3 never had the double-engine bug the app did).
         engine = de_instance_create(DE_RENDERER_SOFTWARE)   // THIS unit's own engine
         try super.init(componentDescription: componentDescription, options: options)
         let outBus = try AUAudioUnitBus(format: format)

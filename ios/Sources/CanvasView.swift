@@ -83,6 +83,8 @@ final class CanvasView: UIView {
         layer.contentsGravity = .resizeAspect
 #if !AU_EXT
         if !hosted {
+            // de:engine-owner — the standalone app's ONE engine. Everything else (AudioEngine, GameHost)
+            // is handed this pointer; nothing else may create one.
             engine = de_instance_create(DE_RENDERER_SOFTWARE)   // this app's one engine
             // ⚠ HAND IT THE SAME INSTANCE. AudioEngine used to create its own, which was invisible
             // while de_instance_create returned a singleton and became total silence the moment it

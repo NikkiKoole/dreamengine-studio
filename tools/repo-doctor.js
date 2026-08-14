@@ -76,6 +76,7 @@ const CHECKS = [
   { name: "selftest: gate ctl",  tool: "gate-controls.js",           args: ["--selfcheck"], gate: true },
   { name: "selftest: fxicons", tool: "lint-fxicons.js",    args: ["--selfcheck"], gate: true },
   { name: "selftest: aux params", tool: "lint-aux-params.js", args: ["--selfcheck"], gate: true },
+  { name: "selftest: seam", tool: "lint-engine-seam.js", args: ["--selfcheck"], gate: true },
   { name: "selftest: carts",   tool: "lint-carts.js",      args: ["--selfcheck"], gate: true },
   { name: "selftest: fx frame", tool: "lint-fx-frame.js",  args: ["--selfcheck"], gate: true },
   { name: "selftest: ui audit", tool: "ui-audit.js",       args: ["--selfcheck"], gate: true },
@@ -92,6 +93,7 @@ const CHECKS = [
   // and it was written already AT zero after fixing the two kinds that had shipped without one —
   // so there is no backlog to work down first, unlike the ledger row above.
   { name: "fx glyphs",    tool: "lint-fxicons.js",       args: ["--strict"],    gate: true },
+  { name: "engine seam", tool: "lint-engine-seam.js",  args: ["--strict"],    gate: true },
   // GATED from birth for the same reason as fx glyphs above: it was already AT zero (0 findings
   // across 573 carts), so there is no backlog to work down. It had been in NO gate at all, which
   // is why nobody would have noticed if its parser had gone blind — the fixture row above is the

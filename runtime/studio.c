@@ -3199,7 +3199,7 @@ void de_resize(DeInstance *in, int w, int h) {
     atomic_store_explicit(&v->pend_h, h, memory_order_relaxed);
     atomic_fetch_or_explicit(&v->pend, 1, memory_order_release);
 }
-int  de_is_resizable(DeInstance *in) { (void)in; return de_reflow ? 1 : 0; }
+int  de_is_resizable(DeInstance *in) { (void)in; return de_reflow ? 1 : 0; }   // seam-lint-ignore: de_reflow is a COMPILE-TIME flag (-DDE_RESIZABLE), not per-instance state — every instance in a process answers the same
 // The CART-facing twin, and a different operation despite the shared verb: the host says "my view
 // resized" and hands a handle, a cart says "give me a canvas this size" from inside its own frame,
 // where the thread-local already names the right instance. It exists because carts were declaring
@@ -3253,8 +3253,10 @@ void de_set_save_dir(DeInstance *in, const char *dir) {
 // SetWindowSize — the window stays put. Lets a cart drive its own logical size, e.g. the acidwire
 // device-matrix wireframe (device-matrix.md) flipping through device shapes. de_is_resizable stays
 // honest (only -DDE_RESIZABLE carts opt into live window→canvas reflow).
+// seam-lint-ignore: the RAYLIB build owns main() and runs exactly one engine, so the thread-local
+// always names it. If this build ever hosts a second instance, this is the first line to fix.
 void de_resize(DeInstance *in, int w, int h) { (void)in; de_set_canvas(w, h); }
-int  de_is_resizable(DeInstance *in) { (void)in; return de_reflow ? 1 : 0; }
+int  de_is_resizable(DeInstance *in) { (void)in; return de_reflow ? 1 : 0; }   // seam-lint-ignore: de_reflow is a COMPILE-TIME flag (-DDE_RESIZABLE), not per-instance state — every instance in a process answers the same
 // the cart-facing twin — see the long note beside the DE_NO_RAYLIB copy. This build owns main() and
 // runs one engine, so it is a direct call; the shape is what matters, not the indirection.
 void canvas_resize(int w, int h) { de_set_canvas(w, h); }

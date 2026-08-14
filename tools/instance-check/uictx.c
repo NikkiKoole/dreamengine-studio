@@ -1,6 +1,7 @@
 // Does an opted-in cart-land header get PER-INSTANCE state?
 // Built twice by run-uictx.sh: plain, and with -DDE_CART_CTX. Checking BOTH matters — a seam that
 // only works when enabled is half a seam, and the default path is what all 553 carts compile.
+// de:engine-owner multi — this probe EXISTS to run several engines at once
 #include <stdio.h>
 #include <stdint.h>
 #include "../../runtime/platform.h"

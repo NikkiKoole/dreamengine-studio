@@ -73,7 +73,7 @@ static void *engine_thread(void *unused) {
 
 int main(void) {
     printf("\xE2\x96\xB8 present/resize race: the view blitting + resizing while the engine draws\n");
-    g_in = de_instance_create(DE_RENDERER_SOFTWARE);
+    g_in = de_instance_create(DE_RENDERER_SOFTWARE)   /* de:engine-owner — one engine, raced by two threads */;
 
     int failures = 0;
     uint32_t *dst = (uint32_t *)malloc((size_t)CAP_PX * sizeof(uint32_t));

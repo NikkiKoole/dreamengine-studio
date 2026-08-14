@@ -753,6 +753,26 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
                              exists but no agent finds it, so they hand-roll it again" class.
                              `--json`; `--selfcheck` = known-answer fixture (pins the HARD-vs-SOFT §-ref split:
                              a parent-resolved ref is a NOTE, never an error), gated in repo-doctor
+             lint-engine-seam.js  the HOST↔ENGINE boundary, from three bugs that shipped in one day
+                             because the per-instance refactor changed what host code MEANS without
+                             changing what it SAYS. (A) TWO ENGINES IN ONE HOST — `de_instance_create`
+                             used to return a SINGLETON so it never mattered who asked; it ALLOCATES
+                             now, and three components were each booting their own rack (the AUv3
+                             panel = the flickering, AudioEngine = total SILENCE on device, GameHost =
+                             a third engine to ask two questions). A file may create one only if it
+                             says `de:engine-owner` (`multi` for the instance probes) — a marker, not
+                             an allowlist, so a new host cannot forget to be added. (B) A SEAM
+                             FUNCTION THAT IGNORES ITS HANDLE: six found in a day, each taking a
+                             `DeInstance *`, dropping it with `(void)in` and reading the thread-local,
+                             which on a HOST thread names the DEFAULT engine — it never fails loudly,
+                             and the handle in the signature makes it READ as done. Waive with
+                             `seam-lint-ignore` + a REASON. (C) A CART DECLARING ITS OWN `extern` for
+                             an engine function: `face.h` + 7 carts had `extern void de_resize(int,
+                             int)` against a 3-arg definition — UB no compiler sees across TUs, which
+                             surfaced as a crash with `in = 0xa7` (167 = the canvas width it asked
+                             for). If a cart needs an extern, THE SEAM IS MISSING AN API (that is how
+                             `canvas_resize` was born). Arity is read FROM the header, so it cannot
+                             drift. `--selfcheck` = 14 known answers, both directions per check
              lint-fxicons.js every `FX_*` insert kind must have a shared GLYPH in runtime/fxicons.h
                              (body colour + accent + name + icon). The failure is SILENT and worse than
                              blank: an unregistered kind falls through fx_icon()'s `else` and draws a

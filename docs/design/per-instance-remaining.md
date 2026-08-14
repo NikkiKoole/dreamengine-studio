@@ -3,10 +3,15 @@
 > **STATUS: building.** The one page that answers *"how much of this is finished?"*. Everything else
 > in this lane explains HOW; this says WHAT REMAINS, in the order it should be done, with the reason
 > each item exists. Siblings: [`engine-context.md`](engine-context.md) (the state move),
-> [`engine-instance-seam.md`](engine-instance-seam.md) (the host handle).
+> [`engine-instance-seam.md`](engine-instance-seam.md) (the host handle), and
+> [`engine-simplification.md`](engine-simplification.md) — its **round 2** is the cleanup this
+> refactor left behind, including the half-moved groups (`kv_data`, `sw_rot_*`) that are correctness
+> gaps rather than tidying.
 >
-> **Progress: the engine went from 601 process-global mutable statics to 148**, and every one of the
-> 148 is a recorded decision rather than a leftover. Live numbers: `node tools/engine-statics.js`.
+> **Progress: RUN `node tools/engine-statics.js`.** Do not trust a count written here — this line
+> said "601 → 148" until 2026-08-14, when the tool was found to be silently dropping 30 rows it
+> could not attribute and to have never been pointed at `runtime/midi_input.h` at all. It now names
+> anything it cannot place and exits nonzero, so the number it prints is the number.
 > **The CART is done too, and so is the PICTURE** (2026-08-14). `acidcandy`'s 198 statics are
 > per-instance, and so are the framebuffer group and the published frame — so two racks are
 > independent in both sound and image. **Two GarageBand tracks sound correct, verified by the maker.**

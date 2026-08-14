@@ -522,13 +522,26 @@ Same rules as round 1: line numbers rot, the function name is the anchor, every 
       no error, no silence where sound should be, just a delay that never appears. They now print one
       deduped `[sound] WARNING` each, next to the two tripwires that already existed. `soundcheck`
       stays silent, so nothing on the shelf currently exhausts a pool.
-- [ ] Smaller: CLAV/WURLITZER e-piano blocks are ~20 identical lines apart from their tables (and
-      unlike 808-vs-909 the navkit UPSTREAM is itself parameterised, so this one is real) · five
-      write-only overflow counters with no reader anywhere (give them a reader, don't delete — the
-      file's culture is fail-loud) · `at_psola_slot`'s `formant` param is clamped and then never used
-      · twelve mutually-exclusive per-engine `*_on` bools that could be one `eng_armed` ·
-      `sound_push_req`/`sound_push_ctrl` duplicate the lock-free publish protocol · `ms_samp()` for
-      the 18 hand-written `(x * SOUND_SAMPLE_RATE) / 1000` with inconsistent clamps.
+- [x] **`at_psola_slot`'s `formant` param was clamped and never used** — LANDED 2026-08-15, removed.
+      Both callers passed `0.0f` and no cart-facing API exposed it, so it was dead surface that READ
+      like a working knob — the same shape `lint-aux-params.js` exists to catch on the other channel.
+      It was a placeholder for the formant-HOLD axis this engine deliberately parks; the comment left
+      in its place says so, and says it comes back WITH an implementation. Gate: `psola-check` (no
+      artifact regression), `refactor-guard` 6/6.
+- [x] **`ms_samp()` for the hand-written `(x * SOUND_SAMPLE_RATE) / 1000`** — LANDED 2026-08-15
+      across 15 int sites. **This one was not just tidiness: the int product leaves range at about 48
+      SECONDS** at 44.1 kHz, so a cart scheduling a note a minute out got a negative sample count —
+      and the tell was already in the file, since one site had been quietly widened to `long long`.
+      The helper saturates instead of wrapping and truncates identically otherwise, so every
+      in-range call is byte-identical. NOT folded in and said so at the declaration: the two echo
+      `ms * (float)RATE / 1000.0f` sites (a float delay-line position) and the one `long long`
+      declick floor whose result stays 64-bit for the comparison it feeds.
+- [ ] Smaller, still open: CLAV/WURLITZER e-piano blocks are ~20 identical lines apart from their
+      tables (and unlike 808-vs-909 the navkit UPSTREAM is itself parameterised, so this one is
+      real) · twelve mutually-exclusive per-engine `*_on` bools that could be one `eng_armed` ·
+      `sound_push_req`/`sound_push_ctrl` duplicate the lock-free publish protocol.
+      *(The other three from this line landed 2026-08-15 and have their own entries above: the five
+      write-only overflow counters, `at_psola_slot`'s dead `formant` param, and `ms_samp()`.)*
 
 ### Open — Swift / iOS
 

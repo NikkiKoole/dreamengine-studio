@@ -4541,11 +4541,28 @@ static inline float sound_adsr_gated(int s, int a, int d, float sustain) {
 // `gl_d` is already the distance in octaves, which is why this is one powf and why it was impossible before
 // the slew moved into the pitch domain (a one-pole's perceived duration already varied with the interval,
 // so there was no clean "constant" to scale away from).
+// MILLISECONDS → SAMPLES, the one conversion. It was hand-written at 15 int sites as
+// `(ms * SOUND_SAMPLE_RATE) / 1000` — and one had already been widened to `long long`,
+// which is the tell: at 44.1 kHz the int product leaves range at about **48 seconds**, so a cart
+// scheduling a note a minute out got a NEGATIVE sample count. Same truncation as the hand-written
+// form (C division truncates toward zero, both directions), so every existing call is byte-identical
+// for every value that did not already overflow; the difference is that the ones that did now
+// saturate instead of wrapping. ⚠ NOT folded in: the two echo `ms * (float)RATE / 1000.0f` sites
+// (a float delay-line position, genuinely a different computation) and the one `long long`
+// GLIDE_DECLICK_MS floor, whose result stays 64-bit for the comparison it feeds.
+#define MS_SAMP_MAX 2147483647LL
+static inline int ms_samp(int ms) {
+    long long n = ((long long)ms * (long long)SOUND_SAMPLE_RATE) / 1000LL;
+    if (n >  MS_SAMP_MAX) n =  MS_SAMP_MAX;
+    if (n < -MS_SAMP_MAX) n = -MS_SAMP_MAX;
+    return (int)n;
+}
+
 static inline void sound_glide_start(Voice *v) {
     float tgt = v->freq_target;
     if (tgt <= 0.0f || v->freq <= 0.0f) { v->freq = tgt; v->gl_len = 0; return; }   // log2 guard
     int ms  = v->gl_ms > 0 ? v->gl_ms : GLIDE_DECLICK_MS;
-    int len = (int)(((long long)ms * (long long)SOUND_SAMPLE_RATE) / 1000LL);
+    int len = ms_samp(ms);
     v->gl_from = de_log2f(v->freq);
     v->gl_d    = de_log2f(tgt) - v->gl_from;
     // PER-OCTAVE scaling applies only to a glide the cart actually ASKED for. The default declick ramp is
@@ -6675,7 +6692,7 @@ void strum(int root, int type, int instr, int vol, int delay_ms) {
     int abs_ms = delay_ms < 0 ? -delay_ms : delay_ms;
     for (int i = 0; i < n; i++) {
         int idx   = (dir > 0) ? i : (n - 1 - i);
-        int delay = (i * abs_ms * SOUND_SAMPLE_RATE) / 1000;
+        int delay = ms_samp(i * abs_ms);
         sound_push_req(SR_NOTE, root + ivl[idx], instr, vol, delay, 0);
     }
 }
@@ -6685,7 +6702,7 @@ void strum_notes(const int *midis, int n, int instr, int vol, int delay_ms) {
     int abs_ms = delay_ms < 0 ? -delay_ms : delay_ms;
     for (int i = 0; i < n; i++) {
         int idx   = (dir > 0) ? i : (n - 1 - i);
-        int delay = (i * abs_ms * SOUND_SAMPLE_RATE) / 1000;
+        int delay = ms_samp(i * abs_ms);
         sound_push_req(SR_NOTE, midis[idx], instr, vol, delay, 0);
     }
 }
@@ -6753,7 +6770,7 @@ void note(int midi, int instr, int vol) {
 }
 
 void hit(int midi, int instr, int vol, int dur_ms) {
-    int dur = (dur_ms * SOUND_SAMPLE_RATE) / 1000;
+    int dur = ms_samp(dur_ms);
     if (dur < 1) dur = 1;
     sound_push_req(SR_NOTE, midi, instr, vol, 0, dur);
 }
@@ -6854,9 +6871,9 @@ void note_off_all(void) {
 
 void instrument(int slot, int wave, int attack_ms, int decay_ms, int sustain, int release_ms) {
     if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
-    int a = (attack_ms  * SOUND_SAMPLE_RATE) / 1000;
-    int d = (decay_ms   * SOUND_SAMPLE_RATE) / 1000;
-    int r = (release_ms * SOUND_SAMPLE_RATE) / 1000;
+    int a = ms_samp(attack_ms);
+    int d = ms_samp(decay_ms);
+    int r = ms_samp(release_ms);
     if (a < 0) a = 0;
     if (d < 0) d = 0;
     if (r < 0) r = 0;
@@ -7146,14 +7163,19 @@ static float autotune_mic_process(float x) {
 // The SNAP path passes semis 0 / fstep 1.0f, and `j * 1.0f` is exact in IEEE754, so generalizing
 // this loop left sample_autotune's output BIT-IDENTICAL (asserted by re-render, not by reasoning).
 enum { AT_SNAP, AT_SHIFT };
-static void at_psola_slot(int slot, int mode, int root, int scale, float semis, float formant, float amount) {
+// ⚠ THERE USED TO BE A `float formant` PARAMETER HERE. It was clamped to 0..1 and then never read
+// again — a placeholder for the formant-HOLD axis this engine deliberately parks (formants currently
+// ride along with the pitch; see the note above and transparent-autotune.md). Removed 2026-08-15:
+// both callers passed 0.0f and no cart could reach it, so it was dead surface that READ like a
+// working knob, which is the shape lint-aux-params.js exists to catch on the other channel. When
+// hold lands it comes back WITH an implementation.
+static void at_psola_slot(int slot, int mode, int root, int scale, float semis, float amount) {
     if (slot < 0 || slot >= SOUND_SAMPLE_SLOTS) return;
     SoundSample *s = &sound_samples[slot];
     if (!s->loaded || !s->data || s->len < AT_ACW * 2) return;
     if (mode == AT_SNAP && amount <= 0.001f) return;        // no-op → leave the slot untouched
     if (mode == AT_SHIFT && semis > -0.01f && semis < 0.01f) return;   // a 0-semitone shift is a no-op too
     if (amount > 1.0f) amount = 1.0f;
-    if (formant < 0.0f) formant = 0.0f; if (formant > 1.0f) formant = 1.0f;
     // fstep = the pitch ratio: the grain CONTENT is resampled as well as re-spaced. Both together are
     // what measures clean (voxshift: f0 lands within 0.5 Hz of target at +3/+5/+7/+12, wobble as low as
     // the raw take). Formants ride along with the pitch — see the header note on the parked hold axis.
@@ -7303,11 +7325,11 @@ static void at_psola_slot(int slot, int mode, int root, int scale, float semis, 
 
 // the two public faces of the one core above
 void sample_autotune(int slot, int root, int scale, float amount) {
-    at_psola_slot(slot, AT_SNAP, root, scale, 0.0f, 0.0f, amount);
+    at_psola_slot(slot, AT_SNAP, root, scale, 0.0f, amount);
 }
 void sample_shift(int slot, float semitones) {
     if (semitones < -24.0f) semitones = -24.0f; if (semitones > 24.0f) semitones = 24.0f;
-    at_psola_slot(slot, AT_SHIFT, 0, 0, semitones, 0.0f, 1.0f);
+    at_psola_slot(slot, AT_SHIFT, 0, 0, semitones, 1.0f);
 }
 
 // Live waveform readout of the capture ring WHILE recording (before a grab): downsample the last
@@ -7388,7 +7410,7 @@ void note_motion(int handle, float vx, float vy) {
     sound_push_ctrl(SR_NOTE_MOTION, (int)(vx * 1000.0f), (int)(vy * 1000.0f), 0, handle & SOUND_HANDLE_MASK, handle >> SOUND_HANDLE_BITS, 0);
 }
 void hit_at(int midi, int instr, int vol, int dur_ms, float x, float y) {
-    int dur = (dur_ms * SOUND_SAMPLE_RATE) / 1000;
+    int dur = ms_samp(dur_ms);
     if (dur < 1) dur = 1;
     sound_push_ctrl(SR_HIT_AT, midi, instr, vol, dur, (int)(x * 1000.0f), (int)(y * 1000.0f));
 }
@@ -7455,8 +7477,8 @@ void instrument_keytrack(int slot, float amount) {
 void instrument_env(int slot, int which, int dest, int attack_ms, int decay_ms, float amount) {
     if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
     if (which < 0 || which >= SOUND_ENVS) return;
-    int a = (attack_ms * SOUND_SAMPLE_RATE) / 1000;
-    int d = (decay_ms  * SOUND_SAMPLE_RATE) / 1000;
+    int a = ms_samp(attack_ms);
+    int d = ms_samp(decay_ms);
     if (a < 0) a = 0;
     if (d < 0) d = 0;
     sound_push_ctrl(SR_INSTR_ENV, slot, which, dest, a, d, (int)(amount * 1000.0f));
@@ -7988,22 +8010,22 @@ void fx_order(int bus, const int *kinds, int n) {
 void note_env(int handle, int which, int dest, int attack_ms, int decay_ms, float amount) {
     if (handle <= 0) return;
     if (which < 0 || which >= SOUND_ENVS) return;
-    int a = (attack_ms * SOUND_SAMPLE_RATE) / 1000;
-    int d = (decay_ms  * SOUND_SAMPLE_RATE) / 1000;
+    int a = ms_samp(attack_ms);
+    int d = ms_samp(decay_ms);
     if (a < 0) a = 0;
     if (d < 0) d = 0;
     sound_push_ctrl(SR_NOTE_ENV, ((which & 0xf) << 4) | (dest & 0xf), a, d, handle & SOUND_HANDLE_MASK, handle >> SOUND_HANDLE_BITS, (int)(amount * 1000.0f));
 }
 
 void schedule(int delay_ms, int midi, int instr, int vol) {
-    int ds = (delay_ms * SOUND_SAMPLE_RATE) / 1000;
+    int ds = ms_samp(delay_ms);
     if (ds < 0) ds = 0;
     sound_push_req(SR_NOTE, midi, instr, vol, ds, 0);
 }
 
 void schedule_hit(int delay_ms, int midi, int instr, int vol, int dur_ms) {
-    int ds  = (delay_ms * SOUND_SAMPLE_RATE) / 1000;
-    int dur = (dur_ms   * SOUND_SAMPLE_RATE) / 1000;
+    int ds  = ms_samp(delay_ms);
+    int dur = ms_samp(dur_ms);
     if (ds  < 0) ds  = 0;
     if (dur < 1) dur = 1;
     sound_push_req(SR_NOTE, midi, instr, vol, ds, dur);

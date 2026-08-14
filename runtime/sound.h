@@ -6069,7 +6069,8 @@ static void sound_fire_req(SoundReq r) {
         for (int i = 0; i < SOUND_VOICES; i++)
             if (voices[i].active) { tailL += voices[i].last_outL; tailR += voices[i].last_outR; }
         delayed_count = 0;                                 // scheduled notes must not fire into the restored rack
-        sound_reset_state();                               // → no held voices, sequencer at step 0
+        sound_reset_state();                               // → no held voices, nothing scheduled. Says
+                                                           // nothing about a CART's own step counter.
         for (int i = 0; i < ctx_log_n[ctx_active]; i++)
             sound_fire_req(ctx_log[ctx_active][i]);
         steal_tailL += tailL; steal_tailR += tailR;

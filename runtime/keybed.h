@@ -109,8 +109,8 @@ DE_CTX_STATICS(KEYBED_STATE)
 #else
 // SCRATCH, deliberately: kb_handle[128] holds LIVE VOICE HANDLES, which name voices in the instance
 // that allocated them and nothing at all in the one a session blob is restored into. Cost of the
-// choice, stated: a restored rack forgets the keybed's octave/velocity and holds no notes — which is
-// the agreed "sequencer at step 0, nothing held" restore.
+// choice, stated: a restored rack forgets the keybed's octave/velocity and holds no notes — the
+// "nothing held" half of the agreed restore, which is the half a keybed has any say in.
 DE_CTX_BLOCK(kb, Keybed, KEYBED_STATE)
 // defined BEFORE the access macros: after them the member names are macros, so `c->kb_slot` would
 // expand to `c->(kb_ctx_()->kb_slot)`.

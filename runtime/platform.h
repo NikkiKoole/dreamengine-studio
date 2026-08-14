@@ -123,7 +123,15 @@ void de_set_save_dir(DeInstance *in, const char *dir);
 // SESSION STATE — back the host's fullState with these, so a reopened project is the rack the player
 // left rather than factory defaults. What travels is INTENT (the sound config log + the cart slices
 // marked with de_state_for_saved), NOT the ~4 MB context struct, which is mostly pointers and DSP
-// scratch. A restored rack comes back at step 0 holding no notes, by design.
+// scratch.
+//
+// WHAT A RESTORE GUARANTEES, stated narrowly because the loose version misleads: the ENGINE comes back
+// with NO HELD VOICES and NOTHING SCHEDULED (de_load_state replays the config over a reset, so a stale
+// voice handle can never be pointed at a live slot). It says nothing about where a CART's sequencer
+// sits — that depends on the cart. A cart storing its step in a SAVED slice gets it back; one that
+// derives its position from host transport (as a well-behaved plug-in cart does — see
+// docs/design/external-clock-sync.md) is put wherever the host's playhead is, one frame later,
+// whatever the blob said.
 //
 // de_save_state: writes at most `max` bytes into `out` and returns the length written. Pass out=NULL
 // (or too small a `max`) to get the REQUIRED size back without writing — call it twice, size then fill.

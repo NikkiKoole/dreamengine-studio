@@ -217,10 +217,37 @@ Named so the next session does not assume otherwise:
       committed an hour before under a comment claiming the struct had no pointers. The claim came
       from grepping for X-list rows in a file that has no X-list, so "0 matches" meant "nothing to
       check", not "nothing wrong". Moved to a scratch slice.
-    - ⚠ **Slice granularity is the honest limit.** A slice is all-or-nothing, so `acidcandy`'s whole
-      `CartState` travels — including any position counters inside it. The engine's sound side does
-      come back at step 0 with nothing held (that is what the reset buys), but a cart wanting
-      "patterns restored, playhead at zero" has to declare *two* slices, one of each kind.
+    - **Slice granularity is all-or-nothing** — a cart that needs half its struct saved and half not
+      has to declare *two* slices, one of each kind. That is the general limit, and it is real.
+      ⚠ **But do not conclude from it that `acidcandy` has a playhead problem — I did, and it was
+      wrong.** `CartState` does contain `g_phase` and `playing`, so they *are* written to the blob.
+      They do not survive contact with a host, and that is by design:
+      - `s_step` is **derived, not stored** — `s_step = ctr % STEPS` recomputes from `g_phase` every
+        frame, so restoring it changes nothing.
+      - **In a DAW the host owns the position.** An AUv3 pushes `de_sync_position` every render
+        block, so `sync_active()` is always true, and the cart's own docblock states the consequence:
+        *"While a clock is present it owns ALL THREE of tempo, transport and POSITION … `g_phase =
+        sync_beats()*4` DERIVED instead of accumulated."* The restored `g_phase` is overwritten on the
+        first frame. Same for `playing` whenever `sync_transport()` holds — and the host's PLAY edge
+        resets `laststep`/`laststep303[]` itself.
+
+      So for `fullState`, which is the DAW case and the whole point, a reopened project sits at the
+      **host's** playhead. Not because of the restore's reset, but because the cart is already a
+      proper transport slave ([`external-clock-sync.md`](external-clock-sync.md)).
+
+      The saved values apply only where nothing drives transport (the standalone app, or a
+      tempo-only clock). There the rack resumes mid-bar — which is **existing intent, not a
+      regression**: `acidcandy` already calls `autosave_tick()`, commented *"rolling autosave
+      (resume-where-you-left-off)"*. The one residue is that a restored `playing = 1` lets a
+      transport-less host start the rack on load; consistent with that autosave, so left alone.
+      ⚠ If you go looking, `HANDOFF.md` has a *different* `playing=1` story — a hosted panel whose
+      engine never saw host transport, so it free-ran while the audible engine sat stopped. Same
+      symptom, unrelated cause, **and it is fixed** (`b43cd813`, the panel no longer creates its own
+      engine). It survives only inside that lane's `▼ superseded` block, which the lane's own header
+      says is factually wrong and kept for the trail. Do not read it as a live report.
+
+      **The lesson worth keeping:** "field X is in the saved struct" does not tell you X is restored
+      state. Check who WRITES it each frame first. Reading the struct is not enough.
   - Note the plug-in does **no** state handling today at all (no `fullState`, no `parameterTree`, no
     presets), so a reopened session starts every rack at defaults — a separate user-visible gap from
     the two-racks-interfere bug.

@@ -153,7 +153,9 @@ public final class TinyjamAU: AUAudioUnit {
     // What travels is INTENT, not the context struct: the engine's sound-config log plus the cart
     // slices marked `de_state_for_saved`. The context is ~4 MB of pointers, GPU handles and derived
     // DSP scratch — meaningless to restore, and it would put megabytes in the host's project file.
-    // A restored rack comes back at step 0 holding no notes, by design.
+    // A restore guarantees the ENGINE comes back with no held voices and nothing scheduled. It does
+    // NOT put a cart's sequencer at step 0 — acidcandy derives its position from host transport, so
+    // the host's playhead wins one frame later whatever the blob said. See runtime/platform.h.
     //
     // Gated by `bash tools/state-check/run.sh` (20 assertions, four negative controls) — which runs
     // the round trip on the desktop DE_NO_RAYLIB build, because nothing in the repo can instantiate

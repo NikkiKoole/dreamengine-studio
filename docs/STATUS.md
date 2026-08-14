@@ -636,7 +636,14 @@ Detail lives in the linked design doc in every case; that is where it was always
 > SHIPPED 2026-08-14 and the maker verified it in GarageBand** — toggled instruments and an added acid
 > note came back. It stays in Open for the four items below.
 >
-> **✅ 1. MIGRATION — DONE 2026-08-14, and it was the update cliff.** Until this, the fingerprint folded
+> **✅ 1. MIGRATION — DONE 2026-08-14, and VERIFIED IN GARAGEBAND ON REAL GLASS.** The maker saved a
+> project, `bend_range` was then APPENDED to `CartState` (197 → 198 fields — literally "v1.1 added a
+> knob"), the plug-in was rebuilt, and reopening the project logged
+> `STATE migrated a 589068-byte blob from an older build — restored, new controls at their defaults`
+> with the maker confirming *"the rack came back exactly as i left it"*. Before this, that same reopen
+> would have logged `refused … rack stays at defaults` and the song would have been gone. The same log
+> also caught all three REFUSAL paths firing inside the shipping plug-in (damaged container, truncated
+> inflate, mangled fingerprint) rather than only in the probe. This was the update cliff.** Until this, the fingerprint folded
 > each slice's SIZE into its identity, so shipping **one new knob** would have refused every project a
 > player had already saved. Format **v2** hashes the SHAPE instead (which slices, in what order, plus an
 > ABI tag) and checks sizes per slice with an asymmetric rule: **saved < current → prefix-restore** (the

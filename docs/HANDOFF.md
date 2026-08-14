@@ -198,7 +198,10 @@ a broken doc link or `#section`).
 > `bash tools/state-check/run.sh` (20, engine), `./au-transport-check --state` (12, the real
 > out-of-process plug-in incl. the property-list round trip a host performs), `tools/lint-saved-state.js`.
 >
-> **✅ AND THE UPDATE CLIFF IS CLOSED (2026-08-14): session state MIGRATES.** Format v2 hashes the
+> **✅ AND THE UPDATE CLIFF IS CLOSED (2026-08-14) — VERIFIED IN GARAGEBAND.** The maker saved a
+> project, a field was APPENDED to `CartState` (the real "v1.1 added a knob"), the plug-in rebuilt, and
+> the reopened project logged `STATE migrated … restored, new controls at their defaults` with the rack
+> confirmed intact by eye. Session state MIGRATES. Format v2 hashes the
 > SHAPE plus an ABI tag instead of folding each slice's SIZE into its identity — so a slice that GREW
 > (you added a knob) is restored as a PREFIX with anything new left at its default, `== ` restores
 > exactly, and a SHRUNK slice is refused. `de_load_state` returns **2** for a migrated load so it is

@@ -111,6 +111,42 @@ Source: `03-space-granny-sheet.png`, hero crop, through `tools/pixelsnap.js`.
 It is a first pass from generated art, not final: the saucer rim is muddy and the face wants a hand.
 But it clears the bar, which is what it was for.
 
+## Crop the head, not the body — and which granny goes where
+
+Four framings were run through the identical pipeline (crop → `pixelsnap --grid 48x48 --colors 16`
+→ border flood-fill to alpha → dark tile at ~86% fill → `icon-mask.js preview`) and judged at the
+60px end, which is the only size that decides anything.
+
+**The head crop beats the full body, for both characters, by a lot.** The saucer eats ~40% of the
+tile and contributes nothing below about 120px. This is the single biggest improvement found, and it
+is independent of which granny wins.
+
+| framing | at 1024 | at 60px |
+|---|---|---|
+| bun, full body (`06`) | good | readable, face small |
+| **bun, head (`08`)** | **clean, graphic, glasses crisp** | **still a granny in cat-eye specs** ✓ |
+| afro, head (`09`) | warmest, has the smile + antenna | purple mass, face lost |
+| afro, head + hands (`10`) | glasses already breaking up | ✗ purple blob on a pink bar |
+
+**The afro is the better character and the worse icon.** It is warmer and more alive, but it spends
+roughly twice the pixel budget on HAIR where the bun spends it on FACE, and at icon sizes the face is
+the identity. The bun also carries the teal collar, the only thing stopping her going monochrome.
+
+**"Head and hands" (`10`) was tested as the compromise that keeps a gear hint, and it failed.** Once
+anything below the chin is in frame the face loses the pixels it needs: the glasses break into a pink
+smear, the handbag becomes a stray blob, and the saucer reads as a bar rather than a ship.
+
+So: **afro = hero art** (store shots, press, splash, trailer), **bun head = icon and sprite.** They
+are clearly the same person; the question was never which granny but which one goes where.
+
+⚠ **Consequence for the family plan:** a head crop cannot show her at a 303, so "same nan, different
+gear" cannot be carried by the icon after all. Differentiation has to come from the background colour
+or a hint at face level (headphones, a knob reflected in the lens, a machine's silhouette behind her
+head). Unresolved.
+
+Correction to an earlier note in this doc: the antenna does **not** inherently vanish at small sizes.
+It survives when the head fills the tile (`09`) and dies in any framing that also carries the body.
+
 ## Open
 
 - Ship the granny at all, or keep the knob-on-dark-grey. Cheap test: **post the character sheet**
@@ -138,6 +174,10 @@ But it clears the bar, which is what it was for.
 | `05-hero-35x46-alpha.png` | first pixel conversion, her own 16-colour palette, alpha cut |
 | `06-icon-dark-1024.png` | icon candidate, mask-clean |
 | `07-icon-size-preview.png` | how iOS shows it, 1024 down to 60, light + dark |
+| `08-icon-bun-head-1024.png` | **the winner** — bun, head crop, survives 60px |
+| `09-icon-afro-head-1024.png` | afro head crop: best illustration, loses the face when small |
+| `10-icon-afro-headhands-1024.png` | the failed compromise — gear hint costs the glasses |
+| `11-icon-bun-head-sizes.png` | the winner at every real display size, light + dark |
 
 Related: [`store-agents.md`](store-agents.md) (the ASO tooling) ·
 [`app-icon-mask.md`](app-icon-mask.md) (the mask and what it shaves) ·

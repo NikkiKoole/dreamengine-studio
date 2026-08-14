@@ -178,4 +178,9 @@ echo "▸ panel-is-the-audible-engine gate (--panel, ~15s)"
 echo "▸ session-state gate (--state)"
 ./au-transport-check --state
 
+# The host's CONTINUOUS controls. Until 2026-08-14 the AU's event switch handled only note-on/off and
+# pitch-bend, so NO CC reached the engine — the mod wheel AND every DAW automation lane were dead.
+echo "▸ mod-wheel gate (--wheel)"
+./au-transport-check --wheel
+
 echo "  (negative control: ./au-transport-check --free must FAIL the tempo check — ratio ~0.5)"

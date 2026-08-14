@@ -406,7 +406,20 @@ static CartState *de_cart_(void) {
  * WIDGET POINTERS. It has to be per-instance for the same reason everything else here does (two racks
  * must not share a focus ring), but it must not travel in a session blob. Hence the second slice:
  * `de_state_for` rather than `de_state_for_saved`. */
-typedef struct { void *nav_poison[6]; int nav_poison_n; } AcidScratch;
+/* ⚠ HOST-MIDI LIVE STATE LIVES HERE, NOT IN CartState — deliberately. It is not intent (the host owns
+ * it, and a wheel position is meaningless to restore), and keeping it out means wiring the mod wheel
+ * did NOT change the saved layout, so projects saved before it keep loading. Putting it in CartState
+ * would have grown the slice, moved the fingerprint, and silently invalidated every existing project
+ * for a value nobody wanted back. */
+typedef struct {
+    void *nav_poison[6]; int nav_poison_n;
+    int   mod_cc;            /* last CC1 seen, 0..127. Zero-init is CORRECT and needs no seeding: a
+                              * wheel at rest and a host that never sent one both mean "do not
+                              * override the FLT knob", so 0 is the neutral in both paths. */
+    int   bend_last;         /* last pitch-bend pushed, so a bend only rides the voice on CHANGE and
+                              * a 303 SLIDE (which is itself a note_pitch glide) is left alone at 0 */
+    int   last_midi[2];      /* the note each 303 line is currently sounding, for bend to offset from */
+} AcidScratch;
 #ifndef DE_CART_CTX
 static AcidScratch de_acid_scratch_default;
 #define de_acid_scratch (&de_acid_scratch_default)
@@ -609,6 +622,9 @@ static AcidScratch *de_acid_scratch_(void) {
 #define g_drag_y       (de_cart->g_drag_y)
 #define nav_poison     (de_acid_scratch->nav_poison)
 #define nav_poison_n   (de_acid_scratch->nav_poison_n)
+#define mod_cc         (de_acid_scratch->mod_cc)
+#define bend_last      (de_acid_scratch->bend_last)
+#define last_midi      (de_acid_scratch->last_midi)
 #define g_bank         (de_cart->g_bank)
 #define g_scratch      (de_cart->g_scratch)
 #define save_cooldown  (de_cart->save_cooldown)

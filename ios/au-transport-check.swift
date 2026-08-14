@@ -538,6 +538,56 @@ if argv.contains("--state") {
     exit(failures == 0 ? 0 : 1)
 }
 
+// ═══ --wheel: DOES A HOST CONTINUOUS CONTROL REACH THE RACK? ══════════════════════════════════════
+// GarageBand draws a mod wheel and a pitch bend above its keyboard, on macOS and iPadOS, and until
+// 2026-08-14 neither did anything: the AU's event switch handled only 0x90/0x80/0xE0, so NO CC reached
+// the engine at all — which also means no DAW automation lane did. This gate covers the wired path:
+// CC1 → the master DJ filter, applied to the whole rack.
+//
+// It asserts a CHANGE and a RECOVERY, with a no-op control first, because "the audio differs" is
+// worthless if two untouched renders of a self-running rack already differ by as much.
+if argv.contains("--wheel") {
+    print("▸ mod wheel: does CC1 reach the rack and move the master filter?")
+    let rig = try! Rig(au: avAU, sr: ENGINE_SR)
+    let sched = avAU.auAudioUnit.scheduleMIDIEventBlock
+    check("the AU exposes a MIDI input path", sched != nil,
+          sched == nil ? "no scheduleMIDIEventBlock — nothing below can work" : "scheduleMIDIEventBlock present")
+
+    func send(_ bytes: [UInt8]) { sched?(AUEventSampleTimeImmediate, 0, bytes.count, bytes) }
+
+    _ = rig.render(beats: 4)                       // settle
+    let a = rig.render(beats: 8)
+    let b = rig.render(beats: 8)                   // NO-OP CONTROL: nothing sent between these two
+    let noopOn = abs(Double(a.onsets - b.onsets))
+    let noopPk = abs(Double(a.peak - b.peak))
+    check("two untouched renders are comparable", noopOn <= Double(max(a.onsets, 4)) * 0.35,
+          "onsets \(a.onsets) vs \(b.onsets), peak \(String(format: "%.3f", a.peak)) vs \(String(format: "%.3f", b.peak)) — the floor any real change has to clear")
+
+    send([0xB0, 1, 127])                           // mod wheel fully up = filter fully closed
+    let closed = rig.render(beats: 8)
+    // MEASURED, and not what I first assumed: PEAK is the discriminator (0.711 → 0.249, a 2.9× drop as
+    // the filter shuts), while ONSETS barely move (123 → 134) and can even rise — a lowpass reshapes
+    // the envelopes the detector triggers on rather than removing events. The `||` keeps the check
+    // honest for either outcome; the comment is here so nobody "fixes" it back to an onsets-only test.
+    check("CC1 up CLOSES the master filter",
+          Double(closed.onsets) < Double(a.onsets) * 0.6 || closed.peak < a.peak * 0.6,
+          "onsets \(a.onsets) → \(closed.onsets), peak \(String(format: "%.3f", a.peak)) → \(String(format: "%.3f", closed.peak))")
+
+    send([0xB0, 1, 0])                             // …and back to rest
+    let reopened = rig.render(beats: 8)
+    check("letting it back to 0 hands the knob back",
+          Double(reopened.onsets) > Double(closed.onsets) * 1.4 || reopened.peak > closed.peak * 1.4,
+          "onsets \(closed.onsets) → \(reopened.onsets), peak \(String(format: "%.3f", closed.peak)) → \(String(format: "%.3f", reopened.peak))")
+
+    // A bend is NOT asserted here, and the reason is worth stating rather than leaving as a silent
+    // gap: BOTH 303 LINES ARE MUTED AT BOOT by design ("bring it in on record"), so a default render
+    // is drums only and a bend on the acid lines has nothing to move. Verifying it needs the lines
+    // unmuted plus a PITCH oracle, which this file deliberately does not have (see its header).
+    print(failures == 0 ? "\nPASS — a host continuous control reaches the rack and moves the whole mix."
+                        : "\n\(failures) check(s) FAILED — the host's mod wheel does not reach the rack.")
+    exit(failures == 0 ? 0 : 1)
+}
+
 if argv.contains("--panel") {
     print("▸ panel: is it attached to the audio unit that RENDERS?")
     // WHICH PROCESS is the audio in? The channel answers from wherever the AU's code actually lives.

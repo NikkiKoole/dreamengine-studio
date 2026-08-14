@@ -209,6 +209,25 @@ a broken doc link or `#section`).
 > N racks still sharing one on-disk `cart.blob`) in the [`STATUS.md`](STATUS.md) entry
 > "AUv3 session state — SHIPPED, and four things left".
 >
+> **✅ MOD WHEEL + PITCH BEND SHIPPED (2026-08-14).** The plumbing was two lines (`case 0xB0:` keeping
+> the channel nibble, and the `de_midi_cc` declaration `engine.h` never had) — and the gap was wider
+> than the wheel: with no `0xB0` case, **every DAW automation lane was dead too**. Mapping, the maker's
+> call: **mod wheel → the master DJ filter** (`mflt`) so one gesture moves all five machines, and
+> **bend → the two 303 lines at ±2 semitones**, not the drums. ⚠ The trap that shaped it: the wheel
+> RESTS AT 0 while `mflt`'s neutral is 0.5, so a naive 0..127→0..1 map would open every project fully
+> lowpassed — indistinguishable from the day-old session-state restore being broken. 0 = neutral, and
+> the wheel overrides rather than writes, so letting it back hands the knob over. Shown on the FLT knob
+> in both faces via `host_knob_ext` (extracted from the external-clock `tempo_knob_ext`, which is now a
+> wrapper), registering no widget so a drag cannot rotate a control the host holds. Gated through a
+> REAL host: `./au-transport-check --wheel` in `ios/mac.sh` — peak 0.711 → 0.249 as the filter shuts,
+> back to 0.667, with a no-op control first. Live MIDI state sits in `AcidScratch`, NOT `CartState`, so
+> the saved layout did not move and projects saved earlier that day still load.
+> **▶ NEXT: the BEND is ungated** (both 303 lines are muted at boot, so a default render has nothing to
+> bend — it needs the lines unmuted plus a pitch oracle, and an ear check), and **CC74** is now nearly
+> free for the focused machine's own cutoff. Full record + the rejected `varispeed`-on-bend idea:
+> `node tools/cart-todos.js acidcandy`.
+>
+> **▼ superseded — the original next-action, kept for the trail:**
 > **▶ NEXT ACTION (2026-08-14, the maker's call): WIRE THE HOST'S MOD WHEEL AND PITCH BEND.**
 > GarageBand draws two controls above its keyboard — **modulatiewiel** (mod wheel = MIDI CC1) and
 > **toonhoogte** (pitch bend) — on **both macOS and iPadOS**, and neither does anything. ⚠ **This one

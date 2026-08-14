@@ -18,7 +18,7 @@
     "controls": "Tap a cartridge to focus a machine; tap its LED to mute. PLAY runs the shared transport. 303: drag CUT/RES/ENV/DEC/ACC (sideways = fine, double-tap = reset); the inline DF switch (right of the knob row) flips to the DEEP page (SUB/ADEC/SLDT/TRK + a SAW/SQR WAVE toggle); SEQ/FLAG/FX/GEN soft-keys switch the screen between the roll, the flag palette (arm ACC/SLD/TIE/OCT+/OCT-, then tap bars; loop length = drag the ▼ above the bars), the FX knobs (DRV/SEND/VERB), and the generate menu (CLEAR / MIN / MID / BUSY); on the note-bars tap = note on/off, drag up/down = pitch. 808/909: DIST/SEND/VERB (+909 METAL XY) sit on top always; tap a voice pad to pick it (auditions only while stopped; while playing, light REC to hear taps) — a machine-scoped screen (GEN/PAT/PERF/KIT) snaps to VCE on a voice tap, a voice-scoped one (VCE/FLAG) stays put; VCE shows TUNE/DEC/[character]/VOL/PAN/FINE (character where the machine has one, SNPY/THUD/TONE/RING/ATTK/CLIK); the picker shows the whole roster in one row (all 16/11 voices, acid order); MUT (left column, tap=latch / hold=momentary) flips pad taps to DIRECT per-voice mute — orange pad rims while live; the far-right REC latch (same grammar) punches pad taps onto the current step while playing; left soft-keys VCE/FLAG + MUT, right GEN/PAT/PERF/KIT (the generate menu = CLEAR / MIN / MID / BUSY, KIT = the minimap). Cells: tap = place a hit, DRAG across = paint a fill (VCE/KIT); in FLAG, the palette is two rows — ACC/PROB(/STRK) on top, the p-locks TUN/DEC/<character> below — arm one then work the cells (ACC tap = accent, PROB vertical-slide = trig-chance, STRK tap = cycle flam/drag/ratchet, TUN/DEC/char vertical-slide = a per-step bipolar offset around that voice knob). MST: GLU tames level, FLT is the live DJ filter, PUMP ducks to the kick; SWG + TEMPO are a matching knob pair in the LCD's right gutter (SWG = the one rack-wide swing for drums + both 303s; drag TEMPO 60-200 BPM); the DELAY division buttons (1/16·1/8·DOT·1/4) sit under the LCD, + per-machine SEND; a little DUB pad in the bottom-right corner momentarily throws the delay (HOLD + drag: X = time, Y = feedback)."
   },
   "todo": [
-    "HOST MOD WHEEL + PITCH BEND ARE NOT WIRED (opened 2026-08-14, the maker saw them in GarageBand on macOS AND iPadOS: 'modulatiewiel' and 'toonhoogte' sit above the host keyboard and do nothing). VERIFIED BY READING THE CODE, three hops: (1) TinyjamAU.swift's event-list switch parses only 0x90/0x80/0xE0, so a CC (0xB0) never reaches the engine at all; (2) ios/Sources/engine.h declares de_midi_event + de_midi_bend to Swift but NOT de_midi_cc, even though the engine implements it (runtime/midi_input.h:258) - so the export is missing, not the feature; (3) THIS CART reads neither - midi_bend() and midi_cc() appear zero times - so pitch bend, which ALREADY ARRIVES correctly, is dropped on the floor here. The plumbing is two small edits; the design is the real work. THE MUSICAL QUESTION IS THE MAKER'S: on a five-machine rack, WHAT do they move? The idiomatic acid answer is mod wheel -> filter cutoff and bend -> the live 303 line's pitch, but which machine has focus, and whether a mod wheel should ride a knob the panel also draws (and visibly turn it), is taste not wiring. API is ready: midi_bend() (-8192..8191), midi_cc(ch,cc), midi_cc_get(); `node tools/api.js midi`. COPY FROM: martenot.c and miditest.c both read midi_bend(). GATE: tools/midi-check/run.sh phase B (CC input + channel isolation) and ios/Tests/AUHostTests.swift, which already drives scheduleMIDIEventBlock for note-on. Full context: docs/HANDOFF.md, the AUv3 lane.",
+    "HOST MOD WHEEL + PITCH BEND: SHIPPED (2026-08-14). The maker saw both controls above GarageBand's keyboard on macOS AND iPadOS doing nothing ('modulatiewiel', 'toonhoogte'). Root cause was NOT missing engine support: the AU's event-list switch handled only 0x90/0x80/0xE0, so NO CC reached the engine at all - which means every DAW AUTOMATION LANE was dead too, not just the wheel - and ios/Sources/engine.h never exported de_midi_cc even though runtime/midi_input.h:258 has implemented it all along. Two lines of plumbing (case 0xB0 keeping the channel nibble + the declaration). MAPPING, the maker's call: MOD WHEEL (CC1) -> the MASTER DJ FILTER (mflt), because it is the one control that means something applied to all five machines at once - the build-up/breakdown sweep. THE TRAP THAT SHAPED IT: the wheel RESTS AT 0 while mflt's neutral is 0.5, so a naive 0..127 -> 0..1 map would open every project FULLY LOWPASSED - muffled, nearly silent, and indistinguishable from the brand-new session-state restore being broken. So 0 = NEUTRAL and the wheel sweeps ONE way (0 = bypass, 127 = fully closed), which is also the direction a hand wants. It OVERRIDES rather than writes, so mflt keeps what you set and letting the wheel back to 0 hands the knob straight back; filter() is ride-safe so it costs nothing per frame. SHOWN ON THE PANEL in BOTH faces: the FLT knob wears the host-driven skin (green chassis, lime arc, 'MOD') and registers NO WIDGET, so a drag cannot rotate a control the host is holding - the same silent-rotation bug the TEMPO knob learned under external clock. That skin was extracted from tempo_knob_ext into host_knob_ext and the tempo flavour is now a thin wrapper, so both takeovers read identically. PITCH BEND -> the two 303 lines, +-2 semitones, NOT the drums (a bent kit is wrong, and a bend control that does not bend pitch is confusing). Rides the held voice + its sub-osc (-12) ON CHANGE ONLY, never per frame, because a 303 SLIDE is itself a note_pitch glide and pushing pitch every frame would flatten every slide in the pattern. All the live MIDI state (mod_cc/bend_last/last_midi) lives in AcidScratch, NOT CartState, deliberately: it is not intent, and putting it in the saved slice would have moved the layout fingerprint and silently invalidated every project saved earlier that day for a value nobody wants back. GATED end to end through a REAL host: `./au-transport-check --wheel` (in ios/mac.sh) sends CC1 to the out-of-process plug-in and measures the mix - peak 0.711 -> 0.249 as the filter shuts, back to 0.667 on release, with a NO-OP CONTROL first (two untouched renders, onsets 123 vs 123) so 'the audio differs' has a floor to clear. MEASURED SURPRISE worth keeping: PEAK is the discriminator, not onsets - onsets went 123 -> 134 because a lowpass reshapes the envelopes the detector triggers on rather than removing events. OPEN: (1) the BEND is unverified by any gate - both 303 lines are MUTED AT BOOT by design, so a default render is drums only and there is nothing for a bend to move; it needs the lines unmuted plus a pitch oracle, and an ear check. (2) CC74 (the MIDI-standard cutoff, what a hardware knob sends) is now nearly free and would suit the FOCUSED machine's own cutoff via r2_selmach. (3) varispeed on a bend was considered and REJECTED: it is the most exciting whole-rack gesture (a tape-stop dive of everything) but its own API says it is for SWEEPS and that holding a fixed off-speed laps the buffer into a click - and people HOLD bends - plus it changes time, which fights host sync. It belongs on a MOMENTARY control. (4) per-machine CC needs no engine work: the engine's CC path is already channel-aware by design, GarageBand just sends one channel.",
     "EXTERNAL CLOCK SYNC: SHIPPED (2026-08-12) - the rack follows someone else's tempo through runtime/sync.h (sync_active/sync_playing/sync_beats/sync_bpm). While a clock is present it owns ALL THREE of tempo, transport and POSITION: g_bpm = sync_bpm(), playing = sync_playing() (with the laststep reset their PLAY implies), and g_phase = sync_beats()*4 DERIVED instead of accumulated - an accumulator only knows how fast, never where, so it cannot follow a re-START or a loop jump. The TEMPO knob and the transport button go read-only for as long as the clock is there (the ReBirth model: be a proper slave, don't half-follow), and control comes back ~2s after the clock stops, at the tempo last heard, so nothing lurches. VERIFIED IN ABLETON LIVE by the maker (clock over the IAC bus) AND headless via `play.js acidcandy --midi-clock <bpm>`: step rate measured 99.0 / 159.0 against external 100 / 160, internal unchanged at ~132, renders byte-identical run to run on both paths. SWING: NOT CLAIMED (the maker listened in Live and could not tell a difference, which is evidence and not a verdict). The mechanism is known from the code instead: the 303 swings by delaying its step flip while the 16th's fractional part is under the swing amount, so THAT fraction's resolution IS the swing's resolution - internally it moves once per frame (900/bpm steps per 16th, 6.8 at 132 BPM), from an external clock once per MIDI tick (6). About 12% coarser, not a category change, which is exactly why it is hard to hear; but the gap WIDENS on a 120Hz display (13.6 internal vs still 6) and the drums shuffle in ms and stay continuous, so drums-vs-303 can disagree by up to one step in BOTH modes. A seam comment sits on the `lcs` line at the 303 swing site. To settle it, MEASURE (render the same tempo internal vs --midi-clock with SWG up, compare 303 onsets via click-check) - blocked on setting SWG headless, since it is a knob. If it ever needs fixing the fix is in sync.h, not here: interpolate sync_beats() between ticks. SHOWN ON THE PANEL (2026-08-12, the maker: 'lets show that in the tempo knob'): the TEMPO knob wears an external-clock skin - green chassis, lime needle pointing at THEIR bpm (drawing bpm01 would aim it at a tempo nobody is playing, since the knob value is frozen where you left it), the incoming BPM as its label, and NO widget registered at all so a drag cannot rotate a control that does nothing (that silent rotation was the bug). Both layouts: phone MST bottom-left + the roomy MST column's TMP cell, same geometry as the normal knob so nothing jumps when a clock arrives. The WORD 'EXT' sits next to it, not on it - above the knob it collided with the MST nameplate, and under it there is exactly one text line of room, so the roomy LCD carries 'EXT <bpm>' top-right while the phone gets the word under the readout, falling back to an UNDERLINE on a canvas too short for a third line (ui-audit caught it clipping at y=96 of 100). Transport button also refuses the tap and goes green/grey to mirror their play/stop - but ONLY when the clock actually drives transport (sync_transport()). THE BUG THAT TAUGHT THAT (2026-08-12, the maker: 'now i cant start stop the acdja from live'): a bare MIDI clock may never send START, and Live had been playing BEFORE the cart booted so we joined mid-flow and never saw one. Reading sync_playing() literally pinned playing=false every frame, and since the play button was already surrendered, the rack was UNSTARTABLE - neither the clock nor the user could start it. Measured act=1 play=0 with beats climbing. Fixed in sync.h (infer running until the clock proves it speaks transport) + here (only surrender transport when sync_transport(), else borrow the tempo and keep our own play/stop). Verified end to end against real CoreMIDI by tools/sync-spike/run.sh. (2) not in the SONG snapshot (nothing to save - the clock is external). (3) sync_bpm settles within ~0.5 BPM, so the tempo-synced delay is that close and no closer until the CoreMIDI packet timestamps land. Design: docs/design/external-clock-sync.md",
     "SPK NOW ARMS THE DEVICE - the third false 'it does nothing' (2026-07-29, the maker: 'its still not changing the vowels'). SPK and the device's ON key were INDEPENDENT toggles, and SPK sits to the LEFT of ON, so tapping SPK first is the natural move - which gave a lit SPK button, a word readout visibly walking, and DEAD SILENCE, because with vowon=0 the formant mix is 0 and SPEAK is inert no matter how correctly it runs. PROVEN byte-identical: SPK-lit-device-off rendered the same sha as SPEAK fully off. The new readout made it WORSE, not better - a row that walks while nothing is routed is a readout that LIES. FIXED two ways: (1) turning SPK on now ARMS the device (vowon=1), since asking for speech obviously means wanting to hear it, and ON stays the master kill; (2) the pip row DIMS whenever the device is disarmed, so a walking-but-silent row is impossible. Verified through the UI: a script that taps ONLY SPK and never touches ON now renders different audio (was byte-identical). PATTERN WORTH NAMING, because this feature hit it three times in one day (muted 303s, then SPK-without-ON): a feature with SEVERAL independent preconditions will keep presenting as 'broken' for a different reason each time, and each round costs a full debug cycle. Either collapse the preconditions (what the auto-arm does) or SHOW each one's state; do not rely on the user assembling them.",
     "WORD READOUT + the muted-303 symptom CONFIRMED (2026-07-29). The maker came back with a second, sharper symptom: 'when on speak it kind of just repeats the current vowel'. MEASURED, and it is not a bug in the mechanism - it is the muted 303s, proven by two traces: with both 303s muted (WHICH IS HOW THE RACK BOOTS) vtgt stays 0.500 forever and vstep never leaves 0, i.e. ONE VOWEL REPEATED; with them unmuted vtgt takes five distinct values and vstep walks 0..7. So the reported symptom is exactly, literally what an untriggered SPEAK sounds like. THE REAL BUG WAS THAT YOU COULD NOT TELL, and it was self-inflicted: SPK gives no sign it is waiting for notes, and it REPLACES the VOWL knob with GLID, so you cannot even sweep the vowel by hand to test. That is rule 6 of design/control-vocabulary.md ('a gesture nobody can SEE is not a control') violated by the very session that wrote it. FIX: a WORD READOUT on the VOWEL page (both phone and roomy) - 8 pips, the live syllable lit white, rest slots drawn as a low tick instead of a block. A frozen row now says 'nothing is feeding me' at a glance; a walking row says the mechanism is fine so anything left is voicing, not wiring. It doubles as the DENS display - you watch rests appear in the word as you turn the knob - which no other widget showed. Draw-only, no audio path touched. LESSON, general: when a feature is driven by an EXTERNAL trigger, ship the trigger's state as a readout in the same breath, or every downstream question ('is it broken? is it inaudible? is it not firing?') costs a debugging round to tell apart.",
@@ -367,6 +367,54 @@ static void pat_queue(int m, int s) {
 
 // re-apply the master effects, set-and-hold — reconfigure ONLY on change (the
 // fx-frame rule); the live FLT is ride-safe so it runs every frame. Voicings
+// ── THE HOST'S MOD WHEEL (CC1) → the master DJ FILTER ────────────────────────────────────────────
+// One gesture for the whole rack, which is what a mod wheel is: `mflt` is already a master-bus
+// bipolar filter (below 0.48 a lowpass sweeping 18 kHz → 150 Hz, above 0.52 a highpass, 0.48–0.52
+// bypass), so it is the one control that means something applied to all five machines at once — the
+// build-up/breakdown sweep.
+//
+// ⚠ THE WHEEL RESTS AT 0 AND `mflt`'s NEUTRAL IS 0.5. Mapping 0..127 → 0..1 would open every project
+// FULLY LOWPASSED — muffled, nearly silent, and indistinguishable from the session-state restore
+// being broken. So 0 means NEUTRAL and the wheel only sweeps one way: 0 → bypass, 127 → fully closed.
+// That is also the direction a hand actually wants.
+//
+// It OVERRIDES rather than writes: `mflt` keeps whatever the player set, so letting the wheel back to
+// 0 hands the knob straight back. filter() is ride-safe, so this costs nothing per frame.
+static int   mod_engaged(void) { return mod_cc > 0; }
+static float flt_live(void) {
+    if (!mod_engaged()) return mflt;
+    return 0.5f - (mod_cc / 127.0f) * 0.5f;      // 0 = bypass … 127 = full lowpass
+}
+
+// ── THE HOST'S PITCH BEND → the two 303 lines, ±2 semitones ──────────────────────────────────────
+// The drums are deliberately NOT bent (a bent kit is wrong), and a bend control that does not bend
+// pitch would be confusing, so this is the one obvious mapping. Both lines move together: it is a
+// whole-rack gesture and the 303s are the melodic content.
+//
+// Every acid_note goes through ac_note() so the bend has a BASE to offset from — the Acid struct does
+// not store the note it is sounding, and adding a field to it would have grown CartState and
+// invalidated every saved project for a value nobody wants back.
+#define BEND_SEMIS 2.0f
+static void ac_note(Acid *a, int midi, int accent, int slide) {
+    last_midi[a == &ac[1] ? 1 : 0] = midi;
+    acid_note(a, midi, accent, slide);   // the header's real trigger — NOT ac_note (that is this fn)
+}
+
+// Ride the bend onto whatever each line is holding. ⚠ ON CHANGE ONLY, not every frame: a 303 SLIDE is
+// itself a note_pitch glide (acid_note's slide branch), so pushing a pitch every frame would fight it
+// and flatten every slide in the pattern. At rest the bend never touches the voice at all.
+static void bend_ride(void) {
+    int b = midi_bend();                                  // -8192..8191, 0 = centre
+    if (b == bend_last) return;
+    bend_last = b;
+    float semis = (b / 8192.0f) * BEND_SEMIS;
+    for (int i = 0; i < 2; i++) {
+        if (last_midi[i] <= 0) continue;
+        if (ac[i].h    >= 0) note_pitch(ac[i].h,    last_midi[i] + semis);
+        if (ac[i].hsub >= 0) note_pitch(ac[i].hsub, last_midi[i] - 12 + semis);   // sub-osc, an octave down
+    }
+}
+
 // copied from acidrack's apply_fx so the master matches the mature rack.
 static void apply_fx(void) {
     {   // the shared delay unit: tempo-synced DIVISION (buttons) + the FB knob. Set-and-hold —
@@ -385,11 +433,12 @@ static void apply_fx(void) {
     // lane (a lowpass automated per step). A live HP takes over; otherwise the MORE
     // CLOSED lowpass (hand vs drawn) wins. filter() is ride-safe (every frame).
     float res = 0.15f + 0.75f * mfres;
-    if (mflt > 0.52f) {
-        filter(FILTER_HIGH, 20.0f * powf(6000.0f / 20.0f, (mflt - 0.52f) / 0.48f), res);
+    float flt = flt_live();                                 // the HOST's mod wheel takes the FLT knob over
+    if (flt > 0.52f) {
+        filter(FILTER_HIGH, 20.0f * powf(6000.0f / 20.0f, (flt - 0.52f) / 0.48f), res);
     } else {
         float cut = 1e9f;                                   // 1e9 = "open" (no lowpass)
-        if (mflt < 0.48f) cut = 18000.0f * powf(150.0f / 18000.0f, (0.48f - mflt) / 0.48f);   // FLT lowpass
+        if (flt < 0.48f) cut = 18000.0f * powf(150.0f / 18000.0f, (0.48f - flt) / 0.48f);   // FLT lowpass
         int pcf_active = 0;
         for (int s = 0; s < STEPS; s++) if (mpcf[s] < 7) { pcf_active = 1; break; }
         if (pcf_active) { float pc = 250.0f * powf(2.0f, mpcf[s_step] / 7.0f * 5.2f); if (pc < cut) cut = pc; }
@@ -743,6 +792,18 @@ static void knob_cell(Box c, float *v, const char *lab, float def) {
     int cy = (int)(c.y + r + 1); if (cy + r + 7 > (int)(c.y + c.h)) cy = (int)(c.y + c.h) - r - 7;
     knob(v, (int)(c.x + c.w / 2), cy, r, lab, def);
 }
+// the phone face's FLT cell under the host's mod wheel — same geometry as knob_cell, host skin, and no
+// widget registered, so the knob reads as a readout and cannot be dragged to no effect.
+static void host_knob_ext(int cx, int cy, int r, float shown, const char *vlabel, int tag_below,
+                          const char *word);   // defined with the knob skins below
+static void knob_cell_mod(Box c) {
+    float fh = rack_view ? 0.40f : 0.30f, fw = rack_view ? 0.50f : 0.42f;
+    int  rmax = rack_view ? 15 : 12;
+    float rh = c.h * fh, rw = c.w * fw;
+    int r = (int)lay_clamp(rh < rw ? rh : rw, 5, rmax);
+    int cy = (int)(c.y + r + 1); if (cy + r + 7 > (int)(c.y + c.h)) cy = (int)(c.y + c.h) - r - 7;
+    host_knob_ext((int)(c.x + c.w / 2), cy, r, flt_live(), "MOD", 1, "MOD");
+}
 static void lcdknob_cell(Box c, float *v, const char *lab, float def) {
     float rh = c.h * 0.30f, rw = c.w * 0.42f;
     int r = (int)lay_clamp(rh < rw ? rh : rw, 4, 12);
@@ -793,9 +854,14 @@ static const char *bpm3(void) {
 //     else in this cart. The WORD "EXT" deliberately lives on the LCD next door, not here — a
 //     tag above the knob collided with the MST nameplate in the roomy layout, and there is no
 //     room below it either (r2_kcell budgets exactly one text line under the knob)
-static void tempo_knob_ext(int cx, int cy, int r, const char *vlabel, int tag_below) {
-    float shown = clamp((g_bpm - 60) / 140.0f, 0, 1);
-    float ang = 150 + shown * 240;
+// The "A HOST IS DRIVING THIS KNOB" skin, generalised. Born for the external-clock TEMPO readout and
+// now also worn by the master FLT knob under the host's mod wheel: same geometry as the normal knob so
+// nothing jumps when the host takes over, re-skinned green/lime so it reads as a readout rather than
+// your value, and — crucially — the CALLER registers no widget, so a drag cannot rotate a control that
+// does nothing. That silent rotation was the original bug on the tempo knob; do not reintroduce it.
+static void host_knob_ext(int cx, int cy, int r, float shown, const char *vlabel, int tag_below,
+                          const char *word) {
+    float ang = 150 + clamp(shown, 0, 1) * 240;
     circfill(cx, cy, r, CLR_DARK_GREEN);
     int rim = r / 4; if (rim < 1) rim = 1;
     ring(cx, cy, r - 1 - rim, r - 1, 150, 300, CLR_MEDIUM_GREEN);      // same bevel geometry as gknob…
@@ -810,9 +876,14 @@ static void tempo_knob_ext(int cx, int cy, int r, const char *vlabel, int tag_be
     // 100px canvas). There, UNDERLINE the number instead: one pixel row always fits, and an
     // underlined lime number under a green knob still says "this is a readout, not your value".
     int ty = cy + r + 7;
-    if (tag_below && ty + 5 <= screen_h()) plabel("EXT", cx, ty, CLR_MEDIUM_GREEN);
+    if (tag_below && ty + 5 <= screen_h()) plabel(word, cx, ty, CLR_MEDIUM_GREEN);
     else if (tag_below) { int wq = text_width(vlabel);
                           line(cx - wq / 2, cy + r + 6, cx + wq / 2, cy + r + 6, CLR_MEDIUM_GREEN); }
+}
+
+// the tempo flavour: position comes from THEIR bpm, not from the frozen knob value
+static void tempo_knob_ext(int cx, int cy, int r, const char *vlabel, int tag_below) {
+    host_knob_ext(cx, cy, r, clamp((g_bpm - 60) / 140.0f, 0, 1), vlabel, tag_below, "EXT");
 }
 
 static int cbtn(unsigned seed, int x, int y, int w, int hh, const char *s, int on2) {
@@ -1280,7 +1351,7 @@ static void draw_303(Box stage, int i) {
             if (c && ui_grabbed(w)) {                                        // fire once on grab (tap)
                 if (k <= 12) {                                               // note → write sel + advance
                     pit[i][s_sel[i]] = k; oct[i][s_sel[i]] = key_oct; s_on[i][s_sel[i]] = 1; mbop = 1;
-                    if (playing) acid_note(&ac[i], ac[i].base + mroot[i] + loct[i] * 12 + k + key_oct * 12, acc[i][s_sel[i]], 0);
+                    if (playing) ac_note(&ac[i], ac[i].base + mroot[i] + loct[i] * 12 + k + key_oct * 12, acc[i][s_sel[i]], 0);
                     s_sel[i] = (s_sel[i] + 1) % plen[i];
                 } else if (k == 13) { if (key_oct > -1) key_oct--; }
                 else if (k == 14) { if (key_oct <  2) key_oct++; }
@@ -1387,7 +1458,7 @@ static void draw_303(Box stage, int i) {
         for (int n = 0; n < 12; n++) if (!isblack[n]) {
             int x = kb + wi * 21; wi++;
             int pr = 0, hot = 0, foc = 0; void *wid = ui_wid_hash(0x50u + n, x, ky, 20, kh);
-            if (ui_button_core(wid, x, ky, 20, kh, &foc, &pr, &hot)) { pit[i][s_sel[i]] = n; s_on[i][s_sel[i]] = 1; mbop = 1; acid_note(a, a->base + mroot[i] + loct[i] * 12 + n, 0, 0); }
+            if (ui_button_core(wid, x, ky, 20, kh, &foc, &pr, &hot)) { pit[i][s_sel[i]] = n; s_on[i][s_sel[i]] = 1; mbop = 1; ac_note(a, a->base + mroot[i] + loct[i] * 12 + n, 0, 0); }
             int lit = pit[i][s_sel[i]] == n && s_on[i][s_sel[i]];
             rrectfill(x, ky, 20, kh, 2, lit ? CLR_LIGHT_YELLOW : CLR_LIGHT_PEACH);
             rrect(x, ky, 20, kh, 2, CLR_BROWNISH_BLACK);
@@ -1397,7 +1468,7 @@ static void draw_303(Box stage, int i) {
             if (isblack[n]) {
                 int x = kb + wi * 21 - 6;
                 int pr = 0, hot = 0, foc = 0; void *wid = ui_wid_hash(0x60u + n, x, ky, 12, 9);
-                if (ui_button_core(wid, x, ky, 12, 9, &foc, &pr, &hot)) { pit[i][s_sel[i]] = n; s_on[i][s_sel[i]] = 1; mbop = 1; acid_note(a, a->base + mroot[i] + loct[i] * 12 + n, 0, 0); }
+                if (ui_button_core(wid, x, ky, 12, 9, &foc, &pr, &hot)) { pit[i][s_sel[i]] = n; s_on[i][s_sel[i]] = 1; mbop = 1; ac_note(a, a->base + mroot[i] + loct[i] * 12 + n, 0, 0); }
                 int lit = pit[i][s_sel[i]] == n && s_on[i][s_sel[i]];
                 rrectfill(x, ky, 12, 9, 1, lit ? CLR_LIGHT_YELLOW : CLR_BROWNISH_BLACK);
                 rrect(x, ky, 12, 9, 1, CLR_BLACK);
@@ -1835,7 +1906,10 @@ static void draw_mst(Box stage) {
 
     // ② master live knobs — GLU/FLT/RES/FB/PUMP + SWG (the rack-wide swing joins the master row)
     knob_cell(lay_grid(krow, 6, 6, 0, 2), &mglu,    "GLU",  0.30f);
-    knob_cell(lay_grid(krow, 6, 6, 1, 2), &mflt,    "FLT",  0.50f);
+    // FLT wears the host-driven skin while the mod wheel holds it (same geometry, no widget → the knob
+    // cannot be dragged to no effect). Both faces do this, so the takeover is visible wherever you are.
+    if (mod_engaged()) knob_cell_mod(lay_grid(krow, 6, 6, 1, 2));
+    else               knob_cell(lay_grid(krow, 6, 6, 1, 2), &mflt,    "FLT",  0.50f);
     knob_cell(lay_grid(krow, 6, 6, 2, 2), &mfres,   "RES",  0.35f);
     knob_cell(lay_grid(krow, 6, 6, 3, 2), &mfb,     "FB",   0.35f);
     knob_cell(lay_grid(krow, 6, 6, 4, 2), &mpump,   "PUMP", 0.0f);
@@ -2405,6 +2479,12 @@ void update(void) {
     apply_fx();                                                        // master FX (glue/filter/delay/pump)
     mo_tick();                                                        // release drum note-offs whose gate ran out
     mo_transport(playing);                                            // MIDI start/stop mirrors our transport
+    // HOST MIDI CONTINUOUS CONTROLS (GarageBand's two sliders above its keyboard). Read here, once a
+    // frame, before the voices are ridden. midi_cc(0, …) = OMNI, i.e. any channel — a DAW sends the
+    // track's channel and we do not care which; the engine keeps the nibble for a future per-machine map.
+    int mw = midi_cc(0, 1);                                            // CC1 = mod wheel
+    if (mw >= 0) mod_cc = mw;                                          // -1 = never seen; keep the last
+    bend_ride();                                                       // pitch bend → both 303 lines
     for (int i = 0; i < 2; i++) acid_ride(&ac[i]);                     // ride cutoff/reso live on both lines
     // FINE tune: a separate per-voice cents trim (MIX screen) applied via instrument_tune on CHANGE
     // only — the coarse TUNE knob keeps its musical semitone steps; FINE (±0.5 semitone) nulls a beat.
@@ -2451,7 +2531,7 @@ void update(void) {
             // Momentary by nature; the normal clock is skipped so the pattern picks straight back up on release.
             if (pf_roll[i] && !mac[i].mute) {
                 int rc = (int)(g_phase * ROLL_RATE * spd);
-                if (rc != rollctr[i]) { rollctr[i] = rc; acid_note(&ac[i], roll_pit[i], roll_acc[i], 0); mbop = 1; }
+                if (rc != rollctr[i]) { rollctr[i] = rc; ac_note(&ac[i], roll_pit[i], roll_acc[i], 0); mbop = 1; }
                 continue;
             }
             rollctr[i] = -1;                                          // not rolling → reset so the next ROLL starts clean
@@ -2479,7 +2559,7 @@ void update(void) {
                 int oshift = (pf_oct[i] && (lcs & 1)) ? -12 : 0;               // OCT lens: every OTHER step (odd counter) an octave down — the acid bounce
                 if (s_on[i][ls]) {
                     int midi = ac[i].base + mroot[i] + loct[i] * 12 + pit[i][ls] + oct[i][ls] * 12 + oshift;
-                    acid_note(&ac[i], midi, accent, slide); mbop = 1;
+                    ac_note(&ac[i], midi, accent, slide); mbop = 1;
                     mo_303(i, midi, accent, slide);                   // …and out the wire, same note/accent/slide
                     vow_attack();                                     // SPEAK: this note gets the next syllable (both lines feed it)
                     roll_pit[i] = midi; roll_acc[i] = accent;         // remember the last played note for ROLL to repeat
@@ -2646,6 +2726,14 @@ static void r2_kcell_ext(Box c) {
     int r = (int)lay_clamp(rh < rw ? rh : rw, 4, 10);
     int cy = (int)(c.y + r + 1); if (cy + r + 7 > (int)(c.y + c.h)) cy = (int)(c.y + c.h) - r - 7;
     tempo_knob_ext((int)(c.x + c.w / 2), cy, r, bpm3(), 0);   // no room under the knob here; the LCD says EXT
+}
+// the same cell under the host's MOD WHEEL: the FLT knob shows where the wheel has put the filter, and
+// registers no widget, so you cannot drag a knob the host is holding.
+static void r2_kcell_mod(Box c) {
+    float rh = c.h * 0.34f, rw = c.w * 0.44f;
+    int r = (int)lay_clamp(rh < rw ? rh : rw, 4, 10);
+    int cy = (int)(c.y + r + 1); if (cy + r + 7 > (int)(c.y + c.h)) cy = (int)(c.y + c.h) - r - 7;
+    host_knob_ext((int)(c.x + c.w / 2), cy, r, flt_live(), "MOD", 0, "MOD");
 }
 
 // header nameplate: tap the body = FOCUS this machine onto the shared screen; the corner LED = MUTE.
@@ -3262,8 +3350,9 @@ static void r2_colmst(Box c) {
     Box fbr = lay_split(cc, EDGE_BOTTOM, cc.h / 4, &cc);      // FB row (centred, full width)
     for (int k = 0; k < 6; k++) {
         Box kc = lay_grid(cc, 2, 6, k, 1);
-        if (k == 0 && sync_active()) r2_kcell_ext(kc);        // TMP is a readout while a clock drives us
-        else                         r2_kcell(kc, KV[k], KN[k], KD[k], mac[M_MST].col);
+        if      (k == 0 && sync_active()) r2_kcell_ext(kc);   // TMP is a readout while a clock drives us
+        else if (k == 4 && mod_engaged()) r2_kcell_mod(kc);   // FLT is a readout while the mod wheel holds it
+        else                              r2_kcell(kc, KV[k], KN[k], KD[k], mac[M_MST].col);
     }
     r2_kcell(fbr, &mfb, "FB", 0.35f, mac[M_MST].col);
     // 4-channel mini mixer (303a/303b/808/909 faders) + delay division label

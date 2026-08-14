@@ -67,6 +67,12 @@ void de_touch_ended(DeInstance *in, int id, float x, float y);
 // A keybed cart (epiano/moog/…) drains them via the engine's midi_get() and plays notes.
 void de_midi_event(int type, int note, int vel);
 void de_midi_bend(int v);
+// CONTROL CHANGE — the mod wheel is CC1. `ch` is 0..15 as it arrives on the wire and is KEPT (unlike
+// the note path, which is omni): a rack with several machines wants "cutoff on channel 1" to reach a
+// different machine than channel 10. A cart reads it with midi_cc(ch, cc) / midi_cc_get().
+// ⚠ This declaration is the whole reason the mod wheel did nothing until 2026-08-14 — the engine has
+// implemented de_midi_cc since runtime/midi_input.h:258 and it was simply never exported to Swift.
+void de_midi_cc(int ch, int cc, int val);
 
 // HOST TRANSPORT (runtime/sync.h) — the AUv3 render block pushes the host's playhead here every
 // block, and a cart reads it through sync_active()/sync_playing()/sync_beats()/sync_bpm(). beats =

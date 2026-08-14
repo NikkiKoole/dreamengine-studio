@@ -429,8 +429,6 @@ static void de_grow_gpu(void) {
 static inline uint32_t sw_pack(DeColor c) { return (uint32_t)c.r | ((uint32_t)c.g<<8) | ((uint32_t)c.b<<16) | 0xFF000000u; }
 // internal patterned-fill helpers — the public fills call these when fillp() is on
 static void rectfill_pat(int x, int y, int w, int h, int pattern, int c1, int c0);
-static void circfill_pat(int x, int y, int radius, int pattern, int c1, int c0);
-static void ovalfill_pat(int cx, int cy, int rx, int ry, int pattern, int c1, int c0);
 static void plot_pat(int x, int y, int color);
 static void poly_clamp_scan(int *x0, int *y0, int *x1, int *y1);   // fwd: circfill (below) clamps like the poly path
 static void poly_fill_cov(const int *xy, int n, int color);
@@ -4790,21 +4788,10 @@ static void rectfill_pat(int x, int y, int w, int h, int pattern, int c1, int c0
     DrawTexturePro(t, src, dst, (Vector2){ 0, 0 }, 0.0f, WHITE);
 }
 
-// circles/triangles are filled as horizontal scanlines of rectfill_pat — reusing
-// the proven (and screen-aligned) rect path, so the lattice stays seamless.
-static void ovalfill_pat(int cx, int cy, int rx, int ry, int pattern, int c1, int c0) {
-    if (rx <= 0 || ry <= 0) return;
-    for (int dy = -ry; dy <= ry; dy++) {
-        float f = 1.0f - (float)(dy * dy) / (float)(ry * ry);
-        if (f < 0) f = 0;
-        int hw = (int)(rx * sqrtf(f) + 0.5f);
-        rectfill_pat(cx - hw, cy + dy, hw * 2 + 1, 1, pattern, c1, c0);
-    }
-}
-
-static void circfill_pat(int cx, int cy, int r, int pattern, int c1, int c0) {
-    ovalfill_pat(cx, cy, r, r, pattern, c1, c0);
-}
+// (`ovalfill_pat` + `circfill_pat` lived here and were deleted 2026-08-14: clang's
+// -Wunused-function flagged `circfill_pat` in BOTH build configs, and its only caller was
+// `circfill_pat` itself, so the pair was transitively dead. The patterned fills that ARE live
+// go through `rectfill_pat`, straight from `rectfill`.)
 
 // ── global fill pattern (PICO-8 fillp style) ──────────────────────────────
 // when on, the normal fills draw the pattern: the draw COLOR fills the 0-bits,
@@ -5162,14 +5149,18 @@ static int palette_index_of(DeColor c) {
 // shared pget/pget_rgb read: WORLD coord → camera matrix → the snapshot texel it landed on. Exact
 // under translate, approximate under zoom/rotation (samples the rendered canvas — the documented
 // limit). Returns false (leaving *out) when read-back is off / no snapshot yet / off-canvas — each
-// caller picks its own empty sentinel. RT data is bottom-up so flip Y about SCREEN_H (full snapshot).
+// caller picks its own empty sentinel. RT data is bottom-up so flip Y about the ACTIVE height.
+// ⚠ de_sh, NOT SCREEN_H. The snapshot is LoadImageFromTexture(canvas.texture) and `canvas` is
+// LoadRenderTexture(fb_w, fb_h), so it is fb_h == de_sh tall — which only equals the compile-time
+// SCREEN_H for a FIXED cart. A -DDE_RESIZABLE cart that reflowed read the wrong row from every
+// pget()/pget_rgb()/touching_color() (and off the end when it grew). Nothing gates this today.
 static bool pget_texel(int x, int y, DeColor *out) {
     if (!pget_enabled)        { pget_warn_once(); return false; }
     if (!pget_snapshot_valid) return false;
     Vector2 s = GetWorldToScreen2D((Vector2){ (float)x, (float)y }, cam);
     int rx = (int)s.x, ry = (int)s.y;
     if (rx < 0 || rx >= de_sw || ry < 0 || ry >= de_sh) return false;
-    *out = GetImageColor(pget_snapshot, rx, SCREEN_H - 1 - ry);
+    *out = GetImageColor(pget_snapshot, rx, de_sh - 1 - ry);
     return true;
 }
 int pget(int x, int y) {
@@ -5366,10 +5357,14 @@ void zoom_rect(int sx, int sy, int sw, int sh, int dx, int dy, int dw, int dh) {
                    (Vector2){ 0, 0 }, 0.0f, WHITE);
     EndTextureMode();
     BeginTextureMode(canvas);                          // resume live canvas (screen-space blit)
-    // snap.texture is the FULL-size (SCREEN_H) bottom-up RT; consistent with the engine's full
-    // {0,0,W,-H} blit, logical rows [sy,sy+sh] read from texture y = SCREEN_H-sy-sh with -sh flip.
+    // snap.texture is a bottom-up RT holding the ACTIVE canvas, blitted de_sw×de_sh just above;
+    // consistent with the engine's full {0,0,W,-H} blit, logical rows [sy,sy+sh] read from texture
+    // y = de_sh-sy-sh with the -sh flip.
+    // ⚠ de_sh, NOT SCREEN_H — same fix as pget_texel. canvas_snap is LoadRenderTexture(fb_w, fb_h),
+    // so "FULL-size (SCREEN_H)" was only ever true for a fixed cart; on a reflowed resizable one the
+    // loupe (ui.h's magnifier, the main caller) sampled the wrong rows.
     DrawTexturePro(canvas_snap.texture,
-                   (Rectangle){ (float)sx, (float)(SCREEN_H - sy - sh), (float)sw, (float)-sh },
+                   (Rectangle){ (float)sx, (float)(de_sh - sy - sh), (float)sw, (float)-sh },
                    (Rectangle){ (float)dx, (float)dy, (float)dw, (float)dh },
                    (Vector2){ 0, 0 }, 0.0f, WHITE);
     if (wascam) BeginMode2D(cam);

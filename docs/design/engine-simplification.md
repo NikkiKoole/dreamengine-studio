@@ -346,10 +346,13 @@ Same rules as round 1: line numbers rot, the function name is the anchor, every 
       grow-only scheme: 2 fields, ~14 use sites, ~25 lines of comment explaining a distinction with
       no content. **Doing it makes the next item unrepeatable.** Gate: `refactor-guard`,
       `canvas-diff drawall`, a `--resize` run.
-- [ ] **`pget_texel` bounds-checks `de_sh` then flips against compile-time `SCREEN_H`.** On a
-      `DE_RESIZABLE` cart every `pget()`/`touching_color()` reads the wrong row. Same at
-      `zoom_rect`'s GPU path (= `ui.h`'s loupe). **No gate covers this today**, which is why it is
-      still there. 2 lines.
+- [x] **`pget_texel` bounds-checked `de_sh` then flipped against compile-time `SCREEN_H`.** LANDED
+      2026-08-14, both it and `zoom_rect`'s GPU path (= `ui.h`'s loupe). **LATENT, not live**: no
+      shipped cart is currently both `resizable: true` AND a pget/loupe/zoom_rect user (checked all
+      16 against all 11), so nobody had hit it — it was waiting for the first cart to combine them.
+      GPU-only too: `sw_zoom_rect` already used `de_sh`, so iOS/Android were never affected. **Still
+      ungated** — `canvas-diff drawall` proves fixed carts unchanged (0px) but cannot see the
+      resizable case.
 - [ ] **`blend_lut` is 20,480 B — 58% of `DeVideo` — and byte-identical in every instance.** A pure
       function of a compile-time-constant palette, rebuilt by ~1M inner iterations per instance boot.
       Hoist back to shared + record in `ctx-classification.json`; `DeVideo` 35,528 → 14,792. ⚠
@@ -359,8 +362,9 @@ Same rules as round 1: line numbers rot, the function name is the anchor, every 
       `sw_world_buf`, `pres_buf`, `de_state_mem`, `pget_snapshot.data`, sound's allocations.
       `sizeof(DeInstance)` is 4,121,400 B. Android now calls it; **no Swift caller does**, and
       `TinyjamAU`'s `deinit` cannot fire anyway (see the Swift list).
-- [ ] **`circfill_pat`/`ovalfill_pat` are dead** — `-Wunused-function` says so in both build configs;
-      `ovalfill_pat` is transitively dead through it. 17 lines, nil risk.
+- [x] **`circfill_pat`/`ovalfill_pat` were dead** — LANDED 2026-08-14. `-Wunused-function` flagged
+      `circfill_pat` in BOTH configs and `ovalfill_pat`'s only caller was `circfill_pat`. Deleted
+      with their two forward decls; `build-all` 581/581, `canvas-diff drawall` 0px.
 - [ ] **`sw_tritex_legacy` is 5 weeks past its own soak deadline** (labelled "temporary, 2026-07 …
       delete once the fast path is trusted"); the four sibling flags were retired after 2–3½ weeks.
       ~29 lines. A policy call, not a technical one. ⚠ `pset_batch` reads like a sibling and is NOT

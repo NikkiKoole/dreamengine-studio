@@ -387,7 +387,10 @@ static CartState de_cart_default = {
 #else
 static char de_cart_key_;
 static CartState *de_cart_(void) {
-    CartState *c = (CartState *)de_state_for(&de_cart_key_, (int)sizeof(CartState));
+    /* _saved: this is the rack the PLAYER built — knobs, patterns, machine selection — so it is what
+     * de_save_state writes into the host's session state and restores on reopen. Safe to save because
+     * every one of these 598 lines is a plain value: no pointers, no live voice handles. */
+    CartState *c = (CartState *)de_state_for_saved(&de_cart_key_, (int)sizeof(CartState));
     if (c && !c->de_ctx_inited_) { *c = de_cart_default; c->de_ctx_inited_ = 1; }
     return c;
 }

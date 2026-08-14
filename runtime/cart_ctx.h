@@ -45,14 +45,24 @@
 // `lc` = lowercase prefix (symbol names), `Uc` = the struct's name.
 // The key is the ADDRESS of a file-scope sentinel this header owns: unique per translation unit by
 // construction, so headers cannot collide and there is no slot registry to keep in sync.
-#define DE_CTX_BLOCK(lc, Uc, LIST)                                              \
+#define DE_CTX_BLOCK_(lc, Uc, LIST, alloc_)                                     \
     typedef struct Uc##Ctx { LIST(DE_CTX_MEMBER_) int de_ctx_inited_; } Uc##Ctx; \
     static char lc##_ctx_key_;                                                  \
     static void lc##_ctx_init_(Uc##Ctx *c);                                     \
     static Uc##Ctx *lc##_ctx_(void) {                                           \
-        Uc##Ctx *c = (Uc##Ctx *)de_state_for(&lc##_ctx_key_, (int)sizeof(Uc##Ctx)); \
+        Uc##Ctx *c = (Uc##Ctx *)alloc_(&lc##_ctx_key_, (int)sizeof(Uc##Ctx));    \
         if (c && !c->de_ctx_inited_) { c->de_ctx_inited_ = 1; lc##_ctx_init_(c); } \
         return c;                                                               \
     }
+
+// SCRATCH (the default): per-instance, but NOT written to session state. Right for anything a fresh
+// init() rebuilds — a widget table, in-flight gestures, the cursor — and REQUIRED for anything
+// holding a live voice handle or a pointer, which mean nothing in the instance a blob is restored into.
+#define DE_CTX_BLOCK(lc, Uc, LIST)       DE_CTX_BLOCK_(lc, Uc, LIST, de_state_for)
+
+// SAVED: per-instance AND written to session state, so a reopened DAW project gets it back. Right for
+// what the PLAYER chose — knobs, patterns, tuning. ⚠ Every member must be a plain value: no pointers,
+// no live handles (`note_on` results), no per-frame geometry. Gated by tools/lint-saved-state.js.
+#define DE_CTX_BLOCK_SAVED(lc, Uc, LIST) DE_CTX_BLOCK_(lc, Uc, LIST, de_state_for_saved)
 
 #endif

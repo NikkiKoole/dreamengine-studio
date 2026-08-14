@@ -80,7 +80,7 @@ static int tr909__vv(int base, int boost) { int v = base + boost; return v < 0 ?
 #ifndef DE_CART_CTX
 DE_CTX_STATICS(TR909_STATE)
 #else
-DE_CTX_BLOCK(tr909, Tr909, TR909_STATE)
+DE_CTX_BLOCK_SAVED(tr909, Tr909, TR909_STATE)   // voicing config a cart changes → session state
 // defined BEFORE the access macros below: after them, `c->name` would expand to
 // `c->(ctx_()->name)`, because the member names are macros from that point on.
 static void tr909_ctx_init_(Tr909Ctx *c) {

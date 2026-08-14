@@ -57,7 +57,7 @@ typedef struct {
 #ifndef DE_CART_CTX
 DE_CTX_STATICS(DRUMKIT_STATE)
 #else
-DE_CTX_BLOCK(dk, Dk, DRUMKIT_STATE)
+DE_CTX_BLOCK_SAVED(dk, Dk, DRUMKIT_STATE)   // dk_base has a cart-facing setter → session state
 // defined BEFORE the access macros below: after them, `c->name` would expand to
 // `c->(ctx_()->name)`, because the member names are macros from that point on.
 static void dk_ctx_init_(DkCtx *c) {

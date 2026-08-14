@@ -221,7 +221,7 @@ enum {
 #ifndef DE_CART_CTX
 DE_CTX_STATICS(RADIO_STATE)
 #else
-DE_CTX_BLOCK(rad, Rad, RADIO_STATE)
+DE_CTX_BLOCK(rad, Rad, RADIO_STATE)   // SCRATCH: rad_static_h is a live voice handle
 // defined BEFORE the access macros: after them the member names are macros, so `c->x` would
 // expand to `c->(rad_ctx_()->x)`.
 static void rad_ctx_init_(RadCtx *c) {

@@ -83,7 +83,7 @@ enum { TRS_BD, TRS_SDB, TRS_SDN, TRS_TOM, TRS_TOMN, TRS_CON, TRS_RS, TRS_CLV,
 #ifndef DE_CART_CTX
 DE_CTX_STATICS(TR808_STATE)
 #else
-DE_CTX_BLOCK(tr808, Tr808, TR808_STATE)
+DE_CTX_BLOCK_SAVED(tr808, Tr808, TR808_STATE)   // voicing config a cart changes → session state
 // defined BEFORE the access macros: after them the member names are macros, so `c->x` would
 // expand to `c->(tr808_ctx_()->x)`.
 static void tr808_ctx_init_(Tr808Ctx *c) {

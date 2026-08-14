@@ -1713,6 +1713,7 @@ static bool sound_req_is_event(SoundReq r) {
         case SR_NOTE_FOLLOW: case SR_NOTE_PAN: case SR_NOTE_REVERB: case SR_NOTE_DRIVE_MODE:
         case SR_NOTE_POS: case SR_NOTE_MOTION: case SR_HIT_AT: case SR_NOTE_SYNC:
         case SR_NOTE_RETRIG: case SR_NOTE_GLIDE_SCALE: case SR_CART_SWITCH:
+        case SR_STATE_RESTORE:   // must NOT be recorded: it replays the very log it would land in
             return true;
         case SR_LFO_SHAPE: return r.c < 0;   // c<0 = live held note (handle in e0/e1); c>=0 = instrument-slot config
         default: return false;               // set-and-hold config — record it
@@ -6057,6 +6058,21 @@ static void sound_fire_req(SoundReq r) {
                 sound_fire_req(ctx_log[ctx][i]);               // a log never contains SR_CART_SWITCH (it's an event kind)
             steal_tailL += tailL; steal_tailR += tailR;
         }
+    } break;
+    case SR_STATE_RESTORE: {   // (no payload) — session restore: reset + replay THIS context's log
+        // The same three moves as SR_CART_SWITCH above, minus the context change, because a restore
+        // lands in the context you are already in. The RESET is the load-bearing part: a config log
+        // holds append-only entries (a wavetable define, an auto-bus allocation) as well as keyed
+        // knobs, so replaying it over an engine that already ran init() would allocate a SECOND bus
+        // rather than re-set the first. Replaying over a boot-clean slate is what makes it exact.
+        float tailL = 0.0f, tailR = 0.0f;                  // declick, exactly as the switch path does
+        for (int i = 0; i < SOUND_VOICES; i++)
+            if (voices[i].active) { tailL += voices[i].last_outL; tailR += voices[i].last_outR; }
+        delayed_count = 0;                                 // scheduled notes must not fire into the restored rack
+        sound_reset_state();                               // → no held voices, sequencer at step 0
+        for (int i = 0; i < ctx_log_n[ctx_active]; i++)
+            sound_fire_req(ctx_log[ctx_active][i]);
+        steal_tailL += tailL; steal_tailR += tailR;
     } break;
     }
 }

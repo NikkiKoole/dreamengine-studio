@@ -177,6 +177,42 @@ Named so the next session does not assume otherwise:
   - ⚠ **The rule it would impose:** `de_state()` is only serializable if carts keep no POINTERS in it.
     The `STATE{}` idiom encourages flat data but nothing enforces it; committing to this route means
     making that a rule, and probably a lint.
+  - ✅ **BUILT 2026-08-14 — and the plan above was wrong in two places.** `de_save_state` /
+    `de_load_state` ship (`runtime/platform.h`), gated by `bash tools/state-check/run.sh`. What the
+    route above got wrong, both found by reading the code rather than trusting the plan:
+    - **"Serialize the `de_state()` block" cannot be a verbatim copy, because the block STARTS WITH
+      POINTERS.** `de_state_for`'s arena header sits at offset 0 and its `key` members are the
+      addresses of file-scope sentinels — different in every process. Restoring it verbatim leaves
+      every later `de_state_for` lookup comparing against garbage. The format therefore skips the
+      arena entirely and matches slice payloads back by **registration index + size**, with a layout
+      **fingerprint** that makes a blob from another build/architecture get REFUSED rather than
+      copied into mismatched slices.
+    - **The "no pointers" rule was ALREADY VIOLATED — by `ui.h`,** the header every rack cart
+      includes (`ui_grab_evt` / `ui_rel_evt` are `void *` touch-event identities). And pointers were
+      not even the worst of it: `keybed.h`, `solo.h` and `radio.h` hold **live voice handles**, which
+      are plain `int`s and so invisible to any pointer lint, yet name voices in the instance that
+      allocated them and nothing at all in the one a blob is restored into.
+    - **So the split is per-slice and opt-in, with SCRATCH as the default.** `de_state_for` = not
+      saved; `de_state_for_saved` = saved (`DE_CTX_BLOCK` / `DE_CTX_BLOCK_SAVED` in `cart_ctx.h`).
+      That default direction is the whole safety argument: a header that forgets to mark itself
+      *loses a setting*, which is a missing feature; the other default *restores a stale handle*,
+      which is corruption. Fail towards the recoverable mistake.
+    - Saved today: `acidcandy_state.h` (598 lines, zero pointers), `tr808.h`, `tr909.h`, `drumkit.h`
+      (all three have cart-facing setters). Scratch: `ui.h`, `cursor.h`, `gestures.h`, `keybed.h`,
+      `solo.h`, `radio.h`.
+    - The sound half needed **one new request kind**, `SR_STATE_RESTORE`: `SR_CART_SWITCH` already
+      does reset-then-replay but no-ops when the target context is the active one, and a session
+      restore is always "the context you are already in". The **reset is load-bearing** — a config
+      log holds append-only entries (a wavetable define, an auto-bus allocation) as well as keyed
+      knobs, so replaying it over an engine that already ran `init()` would allocate a *second* bus
+      instead of re-setting the first.
+    - **The apply is DEFERRED to the top of the next `de_frame`.** The host sets state on its own
+      thread while the frame worker runs, and the cart's state belongs to `de_frame`. So
+      `de_load_state` returning 1 means *accepted*, and the rack changes one frame later.
+    - ⚠ **Slice granularity is the honest limit.** A slice is all-or-nothing, so `acidcandy`'s whole
+      `CartState` travels — including any position counters inside it. The engine's sound side does
+      come back at step 0 with nothing held (that is what the reset buys), but a cart wanting
+      "patterns restored, playhead at zero" has to declare *two* slices, one of each kind.
   - Note the plug-in does **no** state handling today at all (no `fullState`, no `parameterTree`, no
     presets), so a reopened session starts every rack at defaults — a separate user-visible gap from
     the two-racks-interfere bug.

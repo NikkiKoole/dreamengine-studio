@@ -145,6 +145,62 @@ public final class TinyjamAU: AUAudioUnit {
     public override var outputBusses: AUAudioUnitBusArray { _outputBusArray }
     public override var inputBusses: AUAudioUnitBusArray { _inputBusArray }
 
+    // ══ SESSION STATE ═══════════════════════════════════════════════════════════════════════════
+    // Without this the plug-in has no memory: save a song with three racks, reopen it, and every one
+    // is back at factory defaults — silently, and on the FIRST save anybody does. (Unlike the
+    // two-tracks-share-one-engine defect, which needed two instances before it showed.)
+    //
+    // What travels is INTENT, not the context struct: the engine's sound-config log plus the cart
+    // slices marked `de_state_for_saved`. The context is ~4 MB of pointers, GPU handles and derived
+    // DSP scratch — meaningless to restore, and it would put megabytes in the host's project file.
+    // A restored rack comes back at step 0 holding no notes, by design.
+    //
+    // Gated by `bash tools/state-check/run.sh` (20 assertions, four negative controls) — which runs
+    // the round trip on the desktop DE_NO_RAYLIB build, because nothing in the repo can instantiate
+    // this class. Same blind spot that let three double-engine bugs ship; the engine half is covered,
+    // the twelve lines below are not.
+    //
+    // ⚠ `super` FIRST, both ways. AUAudioUnit's own fullState carries what the host needs to
+    // re-instantiate us at all (component description, preset bookkeeping). Returning only our key
+    // would strip it; setting ours without passing the rest on would drop it.
+    private static let stateKey = "dreamengineRack"
+
+    public override var fullState: [String: Any]? {
+        get {
+            var s = super.fullState ?? [:]
+            let need = de_save_state(engine, nil, 0)          // size probe: writes nothing
+            if need > 0 {
+                var d = Data(count: Int(need))
+                let wrote: Int32 = d.withUnsafeMutableBytes { raw in
+                    de_save_state(engine, raw.baseAddress, need)
+                }
+                if wrote > 0 {
+                    d.count = Int(wrote)
+                    s[TinyjamAU.stateKey] = d
+                } else {
+                    NSLog("[tinyjam] STATE save produced nothing (need=%d) — rack will not persist", need)
+                }
+            }
+            return s
+        }
+        set {
+            super.fullState = newValue
+            // No key = a project saved by a build before this shipped. Correct behaviour is to leave
+            // the rack at its defaults, not to complain.
+            guard let d = newValue?[TinyjamAU.stateKey] as? Data, !d.isEmpty else { return }
+            let accepted: Int32 = d.withUnsafeBytes { raw in
+                de_load_state(engine, raw.baseAddress, Int32(d.count))
+            }
+            // REFUSED is a real outcome, not an error to swallow: a blob whose layout fingerprint
+            // disagrees was written by a different build or architecture, and the engine deliberately
+            // leaves the rack at defaults rather than filling it with mismatched bytes. Say so, or
+            // "my sounds came back wrong" has no trail.
+            if accepted != 1 {
+                NSLog("[tinyjam] STATE refused a %d-byte blob (different build?) — rack stays at defaults", d.count)
+            }
+        }
+    }
+
     // ══ PARAMETER BRIDGE: TESTED, AND IT DOES NOT BRIDGE (2026-08-13) ═══════════════════════════
     // A probe parameter lived here briefly. Measured in GarageBand: a value written by the UI
     // process was observed ONLY in the UI process (same pid), exactly like the message channel. So

@@ -602,6 +602,12 @@ typedef enum {
     SR_INSTR_GLIDE_SCALE = 144,// a=slot, b=amount*1000 — GLIDE SCALE as a patch property (instrument_glide_scale)
     SR_INSTR_TRIGGER = 145,   // a=slot, b=TRIG_MULTI/TRIG_SINGLE — whether a note started while another key on
                               // this slot is down gets its ONSET TRANSIENT (instrument_trigger). Audit §L4
+    // ADDED BY HAND (2026-08-14), like the framebuffer group in studio_ctx.h: reset the ACTIVE cart
+    // context and replay its config log, on the audio thread. SR_CART_SWITCH already does exactly
+    // this but no-ops when the target context is the active one, and a session restore is always
+    // "the context you are already in". An EVENT kind (never recorded into the log it replays).
+    // de_load_state, docs/design/engine-instance-seam.md.
+    SR_STATE_RESTORE = 146,   // (no payload) — session-state restore: reset + replay ctx_log[ctx_active]
 } SoundReqKind;
 typedef struct { SoundReqKind kind; int a, b, c; int delay_samples; int dur_samples; int e0, e1, e2; } SoundReq;
 #define SOUND_REQ_QUEUE   512   // generous: live held-voice control pushes many setters/frame, and a patch cart's

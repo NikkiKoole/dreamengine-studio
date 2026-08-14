@@ -184,7 +184,7 @@ typedef struct {
 #ifndef DE_CART_CTX
 DE_CTX_STATICS(SOLO_STATE)
 #else
-DE_CTX_BLOCK(solo, DeSoloState, SOLO_STATE)
+DE_CTX_BLOCK(solo, DeSoloState, SOLO_STATE)   // SCRATCH: solo_handle is a live voice handle
 // defined BEFORE the access macros: after them the member names are macros, so `c->x` would
 // expand to `c->(solo_ctx_()->x)`.
 static void solo_ctx_init_(DeSoloStateCtx *c) {

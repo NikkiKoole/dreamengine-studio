@@ -243,6 +243,8 @@ typedef struct {
 static char ui_ctx_key_;
 
 static UiCtx *ui_ctx_(void) {
+    // de_state_for, NOT _saved: this slice is rebuilt every frame, and ui_grab_evt/ui_rel_evt are
+    // `void *` touch-event identities — restoring those into another process is a stale pointer.
     UiCtx *c = (UiCtx *)de_state_for(&ui_ctx_key_, (int)sizeof(UiCtx));
     if (c && !c->ui_ctx_inited_) {
         // Initialised on FIRST ACCESS rather than by an init the cart must remember to call, so this

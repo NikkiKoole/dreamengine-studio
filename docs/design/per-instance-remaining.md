@@ -61,6 +61,15 @@ chance to get wrong what a generator would have got right.
 byte-reproducible. Shared, two instances interleaving note starts **both** lose determinism — and
 `refactor-guard` sits green through it, because one instance is unaffected.
 
+### ✅ The `--panel` gate is GREEN as of 2026-08-14 — re-verify before believing it is broken
+Re-run after the session-state work (a full `zsh ios/mac.sh`, Release): four ✓ and PASS, including the
+one that was supposedly missing — *"it reported the OTHER verdict first (so the check can go red)"*,
+with two verdict lines from the audio unit's own pid. So the "not one `[tinyjam] PANEL` line was
+logged at all" reading below is **no longer what the evidence says**; whatever caused it (a stale
+build, or the Debug configuration) is gone. Left in place because the lesson stands: fix the
+observation before believing the verdict. Nothing was done to it deliberately — treat this as
+"currently green, cause unknown", not "fixed".
+
 ### `save_dir` — HALF fixed
 `de_set_save_dir` now reaches its instance through the handle (it used to `(void)in` and write the
 DEFAULT engine's dir, so instance 3's save location landed on instance 0). But **N racks still write
@@ -126,9 +135,13 @@ frames from a worker while the view copies on another thread.
 
 ## ▶ FOUND ALONG THE WAY, NOT PART OF THIS WORK
 
-- **The plug-in has NO session state** (no `fullState`, no presets) — a reopened DAW project starts
-  every rack at defaults. Filed in [`STATUS.md`](../STATUS.md); the ladder to it runs through this
-  work but the work is separate.
+- ~~**The plug-in has NO session state**~~ **— DONE 2026-08-14.** `de_save_state`/`de_load_state` +
+  `fullState`, gated by `bash tools/state-check/run.sh` (20 assertions, four negative controls). The
+  design as written on this page was wrong twice — the `de_state()` block cannot be serialized
+  verbatim (its arena header is pointers) and the "no pointers" rule was already broken by `ui.h`,
+  with live voice HANDLES in `keybed.h`/`solo.h`/`radio.h` being the worse case a pointer lint cannot
+  see. Corrected in [`engine-instance-seam.md`](engine-instance-seam.md). Still open: the Swift half
+  is ungated, and the pointer/handle lint for saved slices is unwritten.
 - **GarageBand's iPad-layout toggle has never worked** for this plug-in. Pre-dates all of this; the
   CART is fine (`play.js acidcandy --resize` reflows correctly). Filed in `STATUS.md`.
 - **The `--panel` gate is RED, and what it is failing on is now narrower.** Re-run 2026-08-14 after

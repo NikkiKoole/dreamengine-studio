@@ -120,6 +120,23 @@ void de_set_backing_scale(DeInstance *in, float k);
 // sandboxed OS can't write, so saves silently no-op.
 void de_set_save_dir(DeInstance *in, const char *dir);
 
+// SESSION STATE — back the host's fullState with these, so a reopened project is the rack the player
+// left rather than factory defaults. What travels is INTENT (the sound config log + the cart slices
+// marked with de_state_for_saved), NOT the ~4 MB context struct, which is mostly pointers and DSP
+// scratch. A restored rack comes back at step 0 holding no notes, by design.
+//
+// de_save_state: writes at most `max` bytes into `out` and returns the length written. Pass out=NULL
+// (or too small a `max`) to get the REQUIRED size back without writing — call it twice, size then fill.
+// Call on any thread that is not driving de_frame; it only reads.
+int de_save_state(DeInstance *in, void *out, int max);
+// de_load_state: returns 1 if the blob was ACCEPTED, 0 if REFUSED — refused means a different build
+// or architecture wrote it (the layout fingerprint disagrees), and the rack is left at defaults
+// rather than filled with mismatched bytes. Nothing is ever half-applied.
+// ⚠ The blob is copied and applied at the top of the NEXT de_frame, not inline: the host sets state
+// on its own thread while the frame worker runs, and the cart's state belongs to de_frame. So a
+// return of 1 means "accepted", and the rack changes one frame later. `blob` is yours again on return.
+int de_load_state(DeInstance *in, const void *blob, int len);
+
 // ============================================================================
 // (2) AUDIO — pulled by the host's audio backend (CoreAudio on iOS, Raylib's
 //     AudioStream on desktop). Reentrant + lock-free: safe to call from the

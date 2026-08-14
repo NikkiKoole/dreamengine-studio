@@ -2901,6 +2901,11 @@ struct DeInstance {
     DeSound snd;       // this engine's audio state     (sound_ctx.h)
     DeVideo vid;       // this engine's video state     (studio_ctx.h)
     DeSync  syn;       // this engine's host transport  (sync_ctx.h)
+    // A session blob de_load_state has ACCEPTED but not yet applied. The host sets state on ITS
+    // thread while the frame worker runs, so the apply waits for the top of de_frame, where the
+    // cart's state is nobody else's (de_ss_apply). Owned here, freed on apply or destroy.
+    unsigned char *ss_pend;
+    int            ss_pend_len;
 };
 // Instance 0 is the DEFAULT engine, and it deliberately keeps pointing at the generated templates
 // rather than owning copies: the desktop build and every existing gate run on it, so the
@@ -3001,6 +3006,7 @@ DeSync *de_instance_sync(DeInstance *in) { return (in && in->id != 0) ? &in->syn
 
 void de_instance_destroy(DeInstance *in) {
     if (!in || in->id == 0) return;   // instance 0 is static and outlives everything
+    free(in->ss_pend);                // a blob accepted but never applied (destroyed before a frame ran)
     free(in);
 }
 
@@ -3149,7 +3155,8 @@ int de_copy_frame(DeInstance *in, uint32_t *dst, int cap_px, int *w, int *h) {
 
 // de_apply_pending FIRST (a queued resize must land before the cart lays out for it), then the input
 // ring, then the frame, then publish what was drawn.
-void de_frame(DeInstance *in, double t) { DE_ENTER(in); de_host_time = t; de_apply_pending(); de_input_beginframe(); loop_step(); if (sw_rot_active) sw_rot_composite(); de_input_endframe(); de_publish_frame(); DE_LEAVE(); }   // loop_step draws (sw_cbuf or the rotated world buffer) + advances the sequencer; composite any rotated world a cart didn't close with camera()
+static void de_ss_apply(struct DeInstance *in);   // session-state restore, defined with de_load_state
+void de_frame(DeInstance *in, double t) { DE_ENTER(in); de_host_time = t; de_apply_pending(); de_ss_apply(in); de_input_beginframe(); loop_step(); if (sw_rot_active) sw_rot_composite(); de_input_endframe(); de_publish_frame(); DE_LEAVE(); }   // loop_step draws (sw_cbuf or the rotated world buffer) + advances the sequencer; composite any rotated world a cart didn't close with camera()
 // pulled by the host audio backend (CoreAudio on iOS) — fills `frames` interleaved
 // stereo floats in [-1,1] @ SOUND_SAMPLE_RATE. The same mixer the Raylib AudioStream
 // drives; reentrant/lock-free, safe from the audio thread while de_frame runs on main.
@@ -6061,26 +6068,216 @@ void *de_state(int bytes) {
 // ⚠ DO NOT CACHE THE RETURNED POINTER ACROSS CALLS. Registering a new key can grow (realloc) the
 // block and move every slice. The access macros call this each time, which is what makes that safe.
 #define DE_ARENA_MAX 24
-typedef struct { const void *key; int off, size; } DeArenaEnt;
-typedef struct { int n; int used; DeArenaEnt e[DE_ARENA_MAX]; } DeArena;
+// `saved` = this slice belongs in session state (de_save_state). ⚠ SCRATCH IS THE DEFAULT, and that
+// direction is deliberate: a header that forgets to mark itself loses a player setting on restore,
+// which is a missing feature. The other default would silently RESTORE a live voice handle or a
+// pointer into a different instance, which is corruption. Fail towards the recoverable mistake.
+typedef struct { const void *key; int off, size; int saved; } DeArenaEnt;
+// `magic` is how de_save_state tells "this block starts with a slice arena" from "this block IS one
+// cart's struct". A cart using de_state() directly owns byte 0, and the block is zero-filled, so
+// without a marker an unsliced block reads as an arena with a garbage entry count.
+#define DE_ARENA_MAGIC 0x41524E41   /* "ARNA" */
+typedef struct { unsigned magic; int n; int used; DeArenaEnt e[DE_ARENA_MAX]; } DeArena;
 
-void *de_state_for(const void *key, int bytes) {
+// The `key` members are ADDRESSES, so the arena header cannot be serialized (a different process
+// lays the binary out differently). de_save_state skips it and saves slice PAYLOADS instead, matched
+// back by registration index + size — see de_state_fingerprint.
+static void *de_state_for_(const void *key, int bytes, int saved) {
     if (!key || bytes <= 0) return NULL;
     int base = (int)sizeof(DeArena);
     DeArena *a = (DeArena *)de_state(base);          // the arena header lives at the front
     if (!a) return NULL;
     for (int i = 0; i < a->n; i++)
-        if (a->e[i].key == key)
+        if (a->e[i].key == key) {
+            if (saved) a->e[i].saved = 1;            // one accessor per key, so this is belt-and-braces
             return (unsigned char *)de_state(base) + a->e[i].off;   // re-fetch: the block may have moved
+        }
     if (a->n >= DE_ARENA_MAX) return NULL;           // out of slots: caller gets NULL, not a shared block
     int off = a->used > base ? a->used : base;
     int need = off + bytes;
     a = (DeArena *)de_state(need);                   // may realloc + zero the new tail
     if (!a) return NULL;
+    a->magic = DE_ARENA_MAGIC;
     a->e[a->n].key = key; a->e[a->n].off = off; a->e[a->n].size = bytes;
+    a->e[a->n].saved = saved;
     a->n++; a->used = need;
     return (unsigned char *)a + off;
 }
+
+void *de_state_for(const void *key, int bytes)       { return de_state_for_(key, bytes, 0); }
+void *de_state_for_saved(const void *key, int bytes) { return de_state_for_(key, bytes, 1); }
+
+// ── SESSION STATE — what a saved DAW project has to hand back ────────────────────────────────────
+#ifdef DE_NO_RAYLIB
+// A plug-in that cannot save is a plug-in nobody keeps: reopen the project and every rack is at
+// factory defaults, silently. This pair backs the host's fullState (ios/AU/TinyjamAU.swift).
+//
+// WHAT GOES IN — and why it is NOT the context struct. The per-instance contexts are ~4 MB of
+// pointers, GPU handles and derived DSP scratch (delay lines, filter memory, LFO phase): megabytes
+// that are meaningless to restore. What a player would MISS is intent, and the engine already keeps
+// intent in exactly two places:
+//   · ctx_log — the sound configuration. Already deduped per knob and order-stable, because
+//     de_switch_cart has to replay it. It is THE config, not a history of calls.
+//   · the SAVED slices of the de_state() block — what the cart itself chose (knobs, patterns).
+//     Opt-in through de_state_for_saved; scratch is the default (see de_state_for_).
+//
+// WHAT IS DELIBERATELY LEFT OUT: live voice handles, held notes, sequencer position. A restored rack
+// comes back at step 0 holding nothing. That is the agreed behaviour, and it is also what makes the
+// scratch/saved split safe rather than merely convenient.
+//
+// ⚠ THE ARENA HEADER IS NEVER SERIALIZED. Its `key` members are addresses of file-scope sentinels,
+// which differ in every process — restoring them would leave every later de_state_for lookup
+// comparing against garbage. The restoring instance re-registers its own keys by running init() as
+// usual; this format matches payloads back by REGISTRATION INDEX + SIZE, and the fingerprint over
+// that layout means a blob from a different build (a struct grew, a header was added, a different
+// architecture padded differently) is REFUSED rather than copied into mismatched slices.
+#define DE_SS_MAGIC   0x31534544   /* "DES1" */
+#define DE_SS_VERSION 1
+#define DE_SS_NHDR    6            /* int32 header words before the payload */
+#define DE_SS_REQW    9            /* int32 words per logged SoundReq */
+
+static unsigned de_ss_fingerprint(const DeArena *a) {
+    unsigned h = 2166136261u;
+    h = (h ^ (unsigned)DE_SS_VERSION) * 16777619u;
+    if (a && a->magic == DE_ARENA_MAGIC)
+        for (int i = 0; i < a->n; i++) {
+            if (!a->e[i].saved) continue;
+            h = (h ^ (unsigned)i) * 16777619u;
+            h = (h ^ (unsigned)a->e[i].size) * 16777619u;
+        }
+    return h;
+}
+
+// The block's arena, or NULL when this cart keeps no saved slices (a plain de_state() cart, or one
+// that never opted a slice in). Both are legal: the blob then carries sound config only.
+static DeArena *de_ss_arena(void) {
+    DeArena *a = (DeArena *)de_state_mem;
+    return (a && de_state_cap >= (int)sizeof(DeArena) && a->magic == DE_ARENA_MAGIC) ? a : NULL;
+}
+
+static void de_ss_put(unsigned char **p, int v) { memcpy(*p, &v, 4); *p += 4; }
+static int  de_ss_get(const unsigned char **p) { int v; memcpy(&v, *p, 4); *p += 4; return v; }
+
+// Both halves run with the instance ENTERED, so ctx_log / de_state_mem name the right rack. Split
+// out of the public functions because DE_ENTER must be paired with DE_LEAVE on every path, and an
+// early return inside the macro pair would leave the thread-local pointing at another engine.
+static int de_save_state_(unsigned char *out, int max) {
+    DeArena *a = de_ss_arena();
+    int nlog = ctx_log_n[ctx_active];
+    if (nlog < 0) nlog = 0;
+    if (nlog > SOUND_CTX_LOG) nlog = SOUND_CTX_LOG;
+
+    int nsl = 0, payload = 0;
+    if (a) for (int i = 0; i < a->n; i++) if (a->e[i].saved) { nsl++; payload += 4 + 4 + a->e[i].size; }
+    int need = DE_SS_NHDR * 4 + nlog * DE_SS_REQW * 4 + payload;
+    if (!out || max < need) return need;   // dst NULL (or too small) = report the size, write nothing
+
+    unsigned char *p = out;
+    de_ss_put(&p, DE_SS_MAGIC);
+    de_ss_put(&p, DE_SS_VERSION);
+    de_ss_put(&p, (int)de_ss_fingerprint(a));
+    de_ss_put(&p, need);
+    de_ss_put(&p, nlog);
+    de_ss_put(&p, nsl);
+    for (int i = 0; i < nlog; i++) {       // field by field, not a struct memcpy: the layout is the
+        SoundReq r = ctx_log[ctx_active][i];   // format, and it must not move when the struct does
+        de_ss_put(&p, (int)r.kind); de_ss_put(&p, r.a); de_ss_put(&p, r.b); de_ss_put(&p, r.c);
+        de_ss_put(&p, r.delay_samples); de_ss_put(&p, r.dur_samples);
+        de_ss_put(&p, r.e0); de_ss_put(&p, r.e1); de_ss_put(&p, r.e2);
+    }
+    if (a) for (int i = 0; i < a->n; i++) {
+        if (!a->e[i].saved) continue;
+        de_ss_put(&p, i); de_ss_put(&p, a->e[i].size);
+        memcpy(p, (const unsigned char *)a + a->e[i].off, (size_t)a->e[i].size);
+        p += a->e[i].size;
+    }
+    return (int)(p - out);
+}
+
+// Validate ONLY — the apply is deferred to the top of de_frame (de_ss_apply). Returns the accepted
+// blob's length, or 0 if it is refused. Nothing is half-applied on a refusal.
+static int de_ss_validate(const unsigned char *b, int len) {
+    if (!b || len < DE_SS_NHDR * 4) return 0;
+    const unsigned char *p = b;
+    if (de_ss_get(&p) != DE_SS_MAGIC)   return 0;
+    if (de_ss_get(&p) != DE_SS_VERSION) return 0;
+    unsigned fp = (unsigned)de_ss_get(&p);
+    int total = de_ss_get(&p), nlog = de_ss_get(&p), nsl = de_ss_get(&p);
+    if (total != len || nlog < 0 || nlog > SOUND_CTX_LOG || nsl < 0 || nsl > DE_ARENA_MAX) return 0;
+    DeArena *a = de_ss_arena();
+    if (fp != de_ss_fingerprint(a)) return 0;   // different build/arch → refuse, do not misapply
+    // the body must be exactly as long as the header claims
+    int want = DE_SS_NHDR * 4 + nlog * DE_SS_REQW * 4;
+    const unsigned char *q = b + want;
+    for (int s = 0; s < nsl; s++) {
+        if (q + 8 > b + len) return 0;
+        const unsigned char *t = q; int idx = de_ss_get(&t), sz = de_ss_get(&t);
+        if (!a || idx < 0 || idx >= a->n || !a->e[idx].saved || sz != a->e[idx].size) return 0;
+        q = t + sz;
+        if (q > b + len) return 0;
+    }
+    return (q == b + len) ? len : 0;
+}
+
+static void de_ss_apply_(const unsigned char *b, int len) {
+    const unsigned char *p = b + 4 * 3;        // past magic/version/fingerprint (all checked already)
+    (void)de_ss_get(&p);                       // total
+    int nlog = de_ss_get(&p), nsl = de_ss_get(&p);
+
+    // 1) the sound configuration. Written straight into this context's log, then ONE queued request
+    //    tells the audio thread to reset and replay it. The queue push is a release store and the
+    //    drain an acquire load, so these writes are visible before the replay reads them — the same
+    //    ordering every other config call in the engine relies on.
+    for (int i = 0; i < nlog; i++) {
+        SoundReq r = (SoundReq){0};
+        r.kind = (SoundReqKind)de_ss_get(&p);
+        r.a = de_ss_get(&p); r.b = de_ss_get(&p); r.c = de_ss_get(&p);
+        r.delay_samples = de_ss_get(&p); r.dur_samples = de_ss_get(&p);
+        r.e0 = de_ss_get(&p); r.e1 = de_ss_get(&p); r.e2 = de_ss_get(&p);
+        ctx_log[ctx_active][i] = r;
+    }
+    ctx_log_n[ctx_active] = nlog;
+
+    // 2) the cart's own saved slices. Safe here and nowhere else: de_frame owns the cart's state for
+    //    the duration of the frame, so this runs between frames rather than under one.
+    DeArena *a = de_ss_arena();
+    for (int s = 0; s < nsl && a; s++) {
+        int idx = de_ss_get(&p), sz = de_ss_get(&p);
+        memcpy((unsigned char *)a + a->e[idx].off, p, (size_t)sz);
+        p += sz;
+    }
+    sound_push_ctrl(SR_STATE_RESTORE, 0, 0, 0, 0, 0, 0);
+}
+
+// Called at the top of de_frame with the instance entered. Applies a blob de_load_state accepted.
+static void de_ss_apply(struct DeInstance *in) {
+    if (!in || !in->ss_pend) return;
+    unsigned char *b = in->ss_pend; int len = in->ss_pend_len;
+    in->ss_pend = NULL; in->ss_pend_len = 0;   // clear FIRST: a bad blob must not retry every frame
+    de_ss_apply_(b, len);
+    free(b);
+}
+
+int de_save_state(DeInstance *in, void *out, int max) {
+    if (!in) return 0;
+    int n;
+    DE_ENTER(in); n = de_save_state_((unsigned char *)out, out ? max : 0); DE_LEAVE();
+    return n;
+}
+
+int de_load_state(DeInstance *in, const void *blob, int len) {
+    if (!in || !blob || len <= 0) return 0;
+    int ok;
+    DE_ENTER(in); ok = de_ss_validate((const unsigned char *)blob, len); DE_LEAVE();
+    if (!ok) return 0;
+    unsigned char *copy = (unsigned char *)malloc((size_t)len);   // the host's buffer is not ours to keep
+    if (!copy) return 0;
+    memcpy(copy, blob, (size_t)len);
+    free(in->ss_pend);                        // a second load before the next frame replaces the first
+    in->ss_pend = copy; in->ss_pend_len = len;
+    return 1;
+}
+#endif  /* DE_NO_RAYLIB */
 
 // EXPERIMENTAL (see de_data_path_v): the --data <file> path, or $DE_DATA, or NULL.
 const char *de_data_path(void) { return de_data_path_v ? de_data_path_v : getenv("DE_DATA"); }

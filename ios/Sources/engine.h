@@ -76,4 +76,17 @@ void de_midi_bend(int v);
 // and stayed silent — two DAW tracks, one playing.
 void de_sync_position(DeInstance *in, double beats, double bpm, int playing);
 
+// SESSION STATE (runtime/platform.h) — what backs the AU's fullState, so reopening a project gives
+// the player their rack back instead of factory defaults. What travels is INTENT: the sound config
+// log plus the cart slices marked de_state_for_saved, NOT the ~4 MB context struct.
+// de_save_state: out=NULL (or too small a max) returns the REQUIRED size and writes nothing — call
+// it twice, size then fill. de_load_state returns 1 = ACCEPTED, 0 = REFUSED (a blob from another
+// build; the rack is left at defaults rather than filled with mismatched bytes), and the accepted
+// blob is applied at the top of the next de_frame, not inline.
+// ⚠ DECLARED HERE ON PURPOSE. An engine function missing from this header is invisible to Swift even
+// though it ships — that is exactly why the host's MOD WHEEL does nothing (de_midi_cc exists in
+// runtime/midi_input.h and is simply not declared here). Adding an engine call? Add it here too.
+int de_save_state(DeInstance *in, void *out, int max);
+int de_load_state(DeInstance *in, const void *blob, int len);
+
 #endif

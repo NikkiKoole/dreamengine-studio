@@ -631,6 +631,19 @@ Detail lives in the linked design doc in every case; that is where it was always
 
 > ### The AUv3 plug-in has NO session state — a reopened DAW project starts every rack at defaults
 >
+> **DONE 2026-08-14 (engine + Swift written and building; the ENGINE half is gated).**
+> `de_save_state` / `de_load_state` ship in `runtime/platform.h`, `fullState` is implemented on
+> `ios/AU/TinyjamAU.swift`, and `bash tools/state-check/run.sh` passes 20 assertions with four
+> negative controls. What travels is INTENT — the sound config log + cart slices marked
+> `de_state_for_saved` — never the ~4 MB context struct. Two things the plan below had wrong, both
+> corrected in [`design/engine-instance-seam.md`](design/engine-instance-seam.md): the `de_state()`
+> block cannot be copied verbatim (its arena header IS pointers), and the "no pointers" rule was
+> already violated by `ui.h` — while `keybed.h`/`solo.h`/`radio.h` hold live voice HANDLES, which are
+> plain ints and so invisible to a pointer lint. Hence per-slice opt-in with **scratch as the
+> default**. ⚠ STILL OPEN: nothing exercises the twelve Swift lines (no gate instantiates the AU's
+> object graph — the same blind spot that shipped three double-engine bugs), and a pointer/handle lint
+> for saved slices is not written yet.
+>
 > Opened 2026-08-13, found while designing the instance seam. `ios/AU/TinyjamAU.swift` implements no
 > `fullState`, no `parameterTree`, no presets — nothing. So a buyer who saves a song and reopens it
 > gets their racks back at factory defaults, silently. **This is a DIFFERENT gap from the "two tracks

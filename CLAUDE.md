@@ -650,6 +650,20 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
                              553 carts compile, and it must not change), the opted-in path must not. A seam
                              checked only in its enabled state is half a seam. Pattern + how to do the next
                              header: docs/design/engine-context.md → "Cart-land"
+             state-check/    THE ACCEPTANCE TEST for SESSION STATE — does a saved rack come back?
+                             (`bash tools/state-check/run.sh`, 20 assertions.) Backs the AU's `fullState`:
+                             `de_save_state`/`de_load_state` serialise INTENT — the sound config log +
+                             the cart slices marked `de_state_for_saved` — never the ~4 MB context
+                             struct, which is pointers, GPU handles and DSP scratch. Uses its OWN probe
+                             cart holding one slice of EACH kind, because the gate has to prove both
+                             halves: saved comes back, SCRATCH DOES NOT. Four negative controls, each
+                             stopping a different way of passing for the wrong reason — a FRESH instance
+                             must be at defaults (else "B matches A" also passes when they share one
+                             block) · the scratch slice must NOT travel (else saving EVERYTHING, incl.
+                             live voice handles, looks perfect) · a mangled FINGERPRINT must be REFUSED
+                             and leave the rack alone · a TRUNCATED blob too. Also asserts
+                             save(restore(save(A))) == save(A). ⚠ Covers the ENGINE half only; nothing in
+                             the repo instantiates the AU's Swift object graph
              instance-check/  THE ACCEPTANCE TEST for the per-instance engine work: can ONE process run N
                              INDEPENDENT engines? `bash tools/instance-check/run.sh` creates two via
                              `de_instance_create`, drives them with DIFFERENT transport, and asserts their

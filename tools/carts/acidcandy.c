@@ -35,7 +35,7 @@
     "VOICING switch: SHIPPED (2026-07-20) — the 303 knob-row's right end now stacks TWO switches (audio-notes.md §26): TOP = VOICING (classic 'CL' ⟷ Devil Fish 'DF', per-303, LED lit = DF; flips ac[i].classic + re-acid_define, NON-destructive — the DF knob values survive), BOTTOM = DUAL-PURPOSE: in DF it's the VIEW page-tab (core-5 '1' ⟷ DF-extras '2'); in classic it becomes the SAW/SQR WAVE switch. The old single 'DF' button (a mere kpage flip) is gone. WAVE-IN-VANILLA (fixed 2026-07-20): the SAW/SQR switch is a stock-303 CORE control, but it lives on the DF-extras page (unreachable in classic since kpage locks to 0). Since classic has no page to switch, the bottom slot hosts WAVE there instead → reachable in both voicings. (Engine was always fine — classic never gated a->wave.)",
     "303 DRIFT knob (OPEN, 2026-07-19): the 303 voices now carry analog drift (acid303.h Acid.drift, default 0.5 — slow LFO_SHAPE_RANDOM pitch+cutoff wander that killed the 'sounds kinda digital' tell; see audio-notes.md §26). It's a fixed bake right now; maker wants a little tweak somewhere. Cleanest: an MST-global DRIFT knob writing ac[0].drift=ac[1].drift=v then re-acid_define (or a per-303 knob on the DEEP page). Acid.drift is already a per-voice float so no ACID_* enum churn. Small follow-up, not yet wired.",
     "DUB PAD: REMOVED (2026-07-21) — the MST corner XY dub-throw pad (echo time/feedback while held) was cut as gimmicky. The MST right column is now just SWG + TEMPO (each half-height). The shared delay stays tempo-synced (DIVISION buttons + FB knob) in apply_fx; dub_held/dub_t/dub_fb globals gone.",
-    "GATE lane: SHIPPED (2026-07-18) — a 3rd drawable master lane on the MST screen (MIX/PCF/CRU/GAT, soft-keys shrunk to h7 so 4 fit), the RHYTHM twin: PCF=tone, CRUSH=texture, GATE=chop. mgate[16] 0..7/step (7=open, drawn DOWN = the step cuts); apply_fx rides the master gate((1-o)*0.85 threshold, 2ms atk, 45ms rel) on STEP CHANGE (set-and-hold, guarded by aGate). Pink bars (0xA0u hashes). Verified audible: open-vs-full-gate WAV correlate 0.78, no NaN. CAVEAT (worth a play-test): gate() is a THRESHOLD/dynamics gate, not a pure per-step volume chop — the cut depends on the signal level, so it reads more as a rhythmic dynamics-gate than a clean trance-gate. If a cleaner chop is wanted, the real fix is a master VOLUME the lane can ride (the level[] master-vol TODO) — revisit if the feel is off.",
+    "GATE lane: SHIPPED (2026-07-18) — a 3rd drawable master lane on the MST screen (MIX/PCF/CRU/GAT, soft-keys shrunk to h7 so 4 fit), the RHYTHM twin: PCF=tone, CRUSH=texture, GATE=chop.b_mgate[16] 0..7/step (7=open, drawn DOWN = the step cuts); apply_fx rides the master gate((1-o)*0.85 threshold, 2ms atk, 45ms rel) on STEP CHANGE (set-and-hold, guarded by aGate). Pink bars (0xA0u hashes). Verified audible: open-vs-full-gate WAV correlate 0.78, no NaN. CAVEAT (worth a play-test): gate() is a THRESHOLD/dynamics gate, not a pure per-step volume chop — the cut depends on the signal level, so it reads more as a rhythmic dynamics-gate than a clean trance-gate. If a cleaner chop is wanted, the real fix is a master VOLUME the lane can ride (the level[] master-vol TODO) — revisit if the feel is off.",
     "CRUSH lane: SHIPPED (2026-07-18) — a 2nd drawable master-automation lane on the MST screen, the PCF's TEXTURE twin (PCF = tone/filter; CRUSH = bit-depth grit). A 3rd MST soft-key (MIX/PCF/CRU) draws mcrush[16] (0..7/step, 0 = clean); apply_fx rides the whole-mix crush(16-c*13 bits, 1+c*24 rate, c mix) on STEP CHANGE only (crush() is NOT ride-safe → set-and-hold, guarded by aCrush; fx-frame lint passes). Drawn in ORANGE bars (vs PCF's green) so the two lanes read distinct; empty step = a floor tick. Same draw code + widget pattern as PCF (0xE0u hashes). Verified audible: clean-vs-full-crush WAV correlate 0.79 (same notes, degraded texture), no NaN. The engine already had crush/gate/tape/eq/chorus/reverb/grains as global master fx, so more lanes (e.g. a GATE rhythm lane) are cheap follow-ons if wanted.",
     "LCD GROW: SHIPPED (2026-07-18) — the green LCD glass on ALL FOUR faces (303/808/909/MST) is now h30 (y37-66), one consistent size; it CONTAINS the soft-key columns (PERF/PAT/GEN/KEY used to poke below) and leaves a 1px gap above the content below (drum voice pads at y68; 303 note-bars nudged 67→68, bh 27→26 so the loop handle stays at y94). MST caught up (2026-07-18): the master TEMPO moved to a compact KNOB in the LCD's right gutter (gknob — shows the real VALUE label, not knob()'s 0-99; bpm01 maps 0..1 → 60..200, rounded to int so no per-frame fx re-apply), which freed the full-width y64 row so the LCD could grow. DELAY stayed as its 4 small division buttons (maker preferred buttons to a knob) — now tucked UNDER the grown LCD in the y67-78 band (set mdiv directly, label = the division). The 303 SEQ roll fills the taller glass (baseline 56→61, taller playhead) and the MST MIX faders/PCF lane grew to fh22. Also: accented notes in the 303 roll get an ORANGE CAP in the space ABOVE the note (the 'accents use space above' ask) — matches how the drum faces mark accents above the cell.",
     "OPEN — REC / mode HINT OUTLINES: when you engage a mode (the drum REC pad-tool, or arm a FLAG), draw an OUTLINE around the buttons/cells you then need to press — spatial 'what do I do now' guidance. (Sibling idea, a transient LCD TOAST that NAMES the action, was prototyped 2026-07-18 and PARKED — maker didn't like it; don't rebuild without asking.)",
@@ -117,8 +117,8 @@ static int r2_dark     = 0;           // ROOMY chassis theme: 0 = salmon candy s
 
 // the two TB-303 lines (index 0/1 == machine M_303A/M_303B). Pattern lives here.
 static Acid ac[2];
-static int  on[2][STEPS], pit[2][STEPS], acc[2][STEPS], sld[2][STEPS];
-static int  sel[2] = { 0, 0 };
+static int  s_on[2][STEPS], pit[2][STEPS], acc[2][STEPS], sld[2][STEPS];
+static int  s_sel[2] = { 0, 0 };
 // the note-bar editor snaps pitch to a chosen KEY (root + scale, set on the MST face) so it
 // stays musical. DEFAULT = minor pentatonic at root 0 → byte-identical to the original snap.
 // (avoid the name SCALE — that's the engine's -D pixel-scale flag.)
@@ -151,7 +151,7 @@ static const int grid_view_on = 0;            // the BARS→GRID toggle is HIDDE
 static int  keys_mode = 0;                    // GRID bottom row: 0 = STEP strip · 1 = KEYS keypad (13 chromatic notes + OCT-/OCT+/SLIDE, 303 step-entry into sel[i]). Stage 2. Toggled by the STEP/KEYS chip.
 static int  key_oct   = 0;                    // KEYS entry octave offset (-1..+2), written into oct[i][sel]
 enum { FL_NOTE, FL_ACC, FL_SLD, FL_TIE, FL_OCTU, FL_OCTD, FL_N };   // FL_NOTE = toggle the note itself (so you add notes WITHOUT leaving FLAG for SEQ). (LEN moved out — it's a per-LINE loop length, now a draggable handle at the end of the note-bars, not a per-step flag)
-static int  armed = FL_NOTE;                 // which flag a bar-tap paints (default NOTE = add notes right from the FLAG screen)
+static int  s_armed = FL_NOTE;                 // which flag a bar-tap paints (default NOTE = add notes right from the FLAG screen)
 static const char *FLNAME[FL_N] = { "NOTE", "ACC", "SLD", "TIE", "OCT+", "OCT-" };
 enum { LK_TUNE, LK_DEC, LK_CHAR, LK_VOL, LK_PAN, LK_N };    // continuous-lane params (doff[] index). VOL = per-step level (velocity); PAN = per-step stereo
 // drum-depth flags. STRK = 909-only. The continuous lanes (TUN/DEC/CHAR/VOL) map to LK_* by
@@ -180,7 +180,7 @@ static const char *CH9[TR9_NV] = { "ATTK","SNPY","CLIK","CLIK","CLIK",0,0,0,0,"T
 static int  paint_val = 0;                    // what a FLAG paint-drag writes (decided on the first cell)
 static int flag_get(int i, int s, int f) {
     switch (f) {
-    case FL_NOTE: return on[i][s];
+    case FL_NOTE: return s_on[i][s];
     case FL_ACC:  return acc[i][s];
     case FL_SLD:  return sld[i][s];
     case FL_TIE:  return tie[i][s];
@@ -191,7 +191,7 @@ static int flag_get(int i, int s, int f) {
 }
 static void flag_set(int i, int s, int f, int v) {
     switch (f) {
-    case FL_NOTE: on[i][s] = v; break;
+    case FL_NOTE: s_on[i][s] = v; break;
     case FL_ACC:  acc[i][s] = v; break;
     case FL_SLD:  sld[i][s] = v; break;
     case FL_TIE:  tie[i][s] = v; break;
@@ -381,11 +381,11 @@ static void  vow_tick(void) {                // every frame: ease the vowel + th
 // flags/lanes + length), NOT the sound (knobs/key/tuning/FX stay global — you sculpt the
 // timbre once and switch which pattern plays it). Live edits happen on the live arrays;
 // switching SAVES the live arrays into the old slot and LOADS the new one (copy-on-switch,
-// so the draw/fire code stays unchanged). curpat[machine] = 0 holds today's default beat.
+// so the draw/fire code stays unchanged).b_curpat[machine] = 0 holds today's default beat.
 #define NPAT 4
-typedef struct { int on[STEPS], pit[STEPS], acc[STEPS], sld[STEPS], tie[STEPS], oct[STEPS], plen; } P303;
-typedef struct { int grid[TR_NV][STEPS], acc[TR_NV][STEPS], prob[TR_NV][STEPS]; float off[LK_N][TR_NV][STEPS]; } P808;
-typedef struct { int grid[TR9_NV][STEPS], acc[TR9_NV][STEPS], prob[TR9_NV][STEPS], strk[TR9_NV][STEPS]; float off[LK_N][TR9_NV][STEPS]; } P909;
+typedef struct { int b_on[STEPS], b_pit[STEPS], b_acc[STEPS], b_sld[STEPS], b_tie[STEPS], b_oct[STEPS], b_plen; } P303;
+typedef struct { int grid[TR_NV][STEPS], b_acc[TR_NV][STEPS], prob[TR_NV][STEPS]; float off[LK_N][TR_NV][STEPS]; } P808;
+typedef struct { int grid[TR9_NV][STEPS], b_acc[TR9_NV][STEPS], prob[TR9_NV][STEPS], strk[TR9_NV][STEPS]; float off[LK_N][TR9_NV][STEPS]; } P909;
 static P303 pat303[2][NPAT];        // [line][slot]
 static P808 pat808[NPAT];
 static P909 pat909[NPAT];
@@ -394,23 +394,23 @@ static int  armpat[M_N] = { -1, -1, -1, -1, -1 };  // QUEUED next slot per machi
 
 static void pat_io_303(int i, int s, int save) { P303 *p = &pat303[i][s];   // save!=0 : live→slot ; else slot→live
     for (int k = 0; k < STEPS; k++) {
-        int *L[6] = { on[i], pit[i], acc[i], sld[i], tie[i], oct[i] };
-        int *P[6] = { p->on, p->pit, p->acc, p->sld, p->tie, p->oct };
+        int *L[6] = { s_on[i], pit[i], acc[i], sld[i], tie[i], oct[i] };
+        int *P[6] = { p->b_on, p->b_pit, p->b_acc, p->b_sld, p->b_tie, p->b_oct };
         for (int a = 0; a < 6; a++) { if (save) P[a][k] = L[a][k]; else L[a][k] = P[a][k]; }
     }
-    if (save) p->plen = plen[i]; else plen[i] = p->plen;
+    if (save) p->b_plen = plen[i]; else plen[i] = p->b_plen;
 }
 static void pat_io_808(int s, int save) { P808 *p = &pat808[s];
     for (int v = 0; v < TR_NV; v++) for (int k = 0; k < STEPS; k++)
-        if (save) { p->grid[v][k] = dgrid[v][k]; p->acc[v][k] = dacc[v][k]; p->prob[v][k] = dprob[v][k]; }
-        else      { dgrid[v][k] = p->grid[v][k]; dacc[v][k] = p->acc[v][k]; dprob[v][k] = p->prob[v][k]; }
+        if (save) { p->grid[v][k] = dgrid[v][k]; p->b_acc[v][k] = dacc[v][k]; p->prob[v][k] = dprob[v][k]; }
+        else      { dgrid[v][k] = p->grid[v][k]; dacc[v][k] = p->b_acc[v][k]; dprob[v][k] = p->prob[v][k]; }
     for (int a = 0; a < LK_N; a++) for (int v = 0; v < TR_NV; v++) for (int k = 0; k < STEPS; k++)
         { if (save) p->off[a][v][k] = doff[a][v][k]; else doff[a][v][k] = p->off[a][v][k]; }
 }
 static void pat_io_909(int s, int save) { P909 *p = &pat909[s];
     for (int v = 0; v < TR9_NV; v++) for (int k = 0; k < STEPS; k++)
-        if (save) { p->grid[v][k] = d9grid[v][k]; p->acc[v][k] = d9acc[v][k]; p->prob[v][k] = d9prob[v][k]; p->strk[v][k] = d9strk[v][k]; }
-        else      { d9grid[v][k] = p->grid[v][k]; d9acc[v][k] = p->acc[v][k]; d9prob[v][k] = p->prob[v][k]; d9strk[v][k] = p->strk[v][k]; }
+        if (save) { p->grid[v][k] = d9grid[v][k]; p->b_acc[v][k] = d9acc[v][k]; p->prob[v][k] = d9prob[v][k]; p->strk[v][k] = d9strk[v][k]; }
+        else      { d9grid[v][k] = p->grid[v][k]; d9acc[v][k] = p->b_acc[v][k]; d9prob[v][k] = p->prob[v][k]; d9strk[v][k] = p->strk[v][k]; }
     for (int a = 0; a < LK_N; a++) for (int v = 0; v < TR9_NV; v++) for (int k = 0; k < STEPS; k++)
         { if (save) p->off[a][v][k] = d9off[a][v][k]; else d9off[a][v][k] = p->off[a][v][k]; }
 }
@@ -423,7 +423,7 @@ static void pat_switch(int m, int s) {
 }
 
 // transport (shared across the rack)
-static int   playing = 1, step = 0, laststep = -1, laststep303[2] = { -1, -1 };   // laststep303[i] = each 303 line's OWN (swung, PERF-speed-lensed) step trigger
+static int   playing = 1, s_step = 0, laststep = -1, laststep303[2] = { -1, -1 };   // laststep303[i] = each 303 line's OWN (swung, PERF-speed-lensed) step trigger
 static float mbop = 0;
 static float g_bpm = 132;                                   // master TEMPO (rack-scope, MST face); drives the step clock + the tempo-synced delay
 static float bpm01 = 0.5143f;                               // MST TEMPO-knob proxy (0..1 → g_bpm 60..200; 0.5143 → 132, matches g_bpm's init)
@@ -509,7 +509,7 @@ static void apply_fx(void) {
         if (mflt < 0.48f) cut = 18000.0f * powf(150.0f / 18000.0f, (0.48f - mflt) / 0.48f);   // FLT lowpass
         int pcf_active = 0;
         for (int s = 0; s < STEPS; s++) if (mpcf[s] < 7) { pcf_active = 1; break; }
-        if (pcf_active) { float pc = 250.0f * powf(2.0f, mpcf[step] / 7.0f * 5.2f); if (pc < cut) cut = pc; }
+        if (pcf_active) { float pc = 250.0f * powf(2.0f, mpcf[s_step] / 7.0f * 5.2f); if (pc < cut) cut = pc; }
         if (cut < 1e9f) filter(FILTER_LOW, cut, res);
         else            filter(FILTER_OFF, 1000.0f, 0.0f);
     }
@@ -517,19 +517,19 @@ static void apply_fx(void) {
     // crush degrades bit-depth). crush() is NOT ride-safe → reconfigure ONLY when the step's
     // drawn level changes (set-and-hold). 0 = clean bypass; up = fewer bits + rate reduction + wetter.
     static int aCrush = -1;
-    if (mcrush[step] != aCrush) {
-        float c = mcrush[step] / 7.0f;
+    if (mcrush[s_step] != aCrush) {
+        float c = mcrush[s_step] / 7.0f;
         crush(16.0f - c * 13.0f, 1.0f + c * 24.0f, c);
-        aCrush = mcrush[step];
+        aCrush = mcrush[s_step];
     }
     // master GATE lane — the drawn per-step chop (PCF's RHYTHM twin). 7 = open (threshold 0 =
     // bypass); drawing DOWN raises the gate threshold → the step cuts (snappy release = a stutter).
     // set-and-hold on step change (gate() is not ride-safe).
     static int aGate = -1;
-    if (mgate[step] != aGate) {
-        float thr = (1.0f - mgate[step] / 7.0f) * 0.85f;
+    if (mgate[s_step] != aGate) {
+        float thr = (1.0f - mgate[s_step] / 7.0f) * 0.85f;
         gate(thr, 2, 45);
-        aGate = mgate[step];
+        aGate = mgate[s_step];
     }
     // GLU / PUMP share the master gain stage → mutually exclusive (PUMP wins)
     int   pumping = mpump > 0.02f, mode = pumping ? 1 : 0;
@@ -595,7 +595,7 @@ static void apply_fx(void) {
 // line's own KEY/SCALE (mscale), so GEN respects the key you set.
 static void gen_line(int i, int d) {
     plen[i] = STEPS;
-    for (int s = 0; s < STEPS; s++) { on[i][s] = acc[i][s] = sld[i][s] = oct[i][s] = tie[i][s] = pit[i][s] = 0; }
+    for (int s = 0; s < STEPS; s++) { s_on[i][s] = acc[i][s] = sld[i][s] = oct[i][s] = tie[i][s] = pit[i][s] = 0; }
     if (d == 0) return;                                                   // CLEAR = empty
 
     const KeyScale *sc = &SCALES[mscale[i]];
@@ -624,18 +624,18 @@ static void gen_line(int i, int d) {
     int last = STEPS / ML - 1;
     for (int s = 0; s < STEPS; s++) {
         int c = s % ML, rep = s / ML, strong = (s % 4 == 0);
-        on[i][s]  = rnd_between(0, 99) < gate;
+        s_on[i][s]  = rnd_between(0, 99) < gate;
         pit[i][s] = cellpit[c];
         acc[i][s] = rnd_between(0, 99) < (strong ? accp + 22 : accp);     // strong steps accented more
         oct[i][s] = rnd_between(0, 99) < (rep == last ? octp + 18 : octp);// the acid octave climb on the final repeat
-        if (!on[i][s]) tie[i][s] = rnd_between(0, 99) < 18;               // a held tail through some rests
+        if (!s_on[i][s]) tie[i][s] = rnd_between(0, 99) < 18;               // a held tail through some rests
     }
-    on[i][0] = 1; acc[i][0] = 1; pit[i][0] = sc->deg[0]; oct[i][0] = 0;   // strong ROOT downbeat, anchored
+    s_on[i][0] = 1; acc[i][0] = 1; pit[i][0] = sc->deg[0]; oct[i][0] = 0;   // strong ROOT downbeat, anchored
 
     // SLIDES — glide between consecutive sounding notes (the liquid 303 legato)
     for (int s = 0; s < STEPS; s++) {
         int ns = (s + 1) % STEPS;
-        if (on[i][s] && (on[i][ns] || tie[i][ns]) && rnd_between(0, 99) < sldp) sld[i][s] = 1;
+        if (s_on[i][s] && (s_on[i][ns] || tie[i][ns]) && rnd_between(0, 99) < sldp) sld[i][s] = 1;
     }
 }
 
@@ -1276,7 +1276,7 @@ static void draw_303(Box stage, int i) {
     }
     if (pscreen[i] == PS_FLAG) {
         for (int f = 0; f < FL_N; f++) { Box c = lay_grid(gc, 3, FL_N, f, 2);   // the 6-flag palette
-            if (lcdbtn(0x0Au + f, (int)c.x, (int)c.y, (int)c.w, (int)c.h, FLNAME[f], armed == f)) armed = f; }
+            if (lcdbtn(0x0Au + f, (int)c.x, (int)c.y, (int)c.w, (int)c.h, FLNAME[f], s_armed == f)) s_armed = f; }
     } else if (pscreen[i] == PS_FX) {                                 // FX + voice character, LCD-native
         Box knobs; Box clean = lay_split(gc, EDGE_BOTTOM, gc.h * 0.28f, &knobs);   // bottom strip = the CLEAN/RAW saw toggle
         lcdknob_cell(lay_grid(knobs, 4, 4, 0, 2), &a->p[ACID_DRV], "DRV",   0.35f);
@@ -1361,10 +1361,10 @@ static void draw_303(Box stage, int i) {
             if (gcc) { g_drag_frame = ui_frame_ct; g_drag_y = gcc->cy;
                 int px = gcc->released ? gcc->rx : gcc->cx, py = gcc->released ? gcc->ry : gcc->cy;
                 int cell = (int)((px - gc.x) / sw); if (cell < 0) cell = 0; if (cell >= plen[i]) cell = plen[i] - 1;
-                sel[i] = cell;
-                if (py >= bot - 4) on[i][cell] = 0;                  // bottom rest band → note OFF (pitch kept)
+                s_sel[i] = cell;
+                if (py >= bot - 4) s_on[i][cell] = 0;                  // bottom rest band → note OFF (pitch kept)
                 else { float frac = clamp((bot - 4 - py) / (float)(span - 5), 0, 1);
-                       pit[i][cell] = SCALES[mscale[i]].deg[(int)(frac * (SCALES[mscale[i]].n - 1) + 0.5f)]; on[i][cell] = 1; } }
+                       pit[i][cell] = SCALES[mscale[i]].deg[(int)(frac * (SCALES[mscale[i]].n - 1) + 0.5f)]; s_on[i][cell] = 1; } }
         }
         int heldy = -1;
         for (int s = 0; s < plen[i]; s++) {
@@ -1372,12 +1372,12 @@ static void draw_303(Box stage, int i) {
             if (s == lpos[i] && playing) { blend(BLEND_AVG); rectfill(cx, top, pw, span, CLR_MEDIUM_GREEN); blend_reset(); }
             int pitch = pit[i][s] + oct[i][s] * 6; if (pitch < 0) pitch = 0; if (pitch > 24) pitch = 24;   // ~2 octaves of range
             int y = bot - 2 - pitch * (span - 3) / 24;
-            if (on[i][s]) {
+            if (s_on[i][s]) {
                 if (acc[i][s]) rectfill(cx, y - 3, pw - 1, 1, CLR_ORANGE);                   // accent cap above
                 rectfill(cx, y, pw - 1, 2, acc[i][s] ? CLR_LIGHT_YELLOW : CLR_LIME_GREEN);   // the note
                 if (sld[i][s]) {
                     int ns = (s + 1) % plen[i];
-                    if (on[i][ns] || tie[i][ns]) {
+                    if (s_on[i][ns] || tie[i][ns]) {
                         int np = tie[i][ns] ? pitch : pit[i][ns] + oct[i][ns] * 6; if (np < 0) np = 0; if (np > 24) np = 24;
                         int ny = bot - 2 - np * (span - 3) / 24;
                         line(cx + pw - 1, y + 1, (int)(gc.x + (s + 1) * sw), ny + 1, CLR_MEDIUM_GREEN);
@@ -1406,12 +1406,12 @@ static void draw_303(Box stage, int i) {
             UiCap *c = ui_cap_for(w); int hot = (c != 0);
             if (c && ui_grabbed(w)) {                                        // fire once on grab (tap)
                 if (k <= 12) {                                               // note → write sel + advance
-                    pit[i][sel[i]] = k; oct[i][sel[i]] = key_oct; on[i][sel[i]] = 1; mbop = 1;
-                    if (playing) acid_note(&ac[i], ac[i].base + mroot[i] + loct[i] * 12 + k + key_oct * 12, acc[i][sel[i]], 0);
-                    sel[i] = (sel[i] + 1) % plen[i];
+                    pit[i][s_sel[i]] = k; oct[i][s_sel[i]] = key_oct; s_on[i][s_sel[i]] = 1; mbop = 1;
+                    if (playing) acid_note(&ac[i], ac[i].base + mroot[i] + loct[i] * 12 + k + key_oct * 12, acc[i][s_sel[i]], 0);
+                    s_sel[i] = (s_sel[i] + 1) % plen[i];
                 } else if (k == 13) { if (key_oct > -1) key_oct--; }
                 else if (k == 14) { if (key_oct <  2) key_oct++; }
-                else { int ls = (sel[i] + plen[i] - 1) % plen[i]; sld[i][ls] = !sld[i][ls]; }   // SLIDE on the last-entered step
+                else { int ls = (s_sel[i] + plen[i] - 1) % plen[i]; sld[i][ls] = !sld[i][ls]; }   // SLIDE on the last-entered step
             }
             int fill = (k <= 12) ? (kblack[k] ? CLR_BROWNISH_BLACK : CLR_DARK_GREEN)
                      : (k == 15) ? CLR_INDIGO : CLR_DARK_PURPLE;
@@ -1434,34 +1434,34 @@ static void draw_303(Box stage, int i) {
             if (c) { g_drag_frame = ui_frame_ct; g_drag_y = c->cy; }
             if (pscreen[i] == PS_FLAG) {                 // FLAG mode: tap or DRAG paints the armed flag
                 if (c) {                                 // the captured bar tracks the finger across the row
-                    if (ui_grabbed(w)) paint_val = !flag_get(i, s, armed);
+                    if (ui_grabbed(w)) paint_val = !flag_get(i, s, s_armed);
                     int fx = c->released ? c->rx : c->cx, cell = (int)((fx - notes.x) / stepw);
                     if (cell < 0) cell = 0; if (cell >= STEPS) cell = STEPS - 1;
-                    sel[i] = cell;
-                    flag_set(i, cell, armed, paint_val);             // paint the same value across the drag
+                    s_sel[i] = cell;
+                    flag_set(i, cell, s_armed, paint_val);             // paint the same value across the drag
                 }
             } else if (c) {                              // NORMAL (SEQ): tap toggles; DRAG draws the melody
-                if (ui_grabbed(w)) { drag_gx = c->cx; drag_gy = c->cy; drag_axis = 0; drag_on0 = on[i][s]; sel[i] = s; }
+                if (ui_grabbed(w)) { drag_gx = c->cx; drag_gy = c->cy; drag_axis = 0; drag_on0 = s_on[i][s]; s_sel[i] = s; }
                 int px = c->released ? c->rx : c->cx, py = c->released ? c->ry : c->cy;
                 int adx = px - drag_gx; if (adx < 0) adx = -adx;
                 int ady = py - drag_gy; if (ady < 0) ady = -ady;
                 if (!drag_axis && (adx > 4 || ady > 4)) drag_axis = 1;   // moved past the deadzone → drawing
                 if (drag_axis && !seq_grid) {                        // free draw: height = pitch, bottom = rest (GRID mode owns pitch → bars are tap-on/off only)
                     int cell = (int)((px - notes.x) / stepw); if (cell < 0) cell = 0; if (cell >= STEPS) cell = STEPS - 1;
-                    sel[i] = cell;
-                    if (py >= by + bh - 4) on[i][cell] = 0;          // bottom band → note OFF (pitch kept)
+                    s_sel[i] = cell;
+                    if (py >= by + bh - 4) s_on[i][cell] = 0;          // bottom band → note OFF (pitch kept)
                     else {
                         float frac = clamp((by + bh - 4 - py) / (float)(bh - 5), 0, 1);
                         pit[i][cell] = SCALES[mscale[i]].deg[(int)(frac * (SCALES[mscale[i]].n - 1) + 0.5f)];
-                        on[i][cell] = 1;
+                        s_on[i][cell] = 1;
                     }
                 }
-                if (ui_released(w) && !drag_axis) { on[i][s] = !drag_on0; sel[i] = s; if (on[i][s]) mbop = 1; }
+                if (ui_released(w) && !drag_axis) { s_on[i][s] = !drag_on0; s_sel[i] = s; if (s_on[i][s]) mbop = 1; }
             }
             int here = (s == lpos[i] && playing);
             rrectfill(bx, by, bw, bh, 1, dead ? CLR_DARKER_PURPLE : CLR_DARK_BROWN);
             if (here) { blend(BLEND_AVG); rrectfill(bx, by, bw, bh, 1, CLR_MEDIUM_GREEN); blend_reset(); }
-            if (on[i][s] && !dead) {
+            if (s_on[i][s] && !dead) {
                 int idx = scale_idx(mscale[i], pit[i][s]);
                 int fh = seq_grid ? bh : bh * (idx + 1) / SCALES[mscale[i]].n;   // GRID: full-cell (pitch lives on the grid) · BARS: pitch-proportional
                 rrectfill(bx, by + bh - fh, bw, fh, 1, acc[i][s] ? CLR_ORANGE : CLR_LIME_GREEN);
@@ -1469,15 +1469,15 @@ static void draw_303(Box stage, int i) {
                     rectfill(bx, by + bh - fh, bw, 1, CLR_WHITE);
                     int ns = (s + 1) % plen[i];
                     int nidx = tie[i][ns] ? idx : scale_idx(mscale[i], pit[i][ns]);
-                    int ntop = (on[i][ns] || tie[i][ns]) ? by + bh - bh * (nidx + 1) / SCALES[mscale[i]].n : by + bh - fh;
+                    int ntop = (s_on[i][ns] || tie[i][ns]) ? by + bh - bh * (nidx + 1) / SCALES[mscale[i]].n : by + bh - fh;
                     line(bx + bw - 1, by + bh - fh, bx + bw + 1, ntop, CLR_WHITE);
                 }
                 if (oct[i][s] > 0) rectfill(bx + 1, by + 1, bw - 2, 2, CLR_LIGHT_YELLOW);           // OCT+
                 if (oct[i][s] < 0) rectfill(bx + 1, by + bh - 3, bw - 2, 2, CLR_TRUE_BLUE);         // OCT-
             }
-            if (tie[i][s] && !on[i][s] && !dead) rectfill(bx, by + bh / 2, bw, 2, CLR_TRUE_BLUE);  // TIE = hold prev
+            if (tie[i][s] && !s_on[i][s] && !dead) rectfill(bx, by + bh / 2, bw, 2, CLR_TRUE_BLUE);  // TIE = hold prev
             if (!dead && s == plen[i] - 1 && plen[i] < STEPS) rectfill(bx + bw, by, 1, bh, CLR_RED);  // loop end
-            rrect(bx, by, bw, bh, 1, (here || (pscreen[i] != PS_FLAG && s == sel[i])) ? CLR_WHITE : CLR_BROWNISH_BLACK);
+            rrect(bx, by, bw, bh, 1, (here || (pscreen[i] != PS_FLAG && s == s_sel[i])) ? CLR_WHITE : CLR_BROWNISH_BLACK);
         }
         {   // LOOP-END handle — a little grab RECT in the strip just BELOW the cells, sitting at the
             // loop boundary (the end of the length). Drag it to set THIS line's loop LENGTH /
@@ -1500,11 +1500,11 @@ static void draw_303(Box stage, int i) {
         for (int s = 0; s < STEPS; s++) {
             int x = 6 + s * 9, pr = 0, hot = 0, foc = 0;
             void *wid = ui_wid_hash(0x30u + s, x, 64, 8, 9);
-            if (ui_button_core(wid, x, 64, 8, 9, &foc, &pr, &hot)) { on[i][s] = !on[i][s]; sel[i] = s; if (on[i][s]) mbop = 1; }
-            int fc = on[i][s] ? (acc[i][s] ? CLR_ORANGE : CLR_LIME_GREEN) : CLR_DARK_BROWN;
-            if (s == step && playing) fc = CLR_WHITE;
+            if (ui_button_core(wid, x, 64, 8, 9, &foc, &pr, &hot)) { s_on[i][s] = !s_on[i][s]; s_sel[i] = s; if (s_on[i][s]) mbop = 1; }
+            int fc = s_on[i][s] ? (acc[i][s] ? CLR_ORANGE : CLR_LIME_GREEN) : CLR_DARK_BROWN;
+            if (s == s_step && playing) fc = CLR_WHITE;
             rrectfill(x, 64, 8, 9, 1, fc);
-            if (s == sel[i]) rrect(x - 1, 63, 10, 11, 1, CLR_LIGHT_YELLOW);
+            if (s == s_sel[i]) rrect(x - 1, 63, 10, 11, 1, CLR_LIGHT_YELLOW);
             rrect(x, 64, 8, 9, 1, CLR_BROWNISH_BLACK);
         }
         // ⑤ keybed — tap a key to set the selected step's pitch + audition it
@@ -1514,8 +1514,8 @@ static void draw_303(Box stage, int i) {
         for (int n = 0; n < 12; n++) if (!isblack[n]) {
             int x = kb + wi * 21; wi++;
             int pr = 0, hot = 0, foc = 0; void *wid = ui_wid_hash(0x50u + n, x, ky, 20, kh);
-            if (ui_button_core(wid, x, ky, 20, kh, &foc, &pr, &hot)) { pit[i][sel[i]] = n; on[i][sel[i]] = 1; mbop = 1; acid_note(a, a->base + mroot[i] + loct[i] * 12 + n, 0, 0); }
-            int lit = pit[i][sel[i]] == n && on[i][sel[i]];
+            if (ui_button_core(wid, x, ky, 20, kh, &foc, &pr, &hot)) { pit[i][s_sel[i]] = n; s_on[i][s_sel[i]] = 1; mbop = 1; acid_note(a, a->base + mroot[i] + loct[i] * 12 + n, 0, 0); }
+            int lit = pit[i][s_sel[i]] == n && s_on[i][s_sel[i]];
             rrectfill(x, ky, 20, kh, 2, lit ? CLR_LIGHT_YELLOW : CLR_LIGHT_PEACH);
             rrect(x, ky, 20, kh, 2, CLR_BROWNISH_BLACK);
         }
@@ -1524,8 +1524,8 @@ static void draw_303(Box stage, int i) {
             if (isblack[n]) {
                 int x = kb + wi * 21 - 6;
                 int pr = 0, hot = 0, foc = 0; void *wid = ui_wid_hash(0x60u + n, x, ky, 12, 9);
-                if (ui_button_core(wid, x, ky, 12, 9, &foc, &pr, &hot)) { pit[i][sel[i]] = n; on[i][sel[i]] = 1; mbop = 1; acid_note(a, a->base + mroot[i] + loct[i] * 12 + n, 0, 0); }
-                int lit = pit[i][sel[i]] == n && on[i][sel[i]];
+                if (ui_button_core(wid, x, ky, 12, 9, &foc, &pr, &hot)) { pit[i][s_sel[i]] = n; s_on[i][s_sel[i]] = 1; mbop = 1; acid_note(a, a->base + mroot[i] + loct[i] * 12 + n, 0, 0); }
+                int lit = pit[i][s_sel[i]] == n && s_on[i][s_sel[i]];
                 rrectfill(x, ky, 12, 9, 1, lit ? CLR_LIGHT_YELLOW : CLR_BROWNISH_BLACK);
                 rrect(x, ky, 12, 9, 1, CLR_BLACK);
             } else wi++;
@@ -1611,7 +1611,7 @@ static void draw_808(Box stage) {
         float gsw = grid.w / (float)STEPS;
         for (int r = 0; r < TR_NV; r++) { int v = VL[r], gy = (int)grid.y + r;
             for (int s = 0; s < STEPS; s++) { int gx = (int)(grid.x + s * gsw);
-                if (s == step && playing) { blend(BLEND_AVG); rectfill(gx - 1, (int)grid.y, (int)gsw, TR_NV, CLR_MEDIUM_GREEN); blend_reset(); }
+                if (s == s_step && playing) { blend(BLEND_AVG); rectfill(gx - 1, (int)grid.y, (int)gsw, TR_NV, CLR_MEDIUM_GREEN); blend_reset(); }
                 if (dgrid[v][s]) rectfill(gx, gy, (int)gsw - 1 < 2 ? 2 : (int)gsw - 1, 1, dmute[v] ? CLR_DARKER_GREY : v == dsel ? CLR_LIGHT_YELLOW : CLR_LIME_GREEN);
             } }
     } else if (dscreen == DS_PAT) {                         // PAT — A-D banks
@@ -1647,7 +1647,7 @@ static void draw_808(Box stage) {
             if (dmut_now) { if (ui_grabbed(wp)) dmute[v] = !dmute[v]; }   // MUT live — a tap mutes, directly (no hold delay)
             else if (ui_grabbed(wp)) {                                    // default: SELECT — audition only when STOPPED (an off-grid hit would smear the running groove; REC is the audible opt-in while playing)
                 dsel = v;
-                if (drec_now && playing) { dgrid[v][step] = 1; tr808_fire(TR808_BASE, v, 1, 0, dtune, ddecay, dcolor); dtrig[v] = 1; }   // REC lit → punch + hear it
+                if (drec_now && playing) { dgrid[v][s_step] = 1; tr808_fire(TR808_BASE, v, 1, 0, dtune, ddecay, dcolor); dtrig[v] = 1; }   // REC lit → punch + hear it
                 else if (!playing)       { tr808_fire(TR808_BASE, v, 1, 0, dtune, ddecay, dcolor); dtrig[v] = 1; }
                 if (dscreen == DS_GEN || dscreen == DS_PAT || dscreen == DS_PERF || dscreen == DS_KIT)
                     dscreen = DS_VCE;                                     // machine-scoped screens yield to a voice tap; VCE/FLAG stay sticky
@@ -1680,7 +1680,7 @@ static void draw_808(Box stage) {
     // ⑤ the HITS — the picked voice's 16 steps, on the bottom, spread across the width.
     int hby = (int)hits.y, hbh = (int)hits.h; float hsw = hits.w / (float)STEPS;
     for (int s = 0; s < STEPS; s++) {
-        int x = (int)(hits.x + s * hsw), bw = (int)hsw - 1, here = (s == step && playing); if (bw < 4) bw = 4;
+        int x = (int)(hits.x + s * hsw), bw = (int)hsw - 1, here = (s == s_step && playing); if (bw < 4) bw = 4;
         void *ws = ui_wid_hash(0xA0u + s, x, hby, bw, hbh); ui_reg(ws, x, hby, bw, hbh, 0);
         UiCap *c = ui_cap_for(ws);
         if (c) {
@@ -1792,7 +1792,7 @@ static void draw_909(Box stage) {
         float gsw = grid.w / (float)STEPS;
         for (int r = 0; r < TR9_NV; r++) { int v = VL[r], gy = (int)grid.y + r;
             for (int s = 0; s < STEPS; s++) { int gx = (int)(grid.x + s * gsw);
-                if (s == step && playing) { blend(BLEND_AVG); rectfill(gx - 1, (int)grid.y, (int)gsw, TR9_NV, CLR_MEDIUM_GREEN); blend_reset(); }
+                if (s == s_step && playing) { blend(BLEND_AVG); rectfill(gx - 1, (int)grid.y, (int)gsw, TR9_NV, CLR_MEDIUM_GREEN); blend_reset(); }
                 if (d9grid[v][s]) rectfill(gx, gy, (int)gsw - 1 < 2 ? 2 : (int)gsw - 1, 1, d9mute[v] ? CLR_DARKER_GREY : v == d9sel ? CLR_LIGHT_YELLOW : CLR_LIME_GREEN);
             } }
     } else if (dscreen == DS_PAT) {                         // PAT — A-D banks
@@ -1828,7 +1828,7 @@ static void draw_909(Box stage) {
             if (dmut_now) { if (ui_grabbed(wp)) d9mute[v] = !d9mute[v]; }   // MUT live — a tap mutes, directly (no hold delay)
             else if (ui_grabbed(wp)) {                                      // default: SELECT — audition only when STOPPED (see the 808 note; REC is the audible opt-in while playing)
                 d9sel = v;
-                if (drec_now && playing) { d9grid[v][step] = 1; tr909_fire(D909_BASE, v, 1, 0, d9tune, d9decay, d9color); d9trig[v] = 1; }   // REC lit → punch + hear it
+                if (drec_now && playing) { d9grid[v][s_step] = 1; tr909_fire(D909_BASE, v, 1, 0, d9tune, d9decay, d9color); d9trig[v] = 1; }   // REC lit → punch + hear it
                 else if (!playing)       { tr909_fire(D909_BASE, v, 1, 0, d9tune, d9decay, d9color); d9trig[v] = 1; }
                 if (dscreen == DS_GEN || dscreen == DS_PAT || dscreen == DS_PERF || dscreen == DS_KIT)
                     dscreen = DS_VCE;                                        // machine-scoped screens yield to a voice tap; VCE/FLAG stay sticky
@@ -1859,7 +1859,7 @@ static void draw_909(Box stage) {
     // ⑤ the HITS — picked voice's 16 steps, spread across the width; amber, white downbeat accents.
     int hby = (int)hits.y, hbh = (int)hits.h; float hsw = hits.w / (float)STEPS;
     for (int s = 0; s < STEPS; s++) {
-        int x = (int)(hits.x + s * hsw), bw = (int)hsw - 1, here = (s == step && playing); if (bw < 4) bw = 4;
+        int x = (int)(hits.x + s * hsw), bw = (int)hsw - 1, here = (s == s_step && playing); if (bw < 4) bw = 4;
         void *ws = ui_wid_hash(0xA0u + s, x, hby, bw, hbh); ui_reg(ws, x, hby, bw, hbh, 0);
         UiCap *c = ui_cap_for(ws);
         if (c) {
@@ -1913,10 +1913,10 @@ static void r2_mstmidi(Box b);   // ONE MIDI panel, drawn by BOTH views — see 
 // a per-machine mix overview + the shared delay. Green identity.
 static int machine_active(int m) {
     if (!playing) return 0;
-    if (m == M_303A) return on[0][step];
-    if (m == M_303B) return on[1][step];
-    if (m == M_808) { for (int v = 0; v < TR_NV; v++)  if (dgrid[v][step])  return 1; return 0; }
-    if (m == M_909) { for (int v = 0; v < TR9_NV; v++) if (d9grid[v][step]) return 1; return 0; }
+    if (m == M_303A) return s_on[0][s_step];
+    if (m == M_303B) return s_on[1][s_step];
+    if (m == M_808) { for (int v = 0; v < TR_NV; v++)  if (dgrid[v][s_step])  return 1; return 0; }
+    if (m == M_909) { for (int v = 0; v < TR9_NV; v++) if (d9grid[v][s_step]) return 1; return 0; }
     return 0;
 }
 // The SONG save/load core lives just above init() (it needs apply_fx/pat_io/etc.);
@@ -2190,7 +2190,7 @@ static void draw_mst(Box stage) {
                 int cell = (int)((fx - gc.x) / lsw); if (cell < 0) cell = 0; if (cell >= STEPS) cell = STEPS - 1;
                 lane[cell] = (int)(clamp((ly + lh - 1 - fy) / (float)(lh - 1), 0, 1) * 7 + 0.5f);
             }
-            if (s == step && playing) { blend(BLEND_AVG); rectfill(cx, ly, lw, lh, CLR_MEDIUM_GREEN); blend_reset(); }
+            if (s == s_step && playing) { blend(BLEND_AVG); rectfill(cx, ly, lw, lh, CLR_MEDIUM_GREEN); blend_reset(); }
             int fh = lh * lane[s] / 7;
             if (mstflow == 2) {                              // CRUSH — orange; floor tick when clean
                 if (fh > 0) rectfill(cx, ly + lh - fh, lw, fh, CLR_ORANGE);
@@ -2241,22 +2241,22 @@ typedef struct {                 // the sound-defining half of an Acid — NOT i
 
 typedef struct {
     // sequences — every pattern bank of every machine + which bank each has selected
-    P303 pat303[2][NPAT];
-    P808 pat808[NPAT];
-    P909 pat909[NPAT];
-    int  curpat[M_N];
+    P303 b_pat303[2][NPAT];
+    P808 b_pat808[NPAT];
+    P909 b_pat909[NPAT];
+    int  b_curpat[M_N];
     // 303 sound (per line)
-    AcidSnap ac[2];
-    int  mroot[2], mscale[2], loct[2], kpage[2], plen[2];
+    AcidSnap b_ac[2];
+    int  b_mroot[2], b_mscale[2], b_loct[2], b_kpage[2], b_plen[2];
     // drum sound (global, per voice)
-    float dtune[TR_NV], ddecay[TR_NV], dcolor[TR_NV], dvol[TR_NV], dpan[TR_NV], dfine[TR_NV];
-    float d9tune[TR9_NV], d9decay[TR9_NV], d9color[TR9_NV], d9vol[TR9_NV], d9pan[TR9_NV], d9fine[TR9_NV];
-    float m9cut, m9res;
+    float b_dtune[TR_NV], b_ddecay[TR_NV], b_dcolor[TR_NV], b_dvol[TR_NV], b_dpan[TR_NV], b_dfine[TR_NV];
+    float b_d9tune[TR9_NV], b_d9decay[TR9_NV], b_d9color[TR9_NV], b_d9vol[TR9_NV], b_d9pan[TR9_NV], b_d9fine[TR9_NV];
+    float b_m9cut, b_m9res;
     int   mmute[M_N];                // per-MACHINE mute (the cartridge-LED mute); MST's entry is unused
-    int   dmute[TR_NV], d9mute[TR9_NV];
+    int   b_dmute[TR_NV], b_d9mute[TR9_NV];
     // master fx + transport
-    float mglu, mflt, mfres, mfb, mpump, msend[4], fxverb[4], dist8, dist9, level[M_N];
-    int   mdiv, mpcf[STEPS], mcrush[STEPS], mgate[STEPS];
+    float b_mglu, b_mflt, b_mfres, b_mfb, b_mpump, b_msend[4], b_fxverb[4], b_dist8, b_dist9, b_level[M_N];
+    int   b_mdiv, b_mpcf[STEPS], b_mcrush[STEPS], b_mgate[STEPS];
     float g_bpm_s, bpm01_s, g_swing_s;
 } SaveBlob;
 
@@ -2298,55 +2298,55 @@ static void song_flush_live(void) {
 static void song_capture(SaveBlob *b) {
     memset(b, 0, sizeof *b);       // zero padding too, so memcmp dirty-checks are stable
     song_flush_live();
-    memcpy(b->pat303, pat303, sizeof pat303);
-    memcpy(b->pat808, pat808, sizeof pat808);
-    memcpy(b->pat909, pat909, sizeof pat909);
-    memcpy(b->curpat, curpat, sizeof curpat);
-    for (int i = 0; i < 2; i++) acid_snap_save(&b->ac[i], &ac[i]);
-    memcpy(b->mroot, mroot, sizeof mroot);   memcpy(b->mscale, mscale, sizeof mscale);
-    memcpy(b->loct, loct, sizeof loct);      memcpy(b->kpage, kpage, sizeof kpage);
-    memcpy(b->plen, plen, sizeof plen);
-    memcpy(b->dtune, dtune, sizeof dtune);   memcpy(b->ddecay, ddecay, sizeof ddecay);
-    memcpy(b->dcolor, dcolor, sizeof dcolor);memcpy(b->dvol, dvol, sizeof dvol);
-    memcpy(b->dpan, dpan, sizeof dpan);      memcpy(b->dfine, dfine, sizeof dfine);
-    memcpy(b->d9tune, d9tune, sizeof d9tune);memcpy(b->d9decay, d9decay, sizeof d9decay);
-    memcpy(b->d9color, d9color, sizeof d9color);memcpy(b->d9vol, d9vol, sizeof d9vol);
-    memcpy(b->d9pan, d9pan, sizeof d9pan);   memcpy(b->d9fine, d9fine, sizeof d9fine);
-    b->m9cut = m9cut; b->m9res = m9res;
+    memcpy(b->b_pat303, pat303, sizeof pat303);
+    memcpy(b->b_pat808, pat808, sizeof pat808);
+    memcpy(b->b_pat909, pat909, sizeof pat909);
+    memcpy(b->b_curpat, curpat, sizeof curpat);
+    for (int i = 0; i < 2; i++) acid_snap_save(&b->b_ac[i], &ac[i]);
+    memcpy(b->b_mroot, mroot, sizeof mroot);   memcpy(b->b_mscale, mscale, sizeof mscale);
+    memcpy(b->b_loct, loct, sizeof loct);      memcpy(b->b_kpage, kpage, sizeof kpage);
+    memcpy(b->b_plen, plen, sizeof plen);
+    memcpy(b->b_dtune, dtune, sizeof dtune);   memcpy(b->b_ddecay, ddecay, sizeof ddecay);
+    memcpy(b->b_dcolor, dcolor, sizeof dcolor);memcpy(b->b_dvol, dvol, sizeof dvol);
+    memcpy(b->b_dpan, dpan, sizeof dpan);      memcpy(b->b_dfine, dfine, sizeof dfine);
+    memcpy(b->b_d9tune, d9tune, sizeof d9tune);memcpy(b->b_d9decay, d9decay, sizeof d9decay);
+    memcpy(b->b_d9color, d9color, sizeof d9color);memcpy(b->b_d9vol, d9vol, sizeof d9vol);
+    memcpy(b->b_d9pan, d9pan, sizeof d9pan);   memcpy(b->b_d9fine, d9fine, sizeof d9fine);
+    b->b_m9cut = m9cut; b->b_m9res = m9res;
     for (int m = 0; m < M_N; m++) b->mmute[m] = mac[m].mute;
-    memcpy(b->dmute, dmute, sizeof dmute);   memcpy(b->d9mute, d9mute, sizeof d9mute);
-    b->mglu = mglu; b->mflt = mflt; b->mfres = mfres; b->mfb = mfb; b->mpump = mpump;
-    memcpy(b->msend, msend, sizeof msend);   memcpy(b->fxverb, fxverb, sizeof fxverb);
-    b->dist8 = dist8; b->dist9 = dist9; memcpy(b->level, level, sizeof level);
-    b->mdiv = mdiv;
-    memcpy(b->mpcf, mpcf, sizeof mpcf); memcpy(b->mcrush, mcrush, sizeof mcrush); memcpy(b->mgate, mgate, sizeof mgate);
+    memcpy(b->b_dmute, dmute, sizeof dmute);   memcpy(b->b_d9mute, d9mute, sizeof d9mute);
+    b->b_mglu = mglu; b->b_mflt = mflt; b->b_mfres = mfres; b->b_mfb = mfb; b->b_mpump = mpump;
+    memcpy(b->b_msend, msend, sizeof msend);   memcpy(b->b_fxverb, fxverb, sizeof fxverb);
+    b->b_dist8 = dist8; b->b_dist9 = dist9; memcpy(b->b_level, level, sizeof level);
+    b->b_mdiv = mdiv;
+    memcpy(b->b_mpcf, mpcf, sizeof mpcf); memcpy(b->b_mcrush, mcrush, sizeof mcrush); memcpy(b->b_mgate, mgate, sizeof mgate);
     b->g_bpm_s = g_bpm; b->bpm01_s = bpm01; b->g_swing_s = g_swing;
 }
 
 static void song_restore(const SaveBlob *b) {
-    memcpy(pat303, b->pat303, sizeof pat303);
-    memcpy(pat808, b->pat808, sizeof pat808);
-    memcpy(pat909, b->pat909, sizeof pat909);
-    memcpy(curpat, b->curpat, sizeof curpat);
+    memcpy(pat303, b->b_pat303, sizeof pat303);
+    memcpy(pat808, b->b_pat808, sizeof pat808);
+    memcpy(pat909, b->b_pat909, sizeof pat909);
+    memcpy(curpat, b->b_curpat, sizeof curpat);
     for (int m = 0; m < M_N; m++) armpat[m] = -1;      // drop any queued bank switches
-    for (int i = 0; i < 2; i++) acid_snap_load(&ac[i], &b->ac[i]);
-    memcpy(mroot, b->mroot, sizeof mroot);   memcpy(mscale, b->mscale, sizeof mscale);
-    memcpy(loct, b->loct, sizeof loct);      memcpy(kpage, b->kpage, sizeof kpage);
-    memcpy(plen, b->plen, sizeof plen);
-    memcpy(dtune, b->dtune, sizeof dtune);   memcpy(ddecay, b->ddecay, sizeof ddecay);
-    memcpy(dcolor, b->dcolor, sizeof dcolor);memcpy(dvol, b->dvol, sizeof dvol);
-    memcpy(dpan, b->dpan, sizeof dpan);      memcpy(dfine, b->dfine, sizeof dfine);
-    memcpy(d9tune, b->d9tune, sizeof d9tune);memcpy(d9decay, b->d9decay, sizeof d9decay);
-    memcpy(d9color, b->d9color, sizeof d9color);memcpy(d9vol, b->d9vol, sizeof d9vol);
-    memcpy(d9pan, b->d9pan, sizeof d9pan);   memcpy(d9fine, b->d9fine, sizeof d9fine);
-    m9cut = b->m9cut; m9res = b->m9res;
+    for (int i = 0; i < 2; i++) acid_snap_load(&ac[i], &b->b_ac[i]);
+    memcpy(mroot, b->b_mroot, sizeof mroot);   memcpy(mscale, b->b_mscale, sizeof mscale);
+    memcpy(loct, b->b_loct, sizeof loct);      memcpy(kpage, b->b_kpage, sizeof kpage);
+    memcpy(plen, b->b_plen, sizeof plen);
+    memcpy(dtune, b->b_dtune, sizeof dtune);   memcpy(ddecay, b->b_ddecay, sizeof ddecay);
+    memcpy(dcolor, b->b_dcolor, sizeof dcolor);memcpy(dvol, b->b_dvol, sizeof dvol);
+    memcpy(dpan, b->b_dpan, sizeof dpan);      memcpy(dfine, b->b_dfine, sizeof dfine);
+    memcpy(d9tune, b->b_d9tune, sizeof d9tune);memcpy(d9decay, b->b_d9decay, sizeof d9decay);
+    memcpy(d9color, b->b_d9color, sizeof d9color);memcpy(d9vol, b->b_d9vol, sizeof d9vol);
+    memcpy(d9pan, b->b_d9pan, sizeof d9pan);   memcpy(d9fine, b->b_d9fine, sizeof d9fine);
+    m9cut = b->b_m9cut; m9res = b->b_m9res;
     for (int m = 0; m < M_N; m++) mac[m].mute = b->mmute[m];
-    memcpy(dmute, b->dmute, sizeof dmute);   memcpy(d9mute, b->d9mute, sizeof d9mute);
-    mglu = b->mglu; mflt = b->mflt; mfres = b->mfres; mfb = b->mfb; mpump = b->mpump;
-    memcpy(msend, b->msend, sizeof msend);   memcpy(fxverb, b->fxverb, sizeof fxverb);
-    dist8 = b->dist8; dist9 = b->dist9; memcpy(level, b->level, sizeof level);
-    mdiv = b->mdiv;
-    memcpy(mpcf, b->mpcf, sizeof mpcf); memcpy(mcrush, b->mcrush, sizeof mcrush); memcpy(mgate, b->mgate, sizeof mgate);
+    memcpy(dmute, b->b_dmute, sizeof dmute);   memcpy(d9mute, b->b_d9mute, sizeof d9mute);
+    mglu = b->b_mglu; mflt = b->b_mflt; mfres = b->b_mfres; mfb = b->b_mfb; mpump = b->b_mpump;
+    memcpy(msend, b->b_msend, sizeof msend);   memcpy(fxverb, b->b_fxverb, sizeof fxverb);
+    dist8 = b->b_dist8; dist9 = b->b_dist9; memcpy(level, b->b_level, sizeof level);
+    mdiv = b->b_mdiv;
+    memcpy(mpcf, b->b_mpcf, sizeof mpcf); memcpy(mcrush, b->b_mcrush, sizeof mcrush); memcpy(mgate, b->b_mgate, sizeof mgate);
     g_bpm = b->g_bpm_s; bpm01 = b->bpm01_s; g_swing = b->g_swing_s;
     // re-sync the LIVE editing arrays from the restored current banks
     pat_io_303(0, curpat[M_303A], 0);
@@ -2527,7 +2527,7 @@ void init(void) {
     pan_law(PAN_LINEAR);                                   // fixed rack pan law (the LIN/PWR toggle was removed; LINEAR = engine default)
     // pattern slots are zero-filled = empty, but two fields must NOT be 0 or a fresh slot is UNPLAYABLE:
     // 303 plen 0 → ctr%0 (playhead UB); drum prob 0 → every hit 0% trig. Seed them empty-but-PLAYABLE.
-    for (int i = 0; i < 2; i++) for (int s = 0; s < NPAT; s++) pat303[i][s].plen = STEPS;
+    for (int i = 0; i < 2; i++) for (int s = 0; s < NPAT; s++) pat303[i][s].b_plen = STEPS;
     for (int s = 0; s < NPAT; s++) for (int v = 0; v < TR_NV;  v++) for (int k = 0; k < STEPS; k++) pat808[s].prob[v][k] = 100;
     for (int s = 0; s < NPAT; s++) for (int v = 0; v < TR9_NV; v++) for (int k = 0; k < STEPS; k++) pat909[s].prob[v][k] = 100;
     for (int s = 0; s < STEPS; s++) mpcf[s] = 7;           // PCF lane starts fully open (no effect)
@@ -2592,13 +2592,13 @@ void update(void) {
     if (playing) {
         float stepf = g_phase;                                         // 16th-note counter (polymeter), live-tempo
         int   ctr = (int)stepf;                                        // free-running counter (polymeter)
-        step = ctr % STEPS;                                            // drums + shared display base
+        s_step = ctr % STEPS;                                            // drums + shared display base
         float frac = stepf - ctr;
 
         // LIVE bank switch — armed (queued) bank changes LAND on the bar downbeat, so the
         // whole rack flips in time. Runs before the 303/drum blocks read their arrays, so
         // the new pattern plays from step 0. Fires once per bar (ctr flip into step 0).
-        if (ctr != laststep && step == 0)
+        if (ctr != laststep && s_step == 0)
             for (int m = 0; m < M_N; m++) if (armpat[m] >= 0) { pat_switch(m, armpat[m]); armpat[m] = -1; }
 
         // ── ONE master SWING (g_swing, MST face — ReBirth's model). The 303s and
@@ -2646,7 +2646,7 @@ void update(void) {
                 int accent = acc[i][ls] || pf_acc[i];                          // total-accent lens
                 int slide  = pf_stac[i] ? 0 : pf_glide[i] ? 1 : sld[i][ls];    // slide-flip lens
                 int oshift = (pf_oct[i] && (lcs & 1)) ? -12 : 0;               // OCT lens: every OTHER step (odd counter) an octave down — the acid bounce
-                if (on[i][ls]) {
+                if (s_on[i][ls]) {
                     int midi = ac[i].base + mroot[i] + loct[i] * 12 + pit[i][ls] + oct[i][ls] * 12 + oshift;
                     acid_note(&ac[i], midi, accent, slide); mbop = 1;
                     mo_303(i, midi, accent, slide);                   // …and out the wire, same note/accent/slide
@@ -2659,7 +2659,7 @@ void update(void) {
                 int raw = lcs % plen[i];
                 int ls  = pf_rev[i] ? (plen[i] - 1 - raw) : raw;
                 int slide = pf_stac[i] ? 0 : sld[i][ls];             // STAC forces staccato; else a slid step glides OUT
-                if (on[i][ls] && !slide) {                           // gate ONLY a fresh, NON-slid note (tb303's rule): a slid
+                if (s_on[i][ls] && !slide) {                           // gate ONLY a fresh, NON-slid note (tb303's rule): a slid
                     float onset = (lcs & 1) ? sw : 0.0f;             // step must ring on to glide, and a tie/rest holds — cutting
                     int rawn = (lcs + 1) % plen[i];                  // them at 70% was the bug (manual slides never actually glided)
                     int nx = pf_rev[i] ? (plen[i] - 1 - rawn) : rawn;
@@ -2672,8 +2672,8 @@ void update(void) {
         // (tempo-scaled: one 16th = 15000/bpm ms, so the feel holds at any BPM).
         if (ctr != laststep) {
             laststep = ctr;
-            int swms = (step & 1) ? (int)(sw * (15000.0f / g_bpm)) : 0;   // the same 0..0.6-of-a-16th shuffle, in ms
-            int es8 = drum_effstep(0, step);                      // beat-repeat: WHICH pattern column plays (timing stays on `step`)
+            int swms = (s_step & 1) ? (int)(sw * (15000.0f / g_bpm)) : 0;   // the same 0..0.6-of-a-16th shuffle, in ms
+            int es8 = drum_effstep(0, s_step);                      // beat-repeat: WHICH pattern column plays (timing stays on `step`)
             for (int v = 0; v < TR_NV; v++) {                     // the 808 line, same transport
                 int hit = dgrid[v][es8] && !(dprob[v][es8] < 100 && rnd(100) >= dprob[v][es8]);
                 int ghost = 0;
@@ -2695,7 +2695,7 @@ void update(void) {
                     for (int p = 0; p < nl; p++) if (L[p].sink == SK_ARG) *L[p].knob = sv[p];
                 }
             }
-            int es9 = drum_effstep(1, step);
+            int es9 = drum_effstep(1, s_step);
             for (int v = 0; v < TR9_NV; v++) {                    // the 909 line
                 int hit = d9grid[v][es9] && !(d9prob[v][es9] < 100 && rnd(100) >= d9prob[v][es9]);
                 int ghost = 0;
@@ -2724,7 +2724,7 @@ void update(void) {
         }
     } else for (int i = 0; i < 2; i++) acid_off(&ac[i]);
 #ifdef DE_TRACE
-    watch("face", "%d", face); watch("step", "%d", step); watch("cut", "%d", acid_cut_hz(&ac[0]));
+    watch("face", "%d", face); watch("step", "%d", s_step); watch("cut", "%d", acid_cut_hz(&ac[0]));
     watch("mute0", "%d", mac[0].mute); watch("mute1", "%d", mac[1].mute);
     // SPEAK diagnostics — these earned their keep: a byte-identical SPEAK A/B was traced to the
     // 303s being MUTED at boot (so acid_note, and therefore vow_attack, never ran) in one look.
@@ -2872,10 +2872,10 @@ static void r2_screen303(Box g, int i) {
         int s = (px - gx) / step, frow = (py - gy) / rh;
         if (s >= 0 && s < plen[i] && frow >= 0 && frow < NR) {
             int deg = (NR - 1) - frow;
-            int match = on[i][s] && scale_idx(mscale[i], pit[i][s]) == deg && oct[i][s] == pen;  // the exact same note under the pen
+            int match = s_on[i][s] && scale_idx(mscale[i], pit[i][s]) == deg && oct[i][s] == pen;  // the exact same note under the pen
             if (ui_grabbed(w)) note_erase = match;
-            if (note_erase) { if (match) on[i][s] = 0; }
-            else { on[i][s] = 1; pit[i][s] = SCALES[mscale[i]].deg[deg]; oct[i][s] = pen; }   // draw at the pen octave
+            if (note_erase) { if (match) s_on[i][s] = 0; }
+            else { s_on[i][s] = 1; pit[i][s] = SCALES[mscale[i]].deg[deg]; oct[i][s] = pen; }   // draw at the pen octave
         }
     }
     // faint grid + beat lines (the walking playhead is drawn ON TOP at the end)
@@ -2885,7 +2885,7 @@ static void r2_screen303(Box g, int i) {
     for (int r = 0; r <= NR; r++) line(gx, gy + r * rh, gx + gw, gy + r * rh, CLR_BROWNISH_BLACK);
     // the notes
     for (int s = 0; s < plen[i]; s++) {
-        if (!on[i][s]) { if (tie[i][s]) rectfill(gx + s * step, gy + gh / 2, step - 1, 2, CLR_TRUE_BLUE); continue; }
+        if (!s_on[i][s]) { if (tie[i][s]) rectfill(gx + s * step, gy + gh / 2, step - 1, 2, CLR_TRUE_BLUE); continue; }
         int idx = scale_idx(mscale[i], pit[i][s]), row = (NR - 1) - idx;
         int ry = gy + row * rh, cx = gx + s * step;
         int cw = step - 1 + (tie[i][s] ? step : 0), col = acc[i][s] ? CLR_WHITE : hi;
@@ -2893,7 +2893,7 @@ static void r2_screen303(Box g, int i) {
         if (oct[i][s] > 0) { line(cx + 2, ry + 4, cx + 4, ry + 1, CLR_BLACK); line(cx + 4, ry + 1, cx + 6, ry + 4, CLR_BLACK); }
         else if (oct[i][s] < 0) { line(cx + 2, ry + rh - 5, cx + 4, ry + rh - 2, CLR_BLACK); line(cx + 4, ry + rh - 2, cx + 6, ry + rh - 5, CLR_BLACK); }
         int ns = (s + 1) % plen[i];
-        if (sld[i][s] && on[i][ns]) { int r2 = (NR - 1) - scale_idx(mscale[i], pit[i][ns]);
+        if (sld[i][s] && s_on[i][ns]) { int r2 = (NR - 1) - scale_idx(mscale[i], pit[i][ns]);
             line(cx + step, ry + rh / 2, gx + ns * step, gy + r2 * rh + rh / 2, CLR_LIGHT_PEACH); }
     }
     // ── the OCTAVE PEN — an "active draw octave" toggle (^ up / — center / v down). Notes drawn on the
@@ -2936,7 +2936,7 @@ static void r2_screendrum(Box g, int focus) {
     int (*prbg)[STEPS] = (focus == M_808) ? dprob : d9prob;
     const char **vn = (focus == M_808) ? AB8 : AB9;
     int sel = (focus == M_808) ? dsel : d9sel;
-    int tstep = step;   // capture the global transport step before the local `step` (cell width) shadows it below
+    int tstep = s_step;   // capture the global transport step before the local `step` (cell width) shadows it below
     int gut = 13, gx = (int)g.x + gut, gy = (int)g.y, gw = (int)g.w - gut - 1, gh = (int)g.h;
     if (r2_dpaint >= 4) {   // p-lock LANE for the SELECTED voice — a bipolar per-step OFFSET (TUN/DEC/⟨char⟩) you draw
         int lk = r2_dpaint - 4, step0 = gw / STEPS, cy0 = gy + gh / 2, half = gh / 2 - 2;
@@ -3024,7 +3024,7 @@ static void r2_mstlane_draw(Box lb, int L, int tstep) {
 // SHARED SCREEN — master, ALL AT ONCE (no tabs): the 4-channel mixer on the left, the three
 // per-step automation lanes PCF / CRUSH / GATE on the right — the 3-up overview, or one EXPANDED.
 static void r2_screenmst(Box g) {
-    int tstep = step;                                        // transport step, before local `step` shadows it
+    int tstep = s_step;                                        // transport step, before local `step` shadows it
     Box mx = lay_split(g, EDGE_LEFT, lay_clamp(g.w * 0.26f, 40, 90), &g);
     // ── the 4-channel mixer ──
     { static const int MC[4] = { M_303A, M_303B, M_808, M_909 };

@@ -209,6 +209,14 @@ Named so the next session does not assume otherwise:
     - **The apply is DEFERRED to the top of the next `de_frame`.** The host sets state on its own
       thread while the frame worker runs, and the cart's state belongs to `de_frame`. So
       `de_load_state` returning 1 means *accepted*, and the rack changes one frame later.
+    - **The lint the plan asked for is written: `tools/lint-saved-state.js`** (in repo-doctor, 10
+      known answers both directions). Two tiers, because they are not equally strong: a POINTER is an
+      ERROR (the type proves it), a live HANDLE is ADVISORY and matched by NAME, since a handle is a
+      plain `int` that no static check can distinguish. **It found a real defect on its first run** —
+      `acidcandy`'s `nav_poison[6]`, an array of widget pointers sitting inside the saved `CartState`,
+      committed an hour before under a comment claiming the struct had no pointers. The claim came
+      from grepping for X-list rows in a file that has no X-list, so "0 matches" meant "nothing to
+      check", not "nothing wrong". Moved to a scratch slice.
     - ⚠ **Slice granularity is the honest limit.** A slice is all-or-nothing, so `acidcandy`'s whole
       `CartState` travels — including any position counters inside it. The engine's sound side does
       come back at step 0 with nothing held (that is what the reset buys), but a cart wanting

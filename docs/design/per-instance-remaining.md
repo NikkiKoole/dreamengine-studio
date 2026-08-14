@@ -140,8 +140,10 @@ frames from a worker while the view copies on another thread.
   design as written on this page was wrong twice — the `de_state()` block cannot be serialized
   verbatim (its arena header is pointers) and the "no pointers" rule was already broken by `ui.h`,
   with live voice HANDLES in `keybed.h`/`solo.h`/`radio.h` being the worse case a pointer lint cannot
-  see. Corrected in [`engine-instance-seam.md`](engine-instance-seam.md). Still open: the Swift half
-  is ungated, and the pointer/handle lint for saved slices is unwritten.
+  see. Corrected in [`engine-instance-seam.md`](engine-instance-seam.md). The lint exists too
+  (`tools/lint-saved-state.js`) and earned itself immediately — it caught a `void *` array inside
+  `acidcandy`'s saved slice that had shipped an hour earlier. **Still open: the Swift half is
+  ungated** (nothing instantiates the AU's object graph).
 - **GarageBand's iPad-layout toggle has never worked** for this plug-in. Pre-dates all of this; the
   CART is fine (`play.js acidcandy --resize` reflows correctly). Filed in `STATUS.md`.
 - **The `--panel` gate is RED, and what it is failing on is now narrower.** Re-run 2026-08-14 after

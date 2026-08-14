@@ -787,6 +787,19 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
                              for). If a cart needs an extern, THE SEAM IS MISSING AN API (that is how
                              `canvas_resize` was born). Arity is read FROM the header, so it cannot
                              drift. `--selfcheck` = 14 known answers, both directions per check
+             lint-saved-state.js  nothing in a SAVED session-state slice (`de_state_for_saved` /
+                             `DE_CTX_BLOCK_SAVED`) may be meaningful only to the instance that wrote it —
+                             the blob is restored into ANOTHER process. Two tiers, honest about their own
+                             strength: a POINTER is an ERROR (the type says so), a LIVE VOICE HANDLE is
+                             ADVISORY and matched by NAME, because a handle is a plain `int` and no static
+                             check can tell it from any other int. That second tier is why a pointer-only
+                             lint would not do: keybed.h/solo.h/radio.h all hold handles, which is exactly
+                             why they are SCRATCH. Found a real one on its FIRST run — `acidcandy`'s
+                             `nav_poison[6]`, an array of WIDGET POINTERS inside the saved CartState,
+                             committed an hour earlier under a comment claiming there were none.
+                             `--selfcheck` = 10 known answers in BOTH DIRECTIONS (the same list on the
+                             SCRATCH macro must be silent), because this lint's failure mode is not a
+                             false positive but going quietly blind. Runtime behaviour: tools/state-check
              lint-fxicons.js every `FX_*` insert kind must have a shared GLYPH in runtime/fxicons.h
                              (body colour + accent + name + icon). The failure is SILENT and worse than
                              blank: an unregistered kind falls through fx_icon()'s `else` and draws a

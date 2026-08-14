@@ -262,8 +262,10 @@ typedef struct {
     int rpt_was[2];
     int g_drag_frame;
     int g_drag_y;
-    void *nav_poison[6];
-    int nav_poison_n;
+    /* nav_poison MOVED OUT of CartState (2026-08-14) — see AcidScratch below. It is an array of
+     * WIDGET POINTERS, and CartState is a SAVED slice, so it would have been written into the host's
+     * project file and restored into another process as six stale addresses. Found by
+     * tools/lint-saved-state.js on its first run. */
     SaveBank g_bank;
     SaveBlob g_scratch;
     int save_cooldown;
@@ -388,13 +390,32 @@ static CartState de_cart_default = {
 static char de_cart_key_;
 static CartState *de_cart_(void) {
     /* _saved: this is the rack the PLAYER built — knobs, patterns, machine selection — so it is what
-     * de_save_state writes into the host's session state and restores on reopen. Safe to save because
-     * every one of these 598 lines is a plain value: no pointers, no live voice handles. */
+     * de_save_state writes into the host's session state and restores on reopen. Every member is a
+     * plain value; the one POINTER that used to live here (nav_poison, an array of widget addresses)
+     * moved to AcidScratch below, because a saved slice is restored into a different process where an
+     * address from this one names nothing. Kept honest by tools/lint-saved-state.js. */
     CartState *c = (CartState *)de_state_for_saved(&de_cart_key_, (int)sizeof(CartState));
     if (c && !c->de_ctx_inited_) { *c = de_cart_default; c->de_ctx_inited_ = 1; }
     return c;
 }
 #define de_cart de_cart_()
+#endif
+
+/* ── SCRATCH: per-instance, but NEVER saved ───────────────────────────────────────────────────────
+ * The nav-focus poison list is UI bookkeeping rebuilt as you move around the panel, and it holds
+ * WIDGET POINTERS. It has to be per-instance for the same reason everything else here does (two racks
+ * must not share a focus ring), but it must not travel in a session blob. Hence the second slice:
+ * `de_state_for` rather than `de_state_for_saved`. */
+typedef struct { void *nav_poison[6]; int nav_poison_n; } AcidScratch;
+#ifndef DE_CART_CTX
+static AcidScratch de_acid_scratch_default;
+#define de_acid_scratch (&de_acid_scratch_default)
+#else
+static char de_acid_scratch_key_;
+static AcidScratch *de_acid_scratch_(void) {
+    return (AcidScratch *)de_state_for(&de_acid_scratch_key_, (int)sizeof(AcidScratch));
+}
+#define de_acid_scratch de_acid_scratch_()
 #endif
 
 /* the access block: every name the cart already uses, pointed at the context.
@@ -586,8 +607,8 @@ static CartState *de_cart_(void) {
 #define rpt_was        (de_cart->rpt_was)
 #define g_drag_frame   (de_cart->g_drag_frame)
 #define g_drag_y       (de_cart->g_drag_y)
-#define nav_poison     (de_cart->nav_poison)
-#define nav_poison_n   (de_cart->nav_poison_n)
+#define nav_poison     (de_acid_scratch->nav_poison)
+#define nav_poison_n   (de_acid_scratch->nav_poison_n)
 #define g_bank         (de_cart->g_bank)
 #define g_scratch      (de_cart->g_scratch)
 #define save_cooldown  (de_cart->save_cooldown)

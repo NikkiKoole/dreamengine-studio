@@ -641,8 +641,10 @@ Detail lives in the linked design doc in every case; that is where it was always
 > already violated by `ui.h` — while `keybed.h`/`solo.h`/`radio.h` hold live voice HANDLES, which are
 > plain ints and so invisible to a pointer lint. Hence per-slice opt-in with **scratch as the
 > default**. ⚠ STILL OPEN: nothing exercises the twelve Swift lines (no gate instantiates the AU's
-> object graph — the same blind spot that shipped three double-engine bugs), and a pointer/handle lint
-> for saved slices is not written yet.
+> object graph — the same blind spot that shipped three double-engine bugs).
+> The lint IS written (`tools/lint-saved-state.js`, in repo-doctor) and **caught a real one on its
+> first run**: `acidcandy`'s `nav_poison[6]`, an array of widget POINTERS inside the saved `CartState`,
+> committed an hour earlier under a comment asserting there were none. Moved to a scratch slice.
 >
 > Opened 2026-08-13, found while designing the instance seam. `ios/AU/TinyjamAU.swift` implements no
 > `fullState`, no `parameterTree`, no presets — nothing. So a buyer who saves a song and reopens it

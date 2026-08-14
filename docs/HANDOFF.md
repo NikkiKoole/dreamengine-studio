@@ -154,12 +154,18 @@ a broken doc link or `#section`).
 > follows it, and inside that history the block headed `▼ superseded` is factually WRONG and kept only so
 > the trail of how it was believed is readable.
 >
-> **▶ NEXT ACTION (2026-08-14): TEST TWO GARAGEBAND TRACKS.** Every piece of shared state that made
-> them one rack is gone — engine, cart-land headers, and the cart's own 198. `bash ios/mac.sh`, then
-> load the plug-in on two tracks and play them independently. That is the measurement the whole lane
-> has been building toward, and the one thing no gate here can stand in for. Expect the PANELS to
-> still be wrong if both are open: the published frame (`de_pres_*`) is the one shared thing left, so
-> two views cannot yet show different pictures — audio independence is what to judge.
+> **✅ TWO GARAGEBAND TRACKS SOUND CORRECT (maker, 2026-08-14).** Defect (B) — the live defect this
+> whole lane existed to fix, "load the plug-in on two tracks and the sound goes weird" — is CLOSED.
+> Every piece of shared state that made two tracks one rack is gone: engine (601 → 148 statics, the
+> rest recorded decisions), all 8 cart-land headers, and the cart's own 198. Measured, not inferred.
+>
+> **▶ NEXT ACTION: the PICTURE.** The published frame (`de_pres_*`) is the one shared thing left, so
+> two open panels cannot yet show different pictures — the sound is right and the view may be the
+> other rack's. It sits inside `#ifdef DE_NO_RAYLIB`, so `ctx-gen` refuses it (it reads one
+> configuration), and it must move together with `fb_w`/`fb_h`/`de_sw`/`de_sh` and the `sw_*`
+> buffers: a half-moved framebuffer group already made `cls()` write past the end of another
+> instance's canvas once. Order and reasoning: items 1–3 of
+> [`design/per-instance-remaining.md`](design/per-instance-remaining.md).
 >
 > **STATE: it works, except for one thing.** The plug-in plays, follows the host's tempo and transport,
 > survives a whole song, converts to any host sample rate, shows our own panel, and the panel is attached

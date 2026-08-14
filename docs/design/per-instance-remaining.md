@@ -116,6 +116,7 @@ frames from a worker while the view copies on another thread.
 | the cart | `acidcandy`'s **198 statics** (168 file-scope + 30 hoisted out of function bodies) moved, and it defines `DE_CART_CTX` so its headers fork too. **0 statics left in the cart TU.** |
 | gates | `instance-check`, `run-uictx.sh`, `refactor-guard`, `engine-statics`, `ctx-gen --check` |
 | verified | **one track clean in GarageBand** (maker, 2026-08-14): stable panel, no regression |
+| **VERIFIED** | **TWO GarageBand tracks sound correct** (maker, 2026-08-14). This is the goal at the top of this page, met. Defect (B) — "load it on two tracks and the sound goes weird" — is CLOSED. Everything still listed above is a picture problem or a gap to decide, not two racks fighting over one engine. |
 
 ### How the cart move was done (the part that kept going wrong)
 

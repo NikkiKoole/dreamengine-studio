@@ -82,6 +82,30 @@ extern void de_resize(int w, int h);   // engine seam (platform.h): set the acti
                                        // it to a CHUNKY ratio-matched canvas (see draw) so the 160×100
                                        // scales up crisp + the leftover ratio-offset spreads, no bars.
 
+#define NSLOT 6   // hoisted with the two SONG panels' state below (a macro body is only text until expanded)
+// ── state that used to be FUNCTION-LOCAL statics ──────────────────────────────
+// Hoisted to file scope so the per-instance context can hold it: `#define name (de_cart->name)`
+// rewrites USES, and a declaration inside a function body is not a use. Same storage, same
+// compile-time initialisers, same lifetime — a static is a static wherever it is written. The
+// names that appeared twice are the only ones that changed (two SONG panels each had shf/confirm).
+static float aS[4] = { -1, -1, -1, -1 }, aComp = -1, aBpm = -1, aEf = -1;
+static int   aMode = -2, aEt = -1;
+static int aCrush = -1;
+static int aGate = -1;
+static float aFlm = -2, aFlf = -2, aPhm = -2, aPhf = -2, aSwpRate = -2; static int aFlon = -1, aPhon = -1;
+static float aVw = -2, aVq = -2, aVm = -2;
+static float aRv[4] = { -1, -1, -1, -1 };
+static float aD8 = -1, aD9 = -1;
+static float aLv[4] = { -1, -1, -1, -1 };
+static char bpm3_buf[4];
+static int use_bars = 1;
+static unsigned tick = 0;
+static int note_erase;
+static int sng_shf[NSLOT] = { 0 };
+static int r2sng_shf[NSLOT] = { 0 };
+static int sng_confirm = -1;
+static int r2sng_confirm = -1;
+
 // ACID CANDY — a candy-toy acid RACK on the device-face skeleton, 160x100. The
 // nav spine is a strip of colour CARTRIDGES you focus machines through (nav=faces);
 // the acid VOICE is the shared runtime/acid303.h. This cart is the FACE + the rack.
@@ -484,8 +508,6 @@ static void pat_queue(int m, int s) {
 // fx-frame rule); the live FLT is ride-safe so it runs every frame. Voicings
 // copied from acidrack's apply_fx so the master matches the mature rack.
 static void apply_fx(void) {
-    static float aS[4] = { -1, -1, -1, -1 }, aComp = -1, aBpm = -1, aEf = -1;
-    static int   aMode = -2, aEt = -1;
     {   // the shared delay unit: tempo-synced DIVISION (buttons) + the FB knob. Set-and-hold —
         // echo() re-applies only when the computed time/fb CHANGE (echo() is not ride-safe).
         static const float DIV[4] = { 0.25f, 0.5f, 0.75f, 1.0f };   // 1/16 · 1/8 · dotted · 1/4
@@ -516,7 +538,6 @@ static void apply_fx(void) {
     // master CRUSH lane — the drawn per-step bitcrush (PCF's TEXTURE twin: filter darkens tone,
     // crush degrades bit-depth). crush() is NOT ride-safe → reconfigure ONLY when the step's
     // drawn level changes (set-and-hold). 0 = clean bypass; up = fewer bits + rate reduction + wetter.
-    static int aCrush = -1;
     if (mcrush[s_step] != aCrush) {
         float c = mcrush[s_step] / 7.0f;
         crush(16.0f - c * 13.0f, 1.0f + c * 24.0f, c);
@@ -525,7 +546,6 @@ static void apply_fx(void) {
     // master GATE lane — the drawn per-step chop (PCF's RHYTHM twin). 7 = open (threshold 0 =
     // bypass); drawing DOWN raises the gate threshold → the step cuts (snappy release = a stutter).
     // set-and-hold on step change (gate() is not ride-safe).
-    static int aGate = -1;
     if (mgate[s_step] != aGate) {
         float thr = (1.0f - mgate[s_step] / 7.0f) * 0.85f;
         gate(thr, 2, 45);
@@ -546,7 +566,6 @@ static void apply_fx(void) {
     // safe): reconfigured only on a control change. A disabled device is held DRY (mix 0).
     // The hub's DRY kill (FXDRY) forces every device dry here, WITHOUT touching its arm flag — so
     // lifting DRY restores the exact blend. It's folded into the change-guard via the *_live locals.
-    static float aFlm = -2, aFlf = -2, aPhm = -2, aPhf = -2, aSwpRate = -2; static int aFlon = -1, aPhon = -1;
     {
         static const float SBARS[3] = { 1.0f, 2.0f, 4.0f };
         float srate = g_bpm / (240.0f * SBARS[mswdiv]);        // Hz: one LFO cycle per N bars (4 beats/bar)
@@ -562,7 +581,6 @@ static void apply_fx(void) {
     // (fx_set_formant is a pure coefficient write — no buffer rebuild, no state reset), unlike
     // crush/gate/flanger above, so sweeping it live is free; we still push only on CHANGE to keep the
     // ctrl queue quiet. Disarmed (or DRY) = mix 0 = a dormant, byte-identical bypass.
-    static float aVw = -2, aVq = -2, aVm = -2;
     {
         float vw = vow_live();                                  // SPEAK on → the glided per-note vowel; else the knob
         float vm = (vowon && !FXDRY) ? vow_wet() : 0.0f;         // ...ducked by the voice gate, so a word can PAUSE
@@ -570,18 +588,15 @@ static void apply_fx(void) {
     }
     // per-machine REVERB sends — 303s into the warm hall (tank 0, sub stays dry),
     // drums into their own plates with the KICK hard-excluded (else it muds the floor).
-    static float aRv[4] = { -1, -1, -1, -1 };
     if (fxverb[0] != aRv[0]) { instrument_reverb(6, fxverb[0]); aRv[0] = fxverb[0]; }
     if (fxverb[1] != aRv[1]) { instrument_reverb(7, fxverb[1]); aRv[1] = fxverb[1]; }
     if (fxverb[2] != aRv[2]) { for (int i = 0; i < TR808_NSLOT; i++) instrument_reverb_bus(TR808_BASE + i, 2, i == TRS_BD ? 0.0f : fxverb[2]); aRv[2] = fxverb[2]; }
     if (fxverb[3] != aRv[3]) { for (int i = 0; i < TR909_NSLOT; i++) instrument_reverb_bus(D909_BASE + i, 1, (i == TR9S_BD || i == TR9S_BDC) ? 0.0f : fxverb[3]); aRv[3] = fxverb[3]; }
     // per-machine drum DISTORTION — ADD on top of the baked kick drive (0 = the stock kit)
-    static float aD8 = -1, aD9 = -1;
     if (dist8 != aD8) { for (int i = 0; i < TR808_NSLOT; i++) { float b = (i == TRS_BD) ? 0.28f : 0.0f; instrument_drive(TR808_BASE + i, b + dist8 * (0.85f - b)); } aD8 = dist8; }
     if (dist9 != aD9) { for (int i = 0; i < TR909_NSLOT; i++) { float b = (i == TR9S_BD) ? 0.35f : 0.0f; instrument_drive(D909_BASE + i, b + dist9 * (0.85f - b)); } aD9 = dist9; }
     // per-machine LEVEL — the tab fader (instrument_level, 1 = unity/stock). 303 = its
     // voice slot + octave-down sub; drums = every kit slot. MST (level[4]) waits on a master vol.
-    static float aLv[4] = { -1, -1, -1, -1 };
     if (level[0] != aLv[0]) { instrument_level(6, level[0]); instrument_level(36, level[0]); aLv[0] = level[0]; }
     if (level[1] != aLv[1]) { instrument_level(7, level[1]); instrument_level(37, level[1]); aLv[1] = level[1]; }
     if (level[2] != aLv[2]) { for (int i = 0; i < TR808_NSLOT; i++) instrument_level(TR808_BASE + i, level[2]); aLv[2] = level[2]; }
@@ -902,10 +917,10 @@ static void gknob(float *v, int cx, int cy, int r, const char *vlabel) {
 
 // the live BPM as 2-3 digits — no str()/printf, this runs every frame in the knob + two readouts
 static const char *bpm3(void) {
-    static char b[4]; int bi = (int)(g_bpm + 0.5f), n = 0;
-    if (bi >= 100) b[n++] = '0' + bi / 100;
-    b[n++] = '0' + (bi / 10) % 10; b[n++] = '0' + bi % 10; b[n] = 0;
-    return b;
+    int bi = (int)(g_bpm + 0.5f), n = 0;
+    if (bi >= 100) bpm3_buf[n++] = '0' + bi / 100;
+    bpm3_buf[n++] = '0' + (bi / 10) % 10; bpm3_buf[n++] = '0' + bi % 10; bpm3_buf[n] = 0;
+    return bpm3_buf;
 }
 
 // tempo_knob_ext — the TEMPO knob's EXTERNAL-CLOCK skin (runtime/sync.h). While something
@@ -1390,7 +1405,7 @@ static void draw_303(Box stage, int i) {
         }
     }
 
-    static int use_bars = 1;   // 1 = the drag-to-pitch NOTE BARS; 0 = the old step row + keybed
+       // 1 = the drag-to-pitch NOTE BARS; 0 = the old step row + keybed
     if (seq_grid && keys_mode) {
         // KEYS — a 13-note chromatic keypad (C..C) + OCT- / OCT+ / SLIDE. 303 STEP-ENTRY: a tap writes
         // the note into the SELECTED step (sel[i]) and advances the cursor; chromatic, so it escapes the
@@ -1922,7 +1937,6 @@ static int machine_active(int m) {
 // The SONG save/load core lives just above init() (it needs apply_fx/pat_io/etc.);
 // the MST SONGS page below drives it through these four accessors — so the page
 // never touches the SaveBank type/global directly.
-#define NSLOT 6
 #define SONG_HOLD (PERF_TAP + 26)    // frames a slot must be HELD to commit a save (~0.6s) — the charge-up bar fills across PERF_TAP..SONG_HOLD
 static int  song_slot_used(int i);   // does slot i hold a saved song?
 static int  song_slot_cur(void);     // last loaded/saved slot (-1 = none) — for the highlight
@@ -2022,8 +2036,8 @@ static void draw_mst(Box stage) {
         // SONGS — six whole-rack song slots. TAP a slot = load · HOLD = save; an
         // OCCUPIED slot asks X/OK before it overwrites. Autosave keeps the live rack,
         // so loading never loses your working take (the "6 songs in master" layer).
-        static int shf[NSLOT] = { 0 };     // per-tile hold-frame counter (tap vs hold, like the PERF lenses)
-        static int confirm = -1;           // slot showing the X/OK overwrite guard (-1 = none)
+             // per-tile hold-frame counter (tap vs hold, like the PERF lenses)
+                   // slot showing the X/OK overwrite guard (-1 = none)
         int cur = song_slot_cur();
         Box hint = lay_split(gc, EDGE_BOTTOM, 6, &gc);        // reserve the bottom for the hint line
         for (int i = 0; i < NSLOT; i++) {
@@ -2031,12 +2045,12 @@ static void draw_mst(Box stage) {
             int x = (int)c.x, y = (int)c.y, w = (int)c.w, h = (int)c.h;
             int used = song_slot_used(i);
             char n[2] = { (char)('1' + i), 0 };
-            if (confirm == i) {                               // this slot is asking before overwrite
-                if (lcdbtn(0xB0u + i, x, y, w / 2 - 1, h, "X", 0))  confirm = -1;                       // cancel
-                if (lcdbtn(0xB8u + i, x + w / 2, y, w - w / 2, h, "OK", 0)) { song_save_slot(i); confirm = -1; }  // overwrite
+            if (sng_confirm == i) {                               // this slot is asking before overwrite
+                if (lcdbtn(0xB0u + i, x, y, w / 2 - 1, h, "X", 0))  sng_confirm = -1;                       // cancel
+                if (lcdbtn(0xB8u + i, x + w / 2, y, w - w / 2, h, "OK", 0)) { song_save_slot(i); sng_confirm = -1; }  // overwrite
                 continue;
             }
-            if (confirm >= 0) {                               // another slot is confirming → this one is inert
+            if (sng_confirm >= 0) {                               // another slot is confirming → this one is inert
                 rrect(x, y, w, h, 2, CLR_MEDIUM_GREEN);
                 print(n, x + 3, y + 2, CLR_MEDIUM_GREEN);
                 if (used) circfill(x + w - 4, y + 4, 1, CLR_MEDIUM_GREEN);
@@ -2045,20 +2059,20 @@ static void draw_mst(Box stage) {
             void *wid = ui_wid_hash(0x68u + i, x, y, w, h);
             int pr = 0, hot = 0, foc = 0;
             int act = ui_button_core(wid, x, y, w, h, &foc, &pr, &hot);
-            if (pr) shf[i]++;
+            if (pr) sng_shf[i]++;
             else {
                 if (act) {                                       // fire on RELEASE (so a full charge, then lift)
-                    if (shf[i] >= SONG_HOLD) { if (used) confirm = i; else song_save_slot(i); }  // charged to full → save (occupied asks first)
-                    else if (shf[i] <= PERF_TAP && used) song_load_slot(i);                      // quick tap → load (mid-hold release = abort)
+                    if (sng_shf[i] >= SONG_HOLD) { if (used) sng_confirm = i; else song_save_slot(i); }  // charged to full → save (occupied asks first)
+                    else if (sng_shf[i] <= PERF_TAP && used) song_load_slot(i);                      // quick tap → load (mid-hold release = abort)
                 }
-                shf[i] = 0;
+                sng_shf[i] = 0;
             }
-            int holding = pr && shf[i] > PERF_TAP;               // past the tap window → charging a save
-            int ready   = pr && shf[i] >= SONG_HOLD;             // bar full → release to save
+            int holding = pr && sng_shf[i] > PERF_TAP;               // past the tap window → charging a save
+            int ready   = pr && sng_shf[i] >= SONG_HOLD;             // bar full → release to save
             // charge-up: fill the tile left→right as you hold, so you SEE the save coming
             if (hot && !pr) rrectfill(x, y, w, h, 2, CLR_MEDIUM_GREEN);
             if (holding) {
-                float p = clamp((shf[i] - PERF_TAP) / (float)(SONG_HOLD - PERF_TAP), 0, 1);
+                float p = clamp((sng_shf[i] - PERF_TAP) / (float)(SONG_HOLD - PERF_TAP), 0, 1);
                 int bw = (int)((w - 2) * p + 0.5f);
                 if (bw > 0) rectfill(x + 1, y + 1, bw, h - 2, ready ? CLR_LIGHT_YELLOW : CLR_MEDIUM_GREEN);
             }
@@ -2376,7 +2390,6 @@ static int bank_load(void) {   // 1 = a valid bank was read into g_bank; 0 = non
 // file write. No per-edit-site wiring (the change-detect replaces mark_dirty()).
 static int save_cooldown = 0;
 static void autosave_tick(void) {
-    static unsigned tick = 0;
     if ((tick++ % 20) == 0) {                       // cheap change-detect a few times a second
         song_capture(&g_scratch);
         if (memcmp(&g_scratch, &g_bank.autos, sizeof g_scratch) != 0) {
@@ -2867,7 +2880,7 @@ static void r2_screen303(Box g, int i) {
     void *w = ui_wid_hash(0x110u + i, gx, gy, step * STEPS, gh); ui_reg(w, gx, gy, step * STEPS, gh, 0);
     UiCap *c = ui_cap_for(w);
     if (c) {
-        static int note_erase;   // is this drag an ERASE gesture? latched on the grab frame so a held tap doesn't re-add
+           // is this drag an ERASE gesture? latched on the grab frame so a held tap doesn't re-add
         int px = c->released ? c->rx : c->cx, py = c->released ? c->ry : c->cy;
         int s = (px - gx) / step, frow = (py - gy) / rh;
         if (s >= 0 && s < plen[i] && frow >= 0 && frow < NR) {
@@ -3140,25 +3153,23 @@ static void r2_mstmidi(Box b) {
 // HOLD to charge = save (an occupied slot asks X/OK first). Ported from the phone SONGS page.
 static void r2_mstsong(Box b) {
     Box m = lay_inset(b, 2);
-    static int shf[NSLOT] = { 0 };
-    static int confirm = -1;
     int cur = song_slot_cur(), sw = (int)m.w / NSLOT;
     for (int i = 0; i < NSLOT; i++) {
         int x = (int)m.x + i * sw, y = (int)m.y, w = sw - 2, h = (int)m.h - 1, used = song_slot_used(i);
         char n[2] = { (char)('1' + i), 0 };
-        if (confirm == i) {                                   // this slot is asking before overwrite
-            if (lcdbtn(0x2B8u + i, x, y, w / 2 - 1, h, "X", 0)) confirm = -1;
-            if (lcdbtn(0x2C8u + i, x + w / 2, y, w - w / 2, h, "OK", 0)) { song_save_slot(i); confirm = -1; }
+        if (r2sng_confirm == i) {                                   // this slot is asking before overwrite
+            if (lcdbtn(0x2B8u + i, x, y, w / 2 - 1, h, "X", 0)) r2sng_confirm = -1;
+            if (lcdbtn(0x2C8u + i, x + w / 2, y, w - w / 2, h, "OK", 0)) { song_save_slot(i); r2sng_confirm = -1; }
             continue;
         }
-        if (confirm >= 0) { rrect(x, y, w, h, 2, CLR_MEDIUM_GREEN); font(FONT_TINY); print(n, x + 3, y + 2, CLR_MEDIUM_GREEN); if (used) circfill(x + w - 4, y + 4, 1, CLR_MEDIUM_GREEN); continue; }
+        if (r2sng_confirm >= 0) { rrect(x, y, w, h, 2, CLR_MEDIUM_GREEN); font(FONT_TINY); print(n, x + 3, y + 2, CLR_MEDIUM_GREEN); if (used) circfill(x + w - 4, y + 4, 1, CLR_MEDIUM_GREEN); continue; }
         void *wid = ui_wid_hash(0x2B0u + i, x, y, w, h);
         int pr = 0, hot = 0, foc = 0, act = ui_button_core(wid, x, y, w, h, &foc, &pr, &hot);
-        if (pr) shf[i]++;
-        else { if (act) { if (shf[i] >= SONG_HOLD) { if (used) confirm = i; else song_save_slot(i); } else if (shf[i] <= PERF_TAP && used) song_load_slot(i); } shf[i] = 0; }
-        int holding = pr && shf[i] > PERF_TAP, ready = pr && shf[i] >= SONG_HOLD;
+        if (pr) r2sng_shf[i]++;
+        else { if (act) { if (r2sng_shf[i] >= SONG_HOLD) { if (used) r2sng_confirm = i; else song_save_slot(i); } else if (r2sng_shf[i] <= PERF_TAP && used) song_load_slot(i); } r2sng_shf[i] = 0; }
+        int holding = pr && r2sng_shf[i] > PERF_TAP, ready = pr && r2sng_shf[i] >= SONG_HOLD;
         if (hot && !pr) rrectfill(x, y, w, h, 2, CLR_MEDIUM_GREEN);
-        if (holding) { float p = clamp((shf[i] - PERF_TAP) / (float)(SONG_HOLD - PERF_TAP), 0, 1); int bw = (int)((w - 2) * p + 0.5f); if (bw > 0) rectfill(x + 1, y + 1, bw, h - 2, ready ? CLR_LIGHT_YELLOW : CLR_MEDIUM_GREEN); }
+        if (holding) { float p = clamp((r2sng_shf[i] - PERF_TAP) / (float)(SONG_HOLD - PERF_TAP), 0, 1); int bw = (int)((w - 2) * p + 0.5f); if (bw > 0) rectfill(x + 1, y + 1, bw, h - 2, ready ? CLR_LIGHT_YELLOW : CLR_MEDIUM_GREEN); }
         rrect(x, y, w, h, 2, (i == cur) ? CLR_WHITE : ready ? CLR_LIGHT_YELLOW : CLR_LIME_GREEN);
         font(FONT_TINY); print(n, x + 3, y + 2, ready ? CLR_DARK_GREEN : CLR_LIME_GREEN);
         if (used) circfill(x + w - 4, y + 4, 1, (i == cur) ? CLR_WHITE : CLR_LIME_GREEN);

@@ -72,12 +72,29 @@ a broken doc link or `#section`).
 > **`tools/instance-check` now gates destroy** (8 create/destroy rounds must leave the heap flat;
 > `-bypass` control) and goes RED against a worktree at the previous `HEAD` at ~1 MB per rack opened.
 >
+> THIRD PASS (same day, the `sound.h` dedups): the `DRIVE_*` waveshaper switch and the PLUCK/GUITAR
+> Karplus-Strong excitation each existed twice and now exist once; **the 9 copies of "ensure FX_X is
+> in bus b's chain" had DIVERGED** (two different bounds, and 7 of 9 cleared `insert_inst` while the
+> two `FX_GRAINS` ones did not) and are one `fx_chain_ensure`. Each A/B'd byte-identical against a
+> worktree at the previous `HEAD` on carts that actually reach the path, all verified non-silent
+> first. And **`lint-aux-params` had been RED against the real source for weeks while `repo-doctor`
+> showed green** — the refactor moved `eng_p[]` into `sound_ctx.h`, and `repo-doctor` only ever ran
+> the lint's `--selfcheck` (a fixture), never the lint. Both fixed; the general rule is in the doc.
+>
+> ⚠ ONE ITEM WAS ATTEMPTED AND REVERTED: removing `fb_w`/`fb_h`. They are NOT "provably always
+> equal" — `de_grow_gpu` runs with them one step out of phase, and collapsing the pair changes both
+> the frames AND the audio of a `--resize` sweep. `refactor-guard` and `canvas-diff` are green for
+> it; only a sweep A/B'd against `HEAD` catches it. The measurement + controls + the cheap next step
+> are in the item, so don't re-derive them.
+>
 > **Resume-at: [the round-2 open list](design/engine-simplification.md#round-2--after-the-per-instance-refactor-2026-08-14)** — every open item names its gate, and the
 > re-verified WON'T-DO list is there too (round 1's three calls still hold; I checked rather than
-> assumed). Biggest remaining: the `DRIVE_*` waveshaper switch written twice (the header says so) ·
-> the 9 diverged copies of "ensure FX_X is in bus b's chain" · `TinyjamAU.uiTick()` is orphaned, so
-> **a stopped host freezes the panel and swallows every tap** · and no Swift caller invokes
-> `de_instance_destroy` at all, so the fix above is only half-spent until `TinyjamAU` can deinit.
+> assumed). Biggest remaining: **`TinyjamAU.uiTick()` is orphaned**, so a stopped host freezes the
+> panel and swallows every tap · no Swift caller invokes `de_instance_destroy` at all, so that fix
+> is only half-spent until `TinyjamAU` can deinit · the shared-`static let` canvas channel · and
+> `ctx-gen --verify`, which would close the half-moved-group CLASS rather than its instances. The
+> Swift items need a real host to confirm; everything self-gateable in `studio.c`/`sound.h` that was
+> open this morning is now landed or documented as reverted.
 >
 > ⚠ TWO THINGS A FRESH SESSION SHOULD NOT RE-LEARN THE HARD WAY. **`midi-check` phase B is flaky** —
 > it failed once and passed twice on identical code, and only a throwaway `git worktree --detach` at

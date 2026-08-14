@@ -172,7 +172,25 @@ a broken doc link or `#section`).
 > dimensions the toggle changes were process-global until today). **The per-instance lane has met its
 > goal in sound AND picture.**
 >
-> **▶ NEXT ACTION — pick from [`design/per-instance-remaining.md`](design/per-instance-remaining.md);
+> **✅ ON THE IPAD (2026-08-14).** `device.sh` deploys to a modern iPadOS 26 device and the app runs
+> and SOUNDS. Getting there took four build/deploy fixes (`device.sh` header has them) and one real
+> engine bug: **the app ran TWO engines and played the wrong one** — CanvasView drew and touched one,
+> AudioEngine rendered another, so a strummed cart was silent with a normal-looking screen. That is a
+> regression from the per-instance work: `de_instance_create` used to return a SINGLETON, so it never
+> mattered who asked; now every caller gets its own rack. Three host components were doing it. Grep
+> `de_instance_create` before trusting any host — one engine per rack, created by whoever owns the
+> rack, PASSED to everything else.
+>
+> **▶ NEXT ACTION: the iOS AUv3 PANEL IN GARAGEBAND, on the iPad.** The extension now declares a UI
+> and ships `acidcandy` (it was audio-only `epiano` until today), but nothing has ever opened that
+> panel on real glass. Expect the first problems in view SIZING inside GarageBand's plug-in area and
+> TOUCH COORDINATE MAPPING — those differ most from the tested mac Catalyst path.
+>
+> ⚠ **And build a gate for the iOS app's object graph.** Nothing in the repo instantiates it, which
+> is exactly why two of the three double-engine bugs shipped: the AUv3 never had them, `instance-check`
+> creates its own instances, and `refactor-guard` runs the desktop build, which has no `CanvasView`.
+>
+> **▶ THEN pick from [`design/per-instance-remaining.md`](design/per-instance-remaining.md);
 > nothing there blocks two racks any more.** Ranked by impact:
 > 1. **Session state / `fullState`** — a reopened DAW project starts every rack at defaults, silently.
 >    The biggest thing between this and a plug-in someone would keep, and it shows up the first time

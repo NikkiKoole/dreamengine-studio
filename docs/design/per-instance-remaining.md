@@ -68,6 +68,26 @@ one `cart.sav` / `cart.kv`**, because nothing gives them distinct DIRECTORIES �
 has to choose them. The in-memory mirrors are written back WHOLE, so it is last-writer-wins at FILE
 granularity, not per key. `save_path()`'s `static char buf[600]` must move too or the bug relocates.
 
+### ⚠ THE OTHER HALF OF THAT CLASS: a HOST component that quietly creates its OWN engine
+`de_instance_create` used to return the same singleton every call, so it did not matter who asked
+for the engine. **It allocates now, and every extra caller is a separate rack.** No call site
+changed; their meaning did. Three found, all in host code, none caught by any gate:
+
+| where | symptom |
+|---|---|
+| hosted `CanvasView` | the AUv3 panel booted a second engine — the **flickering** the maker saw |
+| `AudioEngine` | the app rendered an engine nobody touched — **total silence on device** |
+| `GameHost` | a third engine booted just to ask two questions, on a comment reading *"de_instance_create is idempotent"* — true when written |
+
+⚠ **Grep `de_instance_create` before trusting any host.** The rule is one engine per rack, created
+by whoever owns the rack and PASSED to everything else. A component that creates its own is not
+obviously wrong at the call site — that is what makes this expensive.
+
+**Why nothing caught it:** the AUv3 never had the bug (an audio unit owns one engine and hands the
+same pointer to its view), `instance-check` drives instances it creates itself, and `refactor-guard`
+runs the desktop build, which has no `CanvasView`. **Nothing in the repo instantiates the iOS app's
+object graph.** That is the real gap.
+
 ### ⚠ A BUG CLASS, not a list of bugs: a seam function that IGNORES its handle
 Six found in one day — `de_resize`, `de_copy_frame`, `de_set_save_dir`, `de_framebuffer`,
 `de_screen_w`, `de_screen_h`. Each took a `DeInstance *`, dropped it, and read through the

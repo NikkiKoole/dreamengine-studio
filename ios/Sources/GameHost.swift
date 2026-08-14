@@ -28,10 +28,13 @@ final class GameViewController: UIViewController {
         //     landscape) — else it looks wrong rotated.
         // An explicit per-cart override (a manifest orientation field) would slot in here when a cart
         // needs to contradict this default — see docs/design/device-adaptive-layout.md.
-        // The engine the app is about to show. de_instance_create is idempotent for the process's
-        // one instance (docs/design/engine-instance-seam.md), so asking here is safe wherever this
-        // runs relative to the view's own create.
-        let engine = de_instance_create(DE_RENDERER_SOFTWARE)
+        // ⚠ ASK THE VIEW'S ENGINE — do NOT create one. This used to call de_instance_create() on the
+        // strength of "it is idempotent for the process's one instance", which WAS true and is not
+        // any more: since the per-instance work every call allocates a real engine (and runs the
+        // cart's init). That made this boot a third engine purely to ask two questions, and it is the
+        // same shape as the bug that silenced the app — AudioEngine creating its own instance while
+        // CanvasView drew another. `canvas` is right there and already owns the one we mean.
+        let engine = canvas.engine
         if de_is_resizable(engine) != 0 {
             AppDelegate.orientationLock = .all
         } else {

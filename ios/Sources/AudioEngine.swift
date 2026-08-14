@@ -76,15 +76,23 @@ final class AudioEngine {
         de_mic_set_active(0)
     }
 
-    func start() {
+    // ⚠ THE INSTANCE IS PASSED IN, NEVER CREATED HERE. This used to call de_instance_create() itself,
+    // which was harmless only while that function returned the same singleton every time: the app then
+    // had ONE engine and it did not matter who asked for it. Since the per-instance work each call
+    // ALLOCATES, so the app quietly ran TWO engines — CanvasView drew and touched one, the audio
+    // thread rendered the other — and the speakers played an engine nobody was playing. On a strummed
+    // instrument (omnichord) that is total silence, with a perfectly normal-looking screen.
+    // Found on an iPad, 2026-08-14. The AUv3 never had it: the audio unit owns one engine and hands
+    // the same pointer to its view.
+    func start(instance: OpaquePointer!) {
         guard !started else { return }
+        guard let deInstance = instance else {
+            NSLog("[tinyjam] audio NOT started: no engine instance was handed in")
+            return
+        }
         let sr = 44100.0
 
         let fmt = AVAudioFormat(standardFormatWithSampleRate: sr, channels: 2)!
-        // Resolved ONCE here, never inside the render block: the audio thread must not call into
-        // engine bring-up, and step 2 makes de_instance_create allocate. The seam names its instance
-        // now — docs/design/engine-instance-seam.md.
-        let deInstance = de_instance_create(DE_RENDERER_SOFTWARE)   // not `engine`: that is the AVAudioEngine
         let node = AVAudioSourceNode { [weak self] _, _, frameCount, ablPointer -> OSStatus in
             guard let self = self else { return noErr }
             let n = Int(frameCount)

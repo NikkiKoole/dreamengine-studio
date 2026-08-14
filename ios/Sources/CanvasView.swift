@@ -84,7 +84,10 @@ final class CanvasView: UIView {
 #if !AU_EXT
         if !hosted {
             engine = de_instance_create(DE_RENDERER_SOFTWARE)   // this app's one engine
-            AudioEngine.shared.start()       // CoreAudio pulls de_audio_render on its own thread
+            // ⚠ HAND IT THE SAME INSTANCE. AudioEngine used to create its own, which was invisible
+            // while de_instance_create returned a singleton and became total silence the moment it
+            // started allocating — the speakers rendered an engine no touch ever reached.
+            AudioEngine.shared.start(instance: engine)   // CoreAudio pulls de_audio_render on its own thread
         }                                    // hosted: the audio unit hands us its engine (see `engine`)
 #endif
         if engine != nil {

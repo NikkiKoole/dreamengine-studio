@@ -181,10 +181,11 @@ a broken doc link or `#section`).
 > `de_instance_create` before trusting any host — one engine per rack, created by whoever owns the
 > rack, PASSED to everything else.
 >
-> **▶ NEXT ACTION: the iOS AUv3 PANEL IN GARAGEBAND, on the iPad.** The extension now declares a UI
-> and ships `acidcandy` (it was audio-only `epiano` until today), but nothing has ever opened that
-> panel on real glass. Expect the first problems in view SIZING inside GarageBand's plug-in area and
-> TOUCH COORDINATE MAPPING — those differ most from the tested mac Catalyst path.
+> **✅ THE iOS AUv3 PANEL WORKS IN GARAGEBAND ON THE IPAD (maker, 2026-08-14): it draws, and TAPS
+> LAND WHERE YOU PRESS.** Both things I expected to be wrong on first contact — view sizing in the
+> plug-in area, and touch coordinate mapping — were right. **That closes the arc: the same cart is a
+> plug-in on macOS and on iPadOS, with a working panel on both.** Until today the iOS extension was
+> audio-only `epiano` with no interface at all.
 >
 > ⚠ **And build a gate for the iOS app's object graph.** Nothing in the repo instantiates it, which
 > is exactly why two of the three double-engine bugs shipped: the AUv3 never had them, `instance-check`

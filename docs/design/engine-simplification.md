@@ -393,12 +393,19 @@ Same rules as round 1: line numbers rot, the function name is the anchor, every 
       different bound constants (`N_INSERTS` 19 vs `FX_ORDER_SLOTS` 16, one of which cannot
       round-trip `fx_order`'s 16-slot packing), and 7 of 9 sites clear `insert_inst` while the two
       `FX_GRAINS` ones do not. −14 lines, both divergences made impossible.
-- [ ] **Four `SR_*` kinds are in NEITHER classification switch** (`SR_INPUT_MONITOR`,
-      `SR_INSTR_GLIDE`, `SR_INSTR_GLIDE_SCALE`, `SR_INSTR_TRIGGER`) so they silently fall through to
-      `CTXK_APPEND`. A cart riding `instrument_glide()` from a knob appends one log entry per call
-      until `ctx_overflow` trips, after which restore is documented as incomplete. Every kind must be
-      registered in three places across two files — the same shape `lint-aux-params.js` exists for.
-      Either an `SR_LIST(X)` X-macro (−50 lines) or a `lint-sound-reqs.js`.
+- [x] **Four `SR_*` kinds were in NEITHER classification switch** — LANDED 2026-08-14.
+      `SR_INPUT_MONITOR` → `CTXK_K` (a master knob beside the other mic kinds), and
+      `SR_INSTR_GLIDE`/`_GLIDE_SCALE`/`_TRIGGER` → `CTXK_KA` (a = instrument slot, exactly like
+      their `SR_INSTR_TUNE`/`_DRIVE` neighbours). All 146 kinds are now classified: 30 events + 116
+      keyed. Before this they fell through to `CTXK_APPEND`, so a cart riding `instrument_glide()`
+      from a knob appended one log entry per call until `ctx_overflow` tripped — after which restore
+      is documented as incomplete.
+      **STILL OPEN — the hazard is the silent `default:`, not the four kinds.** A new `SR_*` is
+      still registered in three places across two files with nothing checking it (the shape
+      `lint-aux-params.js` exists for). Wanted: a `lint-sound-reqs.js` in the `--selfcheck` house
+      style, or an `SR_LIST(X)` X-macro generating the enum and both switches (−50 lines). Note
+      `-Wswitch` cannot do it: the two switches are only exhaustive TOGETHER, and neither may drop
+      its `default:`.
 - [ ] `sound_callback` is 466 lines with a 273-line per-voice body; the seam is
       `sound_render_voice()`. Removes ~0 lines — buys a readable callback, a profilable voice
       renderer, and a smaller collision target in the file CLAUDE.md says to edit only with targeted

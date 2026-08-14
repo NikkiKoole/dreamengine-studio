@@ -1739,7 +1739,7 @@ static CtxKey sound_ctx_key(SoundReqKind k) {
         case SR_DRIVE_INSERT: case SR_VOICE_CONS: case SR_VOICE_CODA: case SR_VOICE_NASAL:
         case SR_BPM: case SR_VOCODER: case SR_VOCODER_MIC: case SR_VOCODER_UNVOICED: case SR_AUTOTUNE_MIC:
         case SR_ECHO_INS_BBD: case SR_REVERB_SPRING: case SR_REVERB_SPRING_TONE: case SR_DRIVE_VOICE:
-        case SR_MULTIBAND: case SR_HARMONIZE_MIC:
+        case SR_MULTIBAND: case SR_HARMONIZE_MIC: case SR_INPUT_MONITOR:
             return CTXK_K;
         // a = slot / instance / bus / tank / target id
         case SR_INSTR: case SR_INSTR_DUTY: case SR_INSTR_LFO: case SR_INSTR_FILTER:
@@ -1756,6 +1756,7 @@ static CtxKey sound_ctx_key(SoundReqKind k) {
         case SR_INSTR_UNISON: case SR_INSTR_UNISON_DETUNE: case SR_INSTR_LEVEL: case SR_INSTR_SAMPLE: case SR_INSTR_SAMPLE_REGION: case SR_INSTR_SAMPLE_MODE:
         case SR_GLUE: case SR_REVERB_BUS: case SR_FX_ORDER: case SR_VOICE_PARAM: case SR_INSTR_MULTIBAND:
         case SR_EQ_INST: case SR_CRUSH_INST: case SR_TAPE_INST: case SR_FILTER_INST: case SR_DRIVE_INST:
+        case SR_INSTR_GLIDE: case SR_INSTR_GLIDE_SCALE: case SR_INSTR_TRIGGER:   // a=slot, like their neighbours
             return CTXK_KA;
         // a+b name the target
         case SR_WAVE_SET:                          // a=which table, b=start index (chunked writes)

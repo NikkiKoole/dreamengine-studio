@@ -6,6 +6,7 @@
 // mellotron all carry ~120 near-identical lines of it). This header owns that
 // once, and folds in a plugged-in MIDI keyboard (engine midi_get()) as just
 // another note source — so a cart that #includes it gets touch + mouse + QWERTY
+#include "cart_ctx.h"   // per-instance state seam (docs/design/engine-context.md)
 // + MIDI, with chords, glissando, and velocity, for free.
 //
 // Voices are keyed by absolute MIDI note (0..127), which is what makes MIDI
@@ -64,24 +65,75 @@ static const int KB_BSEMI[7] = { 1, 3, -1, 6, 8, 10, -1 };     // black key righ
 #define KB_QWERTY 2
 #define KB_MIDI   4
 
-static int      kb_slot      = 5;
-static int      kb_base_oct  = 4;      // leftmost octave (4 → C4 = MIDI 60)
-static int      kb_nwhite    = 14;     // number of white keys (7 = one octave; epiano 8, moog 11, 2-oct 14)
-static int      kb_vel       = 6;      // 0..7 velocity for touch/QWERTY (MIDI carries its own)
 
-static int      kb_handle[128];        // live voice handle per MIDI note, -1 = silent
-static uint8_t  kb_src[128];           // bitmask of sources holding each note
-static float    kb_glow[128];          // 1.0 on press, decays in keybed_draw / read it yourself
 
 // per-finger key capture (multitouch + glissando)
 #define KB_NPTR 12
 typedef struct { int id, midi; } KbPtr;   // midi = key this finger currently holds, -1 = off-keys
-static KbPtr    kb_ptr[KB_NPTR];
-static int      kb_prev_ids[KB_NPTR];     // touch ids seen last frame (for new-finger detection)
-static int      kb_nprev = 0;
 
 // drawn-manual geometry (set by keybed_layout; keybed_draw reuses it)
-static int      kb_x = 0, kb_y = 0, kb_w = 0, kb_h = 0;
+// ══ KEYBED.H'S STATE ════════════════════════════════════════════════════════════════════════════
+// Declared here, in ONE place, even though several of these were written further down the file: the
+// declarations were INTERLEAVED with the code that uses them (kb_slot read at the config function,
+// KbPtr declared above it, the callbacks declared 30 lines later), so no single position worked for
+// a fork block until they were gathered. Moving a declaration EARLIER is always safe; the functions
+// below are untouched.
+//
+// The two callbacks needed typedefs: X(type, name, dims, init) cannot express a function pointer,
+// whose type wraps around its name.
+typedef void (*KbNoteCb)(int midi, int vel);
+typedef void (*KbOffCb)(int midi);
+
+#define KEYBED_STATE(X)                                  \
+    X(int,      kb_slot,      ,          5)              \
+    X(int,      kb_base_oct,  ,          4)              \
+    X(int,      kb_nwhite,    ,          14)             \
+    X(int,      kb_vel,       ,          6)              \
+    X(int,      kb_handle,    [128],     {0})            \
+    X(uint8_t,  kb_src,       [128],     {0})            \
+    X(float,    kb_glow,      [128],     {0})            \
+    X(KbPtr,    kb_ptr,       [KB_NPTR], {0})            \
+    X(int,      kb_prev_ids,  [KB_NPTR], {0})            \
+    X(int,      kb_nprev,     ,          0)              \
+    X(int,      kb_x,         ,          0)              \
+    X(int,      kb_y,         ,          0)              \
+    X(int,      kb_w,         ,          0)              \
+    X(int,      kb_h,         ,          0)              \
+    X(bool,     kb_gliss,     ,          true)           \
+    X(KbNoteCb, kb_note_cb,   ,          0)              \
+    X(KbOffCb,  kb_off_cb,    ,          0)              \
+    X(bool,     kb_manage,    ,          true)
+
+#ifndef DE_CART_CTX
+DE_CTX_STATICS(KEYBED_STATE)
+#else
+DE_CTX_BLOCK(kb, Keybed, KEYBED_STATE)
+// defined BEFORE the access macros: after them the member names are macros, so `c->kb_slot` would
+// expand to `c->(kb_ctx_()->kb_slot)`.
+static void kb_ctx_init_(KeybedCtx *c) {
+    c->kb_slot = 5; c->kb_base_oct = 4; c->kb_nwhite = 14; c->kb_vel = 6;
+    c->kb_gliss = true; c->kb_manage = true;
+}
+#define kb_slot     (kb_ctx_()->kb_slot)
+#define kb_base_oct (kb_ctx_()->kb_base_oct)
+#define kb_nwhite   (kb_ctx_()->kb_nwhite)
+#define kb_vel      (kb_ctx_()->kb_vel)
+#define kb_handle   (kb_ctx_()->kb_handle)
+#define kb_src      (kb_ctx_()->kb_src)
+#define kb_glow     (kb_ctx_()->kb_glow)
+#define kb_ptr      (kb_ctx_()->kb_ptr)
+#define kb_prev_ids (kb_ctx_()->kb_prev_ids)
+#define kb_nprev    (kb_ctx_()->kb_nprev)
+#define kb_x        (kb_ctx_()->kb_x)
+#define kb_y        (kb_ctx_()->kb_y)
+#define kb_w        (kb_ctx_()->kb_w)
+#define kb_h        (kb_ctx_()->kb_h)
+#define kb_gliss    (kb_ctx_()->kb_gliss)
+#define kb_note_cb  (kb_ctx_()->kb_note_cb)
+#define kb_off_cb   (kb_ctx_()->kb_off_cb)
+#define kb_manage   (kb_ctx_()->kb_manage)
+#endif
+
 
 // ── config ──
 static void keybed_config(int slot, int base_octave, int nwhite) {
@@ -91,7 +143,6 @@ static void keybed_config(int slot, int base_octave, int nwhite) {
 }
 static void keybed_layout(int x, int y, int w, int h) { kb_x = x; kb_y = y; kb_w = w; kb_h = h; }
 static void keybed_velocity(int v) { kb_vel = v < 0 ? 0 : v > 7 ? 7 : v; }
-static bool kb_gliss = true;
 static void keybed_glissando(bool on) { kb_gliss = on; }   // off = a touch holds its key until lift (organs/anything non-portamento)
 
 static int keybed_white_count(void) { return kb_nwhite; }
@@ -114,9 +165,6 @@ static int  keybed_finger(int midi) { for (int i = 0; i < KB_NPTR; i++) if (kb_p
 //                         only tracks held-state + glissando and fires the two
 //                         callbacks. The CART owns voicing — for struck notes (hit),
 //                         multi-voice-per-key, or any non-(one-held-note) instrument.
-static void (*kb_note_cb)(int midi, int vel) = 0;
-static void (*kb_off_cb)(int midi) = 0;
-static bool kb_manage = true;
 static void keybed_on_note(void (*cb)(int midi, int vel)) { kb_note_cb = cb; }
 static void keybed_on_off(void (*cb)(int midi)) { kb_off_cb = cb; }
 static void keybed_manage_voices(bool on) { kb_manage = on; }

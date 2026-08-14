@@ -13,6 +13,7 @@
 #include "gestures.h"
 #include "solo.h"
 #include "radio.h"
+#include "keybed.h"
 
 int probe_write = 0;    // set by the harness: write this into ui_wid_n on the next frame
 int probe_seen  = -1;   // what ui_wid_n looked like on this frame, BEFORE any write

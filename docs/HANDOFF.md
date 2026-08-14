@@ -72,7 +72,14 @@ a broken doc link or `#section`).
 > **`tools/instance-check` now gates destroy** (8 create/destroy rounds must leave the heap flat;
 > `-bypass` control) and goes RED against a worktree at the previous `HEAD` at ~1 MB per rack opened.
 >
-> THIRD PASS (same day, the `sound.h` dedups): the `DRIVE_*` waveshaper switch and the PLUCK/GUITAR
+> **STATE 2026-08-15: 22 of 35 closed.** Everything self-gateable in `studio.c` / `sound.h` / `tools`
+> is done or explicitly parked. What is LEFT needs the maker or a real host: the five **Swift/iOS**
+> items (`uiTick()` orphaned = a stopped host freezes the panel; `TinyjamAU` can never deinit, so the
+> `de_instance_destroy` fix is still half-spent), the `sw_tritex_legacy` soak — **a policy call, not a
+> technical one** — and four legibility-only splits nobody needs yet (`loop_step`, `sound_callback`,
+> the twice-written shaders, the two boot sequences).
+>
+> THIRD PASS (the `sound.h` dedups): the `DRIVE_*` waveshaper switch and the PLUCK/GUITAR
 > Karplus-Strong excitation each existed twice and now exist once; **the 9 copies of "ensure FX_X is
 > in bus b's chain" had DIVERGED** (two different bounds, and 7 of 9 cleared `insert_inst` while the
 > two `FX_GRAINS` ones did not) and are one `fx_chain_ensure`. Each A/B'd byte-identical against a
@@ -81,10 +88,14 @@ a broken doc link or `#section`).
 > showed green** — the refactor moved `eng_p[]` into `sound_ctx.h`, and `repo-doctor` only ever ran
 > the lint's `--selfcheck` (a fixture), never the lint. Both fixed; the general rule is in the doc.
 >
-> ⚠ `fb_w`/`fb_h` was "attempted and reverted as unsafe" on 08-14 and that verdict was a MEASUREMENT
-> ERROR — the A/B was comparing two trees' `acidcandy` save blobs. Redone with the save dir
-> controlled it is byte-identical, and it LANDED 08-15. The superseded note is kept folded in the
-> item, because how it was wrong is the useful part.
+> FOURTH PASS (08-15): `fb_w`/`fb_h` LANDED — its 08-14 "reverted as unsafe" verdict was a
+> MEASUREMENT ERROR (the A/B compared two trees' `acidcandy` save blobs), and chasing that found
+> **`refactor-guard` reading the same untracked save file**, which is now isolated per probe ·
+> `midi-check` phase B diagnosed and fixed · `ctx-gen --verify` extended to FUNCTION-LOCAL statics
+> the day after it shipped, because it failed to notice one I added · five write-only overflow
+> counters got a reader · `ms_samp()` (the int form overflowed at ~48 s) · `at_psola_slot`'s dead
+> `formant` param removed · one lock-free publish instead of two. And **the `midi_out_on` refcount
+> "finding" was WITHDRAWN** — the flag was right and I was not.
 >
 > **Resume-at: [the round-2 open list](design/engine-simplification.md#round-2--after-the-per-instance-refactor-2026-08-14)** — every open item names its gate, and the
 > re-verified WON'T-DO list is there too (round 1's three calls still hold; I checked rather than

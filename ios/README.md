@@ -74,11 +74,21 @@ config via the StoreKitTest framework):
 cd ios
 xcodebuild test -project TinyjamHello.xcodeproj -scheme TinyjamHello \
   -sdk iphonesimulator -destination 'platform=iOS Simulator,name=iPhone 16 Pro' \
-  CODE_SIGNING_ALLOWED=NO
+  -derivedDataPath build-test CODE_SIGNING_ALLOWED=NO
 ```
 Expect `Test Suite 'StoreTests' passed` (buys a rack → entitlement unlocks; master pass unlocks all).
 (Swap the `name=` for one from `xcrun simctl list devices available`, or use `-destination 'id=<UDID>'`.
 The AUv3 host test is the same command with `-only-testing:TinyjamHelloTests/AUHostTests`.)
+
+> ⚠ **`-derivedDataPath build-test` IS NOT OPTIONAL — a shared one leaves an app that CRASHES AT
+> LAUNCH.** `build.sh` uses `-derivedDataPath build`, and a `test` build embeds the XCTest and
+> swift-testing frameworks into the very same `TinyjamHello.app`. The test runner injects
+> `lib_TestingInterop.dylib` at launch; the **iOS 18.4 runtime does not ship it**, so the next plain
+> `./build.sh` launches a contaminated bundle and dyld kills it before `main`:
+> *"Library not loaded: @rpath/lib_TestingInterop.dylib … Termination Reason: DYLD, Library missing"*.
+> It looks exactly like the app crashing, and nothing in it points at the test run that caused it
+> (bit us 2026-08-14). If you hit it, the app is fine — delete the product and rebuild:
+> `rm -rf build/Build/Products/Debug-iphonesimulator/TinyjamHello.app && ./build.sh`.
 
 > ⚠ **NOT any installed sim, since the Xcode 26 upgrade (2026-07-06).** The **iOS 26 sim runtime killed
 > in-app `SKTestSession`** — it now needs a real XCTest run context, not merely XCTest loaded, and dlopen

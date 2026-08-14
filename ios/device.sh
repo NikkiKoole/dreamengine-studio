@@ -28,7 +28,7 @@ cd "$(dirname "$0")"
 TEAM="${TEAM:-JH2ZCZH58D}"
 SCHEME="TinyjamHello"
 CART="${CART:-omnichord}"        # the standalone app's cart
-AU_CART="${AU_CART:-epiano}"     # the AUv3 extension's cart
+AU_CART="${AU_CART:-acidcandy}"  # the AUv3 extension's cart — the same rack the macOS plug-in ships
 DEVICE_ID="${DEVICE_ID:-$(xcrun xctrace list devices 2>&1 \
   | sed -n '/== Devices ==/,/== Simulators ==/p' \
   | awk -F'[()]' '/iPhone|iPad/ {print $4; exit}')}"

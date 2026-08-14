@@ -87,14 +87,14 @@ targets:
     # host MIDI (de_midi_event) → the cart's keybed plays it, sample-clocks de_frame() (the
     # sequencer/voice bookkeeping), and pulls de_audio_render() — same engine the app runs.
     sources:
-      # ⚠ EXCLUDE the view controller: this extension is AUDIO-ONLY (`com.apple.AudioUnit`, with
-      # TinyjamAUFactory as its principal class, see the plist below). It has no panel and so no
-      # CanvasView in its sources, which the view controller needs. Globbed in, it FAILED THE BUILD
-      # WITH "cannot find type 'CanvasView' in scope" — and did so silently from the day the mac
-      # plug-in gained a view, because store builds strip this whole target (de:au-begin) and nothing
-      # else built the iOS AU. Fixed 2026-08-13.
+      # THE PANEL IS IN (2026-08-14). This target used to EXCLUDE the view controller and declare
+      # plain `com.apple.AudioUnit`, so the iOS plug-in had no interface at all and a host drew its
+      # own generic sliders — a different, lesser product from the macOS one, which nobody noticed
+      # because store builds strip this target (de:au-begin) and nothing else built it. The mac
+      # extension (project-mac.yml) is the worked example and this now mirrors it.
       - path: AU
-        excludes: [TinyjamAUViewController.swift]
+      # the plug-in's VIEW is the SAME CanvasView the standalone app uses (hosted: true = blit-only)
+      - Sources/CanvasView.swift
       - ../runtime/studio.c
       - ../runtime/raylib_compat.c
       - gen/au/cart.c
@@ -108,6 +108,11 @@ targets:
         # fallbacks for a bare GUI build) — not baked here, so $(inherited) can't re-add a stale
         # SCREEN_W over the override (the "macro redefined" warning). See the app target above.
         GCC_PREPROCESSOR_DEFINITIONS: [$(inherited), DE_NO_RAYLIB=1, SCALE=1]
+        # AU_EXT keeps the APP's AVAudioEngine/mic plumbing out of the extension, which never owns
+        # audio — the host does. CanvasView guards that plumbing with `#if !AU_EXT`, so without this
+        # the shared view drags the whole app audio stack in and does not build.
+        SWIFT_ACTIVE_COMPILATION_CONDITIONS: [$(inherited), AU_EXT]
+        OTHER_CFLAGS: [-fno-modules]   # the curses echo()/filter() collision — see the app target
         MARKETING_VERSION: "0.1"
         CURRENT_PROJECT_VERSION: "1"
     info:
@@ -115,8 +120,12 @@ targets:
       properties:
         CFBundleDisplayName: Tinyjam Demo
         NSExtension:
-          NSExtensionPointIdentifier: com.apple.AudioUnit
-          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).TinyjamAUFactory
+          # -UI, not plain com.apple.AudioUnit: that is what tells the system this extension HAS a
+          # view, and the principal class must then be the AUViewController that also implements
+          # AUAudioUnitFactory. With the plain identifier a host shows its own generic sliders —
+          # which is exactly what iOS did until 2026-08-14.
+          NSExtensionPointIdentifier: com.apple.AudioUnit-UI
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).TinyjamAUViewController
           NSExtensionAttributes:
             AudioComponentBundle: $(PRODUCT_BUNDLE_IDENTIFIER)
             AudioComponents:

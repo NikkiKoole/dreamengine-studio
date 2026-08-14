@@ -221,15 +221,43 @@ function collect(probes, onProgress) {
   return out;
 }
 
+/* Everything whose content can change a probe's bytes. Recorded so a baseline cannot lie about its
+ * own provenance — see the note on blessProvenance below for the failure that made this necessary. */
+function provenanceFiles() {
+  const files = ['runtime/sound.h', 'runtime/studio.c', 'runtime/studio.h'];
+  for (const p of PROBES) {
+    files.push(`tools/carts/${p.cart}.c`);
+    if (p.script) files.push(p.script);
+  }
+  return files.filter(f => fs.existsSync(path.join(ROOT, f)));
+}
+
 function engineContext() {
   // recorded for information only — during this refactor the engine WILL change and the output
   // must NOT, so gating on the engine's own hash would be exactly backwards.
-  const files = ['runtime/sound.h', 'runtime/studio.c', 'runtime/studio.h'];
+  //
+  // ⚠ IT USED TO RECORD ONLY THE THREE ENGINE FILES, AND THAT MADE A BROKEN BASELINE LOOK SOUND.
+  // Every probe is a CART, so a dirty or since-changed cart moves the bytes while all three engine
+  // hashes still match — which is exactly what happened: the 2026-08-13 baseline claimed acidcandy's
+  // peak was -0.79 dBFS where every commit from the blessing onward renders -3.82, with the engine
+  // hashes matching PERFECTLY. Reading them was what made the baseline look trustworthy. So the
+  // probe carts and their driving clips are recorded too, plus whether the tree was dirty.
   const h = {};
-  for (const f of files) if (fs.existsSync(path.join(ROOT, f))) h[f] = shortSha(fs.readFileSync(path.join(ROOT, f)));
-  let commit = '';
+  for (const f of provenanceFiles()) h[f] = shortSha(fs.readFileSync(path.join(ROOT, f)));
+  let commit = '', dirty = [];
   try { commit = execSync('git rev-parse --short HEAD', { cwd: ROOT }).toString().trim(); } catch (_) {}
-  return { commit, files: h };
+  try {
+    // scoped to the paths that matter: a foreign edit elsewhere in a shared working tree is none of
+    // this gate's business, and refusing on it would make the tool unusable with parallel agents.
+    const out = execSync(`git status --porcelain -- ${provenanceFiles().map(f => `'${f}'`).join(' ')}`,
+                         { cwd: ROOT }).toString();
+    // ⚠ do NOT trim `out` before splitting: porcelain lines start with a two-char status field that
+    // is often " M", so trimming the whole output eats the first line's leading space and a fixed
+    // slice(3) then shaves a character off the FIRST path only ("ools/carts/drawall.c"). Strip the
+    // status field per line instead. Caught by this tool's own dirty-refusal negative control.
+    dirty = out.split('\n').filter(l => l.trim()).map(l => l.replace(/^.{2}\s*/, '').trim());
+  } catch (_) {}
+  return { commit, dirty, files: h };
 }
 
 function bless() {
@@ -248,7 +276,20 @@ function bless() {
     console.log('passes forever while proving nothing. Fix or replace the probe, then bless again.');
     process.exit(1);
   }
-  const data = { version: 1, blessed_at_commit: engineContext(), probes: fps };
+  // ⚠ A BASELINE BLESSED FROM A DIRTY TREE RECORDS A STATE NO COMMIT REPRODUCES, and it fails
+  // SILENTLY: every later run is red against bytes nobody can get back, so the safety net for the
+  // whole refactor is gone and looks merely inconvenient. That is what happened on 2026-08-13.
+  // Refuse instead, scoped to the files that can move a probe's bytes.
+  const ctx = engineContext();
+  if (ctx.dirty.length && !process.argv.includes('--force')) {
+    console.log('\nREFUSING to bless: these files can change a probe\'s output and are uncommitted —');
+    for (const f of ctx.dirty) console.log(`  ${f}`);
+    console.log('\nCommit them first. A baseline recorded from a dirty tree is a reference no commit');
+    console.log('reproduces, so every later run goes red against bytes that cannot be recovered.');
+    console.log('`--force` if you genuinely mean to (the dirty list is recorded either way).');
+    process.exit(1);
+  }
+  const data = { version: 1, blessed_at_commit: ctx, probes: fps };
   fs.writeFileSync(BASELINE, JSON.stringify(data, null, 1));
   console.log(`\nwrote ${path.relative(ROOT, BASELINE)} — ${PROBES.length} probes, all live.`);
   console.log('commit it, then start the refactor.');
@@ -260,6 +301,21 @@ function compare(opts) {
     process.exit(2);
   }
   const base = JSON.parse(fs.readFileSync(BASELINE, 'utf8'));
+
+  // Which recorded files have MOVED since the blessing. This is not a verdict — during the refactor
+  // the engine is meant to change while the output does not, which is the whole point. But when a
+  // probe's own CART or driving CLIP has changed, "not byte-identical" is expected rather than
+  // alarming, and saying so is the difference between a gate and a puzzle.
+  const moved = [];
+  if (base.blessed_at_commit && base.blessed_at_commit.files)
+    for (const [f, want] of Object.entries(base.blessed_at_commit.files)) {
+      const abs = path.join(ROOT, f);
+      if (!fs.existsSync(abs)) { moved.push(`${f} (gone)`); continue; }
+      if (shortSha(fs.readFileSync(abs)) !== want) moved.push(f);
+    }
+  const cartsMoved = moved.filter(f => f.startsWith('tools/'));
+  const wasDirty = (base.blessed_at_commit && base.blessed_at_commit.dirty) || [];
+
   const results = [];
   for (const p of PROBES) {
     if (!opts.quiet) process.stdout.write(`  ${p.cart} … `);
@@ -306,6 +362,17 @@ function compare(opts) {
       console.log('    A pure state move looks exactly like this. Commit the step.');
     } else {
       for (const r of bad) console.log(`  ✗ ${r.p.cart.padEnd(16)} ${r.status}  ${r.detail}`);
+      // Say WHY before saying "this is a bug". A drift whose probe cart has changed since the
+      // blessing is expected; a baseline recorded from a dirty tree is not comparable at all.
+      if (wasDirty.length) {
+        console.log('\n  ⚠ THIS BASELINE WAS BLESSED FROM A DIRTY TREE — these were uncommitted at the time:');
+        for (const f of wasDirty) console.log(`      ${f}`);
+        console.log('    It therefore records bytes no commit reproduces, and cannot go green. Re-bless.');
+      } else if (cartsMoved.length) {
+        console.log('\n  ⚠ a probe\'s own cart/clip has CHANGED since the blessing, so drift is expected here:');
+        for (const f of cartsMoved) console.log(`      ${f}`);
+        console.log('    Re-bless if the cart change is the intended one.');
+      }
       console.log('\n  A state move that changes output is a BUG in the refactor, not a new baseline.');
       console.log('  Do not re-bless to make this green unless you can say why the change is intended.');
     }

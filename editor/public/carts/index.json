@@ -4845,6 +4845,23 @@
     "homage": "Operation Wolf (1987)"
   },
   {
+    "title": "oracle",
+    "description": "An insider's prediction market: you hear things before the crowd does, from people who are not always right. Eight markets, each a yes-or-no question with a hidden answer. The price is run by an LMSR automated market maker — the same cost function the real event exchanges use — so every trade genuinely moves it, and the line on the chart is the residue of who paid what rather than a scripted curve. But the price alone is useless to you: it is a correct Bayesian posterior over the crowd's evidence, and betting into a calibrated price pays exactly zero. Your edge is PRIVATE. Sources whisper to you before the crowd works it out — the harbourmaster is right 80% of the time, the tavern drunk barely better than a coin — and the bar shows two markers: what the market thinks, and what YOU think once you have weighed your sources. The gap between them is the only money on the table. Buy it and wait for the crowd to catch up, or discover your source was the drunk. A run ends with your calibration scored: when your read said 70%, how often were you right? Click BUY YES / BUY NO / SELL ALL, or keys Z buy yes, X buy no, C sell all. Q cycles lot size. SPACE pauses the clock. In MAKER mode pick THIN/MID/DEEP liquidity before each market and press P to pull out early. ENTER advances a resolved market, R restarts a finished run.",
+    "file": "oracle.cart.png",
+    "created": "2026-08-14",
+    "kind": [
+      "game"
+    ],
+    "teaches": [
+      "algorithm-visualization",
+      "state-machine",
+      "title-play-gameover-loop",
+      "save-load-persistence"
+    ],
+    "lineage": "The mechanism mule's ore auction gestures at (basep -= 4 per sale) built properly: a real LMSR cost function with simulated order flow, instead of the reroll() random-walk price table that druglord, tradewinds and merchant all share. First cart in the repo where a price is DISCOVERED rather than drawn from a distribution.",
+    "genre": "simulation"
+  },
+  {
     "title": "orbit",
     "description": "A gravity sandbox - build a rocket, launch, and watch the dotted PREDICTED PATH curve into orbit (or, far more often, into the ground). One honest physics core: point-mass inverse-square gravity, with the SAME integrator running the live ship AND the prediction, so the dots never lie - they show exactly where you'd coast if you cut the engine now. Burn until the path closes into a loop that clears the surface and you're in orbit; apoapsis (peach) and periapsis (blue) are marked live. Hold Z to thrust (on the pad it only lifts if TWR > 1), LEFT/RIGHT steer, SPACE stages, R resets. Press 1/2/3 to swap rockets and feel each way to fail: FALCON flies a clean gravity turn, finless PENCIL cartwheels, underpowered BRICK never leaves the pad. Crashes scatter the rocket into its own parts. A Kerbal-Space-Program-in-miniature; MVP - the parts-bin builder is next.",
     "file": "orbit.cart.png",

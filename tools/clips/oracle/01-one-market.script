@@ -1,0 +1,31 @@
+# oracle — one full market in TRADER mode, from open to resolution.
+#
+# Frame budget: a market is TICKS(26) * TICKFRAMES(48) = 1248 frames, plus the
+# ~12 to clear the title. Run to ~1330 to catch the endcard settling.
+#
+#   node tools/make-gif.js oracle --recipe 01-one-market
+#
+# What the clip is FOR: the two markers on the bar. The green fill is what the
+# crowd will sell you; the yellow caret is what you think once your private
+# sources have spoken, and the shaded strip between them is the only money in
+# the cart. Watch the caret jump the moment a source whispers, then watch the
+# crowd's own evidence drag the price toward it (or not — sometimes the source
+# was the tavern drunk).
+#
+# Nothing here is scripted. The chart line is the residue of simulated order
+# flow, so the shape differs per seed; the trades below are only timed to sit
+# on either side of a couple of tip arrivals so the position swings visibly.
+# frames 1330
+# fps 30
+down 10 ENTER
+up 12 ENTER
+down 120 Z
+up 122 Z
+down 300 Z
+up 302 Z
+down 500 X
+up 502 X
+down 800 Z
+up 802 Z
+down 1000 X
+up 1002 X

@@ -635,14 +635,23 @@ Detail lives in the linked design doc in every case; that is where it was always
 > `de_save_state` / `de_load_state` ship in `runtime/platform.h`, `fullState` is implemented on
 > `ios/AU/TinyjamAU.swift`, and `bash tools/state-check/run.sh` passes 20 assertions with four
 > negative controls. What travels is INTENT — the sound config log + cart slices marked
-> `de_state_for_saved` — never the ~4 MB context struct. Two things the plan below had wrong, both
+> `de_state_for_saved` — never the ~4 MB context struct. **The Swift half is gated too** as of the same
+> day: `./au-transport-check --state` (in `ios/mac.sh`) drives the REAL out-of-process plug-in and
+> checks what only a host reveals — the blob reaches the host as our own `DES1` format, `super`'s keys
+> survive, the whole dictionary survives a **property-list round trip** byte-for-byte (a DAW writes
+> `fullState` into the project FILE, and anything not plist-representable is dropped silently), and a
+> blob with a mangled fingerprint is refused without wedging the plug-in. 8/8.
+> ⚠ **One number to decide on:** the blob is **589 KB**, dominated by `SaveBank`'s seven `SaveBlob`s
+> (the autosave + six song slots — the player's whole song bank). That makes a project portable, which
+> is arguably right, but it is duplicated per instance and also lives in `cart.blob` on disk. The
+> idiomatic split if you want it smaller is `fullState` = the current rack only, `fullStateForDocument`
+> = plus the bank; only `fullState` is implemented today, so the bank rides along in every preset.
+> Two things the plan below had wrong, both
 > corrected in [`design/engine-instance-seam.md`](design/engine-instance-seam.md): the `de_state()`
 > block cannot be copied verbatim (its arena header IS pointers), and the "no pointers" rule was
 > already violated by `ui.h` — while `keybed.h`/`solo.h`/`radio.h` hold live voice HANDLES, which are
 > plain ints and so invisible to a pointer lint. Hence per-slice opt-in with **scratch as the
-> default**. ⚠ STILL OPEN: nothing exercises the twelve Swift lines (no gate instantiates the AU's
-> object graph — the same blind spot that shipped three double-engine bugs).
-> The lint IS written (`tools/lint-saved-state.js`, in repo-doctor) and **caught a real one on its
+> default**. The lint IS written (`tools/lint-saved-state.js`, in repo-doctor) and **caught a real one on its
 > first run**: `acidcandy`'s `nav_poison[6]`, an array of widget POINTERS inside the saved `CartState`,
 > committed an hour earlier under a comment asserting there were none. Moved to a scratch slice.
 >

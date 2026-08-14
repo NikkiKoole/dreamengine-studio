@@ -142,8 +142,10 @@ frames from a worker while the view copies on another thread.
   with live voice HANDLES in `keybed.h`/`solo.h`/`radio.h` being the worse case a pointer lint cannot
   see. Corrected in [`engine-instance-seam.md`](engine-instance-seam.md). The lint exists too
   (`tools/lint-saved-state.js`) and earned itself immediately — it caught a `void *` array inside
-  `acidcandy`'s saved slice that had shipped an hour earlier. **Still open: the Swift half is
-  ungated** (nothing instantiates the AU's object graph).
+  `acidcandy`'s saved slice that had shipped an hour earlier. The Swift half is gated too —
+  `./au-transport-check --state` in `ios/mac.sh` drives the real out-of-process plug-in, including the
+  **property-list round trip** a DAW performs when it writes `fullState` into a project file (anything
+  not plist-representable is dropped silently, so an in-memory test cannot see it). 8/8.
 - **GarageBand's iPad-layout toggle has never worked** for this plug-in. Pre-dates all of this; the
   CART is fine (`play.js acidcandy --resize` reflows correctly). Filed in `STATUS.md`.
 - **The `--panel` gate is RED, and what it is failing on is now narrower.** Re-run 2026-08-14 after

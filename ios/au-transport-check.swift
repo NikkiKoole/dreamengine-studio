@@ -386,6 +386,82 @@ if argv.contains("--view") {
 // renders anything, so it must first report the orphan-shaped verdict and only then flip to
 // CONNECTED. A run that shows only one of the two is a reporter stuck on one branch, which is exactly
 // the failure being corrected here.
+// ═══ --state: SESSION STATE — does fullState carry the rack OUT to the host? ══════════════════════
+// The engine half of session state is gated by tools/state-check/run.sh (20 assertions, four negative
+// controls) — but that runs the desktop DE_NO_RAYLIB build, so it never sees the twelve Swift lines in
+// TinyjamAU's fullState, and it cannot see the thing those lines have to survive: a host does not keep
+// the dictionary in memory, it WRITES IT INTO THE PROJECT FILE as a property list. Anything in there
+// that is not plist-representable is dropped SILENTLY. So a plug-in can pass every in-memory test and
+// still forget everything the first time a real project is saved and reopened.
+//
+// This mode covers exactly that seam: the key reaches the host, it is our own format, super's keys are
+// not stripped, it survives plist serialisation byte-for-byte, and setting it back — valid or corrupt —
+// leaves a plug-in that still plays.
+if argv.contains("--state") {
+    print("▸ session state: does fullState carry the rack, and survive what a DAW does with it?")
+    let KEY = "dreamengineRack"
+
+    // Frames have to have RUN first: a cart's saved slices register on first access, so reading
+    // fullState straight after instantiation would measure a rack that has not booted its state yet.
+    let rig = try! Rig(au: avAU, sr: ENGINE_SR)
+    let before = rig.render(beats: 4)
+    check("the plug-in is rendering before we ask it to save", before.peak > 0.01,
+          "peak \(String(format: "%.3f", before.peak)) — a silent AU makes every check below vacuous")
+
+    guard let state = avAU.auAudioUnit.fullState else {
+        check("fullState returns a dictionary", false, "it returned nil")
+        print("\n\(failures) check(s) FAILED — the host cannot save this plug-in at all.")
+        exit(1)
+    }
+    let data = state[KEY] as? Data
+    check("fullState carries our rack blob", (data?.count ?? 0) > 0,
+          data == nil ? "no \"\(KEY)\" key — the engine half never reached the host"
+                      : "\(data!.count) bytes under \"\(KEY)\"")
+
+    // It must be the ENGINE's format, not an empty placeholder that happens to be non-nil.
+    let magic: String? = (data?.count ?? 0) >= 4 ? String(bytes: data![0..<4], encoding: .ascii) : nil
+    check("and it is the engine's own format", magic == "DES1",
+          "magic = \(magic ?? "none") (de_save_state writes DES1)")
+
+    // super's keys are what let the host re-instantiate us at all. Returning only ours would strip them.
+    check("super's fullState keys are preserved", state.count > 1,
+          "\(state.count) key(s): \(state.keys.map { "\($0)" }.sorted().joined(separator: ", "))")
+
+    // ⚠ THE ONE THAT MATTERS MOST — see the block comment above.
+    var plistOK = false, sameAfterPlist = false
+    do {
+        let ser = try PropertyListSerialization.data(fromPropertyList: state, format: .binary, options: 0)
+        let back = try PropertyListSerialization.propertyList(from: ser, options: [], format: nil) as? [String: Any]
+        plistOK = back != nil
+        sameAfterPlist = (back?[KEY] as? Data) == data
+    } catch { plistOK = false }
+    check("the whole dictionary survives a property-list round trip", plistOK,
+          plistOK ? "serialised to binary plist and read back"
+                  : "NOT plist-representable — a DAW would drop this silently on project save")
+    check("and our blob comes back byte-identical", sameAfterPlist,
+          sameAfterPlist ? "\(data?.count ?? 0) bytes unchanged" : "the blob changed or vanished in the plist")
+
+    // Setting it back must be accepted and must leave a plug-in that still plays.
+    avAU.auAudioUnit.fullState = state
+    let after = rig.render(beats: 4)
+    check("the plug-in still renders after a restore", after.peak > 0.01,
+          "peak \(String(format: "%.3f", after.peak)) over 4 beats")
+
+    // NEGATIVE CONTROL: the engine REFUSES a blob whose layout fingerprint disagrees (a different
+    // build), and refusing has to be graceful — the rack stays at defaults and keeps playing. If this
+    // silences or wedges the plug-in, "refused" is not a safe outcome and the check above proves little.
+    var corrupt = state
+    if var d = data, d.count > 8 { d[8] ^= 0xFF; corrupt[KEY] = d }
+    avAU.auAudioUnit.fullState = corrupt
+    let afterBad = rig.render(beats: 4)
+    check("a corrupted blob is refused WITHOUT wedging the plug-in", afterBad.peak > 0.01,
+          "peak \(String(format: "%.3f", afterBad.peak)) after setting a blob with a mangled fingerprint")
+
+    print(failures == 0 ? "\nPASS — fullState reaches the host, survives a project save, and refuses safely."
+                        : "\n\(failures) check(s) FAILED — a saved project would not restore this rack.")
+    exit(failures == 0 ? 0 : 1)
+}
+
 if argv.contains("--panel") {
     print("▸ panel: is it attached to the audio unit that RENDERS?")
     // WHICH PROCESS is the audio in? The channel answers from wherever the AU's code actually lives.

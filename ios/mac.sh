@@ -172,4 +172,10 @@ echo "▸ plug-in view gate (--view)"
 echo "▸ panel-is-the-audible-engine gate (--panel, ~15s)"
 ./au-transport-check --panel
 
+# The Swift half of session state. tools/state-check/run.sh gates the ENGINE half far more thoroughly,
+# but it runs the desktop DE_NO_RAYLIB build and so never touches TinyjamAU's fullState — nor the thing
+# that only a real host reveals: the dictionary is written into the project file as a property list.
+echo "▸ session-state gate (--state)"
+./au-transport-check --state
+
 echo "  (negative control: ./au-transport-check --free must FAIL the tempo check — ratio ~0.5)"

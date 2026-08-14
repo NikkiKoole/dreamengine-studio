@@ -349,6 +349,13 @@ a broken doc link or `#section`).
 > · Also logged: `colorkey()` destroys and rebuilds a SHARED GPU texture from a cart API;
 >   `fp_cache`'s key omits the palette; and an unrelated latent `web_px` overflow after a canvas grow.
 >
+> **▶▶ WHAT IS LEFT, ON ONE PAGE: [`design/per-instance-remaining.md`](design/per-instance-remaining.md).**
+> Read that first — it lists every remaining item in the order to do them, separates "blocks two
+> racks" from "correctness gap" from "found along the way", and records what is DONE so nobody
+> redoes it. Live progress number: `node tools/engine-statics.js` (601 → 148).
+> **The one blocker is the CART's own state** (see below); everything else is a gap to decide, not a
+> gate to pass.
+>
 > **✅ ALL 8 CART-LAND HEADERS ARE DONE (2026-08-14).** `ui` · `keybed` · `solo` · `gestures` ·
 > `radio` · `tr808` · `cursor` · `drumkit` · `tr909` all declare their state once and fork: DEFAULT
 > into the statics that were there (580/580 build, refactor-guard byte-identical) or into a

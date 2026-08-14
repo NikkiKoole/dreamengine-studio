@@ -1,7 +1,9 @@
 # The instance seam — giving the host a handle
 
-> **STATUS: building — STEP 1 IS DONE** (2026-08-14). The handle exists and every host passes it;
-> there is still exactly one instance, so nothing behaves differently yet. Steps 2-4 below remain. The prerequisite work is done:
+> **STATUS: building — STEPS 1-3 ARE DONE** (2026-08-14). The handle exists, every host passes it,
+> `studio.c`'s state moved, and the AUv3 creates one engine + one frame worker per audio unit.
+> **What is LEFT: [`per-instance-remaining.md`](per-instance-remaining.md)** — the single checklist.
+> The prerequisite work is done:
 > `sound.h`'s state is per-instance ([`engine-context.md`](engine-context.md)) and `studio.c`'s is
 > classified. This doc decides the shape of the host-facing API *before* `studio.c`'s state moves,
 > because the move is only correct if it is shaped for this.

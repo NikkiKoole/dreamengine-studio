@@ -4,6 +4,8 @@
 > context struct; `node tools/engine-statics.js` reads **13** for that file, and every one of the 13
 > is a recorded decision (1 shared, 5 harness, 5 deferred, 2 dead-weight), not a leftover. Next:
 > `studio.c` (222). Lane: [`HANDOFF.md`](../HANDOFF.md) → the AUv3 thread.
+> **What is LEFT before this is done: [`per-instance-remaining.md`](per-instance-remaining.md)** — the
+> single checklist, in order, with what is already finished.
 > Sibling docs: [`engine-instance-seam.md`](engine-instance-seam.md) (the host-facing handle — DESIGN THAT FIRST,
 > `studio.c`'s move is only correct if shaped for it), [`ios-plan.md`](ios-plan.md) (how the AUv3 got here),
 > [`external-clock-sync.md`](external-clock-sync.md) (the transport seam it rides on).

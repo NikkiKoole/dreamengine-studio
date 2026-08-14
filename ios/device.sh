@@ -29,12 +29,57 @@ TEAM="${TEAM:-JH2ZCZH58D}"
 SCHEME="TinyjamHello"
 CART="${CART:-omnichord}"        # the standalone app's cart
 AU_CART="${AU_CART:-acidcandy}"  # the AUv3 extension's cart — the same rack the macOS plug-in ships
+# ── FINDING THE DEVICE: TWO PROTOCOLS, AND WHICH ONE DEPENDS ON THE DEVICE ──────────────────────
+# Modern iOS/iPadOS (17+) devices speak CoreDevice and are driven by `xcrun devicectl`. Older ones
+# (the iOS 15 iPhone this script was written for) speak the classic protocol and are driven by
+# ios-deploy. NEITHER TOOL SEES BOTH, and the failure is confusing in both directions:
+#   · `xctrace list devices` lists a CoreDevice-only iPad under "== Devices Offline ==", so the old
+#     discovery below found nothing and exited with "connect + unlock it" — on a device that was
+#     connected, unlocked and trusted. (Bit us on an iPadOS 26.5 iPad, 2026-08-14.)
+#   · ios-deploy (1.12.2, last release 2022) predates CoreDevice entirely and cannot install to it.
+# So: ask devicectl first, fall back to the classic path. DEVICE_ID= still forces either.
+# ⚠ PARSE THE JSON, NOT THE TABLE. devicectl's text table has variable-width columns and the MODEL
+# field contains spaces and parentheses — "iPad Pro (12.9-inch) (3rd generation) (iPad8,5)" — so an
+# awk positional grab returns "(12.9-inch)" as the device id, and the install then fails with
+# "The specified device was not found", naming a device nobody asked for. It happened to work while
+# the model was the bare "iPad8,5". Same trap as every other regex-over-structured-text in this repo.
+DC_ID=""; DC_DEVMODE=""
+if [ -z "${DEVICE_ID:-}" ] && xcrun devicectl list devices --json-output /tmp/de-devices.json >/dev/null 2>&1; then
+  DC_ID="$(/usr/bin/python3 -c "import json;d=[x for x in json.load(open('/tmp/de-devices.json'))['result']['devices'] if 'iPad' in x['deviceProperties']['name'] or 'iPhone' in x['deviceProperties']['name']];print(d[0]['identifier'] if d else '')" 2>/dev/null)"
+  # ⚠ ASK THE DEVICE, NOT THE CACHE. `list devices` reports the LAST KNOWN developerModeStatus, and
+  # while the tunnel is disconnected that is whatever it was before you changed it — so a device with
+  # Developer Mode freshly enabled still lists as "disabled". Gating on that told the maker to go and
+  # do a thing they had already done, twice. `device info details` OPENS the tunnel and answers live.
+  [ -n "$DC_ID" ] && DC_DEVMODE="$(xcrun devicectl device info details --device "$DC_ID" 2>/dev/null \
+    | awk -F': ' '/developerModeStatus/ {print $2; exit}')"
+  # The HARDWARE udid, which is a different identifier from the CoreDevice uuid above. xcodebuild
+  # wants this one; devicectl wants the other. Passing the wrong one fails in confusing ways.
+  DC_UDID="$(/usr/bin/python3 -c "import json;d=[x for x in json.load(open('/tmp/de-devices.json'))['result']['devices'] if x['identifier']=='$DC_ID'];print(d[0].get('hardwareProperties',{}).get('udid','') if d else '')" 2>/dev/null)"
+fi
 DEVICE_ID="${DEVICE_ID:-$(xcrun xctrace list devices 2>&1 \
   | sed -n '/== Devices ==/,/== Simulators ==/p' \
   | awk -F'[()]' '/iPhone|iPad/ {print $4; exit}')}"
 
-[ -z "$DEVICE_ID" ] && { echo "no physical device found — connect + unlock it"; exit 1; }
-echo "▸ device: $DEVICE_ID  ·  team: $TEAM  ·  cart: $CART (AU: $AU_CART)"
+if [ -z "$DEVICE_ID" ] && [ -z "$DC_ID" ]; then
+  echo "no physical device found — connect + unlock it, and accept 'Trust This Computer'"
+  echo "  what each tool sees (they disagree by design — see the note above):"
+  xcrun devicectl list devices 2>&1 | sed 's/^/    devicectl: /'
+  xcrun xctrace list devices 2>&1 | sed -n '/== Devices/,/== Simulators/p' | sed 's/^/    xctrace:   /'
+  exit 1
+fi
+if [ -n "$DC_ID" ]; then VIA="devicectl"; else VIA="ios-deploy"; fi
+echo "▸ device: ${DC_ID:-$DEVICE_ID} (via $VIA)  ·  team: $TEAM  ·  cart: $CART (AU: $AU_CART)"
+# printed because the FIRST build against a new device fails with "isn't registered in your developer
+# account", and fixing that needs this exact string pasted into developer.apple.com → Devices.
+[ -n "${DC_UDID:-}" ] && echo "  udid: $DC_UDID   (register this if the build fails on provisioning)"
+# Fail BEFORE the 1-2 minute signed build if the device cannot possibly accept it.
+if [ -n "$DC_ID" ] && [ "$DC_DEVMODE" = "disabled" ]; then
+  echo "✗ Developer Mode is DISABLED on this device — the install would fail after the build."
+  echo "  iPad: Settings → Privacy & Security → Developer Mode → ON → RESTART → confirm 'Turn On'."
+  echo "  ⚠ The reboot is required; the toggle alone does not take effect, and the device reports"
+  echo "    'disabled' until you confirm on the far side of the restart."
+  exit 1
+fi
 
 # stage each target's cart (same as build.sh — the gen/ dirs project.yml references)
 stage_cart() {
@@ -96,11 +141,37 @@ fi
 
 echo "▸ generating + building (signed for device, $CONFIG, ${SW}x${SH})…"
 xcodegen generate --spec project.yml >/dev/null
+# ⚠ BUILD FOR THE ACTUAL DEVICE, NOT `generic/platform=iOS`. With a generic destination Xcode has no
+# device to provision FOR, so -allowProvisioningUpdates happily reuses an existing profile and never
+# registers this one — and the install then dies at the very end with
+#   "Failed to install embedded profile … 0xe8008012 (This provisioning profile cannot be installed
+#    on this device.)"
+# which names the profile, not the missing registration. Naming the device is what makes automatic
+# signing add it to the team and mint a profile that includes it. (Bit us on a new iPad, 2026-08-14.)
+DEST="generic/platform=iOS"
+[ -n "${DC_UDID:-}" ] && DEST="platform=iOS,id=$DC_UDID"
 xcodebuild -project "$SCHEME.xcodeproj" -scheme "$SCHEME" -configuration "$CONFIG" \
-  -destination 'generic/platform=iOS' -derivedDataPath build \
+  -destination "$DEST" -derivedDataPath build \
   GCC_PREPROCESSOR_DEFINITIONS="$DEFS" \
   -allowProvisioningUpdates DEVELOPMENT_TEAM="$TEAM" CODE_SIGN_STYLE=Automatic build >/dev/null
 
 echo "▸ installing + launching on device…"
-ios-deploy --id "$DEVICE_ID" --bundle "build/Build/Products/$CONFIG-iphoneos/$SCHEME.app" --justlaunch
+APP_PATH="build/Build/Products/$CONFIG-iphoneos/$SCHEME.app"
+if [ -n "$DC_ID" ]; then
+  # CoreDevice path. install + launch are separate verbs here, unlike ios-deploy's --justlaunch.
+  BUNDLE_ID="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP_PATH/Info.plist")"
+  if ! xcrun devicectl device install app --device "$DC_ID" "$APP_PATH"; then
+    # ⚠ THE ONE-TIME DEVICE SETUP, and the error names the setting but not where it lives:
+    # "The operation failed because Developer Mode is disabled." Developer Mode only APPEARS in
+    # Settings after a Mac has attempted an install (which the line above just did), so on a fresh
+    # device the toggle does not exist until this fails once. It needs a REBOOT to take effect.
+    echo ""
+    echo "  ▸ On the iPad: Settings → Privacy & Security → Developer Mode → ON → restart →"
+    echo "    confirm 'Turn On' after it reboots. Then re-run this script."
+    exit 1
+  fi
+  xcrun devicectl device process launch --device "$DC_ID" "$BUNDLE_ID"
+else
+  ios-deploy --id "$DEVICE_ID" --bundle "$APP_PATH" --justlaunch
+fi
 echo "✓ running on device ($CONFIG)"

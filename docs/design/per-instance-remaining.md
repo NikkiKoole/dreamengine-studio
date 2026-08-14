@@ -7,6 +7,9 @@
 >
 > **Progress: the engine went from 601 process-global mutable statics to 148**, and every one of the
 > 148 is a recorded decision rather than a leftover. Live numbers: `node tools/engine-statics.js`.
+> **The CART is done too** (2026-08-14): `acidcandy`'s 198 are per-instance, so the thing that
+> actually blocked two racks is gone. What is left below is a published FRAME that is still shared
+> (two panels cannot yet show different pictures) plus a list of correctness gaps.
 
 ## The goal, stated once
 
@@ -16,39 +19,28 @@ blocks that, or is a correctness gap the work exposed. Verified by
 guard runs ONE instance, so it proves a state move changed nothing and can never prove two instances
 are strangers.
 
+⚠ **Read what each gate actually drives.** `instance-check` drives the two engines through
+`de_sync_position` — TRANSPORT, which is engine state — so it has never exercised the CART's own
+state and does not now. The cart-side evidence comes from `run-uictx.sh`, which builds the same
+probe twice and asserts opposite things, and which covers both cart-land header state and the
+cart's own (two different shapes: a header's block starts zeroed and runs an init function, a
+cart's starts as a copy of a compile-time template).
+
 ---
 
 ## ▶ BLOCKS TWO RACKS (do these, in this order)
 
-### 1. The cart's own state — THE remaining blocker
-`acidcandy`: **168 file-scope statics + 30 function-local**; `ctx-gen --target cart` moves only
-**113**. Blocked by **32 NAME COLLISIONS** — the cart uses short names (`on`, `pit`, `acc`, `sld`,
-`tie`, `oct`) that are also STRUCT FIELDS, so `#define on (de_cart->on)` turns `p->on` into
-`p->(de_cart->on)`.
-
-⚠ **All-or-nothing.** Unlike the engine, where each batch paid off alone, leaving 55 statics shared
-still means two racks share a sequencer.
-
-**Route:** rename the STRUCT FIELDS (fewer than the statics, and their uses are syntactically
-distinct via `->`/`.`), compile, and watch the collision count in `ctx-gen --target cart` reach zero
-BEFORE generating. **Not with a regex** — `on[i]` and `p->on` are the same token to one, and that
-mistake has produced five wrong answers in this refactor.
-
-### 2. The 30 function-local statics in the cart
-A `#define` cannot rewrite a declaration inside a function body; each has to move by hand. Included
-in the all-or-nothing above.
-
-### 3. `de_pres_*` — the published FRAME is still process-wide
+### 1. `de_pres_*` — the published FRAME is still process-wide
 Inside `#ifdef DE_NO_RAYLIB`, so `ctx-gen` refuses it (it sees one configuration). Consequence: two
 panels cannot show different pictures, and `instance-check` says so explicitly — it asserts
 independence on AUDIO only, because comparing frames would compare one shared buffer at two times.
 
-### 4. `fb_w` / `fb_h` / `de_sw` / `de_sh` — taken back OUT of the context
+### 2. `fb_w` / `fb_h` / `de_sw` / `de_sh` — taken back OUT of the context
 They must move WITH their siblings `sw_cbuf` / `sw_dst` / `sw_world_buf`, which are also inside
 `#ifdef DE_NO_RAYLIB`. A half-moved framebuffer group made `cls()` write `fb_w*fb_h` pixels into
 another instance's smaller canvas. **Needs 3 and 4 together**, and both need:
 
-### 5. `ctx-gen` must reason across BOTH build configurations
+### 3. `ctx-gen` must reason across BOTH build configurations
 It takes one AST, so anything inside a preprocessor conditional is refused (12 lines in `studio.c`).
 The fix is to union the statics from a `DE_NO_RAYLIB` dump and a Raylib dump, dedupe by name, and
 refuse only on a genuine type conflict.
@@ -114,5 +106,17 @@ frames from a worker while the view copies on another thread.
 | instances | `de_instance_create` allocates, copies a pristine template, and they are proven strangers |
 | the AUv3 | one engine + one frame worker per audio unit; `bootEngineOnce` deleted |
 | cart-land | **all 8 headers** that hold state declare it once and fork; 553 carts unaffected |
+| the cart | `acidcandy`'s **198 statics** (168 file-scope + 30 hoisted out of function bodies) moved, and it defines `DE_CART_CTX` so its headers fork too. **0 statics left in the cart TU.** |
 | gates | `instance-check`, `run-uictx.sh`, `refactor-guard`, `engine-statics`, `ctx-gen --check` |
 | verified | **one track clean in GarageBand** (maker, 2026-08-14): stable panel, no regression |
+
+### How the cart move was done (the part that kept going wrong)
+
+Three separate attempts to rename the cart's colliding names by **scanning braces** failed — a local
+whose scope the scan got wrong silently rebinds to the static of the same name, which still compiles.
+What worked was making the **compiler** the oracle: rename the DECLARATION, and every use that was
+the static errors as *undeclared* while every use bound to a local stays silent. 93 uses in one pass,
+zero judgement calls. Same trick for the three hoisted names that were not unique.
+
+This is the sixth time in this refactor that a regex over C gave a confident wrong answer. The
+lesson is in [`engine-context.md`](engine-context.md); the shortest form is **ask clang**.

@@ -151,9 +151,10 @@ reads `watches`/`watch_count` to dump them; a handler takes no argument. Either 
 ## Cart-land: the same problem, one layer up
 
 The engine's state is per-instance, but a cart is ONE translation unit, so two instances of one cart
-share everything the cart and its headers declare `static`. Measured on `acidcandy`: **209 statics in
-its TU** — 120 the cart's own, the rest in `ui.h`, `tr808.h`, `tr909.h`, `cursor.h` and friends. A
-rack whose widget table is shared is not a second rack.
+share everything the cart and its headers declare `static`. Measured on `acidcandy`: **271 statics in
+its TU** — 198 the cart's own, the rest in `ui.h`, `tr808.h`, `tr909.h`, `cursor.h` and friends. A
+rack whose widget table is shared is not a second rack. **All of it is now per-instance** (headers
+below, the cart further down); the TU is at 0.
 
 Route **(b)** was chosen over generating transformed copies at build time, because with ~20 AUv3 apps
 planned the plug-in build IS the product, and a permanent gap between the code you read and the code
@@ -248,27 +249,57 @@ declarations — the fourth and fifth bad counts of this refactor, both from not
 `tools/engine-statics.js` has the validated approach (AST + source-verified attribution); point it at
 the header's TU rather than writing another scan.
 
-### The cart itself — measured, and it is the hard part
+### The cart itself — DONE (2026-08-14), and how
 
-**All 8 headers are done.** The cart is not, and the reason is worth knowing before anyone starts.
+**All 8 headers are done, and so is the cart.** `acidcandy`'s **198** statics (168 file-scope plus 30
+that lived inside function bodies) are per-instance, the cart TU is at **0**, and the cart declares
+`#define DE_CART_CTX` before its includes so its headers fork too. Everything above proves the
+mechanism; this is the product.
 
-`acidcandy` has **168 file-scope statics plus 30 function-local** (not the ~120 first estimated), and
-`ctx-gen --target cart` can move only **113** of them. The blocker is **32 NAME COLLISIONS**: the cart
-uses short names — `on`, `pit`, `acc`, `sld`, `tie`, `oct` — that are ALSO struct fields, so
-`#define on (de_cart->on)` turns `p->on` into `p->(de_cart->on)`. Cart code names things briefly, which
-is fine until every name becomes a macro.
+**A cart reaches its instance differently from the engine.** The engine has a seam — every host entry
+point takes a `DeInstance *` and sets the thread-local on the way in. A cart has none: `draw()` and
+`update()` take nothing, and by the time they run the engine already knows which instance is
+rendering. So the cart asks for its slice by ADDRESS through `de_state_for`, exactly as the cart-land
+headers do, and forks on `DE_CART_CTX`:
 
-⚠ **Partial does not help.** Moving 113 and leaving 55 shared still means two racks share sequencer
-state. Unlike the engine, where each batch was independently valuable, the cart is all-or-nothing.
+```c
+#ifndef DE_CART_CTX
+#define de_cart (&de_cart_default)          // the template IS the state: same storage as before
+#else
+static char de_cart_key_;                    // unique per TU by construction — no registry
+static CartState *de_cart_(void) {
+    CartState *c = (CartState *)de_state_for(&de_cart_key_, (int)sizeof(CartState));
+    if (c && !c->de_ctx_inited_) { *c = de_cart_default; c->de_ctx_inited_ = 1; }
+    return c;
+}
+#define de_cart de_cart_()
+#endif
+```
 
-So the remaining work is a rename pass inside the cart: either the 32 colliding statics or the struct
-fields they clash with. It is contained (one file) but it is not mechanical — `on[i]` and `p->on` are
-the same token to a regex, and this refactor has been burned five times by regexes over C. The safe
-route is to rename the STRUCT FIELDS (fewer, and their uses are syntactically distinct via `->`/`.`),
-compile, and let the collision count in `ctx-gen --target cart` fall to zero before generating.
+⚠ **The template copy is the whole difference from a header's block.** A header's opt-in state starts
+zeroed and runs an init function; a cart's starts as a copy, because a cart's statics carry real
+compile-time defaults (acidcandy has **84**) and `de_state_for` hands back zeroed memory. An instance
+that never copied would boot with every tempo and level at 0 and render a perfectly valid, completely
+wrong rack — invisible to any single-instance gate, so `run-uictx.sh` asserts the copy happened.
 
-**Only then do two racks actually work.** Everything above proves the mechanism; the cart is the
-product.
+**Three renames stood in the way, and the way through them is the lesson.** 32 NAME COLLISIONS: the
+cart uses short names (`on`, `pit`, `acc`, `sld`, `tie`, `oct`) that are ALSO struct fields, so
+`#define on (de_cart->on)` turns `p->on` into `p->(de_cart->on)`. Cart code names things briefly,
+which is fine until every name becomes a macro.
+
+- The **struct fields** went first (95 accesses, `b_` prefix) — their uses are syntactically distinct
+  via `->`/`.`, so that pass is genuinely mechanical.
+- The **four remaining statics** (`on`, `sel`, `armed`, `step`) were shadowed by locals, and three
+  attempts to scope those locals by counting braces all failed. Braces inside strings and one-line
+  function bodies drift the count, and the failure is SILENT: a local you missed rebinds to the
+  static of the same name and still compiles. The fix was to invert it and let the **compiler** be
+  the oracle — rename the DECLARATION, and every use that was the static errors as *undeclared*
+  while every use bound to a local stays quiet. 93 uses located in one pass, no judgement calls.
+- The **30 function-local statics** were hoisted to file scope first, since a `#define` rewrites uses
+  and a declaration inside a body is not a use. Hoisting is semantically nothing (a static is a
+  static wherever it is written); only three names changed, because they were not unique.
+
+That is the sixth confident wrong answer a regex over C has produced in this refactor. **Ask clang.**
 
 ## Memory
 
@@ -349,11 +380,15 @@ example. Those defects are caught by review and by the two-engine probe
 ## Order
 
 1. **`sound.h` — DONE**, byte-identical, 327 moved and 13 deliberately left.
-2. `studio.c`.
-3. `acidcandy`'s own statics → `de_state()`.
-4. Thread the context through the platform seam; `TinyjamAU` makes one per instance and
-   `bootEngineOnce`'s idempotence goes away (it exists only because instances shared an engine).
-5. The three things a context does not fix: the Swift frame worker, the CoreMIDI virtual source name,
-   and `save_bytes` (one `cart.blob` for N instances — `de_set_save_dir` already exists to scope it).
-6. Gate with `engine-dylib-spike/probe.c`, whose assertions and negative control port unchanged once
-   `dlopen` becomes a context call.
+2. **`studio.c` — DONE**, 116 moved; the rest are shared/harness/conditional by classification.
+   **`sync.h` — DONE**, 0 left.
+3. **The seam — DONE.** Every host entry point takes a `DeInstance *`; `TinyjamAU` makes one per
+   instance and `bootEngineOnce` is deleted. One GarageBand track verified clean by the maker.
+4. **Cart-land headers — DONE**, all 8, each declaring its state once and forking on `DE_CART_CTX`.
+5. **`acidcandy`'s own statics — DONE**, all 198, via `de_state_for`.
+6. What a context does not fix, still open: the Swift frame worker, the CoreMIDI virtual source name,
+   `save_bytes` (one `cart.blob` for N instances — `de_set_save_dir` already exists to scope it), and
+   the published FRAME (`de_pres_*`), which is why two panels cannot yet show different pictures.
+   The live list is [`per-instance-remaining.md`](per-instance-remaining.md).
+7. Gated by `tools/instance-check/` (two engines are strangers) and `run-uictx.sh` (both cart-land
+   paths). `engine-dylib-spike/probe.c` remains the same assertions from the other mechanism.

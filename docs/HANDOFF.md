@@ -148,21 +148,31 @@ a broken doc link or `#section`).
 > **Resume-at:** [`design/tenement.md` → The building does not contend, and the four reasons are stacked](design/tenement.md#12-the-building-does-not-contend-and-the-four-reasons-are-stacked),
 > plus the cart's own punch list, `node tools/cart-todos.js tenement` (the rim first).
 
-> **▶ ACTIVE THREAD (2026-08-13) — EXTERNAL CLOCK + the AUv3 on macOS: a cart can be slaved, and acidcandy is a GarageBand plug-in.**
+> **▶ ACTIVE THREAD (2026-08-14) — EXTERNAL CLOCK + the AUv3 on macOS: a cart can be slaved, and acidcandy is a GarageBand plug-in.**
 > **▶▶ START HERE IN A FRESH SESSION (rewritten 2026-08-13 end-of-day). GOAL: a well-behaved macOS
 > AUv3.** No iPad — macOS IS the target. Everything you need to act is in THIS block; the shipped history
 > follows it, and inside that history the block headed `▼ superseded` is factually WRONG and kept only so
 > the trail of how it was believed is readable.
 >
+> **▶ NEXT ACTION (2026-08-14): TEST TWO GARAGEBAND TRACKS.** Every piece of shared state that made
+> them one rack is gone — engine, cart-land headers, and the cart's own 198. `bash ios/mac.sh`, then
+> load the plug-in on two tracks and play them independently. That is the measurement the whole lane
+> has been building toward, and the one thing no gate here can stand in for. Expect the PANELS to
+> still be wrong if both are open: the published frame (`de_pres_*`) is the one shared thing left, so
+> two views cannot yet show different pictures — audio independence is what to judge.
+>
 > **STATE: it works, except for one thing.** The plug-in plays, follows the host's tempo and transport,
 > survives a whole song, converts to any host sample rate, shows our own panel, and the panel is attached
 > to the audio unit you can hear (confirmed in GarageBand by the maker). Seven gates in `bash ios/mac.sh`,
-> 31 assertions, green. **The ONE live defect is (B): two tracks share one engine.** Load the plug-in on
-> two GarageBand tracks and "the sound goes weird" — both audio units are in ONE extension process and
-> engine state is process-global, so both render blocks push `de_sync_position` into the same engine and
-> both signal the one frame worker. The rack is driven twice per host buffer by two transports.
+> 31 assertions, green. **Defect (B) — two tracks share one engine — was this lane's whole subject:**
+> load the plug-in on two GarageBand tracks and "the sound goes weird", because both audio units are in
+> ONE extension process and engine state was process-global, so both render blocks pushed
+> `de_sync_position` into the same engine and both signalled the one frame worker. The rack was driven
+> twice per host buffer by two transports. **State is now per-instance end to end (engine, cart-land
+> headers, and the cart's own 198), so this is believed FIXED — but two tracks have not been played
+> yet.** Until they have, treat it as unverified rather than shipped.
 >
-> **▶ THE NEXT JOB: give the engine PER-INSTANCE STATE — a context struct. THIS IS THE ROUTE.**
+> **▶ THE JOB THIS LANE DID: give the engine PER-INSTANCE STATE — a context struct. THIS IS THE ROUTE.**
 > It is what the platform expects: an AUv3 is designed to be instantiated many times in one process, and
 > in Apple's own samples the DSP state lives in a per-instance kernel object owned by the audio unit.
 > There is no "one engine per process" allowance. **The non-conforming part is OUR engine**, which keeps
@@ -353,23 +363,32 @@ a broken doc link or `#section`).
 > Read that first — it lists every remaining item in the order to do them, separates "blocks two
 > racks" from "correctness gap" from "found along the way", and records what is DONE so nobody
 > redoes it. Live progress number: `node tools/engine-statics.js` (601 → 148).
-> **The one blocker is the CART's own state** (see below); everything else is a gap to decide, not a
-> gate to pass.
+> **The state-sharing blockers are now CLEARED**; what remains is the shared published FRAME plus a
+> list of gaps to decide, not gates to pass.
 >
 > **✅ ALL 8 CART-LAND HEADERS ARE DONE (2026-08-14).** `ui` · `keybed` · `solo` · `gestures` ·
 > `radio` · `tr808` · `cursor` · `drumkit` · `tr909` all declare their state once and fork: DEFAULT
 > into the statics that were there (580/580 build, refactor-guard byte-identical) or into a
 > per-instance context under `DE_CART_CTX`. Both paths compile-checked by `run-uictx.sh`.
-> **▶ WHAT IS LEFT IS THE CART, AND IT IS THE HARD PART.** `acidcandy` has **168 file-scope statics +
-> 30 function-local** (not the ~120 estimated), and `ctx-gen --target cart` moves only **113** — because
-> of **32 NAME COLLISIONS**: the cart uses short names (`on`, `pit`, `acc`, `sld`, `tie`, `oct`) that
-> are ALSO struct fields, so `p->on` becomes `p->(de_cart->on)`.
-> ⚠ **Partial does not help here.** Unlike the engine, where each batch paid off on its own, leaving
-> 55 statics shared still means two racks share a sequencer. It is all-or-nothing.
-> **The route:** rename the STRUCT FIELDS (fewer than the statics, and their uses are syntactically
-> distinct via `->`/`.`), compile, and watch the collision count in `ctx-gen --target cart` fall to
-> zero before generating. ⚠ Do NOT regex it — `on[i]` and `p->on` are the same token to a regex, and
-> this refactor has been burned by regexes over C five times.
+>
+> **✅ AND SO IS THE CART (2026-08-14) — the last thing two racks were sharing.** All **198** of
+> `acidcandy`'s statics (168 file-scope + 30 that lived inside function bodies) are per-instance, the
+> cart TU measures **0**, and the cart defines `DE_CART_CTX` so its headers fork too. A cart has no
+> seam — `draw()`/`update()` take no argument — so it asks for its slice by ADDRESS through
+> `de_state_for`, like the headers. Default path folds `de_cart->x` to `de_cart_default.x`, the same
+> storage as before, so the other 552 carts are untouched.
+> **THREE THINGS WORTH NOT REDISCOVERING.** (1) **Brace-counting to scope a local FAILS, silently and
+> three times.** Braces in strings and one-line function bodies drift the count, and a local you miss
+> rebinds to the static of the same name and still compiles. What worked: make the **compiler** the
+> oracle — rename the DECLARATION, then every use that was the static errors as *undeclared* while
+> every use bound to a local stays quiet. 93 uses in one pass, no judgement. That is the sixth
+> confident wrong answer a regex over C has produced in this lane. (2) **Function-local statics must
+> be HOISTED first** — a `#define` rewrites uses, and a declaration inside a body is not a use.
+> Hoisting is semantically nothing. (3) **`build/cart.c` is whatever cart compiled LAST**, so
+> `ctx-gen --target cart` and `engine-statics --tu build/cart.c` silently measure the wrong cart right
+> after a `refactor-guard` run. Recompile the cart you mean before believing either.
+> ⚠ **`ctx-gen` refuses to re-run** on a processed file, correctly — it would rebuild the context from
+> the handful of statics that remain and discard the rest. To redo a target, restore from git first.
 >
 > **✅ STEP 4 IS UNDER WAY — ROUTE (b) CHOSEN, PROVEN ON `ui.h` (2026-08-14).** The maker picked the
 > declared-seam route over build-time copies, because with ~20 AUv3 apps the plug-in build IS the

@@ -232,7 +232,11 @@ const ENGINE_INTERNALS = new Set([
   // owning engine file. Documented in docs/design/engine-context.md, not the cart-authoring table.
   'sound_ctx.h', 'studio_ctx.h', 'sync_ctx.h',
 ]);
-const GENERATED_H = /(_data|_font|_baked)\.h$/;   // baked font tables
+// Generated, not shelf. `_state.h` is one CART's per-instance context (tools/ctx-gen.js --target
+// cart writes runtime/<slug>_state.h): it is nobody's to reach for, it is regenerated rather than
+// read, and a new one appears for every cart that becomes a plug-in rack — so it belongs in the
+// pattern rather than in an allowlist somebody has to remember to extend.
+const GENERATED_H = /(_data|_font|_baked|_state)\.h$/;   // baked font tables · generated cart contexts
 const RUNTIME = path.join(DOCS, '..', 'runtime');
 const GUIDE = path.join(DOCS, 'guides', 'cart-authoring.md');
 let headersChecked = 0;

@@ -278,6 +278,43 @@ Coverage is tracked: **`node tools/gate-controls.js`** lists gates that have nei
 a negative control (advisory row in `repo-doctor`). It cannot tell you a gate is *good* — only that
 nothing in it has ever been shown to fail.
 
+## The THIRD way a check lies: it goes RED about something you did not change
+
+The two sections above are about a green that means nothing. This one is the mirror, and it is more
+expensive, because a red check is *believed* — you go and look for the bug it names, and if you are
+diligent you find something plausible and "fix" it.
+
+Three of these landed in one session (2026-08-14/15, the
+[engine-simplification](../design/engine-simplification.md) round), and all three
+had the same shape: **the assertion was fine, the run was not fair.** Something outside the code
+differed between the two sides of the comparison.
+
+| what went red | what actually differed |
+|---|---|
+| `midi-check` phase B, all six assertions at once | the sender published for a fixed 12s of wall clock; the cart starts after a *variable* compile (3.9s idle → 13.7s under three `build-all` sweeps). On a busy machine the cart booted after the sender exited. Nothing was measured |
+| `refactor-guard`: *"audio diverges at 0.0s · state diverges at frame 0"* | `build/saves/<cart>/` — untracked, mutable, **rewritten by every run**. `acidcandy` persists a 437 KB `cart.blob`; deleting it produced that message with identical numbers on an unmodified tree |
+| a hand-rolled `--resize` A/B across two worktrees | the same save blob, in two trees with different run histories. It cost a correct refactor a day and a "reverted as unsafe" verdict that was wrong |
+
+What to do about it:
+
+- **When one check disagrees with every other check, suspect that check first.** The tell in the
+  worst of these was written down and read as a strength: *"the first two gates are green and only
+  the third catches it."* The third was the only one comparing across two trees — the only one
+  exposed to the confounder. Extra sensitivity that no other gate shares is usually noise, not power.
+- **Run the null A/B.** Before believing any difference, compare the thing to *itself*: same source,
+  both sides, through the identical path. If that is not identical, you have no oracle yet. This one
+  control would have caught all three, and it is one command.
+- **A cart that persists state is not a pure function of its source.** Any A/B on one must wipe or
+  isolate `build/saves/<cart>/`. `refactor-guard` does this for its own probes now
+  (`saves/.refguard/<cart>`, wiped per run); a comparison you write by hand still has to.
+- **Timing is an input too.** If a gate coordinates two processes by wall clock, the slow side is
+  whatever the machine is doing — and this repo runs several agents on one tree, so "somebody else
+  is compiling" is the normal state. Bound the *waiter*, not the *worker*: let the helper outlive
+  any plausible compile and stop it when the real work finishes.
+- **Make the unfair run say so.** `midi-check` now reports `THE GATE RACED, not the engine` when the
+  sender died first, instead of six parse failures. A gate that can tell "I was not measured" from
+  "you broke it" is worth more than one that is merely sensitive.
+
 ## Orienting *before* a change (don't dive in blind)
 
 | You want to know… | Run |

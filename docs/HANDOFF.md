@@ -81,11 +81,10 @@ a broken doc link or `#section`).
 > showed green** — the refactor moved `eng_p[]` into `sound_ctx.h`, and `repo-doctor` only ever ran
 > the lint's `--selfcheck` (a fixture), never the lint. Both fixed; the general rule is in the doc.
 >
-> ⚠ ONE ITEM WAS ATTEMPTED AND REVERTED: removing `fb_w`/`fb_h`. They are NOT "provably always
-> equal" — `de_grow_gpu` runs with them one step out of phase, and collapsing the pair changes both
-> the frames AND the audio of a `--resize` sweep. `refactor-guard` and `canvas-diff` are green for
-> it; only a sweep A/B'd against `HEAD` catches it. The measurement + controls + the cheap next step
-> are in the item, so don't re-derive them.
+> ⚠ `fb_w`/`fb_h` was "attempted and reverted as unsafe" on 08-14 and that verdict was a MEASUREMENT
+> ERROR — the A/B was comparing two trees' `acidcandy` save blobs. Redone with the save dir
+> controlled it is byte-identical, and it LANDED 08-15. The superseded note is kept folded in the
+> item, because how it was wrong is the useful part.
 >
 > **Resume-at: [the round-2 open list](design/engine-simplification.md#round-2--after-the-per-instance-refactor-2026-08-14)** — every open item names its gate, and the
 > re-verified WON'T-DO list is there too (round 1's three calls still hold; I checked rather than
@@ -96,9 +95,17 @@ a broken doc link or `#section`).
 > Swift items need a real host to confirm; everything self-gateable in `studio.c`/`sound.h` that was
 > open this morning is now landed or documented as reverted.
 >
-> ⚠ ONE THING A FRESH SESSION SHOULD NOT RE-LEARN THE HARD WAY: **the Android port had no baseline
-> to A/B against** (the pre-migration code does not compile), so "was this already broken?" could
-> only be answered by reading — which is how its ~13s JNI crash turned out to be pre-existing.
+> ⚠ **THE ONE THING TO TAKE FROM THIS LANE: when a gate disagrees with every other gate, suspect
+> the GATE.** Three separate times this round a confident red was the measurement, not the engine —
+> `midi-check` phase B racing a compile it does not control, `refactor-guard` reading an untracked
+> save file, and a hand-rolled A/B across two worktrees comparing their save blobs. The last two are
+> the same trap: **a cart that persists state rewrites it every run**, so any A/B that does not wipe
+> or isolate `build/saves/<cart>/` is comparing histories, not code. `acidcandy` carries 437 KB of
+> it. `refactor-guard` isolates its own saves now; a hand-rolled comparison still has to.
+>
+> ⚠ ALSO: **the Android port had no baseline to A/B against** (the pre-migration code does not
+> compile), so "was this already broken?" could only be answered by reading — which is how its ~13s
+> JNI crash turned out to be pre-existing.
 >
 > ~~`midi-check` phase B is flaky~~ **DIAGNOSED AND FIXED 2026-08-14 — it was the gate, not the
 > engine.** The sender lived a fixed 12s of wall clock while the cart's start time is a variable

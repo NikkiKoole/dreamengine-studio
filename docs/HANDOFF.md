@@ -191,8 +191,42 @@ a broken doc link or `#section`).
 > is exactly why two of the three double-engine bugs shipped: the AUv3 never had them, `instance-check`
 > creates its own instances, and `refactor-guard` runs the desktop build, which has no `CanvasView`.
 >
+> **▶ NEXT ACTION (2026-08-14, the maker's call): WIRE THE HOST'S MOD WHEEL AND PITCH BEND.**
+> GarageBand draws two controls above its keyboard — **modulatiewiel** (mod wheel = MIDI CC1) and
+> **toonhoogte** (pitch bend) — on **both macOS and iPadOS**, and neither does anything. ⚠ **This one
+> needs NO iPad**: mac GarageBand shows the same two controls and sends the same MIDI, so it is
+> office work.
+>
+> **Where it is blocked, all three hops VERIFIED by reading the code (2026-08-14), not assumed:**
+>
+> | hop | pitch bend | mod wheel (CC1) |
+> |---|---|---|
+> | AU parses the host event list (`ios/AU/TinyjamAU.swift` ~L303) | ✅ `0xE0` → `de_midi_bend` | ❌ **`0xB0` is not parsed at all** — the switch handles only `0x90/0x80/0xE0` |
+> | declared to Swift (`ios/Sources/engine.h` L68) | ✅ `de_midi_bend` | ❌ **not exported** (the engine HAS `de_midi_cc`, `runtime/midi_input.h:258` — only the declaration is missing) |
+> | the cart reads it | ❌ `acidcandy` uses `midi_bend()` **zero** times | ❌ `midi_cc()` zero times |
+>
+> So bend already ARRIVES and the cart drops it on the floor; the mod wheel does not even reach the
+> engine. The plumbing is two small edits (`case 0xB0:` + one line in `engine.h`); the cart side is
+> where the actual thinking is.
+>
+> **THE REAL QUESTION IS MUSICAL, AND IT IS THE MAKER'S CALL:** on a five-machine rack, what do they
+> move? The idiomatic acid answer is mod wheel → **filter cutoff** and bend → **pitch of the live 303
+> line**, but which machine has focus, and whether a mod wheel should ride a knob the panel also shows
+> (and visibly move it), is a design decision, not a wiring one. Cart API is ready: `midi_bend()`
+> (-8192..8191), `midi_cc(ch, cc)`, `midi_cc_get()` — `node tools/api.js midi`. **Worked examples to
+> copy:** `tools/carts/martenot.c` and `tools/carts/miditest.c` both read `midi_bend()`.
+>
+> **Gate it with** `zsh tools/midi-check/run.sh` (phase B covers CC input including channel isolation)
+> and the AUv3 host test — `ios/Tests/AUHostTests.swift` already drives `scheduleMIDIEventBlock` for
+> note-on, so it is the natural place to assert a CC and a bend arrive. ⚠ Run its tests with
+> `-derivedDataPath build-test` (see `ios/README.md`, or the app crashes at next launch).
+>
 > **▶ THEN pick from [`design/per-instance-remaining.md`](design/per-instance-remaining.md);
 > nothing there blocks two racks any more.** Ranked by impact:
+> *(⚠ Which of these need the iPad: NONE. Every item below is Mac work — the mac AUv3 has the same
+> panel, the same two host controls, and the same session-state gap. The iPad is only needed to
+> re-verify iPadOS-specific behaviour after a change.)*
+>
 > 1. **Session state / `fullState`** — a reopened DAW project starts every rack at defaults, silently.
 >    The biggest thing between this and a plug-in someone would keep, and it shows up the first time
 >    anybody saves (the shared-engine defect needed two instances to appear). It is now UNBLOCKED:

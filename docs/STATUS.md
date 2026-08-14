@@ -636,8 +636,11 @@ Detail lives in the linked design doc in every case; that is where it was always
 > gets their racks back at factory defaults, silently. **This is a DIFFERENT gap from the "two tracks
 > share one engine" defect** the context refactor is fixing, and arguably the more visible one: the
 > shared-engine bug needs two instances to show up, this one shows up the first time anybody saves.
-> The route is a rung on the same ladder and needs nothing undone — per-instance state (in progress)
-> → per-instance `save_dir` → swap the file for a host-provided blob. What gets serialized is INTENT,
+> The route is a rung on the same ladder and needs nothing undone — per-instance state
+> (**DONE 2026-08-14: engine, cart-land headers, and the cart's own 198; two GarageBand tracks
+> verified in sound and picture**) → per-instance `save_dir` (**HALF done**: `de_set_save_dir` now
+> reaches its own instance, but nothing hands the instances distinct DIRECTORIES, and the host is what
+> must choose them) → swap the file for a host-provided blob. What gets serialized is INTENT,
 > not the context struct: `de_state()` (one flat block) replayed over `ctx_log` (already a log of the
 > cart's config calls, built for `de_switch_cart`). Detail + the rule it would impose (carts must keep
 > no pointers in `de_state()`): [`design/engine-instance-seam.md`](design/engine-instance-seam.md).

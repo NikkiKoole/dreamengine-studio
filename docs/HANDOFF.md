@@ -172,12 +172,22 @@ a broken doc link or `#section`).
 > dimensions the toggle changes were process-global until today). **The per-instance lane has met its
 > goal in sound AND picture.**
 >
-> **▶ NEXT ACTION — pick from `per-instance-remaining.md`; nothing there blocks two racks any more.**
-> By impact: (1) **session state / `fullState`** — a reopened DAW project starts every rack at
-> defaults, which is the biggest thing between this and a plug-in people would keep. (2) **N racks
-> still share one `cart.sav`** — the host has to hand each instance its own directory. (3) **no gate
-> runs two instances on two THREADS**, which is exactly what a DAW does. (4) the `--panel` gate's
-> observation is broken (it cannot tell an orphaned panel from one never opened).
+> **▶ NEXT ACTION — pick from [`design/per-instance-remaining.md`](design/per-instance-remaining.md);
+> nothing there blocks two racks any more.** Ranked by impact:
+> 1. **Session state / `fullState`** — a reopened DAW project starts every rack at defaults, silently.
+>    The biggest thing between this and a plug-in someone would keep, and it shows up the first time
+>    anybody saves (the shared-engine defect needed two instances to appear). It is now UNBLOCKED:
+>    the state it would serialise is finally per-instance, which is exactly why it could not be done
+>    before. Filed with its route in [`STATUS.md`](STATUS.md) ("The AUv3 plug-in has NO session
+>    state"); what gets serialised is INTENT, not the context struct — see
+>    [`design/engine-instance-seam.md`](design/engine-instance-seam.md).
+> 2. **N racks still share one `cart.sav`.** `de_set_save_dir` reaches the right instance now, but
+>    nothing gives them distinct DIRECTORIES and the host must choose them. Last-writer-wins at FILE
+>    granularity, not per key.
+> 3. **No gate runs two instances on two THREADS** — which is exactly what a DAW does.
+>    `present-race-check` covers one.
+> 4. **The `--panel` gate's OBSERVATION is broken**: it cannot tell an orphaned panel from one that
+>    was never opened, yet its headline asserts the first. Fix what it watches before trusting it.
 >
 > ⚠ **A LATENT BUG THIS TURNED UP, worth knowing before touching any cart's canvas:** `face.h` and 7
 > carts declared their own `extern void de_resize(int, int)` against a function that has taken a

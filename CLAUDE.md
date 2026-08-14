@@ -678,7 +678,11 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
                              nothing and can never prove two instances are strangers (a variable wrongly left
                              SHARED does not change a single-instance render). NEGATIVE CONTROL: two fresh
                              instances driven the SAME must be byte-identical, else "they differ" is measuring
-                             noise. Sibling of engine-dylib-spike, same assertions from the other mechanism —
+                             noise. Also gates DESTROY (8 create/destroy rounds must leave the heap flat,
+                             `-bypass` control) and SAMPLE-EXACT interleaving (an engine must render the same
+                             whether or not another steps between its frames). ⚠ That last one is only
+                             meaningful for a `DE_CART_CTX` cart, and does NOT gate a modulator seed — both
+                             measured, see the probe. Sibling of engine-dylib-spike, same assertions from the other mechanism —
                              that one gets separation from dyld (K copies, hard cap), this from the context
                              (one image, no cap). The probe's own footer lists what a PASS does NOT cover
              engine-dylib-spike/  PASSED probe: **K independent engines in ONE process**, by loading the
@@ -725,7 +729,11 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
                              --list` + the exceptions from `ctx-classification.json`, emits runtime/
                              sound_ctx.h (struct + macro block) and rewrites sound.h. `--primitive` =
                              batch 1 (no type-hoist needed) · `--probe` compiles it on a COPY in four
-                             build configs · `--write` applies · `--check` = 15 known answers. The move is
+                             build configs · `--write` applies · `--check` = 26 known answers ·
+                             **`--verify` = the CLASS check**: every engine static must be moved OR written
+                             down in ctx-classification.json with a reason (`--quiet` gates, repo-doctor row).
+                             It asserts BOOKKEEPING, not correctness — but it is what catches a group moved
+                             HALF way, and it found two whole files never classified at all. The move is
                              PURE because the default instance is a `static` with DESIGNATED INITIALISERS —
                              values still set at link time, so there is no init-order risk and no init
                              function to call. ⚠ Its `--probe` carries a SENTINEL (`#error` in the

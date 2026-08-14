@@ -62,6 +62,11 @@ const TARGETS = {
   'sound.h':  { file: 'runtime/sound.h',  header: 'sound_ctx.h',  type: 'DeSound', ptr: 'de_snd' },
   'studio.c': { file: 'runtime/studio.c', header: 'studio_ctx.h', type: 'DeVideo', ptr: 'de_vid' },
   'sync.h':   { file: 'runtime/sync.h',   header: 'sync_ctx.h',   type: 'DeSync',  ptr: 'de_sync' },
+  // A CART. Its state is per-instance for the same reason the engine's is — an AUv3 loads the same
+  // cart twice — but it lives in de_state_for rather than a static, so the accessor below is swapped
+  // after generation. build/cart.c is line-identical to tools/carts/<slug>.c (play.js copies it), so
+  // the rewrite is generated there and copied back.
+  'cart':     { file: 'build/cart.c',     header: 'cart_state.h', type: 'CartState', ptr: 'de_cart' },
 };
 const TARGET_KEY = (() => {
   const i = process.argv.indexOf('--target');
@@ -83,7 +88,9 @@ const PRIMITIVES = new Set([
 /* ───────────────────────────────────────────────────────────────── inputs ── */
 
 function loadStatics() {
-  const out = execFileSync('node', ['tools/engine-statics.js', '--list'], { cwd: ROOT, maxBuffer: 1 << 26 }).toString();
+  const args = ['tools/engine-statics.js', '--list'];
+  if (TARGET_KEY === 'cart') args.push('--tu', TARGET, '--files', TARGET);   // the cart IS the TU
+  const out = execFileSync('node', args, { cwd: ROOT, maxBuffer: 1 << 26 }).toString();
   return JSON.parse(out).filter(v => v.file === TARGET);
 }
 
@@ -92,7 +99,13 @@ function loadStatics() {
 // field turns `ins->rvb_tank` into `ins->(de_snd->rvb_tank)`. Refusing to move these is what stops
 // the generator producing a file that cannot compile.
 function loadCollisions() {
-  const out = execFileSync('node', ['tools/engine-statics.js', '--json'], { cwd: ROOT, maxBuffer: 1 << 26 }).toString();
+  // ⚠ MUST analyse the SAME translation unit the statics came from. For the cart target this ran
+  // against studio.c, so the cart's own field collisions were invisible — and the cart has several
+  // (`on`, `pit`, `acc`, `sld`, `tie`, `oct` are both statics AND struct fields), which turned
+  // `p->on` into `p->(de_cart->on)`.
+  const args = ['tools/engine-statics.js', '--json'];
+  if (TARGET_KEY === 'cart') args.push('--tu', TARGET, '--files', TARGET);
+  const out = execFileSync('node', args, { cwd: ROOT, maxBuffer: 1 << 26 }).toString();
   const found = new Set(Object.keys(JSON.parse(out).collisions || {}));
   // A waiver means the clash is handled AT THE SOURCE (see ctx-classification.json), not that it is
   // believed harmless. Each one has to say how.
@@ -548,7 +561,9 @@ function apply(dir, res) {
   const movedNames = new Set(res.move.map(m => m.name));
   const macroSpans = collectMacroHoist(res.move, res.src, res.condBase);
   fs.writeFileSync(path.join(dir, CTX_HEADER), emitHeader(res.move, macroSpans, res.src));
-  fs.writeFileSync(path.join(dir, path.basename(TARGET)), rewriteSource(res.src, res.byLine, movedNames, macroSpans));
+  // The CART's rewritten source belongs where the cart lives, not next to the engine.
+  const out = TARGET_KEY === 'cart' ? path.join(dir, '..', TARGET) : path.join(dir, path.basename(TARGET));
+  fs.writeFileSync(out, rewriteSource(res.src, res.byLine, movedNames, macroSpans));
   return macroSpans.length;
 }
 

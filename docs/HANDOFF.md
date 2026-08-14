@@ -349,6 +349,21 @@ a broken doc link or `#section`).
 > · Also logged: `colorkey()` destroys and rebuilds a SHARED GPU texture from a cart API;
 >   `fp_cache`'s key omits the palette; and an unrelated latent `web_px` overflow after a canvas grow.
 >
+> **✅ ALL 8 CART-LAND HEADERS ARE DONE (2026-08-14).** `ui` · `keybed` · `solo` · `gestures` ·
+> `radio` · `tr808` · `cursor` · `drumkit` · `tr909` all declare their state once and fork: DEFAULT
+> into the statics that were there (580/580 build, refactor-guard byte-identical) or into a
+> per-instance context under `DE_CART_CTX`. Both paths compile-checked by `run-uictx.sh`.
+> **▶ WHAT IS LEFT IS THE CART, AND IT IS THE HARD PART.** `acidcandy` has **168 file-scope statics +
+> 30 function-local** (not the ~120 estimated), and `ctx-gen --target cart` moves only **113** — because
+> of **32 NAME COLLISIONS**: the cart uses short names (`on`, `pit`, `acc`, `sld`, `tie`, `oct`) that
+> are ALSO struct fields, so `p->on` becomes `p->(de_cart->on)`.
+> ⚠ **Partial does not help here.** Unlike the engine, where each batch paid off on its own, leaving
+> 55 statics shared still means two racks share a sequencer. It is all-or-nothing.
+> **The route:** rename the STRUCT FIELDS (fewer than the statics, and their uses are syntactically
+> distinct via `->`/`.`), compile, and watch the collision count in `ctx-gen --target cart` fall to
+> zero before generating. ⚠ Do NOT regex it — `on[i]` and `p->on` are the same token to a regex, and
+> this refactor has been burned by regexes over C five times.
+>
 > **✅ STEP 4 IS UNDER WAY — ROUTE (b) CHOSEN, PROVEN ON `ui.h` (2026-08-14).** The maker picked the
 > declared-seam route over build-time copies, because with ~20 AUv3 apps the plug-in build IS the
 > product and a permanent gap between the code you read and the code that ships is a tax paid forever.

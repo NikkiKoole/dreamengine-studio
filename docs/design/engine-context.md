@@ -246,8 +246,27 @@ declarations — the fourth and fifth bad counts of this refactor, both from not
 `tools/engine-statics.js` has the validated approach (AST + source-verified attribution); point it at
 the header's TU rather than writing another scan.
 
-Remaining after the headers: the cart's own 120 statics. Only then do two racks actually work — this
-proves the mechanism, not the product.
+### The cart itself — measured, and it is the hard part
+
+**All 8 headers are done.** The cart is not, and the reason is worth knowing before anyone starts.
+
+`acidcandy` has **168 file-scope statics plus 30 function-local** (not the ~120 first estimated), and
+`ctx-gen --target cart` can move only **113** of them. The blocker is **32 NAME COLLISIONS**: the cart
+uses short names — `on`, `pit`, `acc`, `sld`, `tie`, `oct` — that are ALSO struct fields, so
+`#define on (de_cart->on)` turns `p->on` into `p->(de_cart->on)`. Cart code names things briefly, which
+is fine until every name becomes a macro.
+
+⚠ **Partial does not help.** Moving 113 and leaving 55 shared still means two racks share sequencer
+state. Unlike the engine, where each batch was independently valuable, the cart is all-or-nothing.
+
+So the remaining work is a rename pass inside the cart: either the 32 colliding statics or the struct
+fields they clash with. It is contained (one file) but it is not mechanical — `on[i]` and `p->on` are
+the same token to a regex, and this refactor has been burned five times by regexes over C. The safe
+route is to rename the STRUCT FIELDS (fewer, and their uses are syntactically distinct via `->`/`.`),
+compile, and let the collision count in `ctx-gen --target cart` fall to zero before generating.
+
+**Only then do two racks actually work.** Everything above proves the mechanism; the cart is the
+product.
 
 ## Memory
 

@@ -4919,7 +4919,8 @@ static void sound_setup_note(Voice *v, int midi, int slot, int vol, int gate_sam
     v->sustain    = ins->sustain;
     // deterministic per-voice seed for the stateful LFO shapes (S&H/random): a counter advanced per
     // voice-start → distinct per note yet identical run-to-run (so --det stays byte-reproducible).
-    static unsigned int lfo_seed_ctr = 0x12345u;
+    // PER-INSTANCE (sound_ctx.h) since 2026-08-14 — it was a function-local static, and two engines
+    // interleaving note starts would have consumed one shared sequence, so neither replayed.
     for (int L = 0; L < SOUND_LFOS; L++) {
         v->lfo_dest[L]  = ins->lfo_dest[L];
         v->lfo_rate[L]  = ins->lfo_rate[L];

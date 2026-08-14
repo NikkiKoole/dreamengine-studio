@@ -36,6 +36,10 @@
 #define TOUCH_CONTROLS_DEFAULT 0
 #endif
 #define VT_MAX           16
+/* MOVED from studio.c 2026-08-14 with kv_data, for the same reason as the block above: the member
+ * below is written in them, so they have to precede the struct. */
+#define KV_MAX     64
+#define KV_KEYLEN  24
 /* fb_w / fb_h / de_sw / de_sh — the canvas dimensions — are per-instance as of 2026-08-14, ADDED
  * BY HAND at the bottom of the struct with the rest of the framebuffer group. The generator still
  * cannot produce them (their siblings sw_dst/sw_world_buf sit inside `#ifdef DE_NO_RAYLIB`, and it
@@ -164,6 +168,11 @@ typedef struct {
     int de_state_cap;
     int kv_count;
     bool kv_loaded;
+    /* HAND-ADDED 2026-08-14. It is the third member of the group above and was left SHARED while
+     * kv_count/kv_loaded moved — the half-moved shape studio_ctx.h warns about, and it corrupts:
+     * instance B boots with kv_loaded false, kv_ensure() reloads B's save file over the one shared
+     * table, and A's kv_count then indexes B's keys. `save_int(name)` reads another rack's value. */
+    struct { char key[KV_KEYLEN]; int value; } kv_data[KV_MAX];
 
     /* ══ HAND-ADDED (2026-08-14): THE FRAMEBUFFER + PRESENT GROUP ═══════════════════════════════
      * Not from the generator, and it could not be: `sw_dst`/`sw_world_buf` live inside
@@ -183,6 +192,11 @@ typedef struct {
     int de_sw, de_sh;            // the ACTIVE canvas — screen_w()/screen_h()
     uint32_t *sw_dst;            // → sw_cbuf, or sw_world_buf while a rotated camera_ex is open
     uint32_t *sw_world_buf;      // the rotation world layer, sized alongside sw_cbuf
+    /* HAND-ADDED 2026-08-14, and they belong to exactly this group: they are the STATE of the two
+     * pointers above. Left shared, `de_frame` would see instance A's open rotation, composite B's
+     * world buffer at A's angle and repoint B's sw_dst — on DE_NO_RAYLIB only, i.e. the AUv3. */
+    bool  sw_rot_active;
+    float sw_rot_angle;
 
     /* the published frame (a seqlock — see de_publish_frame). Grow-only; the old allocation is
      * deliberately leaked because a reader on another thread may be mid-copy out of it. */
@@ -355,6 +369,7 @@ static _Thread_local DeVideo *de_vid = &de_vid_default;
 #define de_state_cap        (de_vid->de_state_cap)
 #define kv_count            (de_vid->kv_count)
 #define kv_loaded           (de_vid->kv_loaded)
+#define kv_data             (de_vid->kv_data)
 
 /* the hand-added framebuffer + present group. `sw_dst` is NOT here: it forks on the renderer
  * (a real pointer under DE_NO_RAYLIB, a plain alias for sw_cbuf otherwise), so its definition
@@ -364,6 +379,8 @@ static _Thread_local DeVideo *de_vid = &de_vid_default;
 #define de_sw               (de_vid->de_sw)
 #define de_sh               (de_vid->de_sh)
 #define sw_world_buf        (de_vid->sw_world_buf)
+#define sw_rot_active       (de_vid->sw_rot_active)
+#define sw_rot_angle        (de_vid->sw_rot_angle)
 #define de_pres_buf         (de_vid->pres_buf)
 #define de_pres_cap         (de_vid->pres_cap)
 #define de_pres_seq         (de_vid->pres_seq)

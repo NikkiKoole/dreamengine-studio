@@ -363,8 +363,8 @@ int device_class(void) {
 // that is now per-instance. sw_dst's macro lives here rather than in studio_ctx.h because it forks
 // on the renderer: a real pointer on this side, a plain alias for sw_cbuf on the other.
 #define sw_dst (de_vid->sw_dst)
-static bool            sw_rot_active = false;
-static float           sw_rot_angle  = 0.0f;
+// sw_rot_active / sw_rot_angle moved into DeVideo 2026-08-14 — they are the STATE of sw_dst, and
+// this group moves together or not at all (see studio_ctx.h).
 static void            sw_rot_composite(void);            // defined near camera(); called from de_frame()
 #else
 #define sw_dst sw_cbuf                                          // desktop/web: straight to the framebuffer (byte-identical)
@@ -6445,10 +6445,9 @@ int load_bytes(void *out, int max) {
     return n;
 }
 
-// named persistence — a small key→int table in cart.kv, parallel to the numbered slots above
-#define KV_MAX     64
-#define KV_KEYLEN  24
-static struct { char key[KV_KEYLEN]; int value; } kv_data[KV_MAX];
+// named persistence — a small key→int table in cart.kv, parallel to the numbered slots above.
+// KV_MAX/KV_KEYLEN and kv_data itself live in studio_ctx.h now (2026-08-14): the table is
+// per-instance, like the kv_count/kv_loaded that index it.
 
 static void kv_ensure(void) {
     if (kv_loaded) return;

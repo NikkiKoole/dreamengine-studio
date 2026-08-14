@@ -75,6 +75,19 @@ static int flat(const uint32_t *px, int n) {
     return 1;
 }
 
+// FNV-1a over the raw sample bits. The peak comparisons elsewhere in this probe are deliberately
+// coarse — they answer "did it play at all" — and a coarse answer cannot see a voice whose
+// modulator started from a different seed: same notes, same loudness, different waveform. This is
+// the sample-exact one.
+static unsigned long long mix_hash(unsigned long long h, const float *s, int n) {
+    for (int i = 0; i < n; i++) {
+        unsigned int bits;
+        memcpy(&bits, &s[i], sizeof bits);
+        h = (h ^ bits) * 1099511628211ull;
+    }
+    return h;
+}
+
 int main(int argc, char **argv) {
     // -bypass: the NEGATIVE CONTROL for the destroy section — skip de_instance_destroy entirely and
     // require the heap meter to go red. Without it a broken meter and a clean destroy print the same
@@ -162,6 +175,66 @@ int main(int argc, char **argv) {
     } else {
         ok(1, "same transport in, IDENTICAL audio out", "%.6f vs %.6f", pc, pd);
     }
+
+    // ── INTERLEAVING MUST NOT CHANGE AN ENGINE'S OUTPUT, SAMPLE FOR SAMPLE (2026-08-14) ─────────
+    // The strongest form of the claim this probe exists to make, and the one the sections above
+    // cannot reach: run an engine ALONE, then run an identical engine with ANOTHER engine stepping
+    // between every one of its frames, and require the two renders to be bit-identical. Anything
+    // still shared that the second engine touches shows up here and nowhere else.
+    //
+    // WHY IT WAS ADDED. `lfo_seed_ctr` — the per-voice seed counter for the S&H/random LFO shapes —
+    // was a function-local static, i.e. one sequence shared by every engine. Moving it was checked
+    // against both existing gates and both stayed green: `refactor-guard` by construction (one
+    // instance cannot observe it), and this probe because every assertion it had compared PEAKS, and
+    // a reseeded modulator does not move the peak.
+    //
+    // ⚠ AND IT STILL DOES NOT GATE THAT MOVE — measured, not assumed, so do not read this section as
+    // covering it. Three perturbations were run against the default cart: the counter put back to a
+    // shared static (hash unchanged), and the seed's initial value changed outright to 0x99999 (hash
+    // unchanged again). acidcandy reaches LFO_SHAPE_RANDOM only through acid303.h's drift at 0.13
+    // and 0.19 Hz, and evidently not audibly here. What this section DOES buy is a sample-exact
+    // property where there were only peaks, which catches any shared buffer, table or cursor the
+    // other engine disturbs. Gating a modulator SEED needs a cart that opts into DE_CART_CTX *and*
+    // drives a stateful LFO fast enough to step — nothing on the shelf does both today.
+    //
+    // ⚠ IT IS ALSO ONLY MEANINGFUL FOR A `DE_CART_CTX` CART. Measured on three that are not
+    // (epiano, dune: solo and interleaved hashes differ; dubsiren: both silent, which the liveness
+    // assertion below catches): without the opt-in the CART's own statics are shared, so the
+    // property fails for reasons that have nothing to do with the engine. acidcandy is the default
+    // here precisely because it opts in.
+    printf("▸ INTERLEAVING MUST NOT CHANGE AN ENGINE'S OUTPUT (sample-exact)\n");
+    // ⚠ THE WINDOW HAS TO BE LONG ENOUGH FOR THE MODULATOR TO MOVE. At 60 frames (1s) this section
+    // was green in BOTH directions: acid303.h drives its drift LFOs at 0.13 and 0.19 Hz, so the
+    // first sample-and-hold step lands about 7.7s in, and before it the seed has not reached a
+    // single sample. 600 frames = 10s covers it. A gate whose window is shorter than the period of
+    // the thing it watches is not measuring that thing.
+    enum { IL_FRAMES = 600 };
+    DeInstance *solo = de_instance_create(DE_RENDERER_SOFTWARE);
+    unsigned long long h_solo = 0;
+    float p_solo = 0.0f;
+    for (int f = 0; f < IL_FRAMES; f++) {
+        de_sync_position(solo, f * 0.25, 120.0, 1);
+        de_frame(solo, f / 60.0); de_audio_render(solo, ca, 735);
+        h_solo = mix_hash(h_solo, ca, 735 * 2);
+        for (int i = 0; i < 735 * 2; i++) { float x = ca[i] < 0 ? -ca[i] : ca[i]; if (x > p_solo) p_solo = x; }
+    }
+    DeInstance *e = de_instance_create(DE_RENDERER_SOFTWARE);
+    DeInstance *g = de_instance_create(DE_RENDERER_SOFTWARE);
+    unsigned long long h_inter = 0;
+    for (int f = 0; f < IL_FRAMES; f++) {
+        de_sync_position(e, f * 0.25, 120.0, 1);
+        de_frame(e, f / 60.0); de_audio_render(e, ca, 735);
+        h_inter = mix_hash(h_inter, ca, 735 * 2);
+        de_sync_position(g, f * 0.25, 120.0, 1);   // the OTHER engine runs between e's frames
+        de_frame(g, f / 60.0); de_audio_render(g, cb, 735);
+    }
+    // LIVENESS FIRST: two silent renders hash the same and would pass this forever.
+    ok(p_solo > 0.01f, "the solo engine actually rendered something to compare",
+       "peak %.4f", p_solo);
+    ok(h_solo == h_inter, "THE POINT: an engine renders the same whether or not another runs between its frames",
+       "%016llx vs %016llx — a shared modulator seed, counter or table breaks exactly this",
+       h_solo, h_inter);
+    de_instance_destroy(solo); de_instance_destroy(e); de_instance_destroy(g);
 
     // ── SURVIVING A RESIZE ──────────────────────────────────────────────────────────────────────
     // Everything above passed once while the plug-in was CRASHING in a host, because nothing here

@@ -476,10 +476,19 @@ Same rules as round 1: line numbers rot, the function name is the anchor, every 
       `sound_render_voice()`. Removes ~0 lines — buys a readable callback, a profilable voice
       renderer, and a smaller collision target in the file CLAUDE.md says to edit only with targeted
       `Edit`s. Do it AFTER the dedups so there is less to move.
-- [ ] `lfo_seed_ctr` is still a function-local static and is classified **CRITICAL** — two instances
-      interleaving note starts both lose determinism, and `refactor-guard` would sit green through
-      it. Belongs to the per-instance lane, not this list. ⚠ `ctx-classification.json` records its
-      line as 5822; the real one is 4933.
+- [x] `lfo_seed_ctr` is still a function-local static and is classified **CRITICAL** — LANDED
+      2026-08-14, into `DeSound` (a `#define` alias cannot reach a function-local, so the
+      declaration itself moved). Its `0x12345u` initial value moved with it as a designated
+      initialiser; zero would have shifted every LFO seed.
+      **⚠ IT IS STILL UNGATED, and the item was right that it would be.** `refactor-guard` is green
+      by construction. `instance-check` was too, so it grew a sample-exact solo-vs-interleaved
+      assertion — and that is *still* green with the counter deliberately put back to a shared
+      static, and green again with the seed's initial value changed to `0x99999`. Both perturbations
+      were run rather than assumed. The reason is the cart: `acidcandy` reaches `LFO_SHAPE_RANDOM`
+      only through `acid303.h`'s drift at 0.13/0.19 Hz, not audibly within the probe. A gate needs a
+      cart that opts into `DE_CART_CTX` **and** drives a stateful LFO fast enough to step, and
+      nothing on the shelf does both. The move is still obviously right — a shared modulator seed
+      across instances is wrong on its face — but it rests on reading, not on a red-then-green.
 - [ ] Smaller: CLAV/WURLITZER e-piano blocks are ~20 identical lines apart from their tables (and
       unlike 808-vs-909 the navkit UPSTREAM is itself parameterised, so this one is real) · five
       write-only overflow counters with no reader anywhere (give them a reader, don't delete — the
@@ -534,10 +543,17 @@ Same rules as round 1: line numbers rot, the function name is the anchor, every 
       hand-annotated. `ctx-gen --check` self-tests the parser, not the source, and both generated
       headers are now partly hand-maintained. This closes the half-moved-group CLASS rather than its
       instances, and would have caught `kv_data` and `sw_rot_*` the day they landed.
-- [ ] `sw_rot_active`/`sw_rot_angle` are shared while every buffer they steer is per-instance —
+- [x] `sw_rot_active`/`sw_rot_angle` are shared while every buffer they steer is per-instance —
       `DE_NO_RAYLIB` only, i.e. exactly the AUv3 build. `kv_data` shared while `kv_count`/`kv_loaded`
       are per-instance. Both violate the "this group moves together or not at all" warning in
-      `studio_ctx.h`.
+      `studio_ctx.h`. **BOTH LANDED 2026-08-14**, into `DeVideo` beside the members they belong to
+      (`KV_MAX`/`KV_KEYLEN` moved to `studio_ctx.h` with the table, since the member is written in
+      them). The `kv_data` one is the worse of the two and is a data-corruption bug, not a tidiness
+      one: instance B boots with `kv_loaded` false, `kv_ensure()` reloads B's save file over the ONE
+      shared table, and A's `kv_count` then indexes B's keys — `save_int(name)` returning another
+      rack's value. `sw_rot_*` would have had `de_frame` composite B's world buffer at A's angle and
+      repoint B's `sw_dst`. Gates: `refactor-guard` 6/6, `instance-check`, `state-check`,
+      `present-race-check`, `build-all` 581/581, `spec` 2027.
 - [ ] `de_audio_input`/`de_mic_wanted`/`de_mic_set_active` are waived as process-wide (one capture
       device). Revisit if an instance ever needs its own mic routing.
 

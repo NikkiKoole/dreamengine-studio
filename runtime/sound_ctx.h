@@ -900,6 +900,13 @@ typedef struct {
     int noise_mains;
     bool noise_used;
     unsigned int noise_seed;
+    /* HAND-ADDED 2026-08-14. Was a FUNCTION-LOCAL static in sound_note_start, which a `#define` alias
+     * cannot reach — the declaration itself had to move. Classified CRITICAL, and the reason is that
+     * nothing else would have caught it: it is the per-voice seed counter for the stateful LFO shapes
+     * (S&H/random), so two instances INTERLEAVING note starts each get a different sequence than they
+     * would alone, and every --det replay, ghost and lockstep session silently stops reproducing.
+     * refactor-guard sits green through this by construction: one instance cannot observe it. */
+    unsigned int lfo_seed_ctr;
     float noise_lpL;
     float noise_lpR;
     float noise_hum_ph;
@@ -983,6 +990,7 @@ static DeSound de_snd_default = {
     .drop_depth = 0.7f,
     .noise_mains = 60,
     .noise_seed = 0x6D2B79F5u,
+    .lfo_seed_ctr = 0x12345u,   // the value its function-local static carried; NOT zero, or every LFO seed shifts
     .shim_next = 1,
     .vari_target = 1.0f,
     .vari_speed = 1.0f,
@@ -1279,6 +1287,7 @@ static _Thread_local DeSound *de_snd = &de_snd_default;
 #define noise_mains          (de_snd->noise_mains)
 #define noise_used           (de_snd->noise_used)
 #define noise_seed           (de_snd->noise_seed)
+#define lfo_seed_ctr         (de_snd->lfo_seed_ctr)
 #define noise_lpL            (de_snd->noise_lpL)
 #define noise_lpR            (de_snd->noise_lpR)
 #define noise_hum_ph         (de_snd->noise_hum_ph)

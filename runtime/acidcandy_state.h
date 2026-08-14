@@ -276,10 +276,17 @@ typedef struct {
     int mo_was_playing;
     DrumUI drum_ui[2];
     int de_ctx_inited_;   // set once, when this instance copies the template below
+    /* ⚠ APPEND ONLY, AND AT THE VERY END — everything above this line is in projects people have
+     * already saved. A new field added HERE prefix-restores cleanly (older blobs are shorter, so it
+     * keeps its template default); inserting one ABOVE would keep the struct the same size, pass the
+     * engine's fingerprint, and land every value in the wrong field. tools/lint-saved-state.js holds
+     * this line for you. See docs/design/engine-instance-seam.md → migration. */
+    int bend_range;       // pitch-bend range in semitones (per project). 2 = the standard default.
 } CartState;
 
 /* the compile-time defaults — one line per static that carried a non-zero initialiser */
 static CartState de_cart_default = {
+    .bend_range = 2,           /* semitones — the standard synth default, so behaviour is unchanged */
     .aS = { -1, -1, -1, -1 },
     .aComp = -1,
     .aBpm = -1,
@@ -620,6 +627,7 @@ static AcidScratch *de_acid_scratch_(void) {
 #define rpt_was        (de_cart->rpt_was)
 #define g_drag_frame   (de_cart->g_drag_frame)
 #define g_drag_y       (de_cart->g_drag_y)
+#define bend_range     (de_cart->bend_range)
 #define nav_poison     (de_acid_scratch->nav_poison)
 #define nav_poison_n   (de_acid_scratch->nav_poison_n)
 #define mod_cc         (de_acid_scratch->mod_cc)

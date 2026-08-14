@@ -394,7 +394,6 @@ static float flt_live(void) {
 // Every acid_note goes through ac_note() so the bend has a BASE to offset from — the Acid struct does
 // not store the note it is sounding, and adding a field to it would have grown CartState and
 // invalidated every saved project for a value nobody wants back.
-#define BEND_SEMIS 2.0f
 static void ac_note(Acid *a, int midi, int accent, int slide) {
     last_midi[a == &ac[1] ? 1 : 0] = midi;
     acid_note(a, midi, accent, slide);   // the header's real trigger — NOT ac_note (that is this fn)
@@ -407,7 +406,7 @@ static void bend_ride(void) {
     int b = midi_bend();                                  // -8192..8191, 0 = centre
     if (b == bend_last) return;
     bend_last = b;
-    float semis = (b / 8192.0f) * BEND_SEMIS;
+    float semis = (b / 8192.0f) * (float)bend_range;   // per-project, saved (default 2)
     for (int i = 0; i < 2; i++) {
         if (last_midi[i] <= 0) continue;
         if (ac[i].h    >= 0) note_pitch(ac[i].h,    last_midi[i] + semis);

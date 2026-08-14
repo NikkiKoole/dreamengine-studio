@@ -199,7 +199,8 @@
    "int mo_clk_sent",
    "int mo_was_playing",
    "DrumUI[2] drum_ui",
-   "int de_ctx_inited_"
+   "int de_ctx_inited_",
+   "int bend_range"
   ],
   "runtime/acidcandy_state.h:Machine": [
    "const char * name",

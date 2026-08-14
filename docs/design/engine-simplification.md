@@ -345,11 +345,39 @@ Same rules as round 1: line numbers rot, the function name is the anchor, every 
 
 ### Open — `studio.c`
 
-- [ ] **`fb_w`/`fb_h` are provably always `== de_sw`/`de_sh`.** One write site (`de_ensure_fb`), and
-      all three callers pass the values that become `de_sw`/`de_sh`. A fossil of the abandoned
-      grow-only scheme: 2 fields, ~14 use sites, ~25 lines of comment explaining a distinction with
-      no content. **Doing it makes the next item unrepeatable.** Gate: `refactor-guard`,
-      `canvas-diff drawall`, a `--resize` run.
+- [ ] **`fb_w`/`fb_h` are `== de_sw`/`de_sh` at every point a CALLER can observe — but NOT inside
+      `de_grow_gpu`, and that is where the removal breaks.** ⚠ **ATTEMPTED AND REVERTED 2026-08-14.
+      Read this before trying again.** The claim as it was written here ("provably always equal")
+      is false, and the falsifying window is the one the merge collapses:
+
+      `de_ensure_fb` sets `fb_*` and calls `de_grow_gpu()` **while `de_sw`/`de_sh` still hold the
+      OLD size**; the caller (`de_set_canvas`) only publishes the new ones afterwards. Instrumenting
+      `HEAD` shows the two one step out of phase on every resize —
+      `GROW fb=320,200 de=160,100`, `GROW fb=160,100 de=320,200`, and so on. Collapsing the pair
+      necessarily makes `de_grow_gpu` see the new dimensions instead of the old.
+
+      Measured, on `acidcandy` (resizable, and a device FACE that reflows to its own chunky size
+      every frame) under `--resize 320x200,480x300,240x400,800x480,167x100`: **all five dumped
+      frames differ from `HEAD`** (PSNR 37-43 dB, visually indistinguishable), **and so does the
+      WAV.** Audio moving is the tell — this is a state/timing divergence, not a rendering one.
+      Controls run: the sweep is deterministic run-to-run on one build (5/5 identical), plain
+      `acidcandy` with no sweep is byte-identical (`refactor-guard` 6/6), and applying ONLY the
+      `de_ensure_fb(…)` → `de_set_canvas(…)` call-site swap to `HEAD` reproduces `HEAD` exactly —
+      so the divergence is the ordering, not the call sites and not the rename (whose diff was
+      reviewed line by line and is a clean identifier substitution at all 33 sites).
+
+      What is NOT established: whether the new ordering is actually *worse*. Both orderings end in
+      the same state and no cart code runs in the window. But the whole justification for this item
+      is that it changes nothing, and it demonstrably changes something, so it does not ship on
+      "probably benign". **A future attempt needs to explain the divergence first** — the cheap next
+      step is a `de_grow_gpu(int w, int h)` taking its size explicitly, which decouples the two
+      questions; an attempt to hack that up in-place is what ran out of budget here.
+
+      Still true: it is 2 fields and ~25 lines of comment describing a distinction that no caller
+      can observe, and that ambiguity is how `pget_texel` came to bounds-check one size and flip
+      against another. Worth doing, once the above is understood. Gate: `refactor-guard`,
+      `canvas-diff drawall`, **and a `--resize` sweep A/B'd against a worktree at `HEAD` — the first
+      two are green for this change and only the third catches it.**
 - [x] **`pget_texel` bounds-checked `de_sh` then flipped against compile-time `SCREEN_H`.** LANDED
       2026-08-14, both it and `zoom_rect`'s GPU path (= `ui.h`'s loupe). **LATENT, not live**: no
       shipped cart is currently both `resizable: true` AND a pget/loupe/zoom_rect user (checked all

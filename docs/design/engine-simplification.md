@@ -539,10 +539,30 @@ Same rules as round 1: line numbers rot, the function name is the anchor, every 
 - [ ] **`midi-check` phase B is flaky** — failed once and passed twice on identical code; only a
       throwaway worktree at `HEAD` established that the failure was not a regression. A gate whose
       failure is indistinguishable from a real one will eventually be believed wrongly.
-- [ ] **`ctx-gen --verify`** — assert every live static in a processed target is classified or
-      hand-annotated. `ctx-gen --check` self-tests the parser, not the source, and both generated
-      headers are now partly hand-maintained. This closes the half-moved-group CLASS rather than its
-      instances, and would have caught `kv_data` and `sw_rot_*` the day they landed.
+- [x] **`ctx-gen --verify`** — LANDED 2026-08-14, and it earned its keep on the first run. Every live
+      engine static must be either moved into a context or written down in `ctx-classification.json`
+      with a group saying why it stays shared; `--quiet` gates and it is a `repo-doctor` row now.
+      ⚠ It asserts BOOKKEEPING, not correctness: a name under `shared` is not proven safe to share,
+      it is proven to have been thought about, with the reason where the next person looks.
+      **28 unclassified statics on the first run, and two of them were WHOLE FILES that had never
+      been classified at all — `mic.h` (11) and `midi_output.h` (7), the same shape as the
+      `midi_input.h` finding that opened this round.** The rest were benign and are now recorded:
+      the instance machinery itself (`de_*_pristine`, `de_inst_next_id`), the three GLSL source
+      literals, and `vox_cons_name`. `--selfcheck` 18 → 26, the new guards mutation-tested by making
+      an unkeyed file read as clean — which reproduces exactly the blindness the check exists for,
+      and takes it to 24/26.
+- [ ] **`midi_out_on` is a FLAG where a shared MIDI port needs a REFCOUNT** — found by `--verify`
+      above, 2026-08-14, and left unfixed. Sharing is the RIGHT scope (one process-wide virtual
+      CoreMIDI source, so the table tracks what is on the WIRE), but `midi_send_note` writes
+      `midi_out_on[ch][note] = on ? 1 : 0`. Two racks playing the same channel+note: A's note-on sets
+      it, B's sets it, A's note-off CLEARS it while B is still sounding — and `midi_out_all_notes_off`
+      then leaves B **droning at shutdown**, which is the one guarantee that table exists to make.
+      Narrow (needs the same ch+note from two instances). ⚠ Gate first: `midi-check` phase B is the
+      known-flaky one, so establish a baseline in a throwaway worktree before believing any run.
+- [ ] **`mic_rec` is a 1.4 MB capture ring two instances would fight over** — same first run. One
+      capture device makes the mic path process-wide on purpose, but two instances calling
+      `mic_record_start()` race for one buffer. Nothing does yet, and duplicating 1.4 MB per rack to
+      fix a case nobody has hit is the wrong trade — recorded as a race, not waived as a design.
 - [x] `sw_rot_active`/`sw_rot_angle` are shared while every buffer they steer is per-instance —
       `DE_NO_RAYLIB` only, i.e. exactly the AUv3 build. `kv_data` shared while `kv_count`/`kv_loaded`
       are per-instance. Both violate the "this group moves together or not at all" warning in

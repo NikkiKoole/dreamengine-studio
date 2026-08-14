@@ -35,6 +35,7 @@
  *   node tools/ctx-gen.js --write               apply for real (then run tools/refactor-guard.js)
  *   node tools/ctx-gen.js --primitive           BATCH 1: only statics of primitive type
  *   node tools/ctx-gen.js --check               self-test: known answers on a fixture
+ *   node tools/ctx-gen.js --verify              every engine static is moved or CLASSIFIED (--quiet gates)
  *
  * BATCHING. `--primitive` restricts to statics whose type is built-in (float/int/bool/…). Those need
  * no type-hoist, because the struct can sit above everything. The remaining ones are typed
@@ -777,6 +778,32 @@ function selfCheck() {
   t('refuses an unknown name',        () => parseDeclarator('float mystery = 1', known) === null);
 
   t('zero initialiser detected',      () => ZERO.test('0.0f') && ZERO.test('NULL') && ZERO.test('false') && ZERO.test('{0}'));
+
+  // ── --verify: the CLASS check. Known answers, in both directions, because its failure mode is
+  // going quietly permissive — a file it cannot resolve reading as "nothing to report".
+  {
+    const L = [ { file: 'runtime/sound.h',       line: 1, name: 'snd_known',  type: 'int' },
+                { file: 'runtime/studio.c',      line: 2, name: 'stu_known',  type: 'int' },
+                { file: 'runtime/studio.c',      line: 3, name: 'stu_loose',  type: 'int' },
+                { file: 'runtime/midi_output.h', line: 4, name: 'mo_a',       type: 'int' } ];
+    const C = { shared: { _why: 'x', snd_known: {} },
+                studio_c: { harness: { stu_known: {} } },
+                midi_output_h: { shared: { mo_a: {} } } };
+    const u = (l, c) => unclassifiedStatics(l, c).map(s => s.name);
+    t('verify: sound.h reads its groups from the TOP level', () => !u(L, C).includes('snd_known'));
+    t('verify: another target reads its own key',            () => !u(L, C).includes('stu_known'));
+    t('verify: any group counts, not just `shared`',         () => !u(L, C).includes('stu_known'));
+    t('verify: an unlisted static IS reported',              () => u(L, C).includes('stu_loose'));
+    t('verify: a dotted filename maps to its key',           () => !u(L, C).includes('mo_a'));
+    // THE ONE THAT MATTERS: a file with no key at all is the midi_input.h shape. It must report
+    // every static, not read as vacuously clean.
+    t('verify: a file with NO key reports EVERY static  [the midi_input.h shape]',
+      () => { const C2 = JSON.parse(JSON.stringify(C)); delete C2.midi_output_h; return u(L, C2).includes('mo_a'); });
+    t('verify: a group\'s _why key is not mistaken for a static name',
+      () => u([{ file: 'runtime/sound.h', line: 1, name: '_why', type: 'int' }], C).includes('_why'));
+    t('verify: an empty classification reports everything  [no vacuous pass]',
+      () => u(L, {}).length === L.length);
+  }
   t('non-zero initialiser detected',  () => !ZERO.test('0.35f') && !ZERO.test('PAN_LINEAR'));
 
   t('strips a trailing comment',      () => stripComment('static int x = 1;  // hi').trim() === 'static int x = 1;');
@@ -813,11 +840,100 @@ function selfCheck() {
   process.exit(pass === checks.length ? 0 : 1);
 }
 
+/* ──────────────────────────────────────────────────────────────── verify ── */
+/* `--verify` — EVERY live file-scope static in an engine file must be ACCOUNTED FOR: either moved
+ * into a context (so it no longer appears) or written down in ctx-classification.json with a group
+ * saying why it stays shared.
+ *
+ * WHY THIS EXISTS, AND WHY IT IS THE ONE THAT MATTERS. Everything else here checks an INSTANCE of
+ * the problem; this checks the CLASS. The refactor's recurring failure was never a bad move, it was
+ * a group moved HALF way — `kv_count`/`kv_loaded` per-instance with `kv_data` left shared (which
+ * returns another rack's saved values), `sw_dst`/`sw_world_buf` per-instance with the
+ * `sw_rot_active`/`sw_rot_angle` that steer them left shared, `midi_input.h` absent from the roster
+ * entirely so its 14 statics were never even counted. Each was found by a person re-reading the
+ * file. This finds them the day they land.
+ *
+ * ⚠ IT ASSERTS BOOKKEEPING, NOT CORRECTNESS. A static listed under `shared` is not proven safe to
+ * share — it is proven to have been THOUGHT ABOUT, with the reason written where the next person
+ * looks. That is the whole claim, and it is worth making because the alternative is silence.
+ *
+ * `ctx-gen --check` self-tests the PARSER against a fixture; this checks the SOURCE. They are
+ * different questions and both are needed. */
+// The pure half, so --selfcheck can feed it known answers instead of the repo.
+// Every group counts as an acknowledgement, whatever it says — the point is that a human wrote the
+// name down. `open_questions` counts too: "we know, and we have not decided" is an answer; silence
+// is not.
+const VERIFY_GROUPS = ['shared', 'harness', 'looks_like_harness_but_is_public_api', 'function_local',
+                       'lazy', 'dead_weight', 'defer', 'collision_waivers', 'open_questions'];
+function unclassifiedStatics(list, c) {
+  const namesIn = (scope) => {
+    const s = new Set();
+    for (const g of VERIFY_GROUPS) for (const k of Object.keys(scope[g] || {})) if (!k.startsWith('_')) s.add(k);
+    return s;
+  };
+  // sound.h's groups are at the top level (it was classified first); every other target gets its own
+  // key. A file with NO key at all is the midi_input.h shape and must read as UNCLASSIFIED, not as
+  // vacuously clean — so an absent key yields an empty set rather than a skip. That distinction is
+  // the entire point of the check, so --selfcheck pins it.
+  const scopeFor = (file) => {
+    const base = file.split('/').pop();
+    if (base === 'sound.h') return namesIn(c);
+    return namesIn(c[base.replace(/\W/g, '_')] || {});
+  };
+  return list.filter(s => !scopeFor(s.file).has(s.name));
+}
+
+function verify(o = {}) {
+  const c = JSON.parse(fs.readFileSync(path.join(ROOT, 'tools', 'ctx-classification.json'), 'utf8'));
+
+  let list;
+  try {
+    list = JSON.parse(execFileSync(process.execPath,
+      [path.join(__dirname, 'engine-statics.js'), '--list'], { maxBuffer: 1 << 26 }).toString());
+  } catch (e) {
+    console.error('ctx-gen --verify: could not read engine-statics --list\n' + (e.stderr || e.message));
+    return 2;
+  }
+
+  const unclassified = unclassifiedStatics(list, c);
+  const byFile = {};
+  for (const s of unclassified) (byFile[s.file] ||= []).push(s);
+  // A file where EVERY static is unclassified has almost certainly never been classified at all —
+  // the midi_input.h shape — and that reads very differently from three stragglers in a file that
+  // was done. Count both so the report can say which it is.
+  const totalByFile = {};
+  for (const s of list) totalByFile[s.file] = (totalByFile[s.file] || 0) + 1;
+
+  if (o.json) { console.log(JSON.stringify({ unclassified, byFile, totalByFile }, null, 2)); return unclassified.length ? 1 : 0; }
+  if (o.quiet) {
+    console.log(unclassified.length
+      ? `ctx-gen --verify: ${unclassified.length} unclassified static(s) in ${Object.keys(byFile).length} file(s)`
+      : `ctx-gen --verify: every engine static is classified (${list.length} checked)`);
+    return unclassified.length ? 1 : 0;
+  }
+
+  if (!unclassified.length) {
+    console.log(`\nCONTEXT CLASSIFICATION ✓  — all ${list.length} engine statics are accounted for`);
+    return 0;
+  }
+  console.log(`\nCONTEXT CLASSIFICATION — ${unclassified.length} static(s) nobody has written down:\n`);
+  for (const f of Object.keys(byFile)) {
+    const whole = byFile[f].length === totalByFile[f];
+    console.log(`  ${f}  (${byFile[f].length} of ${totalByFile[f]}${whole ? ' — the WHOLE FILE: never classified' : ''})`);
+    for (const s of byFile[f]) console.log(`    ${String(s.line).padStart(5)}  ${s.name}  [${s.type}]`);
+    console.log('');
+  }
+  console.log('  Each one either moves into its context, or goes in tools/ctx-classification.json');
+  console.log('  under the group that says why it stays shared. Writing it down IS the fix.');
+  return 1;
+}
+
 /* ───────────────────────────────────────────────────────────────── main ── */
 
 const argv = process.argv.slice(2);
 const opts = { primitive: argv.includes('--primitive'), write: argv.includes('--write'), probe: argv.includes('--probe') };
 if (argv.includes('--check')) selfCheck();
+else if (argv.includes('--verify')) process.exit(verify({ quiet: argv.includes('--quiet'), json: argv.includes('--json') }));
 else {
   const res = plan(opts);
   report(res, opts);

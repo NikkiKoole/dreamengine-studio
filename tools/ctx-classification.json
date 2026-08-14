@@ -1,5 +1,5 @@
 {
- "_doc": "Which of runtime/sound.h's file-scope statics must NOT simply become per-instance context members. Consumed by the context generator; explained in docs/design/engine-context.md. THE DEFAULT IS per_instance \u2014 only exceptions are listed here, because 250+ of the 293 statics are ordinary audio state with no special handling. Line numbers are as of commit 5712334b; the generator matches on NAME, not line, so they are documentation rather than lookup keys.",
+ "_doc": "Which of runtime/sound.h's file-scope statics must NOT simply become per-instance context members. Consumed by the context generator; explained in docs/design/engine-context.md. THE DEFAULT IS per_instance — only exceptions are listed here, because 250+ of the 293 statics are ordinary audio state with no special handling. Line numbers are as of commit 5712334b; the generator matches on NAME, not line, so they are documentation rather than lookup keys.",
  "shared": {
   "_why": "Process-global by necessity: tied to the audio hardware or to the OS. A per-instance copy would double-register a callback or duplicate a device.",
   "sound_stream": {
@@ -13,6 +13,10 @@
   "sound_aw_ctx": {
    "line": 8914,
    "note": "web-only: the Web Audio context handle. Not compiled in the AUv3 build"
+  },
+  "vox_cons_name": {
+   "line": 3614,
+   "note": "const char *[22] — an immutable name table. engine-statics counts it because isConst does not treat `const char *p` as const (the pointer is mutable, the strings are not); nothing writes it"
   }
  },
  "harness": {
@@ -35,7 +39,7 @@
   },
   "sve_ring": {
    "line": 504,
-   "note": "inside #ifdef DE_TRACE \u2014 voice-lifecycle trace ring"
+   "note": "inside #ifdef DE_TRACE — voice-lifecycle trace ring"
   },
   "sve_w": {
    "line": 505
@@ -52,10 +56,10 @@
   }
  },
  "looks_like_harness_but_is_public_api": {
-  "_why": "THE TRAP IN THIS FILE. These sit in the debug neighbourhood, right after the WAV capture, and read as tooling \u2014 but they are shipping cart API, so they are per-instance and two instances sharing them would each see the other's audio. Classifying them as harness would have quietly removed a feature.",
+  "_why": "THE TRAP IN THIS FILE. These sit in the debug neighbourhood, right after the WAV capture, and read as tooling — but they are shipping cart API, so they are per-instance and two instances sharing them would each see the other's audio. Classifying them as harness would have quietly removed a feature.",
   "scope_buf": {
    "line": 464,
-   "api": "scope_read \u2014 studio.h:498, exported to carts via studio_tcc_symbols.h:191"
+   "api": "scope_read — studio.h:498, exported to carts via studio_tcc_symbols.h:191"
   },
   "scope_w": {
    "line": 465
@@ -65,7 +69,7 @@
   },
   "scope2_bufL": {
    "line": 469,
-   "api": "scope_read2 \u2014 studio.h:499"
+   "api": "scope_read2 — studio.h:499"
   },
   "scope2_bufR": {
    "line": 469
@@ -78,7 +82,7 @@
   },
   "rec_ring": {
    "line": 486,
-   "api": "record_arm/record_grab \u2014 studio.h:424-425; feeds INSTR_SAMPLE playback. A real sampler, not a debug tap"
+   "api": "record_arm/record_grab — studio.h:424-425; feeds INSTR_SAMPLE playback. A real sampler, not a debug tap"
   },
   "rec_w": {
    "line": 487
@@ -91,7 +95,7 @@
   }
  },
  "function_local": {
-  "_why": "Declared INSIDE a function body. A `#define name (ctx->name)` cannot rewrite these \u2014 the declaration itself has to move. Only these seven exist, and one of them is load-bearing.",
+  "_why": "Declared INSIDE a function body. A `#define name (ctx->name)` cannot rewrite these — the declaration itself has to move. Only these seven exist, and one of them is load-bearing.",
   "lfo_seed_ctr": {
    "line": 5822,
    "fn": "sound_setup_note",
@@ -129,7 +133,7 @@
   "grain_pool": {
    "line": 1999,
    "bytes": 1058000,
-   "note": "2 x GrainTank, 3s granular capture \u2014 the single biggest win"
+   "note": "2 x GrainTank, 3s granular capture — the single biggest win"
   },
   "vari_bufL": {
    "line": 2837,
@@ -155,7 +159,7 @@
   "ctx_log": {
    "line": 2520,
    "bytes": 294912,
-   "note": "de_switch_cart config replay log \u2014 see open_questions.cart_switching"
+   "note": "de_switch_cart config replay log — see open_questions.cart_switching"
   },
   "emit_bufL": {
    "line": 5746,
@@ -207,15 +211,15 @@
   }
  },
  "collision_waivers": {
-  "_why": "A name the collision check flags, where the clash has been HANDLED at the source rather than by renaming. A waiver must say exactly how, and must not be used to silence a collision that is merely believed harmless \u2014 the check exists because the failure is a compile error at best and a silently rewritten field access at worst.",
+  "_why": "A name the collision check flags, where the clash has been HANDLED at the source rather than by renaming. A waiver must say exactly how, and must not be used to silence a collision that is merely believed harmless — the check exists because the failure is a compile error at best and a silently rewritten field access at worst.",
   "palette": {
    "clashes_with": "a `stbi_uc *palette` parameter inside the vendored runtime/stb_image.h",
-   "handled_by": "studio.c wraps that one #include in `#pragma push_macro(\"palette\") / #undef palette / \u2026 / #pragma pop_macro(\"palette\")`, so the vendored header is compiled without our macro. Scoped to exactly that include, and only reachable in the DE_NO_RAYLIB build where stb_image is used at all.",
+   "handled_by": "studio.c wraps that one #include in `#pragma push_macro(\"palette\") / #undef palette / … / #pragma pop_macro(\"palette\")`, so the vendored header is compiled without our macro. Scoped to exactly that include, and only reachable in the DE_NO_RAYLIB build where stb_image is used at all.",
    "why_not_rename": "our `palette` has 146 uses in studio.c and is the engine's core colour table; shielding one vendored include is a three-line change against a 146-line one."
   }
  },
  "defer": {
-  "_why": "HELD BACK from the move until the matching open question below is answered. These are NOT per-instance state as far as anyone knows, and leaving them as file-scope statics preserves exactly today's behaviour \u2014 so deferring costs nothing and guessing could cost a silent bug. The first generated batch swept these in before this group existed, which is precisely the accident it now prevents: the generator has no opinion, so anything without a decision must be named here or it moves by default.",
+  "_why": "HELD BACK from the move until the matching open question below is answered. These are NOT per-instance state as far as anyone knows, and leaving them as file-scope statics preserves exactly today's behaviour — so deferring costs nothing and guessing could cost a silent bug. The first generated batch swept these in before this group existed, which is precisely the accident it now prevents: the generator has no opinion, so anything without a decision must be named here or it moves by default.",
   "sound_synth_mode": {
    "line": 450,
    "question": "synth_mode",
@@ -241,9 +245,9 @@
   }
  },
  "open_questions": {
-  "_why": "Real forks that a measurement cannot settle. Each names what breaks if it is guessed wrong. NONE of them block the first batch of work \u2014 they are all in code paths the first pass can leave alone.",
+  "_why": "Real forks that a measurement cannot settle. Each names what breaks if it is guessed wrong. NONE of them block the first batch of work — they are all in code paths the first pass can leave alone.",
   "mic_input_path": {
-   "_status": "ANSWERED 2026-08-13 by reading the code \u2014 do not re-open, and do not make these per-instance.",
+   "_status": "ANSWERED 2026-08-13 by reading the code — do not re-open, and do not make these per-instance.",
    "vars": [
     "sound_extin",
     "extin_w",
@@ -259,11 +263,11 @@
    "question": "In the AUv3 build, does host/mic audio arrive PER INSTANCE or from ONE process-wide capture device?",
    "answer": "NEITHER, yet: the plug-in has no mic path at all. The mic host is ios/Sources/AudioEngine.swift + CanvasView.swift, which are the STANDALONE app; nothing in ios/AU/TinyjamAU.swift opens or pushes a mic. So the extin_* group is never exercised multi-instance today.",
    "why_it_cannot_be_per_instance": [
-    "We register as `aumu` (a music DEVICE / instrument). An instrument AU is a generator \u2014 the host hands it no audio, so there is no per-instance input bus to receive.",
+    "We register as `aumu` (a music DEVICE / instrument). An instrument AU is a generator — the host hands it no audio, so there is no per-instance input bus to receive.",
     "mic.h is DEVICE-FREE BY DESIGN (its own header says so): the engine never opens a capture device, each platform host pushes frames in. The engine could not open N devices even if we wanted it to.",
     "Mic permission is granted per HOST APP, not per plug-in instance."
    ],
-   "decision": "Leave all four SHARED \u2014 which is the status quo, so nothing changes. They stay in the `defer` group only so a future batch does not sweep them in by default.",
+   "decision": "Leave all four SHARED — which is the status quo, so nothing changes. They stay in the `defer` group only so a future batch does not sweep them in by default.",
    "shape_when_it_arrives": "One process-wide capture pushed to every instance: the ring and extin_w stay SHARED, extin_r becomes PER-INSTANCE (each consumes at its own rate), and extin_on becomes a REFCOUNT ('any instance wants the mic'), never a bool.",
    "hazard_if_ignored": "A naive per-instance copy of extin_on means the capture thread reads whichever copy the linker picked: silently dead mic on every other instance.",
    "the_real_question_behind_it": "Should the rack also PROCESS host audio (an `aufx` effect) rather than only generate? That is a product decision about what the plug-in is, not a refactor one, and it is the only thing that would create a per-instance input bus."
@@ -283,7 +287,7 @@
    "stake": "If yes, this 288 KB log is per-instance. If cart choice belongs to the umbrella app, it belongs to the shell instead."
   },
   "diagnostics_definition": {
-   "_status": "DECIDED 2026-08-13 \u2014 low stakes either way.",
+   "_status": "DECIDED 2026-08-13 — low stakes either way.",
    "vars": [
     "sound_dropped",
     "ctx_overflow",
@@ -294,13 +298,13 @@
    "decision": "PER-INSTANCE (already moved). They cost a few bytes, each instance reporting its OWN dropped notes is more useful than a shared tally, and their siblings (bow_body_overflow, rvb_bus_overflow, grain_overflow) are already per-instance pool bookkeeping reset in sound_init. Revisit only if debug state should be kept out of the shipping struct on principle."
   },
   "synth_mode": {
-   "_status": "ANSWERED 2026-08-13 by reading the code \u2014 closed.",
+   "_status": "ANSWERED 2026-08-13 by reading the code — closed.",
    "vars": [
     "sound_synth_mode"
    ],
    "line": 450,
    "question": "In the AUv3 build is there a device stream at all?",
-   "answer": "No. de_init() \u2014 the platform seam the plug-in and iOS both enter \u2014 sets sound_synth_mode = true UNCONDITIONALLY (studio.c:3015) and never creates a stream; the host pulls de_audio_render on its own thread. The value is therefore a constant, identical for every instance in that build, and sound_stream is dead code there.",
+   "answer": "No. de_init() — the platform seam the plug-in and iOS both enter — sets sound_synth_mode = true UNCONDITIONALLY (studio.c:3015) and never creates a stream; the host pulls de_audio_render on its own thread. The value is therefore a constant, identical for every instance in that build, and sound_stream is dead code there.",
    "decision": "Stays SHARED. Correct as-is, no per-instance copy needed."
   }
  },
@@ -308,7 +312,7 @@
   "_why": "Not worth migrating. Fix instead of moving.",
   "sq_atk": {
    "line": 2223,
-   "note": "named like a live parameter, but fx_set_squash unconditionally reassigns it to gate_coef(1) on every call and nothing else writes it. A constant wearing a variable's clothes \u2014 make it const rather than giving every instance a copy"
+   "note": "named like a live parameter, but fx_set_squash unconditionally reassigns it to gate_coef(1) on every call and nothing else writes it. A constant wearing a variable's clothes — make it const rather than giving every instance a copy"
   },
   "sq_rel": {
    "line": 2223,
@@ -318,10 +322,10 @@
  "studio_c": {
   "_doc": "studio.c's exceptions. UNLIKE sound.h, the default here is NOT 'everything moves': studio.c owns GPU handles, fonts, shaders and the harness, so a large minority is genuinely shared. Produced by three parallel read-only audits.",
   "shared": {
-   "_why": "Process/OS/GPU-owned. One upload, one program, one file handle serves every instance \u2014 duplicating these means N GPU allocations at best and a double-free or a handle unloaded while a sibling samples it at worst.",
+   "_why": "Process/OS/GPU-owned. One upload, one program, one file handle serves every instance — duplicating these means N GPU allocations at best and a double-free or a handle unloaded while a sibling samples it at worst.",
    "spritesheet": {
     "line": 179,
-    "note": "GPU texture. \u26a0 SEE open_questions.colorkey \u2014 the cart API colorkey() UnloadTexture+LoadTextureFromImage this SHARED texture at runtime"
+    "note": "GPU texture. ⚠ SEE open_questions.colorkey — the cart API colorkey() UnloadTexture+LoadTextureFromImage this SHARED texture at runtime"
    },
    "spritesheet_img": {
     "line": 180
@@ -372,7 +376,7 @@
    },
    "custom_font": {
     "line": 202,
-    "note": "reads like a per-cart flag; is resource-ownership bookkeeping (was game_font LoadFont'ed \u2192 UnloadFont it). Duplicating risks a double free"
+    "note": "reads like a per-cart flag; is resource-ownership bookkeeping (was game_font LoadFont'ed → UnloadFont it). Duplicating risks a double free"
    },
    "pal_shader": {
     "line": 216
@@ -449,7 +453,7 @@
    },
    "restart_argv": {
     "line": 517,
-    "note": "the PROCESS's argv, passed to execv \u2014 an instance calling restart would execv the whole host DAW"
+    "note": "the PROCESS's argv, passed to execv — an instance calling restart would execv the whole host DAW"
    },
    "de_data_path_v": {
     "line": 524
@@ -463,11 +467,11 @@
    },
    "de_mic_web_scratch": {
     "line": 2941,
-    "note": "the JS tap takes this pointer ONCE and writes it forever \u2014 address-stable process state, not copyable"
+    "note": "the JS tap takes this pointer ONCE and writes it forever — address-stable process state, not copyable"
    },
    "fp_cache": {
     "line": 4674,
-    "note": "GPU texture cache. \u26a0 SEE open_questions.fp_cache_key \u2014 its key omits the palette"
+    "note": "GPU texture cache. ⚠ SEE open_questions.fp_cache_key — its key omits the palette"
    },
    "fp_round": {
     "line": 4675
@@ -478,15 +482,46 @@
    },
    "de_inst_default": {
     "line": 3007,
-    "note": "THE INSTANCE ITSELF. It cannot live inside the per-instance context it identifies \u2014 that is circular, and the compiler says so ('field has incomplete type struct DeInstance'). Step 3 replaces it with a heap allocation per audio unit."
+    "note": "THE INSTANCE ITSELF. It cannot live inside the per-instance context it identifies — that is circular, and the compiler says so ('field has incomplete type struct DeInstance'). Step 3 replaces it with a heap allocation per audio unit."
    },
    "de_cur": {
     "line": 3015,
-    "note": "the _Thread_local pointer the seam sets and restores around a call. A struct member cannot have a storage class, and more importantly this is the MECHANISM that reaches the context \u2014 it can never be part of it."
+    "note": "the _Thread_local pointer the seam sets and restores around a call. A struct member cannot have a storage class, and more importantly this is the MECHANISM that reaches the context — it can never be part of it."
+   },
+   "de_inst_next_id": {
+    "line": 2934,
+    "note": "THE INSTANCE MACHINERY ITSELF. A per-instance instance counter is a contradiction"
+   },
+   "de_snd_pristine": {
+    "line": 2994,
+    "note": "the template snapshot de_instance_create copies from — process-wide by definition, and taken BEFORE instance 0 mutates the live templates"
+   },
+   "de_vid_pristine": {
+    "line": 2995
+   },
+   "de_sync_pristine": {
+    "line": 2996
+   },
+   "de_midi_pristine": {
+    "line": 2997
+   },
+   "de_pristine_taken": {
+    "line": 2998,
+    "note": "the once-latch for the snapshot above"
+   },
+   "PAL_FS": {
+    "line": 4173,
+    "note": "GLSL source string literal; never written. Same isConst caveat as vox_cons_name"
+   },
+   "BLEND_FS": {
+    "line": 4250
+   },
+   "SCALE_FS": {
+    "line": 4340
    }
   },
   "harness": {
-   "_why": "Debug/tooling only. Several are OPEN OS FILE HANDLES \u2014 duplicating them interleaves or truncates the output.",
+   "_why": "Debug/tooling only. Several are OPEN OS FILE HANDLES — duplicating them interleaves or truncates the output.",
    "det_mode": {
     "line": 577
    },
@@ -575,7 +610,7 @@
    },
    "uiaudit_recs": {
     "line": 1119,
-    "note": "~312 KB \u2014 keep ONE shared buffer rather than duplicating"
+    "note": "~312 KB — keep ONE shared buffer rather than duplicating"
    },
    "uiaudit_n": {
     "line": 1120
@@ -659,29 +694,29 @@
    }
   },
   "looks_like_harness_but_is_public_api": {
-   "_why": "THE SAME TRAP AS sound.h's SCOPE RINGS. These sit in the debug-overlay neighbourhood and read as tooling, but they are shipping cart API \u2014 classifying them harness would #ifdef away a documented feature.",
+   "_why": "THE SAME TRAP AS sound.h's SCOPE RINGS. These sit in the debug-overlay neighbourhood and read as tooling, but they are shipping cart API — classifying them harness would #ifdef away a documented feature.",
    "watches": {
     "line": 1637,
-    "api": "watch() \u2014 studio.h:997"
+    "api": "watch() — studio.h:997"
    },
    "watch_count": {
     "line": 1638
    },
    "watch_show": {
     "line": 1639,
-    "api": "watch_visible() \u2014 studio.h:998"
+    "api": "watch_visible() — studio.h:998"
    },
    "touch_debug_on": {
     "line": 756,
-    "api": "touch_debug(bool) \u2014 studio.c:3907"
+    "api": "touch_debug(bool) — studio.c:3907"
    },
    "frame_count": {
     "line": 494,
-    "api": "frame() \u2014 6278; also backs blink()"
+    "api": "frame() — 6278; also backs blink()"
    },
    "pget_snapshot": {
     "line": 1158,
-    "api": "pget/pget_rgb/touching_color \u2014 5084"
+    "api": "pget/pget_rgb/touching_color — 5084"
    },
    "map_data": {
     "line": 492,
@@ -700,7 +735,7 @@
    }
   },
   "function_local": {
-   "_why": "Declared inside a function body \u2014 a macro cannot rewrite these, the declaration itself must move.",
+   "_why": "Declared inside a function body — a macro cannot rewrite these, the declaration itself must move.",
    "seen_real_touch": {
     "line": 1354,
     "fn": "poll_virtual_touches",
@@ -712,7 +747,7 @@
     "fn": "poly_clamp_scan",
     "vars": "c_lox c_loy c_hix c_hiy c_valid s_tx s_ty s_ox s_oy s_rot s_zoom s_vw s_vh",
     "severity": "HIGH",
-    "note": "a camera-derived AABB cache. A cross-instance hit silently clamps one rack's polygons to ANOTHER rack's camera \u2014 wrong pixels, no crash"
+    "note": "a camera-derived AABB cache. A cross-instance hit silently clamps one rack's polygons to ANOTHER rack's camera — wrong pixels, no crash"
    },
    "str_bufs": {
     "line": 5915,
@@ -725,7 +760,7 @@
     "line": 2865,
     "fn": "save_path",
     "severity": "HIGH",
-    "note": "returns a pointer into ONE shared buffer \u2014 moving save_dir per-instance WITHOUT this just relocates the bug"
+    "note": "returns a pointer into ONE shared buffer — moving save_dir per-instance WITHOUT this just relocates the bug"
    },
    "chunk": {
     "line": 2188,
@@ -735,11 +770,11 @@
    "ev_push_cap": {
     "line": 2748,
     "fn": "ev_push",
-    "note": "harness; the only record of replay_ev's allocation size \u2014 must move WITH it if that ever moves"
+    "note": "harness; the only record of replay_ev's allocation size — must move WITH it if that ever moves"
    },
    "web_audio_up": {
     "line": 2311,
-    "note": "web-only; a genuine process does-once latch \u2192 correctly shared"
+    "note": "web-only; a genuine process does-once latch → correctly shared"
    },
    "web_seed": {
     "line": 2336,
@@ -761,13 +796,13 @@
    }
   },
   "open_questions": {
-   "_why": "studio.c's own forks. The FIRST one is not a detail \u2014 it changes what 'done' means for this file.",
+   "_why": "studio.c's own forks. The FIRST one is not a detail — it changes what 'done' means for this file.",
    "the_platform_seam_has_no_instance_argument": {
     "severity": "BLOCKS COMPLETION (not the mechanical move)",
     "finding": "The AUv3 today has ONE process-wide frame worker (TinyjamAU.swift: 'ONE worker per process, not per instance') and calls de_frame(t) with NO instance argument. The same is true of de_resize, de_copy_frame, de_set_safe_area, de_set_backing_scale, de_audio_render and de_set_save_dir.",
     "consequence": "Once studio.c's state is per-instance, one de_frame() per tick advances exactly ONE rack and the others FREEZE. The whole seam needs an instance handle, and the worker must iterate instances or become one worker per instance.",
     "why_it_is_dangerous": "A sound.h-style macro move COMPILES and passes every byte-exact gate while leaving this broken. refactor-guard runs one instance, so it cannot see it.",
-    "and_do_not": "Resolve the context from a mutable global 'current instance' pointer. It would be written by the UI thread and read by the audio thread on every call \u2014 exactly the race the pending/seqlock machinery exists to prevent, reintroduced one level up.",
+    "and_do_not": "Resolve the context from a mutable global 'current instance' pointer. It would be written by the UI thread and read by the audio thread on every call — exactly the race the pending/seqlock machinery exists to prevent, reintroduced one level up.",
     "why_thread_local_ALSO_fails_here": "Unlike sound.h, the SAME instance is touched from THREE different threads (UI thread: de_resize/de_set_safe_area; frame worker: de_frame; XPC/view thread: de_copy_frame), and ONE worker thread serves MANY instances. A thread-local 'current instance' is therefore meaningless here. The seam must take an EXPLICIT handle.",
     "concretely": "de_copy_frame(dst, cap, &w, &h) has no instance parameter at all; its signature must change. And the reader must load de_pres_buf from the SAME context it loaded de_pres_seq from, or the seqlock is meaningless."
    },
@@ -778,12 +813,12 @@
     "options": "Keep a static 'last active instance' pointer for the handler to walk, or drop the watch dump from the crash path."
    },
    "colorkey_mutates_a_shared_texture": {
-    "finding": "colorkey() is a CART API that does ImageCopy -> ImageColorReplace -> UnloadTexture(spritesheet) -> LoadTextureFromImage at 4309-4317 \u2014 it destroys and rebuilds the SHARED sheet texture with this cart's keyed colour.",
+    "finding": "colorkey() is a CART API that does ImageCopy -> ImageColorReplace -> UnloadTexture(spritesheet) -> LoadTextureFromImage at 4309-4317 — it destroys and rebuilds the SHARED sheet texture with this cart's keyed colour.",
     "consequence": "Two instances with different colorkey() values fight over one texture, and one calling it mid-draw frees a texture the other is sampling.",
     "question": "Per-instance texture VARIANT (shared source Image), or move colorkey entirely onto the software path (sw_colorkey_on/sw_colorkey_rgb are already per-instance) and delete the GPU bake?"
    },
    "fp_cache_key_omits_the_palette": {
-    "finding": "fp_cache's key is (pat, c1, c0) only, but the pixels it bakes are palette[c1]/palette[c0] \u2014 and palette is per-instance.",
+    "finding": "fp_cache's key is (pat, c1, c0) only, but the pixels it bakes are palette[c1]/palette[c0] — and palette is per-instance.",
     "consequence": "A shared cache returns instance A's colours to instance B for the same pattern/index triple. A byte-exact gate can NEVER see this: one instance means one palette.",
     "probably_moot": "de_init hard-sets sw_canvas_enabled/sw_canvas_active true, so under DE_NO_RAYLIB rectfill() always takes the software branch and fp_texture is dead code. Confirm that before relying on it."
    },
@@ -793,7 +828,7 @@
     "question": "In the AUv3 (DE_NO_RAYLIB) build are these GL render targets compiled out entirely? If the plug-in only ever uses sw_cbuf they can stay shared-and-unused."
    },
    "save_state_is_a_defect_today": {
-    "finding": "save_dir is process-wide, so N instances read and write one cart.sav / cart.kv / cart.blob. Worse, sav_data/kv_data are lazy-loaded once and written back WHOLE, so instance 2 writes its entire stale array over instance 1's file \u2014 last-writer-wins at FILE granularity, not key granularity.",
+    "finding": "save_dir is process-wide, so N instances read and write one cart.sav / cart.kv / cart.blob. Worse, sav_data/kv_data are lazy-loaded once and written back WHOLE, so instance 2 writes its entire stale array over instance 1's file — last-writer-wins at FILE granularity, not key granularity.",
     "fix": "save_dir + save_path's return buffer + sav_data/sav_loaded/kv_data/kv_count/kv_loaded all become per-instance, and the host calls de_set_save_dir per instance before de_init with a distinct leaf.",
     "beyond_the_refactor": "A DAW expects instance state to travel inside the session document (AU fullState), not a side file. Per-instance save_dir is the correct immediate fix, not the final answer."
    },
@@ -801,6 +836,76 @@
     "where": "studio.c:2528, web path, `static unsigned char *web_px`",
     "finding": "allocated once at canvas.texture.width x height x 4 and never reallocated, but a de_reflow cart can grow the canvas via de_set_canvas. After a grow, glReadPixels(0,0,w,h,...) writes past the buffer.",
     "note": "Pre-existing, nothing to do with this refactor. Recorded so it is not lost."
+   }
+  }
+ },
+ "mic_h": {
+  "shared": {
+   "_why": "ONE CAPTURE DEVICE per process, so the capture path is process-wide on purpose (the waiver docs/design/engine-simplification.md already recorded for de_audio_input/de_mic_wanted/de_mic_set_active, now written where the tool can see it). Revisit if an instance ever needs its own mic routing.",
+   "mic_g_rms": {
+    "line": 35
+   },
+   "mic_g_pitch": {
+    "line": 36
+   },
+   "mic_g_wanted": {
+    "line": 37,
+    "note": "the device is opened once for the process; an instance asking for the mic asks for THE mic"
+   },
+   "mic_g_active": {
+    "line": 38
+   },
+   "mic_acc": {
+    "line": 41,
+    "note": "the analysis accumulator for the one capture stream"
+   },
+   "mic_acc_n": {
+    "line": 42
+   },
+   "mic_rec": {
+    "line": 49,
+    "note": "1.4 MB capture ring. ⚠ OPEN: two instances both calling mic_record_start() would fight over one buffer. Nothing does yet, and duplicating 1.4 MB per rack to fix a case nobody has hit is the wrong trade — but it is a race, not a waiver"
+   },
+   "mic_rec_cap": {
+    "line": 50
+   },
+   "mic_rec_n": {
+    "line": 51
+   },
+   "mic_rec_sr": {
+    "line": 52
+   },
+   "mic_yin_d": {
+    "line": 61,
+    "note": "pitch-detection scratch for the one stream"
+   }
+  }
+ },
+ "midi_output_h": {
+  "shared": {
+   "_why": "ONE VIRTUAL COREMIDI SOURCE per process (a single \"dreamengine\" port a DAW sees once), so what is on the WIRE is process-wide and the state tracking it should be too. The sibling midi_input.h went fully per-instance for the opposite reason: its ring cursors are single-CONSUMER, so sharing them SPLITS one keyboard between two racks.",
+   "midi_out_wanted": {
+    "line": 52
+   },
+   "midi_out_live": {
+    "line": 53
+   },
+   "midi_out_automated": {
+    "line": 64
+   },
+   "midi_out_force": {
+    "line": 65
+   },
+   "midi_out_client": {
+    "line": 106,
+    "note": "CoreMIDI handles for the one port. Duplicating them means K identically-named virtual sources, which engine-dylib-spike already lists as unresolved"
+   },
+   "midi_out_src": {
+    "line": 107
+   },
+   "midi_out_on": {
+    "line": 181,
+    "note": "⚠ SHARED IS THE RIGHT SCOPE AND THE TYPE IS WRONG. It tracks what is sounding on a SHARED wire, so it must be shared — but it is a FLAG, and a shared wire needs a per-note REFCOUNT. Two racks playing the same channel+note: A note-on sets 1, B note-on sets 1, A note-off clears it, and B is still sounding with the table saying nothing is. midi_out_all_notes_off then leaves B DRONING at shutdown, which is the one guarantee this table exists to make. Narrow (needs the same ch+note from two instances) and unfixed; see engine-simplification.md"
    }
   }
  }

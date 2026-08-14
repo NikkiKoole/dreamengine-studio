@@ -103,6 +103,11 @@ const CHECKS = [
   // selftest row proves the checker works on a fixture; only this row proves it is looking at the
   // repo. Any lint worth a --selfcheck row is worth this one too.
   { name: "aux params",  tool: "lint-aux-params.js",   args: ["--quiet"],     gate: true },
+  // JOINED 2026-08-14, at zero from birth. Every engine static must be either moved into a context
+  // or written down in ctx-classification.json with a reason. It checks the CLASS the per-instance
+  // refactor kept failing at — a group moved HALF way — rather than its instances, and it found two
+  // whole files (mic.h, midi_output.h) that had never been classified at all.
+  { name: "ctx classified", tool: "ctx-gen.js",        args: ["--verify", "--quiet"], gate: true },
   // GATED from birth for the same reason as fx glyphs above: it was already AT zero (0 findings
   // across 573 carts), so there is no backlog to work down. It had been in NO gate at all, which
   // is why nobody would have noticed if its parser had gone blind — the fixture row above is the

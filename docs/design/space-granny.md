@@ -1,7 +1,8 @@
 # Space Granny — the mascot
 
-**STATUS: EXPLORING (2026-08-14)** — character chosen, first pixel conversion done and measured.
-Open: whether she goes on the store at all, the in-cart palette question, and the final icon art.
+**STATUS: EXPLORING (2026-08-14)** — character and head shape LOCKED (#3 squat bouffant), first
+pixel conversion done and measured. Open: whether she goes on the store at all, how four app icons
+tell each other apart, the in-cart palette question, and the final icon art.
 
 An ancient, intergalactic grandmother who sits in a flying saucer and plays every instrument in the
 shelf, badly, with opinions about your mix. She came out of a memory the maker has of being a
@@ -191,13 +192,32 @@ is the only variable. Judged by magnifying the sheet's own 12px, 8px and 16px-si
 | 5 | side puff | **sideways** | the only asymmetric silhouette, but bought in the expensive currency |
 | 6 | puffy puff | **sideways** | biggest mass, taxes the wings most |
 
-**Pick: #3 SQUAT BOUFFANT.** The only one with a bold distinctive hair shape that spends none of the
-horizontal budget. Note the glasses in #3 are drawn identically to the others and simply *read*
-wider, which is the rule above made visible.
+### LOCKED: #3 SQUAT BOUFFANT (`13`)
 
-**Worth one sketch: #3 leaning** — the bouffant stacked up AND offset to one side. Asymmetry is the
-rarest property in a grid of home-screen icons (every other icon is bilaterally symmetric), and #5
-proves it is achievable; doing it vertically gets it without paying the wings.
+The only one with a bold distinctive hair shape that spends none of the horizontal budget. Note the
+glasses in #3 are drawn identically to the other five and simply *read* wider, which is the rule
+above made visible.
+
+**The relationship to protect through every redraw: the glasses are WIDER THAN THE HAIR.** The wings
+clear the bouffant at all four sizes. If a revision loses that, it has lost the character.
+
+Two silhouette features to keep (`14`): the **notch in the crown** and the **narrow neck** between
+hair and saucer. They make the outline three beats (wide crown → narrow neck → flared base) instead
+of one lump, which is what separates it from #2's plain round head.
+
+⚠ **The silhouette row did NOT decide this**, and should not be over-trusted for this character: in
+solid fill the glasses are interior to the head mass and therefore *invisible*, so that row only ever
+tested hair-plus-saucer (which is why #3 and #6 look alike there and clearly differ in colour). The
+**12px colour row** decided it.
+
+It holds down to 12px, where the pink wings are still the first thing the eye lands on. At 8px it is
+a purple blob with a pink smudge — as all six were — so **8px needs its own hand-drawn glyph**, never
+a downscale. The polka dots on the wings die below 32px: fine as large-size decoration, never
+load-bearing.
+
+Not pursued (parked, not rejected): **#3 leaning**, the bouffant stacked up AND offset to one side.
+Asymmetry is the rarest property in a grid of home-screen icons and #5 proves it is achievable;
+doing it vertically would get it without paying the wings.
 
 Two things this sheet fixed that are not about hair:
 
@@ -239,6 +259,8 @@ Two things this sheet fixed that are not about hair:
 | `10-icon-afro-headhands-1024.png` | the failed compromise — gear hint costs the glasses |
 | `11-icon-bun-head-sizes.png` | the winner at every real display size, light + dark |
 | `12-head-shape-explorations.png` | six hair shapes over one identical face at 32/16/12/8px + silhouettes — the sheet the spec above is read off |
+| `13-squat-bouffant-locked.png` | **the locked head shape**, #3, at 32/16/12/8px |
+| `14-silhouettes-16px.png` | the six silhouettes at 16px (hair + saucer only — the glasses are invisible in solid fill) |
 
 Related: [`store-agents.md`](store-agents.md) (the ASO tooling) ·
 [`app-icon-mask.md`](app-icon-mask.md) (the mask and what it shaves) ·

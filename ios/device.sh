@@ -45,7 +45,20 @@ AU_CART="${AU_CART:-acidcandy}"  # the AUv3 extension's cart — the same rack t
 # the model was the bare "iPad8,5". Same trap as every other regex-over-structured-text in this repo.
 DC_ID=""; DC_DEVMODE=""
 if [ -z "${DEVICE_ID:-}" ] && xcrun devicectl list devices --json-output /tmp/de-devices.json >/dev/null 2>&1; then
-  DC_ID="$(/usr/bin/python3 -c "import json;d=[x for x in json.load(open('/tmp/de-devices.json'))['result']['devices'] if 'iPad' in x['deviceProperties']['name'] or 'iPhone' in x['deviceProperties']['name']];print(d[0]['identifier'] if d else '')" 2>/dev/null)"
+  # ⚠ `.get('name','')`, NOT `['name']`, and it is not defensive habit — it is the third silent-exit
+  # trap in this block. A device that is REMEMBERED but not reachable (an old phone, paired once,
+  # `tunnelState: unavailable` / `pairingState: unsupported`) has NO `name` KEY AT ALL: its whole
+  # deviceProperties is {bootState, ddiServicesAvailable, providerSpecificValues}. So `['name']`
+  # raises KeyError, python exits nonzero, the `2>/dev/null` here swallows the traceback, and
+  # `set -e` kills device.sh with EXIT 1 AND ZERO OUTPUT — on a machine where `devicectl list
+  # devices` prints your iPad, available and paired, one line below the nameless one. Indistinguishable
+  # from "no device found" and it does not name the device that broke it. (Cost a run 2026-08-15.)
+  # Prefer a PAIRED device too, so a live iPad wins over anything half-remembered next to it.
+  DC_ID="$(/usr/bin/python3 -c "import json
+d=[x for x in json.load(open('/tmp/de-devices.json'))['result']['devices']
+   if 'iPad' in x['deviceProperties'].get('name','') or 'iPhone' in x['deviceProperties'].get('name','')]
+d.sort(key=lambda x: x.get('connectionProperties',{}).get('pairingState','') != 'paired')
+print(d[0]['identifier'] if d else '')" 2>/dev/null)"
   # ⚠ ASK THE DEVICE, NOT THE CACHE. `list devices` reports the LAST KNOWN developerModeStatus, and
   # while the tunnel is disconnected that is whatever it was before you changed it — so a device with
   # Developer Mode freshly enabled still lists as "disabled". Gating on that told the maker to go and

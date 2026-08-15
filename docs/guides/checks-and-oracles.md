@@ -398,14 +398,41 @@ The frame count was hardcoded at `19 * 84` under a comment counting 19 tests whe
 20; slack absorbed it, so unlike level-check nothing had broken yet. Derived from the roster now,
 and the baseline needed no re-blessing.
 
+**`soak-check --selfcheck`** (24 answers). The one that found the worst green in the set, and the
+cleanest illustration of why this section exists. Almost none of its surface is a measurement — it
+is a *judgement over a set of cycles* — and *every assertion it makes is vacuously true of the empty
+set*. Measured: a run whose rows came back empty printed **"✓ stable over the long run — no drift,
+leak, accumulation, or blowup"** and exited 0. So did a run that measured 3 cycles of 24.
+
+For a gate whose entire subject is duration, "no soak happened" and "the soak was clean" were the
+same output, and **no threshold could ever have caught it** — that is the part worth internalising.
+A shorter run drifts less, decays just as well and accumulates less, so the evidence disappearing
+makes every check *easier*. The fixture pins that directly: 3 cycles score no worse than 24 on all
+five assertions. Only a control that asks *did the run happen* can see it, so the cart's geometry
+(`STRESS`/`IDLE`/`NCYC`) is now mirrored as constants used for both the frame budget and the check,
+and a cycle count that is not exactly 24 is a red with its own sentence.
+
+It also carried a **statistic that did not measure what its message said**. Accumulation was
+`last - min` over the idle-tail floors: a claim about the whole run resting on one sample of it, so
+a floor that ramped for twenty cycles and dipped on the twenty-fourth read as 1.5 dB and passed a
+4 dB limit. Now the mean of the final three cycles, same threshold, with the old form's blind spot
+pinned as a regression guard. Distinguish this from a tolerance choice — the threshold was fine, the
+statistic was wrong.
+
 **Still without one** — always take the list from `node tools/gate-controls.js --list` rather than
 from a count written in prose; several agents work this repo at once and this tally moved twice in
-one afternoon. At the time of writing: `soak-check`, `psola-check`, `web-audio-check`.
-`soak-check` is harder because its subject is behaviour over 64 seconds rather than a single
-measurement, `psola-check` needs synthetic signals carrying a *specific* artifact (a splice, a
-staircase, a period doubling) where a mis-synthesis pins the fixture rather than the detector, and
-`web-audio-check` compares two platforms, so its control is a deliberate divergence and its fixture
-needs a toolchain.
+one afternoon. At the time of writing: `psola-check` and `web-audio-check`. `psola-check` needs
+synthetic signals carrying a *specific* artifact (a splice, a staircase, a period doubling), where a
+mis-synthesis pins the fixture rather than the detector; `web-audio-check` compares two platforms,
+so its control is a deliberate divergence and its fixture needs a toolchain.
+
+**The pattern across all six, worth reading as one thing.** Only `tune-check` and `click-check`
+turned out to be sound as they stood. The other four were each broken in a way their own output
+could not show: `dc-check` measured its window rather than the engine, `level-check` diffed PIANO
+against a different PIANO and silently dropped a note, `fx-check` never checked the reference
+everything else was compared against, and `soak-check` could not tell a long run from no run. None
+of these was found by reading the code — each one came out of writing down what the tool *should*
+answer for an input whose answer was already known.
 
 ## The THIRD way a check lies: it goes RED about something you did not change
 

@@ -6,6 +6,8 @@
 > Gated by `bash tools/midi-note-check/run.sh` (27 assertions, mutation-tested twice).
 > Came out of the maker loading `acidcandy` as an AUv3 in GarageBand on the iPad: *"there is a
 > keybed but that isn't doing anything."* See also
+> [`auv3-plugin-types.md`](auv3-plugin-types.md) (the survey this seam sits in: which of the five
+> plug-in shapes a cart can take, and which seam each one is still missing),
 > [`midi-and-keybed.md`](midi-and-keybed.md) (the engine's note-input layer),
 > [`midi-out.md`](midi-out.md) (the same rack in the other direction, and where the channel map
 > comes from), [`external-clock-sync.md`](external-clock-sync.md) (the sibling host seam, and

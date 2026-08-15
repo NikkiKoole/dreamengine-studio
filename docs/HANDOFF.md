@@ -42,6 +42,42 @@ a broken doc link or `#section`).
 > What a reader needs to *choose* a lane is in the front-door output; what they need to *resume*
 > one is in the lane itself. A summary in between is a third copy, and it is the copy nobody
 > updates. If you find yourself writing one again, teach `handoff.js` to print it instead.
+> **▶ ACTIVE THREAD (2026-08-15) — THE OTHER FOUR PLUG-IN SHAPES: we ship `aumu` and the ecosystem has five.**
+>
+> A survey, not built work. The AUv3 lane below got `acidcandy` behaving as an INSTRUMENT
+> (`aumu`), which was the right first goal and is also the only shape anyone has looked at.
+> `componentType` has five musically distinct values, each a different slot in the host's chain
+> and a different shelf to compete on. Two findings drive the doc:
+>
+> 1. **`acidcandy` is ALREADY a complete MIDI sequencer that a DAW cannot hear.** Everything at
+>    `acidcandy.c:2540`+ is finished (303a ch1 / 303b ch2 / 808 GM ch10 / 909 GM ch11, slides,
+>    accents as velocity, drum gate lengths, 24ppqn clock, transport, a shutdown flush) and it
+>    goes to a CoreMIDI VIRTUAL SOURCE, the standalone path. A plug-in's MIDI reaches its host
+>    through `MIDIOutputEventBlock`, and the engine has NO outward seam: `ios/Sources/engine.h`
+>    exports audio-in, notes, bend, CC and transport, nothing back. **Cart side is done**; the
+>    work is a ring behind `midi_send_*` plus a `de_midi_out_drain(DeInstance*, …)` for the
+>    render block. Payoff is an `aumi` MIDI processor that plays somebody else's instruments:
+>    near-zero CPU in the host, emptiest shelf, and the PANEL becomes the whole product.
+> 2. **`de_audio_input` already exists** (`runtime/platform.h:215`, exported in `engine.h`) and is
+>    exactly the shape an `aufx`/`aumf` render block hands over, but the AU declares an EMPTY
+>    input bus array (`TinyjamAU.swift:102`). Wiring it makes the visuals hear the host's track
+>    and turns `pedalboard` into an insert effect. Declare `aumf`, not `aufx`. Three caveats in
+>    the doc, chiefly that the mic ring was built for ANALYSIS and its insert latency is unmeasured.
+>
+> ⚠ **And a ship-blocker found on the way: `apps/tinyacidjam/app.json` sets no `auCart`, so
+> `testflight.sh` STRIPS the AU target and Tiny Acid Jam goes to the store with NO PLUG-IN.** One
+> manifest line. Same section covers the identity gap the maker noticed (wrong names on deploy):
+> the app's bundle id / version / display name / icon ARE derived from the manifest, but the AU's
+> `CFBundleDisplayName`, its **component name** `Tinyjam: Demo` (the string a DAW lists) and the
+> manufacturer/subtype codes are hardcoded in `project.yml` for every app, and `device.sh` patches
+> nothing, so a cable install is always `TinyjamHello`.
+>
+> **Hot files:** none (docs + `acidcandy` de:meta/comments only). Three OPEN todos are filed on the
+> cart: `node tools/cart-todos.js acidcandy` (top three entries).
+> **Resume-at:** [`design/auv3-plugin-types.md` → The three product shapes, ranked](design/auv3-plugin-types.md#4-the-three-product-shapes-ranked),
+> and its §8 open questions (mic-ring latency · per-instance audio input · whether the MIDI ring
+> replaces or joins the virtual source · one extension target per type or several).
+
 > **▶ ACTIVE THREAD (2026-08-15) — ENGINE SIMPLIFICATION ROUND 2: the instruments were under-reporting, and three ports/paths were quietly broken behind them.**
 >
 > Four read-only sweeps (sound.h · studio.c + the host seam · ios/ · the ctx refactor) after the

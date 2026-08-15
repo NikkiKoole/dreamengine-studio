@@ -6,7 +6,9 @@
 > `./au-transport-check --params` in `ios/mac.sh` (the real out-of-process plug-in).
 > See also [`host-midi-notes.md`](host-midi-notes.md) (the sibling host seam, and where this came
 > from), [`engine-instance-seam.md`](engine-instance-seam.md) (why the table is per-instance),
-> [`ios-plan.md`](ios-plan.md) (the AUv3 extension).
+> [`ios-plan.md`](ios-plan.md) (the AUv3 extension),
+> [`auv3-plugin-types.md`](auv3-plugin-types.md) (the survey of the OTHER four plug-in shapes, and
+> why the parameter tree is the one thing every one of them needs).
 
 ## Why
 

@@ -4,6 +4,11 @@
 > ReBirth: [`external-clock-sync.md` → The whole outward surface](external-clock-sync.md#the-whole-outward-surface--what-ships-what-is-open-and-the-rebirth-comparison).
 > Read that first; this doc is the OUT half only.
 
+> ⚠ **The virtual source is the STANDALONE path.** A plug-in's MIDI reaches a host through
+> `MIDIOutputEventBlock`, and the engine has no seam for that at all, so `acidcandy`'s finished
+> sequencer output cannot be recorded by a DAW that loads it. That gap (and the `aumi` MIDI-processor
+> product it blocks) is surveyed in [`auv3-plugin-types.md`](auv3-plugin-types.md) §3.2.
+
 > **STATUS: BUILDING (idea 2026-07-11; demand-confirmed 2026-07-19; the SEAM SHIPPED 2026-08-13).**
 > `runtime/midi_output.h` exists and is gated: a cart can send notes, CC, bend and clock/transport
 > out through a CoreMIDI **virtual source** (the same call on macOS and iOS, so desktop and the

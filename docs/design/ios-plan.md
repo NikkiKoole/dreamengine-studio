@@ -10,6 +10,9 @@ parked product thinking in those:
   Fastlane, per [ADR-0026](../decisions/0026-store-pipeline-in-house-not-fastlane.md) —
   StoreKit 2) → [`product-notes-followup.md`](product-notes-followup.md) §2–§7.
 - **The music product** the apps host → [`tinyjam-racks.md`](tinyjam-racks.md) (Tinyjam racks).
+- **Which SHAPE the plug-in takes** (we ship `aumu`; there are five component types, and the seams
+  for two more are nearly there) → [`auv3-plugin-types.md`](auv3-plugin-types.md), which also holds
+  the app/AU IDENTITY gap: what `testflight.sh` patches per app and what stays hardcoded.
 - **Where iOS sits among all the ways a cart reaches someone** → [`sharing-channels.md`](sharing-channels.md)
   (channel B — incl. what's still missing between "proven" and "in the store").
 

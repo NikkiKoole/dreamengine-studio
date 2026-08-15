@@ -21,7 +21,9 @@ import os
 // depends on it is a separate change with its own blast radius. They are all redacted on device
 // too — see docs/design/ios-plan.md.
 private let deDiagLog = OSLog(subsystem: "com.tinyjam", category: "diag")
-private func deDiag(_ s: String) { os_log("%{public}@", log: deDiagLog, type: .default, s as NSString) }
+// Internal, not private: the view controller logs through it too, so the PANEL diagnostic is
+// readable on a device for the same reason the ledger is.
+func deDiag(_ s: String) { os_log("%{public}@", log: deDiagLog, type: .default, s as NSString) }
 
 // The AUv3 instrument extension — hosting the REAL dreamengine (not the spike arpeggio), played
 // by host MIDI. It runs the same engine the standalone app does. Each render block, in order:

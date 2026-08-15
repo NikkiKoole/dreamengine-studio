@@ -40,8 +40,25 @@ public final class TinyjamAUViewController: AUViewController, AUAudioUnitFactory
     // and is indistinguishable from "the check found nothing". A diagnostic that can be silently
     // skipped is not a diagnostic. It now runs on whichever call completes the pair, once.
     private var panelConnected = false
+    // ⚠ AND THE GUARD BELOW MUST REPORT ITS OWN FAILURE, for the reason written directly above it —
+    // which this code re-learned the hard way. On 2026-08-15 `ios/mac.sh --panel` was RED all day
+    // with "no [tinyjam] PANEL line", and the unified log confirmed it literally: **zero** PANEL
+    // lines in three hours across six runs, while the AU CREATE ledger from the same target logged
+    // fine. So the verdict was never emitted at all. A bare `else { return }` cannot tell you
+    // whether the pair never completed or the panel is genuinely orphaned, and those want opposite
+    // fixes. It says which half is missing now, once per distinct state, so the silence is over.
+    private var lastBail = ""
     private func connectPanel() {
-        guard !panelConnected, let a = au, let c = canvas else { return }
+        guard !panelConnected, let a = au, let c = canvas else {
+            if !panelConnected {
+                let why = "au=\(au == nil ? "nil" : "set") canvas=\(canvas == nil ? "nil" : "set")"
+                if why != lastBail {          // only on a CHANGE: both call sites fire, and the
+                    lastBail = why            // first one legitimately finds the pair half-built
+                    deDiag("[tinyjam] PANEL NOT CONNECTED YET · \(why) · pid \(ProcessInfo.processInfo.processIdentifier)")
+                }
+            }
+            return
+        }
         panelConnected = true
         // HAND THE VIEW THE AUDIO UNIT'S ENGINE. The panel must show the engine that makes the
         // sound, and a hosted CanvasView deliberately creates none of its own — a UI extension runs
@@ -107,9 +124,12 @@ public final class TinyjamAUViewController: AUViewController, AUAudioUnitFactory
         }
         guard verdict != lastVerdict else { return }        // only when it CHANGES, so play/stop reads clean
         lastVerdict = verdict
-        NSLog("[tinyjam] PANEL %@ · %@ · %d instance(s) in this process · pid %d",
-              verdict, when, Int(r.instances),
-              Int(ProcessInfo.processInfo.processIdentifier))
+        // Through deDiag, not NSLog. `--panel` reads the UNIFIED LOG (`/usr/bin/log show`), which
+        // os_log feeds natively, so the gate is unaffected — and on a device NSLog would have
+        // redacted every value in this line to `<private>`, which is what happened to the ledger.
+        deDiag(String(format: "[tinyjam] PANEL %@ · %@ · %d instance(s) in this process · pid %d",
+                      verdict, when, Int(r.instances),
+                      Int(ProcessInfo.processInfo.processIdentifier)))
     }
 
     public override func viewDidLoad() {

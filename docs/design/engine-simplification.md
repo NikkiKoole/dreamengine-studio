@@ -1,6 +1,6 @@
 # Engine simplification backlog — duplication, missing helpers, naming
 
-> **STATUS: ROUND 2 OPEN — 25/37, 2026-08-15** with nothing half-finished. (37, not 35: two more
+> **STATUS: ROUND 2 OPEN — 27/39, 2026-08-15** with nothing half-finished. (37, not 35: two more
 > were FOUND on the device this session — see the Swift/iOS list.) Round 1 below is
 > closed 33/33 and its ❌ won't-do calls were RE-VERIFIED this round, not assumed — see
 > [Round 2](#round-2--after-the-per-instance-refactor-2026-08-14).
@@ -665,6 +665,26 @@ Same rules as round 1: line numbers rot, the function name is the anchor, every 
       **macOS is unaffected** (the Catalyst container supplies a writable cwd), which is exactly why
       every gate and every prior session missed it. Fix is a `de_set_save_dir` to the extension's
       container at init; doing it per instance would close the shared-`cart.sav` item at the same time.
+- [x] **THE `--panel` GATE WAS RED BECAUSE OF NSLog, NOT BECAUSE THE PANEL WAS ORPHANED** — FOUND
+      AND FIXED 2026-08-15, and it retires open item 4 of the AUv3 lane. The gate greps the unified
+      log for `[tinyjam] PANEL`; **the unified log contained ZERO such lines in three hours across
+      six runs.** The verdict was never retrievable, so the gate reported "the view loaded somewhere
+      else, or never loaded" about a panel that was fine.
+      **The control was already in the same run.** At 09:28 the teardown ledger had been converted to
+      `os_log` while the PANEL line was still `NSLog` — one binary, one process, one run, and
+      `log show` returned the `os_log` lines and not the `NSLog` one. That isolates the mechanism to
+      the logging call and nothing else.
+      Fixed by routing the verdict through `deDiag` (the gate reads `/usr/bin/log show`, which
+      `os_log` feeds natively, so nothing about the gate changed). **All four of its checks now pass,
+      including its own built-in control** ("it reported the OTHER verdict first, so the check can go
+      red"). ⚠ This was ALSO the thing that made the `fb_w`/`fb_h` morning so confusing: `--panel`
+      has been red for reasons unrelated to whatever was being changed.
+- [x] **AND THE GUARD IT DEPENDS ON NOW REPORTS ITS OWN FAILURE.** `connectPanel`'s
+      `guard … else { return }` was silent, so "the pair never completed" and "the panel is
+      orphaned" looked identical — the exact defect the comment three lines above it was written
+      about ("a diagnostic that can be silently skipped is not a diagnostic"), re-introduced by the
+      guard added to fix it. It emits `PANEL NOT CONNECTED YET · au=… canvas=…` once per distinct
+      state now, so the two cases are told apart by name.
 - [ ] **NEW 2026-08-15: `NSLog` is unreadable on device and most of our diagnostics use it.** iOS
       logging redacts every dynamic value unless the format string says `%{public}`, which `NSLog`
       has no way to express, so `[tinyjam] …` lines arrive in Console.app as the single word

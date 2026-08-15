@@ -128,7 +128,18 @@ a broken doc link or `#section`).
 > PANEL diagnostic the `--panel` gate is built around. The new teardown ledger goes through `os_log`
 > and is readable; the rest are not converted yet (see the note at the top of `TinyjamAU.swift`).
 >
-> ⚠ **`ios/mac.sh`'s `--panel` gate is RED and it is NOT this change.** Verified by stashing both
+> ✅ **THE `--panel` GATE IS GREEN, AND THE CAUSE WAS THE LOGGING (2026-08-15).** It greps the
+> unified log for `[tinyjam] PANEL`, and that log held **zero** such lines in three hours across six
+> runs — the verdict was never retrievable, so the gate said "the view loaded somewhere else, or
+> never loaded" about a panel that was fine all along. The control was already inside the same run:
+> at 09:28 the teardown ledger was `os_log` while PANEL was still `NSLog`, and ONE process emitted
+> one and not the other. Routing the verdict through `deDiag` fixed it; all four checks pass now,
+> including the gate's own built-in can-it-go-red control. `connectPanel`'s silent
+> `guard … else { return }` reports itself too now (`PANEL NOT CONNECTED YET · au=… canvas=…`), so
+> "never opened" and "orphaned" are finally distinguishable — which is what open item 4 of this
+> lane asked for. **Open item 4 is retired.**
+> 
+> ⚠ **KEPT FOR THE TRAIL, because it shaped a whole morning:** `--panel` was RED and it was NOT this change.** Verified by stashing both
 > files and rebuilding at `HEAD`: **identical 3/3 failure, same messages.** It is the known-broken
 > observation already recorded as open item 4 in this lane ("it cannot tell an orphaned panel from
 > one that was never opened, yet its headline asserts the first"). Do not let it eat an hour.

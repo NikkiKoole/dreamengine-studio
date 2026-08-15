@@ -87,7 +87,17 @@ public final class TinyjamAU: AUAudioUnit {
         TinyjamAU.bootLock.lock()
         TinyjamAU.instanceCount += 1
         instanceID = TinyjamAU.instanceCount        // 1-based, so 0 stays free to mean "nobody"
+        TinyjamAU.liveCount += 1
+        let live = TinyjamAU.liveCount
         TinyjamAU.bootLock.unlock()
+        // ── THE TEARDOWN LEDGER ─────────────────────────────────────────────────────────────────
+        // Paired with the line in deinit, and the pair is the whole point: a leak of ~1 MB per rack
+        // is invisible to a human watching a memory graph, so "the iPad did not complain" is not
+        // evidence either way. CREATE/DESTROY lines are. LIVE returning to 0 after you remove every
+        // plug-in is the falsifiable form of "the rack is given back"; LIVE only ever climbing is
+        // the falsifiable form of the bug this pair was added to watch (deinit never firing, so
+        // de_instance_destroy never called). Read with Console.app, filter `tinyjam`.
+        NSLog("[tinyjam] AU CREATE  · instance %llu · %llu live", instanceID, live)
     }
 
     // ══ ONE ENGINE PER INSTANCE ═════════════════════════════════════════════════════════════════
@@ -128,6 +138,7 @@ public final class TinyjamAU: AUAudioUnit {
     // "the panel is orphaned" has a falsifiable form — NOTHING in this process has ever rendered —
     // and "the panel is fine" has one too, in two flavours worth telling apart.
     private var instanceID: UInt64 = 0
+    private static var liveCount: UInt64 = 0        // created minus destroyed — see THE TEARDOWN LEDGER
     private static var instanceCount: UInt64 = 0    // also the honest measure of how many front-ends
                                                     // are fighting over the one engine (defect B)
     // Written on the audio thread, so a plain pointer rather than a `static var` (no swift_once on the
@@ -507,6 +518,14 @@ public final class TinyjamAU: AUAudioUnit {
         // stays blocked on the semaphore for the life of the process: harmless to this object, which
         // is already deallocating, but it strands a thread per rack the user ever loaded.
         frameSignal.signal()
+        // The other half of THE TEARDOWN LEDGER (see init). If this line never appears when you
+        // remove the plug-in, `deinit` is not firing and everything below it is dead code — which
+        // is exactly the state this file shipped in until 2026-08-15.
+        TinyjamAU.bootLock.lock()
+        if TinyjamAU.liveCount > 0 { TinyjamAU.liveCount -= 1 }
+        let live = TinyjamAU.liveCount
+        TinyjamAU.bootLock.unlock()
+        NSLog("[tinyjam] AU DESTROY · instance %llu · %llu live", instanceID, live)
         // GIVE THE RACK BACK. de_instance_destroy releases the canvas, present, state and sample
         // buffers as well as the struct (studio.c + sound_free_buffers), which is ~1 MB per rack.
         // Safe here for the reason spelled out in startWorker: the worker cannot be inside de_frame

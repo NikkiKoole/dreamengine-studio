@@ -94,6 +94,30 @@ a broken doc link or `#section`).
 >    wheel is verified but **the BEND never was** — both 303 lines boot muted, so unmute them, then
 >    bend and confirm the two acid lines move ±2 semitones and the drums do NOT.
 >
+> **▶ FOUND ON THE DEVICE 2026-08-15, and neither needed the ledger to be readable.**
+>
+> **(a) THE LEAK IS CONFIRMED, by counting log lines.** iOS redacts every dynamic value in an
+> `NSLog` (see below), so the first device run came back as pages of `<private>`. But `CanvasView`'s
+> perf logger emits one line per instance per second, so the LINE RATE is an instance counter:
+> **1/s → 2/s → 3/s → 4/s across four panel opens, and it never came back down**, in a single
+> extension process (GarageBand reuses it — *"A process already exists for this handle … :1643"*).
+> ⚠ What that proves is that SOMETHING leaks per panel-open, not yet that it is the audio unit or
+> that the fix cures it. The CREATE/DESTROY ledger is what settles it.
+>
+> **(b) THE CART'S SAVE FILE IS DENIED BY THE SANDBOX** — `System Policy: TinyjamAU deny(1)
+> file-write-create /cart.blob` (and `/perf.json`). Both at the FILESYSTEM ROOT, because **nothing
+> in `ios/` ever calls `de_set_save_dir`**, so the engine writes relative to a working directory
+> that is `/` for a sandboxed appex. **acidcandy's rack does not persist inside the plug-in on
+> iPad, silently.** macOS is fine (the Catalyst container gives it a writable cwd), which is why no
+> gate and no earlier session saw it. NOT the same thing as the AU's `fullState`, which travels in
+> the host's project file and works; this is the cart's own `save_bytes` layer, dead on device.
+> Related to but distinct from "N racks share one `cart.sav`" below: there is no writable dir AT ALL.
+>
+> **(c) `NSLog` IS USELESS ON DEVICE.** iOS logging redacts dynamic values unless the format says
+> `%{public}`, which `NSLog` cannot. Every `[tinyjam]` line arrives as `<private>` — including the
+> PANEL diagnostic the `--panel` gate is built around. The new teardown ledger goes through `os_log`
+> and is readable; the rest are not converted yet (see the note at the top of `TinyjamAU.swift`).
+>
 > ⚠ **`ios/mac.sh`'s `--panel` gate is RED and it is NOT this change.** Verified by stashing both
 > files and rebuilding at `HEAD`: **identical 3/3 failure, same messages.** It is the known-broken
 > observation already recorded as open item 4 in this lane ("it cannot tell an orphaned panel from

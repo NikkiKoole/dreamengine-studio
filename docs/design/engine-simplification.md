@@ -4,11 +4,13 @@
 > closed 33/33 and its ❌ won't-do calls were RE-VERIFIED this round, not assumed — see
 > [Round 2](#round-2--after-the-per-instance-refactor-2026-08-14).
 >
-> **The 10 open items are only two kinds, and neither is self-gateable engine work:** 3 **Swift/iOS**
-> items no gate in this repo can see (the shared `static let` canvas channel, the `AudioEngine`
-> audio-thread cleanup bundle, and `AUProbeKit`), 4 legibility-only splits that remove ~0 lines, and
-> 3 recorded-and-parked notes (`mic_rec`'s 1.4 MB race, the mic waiver, the `midi_out_on` ordering
-> hazard).
+> **The 12 open items are only two kinds, and neither is self-gateable engine work:** 5 **Swift/iOS**
+> items no gate in this repo can see — the shared `static let` canvas channel, the `AudioEngine`
+> audio-thread cleanup bundle, `AUProbeKit`, and **two found ON THE DEVICE 2026-08-15: the plug-in
+> has no writable save directory (the cart's `save_bytes` is silently dead on iPad) and `NSLog` is
+> redacted on device, which makes most of our diagnostics unreadable there** — plus 4 legibility-only
+> splits that remove ~0 lines, and 3 recorded-and-parked notes (`mic_rec`'s 1.4 MB race, the mic
+> waiver, the `midi_out_on` ordering hazard).
 >
 > ⚠ **AWAITING A DEVICE PASS, and this is the live thread.** The two headline Swift items landed
 > 2026-08-15 — `TinyjamAU.uiTick()` is wired, and `TinyjamAU` can deallocate so
@@ -635,6 +637,25 @@ Same rules as round 1: line numbers rot, the function name is the anchor, every 
       (2026-08-15)**: a paragraph claiming "ONE worker per process … it outlives every instance" sat
       directly above the paragraph correcting it, in the same comment block, and was deleted while
       restructuring the worker. The rest of this line is untouched.
+- [ ] **NEW 2026-08-15, found on the device: the plug-in has NO WRITABLE SAVE DIRECTORY on iOS.**
+      `System Policy: TinyjamAU deny(1) file-write-create /cart.blob` (and `/perf.json`) — both at
+      the FILESYSTEM ROOT, because nothing in `ios/` ever calls `de_set_save_dir` and a sandboxed
+      appex's working directory is `/`. So the cart's own `save_bytes` layer is **silently dead
+      inside the plug-in**: acidcandy's rack does not persist, and no error reaches the cart.
+      ⚠ NOT the AU's `fullState`, which travels in the host's project file and works. And NOT the
+      same item as "N racks share one `cart.sav`" — that one is about giving instances DISTINCT
+      directories; this is about there being no writable one at all.
+      **macOS is unaffected** (the Catalyst container supplies a writable cwd), which is exactly why
+      every gate and every prior session missed it. Fix is a `de_set_save_dir` to the extension's
+      container at init; doing it per instance would close the shared-`cart.sav` item at the same time.
+- [ ] **NEW 2026-08-15: `NSLog` is unreadable on device and most of our diagnostics use it.** iOS
+      logging redacts every dynamic value unless the format string says `%{public}`, which `NSLog`
+      has no way to express, so `[tinyjam] …` lines arrive in Console.app as the single word
+      `<private>` — **including the PANEL line the `--panel` gate is built around.** The teardown
+      ledger now goes through `os_log` (`deDiag` at the top of `TinyjamAU.swift`); the STATE lines,
+      the PANEL line and `CanvasView`'s perf line are NOT converted, deliberately, because
+      `--panel` greps for stderr output and `NSLog` writes to stderr where `os_log` does not.
+      Converting them means moving the gate's observation at the same time.
 - [ ] `ios/AUProbeKit.swift` for the probes' shared HOST scaffolding (~−55 lines). **The bright
       line: a probe may share host plumbing, never the decoder/format/constant it asserts** — the
       DEZ1 decoder, the `"dreamengineRack"` key and the probes' hardcoded `44100` are known answers

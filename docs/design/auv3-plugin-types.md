@@ -202,9 +202,33 @@ you go through `APP=<name>` rather than a bare single-cart `play.js` staging (wh
 `ios/default-icon.png`).
 
 ⚠ **And a bigger one found while reading this:** the AU extension is **opt-in via the manifest's
-`auCart` key**, and `apps/tinyacidjam/app.json` does not set it. So Tiny Acid Jam currently ships as
-a standalone app with **no plug-in at all**. If the goal is "get an AUv3 into the store", that one
-line is the whole gap.
+`auCart` key**, and `apps/tinyacidjam/app.json` did not set it. So Tiny Acid Jam was shipping as a
+standalone app with **no plug-in at all**. **FIXED 2026-08-15** (`"auCart": "acidcandy"`), which is
+necessary and NOT sufficient: see the correction and the collision immediately below.
+
+### §6.1 Correction: macOS is already right, and that is where the collision is
+
+The table above is the **iOS** spec. `ios/project-mac.yml` already carries the correct per-app
+identity: `CFBundleDisplayName: Tiny Acid Jam`, subtype `tacj`, manufacturer `Mpla`, component name
+`"Mipolai: Tiny Acid Jam"`. So the intended end state exists and is committed; it is `project.yml`
+(iOS) that still says `Tinyjam Demo` / `tnyj` / `Tnyj` / `"Tinyjam: Demo"`.
+
+**That makes turning on `auCart` for tinyacidjam a two-step job, not one line.** Those iOS codes are
+*tinyjam's*, and `project.yml` is shared by both apps, so with `auCart` set on both manifests the two
+apps would ship plug-ins claiming the **same component triple** `aumu tnyj Tnyj`. The mac spec's own
+comment names this hazard exactly: *"DISTINCT 4-char codes … the two can be registered on one machine
+and a collision would make the host pick whichever it saw first."*
+
+So `project.yml`'s AU identity cannot simply be swapped to `tacj`/`Mpla` (that just moves the wrong
+name onto the other app). It has to be **derived from the manifest**, the way the app's own bundle id,
+version and display name already are: new manifest keys (`auName`, `auSubtype`, `auManufacturer`) and
+a few more `sed` lines in `testflight.sh`. Until that lands, a Tiny Acid Jam TestFlight build with
+`auCart` set will list itself in every DAW as **"Tinyjam: Demo"**.
+
+⚠ One more thing the stripped path was hiding: with the AU target present, cloud signing needs the
+CHILD App ID `com.mipolai.tinyacidjam.TinyjamAU`, not just the parent. `testflight.sh`'s header calls
+this out as the reason single-cart standalones were cheaper to ship. First archive after this change
+is where that shows up.
 
 **The fix shape**, if we take it: derive the AU identity from the manifest the same way the app
 identity already is (a couple more `sed` lines in `testflight.sh`, plus manifest keys for the AU

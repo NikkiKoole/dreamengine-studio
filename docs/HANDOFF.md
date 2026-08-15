@@ -64,9 +64,18 @@ a broken doc link or `#section`).
 >    and turns `pedalboard` into an insert effect. Declare `aumf`, not `aufx`. Three caveats in
 >    the doc, chiefly that the mic ring was built for ANALYSIS and its insert latency is unmeasured.
 >
-> ⚠ **And a ship-blocker found on the way: `apps/tinyacidjam/app.json` sets no `auCart`, so
-> `testflight.sh` STRIPS the AU target and Tiny Acid Jam goes to the store with NO PLUG-IN.** One
-> manifest line. Same section covers the identity gap the maker noticed (wrong names on deploy):
+> ⚠ **A ship-blocker found on the way: `apps/tinyacidjam/app.json` set no `auCart`, so
+> `testflight.sh` STRIPPED the AU target and Tiny Acid Jam was going to the store with NO PLUG-IN.**
+> **Manifest line added 2026-08-15, and it is necessary but NOT sufficient** (doc §6.1): the iOS
+> `project.yml` AU identity is *tinyjam's* (`tnyj`/`Tnyj`/`"Tinyjam: Demo"`) and the file is shared
+> by both apps, so with `auCart` on both they ship plug-ins claiming the SAME component triple, the
+> collision `project-mac.yml`'s own comment warns about. macOS is already right (`tacj`/`Mpla`/
+> `"Mipolai: Tiny Acid Jam"`), which is the end state to copy. **▶ NEXT: derive the AU identity from
+> the manifest** (`auName`/`auSubtype`/`auManufacturer` + a few sed lines in `testflight.sh`), the way
+> bundle id / version / display name already are. Until then a TestFlight build lists as
+> "Tinyjam: Demo" in every DAW, and the first archive will also need the CHILD App ID
+> `com.mipolai.tinyacidjam.TinyjamAU` registered, which the stripped path was avoiding.
+> Same section covers the identity gap the maker noticed (wrong names on deploy):
 > the app's bundle id / version / display name / icon ARE derived from the manifest, but the AU's
 > `CFBundleDisplayName`, its **component name** `Tinyjam: Demo` (the string a DAW lists) and the
 > manufacturer/subtype codes are hardcoded in `project.yml` for every app, and `device.sh` patches

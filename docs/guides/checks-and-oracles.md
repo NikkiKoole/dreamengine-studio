@@ -278,6 +278,67 @@ Coverage is tracked: **`node tools/gate-controls.js`** lists gates that have nei
 a negative control (advisory row in `repo-doctor`). It cannot tell you a gate is *good* — only that
 nothing in it has ever been shown to fail.
 
+### Giving an AUDIO gate a known-answer fixture (the recipe, and two worked examples)
+
+The audio gates were the largest block on `gate-controls`' list, and for a bad reason: the
+discipline above *reads* as being for linters, so "it's audio, you need a render" became an excuse.
+It is not true. **Every audio gate splits into a pure ANALYSER and the thing that produced the
+sound**, and the analyser can be fed a signal you synthesise, whose answer you know from
+arithmetic, with no cart, no engine and no WAV on disk that anyone had to bless.
+
+That matters most here because of *which way* these gates fail. A pitch detector that quietly
+returns the pitch it was asked about, or a splice detector that stops finding discontinuities,
+prints output **identical to a healthy engine**. There is no red. Everything passes forever.
+
+**The recipe:**
+
+1. **Find the pure function.** `measurePitch`/`octaveFold`/`verdict`; `analyze()`. If the tool only
+   exposes a whole-file path, synthesise a WAV and feed that — it puts the reader in the path too,
+   which is free coverage.
+2. **MEASURE BEFORE YOU ASSERT.** This is the step people skip and it is the one that pays. Writing
+   down what you *expect* and calling it a known answer just moves your assumption into a file that
+   now looks authoritative. Three of the expectations across these two tools were wrong (below).
+3. **Assert BOTH directions.** Exact input reads zero AND detuned input reads its detune. A
+   one-sided test is passed by a detector hard-wired to agree, which is precisely the blindness
+   worth fearing.
+4. **Pin the characteristics you found, do not "fix" them.** Every metric has inputs that make it
+   shout or go quiet for structural reasons. Recorded as known answers they are documentation;
+   left out, the next person "fixes" one and blinds the gate.
+5. **Mutate it.** Break the analyser three ways and watch which assertions go red. An unmutated
+   fixture is just more untested code.
+
+**`tune-check --selfcheck`** (20 answers). The fixture was the smaller half: the real find was that
+**the SINE control was held to the engine thresholds** (`warn >12¢`), when it is exact by
+construction and should sit at 0. A 3-cent analyser bias was injected to prove it: the sweep
+printed *"no new tuning drift"* and exited 0, and it *lowered* the waived-residual count from 3 to 1
+because the bias nudged PIPE and BRASS toward nominal — a broken analyser would have read as
+"we fixed some tuning". The control has its own 1-cent bound now and says *the measurement is off,
+not the engine*, so nobody hunts a DSP bug that is not there.
+
+**`click-check --selfcheck`** (20 answers). Catches the wavetable-swap-at-continuous-phase case the
+tool was born for, localised to within a millisecond. Pointing it at a real `acidcandy` render is
+what taught the most: **44 events, worst 1834x, every one a kick drum.** An onset after a quiet
+passage divides by an almost-silent baseline, so on sparse percussive material the gate is close to
+useless as pass/fail and should be used to compare a before and after of the same take. Now in its
+header, and pinned.
+
+**The three expectations that were wrong, all caught by step 2:**
+
+| I expected | what it actually does | why |
+|---|---|---|
+| a tone an octave HIGH reports `octaves: +1` | reports the played octave | a signal periodic at *f* is also periodic at *f/2*, *f/3* … but **never at 2f**. Measured: an 880 Hz sine autocorrelates **0.9996** at the 440 Hz lag; a 110 Hz sine at the 220 Hz lag is **−1.0**. Octave-down is unambiguous, octave-up is invisible to the method, and the tie-break resolves toward the played octave deliberately — "fixing" it breaks the sub-octave protection |
+| a naked saw stays silent (its header says a flyback is not a click) | trips at ~15x | that claim is about **real engine output**, which is band-limited and enveloped. An un-bandlimited saw genuinely *is* a train of discontinuities |
+| an onset out of silence scores huge | out of EXACT digital silence it is **skipped** | the `rms > 0` divide-by-zero guard. Out of a quiet *tail* it explodes instead. The two silences behave oppositely |
+
+**Still without one** — always take the list from `node tools/gate-controls.js --list` rather than
+from a count written in prose; several agents work this repo at once and this tally moved twice in
+one afternoon. At the time of writing: `level-check`, `fx-check`,
+`dc-check`, `soak-check`, `psola-check`, `web-audio-check`. `dc-check` and `level-check` are the
+easy next two — both are simple statistics over a buffer, so the arithmetic answers are immediate.
+`soak-check` and `fx-check` are harder because their subject is behaviour over time rather than a
+single measurement, and `web-audio-check` compares two platforms, so its control is a deliberate
+divergence rather than a synthetic signal.
+
 ## The THIRD way a check lies: it goes RED about something you did not change
 
 The two sections above are about a green that means nothing. This one is the mirror, and it is more

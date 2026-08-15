@@ -211,6 +211,42 @@ a broken doc link or `#section`).
 >
 > Hot files: `runtime/sound.h`, `runtime/studio.c` (targeted `Edit`s only), `tools/lint-engine-seam.js`.
 
+> **▶ ACTIVE THREAD (2026-08-15) — GATES THAT CANNOT PROVE THEY GO RED: the audio block.**
+>
+> `gate-controls` counts gates carrying a self-test or a negative control. It had been stuck for
+> weeks, and the largest untouched block was the AUDIO gates — for a bad reason: the discipline
+> reads as being for linters, so "it's audio, you need a render" became the excuse. It is not true.
+> Every audio gate splits into a **pure analyser** and the thing that made the sound, and the
+> analyser takes a signal you synthesise with an answer you know from arithmetic.
+>
+> **SHIPPED (2026-08-15), two worked examples, both mutation-tested and both in `repo-doctor`:**
+> `tune-check --selfcheck` (20 answers) — and the fixture was the smaller half: its **SINE control
+> was held to the ENGINE thresholds**, so a 3-cent analyser bias printed "no new tuning drift",
+> exited 0, and *lowered* the waived-residual count because it nudged PIPE and BRASS toward nominal.
+> A broken analyser read as "we fixed some tuning". Control now has a 1-cent bound of its own ·
+> `click-check --selfcheck` (20 answers) — catches the wavetable-swap-at-continuous-phase case it
+> was born for, and pointing it at a real `acidcandy` render found that **a sparse percussive take
+> scores 44 events, worst 1834x, all kick drums** (an onset after a quiet passage divides by an
+> almost-silent baseline). Documented in its header; it is a compare-before-and-after tool on that
+> material, not a pass/fail one.
+> ⚠ **Do not quote a coverage tally here.** Several agents work this repo at once and the number
+> moved twice while this lane was being written. `node tools/gate-controls.js` is the live count.
+>
+> ⚠ **THE ONE RULE THAT PAID: MEASURE BEFORE YOU ASSERT.** Three of my expected "known answers" were
+> wrong, and writing them down unmeasured would have moved an assumption into a file that then looks
+> authoritative. The table of all three (the octave-up asymmetry, the naked saw, the two silences) is
+> in the guide.
+>
+> **Resume-at: [the recipe + what is left](guides/checks-and-oracles.md#the-other-way-a-green-check-lies-it-was-never-measuring-the-thing)** —
+> five steps, the two worked examples, and a per-tool note on the six audio gates still without one.
+> `dc-check` and `level-check` are the easy next two (simple statistics over a buffer, so the
+> arithmetic answers are immediate); `soak-check` and `fx-check` are harder because their subject is
+> behaviour over time; `web-audio-check` compares two platforms, so its control is a deliberate
+> divergence rather than a synthetic signal.
+>
+> Hot files: none shared — each gate is its own file in `tools/`. Add the `repo-doctor` row in the
+> same change (`selftest:` block) or the fixture exists and nothing runs it.
+
 > **▶ ACTIVE THREAD (2026-08-14) — `tenement`: the item economy is switched on, and storage finally COSTS something.**
 > The sim of several households sharing one building, built contract-first then fanned out to eight
 > agents (ADR-0034). **SHIPPED:** the frozen contract `runtime/tenement/model.h` plus twelve modules

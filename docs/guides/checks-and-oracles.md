@@ -330,11 +330,25 @@ header, and pinned.
 | a naked saw stays silent (its header says a flyback is not a click) | trips at ~15x | that claim is about **real engine output**, which is band-limited and enveloped. An un-bandlimited saw genuinely *is* a train of discontinuities |
 | an onset out of silence scores huge | out of EXACT digital silence it is **skipped** | the `rms > 0` divide-by-zero guard. Out of a quiet *tail* it explodes instead. The two silences behave oppositely |
 
+**`dc-check --selfcheck`** (16 answers). The third, and the one where the fixture work *changed the
+measurement*. Its `SINE (control)` was reading **−67 dBFS while GUITAR read −103** — the control
+dirtier than the engines — and nearly every engine's worst note was A2, the lowest. Both are the
+signature of one thing: a **rectangular window leaves a residual bounded by A/(π·cycles)**, worst at
+a half-integer cycle count and scaling as 1/f. Measured: a pure sine over 38.5 cycles has a plain
+mean of **+0.004134**, which is essentially `WARN_DC` (0.004) — *the threshold had been calibrated
+to clear an artifact*. Worse, it adds to real DC rather than merely limiting sensitivity: a true
+0.010 offset at 110 Hz measured **+0.014134**, a 41% overestimate. A **Hann-weighted mean** removes
+it (needs no knowledge of the note's frequency, unlike trimming to whole cycles): the same pure sine
+reads −0.0000028, and a true 0.010 offset reads +0.009997. Every shipping engine turned out to be
+clean all along — SINE −67 → −inf, PIPE −62 → −108, ORGAN −66 → −114. The engine thresholds were
+deliberately **left alone**: with a 55x margin they could be tightened ~4x, but that changes what
+the gate accepts, which is a judgement call and not a mechanical follow-on.
+
 **Still without one** — always take the list from `node tools/gate-controls.js --list` rather than
 from a count written in prose; several agents work this repo at once and this tally moved twice in
 one afternoon. At the time of writing: `level-check`, `fx-check`,
-`dc-check`, `soak-check`, `psola-check`, `web-audio-check`. `dc-check` and `level-check` are the
-easy next two — both are simple statistics over a buffer, so the arithmetic answers are immediate.
+`soak-check`, `psola-check`, `web-audio-check`. `level-check` is the easy next one — simple
+statistics over a buffer, so the arithmetic answers are immediate.
 `soak-check` and `fx-check` are harder because their subject is behaviour over time rather than a
 single measurement, and `web-audio-check` compares two platforms, so its control is a deliberate
 divergence rather than a synthetic signal.

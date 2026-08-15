@@ -42,7 +42,7 @@ a broken doc link or `#section`).
 > What a reader needs to *choose* a lane is in the front-door output; what they need to *resume*
 > one is in the lane itself. A summary in between is a third copy, and it is the copy nobody
 > updates. If you find yourself writing one again, teach `handoff.js` to print it instead.
-> **▶ ACTIVE THREAD (2026-08-14) — ENGINE SIMPLIFICATION ROUND 2: the instruments were under-reporting, and three ports/paths were quietly broken behind them.**
+> **▶ ACTIVE THREAD (2026-08-15) — ENGINE SIMPLIFICATION ROUND 2: the instruments were under-reporting, and three ports/paths were quietly broken behind them.**
 >
 > Four read-only sweeps (sound.h · studio.c + the host seam · ios/ · the ctx refactor) after the
 > per-instance work. **The finding that reframes the rest: the code was CLEANER than expected** —
@@ -72,11 +72,25 @@ a broken doc link or `#section`).
 > **`tools/instance-check` now gates destroy** (8 create/destroy rounds must leave the heap flat;
 > `-bypass` control) and goes RED against a worktree at the previous `HEAD` at ~1 MB per rack opened.
 >
-> **STATE 2026-08-15: 22 of 35 closed.** Everything self-gateable in `studio.c` / `sound.h` / `tools`
-> is done or explicitly parked. What is LEFT needs the maker or a real host: the five **Swift/iOS**
-> items (`uiTick()` orphaned = a stopped host freezes the panel; `TinyjamAU` can never deinit, so the
-> `de_instance_destroy` fix is still half-spent) and four legibility-only splits nobody needs yet (`loop_step`, `sound_callback`,
-> the twice-written shaders, the two boot sequences).
+> ══ **PAUSED HERE 2026-08-15, end of day. 23 of 35 closed. Nothing is half-finished — the tree is
+> clean, every gate is green, and the next item is a fresh start rather than a resumption.** ══
+>
+> **WHAT IS LEFT, and there are only two kinds.**
+>
+> **① Needs the maker or a real host (5, all Swift/iOS).** No gate in the repo can see any of them,
+> which is why they are still here. Start with **`TinyjamAU.uiTick()` is orphaned** — one line, and
+> the symptom is immediate on a device: a stopped host freezes the panel and swallows every tap.
+> Then **`TinyjamAU` can never deallocate** (its worker thread takes a strong `self` for a call that
+> never returns), which is why **the `de_instance_destroy` fix from 08-14 is still only half-spent —
+> nothing on the Swift side calls it.** Then the `static let` canvas channel, the ARC/`malloc` on the
+> audio thread, and `AUProbeKit`.
+>
+> **② Legibility-only, remove ~0 lines (4).** `loop_step` and `sound_callback` splits, the twice-written
+> shaders, the two boot sequences. My read: leave them until something makes them worth it — none is
+> blocking anything, and `loop_step`'s `goto draw_window` makes the pause extraction non-trivial.
+>
+> So: **there is no self-gateable engine work left in this lane.** If tomorrow is not an iOS day,
+> the honest answer is that this round is done and the lane should be pruned rather than continued.
 >
 > THIRD PASS (the `sound.h` dedups): the `DRIVE_*` waveshaper switch and the PLUCK/GUITAR
 > Karplus-Strong excitation each existed twice and now exist once; **the 9 copies of "ensure FX_X is
@@ -87,14 +101,18 @@ a broken doc link or `#section`).
 > showed green** — the refactor moved `eng_p[]` into `sound_ctx.h`, and `repo-doctor` only ever ran
 > the lint's `--selfcheck` (a fixture), never the lint. Both fixed; the general rule is in the doc.
 >
-> FOURTH PASS (08-15): `fb_w`/`fb_h` LANDED — its 08-14 "reverted as unsafe" verdict was a
+> FOURTH PASS (08-15) — and the theme of the day was that **three separate confident REDs were the
+> measurement, not the engine**; the cross-cutting write-up is
+> [checks-and-oracles.md → "The THIRD way a check lies"](guides/checks-and-oracles.md). `fb_w`/`fb_h` LANDED — its 08-14 "reverted as unsafe" verdict was a
 > MEASUREMENT ERROR (the A/B compared two trees' `acidcandy` save blobs), and chasing that found
 > **`refactor-guard` reading the same untracked save file**, which is now isolated per probe ·
 > `midi-check` phase B diagnosed and fixed · `ctx-gen --verify` extended to FUNCTION-LOCAL statics
 > the day after it shipped, because it failed to notice one I added · five write-only overflow
 > counters got a reader · `ms_samp()` (the int form overflowed at ~48 s) · `at_psola_slot`'s dead
-> `formant` param removed · one lock-free publish instead of two. And **the `midi_out_on` refcount
-> "finding" was WITHDRAWN** — the flag was right and I was not.
+> `formant` param removed · one lock-free publish instead of two · and **`sw_tritex_legacy` +
+> `DE_TRITEX_FAST` RETIRED** on the maker's call, which closes the soak-flag scaffolding entirely
+> (⚠ `pset_batch` reads like the last sibling and is NOT one — a per-platform default). And **the
+> `midi_out_on` refcount "finding" was WITHDRAWN** — the flag was right and I was not.
 >
 > **Resume-at: [the round-2 open list](design/engine-simplification.md#round-2--after-the-per-instance-refactor-2026-08-14)** — every open item names its gate, and the
 > re-verified WON'T-DO list is there too (round 1's three calls still hold; I checked rather than

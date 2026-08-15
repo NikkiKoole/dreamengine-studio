@@ -1,7 +1,15 @@
 # Engine simplification backlog — duplication, missing helpers, naming
 
-> **STATUS: ROUND 2 OPEN** (2026-08-14). Round 1 below is closed 33/33 and its ❌ won't-do calls were
-> RE-VERIFIED this round, not assumed — see [Round 2](#round-2--after-the-per-instance-refactor-2026-08-14).
+> **STATUS: ROUND 2 OPEN — 23/35, PAUSED 2026-08-15** with nothing half-finished. Round 1 below is
+> closed 33/33 and its ❌ won't-do calls were RE-VERIFIED this round, not assumed — see
+> [Round 2](#round-2--after-the-per-instance-refactor-2026-08-14).
+>
+> **The 12 open items are only two kinds, and neither is self-gateable engine work:** 5 **Swift/iOS**
+> items no gate in this repo can see (start at `TinyjamAU.uiTick()` — one line, and it is why a
+> stopped host freezes the panel; then `TinyjamAU`'s deinit, which is why the `de_instance_destroy`
+> fix is still half-spent), 4 legibility-only splits that remove ~0 lines, and 3 recorded-and-parked
+> notes (`mic_rec`'s 1.4 MB race, the mic waiver, the `midi_out_on` ordering hazard).
+> **If the next session is not an iOS one, this round is effectively done.**
 >
 > ⚠ Round 1's STATUS line is preserved verbatim below for the trail.
 

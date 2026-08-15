@@ -318,7 +318,15 @@ static CartState de_cart_default = {
     .use_bars = 1,
     .sng_confirm = -1,
     .r2sng_confirm = -1,
-    .mac = { { MK_303,  CLR_PINK,      CLR_DARK_PURPLE, 1 }, { MK_303,  CLR_ORANGE,    CLR_DARK_ORANGE, 1 }, { MK_DRUM, CLR_TRUE_BLUE, CLR_DARK_BLUE,   0 }, { MK_DRUM, CLR_YELLOW,    CLR_DARK_ORANGE, 0 }, { MK_MST,  CLR_GREEN,     CLR_DARK_GREEN,  0 }, },
+    /* ⚠ 303a BOOTS UNMUTED (2026-08-15). It used to be muted like 303b — "bring it in on the drop" —
+     * and that default made a WORKING feature look broken four separate times: SPEAK (which is fed by
+     * 303 notes), the host pitch bend (still ungated for exactly this reason), the keybed TRANSPOSE,
+     * and the host CUT/RES/ENV/DEC/ACC parameters. Every time, the control was correct and the line it
+     * moves was silent, and every time it cost a debugging round to find out. A silent-by-default
+     * machine is a precondition for half this rack's features and nothing announced it.
+     * 303b stays muted: one acid line audible is enough to prove the rack works, and the lead coming
+     * in later is the actual musical idea. */
+    .mac = { { MK_303,  CLR_PINK,      CLR_DARK_PURPLE, 0 }, { MK_303,  CLR_ORANGE,    CLR_DARK_ORANGE, 1 }, { MK_DRUM, CLR_TRUE_BLUE, CLR_DARK_BLUE,   0 }, { MK_DRUM, CLR_YELLOW,    CLR_DARK_ORANGE, 0 }, { MK_MST,  CLR_GREEN,     CLR_DARK_GREEN,  0 }, },
     .face = M_303A,
     .rack_view = -1,
     .r2_selmach = M_808,

@@ -45,11 +45,14 @@ ok()   { PASS=$((PASS+1)); printf '  \033[32m✓\033[0m %s\n' "$1"; }
 bad()  { FAIL=$((FAIL+1)); printf '  \033[31m✗\033[0m %s\n' "$1"; }
 note() { [ "$VERBOSE" = 1 ] && printf '      %s\n' "$1"; return 0; }
 
-# The two UI seeds. acidcandy boots on the 303A face with BOTH acid lines muted, so a default render
-# is drums only and a transpose has nothing to move — the same wall that left the pitch bend ungated.
-# One tap on the cartridge LED unmutes 303A; one tap on the 808 cartridge body focuses the drums.
-# Coordinates are the 160×100 canvas, read off a --dump frame.
-printf 'click 5 38 8\n' > "$OUT/un303.script"    # 303A mute LED  → the acid line is audible
+# The UI seeds. acidcandy boots on the 303A face, and since 2026-08-15 303A boots UNMUTED, so the
+# acid line is audible with no setup at all — that default was changed precisely because a silent 303
+# made working features look broken four times, this gate's transpose section among them.
+# ⚠ un303.script is now EMPTY ON PURPOSE, not vestigial. It used to tap the cartridge LED to unmute;
+# after the default flipped, that same tap MUTES the line and every transpose assertion below goes
+# red on a rack that is working perfectly. Keeping the (empty) file makes the two sections read the
+# same and leaves one place to put a seed back if the default ever moves again.
+: > "$OUT/un303.script"                          # 303A is audible at boot — nothing to do
 printf 'click 5 70 8\n' > "$OUT/to808.script"    # 808 cartridge  → the drum face has focus
 
 # render <wav> <script> [--midi-note ...]

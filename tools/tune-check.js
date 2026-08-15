@@ -13,6 +13,8 @@
 //                                            INTENDED detune has drifted off it (PIANO's stretched
 //                                            tuning, asserted as a DIFFERENTIAL: see STRETCH_TOL)
 //   node tools/tune-check.js <file.wav> --note <midi>   measure ONE wav against a note
+//   node tools/tune-check.js --selfcheck    known answers for the DETECTOR on synthetic tones
+//                                           (renders no cart; 20 assertions, mutation-tested)
 //
 //   # RECIPE mode — check ONE engine at the macros a CART actually uses, across a range.
 //   # This is the one to run before shipping a PIPE/REED/etc. voice: the default sweep tests
@@ -35,6 +37,17 @@ const ROOT = path.resolve(__dirname, '..')
 // models drift more. flag at a comma's worth, scream past a quarter-tone.
 const WARN_CENTS = 12
 const BAD_CENTS  = 35
+
+// ── THE CONTROL, AND WHY IT NEEDS ITS OWN BOUND ──────────────────────────────
+// SINE (engine 4) is rendered first as the control: it is mathematically exact, so its reading is
+// a measurement of the MEASUREMENT. It was held to WARN_CENTS/BAD_CENTS like everything else,
+// which is the wrong bar by an order of magnitude — those are sized for physical models, so up to
+// 12 cents of pure analyser drift passed without even a warning, and every engine reading would
+// have been shifted by that same amount while the table still looked healthy. A control has to be
+// held to a control's standard. It reads 0.0¢ in the blessed state; anything past a cent means the
+// analyser moved and NO engine number in the run can be trusted.
+const CONTROL_ENGINE = 4
+const CONTROL_CENTS  = 1.0
 
 // known residuals — documented, ACCEPTED out-of-tune readings on the DEFAULT sweep (as-shipped
 // macros = the morph-0 / macro-0 extreme; the why lives in STATUS.md Open #31 + audio-notes §18).
@@ -508,6 +521,120 @@ function single(file, midi, json) {
   return out
 }
 
+
+// ── --selfcheck: KNOWN ANSWERS FOR THE ANALYSER ITSELF ───────────────────────
+// The gate this tool provides is "the engines are in tune". Its failure mode is not a false
+// alarm — it is going BLIND: a detector that quietly returns the expected pitch, or that stops
+// finding pitch at all, prints a table indistinguishable from a healthy engine. The SINE control
+// above catches drift on a real render, but it cannot run if the cart will not build, and it
+// cannot tell you WHICH part of the detector moved.
+//
+// So this feeds the same measurePitch/octaveFold/verdict path SYNTHETIC tones with answers known
+// from arithmetic, and RUNS NO CART. Both directions, deliberately: exact tones must read zero,
+// and DETUNED tones must read their detune — a detector hard-wired to return 0 would sail through
+// a one-sided test and is exactly the shape of blindness worth fearing here.
+function synth(kind, hz, sr, secs, seed) {
+  const n = Math.floor(sr * secs), out = new Float64Array(n)
+  let st = seed || 1
+  for (let i = 0; i < n; i++) {
+    const ph = (i * hz / sr) % 1
+    if (kind === 'sine')      out[i] = 0.6 * Math.sin(2 * Math.PI * ph)
+    else if (kind === 'saw')  out[i] = 0.6 * (2 * ph - 1)                       // harmonically rich
+    else { st = (st * 1103515245 + 12345) & 0x7fffffff; out[i] = 0.6 * (st / 0x3fffffff - 1) }
+  }
+  return out
+}
+const detune = (hz, cents) => hz * Math.pow(2, cents / 1200)
+
+function writeWav16(file, s, sr) {
+  const n = s.length, b = Buffer.alloc(44 + n * 2)
+  b.write('RIFF', 0); b.writeUInt32LE(36 + n * 2, 4); b.write('WAVE', 8)
+  b.write('fmt ', 12); b.writeUInt32LE(16, 16); b.writeUInt16LE(1, 20); b.writeUInt16LE(1, 22)
+  b.writeUInt32LE(sr, 24); b.writeUInt32LE(sr * 2, 28); b.writeUInt16LE(2, 32); b.writeUInt16LE(16, 34)
+  b.write('data', 36); b.writeUInt32LE(n * 2, 40)
+  for (let i = 0; i < n; i++) b.writeInt16LE(Math.max(-32768, Math.min(32767, Math.round(s[i] * 32767))), 44 + i * 2)
+  fs.writeFileSync(file, b)
+}
+
+function selfcheck() {
+  const SR = 44100, SECS = 0.7
+  let pass = 0, fail = 0
+  const ok = (name, cond, got) => {
+    if (cond) { pass++; console.log(`  ✓ ${name}`) }
+    else { fail++; console.log(`  ✗ ${name}   got: ${got}`) }
+  }
+  // measure a synthetic buffer the way analyzeRender does
+  const meas = (buf, expectHz) => {
+    const m = measurePitch(buf, Math.floor(buf.length * 0.12), Math.floor(buf.length * 0.88), SR, expectHz)
+    return m ? { ...octaveFold(m.hz, expectHz), conf: m.confidence } : null
+  }
+  console.log('tune-check --selfcheck — known answers for the analyser (no cart is rendered)\n')
+
+  console.log('EXACT TONES READ ZERO')
+  const a440 = meas(synth('sine', 440, SR, SECS), 440)
+  ok('a mathematically exact A440 sine reads 0 cents', a440 && Math.abs(a440.cents) <= 0.5, a440 && a440.cents)
+  ok('  …and at octave 0', a440 && a440.octaves === 0, a440 && a440.octaves)
+  ok('  …and its verdict is ok', a440 && verdict(a440.cents) === 'ok', a440 && verdict(a440.cents))
+  const saw = meas(synth('saw', 220, SR, SECS), 220)
+  ok('a HARMONICALLY RICH saw reads 0 cents (the sub-harmonic trap)', saw && Math.abs(saw.cents) <= 1, saw && saw.cents)
+  ok('  …and is not folded an octave (the octave trap)', saw && saw.octaves === 0, saw && saw.octaves)
+
+  console.log('\nDETUNED TONES READ THEIR DETUNE — the direction a blind detector fails')
+  const up25 = meas(synth('sine', detune(440, 25), SR, SECS), 440)
+  ok('+25 cents reads +25', up25 && Math.abs(up25.cents - 25) <= 1, up25 && up25.cents)
+  const dn40 = meas(synth('sine', detune(440, -40), SR, SECS), 440)
+  ok('-40 cents reads -40', dn40 && Math.abs(dn40.cents + 40) <= 1, dn40 && dn40.cents)
+  const odd = meas(synth('sine', 443.7, SR, SECS), 440)
+  const oddExpect = 1200 * Math.log2(443.7 / 440)
+  ok('an ARBITRARY offset matches the cents formula', odd && Math.abs(odd.cents - oddExpect) <= 0.5,
+     odd && `${odd.cents} vs ${oddExpect.toFixed(1)}`)
+
+  console.log('\nTHE GATE CAN GO RED')
+  ok('-40 cents is judged OUT OF TUNE', dn40 && verdict(dn40.cents) === 'OUT OF TUNE', dn40 && verdict(dn40.cents))
+  const up20 = meas(synth('sine', detune(440, 20), SR, SECS), 440)
+  ok('+20 cents is judged off (the middle band exists)', up20 && verdict(up20.cents) === 'off', up20 && verdict(up20.cents))
+  ok('the CONTROL bound is tighter than the engine bound', CONTROL_CENTS < WARN_CENTS, `${CONTROL_CENTS} vs ${WARN_CENTS}`)
+  ok('  …and +20 cents would trip it', 20 > CONTROL_CENTS, CONTROL_CENTS)
+
+  console.log('\nOCTAVE FOLDING IS REPORTED, NOT SWALLOWED')
+  const low = meas(synth('sine', 110, SR, SECS), 220)
+  ok('a tone an octave LOW reports octaves -1', low && low.octaves === -1, low && low.octaves)
+  ok('  …with ~0 cents inside that octave', low && Math.abs(low.cents) <= 1, low && low.cents)
+  // ⚠ AND THE ASYMMETRY IS PINNED HERE ON PURPOSE, because it is a real property of the method
+  // and not a bug to be "fixed". A signal periodic at f is ALSO periodic at f/2, f/3 …, but never
+  // at 2f — measured: an 880 Hz sine autocorrelates 0.9996 at the 440 Hz lag (as perfect as at its
+  // own period), while a 110 Hz sine at the 220 Hz lag is -1.0, perfectly ANTI-correlated. So an
+  // octave DOWN is unambiguous and an octave UP is invisible to autocorrelation, and measurePitch's
+  // tie-break resolves the tie toward the played octave. Anyone who "fixes" this to report +1 will
+  // have broken the sub-octave protection the tie-break exists for.
+  const high = meas(synth('sine', 880, SR, SECS), 440)
+  ok('a tone an octave HIGH is reported at the PLAYED octave (autocorrelation cannot see 2f)',
+     high && high.octaves === 0 && Math.abs(high.cents) <= 0.5, high && `oct ${high.octaves} / ${high.cents}\u00a2`)
+  const highRich = meas(synth('saw', 440, SR, SECS), 220)
+  ok('  …and that is the METHOD, not the waveform — a rich tone behaves the same',
+     highRich && highRich.octaves === 0, highRich && highRich.octaves)
+
+  console.log('\nIT REFUSES TO INVENT A PITCH')
+  const noise = meas(synth('noise', 0, SR, SECS, 12345), 440)
+  ok('white noise yields no pitch (or an honestly low confidence)',
+     noise === null || noise.conf < 0.6, noise && `conf ${noise.conf.toFixed(2)}`)
+  const silence = meas(new Float64Array(Math.floor(SR * SECS)), 440)
+  ok('digital silence yields no pitch', silence === null, silence && silence.cents)
+
+  console.log('\nTHE WAV READER IS IN THE PATH TOO')
+  const tmp = path.join(require('os').tmpdir(), `tunecheck-selfcheck-${process.pid}.wav`)
+  try {
+    writeWav16(tmp, synth('sine', 440, SR, SECS), SR)
+    const { sr: rsr, s: rs } = readWavMono(tmp)
+    ok('a 16-bit WAV round-trips at the right sample rate', rsr === SR, rsr)
+    const rd = meas(rs, 440)
+    ok('  …and still reads 0 cents after the round trip', rd && Math.abs(rd.cents) <= 0.5, rd && rd.cents)
+  } finally { fs.rmSync(tmp, { force: true }) }
+
+  console.log(`\n${fail === 0 ? '✓' : '✗'} ${pass}/${pass + fail} known answers correct`)
+  return fail === 0 ? 0 : 1
+}
+
 // ── cli ──────────────────────────────────────────────────────────────────────
 const argv = process.argv.slice(2)
 const json = argv.includes('--json')
@@ -527,6 +654,8 @@ if (engArg) {
   recipe = { engine: engArg.toUpperCase(), macros, lo, hi, step: +flag('--step', 2) }
 }
 
+if (argv.includes('--selfcheck')) process.exit(selfcheck())
+
 try {
   if (positional.length && positional[0].endsWith('.wav')) {
     if (noteIdx === -1) { console.error('single-wav mode needs --note <midi>'); process.exit(1) }
@@ -534,6 +663,24 @@ try {
   } else {
     const results = run({ json, keep, recipe })
     if (quiet) {
+      // THE CONTROL IS CHECKED FIRST AND REPORTED DIFFERENTLY. If SINE has drifted, the engine
+      // numbers below it are meaningless, and saying "N engines out of tune" would send the next
+      // person hunting a DSP bug that is not there. Recipe mode has no SINE pass, so it is exempt.
+      const ctl = recipe ? [] : results.filter(r => r.engine === CONTROL_ENGINE)
+      const ctlBad = ctl.filter(r => r.verdict === 'no-pitch' || Math.abs(r.cents) > CONTROL_CENTS)
+      if (!recipe && !ctl.length) {
+        console.error(`tune-check: the SINE CONTROL DID NOT RUN — no engine ${CONTROL_ENGINE} rows in the sweep.`)
+        console.error('  Without it this gate cannot tell a detuned engine from a broken analyser. Refusing to pass.')
+        process.exit(1)
+      }
+      if (ctlBad.length) {
+        console.error(`tune-check: THE MEASUREMENT IS OFF, NOT THE ENGINE — the SINE control read ` +
+                      ctlBad.map(r => `${r.note} ${r.cents}\u00a2`).join(', ') +
+                      ` (a mathematically exact tone must sit inside \u00b1${CONTROL_CENTS}\u00a2).`)
+        console.error('  Every engine number in this run is suspect. Fix the analyser, then re-read the sweep.')
+        console.error('  Start with `node tools/tune-check.js --selfcheck` — it exercises the detector on synthetic tones.')
+        process.exit(1)
+      }
       const bad = results.filter(r => (r.verdict === 'off' || r.verdict === 'OUT OF TUNE') && !r.waived)
       const intentBad = results.filter(r => r.stretchBad)
       process.exit(bad.length || intentBad.length ? 1 : 0)

@@ -77,6 +77,10 @@ const CHECKS = [
   { name: "selftest: fxicons", tool: "lint-fxicons.js",    args: ["--selfcheck"], gate: true },
   { name: "selftest: aux params", tool: "lint-aux-params.js", args: ["--selfcheck"], gate: true },
   { name: "selftest: seam", tool: "lint-engine-seam.js", args: ["--selfcheck"], gate: true },
+  // The first AUDIO gate to join this row. It renders no cart: the pitch detector is pure, so it
+  // is judged on synthetic tones with answers known from arithmetic. See its header for why an
+  // audio gate needs one at all — the failure mode is going blind, not crying wolf.
+  { name: "selftest: tuning", tool: "tune-check.js", args: ["--selfcheck"], gate: true },
   { name: "selftest: saved state", tool: "lint-saved-state.js", args: ["--selfcheck"], gate: true },
   { name: "selftest: carts",   tool: "lint-carts.js",      args: ["--selfcheck"], gate: true },
   { name: "selftest: fx frame", tool: "lint-fx-frame.js",  args: ["--selfcheck"], gate: true },

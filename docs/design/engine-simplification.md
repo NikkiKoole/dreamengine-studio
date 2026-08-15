@@ -1,6 +1,7 @@
 # Engine simplification backlog — duplication, missing helpers, naming
 
-> **STATUS: ROUND 2 OPEN — 25/35, 2026-08-15** with nothing half-finished. Round 1 below is
+> **STATUS: ROUND 2 OPEN — 25/37, 2026-08-15** with nothing half-finished. (37, not 35: two more
+> were FOUND on the device this session — see the Swift/iOS list.) Round 1 below is
 > closed 33/33 and its ❌ won't-do calls were RE-VERIFIED this round, not assumed — see
 > [Round 2](#round-2--after-the-per-instance-refactor-2026-08-14).
 >
@@ -12,12 +13,11 @@
 > splits that remove ~0 lines, and 3 recorded-and-parked notes (`mic_rec`'s 1.4 MB race, the mic
 > waiver, the `midi_out_on` ordering hazard).
 >
-> ⚠ **AWAITING A DEVICE PASS, and this is the live thread.** The two headline Swift items landed
-> 2026-08-15 — `TinyjamAU.uiTick()` is wired, and `TinyjamAU` can deallocate so
-> `de_instance_destroy` is finally called — but **on the maker's call they were fixed WITHOUT first
-> reproducing the symptom**, so they compile and are argued from reading and nothing more. The
-> device checklist is in the [HANDOFF lane](../HANDOFF.md#where-we-are-right-now). Until it is signed
-> off, do not record either as proven.
+> ✅ **THE DEVICE PASS HAPPENED (2026-08-15, iPad + GarageBand).** `TinyjamAU` can deallocate and
+> `de_instance_destroy` is called — **proven red-then-green on the device**, and the leak it fixes
+> was measured first (see the Swift/iOS section head). `TinyjamAU.uiTick()` is wired and the panel
+> is responsive, but that one has NO captured red and is marked as such. The two new items above
+> came out of the same session.
 >
 > ⚠ Round 1's STATUS line is preserved verbatim below for the trail.
 

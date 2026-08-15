@@ -376,12 +376,36 @@ now in the tool: `--save` **refuses to bless** while a control is red (a fault f
 file stops looking like a fault), and duplicate baseline keys are reported rather than silently
 overwritten.
 
+**`fx-check --selfcheck`** (38 answers). The cheapest of the four so far, because level-check had
+already found the shape: same buffer statistics, same trace windows, same golden baseline, so the
+three structural controls ported straight across. Two of its controls are its own, and both cover a
+*silent skip* rather than a wrong number. **DRY is this gate's control engine** — every "no-op"
+verdict is measured against it — and `dry && …` means a missing DRY makes that check evaporate
+without a word; DRY is now required to exist, sound, not clip, and carry no DC (with nothing in the
+path, an offset there cannot be an effect). And `FX_NAMES` and `fxcheck.c`'s switch are two
+hand-maintained lists that must agree, so **every roster entry must have produced a window**: a gap
+does not lose one effect, it mislabels every effect after it.
+
+Two things it did *not* do, both worth copying. The DC statistic here is a plain mean, and the
+reflex after dc-check was to move it to a Hann window — **measured instead: plain-vs-Hann differs by
+at most 0.009 across all 20 effects against a limit of 0.03**, and the two largest readings stay
+large under both, so they are real drive-stage asymmetry and the change would have been churn.
+The residual is real but shrinks as 1/cycles, and an fx window is 40k samples of a dense chord
+rather than dc-check's 38.5 cycles of one sine. It is pinned in the fixture with its arithmetic
+(`A/(π·cycles)` = 0.000722 for the synthetic case, measured 0.000722) — *the first draft of that
+assertion demanded < 1e-6 and went red, which is how the bound got checked rather than assumed*.
+The frame count was hardcoded at `19 * 84` under a comment counting 19 tests when the roster held
+20; slack absorbed it, so unlike level-check nothing had broken yet. Derived from the roster now,
+and the baseline needed no re-blessing.
+
 **Still without one** — always take the list from `node tools/gate-controls.js --list` rather than
 from a count written in prose; several agents work this repo at once and this tally moved twice in
-one afternoon. At the time of writing: `fx-check`, `soak-check`, `psola-check`, `web-audio-check`.
-`soak-check` and `fx-check` are harder because their subject is behaviour over time rather than a
-single measurement, and `web-audio-check` compares two platforms, so its control is a deliberate
-divergence rather than a synthetic signal.
+one afternoon. At the time of writing: `soak-check`, `psola-check`, `web-audio-check`.
+`soak-check` is harder because its subject is behaviour over 64 seconds rather than a single
+measurement, `psola-check` needs synthetic signals carrying a *specific* artifact (a splice, a
+staircase, a period doubling) where a mis-synthesis pins the fixture rather than the detector, and
+`web-audio-check` compares two platforms, so its control is a deliberate divergence and its fixture
+needs a toolchain.
 
 ## The THIRD way a check lies: it goes RED about something you did not change
 

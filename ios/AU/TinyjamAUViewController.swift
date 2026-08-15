@@ -47,6 +47,21 @@ public final class TinyjamAUViewController: AUViewController, AUAudioUnitFactory
         // sound, and a hosted CanvasView deliberately creates none of its own — a UI extension runs
         // in its own process, so creating one there boots a second engine inside the view process.
         c.engine = a.engine
+        // AND GIVE THE PANEL ITS KEEP-ALIVE. The engine is advanced by RENDERED AUDIO, so a host
+        // whose transport is stopped ticks it not at all: the panel freezes on its last frame and,
+        // far worse, hosted touches sit in the input ring unread, because the code that would drain
+        // them runs inside de_frame. Every tap is swallowed, including the cart's own play button.
+        // TinyjamAU.uiTick() signals a frame only when audio has not already advanced one, so a
+        // rendering host keeps its sample-clocked timing and an idle host still gets a live panel.
+        //
+        // This assignment is the whole wiring, and it was MISSING: uiTick() and onDisplayTick both
+        // existed and nothing joined them. It was wired once, then dropped when the panel owned a
+        // second engine — that reason died when the panel started getting the AU's own engine above.
+        //
+        // ⚠ `[weak a]` IS LOAD-BEARING, not caution. The canvas owns this closure, so a strong
+        // capture would tie the audio unit's lifetime to the view's and stop `deinit` from firing —
+        // which is exactly the leak the worker thread used to cause (see startWorker).
+        c.onDisplayTick = { [weak a] in a?.uiTick() }
         // Read the verdict NOW and again later. Not politeness: the only orphan signal available is
         // "nothing in this process has rendered", and a host whose transport is stopped looks
         // identical at the moment a panel opens. Press play and the ambiguity resolves itself — which
@@ -110,5 +125,15 @@ public final class TinyjamAUViewController: AUViewController, AUAudioUnitFactory
         view.addSubview(c)
         canvas = c
         connectPanel()          // the AU may already exist — see connectPanel()
+    }
+
+    // ORDER MATTERS, and it is the precondition de_instance_destroy documents: `pres_buf` is what
+    // de_copy_frame reads, so a view still blitting an engine that has been freed is a
+    // use-after-free in the HOST. A deinit body runs BEFORE the object's stored properties are
+    // released, so cutting the canvas loose here happens strictly before `au` is released and the
+    // audio unit's own deinit frees the engine. CanvasView already guards on `engine != nil`.
+    deinit {
+        canvas?.onDisplayTick = nil
+        canvas?.engine = nil
     }
 }

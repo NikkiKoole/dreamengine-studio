@@ -1,15 +1,21 @@
 # Engine simplification backlog — duplication, missing helpers, naming
 
-> **STATUS: ROUND 2 OPEN — 23/35, PAUSED 2026-08-15** with nothing half-finished. Round 1 below is
+> **STATUS: ROUND 2 OPEN — 25/35, 2026-08-15** with nothing half-finished. Round 1 below is
 > closed 33/33 and its ❌ won't-do calls were RE-VERIFIED this round, not assumed — see
 > [Round 2](#round-2--after-the-per-instance-refactor-2026-08-14).
 >
-> **The 12 open items are only two kinds, and neither is self-gateable engine work:** 5 **Swift/iOS**
-> items no gate in this repo can see (start at `TinyjamAU.uiTick()` — one line, and it is why a
-> stopped host freezes the panel; then `TinyjamAU`'s deinit, which is why the `de_instance_destroy`
-> fix is still half-spent), 4 legibility-only splits that remove ~0 lines, and 3 recorded-and-parked
-> notes (`mic_rec`'s 1.4 MB race, the mic waiver, the `midi_out_on` ordering hazard).
-> **If the next session is not an iOS one, this round is effectively done.**
+> **The 10 open items are only two kinds, and neither is self-gateable engine work:** 3 **Swift/iOS**
+> items no gate in this repo can see (the shared `static let` canvas channel, the `AudioEngine`
+> audio-thread cleanup bundle, and `AUProbeKit`), 4 legibility-only splits that remove ~0 lines, and
+> 3 recorded-and-parked notes (`mic_rec`'s 1.4 MB race, the mic waiver, the `midi_out_on` ordering
+> hazard).
+>
+> ⚠ **AWAITING A DEVICE PASS, and this is the live thread.** The two headline Swift items landed
+> 2026-08-15 — `TinyjamAU.uiTick()` is wired, and `TinyjamAU` can deallocate so
+> `de_instance_destroy` is finally called — but **on the maker's call they were fixed WITHOUT first
+> reproducing the symptom**, so they compile and are argued from reading and nothing more. The
+> device checklist is in the [HANDOFF lane](../HANDOFF.md#where-we-are-right-now). Until it is signed
+> off, do not record either as proven.
 >
 > ⚠ Round 1's STATUS line is preserved verbatim below for the trail.
 
@@ -570,23 +576,65 @@ Same rules as round 1: line numbers rot, the function name is the anchor, every 
 
 ### Open — Swift / iOS
 
-- [ ] **`TinyjamAU.uiTick()` is orphaned** — nothing assigns `CanvasView.onDisplayTick`. It was wired
-      to fix "the panel freezes when the host is stopped", then removed when the panel owned a second
-      engine; that reason died when the panel started getting the AU's own engine. Hosted touches
-      enter the input ring, drained only inside `de_frame`, which on that path runs only when audio
-      is pulled → **stopped host = frozen panel and every tap swallowed.** One line. No gate can see
-      it: `--panel`/`--view`/`--realtime` all render audio.
+> ⚠ **THE TWO ITEMS BELOW MARKED LANDED 2026-08-15 CARRY NO RED-THEN-GREEN, AND THAT IS A CHOICE,
+> NOT AN OVERSIGHT.** The maker was asked whether to reproduce the freeze on the current build first
+> and chose to fix and check in one pass. So they compile (`ios/mac.sh`, six gate sections green) and
+> they are argued from reading, but **nobody has yet seen the symptom they fix.** Until the device
+> pass below is signed off, treat them as plausible rather than proven — and if the panel still
+> freezes on a stopped host, the wiring is the FIRST place to look, not the last.
+
+- [x] **`TinyjamAU.uiTick()` is orphaned** — LANDED 2026-08-15. Nothing assigned
+      `CanvasView.onDisplayTick`: `uiTick()` existed, the call site existed, and the assignment
+      joining them did not. It was wired once to fix "the panel freezes when the host is stopped",
+      then removed when the panel owned a second engine; that reason died when the panel started
+      getting the AU's own engine. Hosted touches enter the input ring, drained only inside
+      `de_frame`, which on that path runs only when audio is pulled → **stopped host = frozen panel
+      and every tap swallowed.** The assignment now sits in `connectPanel()` beside `c.engine =
+      a.engine`, which is the one place already guaranteed to run on whichever of
+      `createAudioUnit`/`viewDidLoad` completes the pair.
+      ⚠ **`[weak a]` in that closure is load-bearing, not caution**: the canvas owns the closure, so
+      a strong capture ties the audio unit's lifetime to the view's and re-breaks the `deinit` item
+      below. The two fixes would silently cancel out.
+      ⚠ It also makes a dormant cross-thread read LIVE — `frameCount` is written by the worker and
+      read in `uiTick` on main. Deliberately left unsynchronised, with the argument written at the
+      declaration: aligned 64-bit load, and stale in either direction is harmless (a coalesced extra
+      signal, or ~16 ms of panel latency on a host that is by definition idle).
+      **Still no gate can see it**: `--panel`/`--view`/`--realtime` all render audio, so all three
+      pass with the wire cut. Device check only.
 - [ ] **The canvas message channel is a `static let`** — N instances share one channel and one
       `owner`, which is the exact "panel showing an engine nobody can hear" bug its own comment says
       it exists to prevent.
-- [ ] **`TinyjamAU` can never deallocate**: `Thread { [weak self] in self?.workerLoop() }` takes a
-      strong ref for a call that never returns, so `deinit` never fires, four manual allocations
-      leak, and `de_instance_destroy` is never called.
+- [x] **`TinyjamAU` can never deallocate** — LANDED 2026-08-15, which is what finally spends the
+      `de_instance_destroy` work of 08-14. `Thread { [weak self] in self?.workerLoop() }` **reads as
+      weak and is not**: the moment it unwraps, the call holds a strong reference for its whole
+      duration, and `workerLoop()` never returns. So `deinit` never fired — note it was already
+      WRITTEN, freeing the four manual allocations; it had simply never run — and nothing on the
+      Swift side ever called `de_instance_destroy`, so ~1 MB per rack stayed on the heap.
+      **The fix is which object the closure captures**, not a flag or a lock: the semaphore is
+      captured strongly (it must outlive the wait and is not `self`), and `self` is re-acquired per
+      iteration, held only while a frame is actually running. `deinit` then signals the semaphore so
+      the parked thread wakes, observes a nil `self` and returns, and calls `de_instance_destroy`.
+      **Teardown is safe by CONSTRUCTION rather than by timing**, which is the part worth keeping: if
+      the per-iteration guard succeeds a strong reference exists, so `deinit` cannot be running and
+      cannot free the engine under `de_frame`; if `deinit` is running the weak load yields nil and
+      the thread exits. There is no window where both hold.
+      The other reader of the engine is the panel's blitter, and `de_instance_destroy` documents that
+      precondition (`pres_buf` is what `de_copy_frame` reads), so `TinyjamAUViewController` gained a
+      `deinit` that nils `canvas.engine` first — a deinit body runs before the object's stored
+      properties are released, so it is ordered strictly before `au` is let go. `CanvasView` already
+      guards on `engine != nil`.
+      Gates: `ios/mac.sh` six sections green **including `--realtime`, which drives the restructured
+      worker**, plus `lint-engine-seam`. **What is NOT gated is the thing itself** — no probe in this
+      repo instantiates an `AUAudioUnit`, so "the rack is actually given back" needs a host that
+      loads and unloads the plug-in. `tools/instance-check` covers the C half only.
 - [ ] `AudioEngine`'s render callback does ARC and can `malloc` on the audio thread — `TinyjamAU`
       went to real trouble to avoid both · `CanvasView.tick()` copies the frame up to 4× per display
       tick, one of them a fresh `Data` allocation · `44100` is stated 4× in Swift and 0× from the
       engine · `TinyjamAUFactory` is dead and is the hazard its neighbour warns about · two shipped
-      comments assert the opposite of what the engine now does.
+      comments assert the opposite of what the engine now does — **one of the two is fixed
+      (2026-08-15)**: a paragraph claiming "ONE worker per process … it outlives every instance" sat
+      directly above the paragraph correcting it, in the same comment block, and was deleted while
+      restructuring the worker. The rest of this line is untouched.
 - [ ] `ios/AUProbeKit.swift` for the probes' shared HOST scaffolding (~−55 lines). **The bright
       line: a probe may share host plumbing, never the decoder/format/constant it asserts** — the
       DEZ1 decoder, the `"dreamengineRack"` key and the probes' hardcoded `44100` are known answers

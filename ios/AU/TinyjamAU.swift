@@ -306,27 +306,42 @@ public final class TinyjamAU: AUAudioUnit {
     // Cost: note timing is quantised to the worker's wakeup rather than the exact sample, a jitter of
     // at most one frame. That is precisely what the standalone app has always done, and it is
     // inaudible next to an overrun.
-    // Shared with the engine they drive: ONE worker per process, not per instance (see ONE ENGINE PER
-    // PROCESS). It outlives every instance — a thread parked on a semaphore costs nothing, and tearing
-    // it down when one instance goes away would strand the others mid-frame.
     // ONE WORKER PER INSTANCE. It used to be one per process, which worked only while there was one
     // engine: a semaphore signal carries no identity, so a shared worker cannot know WHICH rack to
     // advance. Per-instance also makes teardown trivial — nothing is shared, so nothing is stranded.
     // A thread parked on a semaphore costs essentially nothing.
+    // (A paragraph claiming the opposite — "ONE worker per process … it outlives every instance" —
+    // stood here until 2026-08-15, contradicting the one above it in the same comment block.)
     private var worker: Thread?
     private let frameSignal = DispatchSemaphore(value: 0)
     private var frameCount: UInt64 = 0
 
-    private func workerLoop() {
-        while true {
-            frameSignal.wait()
-            frameCount &+= 1
-            de_frame(engine, Double(frameCount) / 60.0)
-        }
-    }
     private func startWorker() {
         guard worker == nil else { return }
-        let t = Thread { [weak self] in self?.workerLoop() }
+        // ⚠ THE THREAD MUST NOT HOLD A STRONG `self` ACROSS THE WAIT, or this unit can never
+        // deallocate. `Thread { [weak self] in self?.workerLoop() }` READS as weak and is not: the
+        // moment it unwraps, the call gets a strong reference for its whole duration, and
+        // workerLoop() never returns. So `deinit` never fired, the four manual allocations below
+        // leaked, and de_instance_destroy was never called — which is why the engine-side destroy
+        // work of 2026-08-14 bought nothing on a device.
+        //
+        // The fix is which object the closure captures. The SEMAPHORE is captured strongly (it is
+        // not self, and it must outlive the wait); self is re-acquired per iteration and held only
+        // while a frame is actually running.
+        //
+        // That also makes teardown safe BY CONSTRUCTION rather than by timing: if the guard below
+        // succeeds, a strong reference exists, so deinit cannot be running and cannot free the
+        // engine under de_frame. If deinit IS running, the weak load yields nil and the thread
+        // returns. There is no window where both are true, so no flag or lock is needed.
+        let signal = frameSignal
+        let t = Thread { [weak self] in
+            while true {
+                signal.wait()
+                guard let s = self else { return }   // the unit is gone: end the thread
+                s.frameCount &+= 1
+                de_frame(s.engine, Double(s.frameCount) / 60.0)
+            }
+        }
         t.name = "dreamengine.frame"
         t.qualityOfService = .userInteractive   // it feeds the sequencer; it must not be starved
         t.start()
@@ -344,6 +359,15 @@ public final class TinyjamAU: AUAudioUnit {
     // not advanced one since the last call, so a rendering host keeps its sample-clocked timing and an
     // idle host still gets a live, clickable panel at display rate. Same worker either way, so there
     // is still exactly one thread inside the engine.
+    //
+    // ⚠ `frameCount` is written by the worker and read here on MAIN, with no synchronisation. That
+    // was dormant until this method got a caller (2026-08-15) and is deliberately left alone: the
+    // load is an aligned 64-bit word, so it cannot tear on any platform we ship, and BOTH ways of
+    // reading it stale are harmless — a value one frame behind signals a frame the audio side was
+    // about to signal anyway (the worker coalesces, it does not queue work per signal), and a value
+    // one frame ahead skips one display tick, i.e. ~16 ms of panel latency on a host that is by
+    // definition idle. Making it atomic would cost an ordering argument on the audio path to buy
+    // nothing observable.
     private var lastSeenFrame: UInt64 = 0
     public func uiTick() {
         let f = frameCount
@@ -476,7 +500,21 @@ public final class TinyjamAU: AUAudioUnit {
         }
     }
 
-    deinit { scratch.deallocate(); acc.deallocate(); echunk.deallocate(); rate.deallocate() }
+    // Reachable since 2026-08-15 — see startWorker for what was holding it. Everything here was
+    // already written except the destroy; none of it had ever run.
+    deinit {
+        // Wake the parked worker so it observes a nil `self` and returns. Without this the thread
+        // stays blocked on the semaphore for the life of the process: harmless to this object, which
+        // is already deallocating, but it strands a thread per rack the user ever loaded.
+        frameSignal.signal()
+        // GIVE THE RACK BACK. de_instance_destroy releases the canvas, present, state and sample
+        // buffers as well as the struct (studio.c + sound_free_buffers), which is ~1 MB per rack.
+        // Safe here for the reason spelled out in startWorker: the worker cannot be inside de_frame
+        // while this runs. The other reader is the panel's blitter, and the view controller cuts it
+        // loose in its own deinit, which runs first.
+        de_instance_destroy(engine)
+        scratch.deallocate(); acc.deallocate(); echunk.deallocate(); rate.deallocate()
+    }
 }
 
 // NSExtensionPrincipalClass — the system instantiates this to get the AU.

@@ -72,25 +72,45 @@ a broken doc link or `#section`).
 > **`tools/instance-check` now gates destroy** (8 create/destroy rounds must leave the heap flat;
 > `-bypass` control) and goes RED against a worktree at the previous `HEAD` at ~1 MB per rack opened.
 >
-> ══ **PAUSED HERE 2026-08-15, end of day. 23 of 35 closed. Nothing is half-finished — the tree is
-> clean, every gate is green, and the next item is a fresh start rather than a resumption.** ══
+> ══ **25 of 35 closed (2026-08-15, second session). THE TWO HEADLINE SWIFT ITEMS ARE WIRED AND ARE
+> WAITING ON A DEVICE PASS — that pass is the single next action in this lane.** ══
 >
-> **WHAT IS LEFT, and there are only two kinds.**
+> **▶ WHAT THE MAKER NEEDS TO CHECK, on the iPad with GarageBand.** Both fixes below landed WITHOUT
+> a red-first reproduction — that was the maker's call ("fix what you can already, I'll hook up the
+> iPad") and it is recorded here so nobody later mistakes them for proven. They compile
+> (`zsh ios/mac.sh`, six gate sections green) and no repo gate can see either one.
 >
-> **① Needs the maker or a real host (5, all Swift/iOS).** No gate in the repo can see any of them,
-> which is why they are still here. Start with **`TinyjamAU.uiTick()` is orphaned** — one line, and
-> the symptom is immediate on a device: a stopped host freezes the panel and swallows every tap.
-> Then **`TinyjamAU` can never deallocate** (its worker thread takes a strong `self` for a call that
-> never returns), which is why **the `de_instance_destroy` fix from 08-14 is still only half-spent —
-> nothing on the Swift side calls it.** Then the `static let` canvas channel, the ARC/`malloc` on the
-> audio thread, and `AUProbeKit`.
+> 1. **STOPPED-HOST PANEL.** Load the plug-in, leave the host transport STOPPED, and tap the cart's
+>    own play button on the panel. Before: frozen picture, every tap swallowed, "I can't start it
+>    from the host OR from the plug-in". After: the panel should be live and clickable at display
+>    rate while the host sits still. ⚠ If it still freezes, **the wiring is the first suspect, not
+>    the last** — check `c.onDisplayTick` is reached in `connectPanel()`, which is only entered on
+>    whichever of `createAudioUnit`/`viewDidLoad` completes the pair.
+> 2. **THE RACK IS GIVEN BACK.** Add the plug-in to a track and REMOVE it, several times, watching
+>    memory. Before: nothing on the Swift side ever called `de_instance_destroy`, so ~1 MB per rack
+>    stayed. After: it should be flat-ish across add/remove cycles. This is the fix that finally
+>    spends the 08-14 destroy work.
+> 3. **AND WHILE YOU ARE IN THERE, the ear check that was already waiting** (lane `L255`): the mod
+>    wheel is verified but **the BEND never was** — both 303 lines boot muted, so unmute them, then
+>    bend and confirm the two acid lines move ±2 semitones and the drums do NOT.
+>
+> ⚠ **`ios/mac.sh`'s `--panel` gate is RED and it is NOT this change.** Verified by stashing both
+> files and rebuilding at `HEAD`: **identical 3/3 failure, same messages.** It is the known-broken
+> observation already recorded as open item 4 in this lane ("it cannot tell an orphaned panel from
+> one that was never opened, yet its headline asserts the first"). Do not let it eat an hour.
+>
+> **WHAT IS LEFT AFTER THAT, and there are only two kinds.**
+>
+> **① Needs a real host (3, all Swift/iOS).** The `static let` canvas channel (latent — `remoteFrame`
+> is deliberately nil, so the shared `owner` cannot bite until something wires it), the ARC/`malloc`
+> on the audio thread bundle, and `AUProbeKit`.
 >
 > **② Legibility-only, remove ~0 lines (4).** `loop_step` and `sound_callback` splits, the twice-written
 > shaders, the two boot sequences. My read: leave them until something makes them worth it — none is
 > blocking anything, and `loop_step`'s `goto draw_window` makes the pause extraction non-trivial.
 >
-> So: **there is no self-gateable engine work left in this lane.** If tomorrow is not an iOS day,
-> the honest answer is that this round is done and the lane should be pruned rather than continued.
+> So: **there is still no self-gateable engine work left in this lane.** Once the device pass above
+> is signed off, this round is done and the lane should be pruned rather than continued.
 >
 > THIRD PASS (the `sound.h` dedups): the `DRIVE_*` waveshaper switch and the PLUCK/GUITAR
 > Karplus-Strong excitation each existed twice and now exist once; **the 9 copies of "ensure FX_X is

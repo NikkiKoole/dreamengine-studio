@@ -96,7 +96,17 @@ a broken doc link or `#section`).
 >
 > **▶ FOUND ON THE DEVICE 2026-08-15, and neither needed the ledger to be readable.**
 >
-> **(a) THE LEAK IS CONFIRMED, by counting log lines.** iOS redacts every dynamic value in an
+> **✅ (a) THE LEAK IS FIXED, AND IT IS A REAL RED-THEN-GREEN.** Second device run, ledger readable:
+> `CREATE 1 · 1 live` / `DESTROY 1 · 0 live` / `CREATE 2 · 1 live` / `DESTROY 2 · 0 live` /
+> `CREATE 3 · 1 live`. **Live bounces and never accumulates**, and the perf-logger rate holds at 1/s
+> instead of climbing, so the VIEWS are released too. `de_instance_destroy` is finally being called
+> on a device. The `deinit` item is closed; details in
+> [engine-simplification](design/engine-simplification.md#open--swift--ios).
+> ⚠ **`uiTick` is NOT closed by this.** The panel is responsive on the fixed build, but the
+> stopped-host freeze was never captured on the broken one, so it has no red. Left as reading plus
+> one observation, and marked that way.
+>
+> **(a-was) HOW THE RED WAS OBTAINED, because it was an accident worth repeating.** iOS redacts every dynamic value in an
 > `NSLog` (see below), so the first device run came back as pages of `<private>`. But `CanvasView`'s
 > perf logger emits one line per instance per second, so the LINE RATE is an instance counter:
 > **1/s → 2/s → 3/s → 4/s across four panel opens, and it never came back down**, in a single

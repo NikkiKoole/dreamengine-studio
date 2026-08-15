@@ -578,12 +578,24 @@ Same rules as round 1: line numbers rot, the function name is the anchor, every 
 
 ### Open — Swift / iOS
 
-> ⚠ **THE TWO ITEMS BELOW MARKED LANDED 2026-08-15 CARRY NO RED-THEN-GREEN, AND THAT IS A CHOICE,
-> NOT AN OVERSIGHT.** The maker was asked whether to reproduce the freeze on the current build first
-> and chose to fix and check in one pass. So they compile (`ios/mac.sh`, six gate sections green) and
-> they are argued from reading, but **nobody has yet seen the symptom they fix.** Until the device
-> pass below is signed off, treat them as plausible rather than proven — and if the panel still
-> freezes on a stopped host, the wiring is the FIRST place to look, not the last.
+> ✅ **THE DEINIT ITEM IS PROVEN ON DEVICE (2026-08-15), RED THEN GREEN, BY TWO INDEPENDENT SIGNALS.**
+> The maker declined the red-first pass ("fix what you can already, I'll hook up the iPad"), so the
+> red arrived by accident instead: the FIRST device run came back fully redacted (`NSLog`, see the
+> open items below), and the only thing readable in it was the LINE RATE of `CanvasView`'s
+> once-per-second perf logger — which is an instance counter. **Before: 1/s → 2/s → 3/s → 4/s across
+> four panel opens, never coming back down**, inside one reused extension process. **After, with the
+> ledger readable: `AU CREATE 1 · 1 live` / `AU DESTROY 1 · 0 live` / `CREATE 2 · 1 live` /
+> `DESTROY 2 · 0 live` / `CREATE 3 · 1 live`** — live bounces and never accumulates, and the perf
+> rate stays at 1/s throughout, so the VIEWS are released too. Both halves measured on the same
+> device, minutes apart, on builds differing only in these files.
+>
+> ⚠ **THE `uiTick` ITEM IS NOT PROVEN THE SAME WAY** and is marked accordingly below. The panel is
+> responsive on the fixed build, but the stopped-host freeze was never captured on the broken one, so
+> there is no red to point at. It rests on reading plus one live observation.
+>
+> **The lesson worth keeping is the accident**: a log whose every value was `<private>` still
+> answered the question, because the RATE of a line carries information even when its CONTENT does
+> not. When a diagnostic comes back useless, check what is still countable about it before rebuilding.
 
 - [x] **`TinyjamAU.uiTick()` is orphaned** — LANDED 2026-08-15. Nothing assigned
       `CanvasView.onDisplayTick`: `uiTick()` existed, the call site existed, and the assignment
@@ -625,10 +637,15 @@ Same rules as round 1: line numbers rot, the function name is the anchor, every 
       `deinit` that nils `canvas.engine` first — a deinit body runs before the object's stored
       properties are released, so it is ordered strictly before `au` is let go. `CanvasView` already
       guards on `engine != nil`.
+      **✅ PROVEN ON DEVICE 2026-08-15** (iPad, GarageBand, four panel open/close cycles): the
+      teardown ledger reads `CREATE 1 · 1 live` / `DESTROY 1 · 0 live` / `CREATE 2 · 1 live` /
+      `DESTROY 2 · 0 live` / `CREATE 3 · 1 live`. Live bounces and never accumulates. The RED is the
+      same device on the previous build: no DESTROY at all, and the perf-logger line rate climbing
+      1/s → 4/s across four opens and staying there (see the note at the head of this section).
       Gates: `ios/mac.sh` six sections green **including `--realtime`, which drives the restructured
-      worker**, plus `lint-engine-seam`. **What is NOT gated is the thing itself** — no probe in this
-      repo instantiates an `AUAudioUnit`, so "the rack is actually given back" needs a host that
-      loads and unloads the plug-in. `tools/instance-check` covers the C half only.
+      worker**, plus `lint-engine-seam`. ⚠ Still no gate IN THIS REPO — no probe here can instantiate
+      an `AUAudioUnit`, and `tools/instance-check` covers the C half only. The evidence is a device
+      run, which is exactly what this item always needed.
 - [ ] `AudioEngine`'s render callback does ARC and can `malloc` on the audio thread — `TinyjamAU`
       went to real trouble to avoid both · `CanvasView.tick()` copies the frame up to 4× per display
       tick, one of them a fresh `Data` allocation · `44100` is stated 4× in Swift and 0× from the

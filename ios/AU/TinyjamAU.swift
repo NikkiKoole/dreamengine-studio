@@ -4,6 +4,24 @@ import AVFoundation
 // build at a time). `import AVFoundation` re-exports it on iOS but NOT under Mac Catalyst, which is
 // why the iOS build never needed this line. Harmless on both.
 import CoreAudio
+import os
+
+// ── A DIAGNOSTIC THAT SURVIVES THE DEVICE ───────────────────────────────────────────────────────
+// On iOS, NSLog is os_log underneath, and os_log REDACTS every dynamic value by default. So
+// `NSLog("… %llu live", n)` arrives in Console.app as the single word `<private>` — the line is
+// there, the timestamp is there, and the one thing you needed is gone. It reads as a broken logger
+// rather than a privacy default, and it costs a build cycle to discover.
+//
+// Only a format string marked `%{public}` opts out, and NSLog has no way to say that, so this goes
+// through os_log directly. The message is preformatted and handed over as one public argument,
+// which keeps the call sites reading like the NSLog they replaced.
+//
+// ⚠ NOT applied to the other `[tinyjam]` lines in this target yet, deliberately: `--panel` greps
+// for the PANEL line, NSLog writes to stderr and os_log does not, and changing that while a gate
+// depends on it is a separate change with its own blast radius. They are all redacted on device
+// too — see docs/design/ios-plan.md.
+private let deDiagLog = OSLog(subsystem: "com.tinyjam", category: "diag")
+private func deDiag(_ s: String) { os_log("%{public}@", log: deDiagLog, type: .default, s as NSString) }
 
 // The AUv3 instrument extension — hosting the REAL dreamengine (not the spike arpeggio), played
 // by host MIDI. It runs the same engine the standalone app does. Each render block, in order:
@@ -97,7 +115,7 @@ public final class TinyjamAU: AUAudioUnit {
         // plug-in is the falsifiable form of "the rack is given back"; LIVE only ever climbing is
         // the falsifiable form of the bug this pair was added to watch (deinit never firing, so
         // de_instance_destroy never called). Read with Console.app, filter `tinyjam`.
-        NSLog("[tinyjam] AU CREATE  · instance %llu · %llu live", instanceID, live)
+        deDiag(String(format: "[tinyjam] AU CREATE  · instance %llu · %llu live", instanceID, live))
     }
 
     // ══ ONE ENGINE PER INSTANCE ═════════════════════════════════════════════════════════════════
@@ -525,7 +543,7 @@ public final class TinyjamAU: AUAudioUnit {
         if TinyjamAU.liveCount > 0 { TinyjamAU.liveCount -= 1 }
         let live = TinyjamAU.liveCount
         TinyjamAU.bootLock.unlock()
-        NSLog("[tinyjam] AU DESTROY · instance %llu · %llu live", instanceID, live)
+        deDiag(String(format: "[tinyjam] AU DESTROY · instance %llu · %llu live", instanceID, live))
         // GIVE THE RACK BACK. de_instance_destroy releases the canvas, present, state and sample
         // buffers as well as the struct (studio.c + sound_free_buffers), which is ~1 MB per rack.
         // Safe here for the reason spelled out in startWorker: the worker cannot be inside de_frame

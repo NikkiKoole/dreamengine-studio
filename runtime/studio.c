@@ -52,6 +52,7 @@
 #include "sync.h"        // external clock (MIDI clock / AUv3 host / Link) — BEFORE midi_input.h, which pushes ticks into it
 #include "midi_input.h"
 #include "midi_output.h"  // the engine SPEAKS MIDI (notes/CC/clock out) — independent of the input scan above
+#include "param.h"       // HOST PARAMETERS — the knobs a DAW can see, automate and record (docs/design/host-parameters.md)
 #include "game_rect.h"   // window↔canvas placement transform (touch-controls Phase 1.5 chokepoint)
 #include "studio_ctx.h"   // GENERATED per-instance context (tools/ctx-gen.js)
 
@@ -1824,11 +1825,42 @@ static void midi_sched_frame(int fno) {
     }
 }
 
+// ── SYNTHETIC HOST PARAMETER WRITES (--param) ────────────────────────────────────────────────────
+// The third of these, after --midi-clock and --midi-note, and it exists for the same reason: without
+// it, "a DAW automated this knob" is only testable through a real DAW. It goes through de_param_set,
+// so a run exercises the QUEUE and the frame drain rather than poking the cart's float — which is
+// where the interesting behaviour is (clamping, the change-report suppression, ordering vs a session
+// restore). Deterministic on the fixed timestep.
+#define PARAM_SCHED_MAX 32
+static struct { int addr, at; float v; unsigned char fired; } param_sched[PARAM_SCHED_MAX];
+static int param_sched_n = 0;
+
+// "<addr>@<frame>=<value>", e.g. "3@60=0.9". Repeatable — several writes to one addr over a run is
+// how you spell an automation ramp.
+static void param_sched_add(const char *s) {
+    if (param_sched_n >= PARAM_SCHED_MAX || !s) return;
+    const char *at = strchr(s, '@'), *eq = strchr(s, '=');
+    if (!at || !eq || eq < at) { printf("[param] ignoring \"%s\" — want <addr>@<frame>=<value>\n", s); return; }
+    param_sched[param_sched_n].addr  = atoi(s);
+    param_sched[param_sched_n].at    = atoi(at + 1);
+    param_sched[param_sched_n].v     = (float)atof(eq + 1);
+    param_sched[param_sched_n].fired = 0;
+    param_sched_n++;
+}
+static void param_sched_frame(int fno) {
+    for (int i = 0; i < param_sched_n; i++)
+        if (!param_sched[i].fired && fno >= param_sched[i].at) {
+            de_param_set(NULL, param_sched[i].addr, param_sched[i].v);   // NULL = this thread's instance, which here is the only one
+            param_sched[i].fired = 1;
+        }
+}
+
 // per-frame harness work. fno is the 0-based index of the frame about to run
 // (== frame_count before its end-of-frame increment), so it lines up between a
 // --record run and the --replay that feeds the events back.
 static void harness_input(int fno) {
     midi_sched_frame(fno);                               // --midi-note: synthetic HOST notes into the MIDI ring
+    param_sched_frame(fno);                              // --param: synthetic HOST parameter writes into the queue
     if (inject_input) {                                  // replay/script drives keys + mouse
         memcpy(key_inject_prev, key_inject, sizeof key_inject);
         memcpy(mbtn_inj_prev,   mbtn_inj,   sizeof mbtn_inj);
@@ -2216,6 +2248,16 @@ static void prof_write(const char *path) {
 #endif
 
 static void loop_step(void) {
+    // HOST PARAMETER WRITES land here, at the top of the frame the cart is about to run, so update()
+    // and draw() see one settled set of values instead of parameters moving under them mid-frame.
+    //
+    // ⚠ IT LIVES IN loop_step AND NOT IN de_frame, and that is the whole point. de_frame is the
+    // HOST'S entry (the AUv3 render block); the native loop calls loop_step DIRECTLY and never goes
+    // through it. Put the drain in de_frame and every parameter works perfectly under a DAW and does
+    // nothing at all under play.js — which is to say, nothing any gate in this repo can see. It cost
+    // exactly one confused debugging round to find that, with the trace showing a knob that would
+    // not move while the queue filled up behind it.
+    de_param_drain();
 #if !defined(PLATFORM_WEB) && !defined(DE_NO_RAYLIB)
     // Phase 1b: a resizable cart reflows the active canvas to (window / SCALE) each time the window
     // changes size. lay.h (immediate-mode) recomputes every rect from the new screen_w()/screen_h()
@@ -2941,6 +2983,7 @@ struct DeInstance {
     DeVideo vid;       // this engine's video state     (studio_ctx.h)
     DeSync  syn;       // this engine's host transport  (sync_ctx.h)
     DeMidi  mid;       // this engine's MIDI input      (midi_ctx.h)
+    DeParam par;       // this engine's host parameters (param_ctx.h)
     // A session blob de_load_state has ACCEPTED but not yet applied. The host sets state on ITS
     // thread while the frame worker runs, so the apply waits for the top of de_frame, where the
     // cart's state is nobody else's (de_ss_apply). Owned here, freed on apply or destroy.
@@ -2970,12 +3013,13 @@ static _Thread_local struct DeInstance *de_cur;
     struct DeInstance *de_prev_ = de_cur;                                          \
     DeSound *de_prev_snd_ = de_snd; DeVideo *de_prev_vid_ = de_vid;                \
     DeSync  *de_prev_syn_ = de_sync; DeMidi *de_prev_mid_ = de_midi;               \
+    DeParam *de_prev_par_ = de_param;                                              \
     de_cur = (in_);                                                                \
     if ((in_) && (in_)->id != 0) {                                                 \
         de_snd = &(in_)->snd; de_vid = &(in_)->vid; de_sync = &(in_)->syn;         \
-        de_midi = &(in_)->mid;                                                     \
+        de_midi = &(in_)->mid; de_param = &(in_)->par;                             \
     }
-#define DE_LEAVE()     de_cur = de_prev_; de_snd = de_prev_snd_; de_vid = de_prev_vid_; de_sync = de_prev_syn_; de_midi = de_prev_mid_
+#define DE_LEAVE()     de_cur = de_prev_; de_snd = de_prev_snd_; de_vid = de_prev_vid_; de_sync = de_prev_syn_; de_midi = de_prev_mid_; de_param = de_prev_par_
 
 /* Resolve an instance to its video state WITHOUT entering it.
  *
@@ -3048,6 +3092,7 @@ DeInstance *de_instance_create(DeRenderer renderer) {
 // context rather than reaching into the struct.
 DeSync *de_instance_sync(DeInstance *in) { return (in && in->id != 0) ? &in->syn : &de_sync_default; }
 DeMidi *de_instance_midi(DeInstance *in) { return (in && in->id != 0) ? &in->mid : &de_midi_default; }
+DeParam *de_instance_param(DeInstance *in) { return (in && in->id != 0) ? &in->par : &de_param_default; }
 
 // Release an instance and EVERYTHING IT ALLOCATED. `free(in)` alone gets only the struct — the
 // context's inline arrays ride along with it, but its heap buffers do not, and until 2026-08-14 this
@@ -3238,6 +3283,9 @@ int de_copy_frame(DeInstance *in, uint32_t *dst, int cap_px, int *w, int *h) {
 // de_apply_pending FIRST (a queued resize must land before the cart lays out for it), then the input
 // ring, then the frame, then publish what was drawn.
 static void de_ss_apply(struct DeInstance *in);   // session-state restore, defined with de_load_state
+// ⚠ Host PARAMETER writes are drained at the top of loop_step, not here — see the note there. It runs
+// after de_ss_apply either way, which is the ordering that matters: a session blob rewrites the same
+// knobs, and a host pushing automation for THIS frame should win over a value from last week.
 void de_frame(DeInstance *in, double t) { DE_ENTER(in); de_host_time = t; de_apply_pending(); de_ss_apply(in); de_input_beginframe(); loop_step(); if (sw_rot_active) sw_rot_composite(); de_input_endframe(); de_publish_frame(); DE_LEAVE(); }   // loop_step draws (sw_cbuf or the rotated world buffer) + advances the sequencer; composite any rotated world a cart didn't close with camera()
 // pulled by the host audio backend (CoreAudio on iOS) — fills `frames` interleaved
 // stereo floats in [-1,1] @ SOUND_SAMPLE_RATE. The same mixer the Raylib AudioStream
@@ -3521,6 +3569,9 @@ int main(int argc, char **argv) {
         // to put a MIDI note into a headless run — see midi_sched_add for the format and for why a
         // schedule makes itself the only source.
         else if (strcmp(argv[i], "--midi-note") == 0 && i + 1 < argc) midi_sched_add(argv[++i]);
+        // --param "<addr>@<frame>=<value>": a SYNTHETIC host parameter write, repeatable. Goes
+        // through de_param_set so the run exercises the queue + the frame drain, not just the float.
+        else if (strcmp(argv[i], "--param") == 0 && i + 1 < argc) param_sched_add(argv[++i]);
         // --midi-out: let an AUTOMATED run actually SEND MIDI. Off by default there for the same
         // reason the input side ignores a real clock, pointed the other way: a headless bake, a
         // build-all sweep or a ui-audit pass would otherwise publish a "dreamengine" MIDI device

@@ -529,6 +529,13 @@
    "det_turbo": {
     "line": 586
    },
+   "param_sched": {
+    "line": 1835,
+    "note": "--param: the SYNTHETIC host parameter-write schedule, parsed from argv. Harness input like midi_sched beside it, and process-level for the same reason argv is: the flag describes the RUN, not a rack. It fires through de_param_set, which names its instance, so nothing per-instance is lost by the schedule itself being shared."
+   },
+   "param_sched_n": {
+    "line": 1836
+   },
    "midi_sched": {
     "line": 1789,
     "note": "--midi-note: the SYNTHETIC host-note schedule, parsed from argv. Harness input exactly like replay_ev next door, and process-level for the same reason argv is: the flag describes the RUN, not a rack. A run that sets one also skips midi_input_init (see there), so there is nothing per-instance to keep apart."

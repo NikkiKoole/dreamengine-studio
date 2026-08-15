@@ -11,7 +11,9 @@
 > comes from), [`external-clock-sync.md`](external-clock-sync.md) (the sibling host seam, and
 > where the surrendered-control rule was learned), [`ios-plan.md`](ios-plan.md) (the AUv3
 > extension), [`control-vocabulary.md`](control-vocabulary.md) (rule 6, a gesture nobody can see
-> is not a control).
+> is not a control), [`host-parameters.md`](host-parameters.md) — the OTHER half of the same
+> question, since notes are what a host PLAYS and parameters are what it AUTOMATES, and the mod-wheel
+> mapping below turned out to be a workaround for not having the second.
 
 ## The symptom, and where it is actually blocked
 

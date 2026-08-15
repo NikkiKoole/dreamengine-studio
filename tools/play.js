@@ -60,6 +60,10 @@
 //                      keybed plays this cart" is gateable with no DAW, no cable and no keyboard.
 //                      A run with any of these IGNORES real MIDI input, or a keyboard left plugged
 //                      in makes it nondeterministic. runtime/studio.c → midi_sched_add
+//   --param <spec>     a SYNTHETIC host PARAMETER write, repeatable — "<addr>@<frame>=<value>",
+//                      e.g. --param 3@60=0.9. Goes through de_param_set, the same queue a DAW
+//                      automation lane writes into, so a cart's param_bind wiring is gateable with
+//                      no DAW. runtime/param.h
 //   --screen WxH       screen dims (default from cart settings / 320x200)
 //
 // `beats` script format (compiled here to the runtime's frame events):
@@ -363,6 +367,9 @@ if (opt('--midi-clock', null)) runArgs.push('--midi-clock', opt('--midi-clock'))
 // host feeds (de_midi_event), so a cart's host-MIDI path is gateable with no DAW. runtime/studio.c
 // midi_sched_add; a run with any of these ignores real CoreMIDI so it stays reproducible.
 for (const n of optAll('--midi-note')) runArgs.push('--midi-note', n)
+// synthetic HOST PARAMETER writes, repeatable: "<addr>@<frame>=<value>" → de_param_set, the same
+// queue a DAW's automation lane writes into. runtime/param.h; docs/design/host-parameters.md
+for (const p of optAll('--param')) runArgs.push('--param', p)
 if (hasFlag('--midi-out'))     runArgs.push('--midi-out')   // let this AUTOMATED run actually SEND MIDI (off by default here, or every headless bake fires notes into the dev's open DAW — runtime/midi_output.h). tools/midi-out-check/run.sh
 if (opt('--solo-slot', null))  runArgs.push('--solo-slot', opt('--solo-slot'))   // stem render: mute all but these instrument slot(s), e.g. 6 or 5,6 (docs/design/audio-voice-debugging.md)
 if (opt('--uiaudit', null))    runArgs.push('--uiaudit', path.resolve(opt('--uiaudit')))   // per-frame draw bounding boxes → JSONL (tools/ui-audit.js)

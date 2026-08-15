@@ -277,7 +277,8 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
            the full contract:
              make-cart.js    build/bake .cart.png from tools/carts/<name>.c; also a lib for play.js
              play.js         debug harness driver (record/replay/script + trace + --wav + --solo-slot stem
-                             + --midi-note = a SYNTHETIC host note, the only way to put MIDI notes into a headless run)
+                             + --midi-note = a SYNTHETIC host note + --param = a SYNTHETIC host PARAMETER write; the only
+                             ways to put host MIDI / automation into a headless run)
              make-gif.js     capture an animated clip of a cart (webm/webp/gif/mp4/apng + audio)
              dress-clip.js   DRESS a clip into a 9:16 Short with hand-typed text in the letterbox bars —
                              drawn in the REAL engine dos_8x8 pixel font with BOIL + a tween-in entrance (bakes two
@@ -349,6 +350,16 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
                              build/saves/acidcandy before every run: the rack AUTOSAVES, so run N+1 boots from run
                              N and two "identical" renders differ. Mutation-tested TWICE (drop the drain → 9 red;
                              pin the PITCH lens off → 8 red — and both times the survivors are exactly the controls)
+             param-check/    the gate for HOST PARAMETERS reaching a cart's knobs (`bash tools/param-check/run.sh`,
+                             9 assertions) — the ENGINE half of docs/design/host-parameters.md: the declaration table,
+                             the queue, the frame drain, the range clamp, and that a written value reaches the DSP and
+                             not merely the variable. Runs headless because `--param <addr>@<frame>=<value>` goes through
+                             de_param_set, the same queue a DAW automation lane writes into. TWO NEGATIVE CONTROLS: two
+                             untouched renders must be byte-IDENTICAL, and a write to an addr NOBODY BOUND must change
+                             nothing (else any traffic through the queue looks like a working parameter). ⚠ ENGINE HALF
+                             ONLY — that a HOST sees the tree is proven out of process by `./au-transport-check --params`
+                             in ios/mac.sh, and a green run here says nothing about it. Clears build/saves/acidcandy per
+                             run (the rack autosaves; same trap as midi-note-check)
              net-check.js    the one-liner LOCKSTEP GATE (netplay twin of tune-check): echo-mirror + netdemo
                              pair + relay wire-protocol sim, PASS/FAIL; run after touching net.h / the net seams
              webrtc-spike/   PASSED probe (multiplayer rung 5b): browser WebRTC P2P DataChannel, Mac↔iPhone at

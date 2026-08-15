@@ -465,6 +465,27 @@ a broken doc link or `#section`).
 > ZERO parameters today, so no knob is automatable or recordable and the mod-wheel mapping was a
 > workaround for that rather than a free choice.
 >
+> **✅ AND THE RACK IS AUTOMATABLE (2026-08-15) — `AUParameterTree`, which the plug-in never had.**
+> The maker asked *"is any of this recordable or usable in a way? not really I guess"* and the answer
+> was mostly YES — a host records the MIDI notes, which is ARRANGEMENT, the thing this rack never had
+> — with one big NO: the AU exposed **zero parameters**, so nothing was automatable or recordable and
+> the lane menu was empty. It also reframes the mod wheel: CC1 → master filter was a workaround for
+> having no parameters, not a free choice.
+> **The model is that the parameter IS the knob** — `param_bind(addr, &knob, name, lo, hi)` points at
+> a float the cart already owns, so a host write and a finger drag land in the same place and there is
+> no sync path to keep honest. The tree is built from what the CART declared, never a Swift table:
+> swap the cart, the plug-in's parameters change with it. 21 exposed (the performance set), and the
+> cart changed nothing but 21 bind calls.
+> **Two traps, both paid for:** the drain must live in `loop_step` and NOT `de_frame` (the native loop
+> bypasses `de_frame`, so it would work under a DAW and be invisible to every gate in the repo), and
+> bind in `init()` BEFORE the autosave restore or the host is told last session's values are the
+> factory defaults. **Addresses are FOREVER** — append, never renumber.
+> Gated by `bash tools/param-check/run.sh` (engine half) and `./au-transport-check --params` (the real
+> out-of-process plug-in). **▶ ONE OPEN DEFECT: host READ-BACK** returns the pre-write value out of
+> process. Measured down to two ruled-out causes; the remaining suspect is out-of-process parameter
+> mirroring. Automation WORKS, it may just not display where it starts. Full record:
+> [`design/host-parameters.md`](design/host-parameters.md).
+>
 > **▶ NEXT: the BEND is ungated** (both 303 lines are muted at boot, so a default render has nothing to
 > bend — it needs the lines unmuted plus a pitch oracle, and an ear check; ⚠ `--midi-note` plus the
 > `un303.script` trick in midi-note-check now make that easy, and note that `formant-check` is NOT a

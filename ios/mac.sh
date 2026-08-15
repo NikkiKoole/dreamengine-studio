@@ -191,4 +191,10 @@ echo "▸ session-state gate (--state)"
 echo "▸ mod-wheel gate (--wheel)"
 ./au-transport-check --wheel
 
+# the PARAMETER gate: a DAW seeing/riding/reading the rack's knobs (docs/design/host-parameters.md).
+# The only place the whole chain is proven through a real out-of-process plug-in — cart param_bind →
+# the engine table → the seam → AUParameterTree. Headless gates stop at the engine.
+echo "▸ parameter gate (--params)"
+./au-transport-check --params
+
 echo "  (negative control: ./au-transport-check --free must FAIL the tempo check — ratio ~0.5)"

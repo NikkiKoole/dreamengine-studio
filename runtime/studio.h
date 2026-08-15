@@ -392,6 +392,14 @@ const char *midi_name(void);                              // name of the connect
 int  midi_cc(int ch, int cc);                             // last value of a knob/slider on the controller, 0..127 (-1 = never touched). ch 1..16, or 0 for "any channel"
 int  midi_cc_get(int *ch, int *cc, int *val);             // drain one knob move: returns 1 and fills ch/cc/val, or 0 if none. use this to let the player MAP a knob by wiggling it
 
+// ── HOST PARAMETERS: let a DAW automate and record your knobs (docs/design/host-parameters.md) ──
+// Bind a float your cart already owns and the host can see it, ride it, and record it. There is only
+// ONE storage location, so a finger on the panel and an automation lane are moving the same value.
+// Safe to call every frame — put it right where the knob is drawn and it can never name the wrong one.
+// ⚠ `addr` is FOREVER: it is all a saved project's automation stores, so append, never renumber.
+void param_bind(int addr, float *slot, const char *name, float lo, float hi);   // e.g. param_bind(P_CUT, &cutoff, "CUT", 0, 1);
+int  param_count(void);                                   // how many this cart has bound (0 = the host sees no parameters at all)
+
 // ── MIDI out: your cart plays OTHER instruments (another app, or gear on a cable) ──
 // The cart appears as a MIDI device called "dreamengine" that a DAW can pick as an input.
 // Channels are 1..16, the way they're printed on gear. Nothing is sent until you call one

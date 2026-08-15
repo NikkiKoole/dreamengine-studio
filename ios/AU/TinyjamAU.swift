@@ -118,6 +118,7 @@ public final class TinyjamAU: AUAudioUnit {
         // the falsifiable form of the bug this pair was added to watch (deinit never firing, so
         // de_instance_destroy never called). Read with Console.app, filter `tinyjam`.
         deDiag(String(format: "[tinyjam] AU CREATE  · instance %llu · %llu live", instanceID, live))
+        buildParameterTree()   // the host's automation menu — see below
     }
 
     // ══ ONE ENGINE PER INSTANCE ═════════════════════════════════════════════════════════════════
@@ -141,6 +142,77 @@ public final class TinyjamAU: AUAudioUnit {
     private static let bootLock = NSLock()          // instantiation only; never touched by audio
     // internal, not fileprivate: the view controller (another file) hands it to the panel
     let engine: OpaquePointer
+
+    // ══ HOST PARAMETERS ═════════════════════════════════════════════════════════════════════════
+    // Until now this unit exposed NO parameterTree at all, so a host saw ZERO parameters: nothing on
+    // the rack was automatable or recordable and the automation menu was empty. That is also why the
+    // mod wheel had to be mapped to the master filter by hand — a workaround for having none.
+    //
+    // The tree is built from what the CART declared (runtime/param.h → param_bind), not from a list
+    // written here. A table in Swift would be a second source of truth for a fantasy console whose
+    // whole point is swapping carts: change the cart and the plug-in's parameters change with it,
+    // with nothing to keep in sync.
+    private var paramTree: AUParameterTree?
+    public override var parameterTree: AUParameterTree? {
+        get { paramTree }
+        set { /* the tree is the cart's, and a host does not get to replace it */ }
+    }
+
+    private func buildParameterTree() {
+        let n = Int(de_param_count(engine))
+        guard n > 0 else { return }   // a cart that binds nothing shows an empty menu, as before
+        var params: [AUParameter] = []
+        for i in 0..<n {
+            var addr: Int32 = 0, lo: Float = 0, hi: Float = 1, def: Float = 0
+            var namePtr: UnsafePointer<CChar>? = nil
+            guard de_param_info(engine, Int32(i), &addr, &namePtr, &lo, &hi, &def) != 0 else { continue }
+            let name = namePtr.map { String(cString: $0) } ?? "P\(addr)"
+            // ⚠ NO .flag_CanRamp. Claiming it invites the host to send ramped parameter events in the
+            // render block's event list, which we would silently ignore: the engine applies a value
+            // once per FRAME (loop_step), not per sample. Better to tell the truth and let the host
+            // step the value than to advertise smoothing we do not do.
+            let p = AUParameterTree.createParameter(
+                withIdentifier: "p\(addr)", name: name,
+                address: AUParameterAddress(addr),
+                min: lo, max: hi, unit: .generic, unitName: nil,
+                flags: [.flag_IsReadable, .flag_IsWritable],
+                valueStrings: nil, dependentParameters: nil)
+            p.value = def
+            params.append(p)
+        }
+        guard !params.isEmpty else { return }
+        let tree = AUParameterTree.createTree(withChildren: params)
+        let eng = engine   // capture the pointer, never self — these blocks outlive nothing but must
+                           // not resurrect the unit (the same rule the frame worker learned)
+        // A host write. QUEUED by the engine and applied at the top of the next frame, which is what
+        // makes this safe to call from the host's automation thread.
+        tree.implementorValueObserver = { param, value in
+            de_param_set(eng, Int32(param.address), value)
+        }
+        // A host read. Goes straight to the cart's float, so a knob the player just dragged reads
+        // back correctly without the engine having to mirror anything.
+        tree.implementorValueProvider = { param in
+            de_param_get(eng, Int32(param.address))
+        }
+        paramTree = tree
+        deDiag("[tinyjam] AU PARAMS · \(params.count) exposed")
+    }
+
+    // The other direction: the PANEL moved a knob, so the host's lane should follow the glass. Polled
+    // on the frame worker (never the render thread — AUParameter is not realtime-safe) right after
+    // the frame that could have moved something.
+    // ⚠ A host WRITE does not come back out of de_param_changed: the drain records it as already
+    // reported. Without that, every automated value would be echoed back at the host that just sent
+    // it, and a lane would fight the value it is writing.
+    private func publishPanelMoves() {
+        guard let tree = paramTree else { return }
+        var addr: Int32 = 0, v: Float = 0
+        var guard_ = 0
+        while de_param_changed(engine, &addr, &v) != 0 && guard_ < 64 {
+            guard_ += 1
+            tree.parameter(withAddress: AUParameterAddress(addr))?.setValue(v, originator: nil)
+        }
+    }
 
     // ══ WHICH INSTANCE IS THE AUDIBLE ONE ═══════════════════════════════════════════════════════
     // The one question the panel needs answered, and the reason it needs a new mechanism: the OLD
@@ -371,6 +443,7 @@ public final class TinyjamAU: AUAudioUnit {
                 guard let s = self else { return }   // the unit is gone: end the thread
                 s.frameCount &+= 1
                 de_frame(s.engine, Double(s.frameCount) / 60.0)
+                s.publishPanelMoves()   // a finger on the glass → the host's automation lane
             }
         }
         t.name = "dreamengine.frame"

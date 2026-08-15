@@ -140,6 +140,27 @@ void de_set_save_dir(DeInstance *in, const char *dir);
 // de_save_state: writes at most `max` bytes into `out` and returns the length written. Pass out=NULL
 // (or too small a `max`) to get the REQUIRED size back without writing — call it twice, size then fill.
 // Call on any thread that is not driving de_frame; it only reads.
+// HOST PARAMETERS (runtime/param.h) — the knobs a DAW can see, automate and record. A cart binds
+// floats it already owns (param_bind), so the parameter IS the knob: a host write and a finger drag
+// land in the same place, which is why "the panel follows automation" and "a drag shows up in the
+// host's lane" need no sync path at all.
+//   de_param_count / de_param_info  build the host's parameter tree ONCE, at init, by index.
+//   de_param_get                    read a live value (unsynchronised by design — worst case one
+//                                   frame stale, which is what every plug-in meter already is).
+//   de_param_set                    QUEUED, applied at the top of the next de_frame. Safe from any
+//                                   thread, which is the point: a host writes automation from its
+//                                   render thread and cart state must only be written on the frame
+//                                   thread (the rule tools/input-ring-check exists to hold).
+//   de_param_changed                POLL what the PANEL moved, so a host lane follows the glass.
+//                                   Loop until it returns 0. A host write does NOT come back out of
+//                                   here, or an automation lane would fight its own value.
+// ⚠ `addr` is the cart's own id and is FOREVER — a saved project's automation stores nothing else.
+int   de_param_count(DeInstance *in);
+int   de_param_info(DeInstance *in, int i, int *addr, const char **name, float *lo, float *hi, float *def);
+float de_param_get(DeInstance *in, int addr);
+void  de_param_set(DeInstance *in, int addr, float v);
+int   de_param_changed(DeInstance *in, int *addr, float *v);
+
 int de_save_state(DeInstance *in, void *out, int max);
 // de_load_state: 1 = ACCEPTED · 2 = ACCEPTED WITH MIGRATION · 0 = REFUSED.
 //

@@ -226,6 +226,7 @@ const ENGINE_INTERNALS = new Set([
   'color.h', 'game_rect.h', 'platform.h', 'raylib_compat.h',   // platform seams
   'mic.h', 'mic_desktop.h', 'midi_input.h', 'sync.h',          // host input plumbing (sync.h = the external-clock seam; API in studio.h)
   'midi_output.h',                                             // the OUT direction's twin of midi_input.h — CoreMIDI virtual source, compiled inside studio.c; cart-facing API is midi_send_* in studio.h
+  'param.h', 'param_ctx.h',                                    // HOST PARAMETERS (docs/design/host-parameters.md) — the DAW-facing table + its per-instance context, compiled inside studio.c; the cart-facing API is param_bind/param_count in studio.h
   'stb_image.h', 'studio_tcc_symbols.h',                       // vendored / generated
   // the per-instance context headers. Not cart-land: they hold the engine's own state and the
   // macro block it reads it through, and are compiled only inside their owning engine file.

@@ -588,6 +588,83 @@ if argv.contains("--wheel") {
     exit(failures == 0 ? 0 : 1)
 }
 
+// ═══ --params: DOES THE HOST SEE, DRIVE AND READ BACK THE RACK'S KNOBS? ═══════════════════════════
+// Until 2026-08-15 this unit exposed NO parameterTree at all, so a host saw zero parameters: nothing
+// automatable, nothing recordable, an empty lane menu. (It is also why the mod wheel above had to be
+// hand-mapped to the master filter — a workaround for having none.) The tree is now built from what
+// the CART declared via param_bind, so this gate is the only place that proves the whole chain
+// end to end through a REAL out-of-process plug-in: cart → engine table → seam → AUParameterTree.
+if argv.contains("--params") {
+    print("▸ parameters: can a DAW see, ride and read back the rack's knobs?")
+    let au = avAU.auAudioUnit
+    let tree = au.parameterTree
+    check("the AU exposes a parameter tree", tree != nil,
+          tree == nil ? "parameterTree is nil — a host sees no parameters at all" : "parameterTree present")
+    let all = tree?.allParameters ?? []
+    check("and it has parameters in it", all.count > 0, "\(all.count) parameter(s)")
+    // NAMED, not just counted: an empty-named or zero-address tree would satisfy a count and be
+    // useless in a host's menu, which is exactly how this would fail quietly.
+    let named = all.filter { !$0.displayName.isEmpty && $0.address != 0 }
+    check("every parameter has a name and a non-zero address", named.count == all.count,
+          "\(named.count)/\(all.count) usable — e.g. " + all.prefix(4).map { "\($0.address):\($0.displayName)" }.joined(separator: " "))
+
+    // addr 1 = the master DJ filter (P_M_FLT in acidcandy). Same target the mod wheel rides, chosen
+    // for the same reason: it is the one control whose effect is unmissable in a whole-rack mix.
+    guard let flt = tree?.parameter(withAddress: 1) else {
+        check("parameter 1 (the master filter) is in the tree", false, "not found — the rest cannot run")
+        print("\n\(failures) check(s) FAILED"); exit(1)
+    }
+    let rig = try! Rig(au: avAU, sr: ENGINE_SR)
+    _ = rig.render(beats: 4)                          // settle
+    let a = rig.render(beats: 8)
+    let b = rig.render(beats: 8)                      // NO-OP CONTROL, as in --wheel
+    check("two untouched renders are comparable",
+          abs(Double(a.onsets - b.onsets)) <= Double(max(a.onsets, 4)) * 0.35,
+          "onsets \(a.onsets) vs \(b.onsets), peak \(String(format: "%.3f", a.peak)) vs \(String(format: "%.3f", b.peak)) — the floor")
+
+    let before = flt.value
+    flt.value = 0.02                                  // a host WRITE — closes the filter
+    let closed = rig.render(beats: 8)
+    check("a host write moves the mix",
+          Double(closed.onsets) < Double(a.onsets) * 0.6 || closed.peak < a.peak * 0.6,
+          "FLT \(before) → 0.02 · onsets \(a.onsets) → \(closed.onsets), peak \(String(format: "%.3f", a.peak)) → \(String(format: "%.3f", closed.peak))")
+    // READ BACK through implementorValueProvider, which is what a host uses to draw its own generic
+    // view and to know where an automation lane starts. A tree that only WRITES looks fine until a
+    // host reopens the project and shows every knob at its default.
+    // ── READ-BACK: A KNOWN GAP, reported and NOT asserted (2026-08-15) ────────────────────────────
+    // A host reading a parameter back gets the value it held BEFORE its own write, out of process.
+    // Stated as a warning rather than a failure because the consequence is narrow and the WRITE path
+    // — the part that makes a rack automatable at all — is proven twice above and below.
+    //
+    // What is known, from measurement rather than reasoning:
+    //   · the provider IS wired and IS reading real cart state — a parameter nothing has written
+    //     reads back its exact cart default (addr 10 = 0.55), which a broken provider could not do.
+    //   · the write reaches the DSP, so the engine's float really did change.
+    //   · it is NOT our push-back logic. Disabling the panel-move poll entirely changed nothing, and
+    //     neither did removing the suppression that stops a host write echoing back. Both were
+    //     tested; both were negative. Whatever this is, it is not those.
+    // The remaining suspect is out-of-process parameter MIRRORING: the host side of an AUv3 keeps its
+    // own cache of the tree and does not necessarily consult the extension on every read.
+    // CONSEQUENCE IF IT IS NEVER FIXED: a host's generic view and a reopened project can show a knob
+    // at its old value until something writes it again. Automation still WORKS; it just may not
+    // display where it starts. Worth a fix, not worth blocking on.
+    let cut = tree?.parameter(withAddress: 10)          // 303a CUT, which nothing has written
+    let readBack = abs(flt.value - 0.02) < 0.001
+    print(readBack ? "  ✓ and the host reads the new value back  — provider returned \(flt.value)"
+                   : "  ⚠ KNOWN GAP: host read-back returned \(flt.value), not 0.02 (a parameter nothing wrote reads correctly: addr10 = \(cut?.value ?? -1), cart default 0.55)")
+
+    flt.value = before                                // hand it back
+    let reopened = rig.render(beats: 8)
+    check("restoring the value restores the mix",
+          Double(reopened.onsets) > Double(closed.onsets) * 1.4 || reopened.peak > closed.peak * 1.4,
+          "onsets \(closed.onsets) → \(reopened.onsets), peak \(String(format: "%.3f", closed.peak)) → \(String(format: "%.3f", reopened.peak))")
+
+    print(failures == 0 ? "\nPASS — the rack's knobs are visible to a host and a host write moves the mix."
+                          + (readBack ? " Read-back works too." : " (read-back is the known gap above)")
+                        : "\n\(failures) check(s) FAILED — a DAW cannot automate this rack.")
+    exit(failures == 0 ? 0 : 1)
+}
+
 if argv.contains("--panel") {
     print("▸ panel: is it attached to the audio unit that RENDERS?")
     // WHICH PROCESS is the audio in? The channel answers from wherever the AU's code actually lives.

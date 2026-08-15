@@ -1757,15 +1757,38 @@ void step(int n){
         frame_count++;
     }
 }
+// A spec message is written by a human and lands inside JSON, so it has to be ESCAPED. It was not,
+// and tenement's `... never cut mid-word ("bursting")` produced a line tools/spec.js could not parse
+// — which its `catch { continue }` then dropped in silence. Those two assertions PASSED, so the only
+// visible symptom was a report two lines short of the count the binary reported. The dangerous case
+// is the other one: a FAILING assertion whose message contains a quote vanishes from the output
+// while still counting toward `fail`, so the gate goes red and says nothing about what broke.
+// Found by the spec.js control that compares parsed lines against the reported total.
+static const char *spec_esc(const char *s){
+    static char buf[512];
+    size_t o = 0;
+    if (!s) s = "";
+    for (; *s && o + 7 < sizeof buf; s++){
+        unsigned char c = (unsigned char)*s;
+        if      (c == '"' ) { buf[o++] = '\\'; buf[o++] = '"';  }
+        else if (c == '\\') { buf[o++] = '\\'; buf[o++] = '\\'; }
+        else if (c == '\n') { buf[o++] = '\\'; buf[o++] = 'n';  }
+        else if (c == '\t') { buf[o++] = '\\'; buf[o++] = 't';  }
+        else if (c < 0x20)  { o += (size_t)snprintf(buf + o, sizeof buf - o, "\\u%04x", c); }
+        else                { buf[o++] = (char)c; }
+    }
+    buf[o] = 0;
+    return buf;
+}
 void expect(int cond, const char *msg){
     if (cond) spec_pass++; else spec_fail++;
-    printf("{\"pass\":%d,\"msg\":\"%s\"}\n", cond ? 1 : 0, msg ? msg : "");
+    printf("{\"pass\":%d,\"msg\":\"%s\"}\n", cond ? 1 : 0, spec_esc(msg));
     fflush(stdout);
 }
 void expect_eq(long got, long want, const char *msg){
     int ok = (got == want);
     if (ok) spec_pass++; else spec_fail++;
-    printf("{\"pass\":%d,\"msg\":\"%s\",\"got\":%ld,\"want\":%ld}\n", ok ? 1 : 0, msg ? msg : "", got, want);
+    printf("{\"pass\":%d,\"msg\":\"%s\",\"got\":%ld,\"want\":%ld}\n", ok ? 1 : 0, spec_esc(msg), got, want);
     fflush(stdout);
 }
 #endif

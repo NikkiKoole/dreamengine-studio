@@ -88,6 +88,7 @@ const CHECKS = [
   { name: "selftest: levels", tool: "level-check.js", args: ["--selfcheck"], gate: true },
   { name: "selftest: fx", tool: "fx-check.js", args: ["--selfcheck"], gate: true },
   { name: "selftest: soak", tool: "soak-check.js", args: ["--selfcheck"], gate: true },
+  { name: "selftest: spec", tool: "spec.js", args: ["--selfcheck"], gate: true },
   { name: "selftest: saved state", tool: "lint-saved-state.js", args: ["--selfcheck"], gate: true },
   { name: "selftest: carts",   tool: "lint-carts.js",      args: ["--selfcheck"], gate: true },
   { name: "selftest: fx frame", tool: "lint-fx-frame.js",  args: ["--selfcheck"], gate: true },

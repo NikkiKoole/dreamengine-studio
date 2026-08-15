@@ -426,13 +426,44 @@ synthetic signals carrying a *specific* artifact (a splice, a staircase, a perio
 mis-synthesis pins the fixture rather than the detector; `web-audio-check` compares two platforms,
 so its control is a deliberate divergence and its fixture needs a toolchain.
 
-**The pattern across all six, worth reading as one thing.** Only `tune-check` and `click-check`
-turned out to be sound as they stood. The other four were each broken in a way their own output
+**`spec.js --selfcheck`** (23 answers). Not an audio gate — the *gameplay* one — but it turned out to
+carry soak-check's hole in a worse place, so it is written up here with its siblings. Every verdict
+it makes is "no assertion failed", which is trivially true of a run that made no assertions.
+Measured with a throwaway cart whose `spec()` body was empty: it compiled, ran, and printed a green
+**`✓ 0 passed`**, and the process exited 0.
+
+The scale of that is the point. `{"done":1,"pass":0,"fail":0}` is exactly what a **weak-stubbed**
+`spec()` prints, so if the stub ever won over a cart's own definition — a rename, a linker change,
+`-DDE_SPEC` not reaching the build — all 32 carts would have reported `✓ 0 passed` and CI would have
+stayed green with the entire gameplay gate doing nothing at all. Two more shapes of the same thing
+were also exit-0: an empty sweep ("no carts with a spec() found") and naming a cart that has no
+`spec()`. All three are now refusals with their own sentence.
+
+**And its second control found a live defect on its first full sweep.** `expect()` interpolated the
+human-written message into JSON *raw*, so `tenement`'s `... never cut mid-word ("bursting")` emitted
+a line `JSON.parse` rejected, which the runner's `catch { continue }` dropped in silence — 247
+assertion lines parsed against 249 reported. Both happened to pass, so the only symptom was a report
+two lines short. The dangerous case is the other one: **a FAILING assertion whose message contains a
+quote disappears from the output while still counting toward `fail`**, so the gate goes red and says
+nothing about what broke. Fixed at the root (`spec_esc()` in studio.c, inside `#ifdef DE_SPEC`), and
+the control is a genuine red-then-green rather than a synthetic one.
+
+Worth copying: a control that cross-checks *two independently produced numbers* — here the parsed
+line count against the count the binary reported — costs almost nothing and catches a class no
+threshold can, because both numbers stay individually plausible.
+
+**The pattern across all seven, worth reading as one thing.** Only `tune-check` and `click-check`
+turned out to be sound as they stood. The other five were each broken in a way their own output
 could not show: `dc-check` measured its window rather than the engine, `level-check` diffed PIANO
 against a different PIANO and silently dropped a note, `fx-check` never checked the reference
-everything else was compared against, and `soak-check` could not tell a long run from no run. None
-of these was found by reading the code — each one came out of writing down what the tool *should*
-answer for an input whose answer was already known.
+everything else was compared against, `soak-check` could not tell a long run from no run, and
+`spec.js` counted an empty spec as a pass. None of these was found by reading the code — each one
+came out of writing down what the tool *should* answer for an input whose answer was already known.
+
+Two failure shapes account for almost all of it, and both are worth checking for by name in any gate
+you write. **Vacuity**: the verdict is a statement about a set, and the empty set satisfies it
+(`soak-check`, `spec.js`). **An unchecked reference**: everything is measured relative to something
+that is itself never measured (`fx-check`'s DRY, `level-check`'s baseline key, `dc-check`'s window).
 
 ## The THIRD way a check lies: it goes RED about something you did not change
 

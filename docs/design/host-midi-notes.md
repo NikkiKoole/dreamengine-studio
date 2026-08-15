@@ -1,8 +1,9 @@
 # Host MIDI notes on a multi-machine rack
 
-> **STATUS: BUILDING (2026-08-15) — the top row is wired and gated; rows 2+ are still open.**
-> A host note now transposes the acid lines, or plays the kit on a drum face, with no mode switch.
-> Gated by `bash tools/midi-note-check/run.sh` (16 assertions, mutation-tested).
+> **STATUS: BUILDING (2026-08-15) — BOTH ROWS are wired and gated; the channel field is what is left.**
+> A host note names either a SOUND (transpose the acid lines / play the kit) or a PITCH (play the
+> acid line / play one drum chromatically), switched by a per-machine PTCH lens in the PERF screen.
+> Gated by `bash tools/midi-note-check/run.sh` (27 assertions, mutation-tested twice).
 > Came out of the maker loading `acidcandy` as an AUv3 in GarageBand on the iPad: *"there is a
 > keybed but that isn't doing anything."* See also
 > [`midi-and-keybed.md`](midi-and-keybed.md) (the engine's note-input layer),
@@ -57,13 +58,23 @@ Four plausible mappings surfaced. They look like a mess until you lay them out:
 
 | | 303 face | drum face |
 |---|---|---|
-| **the pattern is the instrument** | notes transpose the running line | notes trigger the kit (GM map) |
-| **the voice is the instrument** | notes play the acid voice, mono | notes play the selected voice, pitched |
+| **the note names a SOUND** (default) | one voice, so the only thing to name is the pattern's **key** → transpose | which of the 16 voices → the GM rack |
+| **the note names a PITCH** | play the acid line | the *selected* voice, tuned across the keys |
 
-The same distinction on both rows: *am I playing the sequence, or am I playing the sound?* So the
-mode question is **one binary that means the same thing on every face**, resolved against the
-focus the panel already shows loudly. One control, one meaning, four behaviours. That is a fair
-amount to ask a player to hold.
+**One binary: does a note number name a sound, or a pitch?** Put another way, off the keyboard
+addresses the **machine** and on it addresses the **voice**. A drum machine's "which" is which drum;
+a 303's "which" is which key it is in, because there is only one drum.
+
+> **The first draft of this section called the axis "is the PATTERN the instrument, or the VOICE?"**
+> That was an elegant sentence rather than a load-bearing one, and it never explained why the 303's
+> default is transpose instead of that being an arbitrary pick. The sound-versus-pitch framing does,
+> and it also has a name in the world already, which the other never would have.
+
+**Not invented here, which is most of why it is legible.** The drums half is the **MPC's 16 LEVELS**
+(press it and the pads stop meaning sixteen different sounds and start meaning sixteen shades of
+*one*). The 303 half is **Elektron's KEYBOARD mode** (the trig keys stop being pattern steps and
+become a chromatic keyboard playing the selected track). Two of the most-copied groove machines
+landed on the same gesture independently, so we are adopting a control rather than inventing one.
 
 ### Row 1, left: transpose (`mroot`)
 
@@ -170,12 +181,12 @@ Within that, sequence it:
    the drain. Both open questions were settled as: **both lines** (they are a pair, and transposing
    one leaves the song half in the wrong key) and **absolute pitch class** (a note names the root,
    which is exactly what the KEY panel it overrides already means).
-3. **The latch**, only once row 2 is actually wanted.
-4. **Row 2** itself: the mono 303 (needs `mono.h` arbitration) and the pitched drum voice (needs
-   the wider `tr808_fire` entry point).
-5. **The channel field on `MidiEv`**, whenever a real DAW use case shows up, or sooner if it is
-   wanted as the primary routing answer, in which case it moves to the front and step 3 may never
-   be needed.
+3. ~~**The latch**~~ **DONE 2026-08-15**, shipped with row 2 as one piece, because a latch with
+   nothing to switch to is not a feature. **PER MACHINE, not rack-wide** — see below.
+4. ~~**Row 2**~~ **DONE 2026-08-15**: the mono 303 through `mono.h`, and the pitched drum voice
+   through a new `tr808_fire_semi` / `tr909_fire_semi`.
+5. **The channel field on `MidiEv`**, whenever a real DAW use case shows up. Now the only structural
+   item left in this design.
 
 ## What shipped (2026-08-15) — the top row, and the flag that made it gateable
 
@@ -223,6 +234,47 @@ The strongest assertion in the gate is the quiet one: **holding the panel's own 
 byte-identical to holding nothing.** It proves the override is exact rather than merely present,
 which "the audio changed" never could.
 
+## What shipped in row 2 (2026-08-15) — the PITCH lens
+
+**One latch called PTCH, per machine, TAP to latch and HOLD for momentary** — the grammar MUT, REC
+and the PERF lenses already use, so it cost no new vocabulary. It lives **in the PERF screen** beside
+the other live-play lenses, which is where it belongs: it is a performance gesture, not a setting.
+The 303's PERF grid had a spare cell and it took that; the drums' went from 3×2 to 4×2, which also
+made the two PERF screens the same shape, so they now read as one idea in two places.
+
+**Per machine, not rack-wide**, and the reason is practical rather than tidy: the two kinds want
+opposite defaults. You almost always want the drum rack available and the 303 transposing, so a
+single shared bit would force one of them into the wrong default on every face change. It is not
+hidden state, because each face draws its own latch.
+
+**The momentary half is the point.** Hold PTCH, throw a tuned kick fill or a two-bar acid lick over
+the running pattern, let go, back to the rack. That is why it is a latch and not a mode toggle.
+
+Three things fell out of building it that were not obvious from the design:
+
+- **The sequencer has to let go, and only of that one line.** While PTCH owns a 303, its step notes
+  *and* its `acid_gate` are skipped, because the gate cuts the held voice at 70% of every step and
+  would chop a held key. The drums and the other 303 keep running, which is what makes it soloing
+  over your own pattern rather than a mode that stops the music.
+- **The transport-stopped branch needed the same guard.** `acid_off` runs every frame while stopped,
+  so without it a key played with the transport stopped would be killed the instant it sounded, and
+  playing the acid voice with the transport stopped is the most obvious thing to do with this.
+- **Dropping the lens while a key is down strands the note.** The sequencer takes the line back and
+  never sends a note-off for a key it did not press. A momentary HOLD makes that the *common* case,
+  not an edge case: let go of the button and the key at the same time and one of them loses the race.
+  So the lens hands the voice back explicitly when it turns off.
+
+**`tr808_fire_semi` / `tr909_fire_semi` are the enabling change**, and they are small: the existing
+`tr808_fire` becomes a wrapper passing an offset of zero, so the two bodies cannot drift. It exists
+because the TUNE knob is **±12 semitones by construction** (it reads a 0..1 knob) which is right for
+a knob and useless for a keyboard. Verified byte-identical by rendering the `tr808` and `tr909` carts
+through the pre-edit headers and the post-edit ones and comparing shas.
+
+**Pitched hits do not punch under REC**, deliberately. A step can only record a pitch as a TUN
+p-lock, and that lane is an offset around the voice knob with the knob's own ±12 range, so a note
+further out would record as something quieter than what you played. Recording a wrong pitch is worse
+than recording nothing, and the host's own MIDI track records the performance properly anyway.
+
 ## Hazards to design against
 
 **Timing is frame-quantized, not sample-accurate.** The AU pushes events in the render callback,
@@ -258,7 +310,7 @@ nothing" for yet another reason.
 
 ## Open questions
 
-Both of the original transpose questions are settled (see the build order). What is left:
+Both rows are built and both of the original transpose questions are settled. What is left:
 
 - **The MST face transposes**, because it is not a drum face and the rule is "drums only on a drum
   face". That falls out of the design rather than having been chosen, and it is probably right (the
@@ -270,4 +322,14 @@ Both of the original transpose questions are settled (see the build order). What
   it means the bottom and top of the keyboard are the same note, which someone will notice.
 - **Nothing is shown on a drum face** when a host note fires beyond the pad flash the pattern
   already uses. Fine for now; it will read as "did that land?" the first time a note is off-map.
-- **Rows 2+ and the channel field** are unchanged from the ranking above.
+- **The channel field** is unchanged from the ranking above, and is now the only structural item left.
+- **PTCH is three taps away** (focus the face, open PERF, tap it) which is a lot for a performance
+  control. It is the right *home* and the wrong *distance*. A dedicated key or a two-finger gesture
+  would fix it; a second copy of the latch somewhere always-visible would not, because two controls
+  for one bit is worse than one that is far away.
+- **Nothing shows the lens is on unless you are looking at the PERF screen.** Same root as above.
+  The cheapest honest fix is a mark on the machine's cartridge in the nav strip, which is visible
+  from every face in both layouts.
+- **Pitched play on a noise voice** (hats, clap, the snare's noise half) just retriggers, because
+  those voices have no pitch to move. That is the shape of the feature rather than a bug, but the
+  panel does not say so, and a third of the 808 roster is in that group.

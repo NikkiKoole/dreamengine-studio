@@ -18,6 +18,7 @@
     "controls": "Tap a cartridge to focus a machine; tap its LED to mute. PLAY runs the shared transport. 303: drag CUT/RES/ENV/DEC/ACC (sideways = fine, double-tap = reset); the inline DF switch (right of the knob row) flips to the DEEP page (SUB/ADEC/SLDT/TRK + a SAW/SQR WAVE toggle); SEQ/FLAG/FX/GEN soft-keys switch the screen between the roll, the flag palette (arm ACC/SLD/TIE/OCT+/OCT-, then tap bars; loop length = drag the ▼ above the bars), the FX knobs (DRV/SEND/VERB), and the generate menu (CLEAR / MIN / MID / BUSY); on the note-bars tap = note on/off, drag up/down = pitch. 808/909: DIST/SEND/VERB (+909 METAL XY) sit on top always; tap a voice pad to pick it (auditions only while stopped; while playing, light REC to hear taps) — a machine-scoped screen (GEN/PAT/PERF/KIT) snaps to VCE on a voice tap, a voice-scoped one (VCE/FLAG) stays put; VCE shows TUNE/DEC/[character]/VOL/PAN/FINE (character where the machine has one, SNPY/THUD/TONE/RING/ATTK/CLIK); the picker shows the whole roster in one row (all 16/11 voices, acid order); MUT (left column, tap=latch / hold=momentary) flips pad taps to DIRECT per-voice mute — orange pad rims while live; the far-right REC latch (same grammar) punches pad taps onto the current step while playing; left soft-keys VCE/FLAG + MUT, right GEN/PAT/PERF/KIT (the generate menu = CLEAR / MIN / MID / BUSY, KIT = the minimap). Cells: tap = place a hit, DRAG across = paint a fill (VCE/KIT); in FLAG, the palette is two rows — ACC/PROB(/STRK) on top, the p-locks TUN/DEC/<character> below — arm one then work the cells (ACC tap = accent, PROB vertical-slide = trig-chance, STRK tap = cycle flam/drag/ratchet, TUN/DEC/char vertical-slide = a per-step bipolar offset around that voice knob). MST: GLU tames level, FLT is the live DJ filter, PUMP ducks to the kick; SWG + TEMPO are a matching knob pair in the LCD's right gutter (SWG = the one rack-wide swing for drums + both 303s; drag TEMPO 60-200 BPM); the DELAY division buttons (1/16·1/8·DOT·1/4) sit under the LCD, + per-machine SEND; a little DUB pad in the bottom-right corner momentarily throws the delay (HOLD + drag: X = time, Y = feedback)."
   },
   "todo": [
+    "THE PITCH LENS (host keybed, row 2): SHIPPED (2026-08-15). The open question from row 1 was how to TOGGLE between the four host-note behaviours, and the answer is that there are not four - a note number names either a SOUND or a PITCH, and everything falls out of that one binary. OFF the keyboard addresses the MACHINE (drums: which of its 16 voices, the GM rack · 303: it has ONE voice so the only thing left to name is the pattern's KEY, hence transpose). ON it addresses the VOICE (drums: the SELECTED one played chromatically · 303: play the acid line). That framing also explains WHY the 303's default is transpose rather than it being an arbitrary pick, which the first framing ('is the PATTERN the instrument, or the VOICE?') never did - and it has a name in the world already: the drums half is the MPC's 16 LEVELS, the 303 half is Elektron's KEYBOARD mode. Two of the most-copied groove machines landed on the same gesture independently, so this ADOPTS a control rather than inventing one. UI: one PTCH latch, TAP=latch / HOLD=momentary (the MUT/REC/PERF grammar, no new vocabulary), living in the PERF screen beside the other live-play lenses - the 303's grid had a spare cell and took it, the drums' widened 3x2 to 4x2, which also made both PERF screens the SAME SHAPE so they read as one idea in two places. PER MACHINE, not rack-wide, for a practical reason: the two kinds want OPPOSITE defaults (you almost always want the drum rack available and the 303 transposing), so one shared bit would force one of them wrong on every face change. The MOMENTARY half is the point - hold PTCH, throw a tuned kick fill or a two-bar acid lick over the running pattern, let go, back to the rack. THREE THINGS FELL OUT that the design did not predict: (1) the SEQUENCER has to let go, and only of that one line - while PTCH owns a 303 its step notes AND its acid_gate are skipped, because the gate cuts the held voice at 70% of every step and would chop a held key; the drums and the other 303 keep running, which is what makes it soloing OVER your pattern rather than a mode that stops the music. (2) The transport-STOPPED branch needed the same guard: acid_off runs every frame there, so a key played while stopped would be killed the instant it sounded - and playing the acid voice with the transport stopped is the most obvious thing to do with this. (3) DROPPING the lens while a key is down STRANDS the note (the sequencer takes the line back and never sends a note-off for a key it did not press), and a momentary HOLD makes that the COMMON case rather than an edge one - let go of the button and the key together and one loses the race - so the lens hands the voice back explicitly. ENGINE SIDE: tr808_fire_semi / tr909_fire_semi add a semitone offset on every layer of a voice, because the TUNE knob is +-12 by construction (it reads a 0..1 knob) which is right for a knob and useless for a keyboard; the existing tr808_fire/tr909_fire are now zero-offset WRAPPERS so the bodies cannot drift, proven byte-identical by rendering the tr808 and tr909 carts through the pre-edit headers and the post-edit ones. Clamped to a real MIDI note, which the knob path never needed. NOT PUNCHED UNDER REC, deliberately: a step can only record a pitch as a TUN p-lock and that lane is an offset around the voice knob with the knob's own +-12 range, so a note further out would record as something QUIETER than what you played - recording a wrong pitch is worse than recording nothing, and the host's own MIDI track records the performance properly anyway. GATED: tools/midi-note-check/run.sh is now 27 assertions, mutation-tested twice (pin the lens off -> 8 red, and the survivors are exactly the controls). MEASUREMENT TRAP, the same one as row 1 in a new costume: the pitched-kick sweep must be measured on the KICK'S OWN STEM (--solo-slot 9) - on the full mix the centroid sits at ~9kHz because that is the HATS, and it moves NON-MONOTONICALLY while the kick sweeps two octaves underneath. OPEN: PTCH is three taps away (focus the face, open PERF, tap it), which is the right HOME and the wrong DISTANCE for a performance control; nothing shows the lens is on unless you are looking at the PERF screen (a mark on the machine's nav cartridge would fix both, being visible from every face in both layouts); and pitched play on a NOISE voice (hats, clap, the snare's noise half) just retriggers, which is the shape of the feature rather than a bug but a third of the 808 roster is in that group and the panel does not say so. Design: docs/design/host-midi-notes.md",
     "HOST KEYBED: SHIPPED (2026-08-15). The maker loaded the rack as an AUv3 in GarageBand on the iPad and pressed keys: nothing. Same shape as the mod-wheel bug one hop further along - that one was blocked in the AU, this one in the CART. Notes already reached the engine ring (TinyjamAU.swift parses 0x90/0x80 into de_midi_event, midi_input.h rings them) and this cart called midi_get() ZERO times, so they piled up and nobody drained them. Plumbing work: zero. The whole job was deciding what a note MEANS on a rack of five machines, and four plausible answers collapse to ONE axis: is the PATTERN the instrument, or the VOICE? Built the PATTERN row whole, so there is NO MODE SWITCH - the switch only becomes necessary once the other row exists, and a switch between one thing and nothing is just a thing to get wrong. Routed by the FOCUSED face (host_face: `face` on a phone, `r2_focus` in the roomy rack, which draws all five at once). DRUM FACE -> the KIT, via gm_voice() = MO_GM808/MO_GM909 read BACKWARDS, so what we answer to is what we SEND and a pad controller lands where its own labels promise (GM's percussion map was modelled on these machines, so both rosters fit with nothing left over). One deliberate divergence from the pad it otherwise mirrors: a MIDI note ALWAYS SOUNDS. A pad tap is a select that sometimes sounds (silent while the transport runs, REC is the audible opt-in); a note is only ever a play, and gating it on REC would kill the keybed exactly when someone is jamming. With REC lit it still punches the step, so LIVE MIDI STEP-RECORD came free and closes this cart's own 'LIVE RECORD - still open' item. ELSEWHERE -> TRANSPOSE: root_live(i) replaces mroot[i] at every note computation, LAST-note priority over a small stack (lifting the newer key falls back to the one still down, not to silence). It OVERRIDES rather than WRITES, like the mod wheel: mroot keeps what the player dialled, so every key up hands the KEY panel straight back and a MIDI take can never dirty the SAVED song. Both lines together (they are a bass+lead pair; transposing one leaves the song half in the wrong key) and PITCH CLASS ONLY (a keyboard has five octaves, an acid line about two). SUPPRESSED on a drum face, so finger-drumming cannot silently re-key the 303s underneath you. BOTH KEY PANELS SURRENDER while a key is held - no widget registered at all, host key WHITE against a dimmed strip, and the roomy keyboard carries the word 'MIDI' in the grammar of the FLT knob's 'MOD' and the tempo knob's 'EXT' (the phone face gets no word: there is no room for one at 160x100). State lives in AcidScratch, NOT CartState - live host state is not intent, and the saved layout must not move or every existing project stops loading. GATED HEADLESS by `bash tools/midi-note-check/run.sh` (16 assertions), which needed a new engine flag: `--midi-note` (studio.c midi_sched_add) pushes into the SAME ring an AUv3 feeds, because until now NOTHING could put a MIDI note into a headless run and this was gateable only on a device. Mutation-tested: drop the drain and 9 assertions go red while the 7 that stay green are exactly the controls. TWO MEASUREMENT TRAPS worth more than the feature: (1) formant-check reported the pitch going DOWN - its autocorrelation returns the ENDS of its own 80-501Hz search range on a resonant acid saw, so both readings were the analyser failing, not a result; the gate uses spectral centroid across a rising scale instead, measured on the 303 STEM (--solo-slot 6), because on the full mix the centroid sits at the HATS and drifts the WRONG WAY as the bassline rises. (2) the rack AUTOSAVES, so run N+1 boots from run N and two 'identical' renders differ - that is the gate measuring two different racks, not flakiness; clear build/saves/acidcandy before every render. OPEN: velocity on a drum note is a two-step ladder (>=100 accents, else a pad tap's 1) and throws away most of a real controller's range; the MST face transposes because it is not a drum face, which falls out of the rule rather than having been chosen; octave is discarded so the top and bottom of the keyboard are the same note. Design: docs/design/host-midi-notes.md",
     "HOST MOD WHEEL + PITCH BEND: SHIPPED (2026-08-14). The maker saw both controls above GarageBand's keyboard on macOS AND iPadOS doing nothing ('modulatiewiel', 'toonhoogte'). Root cause was NOT missing engine support: the AU's event-list switch handled only 0x90/0x80/0xE0, so NO CC reached the engine at all - which means every DAW AUTOMATION LANE was dead too, not just the wheel - and ios/Sources/engine.h never exported de_midi_cc even though runtime/midi_input.h:258 has implemented it all along. Two lines of plumbing (case 0xB0 keeping the channel nibble + the declaration). MAPPING, the maker's call: MOD WHEEL (CC1) -> the MASTER DJ FILTER (mflt), because it is the one control that means something applied to all five machines at once - the build-up/breakdown sweep. THE TRAP THAT SHAPED IT: the wheel RESTS AT 0 while mflt's neutral is 0.5, so a naive 0..127 -> 0..1 map would open every project FULLY LOWPASSED - muffled, nearly silent, and indistinguishable from the brand-new session-state restore being broken. So 0 = NEUTRAL and the wheel sweeps ONE way (0 = bypass, 127 = fully closed), which is also the direction a hand wants. It OVERRIDES rather than writes, so mflt keeps what you set and letting the wheel back to 0 hands the knob straight back; filter() is ride-safe so it costs nothing per frame. SHOWN ON THE PANEL in BOTH faces: the FLT knob wears the host-driven skin (green chassis, lime arc, 'MOD') and registers NO WIDGET, so a drag cannot rotate a control the host is holding - the same silent-rotation bug the TEMPO knob learned under external clock. That skin was extracted from tempo_knob_ext into host_knob_ext and the tempo flavour is now a thin wrapper, so both takeovers read identically. PITCH BEND -> the two 303 lines, +-2 semitones, NOT the drums (a bent kit is wrong, and a bend control that does not bend pitch is confusing). Rides the held voice + its sub-osc (-12) ON CHANGE ONLY, never per frame, because a 303 SLIDE is itself a note_pitch glide and pushing pitch every frame would flatten every slide in the pattern. All the live MIDI state (mod_cc/bend_last/last_midi) lives in AcidScratch, NOT CartState, deliberately: it is not intent, and putting it in the saved slice would have moved the layout fingerprint and silently invalidated every project saved earlier that day for a value nobody wants back. GATED end to end through a REAL host: `./au-transport-check --wheel` (in ios/mac.sh) sends CC1 to the out-of-process plug-in and measures the mix - peak 0.711 -> 0.249 as the filter shuts, back to 0.667 on release, with a NO-OP CONTROL first (two untouched renders, onsets 123 vs 123) so 'the audio differs' has a floor to clear. MEASURED SURPRISE worth keeping: PEAK is the discriminator, not onsets - onsets went 123 -> 134 because a lowpass reshapes the envelopes the detector triggers on rather than removing events. OPEN: (1) the BEND is unverified by any gate - both 303 lines are MUTED AT BOOT by design, so a default render is drums only and there is nothing for a bend to move; it needs the lines unmuted plus a pitch oracle, and an ear check. (2) CC74 (the MIDI-standard cutoff, what a hardware knob sends) is now nearly free and would suit the FOCUSED machine's own cutoff via r2_selmach. (3) varispeed on a bend was considered and REJECTED: it is the most exciting whole-rack gesture (a tape-stop dive of everything) but its own API says it is for SWEEPS and that holding a fixed off-speed laps the buffer into a click - and people HOLD bends - plus it changes time, which fights host sync. It belongs on a MOMENTARY control. (4) per-machine CC needs no engine work: the engine's CC path is already channel-aware by design, GarageBand just sends one channel.",
     "EXTERNAL CLOCK SYNC: SHIPPED (2026-08-12) - the rack follows someone else's tempo through runtime/sync.h (sync_active/sync_playing/sync_beats/sync_bpm). While a clock is present it owns ALL THREE of tempo, transport and POSITION: g_bpm = sync_bpm(), playing = sync_playing() (with the laststep reset their PLAY implies), and g_phase = sync_beats()*4 DERIVED instead of accumulated - an accumulator only knows how fast, never where, so it cannot follow a re-START or a loop jump. The TEMPO knob and the transport button go read-only for as long as the clock is there (the ReBirth model: be a proper slave, don't half-follow), and control comes back ~2s after the clock stops, at the tempo last heard, so nothing lurches. VERIFIED IN ABLETON LIVE by the maker (clock over the IAC bus) AND headless via `play.js acidcandy --midi-clock <bpm>`: step rate measured 99.0 / 159.0 against external 100 / 160, internal unchanged at ~132, renders byte-identical run to run on both paths. SWING: NOT CLAIMED (the maker listened in Live and could not tell a difference, which is evidence and not a verdict). The mechanism is known from the code instead: the 303 swings by delaying its step flip while the 16th's fractional part is under the swing amount, so THAT fraction's resolution IS the swing's resolution - internally it moves once per frame (900/bpm steps per 16th, 6.8 at 132 BPM), from an external clock once per MIDI tick (6). About 12% coarser, not a category change, which is exactly why it is hard to hear; but the gap WIDENS on a 120Hz display (13.6 internal vs still 6) and the drums shuffle in ms and stay continuous, so drums-vs-303 can disagree by up to one step in BOTH modes. A seam comment sits on the `lcs` line at the 303 swing site. To settle it, MEASURE (render the same tempo internal vs --midi-clock with SWG up, compare 303 onsets via click-check) - blocked on setting SWG headless, since it is a knob. If it ever needs fixing the fix is in sync.h, not here: interpolate sync_beats() between ticks. SHOWN ON THE PANEL (2026-08-12, the maker: 'lets show that in the tempo knob'): the TEMPO knob wears an external-clock skin - green chassis, lime needle pointing at THEIR bpm (drawing bpm01 would aim it at a tempo nobody is playing, since the knob value is frozen where you left it), the incoming BPM as its label, and NO widget registered at all so a drag cannot rotate a control that does nothing (that silent rotation was the bug). Both layouts: phone MST bottom-left + the roomy MST column's TMP cell, same geometry as the normal knob so nothing jumps when a clock arrives. The WORD 'EXT' sits next to it, not on it - above the knob it collided with the MST nameplate, and under it there is exactly one text line of room, so the roomy LCD carries 'EXT <bpm>' top-right while the phone gets the word under the readout, falling back to an UNDERLINE on a canvas too short for a third line (ui-audit caught it clipping at y=96 of 100). Transport button also refuses the tap and goes green/grey to mirror their play/stop - but ONLY when the clock actually drives transport (sync_transport()). FIXED 2026-08-15: while slaved it now registers NO WIDGET AT ALL, the same rule the TEMPO and FLT knobs already followed. It used to call ui_button_core unconditionally, so under a host it drew the focus ring and the white hot outline for a tap it was then going to refuse - and the ring PERSISTED after release - which reads as a broken button rather than a surrendered one. The maker hit it in GarageBand on iPad: the play button gets a white outline when pressing it down but doesn't change from play to pause. It is a LAMP under a host, same geometry so nothing jumps when the host connects. GATED HEADLESS, red then green: --midi-clock makes sync_transport() true, so a held press (press 60 / release 100) exercises the slaved path with no DAW. The 16x14 button region is IDENTICAL on both builds at frame 59 (the control), then the old build changes at frame 60 and stays changed through 119 while the new one never changes at all; the trace shows step still advancing in both, so the refusal itself is unchanged. THE BUG THAT TAUGHT THAT (2026-08-12, the maker: 'now i cant start stop the acdja from live'): a bare MIDI clock may never send START, and Live had been playing BEFORE the cart booted so we joined mid-flow and never saw one. Reading sync_playing() literally pinned playing=false every frame, and since the play button was already surrendered, the rack was UNSTARTABLE - neither the clock nor the user could start it. Measured act=1 play=0 with beats climbing. Fixed in sync.h (infer running until the clock proves it speaks transport) + here (only surrender transport when sync_transport(), else borrow the tempo and keep our own play/stop). Verified end to end against real CoreMIDI by tools/sync-spike/run.sh. (2) not in the SONG snapshot (nothing to save - the clock is external). (3) sync_bpm settles within ~0.5 BPM, so the tempo-synced delay is that close and no closer until the CoreMIDI packet timestamps land. Design: docs/design/external-clock-sync.md",
@@ -82,6 +83,9 @@ de:meta */
                       // acidcandy's pedals read the same as every other cart's (glyph only; the chassis
                       // colours stay out, the hub lives INSIDE the green LCD — see fxchip)
 #include "acid303.h"
+#include "mono.h"     // MONOSYNTH KEY ASSIGN — which held key sounds, and whether a press re-attacks.
+                      // Only the host keybed's PITCH lens uses it (host-midi-notes.md row 2): the
+                      // SEQUENCER never goes through it, because a pattern has no held keys to resolve.
 #include "tr808.h"    // the shared, honest TR-808 voice bank (the 808 face's SOUND)
 #include "tr909.h"    // ...and the TR-909 (the 909 face's SOUND)
 #include <string.h>  // memcpy/memset/memcmp — the SaveBlob snapshot/restore + autosave dirty-check
@@ -447,6 +451,29 @@ static void bend_ride(void) {
 static int host_face(void) { return rack_view ? r2_focus : face; }
 static int host_drumface(void) { int m = host_face(); return m == M_808 || m == M_909; }
 
+// ── THE PITCH LENS — does a note name a SOUND, or a PITCH? ───────────────────────────────────────
+// The whole of row 2, as one binary. What it does on each face falls out of it:
+//
+//   OFF (default)   the keyboard addresses the MACHINE:  drums → which of its voices (the GM rack)
+//                                                        303   → it has ONE voice, so the only thing
+//                                                                left to name is the pattern's KEY
+//   ON              the keyboard addresses the VOICE:    drums → the SELECTED one, played chromatically
+//                                                        303   → play the acid line
+//
+// That is why the 303's default is transpose rather than an arbitrary pick: a machine with one sound
+// has nothing to choose between, so "name a sound" collapses into "name a key".
+//
+// NOT INVENTED HERE, which is most of why it is legible: the drums half is the MPC's 16 LEVELS (the
+// pads stop meaning sixteen sounds and start meaning sixteen shades of one), and the 303 half is
+// Elektron's KEYBOARD mode (the trig keys stop being pattern steps and become a keyboard). Two of the
+// most-copied groove machines landed on the same gesture independently.
+//
+// PER MACHINE, not rack-wide, and the reason is practical: the two kinds want OPPOSITE defaults. You
+// almost always want the drum rack available and the 303 transposing, so one shared bit would force
+// one of them into the wrong default on every face change. It is not hidden state — each face draws
+// its own latch, in the PERF screen with the other live-play lenses it belongs beside.
+static int pmd_on(int m) { return m >= 0 && m < M_N && pmd[m]; }
+
 // ── the held-note stack ──
 // LAST-note priority (mono.h's default, and what a hand expects): the newest key wins, and lifting
 // it falls back to whichever is still down rather than to silence.
@@ -477,7 +504,9 @@ static void hn_pop(int note) {
 // PITCH CLASS ONLY. A keyboard has five octaves and an acid line has about two useful ones, so
 // driving the octave from the note as well would fling the line out of its own range on a whim.
 // The per-line OCT stays the player's.
-static int host_root_on(void) { return hn_n > 0 && !host_drumface(); }
+// …and PITCH mode takes transpose off the table: on a 303 face the keys are playing the line, not
+// re-keying the pattern, so the KEY panel stays the player's.
+static int host_root_on(void) { return hn_n > 0 && !host_drumface() && !pmd_on(host_face()); }
 static int root_live(int i) { return host_root_on() ? hn_stack[hn_n - 1] % 12 : mroot[i]; }
 
 // ── the KIT ──
@@ -509,15 +538,80 @@ static void hn_drum(int m, int note, int vel) {
     }
 }
 
+// ── PITCH mode, drums: ONE voice across the keys ──
+// C4 (60) is the voice at whatever pitch its own TUNE knob says, so the knob still transposes the
+// whole keyboard under you rather than being overridden by it. The offset goes through
+// tr808_fire_semi, which exists because the TUNE knob is ±12 semitones by construction and a keyboard
+// is not.
+//
+// It plays the SELECTED voice, and it does NOT punch under REC. A step can only record a pitch as a
+// TUN p-lock, and that lane is an offset around the voice knob with the knob's own ±12 range, so a
+// note further out than that would record as something quieter than what you played. Recording a
+// wrong pitch is worse than recording nothing, so the pitched hits stay live-only. The host's own
+// MIDI track records them properly anyway, which is the honest place for a pitched performance.
+#define PMD_HOME 60   // C4 = the voice at its knob pitch
+static void hn_drum_pitched(int m, int note, int vel) {
+    int semi = note - PMD_HOME, bo = (vel >= 100) ? 2 : 1;
+    if (m == M_808) { dtrig[dsel]  = 1; tr808_fire_semi(TR808_BASE, dsel,  bo, 0, dtune,  ddecay,  dcolor,  semi); }
+    else            { d9trig[d9sel] = 1; tr909_fire_semi(D909_BASE, d9sel, bo, 0, d9tune, d9decay, d9color, semi); }
+}
+
+// ── PITCH mode, 303: play the acid line ──
+// mono.h owns the hard part (which held key sounds, and whether a press re-attacks). LAST priority +
+// SINGLE trigger, which on a 303 is not a taste call: SINGLE means legato GLIDES instead of
+// re-attacking, and a glide on this voice IS a slide. So playing legato gives you the 303's own
+// signature articulation for free, from the same non-retriggering path the sequencer's SLD flag uses.
+static void pmd_mono_ready(void) {
+    if (pmono_ready) return;
+    mono_init(&pmono[0], MONO_LAST, MONO_SINGLE);
+    mono_init(&pmono[1], MONO_LAST, MONO_SINGLE);
+    pmono_ready = 1;
+}
+static void hn_303_press(int i, int note, int vel) {
+    pmd_mono_ready();
+    // ⚠ NOT `acc`. Every cart global is a `#define x (de_cart->x)` under DE_CART_CTX, and `acc` is the
+    // per-step accent array — so a local by that name expands to `int (de_cart->acc) = …` and the
+    // error points at de_cart_, not at the name. The old "don't shadow a built-in" trap, one layer
+    // deeper: the namespace a cart shares is now its OWN globals too.
+    int hacc = (vel >= 100);
+    switch (mono_press(&pmono[i], note, vel)) {
+    case MONO_START:  ac_note(&ac[i], note, hacc, 0); break;  // silence → sounding: a fresh attack
+    case MONO_GLIDE:  ac_note(&ac[i], note, hacc, 1); break;  // legato → slide, envelope untouched
+    case MONO_RETRIG: ac_note(&ac[i], note, hacc, 0); break;  // unreachable under SINGLE; kept honest
+    default: break;
+    }
+}
+static void hn_303_release(int i, int note) {
+    pmd_mono_ready();
+    switch (mono_release(&pmono[i], note)) {
+    case MONO_STOP:   acid_off(&ac[i]); break;                                   // last key up
+    case MONO_GLIDE:  ac_note(&ac[i], pmono[i].sounding, 0, 1); break;           // handed to a key still down
+    case MONO_RETRIG: ac_note(&ac[i], pmono[i].sounding, 0, 0); break;
+    default: break;
+    }
+}
+
 // Drain the ring once a frame, beside the mod wheel and the bend. Note events are OMNI (the engine
 // keeps the channel for CC but not for notes — runtime/midi_input.h says why, and this rack is the
 // first cart that would want it; see the doc's "notes are omni" section), so whatever channel the
 // host sends on, we hear it.
+//
+// The face is read PER EVENT rather than once, so a note pressed on one face and released after you
+// switch still goes to the machine that is sounding it. Releases route by which line is actually
+// holding the key, not by where you are looking.
 static void host_notes(void) {
     int note = 0, vel = 0, t;
     while ((t = midi_get(&note, &vel)) != 0) {
-        if (t > 0) { hn_push(note); if (host_drumface()) hn_drum(host_face(), note, vel); }
-        else hn_pop(note);
+        int m = host_face(), pitched = pmd_on(m);
+        if (t > 0) {
+            hn_push(note);
+            if (host_drumface()) { if (pitched) hn_drum_pitched(m, note, vel); else hn_drum(m, note, vel); }
+            else if (pitched && (m == M_303A || m == M_303B)) hn_303_press(m, note, vel);
+        } else {
+            hn_pop(note);
+            // a release goes to whichever line HOLDS it, whatever face you are on now
+            for (int i = 0; i < 2; i++) if (pmono_ready && mono_held(&pmono[i], note)) hn_303_release(i, note);
+        }
     }
 }
 
@@ -1397,10 +1491,12 @@ static void draw_303(Box stage, int i) {
         for (int k = 0; k < NPAT; k++) { Box c = lay_grid(lay_inset(gc, 1), NPAT, NPAT, k, 3);
             pat_pad(0x3Bu + k, (int)c.x, (int)c.y, (int)c.w, (int)c.h, AD[k], i, k); }
     } else if (pscreen[i] == PS_PERF) {                              // PERF — play LENSES (TAP=latch / HOLD=momentary)
-        // A 4×2 grid. Row 1: HALF · ACC · OCT · REV  ·  Row 2: STAC · GLIDE · ROLL (last cell spare).
+        // A 4×2 grid. Row 1: HALF · ACC · OCT · REV  ·  Row 2: STAC · GLIDE · ROLL · PTCH.
         // Read-path lenses (TAP=latch / HOLD=momentary); ROLL is momentary by nature (hold to stutter).
+        // PTCH is the odd one out and belongs here anyway: the others re-read the pattern, it hands the
+        // line to the HOST'S KEYBOARD (host-midi-notes.md row 2). It took the cell that was spare.
         Box c0 = lay_grid(gc, 4, 8, 0, 2), c1 = lay_grid(gc, 4, 8, 1, 2), c2 = lay_grid(gc, 4, 8, 2, 2), c3 = lay_grid(gc, 4, 8, 3, 2);
-        Box c4 = lay_grid(gc, 4, 8, 4, 2), c5 = lay_grid(gc, 4, 8, 5, 2), c6 = lay_grid(gc, 4, 8, 6, 2);
+        Box c4 = lay_grid(gc, 4, 8, 4, 2), c5 = lay_grid(gc, 4, 8, 5, 2), c6 = lay_grid(gc, 4, 8, 6, 2), c7 = lay_grid(gc, 4, 8, 7, 2);
         pf_half[i]  = lcdlatch(0x7Bu, (int)c0.x, (int)c0.y, (int)c0.w, (int)c0.h, "HALF",  &pf_latch[PL_HALF][i],  &pf_hold[PL_HALF][i],  0);
         pf_acc[i]   = lcdlatch(0x7Du, (int)c1.x, (int)c1.y, (int)c1.w, (int)c1.h, "ACC",   &pf_latch[PL_ACC][i],   &pf_hold[PL_ACC][i],   0);
         pf_oct[i]   = lcdlatch(0x80u, (int)c2.x, (int)c2.y, (int)c2.w, (int)c2.h, "OCT",   &pf_latch[PL_OCT][i],   &pf_hold[PL_OCT][i],   0);
@@ -1408,7 +1504,8 @@ static void draw_303(Box stage, int i) {
         pf_stac[i]  = lcdlatch(0x7Eu, (int)c4.x, (int)c4.y, (int)c4.w, (int)c4.h, "STAC",  &pf_latch[PL_STAC][i],  &pf_hold[PL_STAC][i],  &pf_latch[PL_GLIDE][i]);
         pf_glide[i] = lcdlatch(0x7Fu, (int)c5.x, (int)c5.y, (int)c5.w, (int)c5.h, "GLIDE", &pf_latch[PL_GLIDE][i], &pf_hold[PL_GLIDE][i], &pf_latch[PL_STAC][i]);
         pf_roll[i]  = lcdlatch(0x83u, (int)c6.x, (int)c6.y, (int)c6.w, (int)c6.h, "ROLL",  &pf_latch[PL_ROLL][i],  &pf_hold[PL_ROLL][i],  0);
-    } else {                                                          // SEQ — piano-roll readout OR editable GRID (seq_grid)
+        pmd[i]      = lcdlatch(0x8Au, (int)c7.x, (int)c7.y, (int)c7.w, (int)c7.h, "PTCH",  &pmd_latch[i],          &pmd_hold[i],          0);
+    } else {                                                        // SEQ — piano-roll readout OR editable GRID (seq_grid)
         char nb[4]; { int bi = (int)(g_bpm + 0.5f), ni = 0;
           if (bi >= 100) nb[ni++] = '0' + bi / 100;
           nb[ni++] = '0' + (bi / 10) % 10; nb[ni++] = '0' + bi % 10; nb[ni] = 0; }
@@ -1609,16 +1706,21 @@ static void draw_303(Box stage, int i) {
 // the drum PERF screen (shared by both drum faces) — ROLL + ACC for the face being drawn.
 // m is derived from `face` (draw_808 → 0, draw_909 → 1), so the branch is identical in both.
 static void draw_drum_perf(Box gc) {
-    int m = (face == M_909) ? 1 : 0;
-    // Row 1: BEAT-REPEAT RP1/RP2/RP4 (hold → loop the last 1/2/4 steps) · Row 2: THIN · BUSY · ACC.
-    Box a0 = lay_grid(gc, 3, 6, 0, 2), a1 = lay_grid(gc, 3, 6, 1, 2), a2 = lay_grid(gc, 3, 6, 2, 2);
-    Box b0 = lay_grid(gc, 3, 6, 3, 2), b1 = lay_grid(gc, 3, 6, 4, 2), b2 = lay_grid(gc, 3, 6, 5, 2);
+    int m = (face == M_909) ? 1 : 0, mm = (face == M_909) ? M_909 : M_808;
+    // Row 1: BEAT-REPEAT RP1/RP2/RP4 (hold → loop the last 1/2/4 steps) + PTCH · Row 2: THIN · BUSY · ACC.
+    // Widened from 3×2 to 4×2 to take PTCH, which also makes both PERF screens the same shape — the
+    // drums' and the 303's read as one idea in two places rather than two different panels.
+    Box a0 = lay_grid(gc, 4, 8, 0, 2), a1 = lay_grid(gc, 4, 8, 1, 2), a2 = lay_grid(gc, 4, 8, 2, 2), a3 = lay_grid(gc, 4, 8, 3, 2);
+    Box b0 = lay_grid(gc, 4, 8, 4, 2), b1 = lay_grid(gc, 4, 8, 5, 2), b2 = lay_grid(gc, 4, 8, 6, 2);
     pf_rp1[m]  = lcdlatch(0x84u, (int)a0.x, (int)a0.y, (int)a0.w, (int)a0.h, "RP1",  &dpf_latch[DPL_RP1][m],  &dpf_hold[DPL_RP1][m],  0);
     pf_rp2[m]  = lcdlatch(0x85u, (int)a1.x, (int)a1.y, (int)a1.w, (int)a1.h, "RP2",  &dpf_latch[DPL_RP2][m],  &dpf_hold[DPL_RP2][m],  0);
     pf_rp4[m]  = lcdlatch(0x86u, (int)a2.x, (int)a2.y, (int)a2.w, (int)a2.h, "RP4",  &dpf_latch[DPL_RP4][m],  &dpf_hold[DPL_RP4][m],  0);
     pf_thin[m] = lcdlatch(0x87u, (int)b0.x, (int)b0.y, (int)b0.w, (int)b0.h, "THIN", &dpf_latch[DPL_THIN][m], &dpf_hold[DPL_THIN][m], &dpf_latch[DPL_BUSY][m]);
     pf_busy[m] = lcdlatch(0x88u, (int)b1.x, (int)b1.y, (int)b1.w, (int)b1.h, "BUSY", &dpf_latch[DPL_BUSY][m], &dpf_hold[DPL_BUSY][m], &dpf_latch[DPL_THIN][m]);
     pf_dacc[m] = lcdlatch(0x89u, (int)b2.x, (int)b2.y, (int)b2.w, (int)b2.h, "ACC",  &dpf_latch[DPL_ACC][m],  &dpf_hold[DPL_ACC][m],  0);
+    // PTCH — the host keyboard stops naming WHICH drum and starts naming HOW HIGH, playing the
+    // SELECTED voice chromatically. The MPC's 16 LEVELS, as a lens. host-midi-notes.md row 2.
+    pmd[mm]    = lcdlatch(0x8Bu, (int)a3.x, (int)a3.y, (int)a3.w, (int)a3.h, "PTCH", &pmd_latch[mm],          &pmd_hold[mm],          0);
 }
 
 static void draw_808(Box stage) {
@@ -2620,6 +2722,13 @@ void update(void) {
     if (mw >= 0) mod_cc = mw;                                          // -1 = never seen; keep the last
     bend_ride();                                                       // pitch bend → both 303 lines
     host_notes();                                                      // the host's KEYBED → the focused face (kit, or transpose)
+    // ⚠ DROPPING THE PITCH LENS WHILE A KEY IS DOWN would strand the note: the sequencer takes the
+    // line back and never sends a note-off for a key it did not press, and the release path below
+    // routes by mono_held, which is now on a line nobody is playing. So hand it back explicitly.
+    // A momentary HOLD makes this the common case, not the edge case — let go of both at once and
+    // one of them has to lose the race.
+    for (int i = 0; i < 2; i++)
+        if (pmono_ready && pmono[i].n > 0 && !pmd_on(i)) { mono_init(&pmono[i], MONO_LAST, MONO_SINGLE); acid_off(&ac[i]); }
     for (int i = 0; i < 2; i++) acid_ride(&ac[i]);                     // ride cutoff/reso live on both lines
     // FINE tune: a separate per-voice cents trim (MIX screen) applied via instrument_tune on CHANGE
     // only — the coarse TUNE knob keeps its musical semitone steps; FINE (±0.5 semitone) nulls a beat.
@@ -2660,6 +2769,12 @@ void update(void) {
         // (lf >= sw). The other lenses (total-accent, slide-flip) override the READ, so the
         // stored pattern is untouched — release the button and it's back to normal.
         for (int i = 0; i < 2; i++) {
+            // PITCH lens: the keyboard has this line, so the SEQUENCER lets go of it — no step notes,
+            // and no acid_gate, which would otherwise cut a held key at 70% of every step. ONLY this
+            // line: the drums and the other 303 keep running, which is the entire point (you are
+            // soloing OVER your own pattern). laststep303 is left alone, so releasing the lens picks
+            // the pattern straight back up mid-bar, exactly like the ROLL lens below.
+            if (pmd_on(i)) continue;
             float spd = pf_half[i] ? 0.5f : 1.0f;                      // PERF speed lens (half-time only) — also halves the ROLL rate below
             // ROLL lens: while held, TAKE OVER this line — retrigger the last played note at a fast
             // subdivision (a stutter/fill). Respects HALF (rolls half as fast when HALF is on).
@@ -2768,7 +2883,10 @@ void update(void) {
                 }
             }
         }
-    } else for (int i = 0; i < 2; i++) acid_off(&ac[i]);
+    // STOPPED: silence the lines — EXCEPT one the PITCH lens has handed to the keyboard. Playing the
+    // acid voice with the transport stopped is the most obvious thing to do with it, and this branch
+    // runs every frame, so without the guard a held key would be killed the instant it sounded.
+    } else for (int i = 0; i < 2; i++) if (!pmd_on(i)) acid_off(&ac[i]);
 #ifdef DE_TRACE
     watch("face", "%d", face); watch("step", "%d", s_step); watch("cut", "%d", acid_cut_hz(&ac[0]));
     watch("mute0", "%d", mac[0].mute); watch("mute1", "%d", mac[1].mute);
@@ -2778,6 +2896,11 @@ void update(void) {
     // the note and not just the readout.
     watch("hn", "%d", hn_n); watch("hroot", "%d", host_root_on() ? hn_stack[hn_n - 1] % 12 : -1);
     watch("root0", "%d", root_live(0)); watch("dsel", "%d", dsel); watch("d9sel", "%d", d9sel);
+    // the PITCH lens (row 2): pmdf = is it on for the face the keybed is talking to · psnd = the note
+    // 303a is sounding live, or -1. psnd is the one that proves the lens reached a VOICE rather than
+    // just a bit, and mono.h's own priority is visible in it as keys are stacked and lifted.
+    watch("pmdf", "%d", pmd_on(host_face())); watch("pmd8", "%d", pmd_on(M_808));
+    watch("psnd", "%d", pmono_ready ? pmono[0].sounding : -1);
     // SPEAK diagnostics — these earned their keep: a byte-identical SPEAK A/B was traced to the
     // 303s being MUTED at boot (so acid_note, and therefore vow_attack, never ran) in one look.
     // vstep should walk 0..5 and vcur should show many distinct values (it glides); if vcur is
@@ -3262,6 +3385,7 @@ static void r2_perf303(Box main, int i) {
     pf_stac[i]  = lcdlatchf(0x7Eu, &px, y1, rowH, "STAC",  &pf_latch[PL_STAC][i],  &pf_hold[PL_STAC][i],  &pf_latch[PL_GLIDE][i]);
     pf_glide[i] = lcdlatchf(0x7Fu, &px, y1, rowH, "GLIDE", &pf_latch[PL_GLIDE][i], &pf_hold[PL_GLIDE][i], &pf_latch[PL_STAC][i]);
     pf_roll[i]  = lcdlatchf(0x83u, &px, y1, rowH, "ROLL",  &pf_latch[PL_ROLL][i],  &pf_hold[PL_ROLL][i],  0);
+    pmd[i]      = lcdlatchf(0x8Au, &px, y1, rowH, "PTCH",  &pmd_latch[i],          &pmd_hold[i],          0);   // host keys → PLAY this line (the sequencer lets go)
 }
 
 // a one-octave PIANO KEYBOARD root picker (white C D E F G A B + narrow black keys between), like the
@@ -3327,6 +3451,7 @@ static void r2_perfdrum(Box main, int focus) {
     pf_rp1[m]  = lcdlatchf(0x84u, &px, y0, rowH, "RP1",  &dpf_latch[DPL_RP1][m],  &dpf_hold[DPL_RP1][m],  0);
     pf_rp2[m]  = lcdlatchf(0x85u, &px, y0, rowH, "RP2",  &dpf_latch[DPL_RP2][m],  &dpf_hold[DPL_RP2][m],  0);
     pf_rp4[m]  = lcdlatchf(0x86u, &px, y0, rowH, "RP4",  &dpf_latch[DPL_RP4][m],  &dpf_hold[DPL_RP4][m],  0);
+    pmd[focus] = lcdlatchf(0x8Bu, &px, y0, rowH, "PTCH", &pmd_latch[focus],       &pmd_hold[focus],       0);   // host keys → the SELECTED voice, chromatic
     px = (int)g.x;
     pf_thin[m] = lcdlatchf(0x87u, &px, y1, rowH, "THIN", &dpf_latch[DPL_THIN][m], &dpf_hold[DPL_THIN][m], &dpf_latch[DPL_BUSY][m]);
     pf_busy[m] = lcdlatchf(0x88u, &px, y1, rowH, "BUSY", &dpf_latch[DPL_BUSY][m], &dpf_hold[DPL_BUSY][m], &dpf_latch[DPL_THIN][m]);
@@ -3700,6 +3825,8 @@ void draw(void) {
         pf_rp1[m]  = dpf_latch[DPL_RP1][m];  pf_rp2[m]  = dpf_latch[DPL_RP2][m];  pf_rp4[m]  = dpf_latch[DPL_RP4][m];
         pf_thin[m] = dpf_latch[DPL_THIN][m]; pf_busy[m] = dpf_latch[DPL_BUSY][m]; pf_dacc[m] = dpf_latch[DPL_ACC][m];
     }
+    // …and the PITCH lens, the same way (host-midi-notes.md row 2). Per MACHINE, so all five seed here.
+    for (int m = 0; m < M_N; m++) pmd[m] = pmd_latch[m];
     // DEVICE CLASS — classify ONCE on the first frame, BEFORE we shrink the canvas below
     // (our own de_resize makes de_sw/de_sh tiny, so device_class() would then read WIDE
     // forever; frame 0 still reports the physical screen). ROOMY (tablet) → the full rack.

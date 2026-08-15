@@ -450,6 +450,21 @@ a broken doc link or `#section`).
 > `bash tools/midi-note-check/run.sh` (16 assertions, three in-gate negative controls, proven able to
 > go red). Design + what is still open: [`design/host-midi-notes.md`](design/host-midi-notes.md).
 >
+> **✅ AND ROW 2 (2026-08-15, same day): the PITCH lens.** The open question was how to TOGGLE between
+> the host-note behaviours, and the answer is that there are not four of them — **a note number names
+> either a SOUND or a PITCH**, and everything falls out of that one binary. Off, the keyboard addresses
+> the MACHINE (which drum / which key); on, it addresses the VOICE (play the line / one drum
+> chromatically). That also explains why the 303's default is transpose instead of it being arbitrary,
+> which the first framing never did. **It is the MPC's 16 LEVELS and Elektron's KEYBOARD mode**, so it
+> adopts a control rather than inventing one. One `PTCH` latch (TAP=latch / HOLD=momentary, the
+> MUT/REC grammar) in the PERF screen, **per machine** because the two kinds want opposite defaults.
+> Engine side: `tr808_fire_semi` / `tr909_fire_semi`, since the TUNE knob is ±12 by construction and a
+> keyboard is not; the old `_fire` are zero-offset wrappers, proven byte-identical. Gate is now 27
+> assertions, mutation-tested twice. **▶ Left in that design: the `MidiEv` channel field** (all five
+> machines addressable at once) and **`AUParameterTree`, which is the bigger lever** — the AU exposes
+> ZERO parameters today, so no knob is automatable or recordable and the mod-wheel mapping was a
+> workaround for that rather than a free choice.
+>
 > **▶ NEXT: the BEND is ungated** (both 303 lines are muted at boot, so a default render has nothing to
 > bend — it needs the lines unmuted plus a pitch oracle, and an ear check; ⚠ `--midi-note` plus the
 > `un303.script` trick in midi-note-check now make that easy, and note that `formant-check` is NOT a

@@ -171,9 +171,17 @@ static void tr909_metal(int base, float mcut, float mres) {
 
 // fire one voice `delay` ms from now. Analog voices per the schematic; hats/cymbals
 // are the FM-clang ROM stand-ins. kt/kd/kc are the caller's TR9_NV knob arrays.
-static void tr909_fire(int base, int v, int boost, int delay,
-                       const float *kt, const float *kd, const float *kc) {
-    #define M(bs)     tr909__midi(kt, v, (bs))
+// …and the keyboard's trigger: the same voice with an EXTRA semitone offset on every layer, so one
+// drum can be played chromatically past what the ±12-semitone TUNE knob can reach. Clamped to a real
+// MIDI note (a keyboard can ask for the kick 60 semitones down; a knob never could). Byte-identical
+// for semi == 0. See tr808_fire_semi for the full rationale — same move, same reason.
+static int tr909__midi_semi(const float *kt, int v, int base, int semi) {
+    int m = tr909__midi(kt, v, base) + semi;
+    return m < 0 ? 0 : m > 127 ? 127 : m;
+}
+static void tr909_fire_semi(int base, int v, int boost, int delay,
+                            const float *kt, const float *kd, const float *kc, int semi) {
+    #define M(bs)     tr909__midi_semi(kt, v, (bs), semi)
     #define D(bs)     tr909__dur(kd, v, (bs))
     #define CV(lo,hi) tr909__cv(kc, v, (lo), (hi))
     #define VV(bs)    tr909__vv((bs), boost)
@@ -225,6 +233,12 @@ static void tr909_fire(int base, int v, int boost, int delay,
     #undef D
     #undef CV
     #undef VV
+}
+// the machine's own trigger: the voice at the pitch its knob says. Everything that is not a keyboard
+// comes through here, including tr909_fire_stroke below, so the two bodies can never drift.
+static void tr909_fire(int base, int v, int boost, int delay,
+                       const float *kt, const float *kd, const float *kc) {
+    tr909_fire_semi(base, v, boost, delay, kt, kd, kc, 0);
 }
 
 // fire a step WITH its stroke. Flam/drag lead the main hit with 1/2 quiet grace

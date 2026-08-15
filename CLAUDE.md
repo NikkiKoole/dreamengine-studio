@@ -171,7 +171,7 @@ runtime/   studio.h (public API: constants + declarations), studio.c (Raylib imp
                          calls this what decides whether a synth feels playable; tb303/acidrack/moog/sh101
                          each hand-rolled a different answer. Pure logic, no engine surface, no UI — so it
                          carries its OWN spec (mono_selfcheck, Part 18's four-priority table). sh101 drives
-                         it (PRIO/TRIG on the panel). NOT keybed.h (the widget) or solo.h (the radio strip)
+                         it (PRIO/TRIG on the panel); acidcandy's PTCH lens uses it for live-played 303 lines. NOT keybed.h (the widget) or solo.h (the radio strip)
              solo.h      scale-locked solo strip the player drives over a radio (pairs radio.h)
              radio.h     radio-station chrome (chassis, seeded songs, draggable control knobs)
              improv.h    melodic improvisation for the radio stations (auto-solo)
@@ -219,9 +219,10 @@ runtime/   studio.h (public API: constants + declarations), studio.c (Raylib imp
              tr808.h     the shared TR-808 VOICE BANK (the acid303.h move, for drums — a faithful machine, not
                          the generic drumkit.h): tr808_build(base) = the 14-slot bank from the reverse-engineered
                          circuit values; tr808_fire(base,role,boost,delay,kt,kd,kc) = the layered trigger + tune/
-                         decay/colour knob maths. TR_* 16-voice roster; cart owns the knob arrays. tr808 + acidcandy.
+                         decay/colour knob maths; tr808_fire_semi adds a SEMITONE offset on top for a KEYBOARD,
+                         since the TUNE knob is ±12 by construction (tr808_fire is now its zero-offset wrapper). TR_* 16-voice roster; cart owns the knob arrays. tr808 + acidcandy.
              tr909.h     the shared TR-909 VOICE BANK: tr909_build + tr909_metal (metal-highpass XY) + tr909_fire
-                         + tr909_fire_stroke (flam/drag/ratchet). TR9_* 11-voice roster. tr909 + acidcandy.
+                         (+ _semi, the keyboard's wider pitch path) + tr909_fire_stroke (flam/drag/ratchet). TR9_* 11-voice roster. tr909 + acidcandy.
              morphdrum.h the MORPHING DRUM VOICE bank, the honest core of "supergroovebox": an 808 kick and a
                          909 kick are the SAME structure at different parameter values, so each voice is ONE
                          parametric synth with a deep knob panel. CHARACTER (0=808…1=909) morphs the structural
@@ -332,10 +333,11 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
                              you see ONE cart window through phases A/B, and TWO during phase C's paired
                              run (epianojam + epiano overlapping) — that is the gate working, not a bug
              midi-note-check/  the gate for host MIDI NOTES reaching a CART (`bash tools/midi-note-check/run.sh`,
-                             16 assertions) — the input sibling of midi-check/, one layer up: that one proves the
+                             27 assertions) — the input sibling of midi-check/, one layer up: that one proves the
                              bytes arrive at the ENGINE, this proves a cart does the right thing with them. Covers
-                             acidcandy's two mappings (docs/design/host-midi-notes.md): a note TRANSPOSES the acid
-                             lines, or on a drum face plays the KIT through the GM map the rack already sends on.
+                             acidcandy's whole mapping (docs/design/host-midi-notes.md): a note names a SOUND (transpose the
+                             acid lines / play the KIT through the GM map the rack already sends on) or a PITCH (play
+                             the acid line / one drum chromatically), switched by the per-machine PTCH lens.
                              Runs headless because `--midi-note` pushes into the same ring an AUv3 host feeds, so
                              no DAW, no cable, no keyboard. THREE CONTROLS, each stopping a different way of
                              passing for the wrong reason: two untouched renders must be byte-IDENTICAL (or every
@@ -345,8 +347,8 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
                              map). Direction is measured on the 303 STEM, never the mix — a whole-rack centroid
                              sits at the HATS and drifts the WRONG WAY as the bassline rises. ⚠ It clears
                              build/saves/acidcandy before every run: the rack AUTOSAVES, so run N+1 boots from run
-                             N and two "identical" renders differ. Mutation-tested (drop the drain → 9 red, and
-                             the 7 that stay green are exactly the controls)
+                             N and two "identical" renders differ. Mutation-tested TWICE (drop the drain → 9 red;
+                             pin the PITCH lens off → 8 red — and both times the survivors are exactly the controls)
              net-check.js    the one-liner LOCKSTEP GATE (netplay twin of tune-check): echo-mirror + netdemo
                              pair + relay wire-protocol sim, PASS/FAIL; run after touching net.h / the net seams
              webrtc-spike/   PASSED probe (multiplayer rung 5b): browser WebRTC P2P DataChannel, Mac↔iPhone at

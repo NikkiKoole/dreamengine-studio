@@ -152,6 +152,57 @@ DC=$(sha "$OUT/d_ctl.wav"); DH=$(sha "$OUT/d_hit.wav"); DO=$(sha "$OUT/d_off.wav
 [ "$DO" = "$DC" ]  && ok "a note OUTSIDE the kit (100) changes nothing — it is the MAP, not the traffic" \
                    || bad "an off-map note changed the render — something fires for any note at all"
 
+# ── 7. THE PITCH LENS (row 2) ───────────────────────────────────────────────────────────────────
+# The same keyboard, re-pointed: OFF it names a SOUND, ON it names a PITCH. Reaching the latch needs
+# three taps (focus the face → open its PERF screen → tap PTCH), and the middle one is easy to forget:
+# without it the third tap lands on whatever the LCD was showing and the lens never engages, which
+# looks exactly like a broken feature. Coordinates are the 160×100 canvas, read off ui-audit.
+printf 'click 5 12 65\nclick 12 118 56\n'                  > "$OUT/p303.script"   # 303a → PERF → PTCH
+printf 'click 5 70 8\nclick 12 145 54\nclick 20 118 43\n'  > "$OUT/p808.script"   # 808  → PERF → PTCH
+
+echo
+echo "7. PITCH lens, 303 — the keys play the line, and mono.h resolves them"
+rm -rf build/saves/acidcandy
+node tools/play.js acidcandy script "$OUT/p303.script" --headless --frames 120 \
+     --midi-note 60@40-70 --midi-note 67@50-60 >/dev/null 2>&1
+[ "$(w 10 pmdf)" = "0" ]   && ok "off by default"                          || bad "pmdf=$(w 10 pmdf) before the tap (want 0)"
+[ "$(w 20 pmdf)" = "1" ]   && ok "the PTCH latch engages"                   || bad "pmdf=$(w 20 pmdf) after tapping PTCH (want 1)"
+[ "$(w 39 psnd)" = "-1" ]  && ok "silent until a key goes down"             || bad "psnd=$(w 39 psnd) with no key held (want -1)"
+[ "$(w 41 psnd)" = "60" ]  && ok "a key SOUNDS the line"                    || bad "psnd=$(w 41 psnd) on the first key (want 60)"
+[ "$(w 55 psnd)" = "67" ]  && ok "a stacked key wins (LAST priority)"       || bad "psnd=$(w 55 psnd) with two keys down (want 67)"
+[ "$(w 61 psnd)" = "60" ]  && ok "lifting it hands back to the key still down" || bad "psnd=$(w 61 psnd) after the newer key lifted (want 60)"
+[ "$(w 75 psnd)" = "-1" ]  && ok "the last release stops the voice"         || bad "psnd=$(w 75 psnd) after all keys up (want -1)"
+# ⚠ AND the two lenses must not both fire. Transpose is off while PITCH owns the line, or a key would
+# both play a note AND re-key the pattern under it — the one combination that is certainly wrong.
+[ "$(w 55 hroot)" = "-1" ] && ok "transpose stays OFF while PITCH owns the line" || bad "hroot=$(w 55 hroot) while playing (want -1)"
+
+echo
+echo "8. PITCH lens, drums — ONE voice across the keys (the MPC's 16 LEVELS)"
+rm -rf build/saves/acidcandy
+node tools/play.js acidcandy script "$OUT/p808.script" --headless --frames 200 \
+     --midi-note 48@60-65 --midi-note 72@100-105 >/dev/null 2>&1
+[ "$(w 25 pmd8)" = "1" ] && ok "the 808's PTCH latch engages"        || bad "pmd8=$(w 25 pmd8) after tapping PTCH (want 1)"
+[ "$(w 61 dsel)" = "0" ] && ok "a note does NOT re-select the voice" || bad "dsel=$(w 61 dsel) — a pitched note moved the selection"
+
+# does it actually PITCH? On the KICK'S OWN STEM (--solo-slot 9 = TR808_BASE), never the mix: measured
+# on the full rack the centroid sits at ~9 kHz because that is the HATS, and it moves non-monotonically
+# while the kick sweeps two octaves underneath. Same trap as the 303 sweep above, caught the same way.
+PREV=0; PMONO=1; PSEQ=""
+for n in 60 72 84; do
+  rm -rf build/saves/acidcandy
+  node tools/play.js acidcandy script "$OUT/p808.script" --headless --frames 200 --solo-slot 9 \
+       --wav "$OUT/pk.wav" --midi-note $n@60-65 --midi-note $n@100-105 --midi-note $n@140-145 >/dev/null 2>&1
+  C=$(centroid "$OUT/pk.wav"); PSEQ="$PSEQ $C"
+  [ -n "$C" ] || { PMONO=0; break; }
+  [ "$C" -gt "$PREV" ] || PMONO=0
+  PREV=$C
+done
+note "kick-stem centroid Hz:$PSEQ"
+[ "$PMONO" = 1 ] && ok "the kick's own centroid rises with the note:$PSEQ Hz" \
+                 || bad "the kick did not rise with the note:$PSEQ Hz"
+# +24 is PAST the ±12 the TUNE knob can reach, which is the whole reason tr808_fire_semi exists —
+# so a pass here is also the evidence that the header's wider path is live and not just present.
+
 echo
 if [ "$FAIL" -gt 0 ]; then printf '\033[31mFAIL\033[0m  %d passed, %d failed\n' "$PASS" "$FAIL"; exit 1; fi
 printf '\033[32mPASS\033[0m  %d assertions\n' "$PASS"

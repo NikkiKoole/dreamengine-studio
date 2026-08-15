@@ -438,6 +438,22 @@ typedef struct {
                               * that key lifts, which a count cannot tell you. */
     int   hn_n;              /* how many of hn_stack[] are live. 0 = the host holds nothing, which is
                               * what hands the KEY panel back to the player. */
+    /* ── the PITCH lens: does a host note name a SOUND or a PITCH? (host-midi-notes.md row 2) ──
+     * A live-play lens like the PERF ones beside it, so it lives here rather than in the saved
+     * CartState: it is how you are playing right now, not what the project IS. Per MACHINE, because
+     * the two kinds want opposite defaults — you almost always want the drum RACK available and the
+     * 303 TRANSPOSING, so one rack-wide bit would force one of them wrong on every face change. */
+    int   pmd_latch[M_N];    /* the persistent latch (TAP toggles it) */
+    int   pmd_hold[M_N];     /* lcdlatch's hold-frame counter for the momentary half */
+    int   pmd[M_N];          /* the EFFECTIVE value this frame: seeded from the latch in draw(), then
+                              * the focused PERF screen adds momentary hold on top — the same two-step
+                              * the pf_ and dpf_ lenses use, and for the same reason (a latch has to
+                              * keep working while you are looking at another face). */
+    Mono  pmono[2];          /* mono.h key assign for the two 303 lines, LIVE PLAY ONLY — the sequencer
+                              * never touches it. LAST priority + SINGLE trigger, so legato glides
+                              * instead of re-attacking, which on a 303 is exactly a SLIDE. */
+    int   pmono_ready;       /* MONO_OFF is not 0, so a zeroed Mono would claim to be sounding C-1 —
+                              * hence a one-shot init rather than trusting the calloc. */
 } AcidScratch;
 #ifndef DE_CART_CTX
 static AcidScratch de_acid_scratch_default;
@@ -647,6 +663,11 @@ static AcidScratch *de_acid_scratch_(void) {
 #define last_midi      (de_acid_scratch->last_midi)
 #define hn_stack       (de_acid_scratch->hn_stack)
 #define hn_n           (de_acid_scratch->hn_n)
+#define pmd_latch      (de_acid_scratch->pmd_latch)
+#define pmd_hold       (de_acid_scratch->pmd_hold)
+#define pmd            (de_acid_scratch->pmd)
+#define pmono          (de_acid_scratch->pmono)
+#define pmono_ready    (de_acid_scratch->pmono_ready)
 #define g_bank         (de_cart->g_bank)
 #define g_scratch      (de_cart->g_scratch)
 #define save_cooldown  (de_cart->save_cooldown)

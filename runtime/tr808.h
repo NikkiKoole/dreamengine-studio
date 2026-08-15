@@ -311,9 +311,25 @@ static void tr808_build(int base) {
 // follow the schematic: metal voices = members of the six-oscillator bank (MIDI
 // 79=800Hz, 73=540, 72=522.7, 66=369.6, 63=304.4, 56=205.3), snare = 180+330Hz
 // modes + noise. `ktune/kdecay/kcolor` are the caller's TR_NV knob arrays.
-static void tr808_fire(int base, int v, int boost, int delay,
-                       const float *ktune, const float *kdecay, const float *kcolor) {
-    #define M(bs)     tr808__midi(ktune,  v, (bs))
+// tr808_fire_semi — the body, plus an EXTRA semitone offset on every layer of the voice.
+//
+// WHY IT EXISTS: the TUNE knob is ±12 semitones by construction (tr808__midi reads a 0..1 knob), which
+// is right for a knob and useless for a KEYBOARD. Playing one drum chromatically — the tuned-808-kick
+// bassline, cowbell melodies, the MPC's 16-Levels gesture — needs to reach past the knob's range without
+// pretending the knob got bigger. So the offset is a separate argument: the knob still means what it
+// meant, and the keyboard adds to it. Both move every layer TOGETHER (a tom's sine and its noise thud,
+// the cymbal's three bank members), which is what the tune knob already does.
+//
+// ⚠ CLAMPED to a real MIDI note, unlike the raw tr808__midi. A knob can only reach 19..111 from these
+// bases so the clamp never fires for it, but a keyboard can ask for the kick 60 semitones down and hand
+// schedule_hit a negative note. Byte-identical for semi == 0, which is what tr808_fire passes.
+static int tr808__midi_semi(const float *kt, int v, int base, int semi) {
+    int m = tr808__midi(kt, v, base) + semi;
+    return m < 0 ? 0 : m > 127 ? 127 : m;
+}
+static void tr808_fire_semi(int base, int v, int boost, int delay,
+                            const float *ktune, const float *kdecay, const float *kcolor, int semi) {
+    #define M(bs)     tr808__midi_semi(ktune, v, (bs), semi)
     #define D(bs)     tr808__dur(kdecay,  v, (bs))
     #define CV(lo,hi) tr808__cv(kcolor,   v, (lo), (hi))
     #define VV(bs)    tr808__vv((bs), boost)
@@ -389,6 +405,12 @@ static void tr808_fire(int base, int v, int boost, int delay,
     #undef D
     #undef CV
     #undef VV
+}
+// the machine's own trigger: the voice at the pitch its knob says, which is every caller that is not
+// a keyboard. A wrapper rather than a duplicated body, so the two can never drift.
+static void tr808_fire(int base, int v, int boost, int delay,
+                       const float *ktune, const float *kdecay, const float *kcolor) {
+    tr808_fire_semi(base, v, boost, delay, ktune, kdecay, kcolor, 0);
 }
 
 // set voice v's stereo PAN (-1 L .. 0 centre .. +1 R) by panning EVERY output slot it

@@ -304,8 +304,11 @@ prints output **identical to a healthy engine**. There is no red. Everything pas
 4. **Pin the characteristics you found, do not "fix" them.** Every metric has inputs that make it
    shout or go quiet for structural reasons. Recorded as known answers they are documentation;
    left out, the next person "fixes" one and blinds the gate.
-5. **Mutate it.** Break the analyser three ways and watch which assertions go red. An unmutated
-   fixture is just more untested code.
+5. **Mutate it — including the CONTROL.** Break the analyser three ways and watch which assertions
+   go red; an unmutated fixture is just more untested code. Then break the analyser in the specific
+   way the control was added to catch, and confirm the control is what goes red. `level-check` below
+   is the cautionary case: two plausible controls sat green through the very failure they were
+   written for.
 
 **`tune-check --selfcheck`** (20 answers). The fixture was the smaller half: the real find was that
 **the SINE control was held to the engine thresholds** (`warn >12¢`), when it is exact by
@@ -344,11 +347,38 @@ clean all along — SINE −67 → −inf, PIPE −62 → −108, ORGAN −66 �
 deliberately **left alone**: with a 55x margin they could be tightened ~4x, but that changes what
 the gate accepts, which is a judgement call and not a mechanical follow-on.
 
+**`level-check --selfcheck`** (44 answers). Expected to be the easy one, and the arithmetic half was.
+The rest taught two things worth carrying to the next gate.
+
+*A control can be blind to the exact class you built it for.* Level has no absolute truth, so the
+controls were taken from **shape**: SINE's crest is 3.0103 dB by arithmetic, and SINE's peak is
+identical at all four octaves. Both looked like they must catch a window reading the wrong samples.
+Step 5 said otherwise: **a 2% samples-per-frame error left SINE reading crest 3.0 dB, peak −14.0
+dBFS and zero drift while it wrecked eleven other engines** — SINE is the *first* entry in the
+sweep, where the accumulated offset is a couple of frames, and a stationary sine is the least
+window-sensitive signal there is. The fix was three more controls taken from the sweep's **geometry**
+rather than its sound (a frame is exactly `sr/60` samples · every note is gated the same number of
+frames · the render outlasts the sweep by a period), each verified against a live mutation. The
+lesson generalises: *test the control against the failure it is supposed to cover*, or it is
+decoration. Mutation testing is not only for the assertions.
+
+*And the fixture found two real defects, both inherited.* This file's `noteWindows` is a copy of
+`tune-check`'s made before that one learned about `tunecheck.c`'s **differential pass** — PIANO
+rendered a second time with the stretch off, same `INSTR_*` id, which is why the cart publishes an
+`et` field. Ignoring it collapsed both passes onto the baseline key `27:45`, last-write-won, and the
+normal pass was silently diffed against the stretch-off one: **a standing phantom drift of +0.5/+0.7
+dB peak and 1.2 dB rms on PIANO, 82% of the warn budget spent on a difference between two renders.**
+The same copy carried `--frames 3400` with a comment counting 13 sweep entries when there are 14, so
+the last note *was never rendered* — and a note that never plays leaves nothing behind to notice.
+Blessing the corrected baseline also surfaced un-blessed drift from two committed BOWED body changes
+(`cc1bcd43`, `b661748a`), sitting at 0.28 dB under a 1.5 dB threshold for two weeks. Two follow-ons
+now in the tool: `--save` **refuses to bless** while a control is red (a fault frozen into the golden
+file stops looking like a fault), and duplicate baseline keys are reported rather than silently
+overwritten.
+
 **Still without one** — always take the list from `node tools/gate-controls.js --list` rather than
 from a count written in prose; several agents work this repo at once and this tally moved twice in
-one afternoon. At the time of writing: `level-check`, `fx-check`,
-`soak-check`, `psola-check`, `web-audio-check`. `level-check` is the easy next one — simple
-statistics over a buffer, so the arithmetic answers are immediate.
+one afternoon. At the time of writing: `fx-check`, `soak-check`, `psola-check`, `web-audio-check`.
 `soak-check` and `fx-check` are harder because their subject is behaviour over time rather than a
 single measurement, and `web-audio-check` compares two platforms, so its control is a deliberate
 divergence rather than a synthetic signal.

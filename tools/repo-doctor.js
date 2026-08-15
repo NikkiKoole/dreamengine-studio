@@ -85,6 +85,7 @@ const CHECKS = [
   // known by construction, because a clean take and a blind splice detector print the same line.
   { name: "selftest: clicks", tool: "click-check.js", args: ["--selfcheck"], gate: true },
   { name: "selftest: dc", tool: "dc-check.js", args: ["--selfcheck"], gate: true },
+  { name: "selftest: levels", tool: "level-check.js", args: ["--selfcheck"], gate: true },
   { name: "selftest: saved state", tool: "lint-saved-state.js", args: ["--selfcheck"], gate: true },
   { name: "selftest: carts",   tool: "lint-carts.js",      args: ["--selfcheck"], gate: true },
   { name: "selftest: fx frame", tool: "lint-fx-frame.js",  args: ["--selfcheck"], gate: true },

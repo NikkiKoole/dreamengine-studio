@@ -1,7 +1,8 @@
 # Host MIDI notes on a multi-machine rack
 
-> **STATUS: READY TO BUILD (2026-08-15).** The first build step is designed and its hooks are
-> named; the later ones are scoped but the mapping is the maker's call.
+> **STATUS: BUILDING (2026-08-15) — the top row is wired and gated; rows 2+ are still open.**
+> A host note now transposes the acid lines, or plays the kit on a drum face, with no mode switch.
+> Gated by `bash tools/midi-note-check/run.sh` (16 assertions, mutation-tested).
 > Came out of the maker loading `acidcandy` as an AUv3 in GarageBand on the iPad: *"there is a
 > keybed but that isn't doing anything."* See also
 > [`midi-and-keybed.md`](midi-and-keybed.md) (the engine's note-input layer),
@@ -161,20 +162,66 @@ and it defers the mode question entirely rather than answering it badly.
 
 Within that, sequence it:
 
-1. **Drums first (row 1 right).** It is the increment that proves the wiring, and the only one of
-   the four that needs no mode, no engine change, no panel surrender, **and is audible with the
-   transport stopped**. That last property is worth more than it sounds, given this cart's record
-   of features that were mechanically correct and presented as broken. The map already exists and
-   is already correct, so it is genuinely a lookup and a call. Free rider: live MIDI step record
-   via the REC path.
-2. **Transpose (row 1 left)**, which needs the KEY-panel surrender treatment and a decision about
-   both lines versus the focused one, and absolute versus relative.
+1. ~~**Drums first (row 1 right).**~~ **DONE 2026-08-15.** It was the increment that proved the
+   wiring, and the only one of the four needing no mode, no engine change, no panel surrender, and
+   audible with the transport stopped. Free rider, as predicted: live MIDI step record via the REC
+   path.
+2. ~~**Transpose (row 1 left)**~~ **DONE 2026-08-15**, in the same pass once the drum half proved
+   the drain. Both open questions were settled as: **both lines** (they are a pair, and transposing
+   one leaves the song half in the wrong key) and **absolute pitch class** (a note names the root,
+   which is exactly what the KEY panel it overrides already means).
 3. **The latch**, only once row 2 is actually wanted.
 4. **Row 2** itself: the mono 303 (needs `mono.h` arbitration) and the pitched drum voice (needs
    the wider `tr808_fire` entry point).
 5. **The channel field on `MidiEv`**, whenever a real DAW use case shows up, or sooner if it is
    wanted as the primary routing answer, in which case it moves to the front and step 3 may never
    be needed.
+
+## What shipped (2026-08-15) — the top row, and the flag that made it gateable
+
+Built as planned: the whole top row, no mode switch, routed by the focused face
+(`host_face()` reads `face` on a phone and `r2_focus` in the roomy rack, since that view draws all
+five machines at once).
+
+- **Transpose.** `root_live(i)` replaces `mroot[i]` everywhere a note is computed. Held key wins by
+  LAST-note priority over a small stack, so lifting the newer key falls back to the one still down
+  rather than to silence. It **overrides rather than writes**, so `mroot` keeps what the player
+  dialled and a MIDI take never dirties the saved song. Pitch class only, both lines together, and
+  suppressed on a drum face so finger-drumming cannot silently re-key the 303s underneath you.
+- **The kit.** `gm_voice()` is `MO_GM808[]`/`MO_GM909[]` read backwards, so input and output agree
+  by construction. One deliberate divergence from the pad it otherwise mirrors: a host note **always
+  sounds.** A pad tap is a select that sometimes sounds (silent while the transport runs, REC is the
+  audible opt-in); a MIDI note is only ever a play, and gating it on REC would kill the keybed
+  exactly when someone is jamming. With REC lit it still punches the step, so **live MIDI
+  step-record came free**, which closes the cart's own standing "LIVE RECORD, still open" todo.
+- **Both KEY panels surrender** while a key is held: no widget registered at all, host key drawn
+  white against a dimmed strip. The roomy keyboard also gets the word "MIDI", in the grammar of the
+  FLT knob's "MOD" and the tempo knob's "EXT". The phone face gets no word because there is no room
+  for one at 160×100.
+- **State went in `AcidScratch`, not `CartState`** — live host state is not intent, and the saved
+  layout must not move or every existing project stops loading.
+
+**`--midi-note` (`runtime/studio.c` → `midi_sched_add`) is the enabling piece and is worth more than
+this cart.** Nothing could put a MIDI note into a headless run before it, so any cart's host-MIDI
+path was gateable only through a real DAW on a real device. It pushes into the same ring
+`de_midi_event` feeds, and a run that sets one skips `midi_input_init` so a keyboard left plugged
+into the dev machine cannot make the gate flaky (sync.h's rule, pointed at notes).
+
+**Two measurement traps, both hit while gating this, both worth more than the feature:**
+
+- **`formant-check.js` reported the pitch going DOWN.** Its autocorrelation returns the ends of its
+  own 80–501 Hz search range on a resonant acid saw, so both readings were the analyser failing, not
+  a result. A broken oracle and a real answer print the same thing. The gate uses spectral centroid
+  across a rising scale instead, **measured on the 303 stem** (`--solo-slot 6`): on the full mix the
+  centroid sits at the hats and drifts the wrong way as the bassline rises, because what moves is
+  the balance between two sources rather than the pitch of either.
+- **The rack AUTOSAVES**, so run N+1 boots from run N's session and two "identical" renders come out
+  different. That is not a flaky gate, it is the gate measuring two different racks. Clear
+  `build/saves/acidcandy` before every render, or A/B this cart by hand and get two wrong answers.
+
+The strongest assertion in the gate is the quiet one: **holding the panel's own root renders
+byte-identical to holding nothing.** It proves the override is exact rather than merely present,
+which "the audio changed" never could.
 
 ## Hazards to design against
 
@@ -211,12 +258,16 @@ nothing" for yet another reason.
 
 ## Open questions
 
-- Does transpose move **both** 303 lines or only the focused one? Both keeps them locked (they are
-  a bass and lead duo an octave apart); only-focused is more expressive and more confusing. The
-  per-303 KEY panel means they are already allowed to disagree, with no coherence rail.
-- Absolute or relative transpose? A note is the new root (absolute, simple, discards the KEY
-  panel's setting while held) or an offset from a reference note (relative, keeps the panel
-  meaningful, needs a stated reference).
-- What happens on the MST face, which has no notes of its own? Fall back to the last focused
-  machine, or to both 303s, or do nothing and say so.
-- Should the note range clamp, or wrap? A keyboard has 5 octaves and a 303 line has 2 useful ones.
+Both of the original transpose questions are settled (see the build order). What is left:
+
+- **The MST face transposes**, because it is not a drum face and the rule is "drums only on a drum
+  face". That falls out of the design rather than having been chosen, and it is probably right (the
+  master face is where a whole-rack gesture belongs), but nobody has played it.
+- **Velocity on a drum note is a two-step ladder**: ≥100 accents (+2, the pattern's own accent),
+  anything else is a pad tap's 1. A real controller sends a continuous 1–127 and this throws almost
+  all of it away. A smooth map wants `tr808_fire`'s boost to mean more than three things.
+- **Octave is discarded.** Deliberate (a keyboard has five and a 303 line has two useful ones), but
+  it means the bottom and top of the keyboard are the same note, which someone will notice.
+- **Nothing is shown on a drum face** when a host note fires beyond the pad flash the pattern
+  already uses. Fine for now; it will read as "did that land?" the first time a note is off-map.
+- **Rows 2+ and the channel field** are unchanged from the ranking above.

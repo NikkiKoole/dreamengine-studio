@@ -54,6 +54,12 @@
 //                      sync_playing()/sync_beats()/sync_bpm() come alive with no DAW and no MIDI
 //                      cable, so a "does my sequencer lock to the host" gate runs headless and
 //                      deterministically (fixed timestep ⇒ same ticks every run). runtime/sync.h
+//   --midi-note <spec> a SYNTHETIC host NOTE, repeatable — "<note>[:<vel>]@<onFrame>[-<offFrame>]",
+//                      e.g. --midi-note 36@30-40 --midi-note 60:120@60-120. The note twin of
+//                      --midi-clock: it pushes into the same ring an AUv3 host feeds, so "the host's
+//                      keybed plays this cart" is gateable with no DAW, no cable and no keyboard.
+//                      A run with any of these IGNORES real MIDI input, or a keyboard left plugged
+//                      in makes it nondeterministic. runtime/studio.c → midi_sched_add
 //   --screen WxH       screen dims (default from cart settings / 320x200)
 //
 // `beats` script format (compiled here to the runtime's frame events):
@@ -104,6 +110,13 @@ function opt(flag, def) {
   return i >= 0 && i + 1 < args.length ? args[i + 1] : def
 }
 const hasFlag = (flag) => args.includes(flag)
+// REPEATABLE flags (--midi-note can be given several times = a chord, or a phrase). opt() returns
+// only the first, which would silently drop every note after the one.
+function optAll(flag) {
+  const out = []
+  for (let i = 0; i < args.length - 1; i++) if (args[i] === flag) out.push(args[i + 1])
+  return out
+}
 
 const SRC = path.join(mk.ROOT_DIR, 'tools', 'carts', `${name}.c`)
 if (!fs.existsSync(SRC)) { console.error('no cart source at', SRC); process.exit(1) }
@@ -346,6 +359,10 @@ if (mode === 'run' && !hasFlag('--net-echo')) {
   }
 }
 if (opt('--midi-clock', null)) runArgs.push('--midi-clock', opt('--midi-clock'))   // synthetic EXTERNAL clock at <bpm> → sync_active/sync_beats/sync_bpm, no DAW needed (runtime/sync.h)
+// synthetic HOST NOTES, repeatable: "<note>[:<vel>]@<onFrame>[-<offFrame>]" → the same ring an AUv3
+// host feeds (de_midi_event), so a cart's host-MIDI path is gateable with no DAW. runtime/studio.c
+// midi_sched_add; a run with any of these ignores real CoreMIDI so it stays reproducible.
+for (const n of optAll('--midi-note')) runArgs.push('--midi-note', n)
 if (hasFlag('--midi-out'))     runArgs.push('--midi-out')   // let this AUTOMATED run actually SEND MIDI (off by default here, or every headless bake fires notes into the dev's open DAW — runtime/midi_output.h). tools/midi-out-check/run.sh
 if (opt('--solo-slot', null))  runArgs.push('--solo-slot', opt('--solo-slot'))   // stem render: mute all but these instrument slot(s), e.g. 6 or 5,6 (docs/design/audio-voice-debugging.md)
 if (opt('--uiaudit', null))    runArgs.push('--uiaudit', path.resolve(opt('--uiaudit')))   // per-frame draw bounding boxes → JSONL (tools/ui-audit.js)

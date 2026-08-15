@@ -402,10 +402,24 @@ a broken doc link or `#section`).
 > REAL host: `./au-transport-check --wheel` in `ios/mac.sh` — peak 0.711 → 0.249 as the filter shuts,
 > back to 0.667, with a no-op control first. Live MIDI state sits in `AcidScratch`, NOT `CartState`, so
 > the saved layout did not move and projects saved earlier that day still load.
+> **✅ AND THE KEYBED PLAYS IT (2026-08-15)** — the maker: *"there is a keybed but that isnt doing
+> anything."* Same shape as the mod wheel one hop further along: the notes already reached the engine
+> ring, and the CART called `midi_get()` zero times. Plumbing work zero; the job was deciding what a
+> note MEANS on five machines, and four plausible answers collapse to **one axis** (is the PATTERN the
+> instrument, or the VOICE?). Shipped the pattern row WHOLE so there is **no mode switch**: a drum face
+> plays the KIT through the GM map the rack already sends on, anywhere else transposes both acid lines,
+> routed by the focused face. Live MIDI step-record came free through the existing REC latch.
+> **New engine flag `--midi-note`** pushes into the same ring an AUv3 feeds, because nothing could put
+> a note into a headless run before — so this is gated with no DAW by
+> `bash tools/midi-note-check/run.sh` (16 assertions, three in-gate negative controls, proven able to
+> go red). Design + what is still open: [`design/host-midi-notes.md`](design/host-midi-notes.md).
+>
 > **▶ NEXT: the BEND is ungated** (both 303 lines are muted at boot, so a default render has nothing to
-> bend — it needs the lines unmuted plus a pitch oracle, and an ear check), and **CC74** is now nearly
-> free for the focused machine's own cutoff. Full record + the rejected `varispeed`-on-bend idea:
-> `node tools/cart-todos.js acidcandy`.
+> bend — it needs the lines unmuted plus a pitch oracle, and an ear check; ⚠ `--midi-note` plus the
+> `un303.script` trick in midi-note-check now make that easy, and note that `formant-check` is NOT a
+> usable pitch oracle on an acid saw — it returns the ends of its own search range), and **CC74** is
+> now nearly free for the focused machine's own cutoff. Full record + the rejected `varispeed`-on-bend
+> idea: `node tools/cart-todos.js acidcandy`.
 >
 > **▼ superseded — the original next-action, kept for the trail:**
 > **▶ NEXT ACTION (2026-08-14, the maker's call): WIRE THE HOST'S MOD WHEEL AND PITCH BEND.**

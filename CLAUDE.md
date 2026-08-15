@@ -275,7 +275,8 @@ Makefile   `make` kills stale processes + starts editor, +floorplan `--serve` fe
 tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read the file header for
            the full contract:
              make-cart.js    build/bake .cart.png from tools/carts/<name>.c; also a lib for play.js
-             play.js         debug harness driver (record/replay/script + trace + --wav + --solo-slot stem)
+             play.js         debug harness driver (record/replay/script + trace + --wav + --solo-slot stem
+                             + --midi-note = a SYNTHETIC host note, the only way to put MIDI notes into a headless run)
              make-gif.js     capture an animated clip of a cart (webm/webp/gif/mp4/apng + audio)
              dress-clip.js   DRESS a clip into a 9:16 Short with hand-typed text in the letterbox bars —
                              drawn in the REAL engine dos_8x8 pixel font with BOIL + a tween-in entrance (bakes two
@@ -330,6 +331,22 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
                              the engine`. ⚠ Windows are DELIBERATE (no `--headless`, see det-turbo above):
                              you see ONE cart window through phases A/B, and TWO during phase C's paired
                              run (epianojam + epiano overlapping) — that is the gate working, not a bug
+             midi-note-check/  the gate for host MIDI NOTES reaching a CART (`bash tools/midi-note-check/run.sh`,
+                             16 assertions) — the input sibling of midi-check/, one layer up: that one proves the
+                             bytes arrive at the ENGINE, this proves a cart does the right thing with them. Covers
+                             acidcandy's two mappings (docs/design/host-midi-notes.md): a note TRANSPOSES the acid
+                             lines, or on a drum face plays the KIT through the GM map the rack already sends on.
+                             Runs headless because `--midi-note` pushes into the same ring an AUv3 host feeds, so
+                             no DAW, no cable, no keyboard. THREE CONTROLS, each stopping a different way of
+                             passing for the wrong reason: two untouched renders must be byte-IDENTICAL (or every
+                             "the audio differs" below is noise) · holding the panel's OWN root must be
+                             byte-identical (the override is EXACT, not merely present) · a note OUTSIDE the kit
+                             must change NOTHING (else the kit test passes on any MIDI traffic rather than on the
+                             map). Direction is measured on the 303 STEM, never the mix — a whole-rack centroid
+                             sits at the HATS and drifts the WRONG WAY as the bassline rises. ⚠ It clears
+                             build/saves/acidcandy before every run: the rack AUTOSAVES, so run N+1 boots from run
+                             N and two "identical" renders differ. Mutation-tested (drop the drain → 9 red, and
+                             the 7 that stay green are exactly the controls)
              net-check.js    the one-liner LOCKSTEP GATE (netplay twin of tune-check): echo-mirror + netdemo
                              pair + relay wire-protocol sim, PASS/FAIL; run after touching net.h / the net seams
              webrtc-spike/   PASSED probe (multiplayer rung 5b): browser WebRTC P2P DataChannel, Mac↔iPhone at

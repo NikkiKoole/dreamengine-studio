@@ -432,6 +432,12 @@ typedef struct {
     int   bend_last;         /* last pitch-bend pushed, so a bend only rides the voice on CHANGE and
                               * a 303 SLIDE (which is itself a note_pitch glide) is left alone at 0 */
     int   last_midi[2];      /* the note each 303 line is currently sounding, for bend to offset from */
+    int   hn_stack[8];       /* host notes currently HELD, oldest first, newest LAST. A stack rather
+                              * than a count because transpose takes the LAST key pressed (mono.h's
+                              * default priority) and has to fall back to the one still down when
+                              * that key lifts, which a count cannot tell you. */
+    int   hn_n;              /* how many of hn_stack[] are live. 0 = the host holds nothing, which is
+                              * what hands the KEY panel back to the player. */
 } AcidScratch;
 #ifndef DE_CART_CTX
 static AcidScratch de_acid_scratch_default;
@@ -639,6 +645,8 @@ static AcidScratch *de_acid_scratch_(void) {
 #define mod_cc         (de_acid_scratch->mod_cc)
 #define bend_last      (de_acid_scratch->bend_last)
 #define last_midi      (de_acid_scratch->last_midi)
+#define hn_stack       (de_acid_scratch->hn_stack)
+#define hn_n           (de_acid_scratch->hn_n)
 #define g_bank         (de_cart->g_bank)
 #define g_scratch      (de_cart->g_scratch)
 #define save_cooldown  (de_cart->save_cooldown)

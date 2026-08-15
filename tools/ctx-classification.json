@@ -529,6 +529,13 @@
    "det_turbo": {
     "line": 586
    },
+   "midi_sched": {
+    "line": 1789,
+    "note": "--midi-note: the SYNTHETIC host-note schedule, parsed from argv. Harness input exactly like replay_ev next door, and process-level for the same reason argv is: the flag describes the RUN, not a rack. A run that sets one also skips midi_input_init (see there), so there is nothing per-instance to keep apart."
+   },
+   "midi_sched_n": {
+    "line": 1790
+   },
    "inject_input": {
     "line": 591
    },

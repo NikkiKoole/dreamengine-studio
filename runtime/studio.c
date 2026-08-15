@@ -1774,10 +1774,61 @@ void expect_eq(long got, long want, const char *msg){
 // ------------------------------------------------------------
 
 #ifndef PLATFORM_WEB
+// ── SYNTHETIC HOST NOTES (--midi-note) ───────────────────────────────────────────────────────────
+// The NOTE twin of sync.h's --midi-clock, and it exists for the same reason: until now NOTHING could
+// put a MIDI note into a headless run, so "the host's keybed plays this cart" was gateable only
+// through a real DAW on a real device. Notes are pushed into the SAME ring the AUv3 feeds
+// (de_midi_event → de_midi_push), so a cart cannot tell this from a host and the gate exercises the
+// shipping path rather than a test double.
+//
+// Same rule as the clock, for the same reason: while a schedule is set it is the ONLY source, so
+// midi_input_init() is skipped below. A keyboard plugged into the dev machine (or a DAW already
+// playing) would otherwise add notes on top and the run would stop being reproducible — which the
+// sync side learned the hard way twice, see the three-case guard in runtime/sync.h.
+#define MIDI_SCHED_MAX 32
+static struct { int note, vel, on, off; unsigned char fired, released; } midi_sched[MIDI_SCHED_MAX];
+static int midi_sched_n = 0;
+
+// "<note>[:<vel>]@<onFrame>[-<offFrame>]" — e.g. "36@30-40" (a kick at frame 30, released at 40) or
+// "60:120@30-90" (hard, so a velocity map is exercised). Repeatable; omit the -off to HOLD to the end
+// of the run, which is a legitimate thing to test since a stuck note is a real defect.
+static void midi_sched_add(const char *s) {
+    if (midi_sched_n >= MIDI_SCHED_MAX || !s) return;
+    const char *at = strchr(s, '@');
+    if (!at) { printf("[midi-note] ignoring \"%s\" — no @<frame>\n", s); return; }   // no frame = nothing to schedule; say so rather than guess
+    int note = atoi(s), vel = 100, on = atoi(at + 1), off = -1;
+    const char *colon = strchr(s, ':'), *dash = strchr(at, '-');
+    if (colon && colon < at) vel = atoi(colon + 1);
+    if (dash) off = atoi(dash + 1);
+    if (note < 0 || note > 127) { printf("[midi-note] ignoring \"%s\" — note out of 0..127\n", s); return; }
+    if (vel < 1) vel = 1; if (vel > 127) vel = 127;
+    midi_sched[midi_sched_n].note = note; midi_sched[midi_sched_n].vel = vel;
+    midi_sched[midi_sched_n].on   = on;   midi_sched[midi_sched_n].off = off;
+    midi_sched[midi_sched_n].fired = midi_sched[midi_sched_n].released = 0;
+    midi_sched_n++;
+}
+
+// fire whatever this frame owes. Note-ons before note-offs within an entry, and entries in the order
+// they were given, so a chord's arrival order is the command line's.
+static void midi_sched_frame(int fno) {
+    for (int i = 0; i < midi_sched_n; i++) {
+        if (!midi_sched[i].fired && fno >= midi_sched[i].on) {
+            de_midi_push(+1, midi_sched[i].note, midi_sched[i].vel);
+            midi_sched[i].fired = 1;
+        }
+        if (midi_sched[i].fired && !midi_sched[i].released
+            && midi_sched[i].off >= 0 && fno >= midi_sched[i].off) {
+            de_midi_push(-1, midi_sched[i].note, 0);
+            midi_sched[i].released = 1;
+        }
+    }
+}
+
 // per-frame harness work. fno is the 0-based index of the frame about to run
 // (== frame_count before its end-of-frame increment), so it lines up between a
 // --record run and the --replay that feeds the events back.
 static void harness_input(int fno) {
+    midi_sched_frame(fno);                               // --midi-note: synthetic HOST notes into the MIDI ring
     if (inject_input) {                                  // replay/script drives keys + mouse
         memcpy(key_inject_prev, key_inject, sizeof key_inject);
         memcpy(mbtn_inj_prev,   mbtn_inj,   sizeof mbtn_inj);
@@ -3466,6 +3517,10 @@ int main(int argc, char **argv) {
         // would otherwise add its ticks on top and the run stops being reproducible — see the
         // three-case guard in runtime/sync.h), and on the fixed timestep it is bit-reproducible.
         else if (strcmp(argv[i], "--midi-clock") == 0 && i + 1 < argc) sync_synth_bpm = (float)atof(argv[++i]);
+        // --midi-note "<note>[:<vel>]@<on>[-<off>]": a SYNTHETIC host NOTE, repeatable. The only way
+        // to put a MIDI note into a headless run — see midi_sched_add for the format and for why a
+        // schedule makes itself the only source.
+        else if (strcmp(argv[i], "--midi-note") == 0 && i + 1 < argc) midi_sched_add(argv[++i]);
         // --midi-out: let an AUTOMATED run actually SEND MIDI. Off by default there for the same
         // reason the input side ignores a real clock, pointed the other way: a headless bake, a
         // build-all sweep or a ui-audit pass would otherwise publish a "dreamengine" MIDI device
@@ -3641,7 +3696,10 @@ int main(int argc, char **argv) {
     if (!audio_off) {                                   // DE_AUDIO=off skips audio entirely
         InitAudioDevice();
         sound_init();
-        midi_input_init();   // CoreMIDI keyboard input (no-op if no device / non-macOS)
+        // CoreMIDI keyboard input (no-op if no device / non-macOS). SKIPPED when --midi-note gave us
+        // a schedule: that run's notes are the only ones it may see, or a keyboard left plugged into
+        // the dev machine makes the gate nondeterministic (sync.h's rule, pointed at notes).
+        if (midi_sched_n == 0) midi_input_init();
     }
 #endif
     SetTargetFPS(det_turbo ? 0 : 60);   // raylib: target < 1 → no frame wait (the present is also skipped below)

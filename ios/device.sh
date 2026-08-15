@@ -50,15 +50,23 @@ if [ -z "${DEVICE_ID:-}" ] && xcrun devicectl list devices --json-output /tmp/de
   # while the tunnel is disconnected that is whatever it was before you changed it — so a device with
   # Developer Mode freshly enabled still lists as "disabled". Gating on that told the maker to go and
   # do a thing they had already done, twice. `device info details` OPENS the tunnel and answers live.
+  # ⚠ NO `exit` IN THESE AWKS, and it is not a style preference. `awk '…{print; exit}'` closes the
+  # pipe the moment it matches, and the tool upstream is still writing — so it takes SIGPIPE, the
+  # pipeline reports 141, and `set -euo pipefail` kills the whole script. It does that AFTER awk has
+  # already captured the right answer, and BEFORE the first echo, so the symptom is `device.sh`
+  # exiting 141 with ZERO output on a device that is connected, unlocked and in Developer Mode.
+  # (Cost a baffling run 2026-08-15. `devicectl device info details` prints pages, so the race is
+  # near-certain here; the xctrace one below is the same trap with a smaller writer, hence flakier.)
+  # Reading all of stdin and keeping the FIRST match costs nothing and cannot signal.
   [ -n "$DC_ID" ] && DC_DEVMODE="$(xcrun devicectl device info details --device "$DC_ID" 2>/dev/null \
-    | awk -F': ' '/developerModeStatus/ {print $2; exit}')"
+    | awk -F': ' '/developerModeStatus/ && !seen {print $2; seen=1}')"
   # The HARDWARE udid, which is a different identifier from the CoreDevice uuid above. xcodebuild
   # wants this one; devicectl wants the other. Passing the wrong one fails in confusing ways.
   DC_UDID="$(/usr/bin/python3 -c "import json;d=[x for x in json.load(open('/tmp/de-devices.json'))['result']['devices'] if x['identifier']=='$DC_ID'];print(d[0].get('hardwareProperties',{}).get('udid','') if d else '')" 2>/dev/null)"
 fi
 DEVICE_ID="${DEVICE_ID:-$(xcrun xctrace list devices 2>&1 \
   | sed -n '/== Devices ==/,/== Simulators ==/p' \
-  | awk -F'[()]' '/iPhone|iPad/ {print $4; exit}')}"
+  | awk -F'[()]' '/iPhone|iPad/ && !seen {print $4; seen=1}')}"   # no `exit` — see the SIGPIPE note above
 
 if [ -z "$DEVICE_ID" ] && [ -z "$DC_ID" ]; then
   echo "no physical device found — connect + unlock it, and accept 'Trust This Computer'"

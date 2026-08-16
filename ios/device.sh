@@ -160,8 +160,29 @@ if [ ! -f gen/Assets.xcassets/AppIcon.appiconset/Contents.json ]; then
   printf '{ "images": [{ "filename": "icon-1024.png", "idiom": "universal", "platform": "ios", "size": "1024x1024" }], "info": { "author": "xcode", "version": 1 } }\n' > gen/Assets.xcassets/AppIcon.appiconset/Contents.json
 fi
 
+# NAMES, on the DEV LOOP. The bundle id stays the throwaway com.tinyjam.hello (auto-registered, and
+# deliberately NOT the shipping id — see project.yml), but a cable install used to be called
+# "TinyjamHello" whatever app you staged, and its AU listed itself as "Tinyjam: Demo" in every host.
+# With APP=<manifest> we now derive the same names the store build does (ios/au-identity.sh), into a
+# COPY of the spec — project.yml itself is never rewritten, so a bare `xcodegen generate` still gives
+# the plain dev-loop project. ⚠ The AU subtype/manufacturer follow the manifest here too, which means
+# a cable build registers the SAME component triple the store build will: that is on purpose (you are
+# testing the real plug-in identity), and it is why a dev install can shadow a store install of the
+# same app in a host's plug-in list. Install one or the other, not both.
+SPEC=project.yml
+if [ -n "${APP:-}" ]; then
+  APP_DISPLAY="$(node -p "require('../apps/$APP/app.json').name")"
+  SPEC=project-dev.yml
+  cp project.yml "$SPEC"
+  if [ -n "$(node -p "require('../apps/$APP/app.json').auCart || ''")" ]; then
+    . ./au-identity.sh
+    au_identity_load "$APP" || exit 1
+    au_identity_apply "$SPEC" || exit 1
+  fi
+fi
+
 echo "▸ generating + building (signed for device, $CONFIG, ${SW}x${SH})…"
-xcodegen generate --spec project.yml >/dev/null
+xcodegen generate --spec "$SPEC" >/dev/null
 # ⚠ BUILD FOR THE ACTUAL DEVICE, NOT `generic/platform=iOS`. With a generic destination Xcode has no
 # device to provision FOR, so -allowProvisioningUpdates happily reuses an existing profile and never
 # registers this one — and the install then dies at the very end with
@@ -174,6 +195,7 @@ DEST="generic/platform=iOS"
 xcodebuild -project "$SCHEME.xcodeproj" -scheme "$SCHEME" -configuration "$CONFIG" \
   -destination "$DEST" -derivedDataPath build \
   GCC_PREPROCESSOR_DEFINITIONS="$DEFS" \
+  ${APP_DISPLAY:+INFOPLIST_KEY_CFBundleDisplayName="$APP_DISPLAY"} \
   -allowProvisioningUpdates DEVELOPMENT_TEAM="$TEAM" CODE_SIGN_STYLE=Automatic build >/dev/null
 
 echo "▸ installing + launching on device…"

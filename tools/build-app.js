@@ -87,13 +87,28 @@ if (!app.name || !Array.isArray(app.carts) || app.carts.length === 0) {
 for (const k of ['iap'])
   if (app[k]) console.log(`note: manifest "${k}" is parked for a later rung — accepted, unused today`)
 
-// ── cap: contexts the engine actually has (never drifts from sound.h) ─────────
-const soundH = fs.readFileSync(path.join(ROOT, 'runtime/sound.h'), 'utf8')
-const ctxCap = parseInt((soundH.match(/#define\s+SOUND_CART_CTX\s+(\d+)/) || [])[1], 10)
-if (!ctxCap) { console.error('could not parse SOUND_CART_CTX from runtime/sound.h'); process.exit(1) }
+// ── cap: contexts the engine actually has (never drifts from the engine) ──────
+// Read from wherever the define LIVES, not from where it once lived. It moved out of sound.h into
+// the GENERATED sound_ctx.h during the per-instance context work (sound.h includes that header), and
+// because this only grepped sound.h, EVERY app build died at "could not parse SOUND_CART_CTX" — an
+// error that names the symbol and blames the wrong file, so it reads like engine corruption rather
+// than a stale path. Search both, in the order the value is most likely to be found today.
+const CTX_HOMES = ['runtime/sound_ctx.h', 'runtime/sound.h']
+let ctxCap = 0, ctxFrom = ''
+for (const rel of CTX_HOMES) {
+  const p = path.join(ROOT, rel)
+  if (!fs.existsSync(p)) continue
+  const m = fs.readFileSync(p, 'utf8').match(/#define\s+SOUND_CART_CTX\s+(\d+)/)
+  if (m) { ctxCap = parseInt(m[1], 10); ctxFrom = rel; break }
+}
+if (!ctxCap) {
+  console.error(`could not find "#define SOUND_CART_CTX <n>" in any of: ${CTX_HOMES.join(', ')}`)
+  console.error('  it moved again — add its new home to CTX_HOMES above.')
+  process.exit(1)
+}
 const nCtx = app.carts.length + (app.launcher ? 1 : 0) // the launcher gets a ctx slot of its own
 if (nCtx > ctxCap) {
-  console.error(`${nCtx} contexts (carts${app.launcher ? ' + launcher' : ''}) > SOUND_CART_CTX (${ctxCap}) — raise it in runtime/sound.h first`)
+  console.error(`${nCtx} contexts (carts${app.launcher ? ' + launcher' : ''}) > SOUND_CART_CTX (${ctxCap}) — raise it in ${ctxFrom} first`)
   process.exit(1)
 }
 

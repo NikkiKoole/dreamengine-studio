@@ -280,6 +280,38 @@ function engineContext() {
   return { commit, dirty, files: h };
 }
 
+/* ── WHY is it red? (pure, so --check can pin it) ────────────────────────────────────────────────
+ * A drift is only a bug if the baseline is still a fair comparison. Three ways it stops being one,
+ * and the tool already collected the evidence for all three — it just never read the second.
+ *
+ * ⚠ THE ONE THAT COST A DAY: the tree can move to a DIFFERENT COMMIT between a blessing and its
+ * compare. On a branch several agents commit to, that is not exotic, it is Tuesday — somebody else
+ * lands a change to `runtime/studio.c` while you are mid-loop, your probe legitimately renders
+ * different bytes, and the gate answers with "a state move that changes output is a BUG in the
+ * refactor". It is nobody's bug and there is nothing on screen to suggest otherwise. It burned four
+ * bless/compare cycles before `git log` explained it, and it was caught in the act on the fifth:
+ * HEAD went 5873a465 → dc35b110 *while the bless was running*.
+ *
+ * ⚠ AND WHY THIS IS A NOTE, NOT AN EXCUSE. The refactor workflow is: bless clean → edit the engine →
+ * compare dirty. There, engine files differing IS the measurement and calling it "expected" would
+ * invert the gate into uselessness. What is NOT part of that workflow is HEAD itself moving, so the
+ * COMMIT is the honest discriminator: same commit + changed engine files = you, measured; different
+ * commit = somebody else may be in the frame, so re-bless on a settled tree before believing a red.
+ */
+function provenanceNotes(base, nowCommit, moved) {
+  const bc = (base && base.blessed_at_commit) || {};
+  const notes = [];
+  const wasDirty = bc.dirty || [];
+  // worst first: a baseline blessed dirty records bytes NO commit reproduces, so it can never go green
+  if (wasDirty.length) notes.push({ kind: 'dirty', files: wasDirty });
+  if (bc.commit && nowCommit && bc.commit !== nowCommit)
+    notes.push({ kind: 'moved-commit', from: bc.commit, to: nowCommit,
+                 files: moved.filter(f => f.startsWith('runtime/')) });
+  const carts = moved.filter(f => f.startsWith('tools/'));
+  if (carts.length) notes.push({ kind: 'moved-cart', files: carts });
+  return notes;
+}
+
 function bless() {
   console.log('recording the baseline — this is the "before" the refactor is measured against\n');
   const fps = {};
@@ -333,8 +365,8 @@ function compare(opts) {
       if (!fs.existsSync(abs)) { moved.push(`${f} (gone)`); continue; }
       if (shortSha(fs.readFileSync(abs)) !== want) moved.push(f);
     }
-  const cartsMoved = moved.filter(f => f.startsWith('tools/'));
-  const wasDirty = (base.blessed_at_commit && base.blessed_at_commit.dirty) || [];
+  const notes = provenanceNotes(base, engineContext().commit, moved);
+  const movedCommit = notes.find(n => n.kind === 'moved-commit');
 
   const results = [];
   for (const p of PROBES) {
@@ -355,8 +387,13 @@ function compare(opts) {
     const drifts = [];
     if (p.wav && b.wav && fp.wav.sha !== b.wav.sha) {
       const i = firstDiff(b.wav.chunks, fp.wav.chunks);
-      drifts.push(`audio diverges at ${(i * 0.1).toFixed(1)}s (chunk ${i} of ${b.wav.chunks.length})` +
-                  (fp.wav.peakDb !== b.wav.peakDb ? `, peak ${b.wav.peakDb} → ${fp.wav.peakDb} dBFS` : ''));
+      // ⚠ firstDiff returns -1 for "every chunk matches", which formatted as a LOCATION reads
+      // `audio diverges at -0.1s (chunk -1 of 100)` — a nonsense coordinate presented with the same
+      // confidence as a real one. It means the whole-stream sha moved while no 0.1s chunk did, so
+      // say that instead of inventing a timestamp for it.
+      const where = i < 0 ? 'audio differs but every 0.1s chunk matches (length or header changed?)'
+                          : `audio diverges at ${(i * 0.1).toFixed(1)}s (chunk ${i} of ${b.wav.chunks.length})`;
+      drifts.push(where + (fp.wav.peakDb !== b.wav.peakDb ? `, peak ${b.wav.peakDb} → ${fp.wav.peakDb} dBFS` : ''));
     }
     if (p.trace && b.trace && fp.trace.sha !== b.trace.sha) {
       const i = firstDiff(b.trace.frames, fp.trace.frames);
@@ -373,7 +410,9 @@ function compare(opts) {
   const bad = results.filter(r => r.status !== 'ok');
   if (opts.quiet) {
     console.log(bad.length
-      ? `refactor-guard: ${bad.length}/${results.length} probes NOT byte-identical — ${bad.map(r => r.p.cart).join(' ')}`
+      ? `refactor-guard: ${bad.length}/${results.length} probes NOT byte-identical — ${bad.map(r => r.p.cart).join(' ')}` +
+        // the ONE-LINE form repo-doctor shows: without this hint a moved tree reads as a regression
+        (movedCommit ? ` (⚠ tree moved since the blessing: ${movedCommit.from} → ${movedCommit.to} — re-bless on a settled tree)` : '')
       : `refactor-guard: ${results.length}/${results.length} probes byte-identical to the baseline`);
   } else {
     console.log('');
@@ -384,14 +423,26 @@ function compare(opts) {
       for (const r of bad) console.log(`  ✗ ${r.p.cart.padEnd(16)} ${r.status}  ${r.detail}`);
       // Say WHY before saying "this is a bug". A drift whose probe cart has changed since the
       // blessing is expected; a baseline recorded from a dirty tree is not comparable at all.
-      if (wasDirty.length) {
-        console.log('\n  ⚠ THIS BASELINE WAS BLESSED FROM A DIRTY TREE — these were uncommitted at the time:');
-        for (const f of wasDirty) console.log(`      ${f}`);
-        console.log('    It therefore records bytes no commit reproduces, and cannot go green. Re-bless.');
-      } else if (cartsMoved.length) {
-        console.log('\n  ⚠ a probe\'s own cart/clip has CHANGED since the blessing, so drift is expected here:');
-        for (const f of cartsMoved) console.log(`      ${f}`);
-        console.log('    Re-bless if the cart change is the intended one.');
+      for (const n of notes) {
+        if (n.kind === 'dirty') {
+          console.log('\n  ⚠ THIS BASELINE WAS BLESSED FROM A DIRTY TREE — these were uncommitted at the time:');
+          for (const f of n.files) console.log(`      ${f}`);
+          console.log('    It therefore records bytes no commit reproduces, and cannot go green. Re-bless.');
+        } else if (n.kind === 'moved-commit') {
+          console.log(`\n  ⚠ THE TREE MOVED SINCE THE BLESSING — baseline at ${n.from}, now at ${n.to}.`);
+          if (n.files.length) {
+            console.log('    Recorded ENGINE inputs that differ:');
+            for (const f of n.files) console.log(`      ${f}`);
+          }
+          console.log('    A drift may belong to SOMEBODY ELSE\'S COMMIT rather than to your change —');
+          console.log('    several agents commit to this branch. Re-bless on a settled tree and compare');
+          console.log('    again before believing this red. (Same commit + changed engine files is the');
+          console.log('    normal refactor loop and IS the measurement; a moved commit is not.)');
+        } else if (n.kind === 'moved-cart') {
+          console.log('\n  ⚠ a probe\'s own cart/clip has CHANGED since the blessing, so drift is expected here:');
+          for (const f of n.files) console.log(`      ${f}`);
+          console.log('    Re-bless if the cart change is the intended one.');
+        }
       }
       console.log('\n  A state move that changes output is a BUG in the refactor, not a new baseline.');
       console.log('  Do not re-bless to make this green unless you can say why the change is intended.');
@@ -474,6 +525,33 @@ function selfCheck() {
                                                      .every(p => prov.includes(p.script)));
   t('it is more than the three engine files',   () => prov.length > 3);
 
+  /* 4b. WHY-IS-IT-RED. The reasoning that turns a confusing red into an actionable one, pinned in
+   *     BOTH directions — the failure mode here is not a wrong message, it is going quietly silent
+   *     and leaving the operator with "a state move that changes output is a BUG in the refactor"
+   *     on a day when somebody else's commit moved the tree under them. That cost four bless/compare
+   *     cycles before git log explained it. Pure function, so these are known answers, not a run. */
+  const bcFixture = (over) => ({ blessed_at_commit: { commit: 'aaaaaaa', dirty: [], files: {} }, ...over });
+  t('a settled tree at the same commit says NOTHING',
+        () => provenanceNotes(bcFixture(), 'aaaaaaa', []).length === 0);
+  t('a MOVED COMMIT is reported',
+        () => { const n = provenanceNotes(bcFixture(), 'bbbbbbb', []);
+                return n.length === 1 && n[0].kind === 'moved-commit' && n[0].from === 'aaaaaaa' && n[0].to === 'bbbbbbb'; });
+  t('…and it names the ENGINE files that moved with it',
+        () => { const n = provenanceNotes(bcFixture(), 'bbbbbbb', ['runtime/studio.c']);
+                return n[0].files.length === 1 && n[0].files[0] === 'runtime/studio.c'; });
+  t('an engine file moving at the SAME commit is the refactor loop, not a note',
+        () => provenanceNotes(bcFixture(), 'aaaaaaa', ['runtime/studio.c']).length === 0);
+  t('a moved CART is still reported on its own',
+        () => { const n = provenanceNotes(bcFixture(), 'aaaaaaa', ['tools/carts/acidcandy.c']);
+                return n.length === 1 && n[0].kind === 'moved-cart'; });
+  t('a DIRTY blessing outranks everything (it can never go green)',
+        () => provenanceNotes(bcFixture({ blessed_at_commit: { commit: 'aaaaaaa', dirty: ['runtime/sound.h'], files: {} } }),
+                              'bbbbbbb', ['runtime/studio.c'])[0].kind === 'dirty');
+  t('a baseline with no provenance at all does not crash',
+        () => provenanceNotes({}, 'aaaaaaa', ['runtime/studio.c']).length === 0);
+  t('an UNKNOWN current commit is not reported as a move',
+        () => provenanceNotes(bcFixture(), '', ['runtime/studio.c']).length === 0);
+
   /* the porcelain parse, pinned in the exact shape that broke: a worktree-only modification is
    * " M path", and the bug ate the leading space and then a character of the path. */
   t('porcelain " M path" yields the full path', () => parsePorcelain(' M tools/carts/drawall.c')[0] === 'tools/carts/drawall.c');
@@ -483,6 +561,10 @@ function selfCheck() {
         const r = parsePorcelain(' M a/one.c\nMM b/two.c\n?? c/three.c\n');
         return r.length === 3 && r[0] === 'a/one.c' && r[1] === 'b/two.c' && r[2] === 'c/three.c';
       });
+  t('firstDiff says -1 when the chunk arrays are identical',
+        () => firstDiff(['a','b'], ['a','b']) === -1);
+  t('…and a real index when they are not',
+        () => firstDiff(['a','b','c'], ['a','x','c']) === 1);
   t('a clean tree parses to nothing',           () => parsePorcelain('').length === 0 &&
                                                       parsePorcelain('\n').length === 0);
 

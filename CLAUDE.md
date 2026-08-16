@@ -503,7 +503,11 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
                              creds in ~/.youtube/ (--auth one-time), NEVER git. --dry-run plan / --check offline gate.
                              Design: docs/design/video-distribution.md
              wav-analyze.js / tune-check.js / dc-check.js / level-check.js / fx-check.js /
-                             soak-check.js / web-audio-check.js   audio gates (see "Key things to know")
+                             soak-check.js / web-audio-check.js   audio gates (see "Key things to know").
+                             web-audio-check carries TWO controls because neither covers the other's half:
+                             --selfcheck (31 answers) judges the ANALYSER and builds nothing, so it runs
+                             anywhere; --bypass rebuilds the wasm side with -ffast-math and requires the gate
+                             to go RED (16/16 engines diverge) — the only proof the comparison reaches the DSP
              click-check.js  the CLICK/SPLICE oracle: waveform DISCONTINUITIES in a WAV and WHERE (first
                              difference vs the LOCAL step-rms, so a saw's flyback isn't a false positive; a cart's
                              own slope ≈2-3x, an audible click 6-20x). `--quiet` = PASS/FAIL gate. Run it after any
@@ -828,6 +832,12 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
                              exists but no agent finds it, so they hand-roll it again" class.
                              `--json`; `--selfcheck` = known-answer fixture (pins the HARD-vs-SOFT §-ref split:
                              a parent-resolved ref is a NOTE, never an error), gated in repo-doctor
+             cart-land-headers.js  (lib, not CLI) the ONE split of runtime/*.h into the cart-land SHELF
+                             (ADR-0006) vs engine internals / platform seams / generated. Owned here so
+                             lint-docs (the discoverability gate) and api-usage (the call-site scan) can't
+                             drift; same lib shape as doc-status.js + capability-roster.js. A NEW header is
+                             shelf by default — the direction that fails loudly. Run it bare to see the
+                             classification with a reason per allowlisted file
              lint-engine-seam.js  the HOST↔ENGINE boundary, from three bugs that shipped in one day
                              because the per-instance refactor changed what host code MEANS without
                              changing what it SAYS. (A) TWO ENGINES IN ONE HOST — `de_instance_create`

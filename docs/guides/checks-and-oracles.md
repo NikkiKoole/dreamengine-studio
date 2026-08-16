@@ -287,12 +287,12 @@ Coverage is tracked: **`node tools/gate-controls.js`** lists gates that have nei
 a negative control (advisory row in `repo-doctor`). It cannot tell you a gate is *good* — only that
 nothing in it has ever been shown to fail.
 
-### Giving a RENDER-OR-AUDIO gate a known-answer fixture (the recipe, and eleven worked examples)
+### Giving a RENDER-OR-AUDIO gate a known-answer fixture (the recipe, and twelve worked examples)
 
 > Started with the audio block and kept going: the audio gates, then `spec.js` (game logic), then
-> the three pixel gates, then `psola-check`. **Eleven gates, and nine of them were broken.** The two
-> failure shapes at the bottom of this section are the reusable part — check any gate you write for
-> both, by name.
+> the three pixel gates, then `psola-check` and `web-audio-check`. **Twelve gates, and ten of them
+> were broken.** The two failure shapes at the bottom of this section are the reusable part — check
+> any gate you write for both, by name.
 
 The audio gates were the largest block on `gate-controls`' list, and for a bad reason: the
 discipline above *reads* as being for linters, so "it's audio, you need a render" became an excuse.
@@ -551,26 +551,71 @@ trip, so a continuous artifact collapses to one event however long it runs (a 0.
 1, same as a single pop). Pinned rather than fixed — real grain splices sit above the 2 ms gate,
 which is how the down-shift bug counted 177 — because widening it changes what the gate *accepts*.
 
-#### The pattern across all eleven
+**`web-audio-check --selfcheck`** (31 answers) **+ `--bypass`**. The wasm-vs-native parity gate, and
+the one that needed **two** controls, because neither can cover the other's half. It compares two
+builds of the same engine — so its subject is *agreement*, and **two nothings agree perfectly**. All
+four of these returned `BIT-IDENTICAL, ok` before the fix, and the second is the one to remember:
 
-Only `tune-check` and `click-check` turned out to be sound as they stood. The other nine were each
+| what was compared | why it read as perfect parity |
+|---|---|
+| two **empty** renders | `n = 0`, so every statistic is `NaN` — but `maxLsb === 0` is checked first and short-circuits |
+| an **empty wasm render** vs a good native one | `Math.min(a.length, b.length)` makes `n = 0`. **A wasm build that produced nothing was the strongest possible pass.** |
+| two **silent** renders | if the host stopped making audio, all 16 engines report bit-identical at once |
+| a **truncated** render vs a full one | the extra samples are simply never looked at |
+
+The fix is a tier *below* the existing ones (`classify()` now starts by asking whether anything was
+compared, whether the two renders are the same length, and whether the reference has signal at all)
+with the floor at **-80 dBFS** — measured, against the quietest real engine, GUITAR at **-42.7 dBFS**.
+
+**`--bypass` is the other half, and it is what a fixture structurally cannot give you here.**
+`--selfcheck` judges the analyser on synthesised signals and never builds anything, so it can say the
+arithmetic is right and *nothing* about whether the comparison reaches the DSP. So: rebuild the wasm
+side with `-ffast-math` — which re-enables exactly the contraction the `FP_CONTRACT` pragma turns off
+— and require the gate to go red. Measured: **16 of 16 engines diverge**, BOWED worst at 2.8 dB below
+signal on 96% of samples. A green `--bypass` would mean every clean run this gate has ever printed
+means nothing. It needs the toolchain, which is why the repo-doctor row is `--selfcheck` and this one
+is run by hand.
+
+Two more worth copying. The **fixture's own arithmetic was wrong** and the tool was right — a 1-LSB
+offset sits `-20·log10(A/√2)` = **-81.28 dB** below signal, not the -78.28 the first draft asserted
+from a mangled expression. And **mutation found two assertions that could not fail for the reason
+they named**: the silence probes were *exact digital zero*, so `db()` returns `-Infinity`, which is
+below any finite floor — `SILENCE_FLOOR = -400` passed every one of them. Quiet-but-nonzero probes
+computed *from* the constant fixed it. Same for the reader's bounds clamp, whose probe declared zero
+bytes and so agreed with the unguarded version; the case it protects is a chunk claiming **more**
+than the file holds.
+
+It also had **canvas-diff's two-paths-one-condition defect**: `--quiet` failed on anything not `ok`
+(via `report()`), while `--json --quiet` counted only severity `bad` — so a 1-LSB regression, which
+is `warn`, exited 1 in one mode and 0 in the other, against a header that says the bar is
+bit-identical. Under `--bypass`, 7 of the 16 diverged engines land in `warn`, so that mode would have
+passed a build with real drift in half its engines. One shared `isOff()` now, asserted.
+
+#### The pattern across all twelve
+
+Only `tune-check` and `click-check` turned out to be sound as they stood. The other ten were each
 broken in a way their own output could not show: `dc-check` measured its window rather than the
 engine, `level-check` diffed PIANO against a different PIANO and silently dropped a note, `fx-check`
 never checked the reference everything else was compared against, `soak-check` could not tell a long
-run from no run, `spec.js` counted an empty spec as a pass, and the three pixel gates each called an
-empty comparison a match. **None of these was found by reading the code** — each came out of writing
-down what the tool *should* answer for an input whose answer was already known.
+run from no run, `spec.js` counted an empty spec as a pass, the three pixel gates each called an
+empty comparison a match, `psola-check` scored a silent take as perfect, and `web-audio-check` called
+an empty render bit-identical to a good one. **None of these was found by reading the code** — each
+came out of writing down what the tool *should* answer for an input whose answer was already known.
 
 Two failure shapes account for almost all of it, and both are worth checking for by name in any gate
 you write:
 
 - **Vacuity** — the verdict is a statement about a set, and the empty set satisfies it. `soak-check`,
-  `spec.js`, and all three pixel gates. The tell is a verdict phrased as *"no X was found"* with
-  nothing asserting that X *could* have been found. No threshold can ever catch it, because the
-  counts are honestly zero; only a separate question — *did the measurement happen?* — can.
+  `spec.js`, all three pixel gates, `psola-check`, `web-audio-check`. The tell is a verdict phrased as
+  *"no X was found"* with nothing asserting that X *could* have been found. No threshold can ever
+  catch it, because the counts are honestly zero; only a separate question — *did the measurement
+  happen?* — can. **A gate that compares two things is the acute case**: its subject is agreement,
+  and two nothings agree perfectly, so the vacuous input is the *strongest possible pass*.
 - **An unchecked reference** — everything is measured relative to something that is itself never
   measured. `fx-check`'s DRY, `level-check`'s baseline key, `dc-check`'s window, `mirror-diff`'s PNG
-  decoder. The tell is a value that appears in every comparison and in no assertion.
+  decoder, `web-audio-check`'s native render, and `psola-check`'s RAW — where the reference was
+  unchecked *in the prose*: the header named a bar that no code implemented and the numbers refuted.
+  The tell is a value that appears in every comparison and in no assertion.
 
 A third, rarer but nastier: **a statistic that does not measure what its message says** (`soak-check`
 accumulation as `last - min`). Distinguish it from a tolerance choice — the threshold was fine.

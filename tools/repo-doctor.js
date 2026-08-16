@@ -89,6 +89,9 @@ const CHECKS = [
   { name: "selftest: fx", tool: "fx-check.js", args: ["--selfcheck"], gate: true },
   { name: "selftest: soak", tool: "soak-check.js", args: ["--selfcheck"], gate: true },
   { name: "selftest: psola", tool: "psola-check.js", args: ["--selfcheck"], gate: true },
+  // ANALYSER ONLY — deliberately toolchain-free so this row runs on any machine. The half it cannot
+  // reach (does the comparison reach the DSP) is `web-audio-check.js --bypass`, which needs emcc.
+  { name: "selftest: web parity", tool: "web-audio-check.js", args: ["--selfcheck"], gate: true },
   { name: "selftest: spec", tool: "spec.js", args: ["--selfcheck"], gate: true },
   { name: "selftest: mirror", tool: "mirror-diff.js", args: ["--selfcheck"], gate: true },
   { name: "selftest: roads", tool: "road-check.js", args: ["--selfcheck"], gate: true },

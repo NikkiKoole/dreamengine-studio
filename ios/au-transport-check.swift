@@ -303,6 +303,7 @@ final class Rig {
 
     func render(beats: Double) -> (peak: Float, onsets: Int) {
         var peak: Float = 0, onsets = 0
+        var hpPrev: Float = 0                               // one-pole high-pass state (see below)
         let until = hostBeat + beats
         while hostBeat < until {
             guard (try? engine.renderOffline(2048, to: buf)) == .success else { break }
@@ -314,12 +315,34 @@ final class Rig {
             if let w = wav { try? w.write(from: buf) }
             if let ch = buf.floatChannelData {
                 for i in 0..<n {
-                    let a = abs(ch[0][i])
+                    let raw = ch[0][i]
+                    let a = abs(raw)
                     peak = max(peak, a)
-                    env += (a - env) * 0.02                 // ~3ms envelope follower
+                    // ⚠ THE ENVELOPE RUNS ON A HIGH-PASSED SIGNAL, and the reason is the same failure
+                    // this detector was already rebuilt for once (see above), returning by another
+                    // door. The rise is measured RELATIVE to the envelope 6ms ago, so anything
+                    // SUSTAINED raises the floor that a transient has to clear. Drums alone have no
+                    // sustain and it worked; the day acidcandy started booting with an audible legato
+                    // 303, the bassline lifted the floor, masked drum onsets, and did it MORE at 180
+                    // BPM where the line is denser — dropping the ratio 0.87 → 0.69 and reading as
+                    // "the sequencer ignores the host tempo" on a sequencer measured at exactly 4.00
+                    // steps/beat at BOTH tempos. A one-pole difference keeps percussive transients
+                    // and throws away the sustained tone, so the detector stops depending on which
+                    // voices happen to be unmuted.
+                    let hp = abs(raw - hpPrev); hpPrev = raw
+                    env += (hp - env) * 0.02                // ~3ms envelope follower, on the transients
                     let then = envRing[ringIdx]             // the envelope 6ms ago
                     envRing[ringIdx] = env; ringIdx = (ringIdx + 1) % look
                     sinceOnset += 1
+                    // ⚠ DO NOT LOWER 0.02 TO "COUNT MORE ONSETS". It was tried, and it made the measurement WORSE in
+                    // the most instructive way: at 0.004 the count went 16 → 58 at 90 BPM but only 16 → 30 at
+                    // 180, so the ratio collapsed to 0.52 — the exact signature of a sequencer ignoring the
+                    // host. Nothing had changed about the sequencer. Eight beats at 180 BPM is HALF THE
+                    // SECONDS of eight beats at 90, so the extra events the lower floor admitted were
+                    // proportional to WALL TIME, not to beats: reverb and delay tails, which is precisely what
+                    // this detector was rebuilt once already to stop counting. A strict floor counting few
+                    // real events beats a loose one counting many tails; 16 is EXACT and reproducible run to
+                    // run, so its 2x margin over the liveness floor below is solid rather than lucky.
                     if env > then * 1.8 + 0.02 && sinceOnset > Int(0.02 * sr) { onsets += 1; sinceOnset = 0 }
                 }
             }

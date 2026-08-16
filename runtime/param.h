@@ -42,6 +42,19 @@
 
 DeParam *de_instance_param(DeInstance *in);   // studio.c — this instance's parameter table
 
+// ⚠ THE NATIVE BUILD HAS NO INSTANCES AT ALL. `struct DeInstance` and every resolver live inside
+// studio.c's `#ifdef DE_NO_RAYLIB` block — the plug-in / headless-host path — so a native build
+// cannot resolve one. That stayed invisible for as long as the only native caller was
+// `de_param_set(NULL, …)`, where -O2 folds the `if (in)` branch away and never emits the reference.
+// The moment a seam function grew a body the optimiser could not fold, the NATIVE build stopped
+// LINKING with "Undefined symbols: _de_instance_param", on code that compiles and runs fine under a
+// host. Worse than a build error, for what it implies about coverage: the headless gates exercise
+// the DEFAULT shared table through the thread-local while a host exercises the per-instance one.
+// One engine per native process is exactly what that build means, so the stub is not a compromise.
+#ifndef DE_NO_RAYLIB
+DeParam *de_instance_param(DeInstance *in) { (void)in; return &de_param_default; }
+#endif
+
 // The macros onto this thread's context, exactly as midi_input.h does it.
 #define de_par_def        (de_param->def)
 #define de_par_n          (de_param->n)
@@ -50,6 +63,8 @@ DeParam *de_instance_param(DeInstance *in);   // studio.c — this instance's pa
 #define de_par_r          (de_param->r)
 #define de_par_last       (de_param->last)
 #define de_par_last_valid (de_param->last_valid)
+#define de_par_want       (de_param->want)
+#define de_par_want_valid (de_param->want_valid)
 
 static DeParamDef *de_param_find(int addr) {
     for (int i = 0; i < de_par_n; i++) if (de_par_def[i].used && de_par_def[i].addr == addr) return &de_par_def[i];
@@ -98,10 +113,16 @@ int de_param_info(DeInstance *in, int i, int *addr, const char **name,
     de_param = prev; return ok;
 }
 
+// Prefers a value the host has SET but the frame thread has not applied yet — see `want` in
+// param_ctx.h. Without that preference a host caches the pre-write value and shows it forever.
 float de_param_get(DeInstance *in, int addr) {
     DeParam *prev = de_param; if (in) de_param = de_instance_param(in);
     DeParamDef *p = de_param_find(addr);
-    float v = p && p->slot ? *p->slot : 0.0f;
+    float v = 0.0f;
+    if (p && p->slot) {
+        int i = (int)(p - de_par_def);
+        v = de_par_want_valid[i] ? de_par_want[i] : *p->slot;
+    }
     de_param = prev; return v;
 }
 
@@ -109,6 +130,15 @@ float de_param_get(DeInstance *in, int addr) {
 // the OLDEST rather than the newest, because on a parameter the newest value is the one that matters.
 void de_param_set(DeInstance *in, int addr, float v) {
     DeParam *prev = de_param; if (in) de_param = de_instance_param(in);
+    // record the INTENT first, CLAMPED exactly as the drain will clamp it, so a host reading back
+    // an out-of-range write is told what it will actually get rather than what it asked for.
+    DeParamDef *p = de_param_find(addr);
+    if (p) {
+        float c = v;
+        if (p->hi > p->lo) { if (c < p->lo) c = p->lo; if (c > p->hi) c = p->hi; }
+        int i = (int)(p - de_par_def);
+        de_par_want[i] = c; de_par_want_valid[i] = 1;
+    }
     unsigned w = de_par_w;
     de_par_ring[w & (DE_PARAM_RING - 1)] = (DeParamEv){ addr, v };
     de_par_w = w + 1;
@@ -134,6 +164,9 @@ static void de_param_drain(void) {
         // so it is kept because it is right, not because it is load-bearing for that.
         int i = (int)(p - de_par_def);
         de_par_last[i] = v; de_par_last_valid[i] = 1;
+        // the slot now HOLDS the intent, so stop preferring it — from here a get reads the live
+        // value again and a panel move is visible to the host immediately.
+        de_par_want_valid[i] = 0;
     }
     de_par_r = r;
 }

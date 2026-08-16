@@ -53,6 +53,17 @@ typedef struct {
      * that into one report and cannot lose the final value, which is the only one that matters. */
     float last[DE_PARAM_MAX];
     uint8_t last_valid[DE_PARAM_MAX];
+
+    /* WHAT THE HOST ASKED FOR, but the frame thread has not applied yet.
+     * A host does not just write a parameter — it reads it straight back, in the same call, to
+     * populate its own cache, and every later read is served from that cache. Since de_param_set
+     * only QUEUES, that read-back lands before the drain and honestly reports the OLD slot, which
+     * the host then caches forever. Measured, not guessed: the log showed GET returning exactly one
+     * write behind, at the same timestamp and thread as the SET.
+     * So a set records its INTENT here and a get prefers it. The cart still only ever sees the value
+     * on the frame thread; the host just stops being told a value it did not ask for. */
+    float   want[DE_PARAM_MAX];
+    uint8_t want_valid[DE_PARAM_MAX];
 } DeParam;
 
 /* The DEFAULT instance's table, and the thread-local that everything above expands through. Same

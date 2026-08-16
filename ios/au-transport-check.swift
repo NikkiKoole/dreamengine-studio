@@ -654,27 +654,18 @@ if argv.contains("--params") {
     // READ BACK through implementorValueProvider, which is what a host uses to draw its own generic
     // view and to know where an automation lane starts. A tree that only WRITES looks fine until a
     // host reopens the project and shows every knob at its default.
-    // ── READ-BACK: A KNOWN GAP, reported and NOT asserted (2026-08-15) ────────────────────────────
-    // A host reading a parameter back gets the value it held BEFORE its own write, out of process.
-    // Stated as a warning rather than a failure because the consequence is narrow and the WRITE path
-    // — the part that makes a rack automatable at all — is proven twice above and below.
-    //
-    // What is known, from measurement rather than reasoning:
-    //   · the provider IS wired and IS reading real cart state — a parameter nothing has written
-    //     reads back its exact cart default (addr 10 = 0.55), which a broken provider could not do.
-    //   · the write reaches the DSP, so the engine's float really did change.
-    //   · it is NOT our push-back logic. Disabling the panel-move poll entirely changed nothing, and
-    //     neither did removing the suppression that stops a host write echoing back. Both were
-    //     tested; both were negative. Whatever this is, it is not those.
-    // The remaining suspect is out-of-process parameter MIRRORING: the host side of an AUv3 keeps its
-    // own cache of the tree and does not necessarily consult the extension on every read.
-    // CONSEQUENCE IF IT IS NEVER FIXED: a host's generic view and a reopened project can show a knob
-    // at its old value until something writes it again. Automation still WORKS; it just may not
-    // display where it starts. Worth a fix, not worth blocking on.
-    let cut = tree?.parameter(withAddress: 10)          // 303a CUT, which nothing has written
-    let readBack = abs(flt.value - 0.02) < 0.001
-    print(readBack ? "  ✓ and the host reads the new value back  — provider returned \(flt.value)"
-                   : "  ⚠ KNOWN GAP: host read-back returned \(flt.value), not 0.02 (a parameter nothing wrote reads correctly: addr10 = \(cut?.value ?? -1), cart default 0.55)")
+    // READ-BACK. Not a nicety: a host reads a parameter straight back after writing it, IN THE SAME
+    // CALL, to populate the cache that every later read is served from. While de_param_set only
+    // QUEUED, that read-back landed before the frame drain and honestly reported the OLD slot — so a
+    // host cached the pre-write value and showed it forever, and a reopened project displayed every
+    // knob where it used to be. Fixed by de_param_set recording its intent (param_ctx.h → `want`).
+    check("and the host reads the new value back", abs(flt.value - 0.02) < 0.001,
+          "provider returned \(flt.value)")
+    // …and a parameter NOBODY wrote must still read its LIVE value, so the fix cannot degenerate into
+    // "echo back whatever was last set". addr 10 = 303a CUT, untouched, cart default 0.55.
+    check("…while an untouched parameter still reads its real value",
+          abs((tree?.parameter(withAddress: 10)?.value ?? -1) - 0.55) < 0.001,
+          "addr 10 = \(tree?.parameter(withAddress: 10)?.value ?? -1)")
 
     flt.value = before                                // hand it back
     let reopened = rig.render(beats: 8)
@@ -682,8 +673,7 @@ if argv.contains("--params") {
           Double(reopened.onsets) > Double(closed.onsets) * 1.4 || reopened.peak > closed.peak * 1.4,
           "onsets \(closed.onsets) → \(reopened.onsets), peak \(String(format: "%.3f", closed.peak)) → \(String(format: "%.3f", reopened.peak))")
 
-    print(failures == 0 ? "\nPASS — the rack's knobs are visible to a host and a host write moves the mix."
-                          + (readBack ? " Read-back works too." : " (read-back is the known gap above)")
+    print(failures == 0 ? "\nPASS — the rack's knobs are visible, automatable and readable from a host."
                         : "\n\(failures) check(s) FAILED — a DAW cannot automate this rack.")
     exit(failures == 0 ? 0 : 1)
 }

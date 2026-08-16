@@ -1,7 +1,6 @@
 # Host parameters — the knobs a DAW can automate and record
 
-> **STATUS: BUILDING (2026-08-15) — the seam is wired end to end and gated; host READ-BACK is the
-> one open defect.** A cart binds floats it already owns and a host sees them, automates them and
+> **STATUS: BUILDING (2026-08-16) — the seam is wired end to end, gated, and read-back is FIXED.** A cart binds floats it already owns and a host sees them, automates them and
 > moves the mix with them. Gated by `bash tools/param-check/run.sh` (9 assertions, engine half) and
 > `./au-transport-check --params` in `ios/mac.sh` (the real out-of-process plug-in).
 > See also [`host-midi-notes.md`](host-midi-notes.md) (the sibling host seam, and where this came
@@ -80,50 +79,54 @@ error to see. Same hazard `lint-saved-state.js` exists for on the other side of 
 rule: **append, never renumber**; retire one by leaving the hole. Not yet lint-enforced, which is the
 obvious next protection.
 
-## The open defect: host read-back
+## The read-back bug, and how it was actually found
 
-Out of process, a host reading a parameter back gets the value it held **before its own write**.
+**Fixed 2026-08-16.** It is worth writing down because three plausible causes were wrong and the
+answer came from instrumentation, not reasoning.
 
-What is known, from measurement rather than reasoning:
+**The symptom:** out of process, a host read a parameter back and got the value it held *before* its
+own write, forever. Automation worked; the display lied.
 
-- **The provider IS consulted on every read**, and this is now proven rather than inferred: pinning
-  `implementorValueProvider` to a constant `0.123` made the host read back `0.123` for every
-  parameter. An earlier version of this doc claimed the same thing from "a parameter nothing wrote
-  reads 0.55, its cart default" — that was **not** proof, because 0.55 was also the AUParameter's
-  cached default. The constant is the discriminator; the default was ambiguous.
-- **The write reaches the DSP.** The mix closes, measured, repeatedly.
-- **Therefore `de_param_get` genuinely returns the stale value.** The provider is asked, it reads
-  `*slot`, and the answer is the pre-write value while the DSP is audibly playing the new one. The
-  bug is on OUR side of the seam, not in the host's mirroring — which is where the first write-up
-  pointed, wrongly.
+**The measurement that ended it.** Logging both sides of the seam showed the reads were exactly one
+write behind, at the *same timestamp and thread* as the write:
 
-**Three causes ruled out by experiment**, each recorded so nobody pays for them twice:
+```
+SET addr 1 = 0.02   →   GET = 0.5     (the previous value)
+SET addr 1 = 0.5    →   GET = 0.02    (the previous value)
+```
 
-1. **The panel-move poll.** Disabling it entirely changed nothing.
-2. **The drain's echo suppression.** Removing it changed nothing.
-3. **The `parameterTree` override.** The first cut stored the tree in a property and overrode the
-   accessor with a no-op setter, which swallowed `AUAudioUnit`'s own setter and the framework
-   installation it performs. That was a real defect and is fixed (assign `parameterTree` the ordinary
-   way) — but it was *not* this bug. ⚠ Note it also invalidated cause 1's first test, which had run
-   while the tree was not properly installed; it was re-run afterwards and is still negative.
+**A host reads a parameter straight back after setting it, in the same call**, to populate the cache
+that every later read is served from. `de_param_set` only QUEUED — deliberately, so cart state is
+only ever written on the frame thread — so that read-back landed *before* the drain and honestly
+reported the old slot. The host cached it and never asked again.
 
-**Where to look next, and it is structural.** The per-instance seam — `de_instance_midi`,
-`de_instance_param`, the whole block — is compiled **only under `#ifdef DE_NO_RAYLIB`**
-(`runtime/studio.c:2958`). The native harness build does not contain it: a `de_param_get` call added
-there fails to LINK. So the headless gates exercise the **default, shared** table via the
-thread-local, while the AU exercises the **per-instance** one, and `param-check` being green says
-nothing about the path a host actually takes. That is the same shape as the `de_frame`-versus-
-`loop_step` trap this design already hit once, and it is the obvious suspect for a value that is
-written in one place and read from another.
+**The fix** is a `want` shadow in `param_ctx.h`: a set records its intent (clamped exactly as the
+drain will clamp it) and a get prefers it until the drain applies it, at which point the shadow is
+dropped and reads go back to the live slot. The cart still only ever sees the value on the frame
+thread. The host just stops being told a value it did not ask for.
 
-**Consequence if never fixed:** a host's generic view and a reopened project can show a knob at its
-old value until something writes it again. Automation still *works*; it may just not display where it
-starts. The gate reports this as a warning rather than a failure, deliberately — the write path is
-what makes a rack automatable and it is proven.
+**Four causes ruled out first**, each recorded so nobody pays for them twice: the panel-move poll,
+the drain's echo suppression, the `parameterTree` override (a real defect, fixed, but not this one),
+and out-of-process mirroring — which the first write-up confidently blamed and which was never
+involved. ⚠ The override being wrong also *invalidated* the poll's first test, which had run while
+the tree was not properly installed; it was re-run afterwards.
+
+**And it surfaced a structural gap on the way.** The per-instance seam — `struct DeInstance` and
+every resolver — lives inside studio.c's `#ifdef DE_NO_RAYLIB` block, so the native build has no
+instances at all. That stayed invisible while the only native caller was `de_param_set(NULL, …)`,
+where `-O2` folds the `if (in)` branch away and never emits the reference. The moment a seam
+function grew a body the optimiser could not fold, the **native build stopped linking** on code that
+runs fine under a host. `runtime/param.h` now carries a guarded stub. The coverage implication is
+the part worth keeping: **headless gates exercise the default shared table, a host exercises the
+per-instance one**, so `param-check` being green says nothing about the path a DAW takes. That is
+what `au-transport-check --params` is for.
+
+**Two assertions now, not one.** The gate checks that a written value reads back *and* that an
+untouched parameter still reads its live value — because the fix must not degenerate into "echo
+back whatever was last set".
 
 ## Open
 
-- **Read-back** (above) — the one real defect.
 - **No ramping.** The tree does not claim `flag_CanRamp`, because the engine applies a value once per
   *frame*, not per sample. Telling the truth beats advertising smoothing we do not do, but it means a
   fast automation sweep steps at 60 Hz.

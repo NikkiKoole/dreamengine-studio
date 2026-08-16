@@ -54,9 +54,21 @@ if [ -z "${DEVICE_ID:-}" ] && xcrun devicectl list devices --json-output /tmp/de
   # devices` prints your iPad, available and paired, one line below the nameless one. Indistinguishable
   # from "no device found" and it does not name the device that broke it. (Cost a run 2026-08-15.)
   # Prefer a PAIRED device too, so a live iPad wins over anything half-remembered next to it.
+  # ⚠ AND IT MUST BE REACHABLE, not merely remembered — the fourth trap in this block, and the one
+  # that survived the other three. `devicectl list devices` reports every device it has EVER paired
+  # with, each carrying `tunnelState: unavailable` when it is not actually there. Filtering on the
+  # NAME (above) is not enough: a remembered iPad HAS a name, so it wins the sort, and its udid then
+  # goes to xcodebuild as the destination — which fails with "Unable to find a destination matching
+  # the provided destination specifier", listing only simulators. The connected device meanwhile is
+  # sitting right there in `xctrace`, invisible to this branch, because an iOS 15 phone is
+  # classic-protocol and CoreDevice does not drive it AT ALL (see the note above). So the script
+  # confidently targeted an offline iPad in another room while the iPhone it was asked for was
+  # plugged in. Requiring a live tunnel makes DC_ID empty in that case, which is what lets the
+  # ios-deploy fallback below do its job. (Bit an iPhone SE deploy, 2026-08-16.)
   DC_ID="$(/usr/bin/python3 -c "import json
 d=[x for x in json.load(open('/tmp/de-devices.json'))['result']['devices']
-   if 'iPad' in x['deviceProperties'].get('name','') or 'iPhone' in x['deviceProperties'].get('name','')]
+   if ('iPad' in x['deviceProperties'].get('name','') or 'iPhone' in x['deviceProperties'].get('name',''))
+   and x.get('connectionProperties',{}).get('tunnelState','') != 'unavailable']
 d.sort(key=lambda x: x.get('connectionProperties',{}).get('pairingState','') != 'paired')
 print(d[0]['identifier'] if d else '')" 2>/dev/null)"
   # ⚠ ASK THE DEVICE, NOT THE CACHE. `list devices` reports the LAST KNOWN developerModeStatus, and
@@ -200,6 +212,11 @@ xcodegen generate --spec "$SPEC" >/dev/null
 # signing add it to the team and mint a profile that includes it. (Bit us on a new iPad, 2026-08-14.)
 DEST="generic/platform=iOS"
 [ -n "${DC_UDID:-}" ] && DEST="platform=iOS,id=$DC_UDID"
+# On the ios-deploy path there is no DC_UDID, but xctrace already gave us the hardware udid — use it
+# for the same reason the note above names the CoreDevice one: a generic destination provisions for
+# nobody, so a device that has never been registered fails at install with 0xe8008012 rather than
+# being added to the team here.
+[ -z "${DC_UDID:-}" ] && [ -n "${DEVICE_ID:-}" ] && DEST="platform=iOS,id=$DEVICE_ID"
 xcodebuild -project "$SCHEME.xcodeproj" -scheme "$SCHEME" -configuration "$CONFIG" \
   -destination "$DEST" -derivedDataPath build \
   GCC_PREPROCESSOR_DEFINITIONS="$DEFS" \

@@ -791,7 +791,12 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
                              LIVENESS assertions (audio must have signal, frames must have more than one
                              colour, a trace must actually evolve) and a dead probe FAILS rather than
                              passing quietly — which caught 2 of the first 6 probes. Proven to go red on a
-                             real `sound.h` edit; `--check` = 13 known answers incl. a live negative control
+                             real `sound.h` edit; `--check` = 32 known answers incl. a live negative control. Also names WHY a red
+                             may not be yours: it re-hashes every recorded input and, when HEAD has MOVED since the
+                             blessing, says so (in `--quiet` too) — three agents commit to this branch and somebody
+                             else's `runtime/studio.c` landing mid-loop used to read as "your refactor is a bug".
+                             ⚠ Still EXITS 1 either way: a note is not an excuse, or a real regression coinciding
+                             with an unrelated edit would go green
              engine-statics.js  how much PROCESS-GLOBAL MUTABLE STATE the engine still holds — the
                              measurement the per-instance-context (AUv3 multi-instance) refactor is paced by,
                              and its progress meter: every file-scope static is state two plug-in instances

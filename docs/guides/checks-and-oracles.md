@@ -287,11 +287,12 @@ Coverage is tracked: **`node tools/gate-controls.js`** lists gates that have nei
 a negative control (advisory row in `repo-doctor`). It cannot tell you a gate is *good* — only that
 nothing in it has ever been shown to fail.
 
-### Giving a RENDER-OR-AUDIO gate a known-answer fixture (the recipe, and ten worked examples)
+### Giving a RENDER-OR-AUDIO gate a known-answer fixture (the recipe, and eleven worked examples)
 
 > Started with the audio block and kept going: the audio gates, then `spec.js` (game logic), then
-> the three pixel gates. **Ten gates, and eight of them were broken.** The two failure shapes at the
-> bottom of this section are the reusable part — check any gate you write for both, by name.
+> the three pixel gates, then `psola-check`. **Eleven gates, and nine of them were broken.** The two
+> failure shapes at the bottom of this section are the reusable part — check any gate you write for
+> both, by name.
 
 The audio gates were the largest block on `gate-controls`' list, and for a bad reason: the
 discipline above *reads* as being for linters, so "it's audio, you need a render" became an excuse.
@@ -503,9 +504,56 @@ loosening `--expect` from `===` to `<=` passed all 27 assertions, because none o
 below the expectation. **Step 5 is not optional, and it earns its keep on the assertions you were
 most confident about.**
 
-#### The pattern across all ten
+**`psola-check --selfcheck`** (53 answers). The artifact oracle for the PSOLA pitch engine, and the
+sharpest case in the set for *why* a fixture: its three detectors are **deliberately blind to each
+other's defects** — that is the tool's whole design — so one of them dying is invisible **by
+construction**. The other two carry on printing plausible numbers and the verdict still says "no
+artifact regression". Measured on a healthy render, `SPLICE` reads exactly `0 / 0.0000` on **all four
+takes**: a live detector and a deleted one print the identical four rows.
 
-Only `tune-check` and `click-check` turned out to be sound as they stood. The other eight were each
+Four defects, one per tier of the thing:
+
+- **A missing baseline dropped half the gate, silently.** Both relative checks sat behind `if (b)`,
+  and the "no baseline yet" hint was inside `if (!quiet)` — so a renamed or absent golden file left
+  `--quiet` exiting **0** having run two of four checks and printed nothing at all. Refused now (exit
+  2), under `--quiet` too.
+- **Vacuity, in the shape soak-check taught.** An unvoiced window is skipped, so a take that went
+  silent produces no errors and scores a **perfect** `{p95: 0, worst: 0}` — strictly better than a
+  clean one — and zero splices besides. Only the f0 detector noticed, and only for *total* silence.
+  Both detectors now report `voiced/windows`, and the verdict has a liveness tier that reads them.
+- **An unchecked reference, in the prose rather than the code.** The header stated RAW was "the
+  control in every comparison" and that "no worse than RAW" was the bar. Nothing implemented it, and
+  the numbers refute it: the processed takes measure **1.50x–1.92x RAW** on a good render, so the
+  documented bar would have been red every run since the tool was written. Corrected to what is
+  actually enforced.
+- **`--save` would bless a fault.** It wrote the golden file before any verdict ran, so a
+  period-doubled take could be frozen in as the reference — after which every later run is measured
+  against the defect. It now refuses while an absolute check is red (`level-check`'s follow-on,
+  applied one gate over).
+
+**And both of the traps this section warns about fired, on the gate the lane had flagged as the one
+where they would.** The prediction was that PSOLA needs synthetic signals carrying a *specific*
+artifact, and that mis-synthesising one pins your fixture rather than the detector — which is exactly
+what happened. The first equal-amplitude phase break was a **time reversal**, and all three detectors
+read 0 on it. Correctly: a reversed sine is still a sine at the same frequency, so the probe had no
+artifact in it at all, and "SPLICE is blind to this" was one step from being written down as a known
+answer. Only running `--measure` first caught it. (The real probe is a polarity flip on an exact zero
+crossing: value continuous, every later period negated. SPLICE 0, PERIODICITY 2.835.)
+
+Then, mutating the **control**: the two new liveness checks were covered by a single assertion
+matching `/NOTHING WAS MEASURED/`, and silence trips both — so **either check alone satisfied it, and
+deleting the other stayed green**. Same shape as `level-check`'s SINE controls, one section up, found
+only because step 5 was run on the assertions that had just been written *to fix a vacuity hole*. The
+fix is a discriminating assertion per check. Two more useful mutants: the fixture's own `verdict()`
+tolerances (extracted as one function so the fixture cannot pin a copy — canvas-diff's lesson) and
+the debounce, which turned out to make `count` **not a density measure**: `last` advances on every
+trip, so a continuous artifact collapses to one event however long it runs (a 0.8 s staircase counts
+1, same as a single pop). Pinned rather than fixed — real grain splices sit above the 2 ms gate,
+which is how the down-shift bug counted 177 — because widening it changes what the gate *accepts*.
+
+#### The pattern across all eleven
+
+Only `tune-check` and `click-check` turned out to be sound as they stood. The other nine were each
 broken in a way their own output could not show: `dc-check` measured its window rather than the
 engine, `level-check` diffed PIANO against a different PIANO and silently dropped a note, `fx-check`
 never checked the reference everything else was compared against, `soak-check` could not tell a long

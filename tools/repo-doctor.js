@@ -88,6 +88,7 @@ const CHECKS = [
   { name: "selftest: levels", tool: "level-check.js", args: ["--selfcheck"], gate: true },
   { name: "selftest: fx", tool: "fx-check.js", args: ["--selfcheck"], gate: true },
   { name: "selftest: soak", tool: "soak-check.js", args: ["--selfcheck"], gate: true },
+  { name: "selftest: psola", tool: "psola-check.js", args: ["--selfcheck"], gate: true },
   { name: "selftest: spec", tool: "spec.js", args: ["--selfcheck"], gate: true },
   { name: "selftest: mirror", tool: "mirror-diff.js", args: ["--selfcheck"], gate: true },
   { name: "selftest: roads", tool: "road-check.js", args: ["--selfcheck"], gate: true },

@@ -574,7 +574,10 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
                              difference) · PERIODICITY (x[n]-x[n-T] vs the RAW take as CONTROL) · DOUBLING
                              (f0 vs expected — the only one that sees period doubling, which is still
                              perfectly periodic so PERIODICITY scores it as an IMPROVEMENT). Run it before
-                             AND after any at_psola_slot edit; --quiet = CI, --save re-blesses. It killed a
+                             AND after any at_psola_slot edit; --quiet = CI, --save re-blesses (and now
+                             REFUSES to bless a red render); --selfcheck = 53 known answers, --measure dumps
+                             what the probes read before you change one. ⚠ SPLICE reads 0/0.0000 on all four
+                             takes of a HEALTHY render — a dead detector prints the same rows. It killed a
                              bad epoch-marking change in one command that had previously cost several
                              listen-and-report rounds. contemporary-rebirth.md §"Rung B … postscript"
              sprite-draw.js  reusable 2D pixel-canvas API for programmatic .cart.js sprites

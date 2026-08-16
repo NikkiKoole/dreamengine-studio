@@ -273,40 +273,48 @@ a broken doc link or `#section`).
 
 > **▶ ACTIVE THREAD (2026-08-16) — GATES THAT CANNOT PROVE THEY GO RED.**
 >
-> `gate-controls` counts gates carrying a self-test or a negative control. **Ten done, and eight of
+> `gate-controls` counts gates carrying a self-test or a negative control. **Eleven done, and nine of
 > them turned out to be broken** — not "lacking a test", actually wrong in a way their own green
 > output could not show. That hit rate is the reason this lane is worth continuing.
 >
 > **SHIPPED**, each its own commit, each mutation-tested and registered in `repo-doctor`:
 > the audio block (`tune-check` · `click-check` · `dc-check` · `level-check` · `fx-check` ·
 > `soak-check`), then `spec.js` (game logic), then the three pixel gates (`mirror-diff` ·
-> `road-check` · `canvas-diff`). Sound as they stood: only `tune-check` and `click-check`.
-> The other eight, in one line each — `dc-check` measured its own window and not the engine ·
+> `road-check` · `canvas-diff`), then `psola-check`. Sound as they stood: only `tune-check` and
+> `click-check`.
+> The other nine, in one line each — `dc-check` measured its own window and not the engine ·
 > `level-check` diffed PIANO against a *different* PIANO and had silently stopped rendering the last
 > note · `fx-check` never checked the DRY reference everything is compared against · `soak-check`
 > could not tell a 24-cycle run from no run · `spec.js` scored an empty `spec()` as a green tick, and
 > its second control found `tenement` losing two assertion lines to an unescaped quote · all three
-> pixel gates called an empty comparison a match.
+> pixel gates called an empty comparison a match · `psola-check` exited 0 having run half its checks
+> when the baseline was missing, scored a SILENT take as perfect, and would bless a period-doubled
+> render as the new reference.
 > ⚠ **Do not quote a coverage tally here.** Several agents work this repo at once and the number
 > moved twice while this lane was being written. `node tools/gate-controls.js` is the live count.
 >
 > ⚠ **TWO RULES THAT PAID.** *Measure before you assert* — several expected "known answers" were
 > wrong (the octave-up asymmetry, the naked saw, the two silences, the window residual), and writing
 > them down unmeasured would have moved an assumption into a file that then looks authoritative.
-> *Mutate the control too, not just the analyser* — two plausible controls sat green through the very
-> failure they were written for (level-check's SINE pair against a sliding window; canvas-diff's
-> fixture re-implementing the predicate instead of calling it).
+> *Mutate the control too, not just the analyser* — three plausible controls have now sat green
+> through the very failure they were written for (level-check's SINE pair against a sliding window;
+> canvas-diff's fixture re-implementing the predicate instead of calling it; and psola-check's two
+> new liveness checks, which shared ONE assertion regex, so either alone satisfied it and deleting
+> the other changed nothing). **Both rules fired again on `psola-check`, on the gate this lane had
+> predicted they would** — its first synthetic "phase break" was a time reversal, which is still a
+> sine at the same frequency, so all three detectors correctly read 0 and "the detector is blind to
+> this" was one step from being written down as a known answer.
 >
 > **Resume-at: [the recipe + the two failure shapes](guides/checks-and-oracles.md#the-other-way-a-green-check-lies-it-was-never-measuring-the-thing)** —
-> five steps and ten worked examples. The reusable part is the two shapes to check any new gate for by
-> name: **vacuity** (the verdict is about a set, and the empty set satisfies it) and **an unchecked
+> five steps and eleven worked examples. The reusable part is the two shapes to check any new gate for
+> by name: **vacuity** (the verdict is about a set, and the empty set satisfies it) and **an unchecked
 > reference** (everything is measured against something never measured itself).
 >
-> **What is left:** `psola-check` (needs synthetic signals carrying a *specific* artifact, where a
-> mis-synthesis pins the fixture rather than the detector) and `web-audio-check` (compares two
-> platforms, so its control is a deliberate divergence and its fixture needs a toolchain). Most of the
+> **What is left:** `web-audio-check` (compares two platforms, so its control is a deliberate
+> divergence and its fixture needs a toolchain) is the last of the two hard ones. Most of the
 > remaining `--list` is `build-*.js --check` staleness gates where failure is loud — spend a control
-> where PASS is the steady state and failure would be silent.
+> where PASS is the steady state and failure would be silent. Candidates worth a look before grinding
+> that list: `net-check.js`, `bundle-spike/proof-sound.sh`, `icon-mask.js`.
 >
 > Hot files: none shared — each gate is its own file in `tools/`. Add the `repo-doctor` row in the
 > same change (`selftest:` block) or the fixture exists and nothing runs it.

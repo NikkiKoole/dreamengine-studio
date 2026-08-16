@@ -333,6 +333,19 @@ the same work aimed at different targets and only one of them can be undone chea
    · **`refactor-guard` is blind to this entire change** — the seam lives inside `#ifdef DE_NO_RAYLIB`
      and the guard builds the Raylib path. `build-nr.sh` + the probes are the gate here, and the
      guard staying green proves only that the *cart-facing* engine was untouched.
+     ⚠ **This is bigger than one gate, and it bit again on 2026-08-16** (see
+     [`host-parameters.md`](host-parameters.md)). `struct DeInstance` and every context resolver are
+     inside that `#ifdef`, so **the native build has no instances at all** — not a reduced set, none.
+     Two consequences, and the second is the expensive one:
+     · A seam function whose `if (in)` branch `-O2` cannot fold **fails to LINK natively** while
+       compiling and running perfectly under the plug-in. `de_param_set(NULL, …)` hid this for as
+       long as the branch folded away; the day the function grew a body, the native build broke on
+       code no host would ever complain about. `runtime/param.h` carries a guarded stub for it.
+     · **Every headless gate exercises the DEFAULT shared table** through the thread-local, while a
+       host exercises the per-instance one. So a headless gate can be entirely correct and entirely
+       irrelevant to the path a DAW takes — `param-check` was green about a seam whose host half was
+       broken. Any new per-instance surface needs a gate that crosses the fork
+       (`au-transport-check`, `instance-check`), and the headless one should say so in its header.
    · **`present-race-check` had been DEAD since `midi_output.h` landed** — it failed to LINK
      (CoreMIDI/CoreFoundation missing from its line), which in a log reads exactly like "not run".
      Fixed; it and its negative control both work again. A gate that cannot link is a gate that

@@ -958,7 +958,16 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
                              listings via --full or the named tool itself; embedded in bare orient. --quiet = CI
              gen-tcc-symbols.js   regenerate runtime/studio_tcc_symbols.h from studio.h (libtcc)
              build-history.js     generate docs/history.html from git + the spine; --check = spine edited after page
-             api-usage.js    bulk "how often is X used"; cross-checks studio.h ↔ docs ↔ shell.js
+             api-usage.js    bulk "how often is X used"; cross-checks studio.h ↔ docs ↔ shell.js.
+                             TWO corpora: `carts` (tools/carts/*.c) + `elsewhere` (the cart-land shelf,
+                             generated cart contexts, private cart modules, the app shim) — so a zero in
+                             both means nobody calls it ANYWHERE; `--where <fn>` names the files. Both
+                             halves of that were silent bugs: it read carts only (so de_state_for, the
+                             seam the AUv3 work sits on, read as dead weight) and matched RAW source (so
+                             2306 comment/string hits counted as calls, incl. two carts whose only "use"
+                             is prose saying the fn is NOT used). Numbers here feed a CUT LIST, so a
+                             plausible-but-wrong count is the expensive kind. `--selfcheck` = 21 known
+                             answers, mutation-tested
            det-probes/  standalone cross-compile DETERMINISM oracles + design-exploration probes for the
                     software canvas (run.sh = bit-identical arm64/x86/wasm gate; rotfill/rotline/rotspr/
                     stritex/… are the rotated-primitive studies that already settled the SW conventions).

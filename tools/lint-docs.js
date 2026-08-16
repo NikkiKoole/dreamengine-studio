@@ -220,28 +220,11 @@ if (fs.existsSync(CLAUDE) && fs.existsSync(TOOLS)) {
 // The editor's sidebar list stopped needing a gate — it's DERIVED from the directory now
 // (vite /runtime-list.json). These two can't be: each entry has to say WHEN to reach for the
 // header, which is writing, not generation. Hence a check instead.
-const ENGINE_INTERNALS = new Set([
-  'studio.h',            // the public API, not a cart-land library
-  'sound.h', 'spec.h',   // engine + harness, documented elsewhere in CLAUDE.md
-  'color.h', 'game_rect.h', 'platform.h', 'raylib_compat.h',   // platform seams
-  'mic.h', 'mic_desktop.h', 'midi_input.h', 'sync.h',          // host input plumbing (sync.h = the external-clock seam; API in studio.h)
-  'midi_output.h',                                             // the OUT direction's twin of midi_input.h — CoreMIDI virtual source, compiled inside studio.c; cart-facing API is midi_send_* in studio.h
-  'param.h', 'param_ctx.h',                                    // HOST PARAMETERS (docs/design/host-parameters.md) — the DAW-facing table + its per-instance context, compiled inside studio.c; the cart-facing API is param_bind/param_count in studio.h
-  'stb_image.h', 'studio_tcc_symbols.h',                       // vendored / generated
-  // the per-instance context headers. Not cart-land: they hold the engine's own state and the
-  // macro block it reads it through, and are compiled only inside their owning engine file.
-  // Documented in docs/design/engine-context.md, not the cart-authoring table.
-  // The first three are GENERATED (tools/ctx-gen.js); midi_ctx.h is the same shape written by
-  // HAND, because ctx-gen refuses to re-run on a processed target and midi_input.h was never one
-  // of its targets — it was missing from engine-statics.js's file list, so its state was never
-  // measured or offered to the generator at all.
-  'sound_ctx.h', 'studio_ctx.h', 'sync_ctx.h', 'midi_ctx.h',
-]);
-// Generated, not shelf. `_state.h` is one CART's per-instance context (tools/ctx-gen.js --target
-// cart writes runtime/<slug>_state.h): it is nobody's to reach for, it is regenerated rather than
-// read, and a new one appears for every cart that becomes a plug-in rack — so it belongs in the
-// pattern rather than in an allowlist somebody has to remember to extend.
-const GENERATED_H = /(_data|_font|_baked|_state)\.h$/;   // baked font tables · generated cart contexts
+// The shelf/engine-internals classification lives in tools/cart-land-headers.js, so this gate and
+// api-usage.js's call-site scan read ONE list. It used to be inline here; api-usage.js needed the
+// same split to stop reporting a header-only call site as an unused API, and two hand-copies would
+// rot in opposite directions exactly like the two doc lists this gate exists to catch.
+const { isShelf } = require('./cart-land-headers');
 const RUNTIME = path.join(DOCS, '..', 'runtime');
 const GUIDE = path.join(DOCS, 'guides', 'cart-authoring.md');
 let headersChecked = 0;
@@ -253,7 +236,7 @@ if (fs.existsSync(CLAUDE) && fs.existsSync(RUNTIME) && fs.existsSync(GUIDE)) {
   if (at === -1)
     errors.push('docs/guides/cart-authoring.md  the "Cart-land library headers" section is gone — the header table is the full contract half of the gate');
   for (const name of fs.readdirSync(RUNTIME).sort()) {
-    if (!name.endsWith('.h') || ENGINE_INTERNALS.has(name) || GENERATED_H.test(name)) continue;
+    if (!isShelf(name)) continue;
     headersChecked++;
     if (!claude.includes(name))
       errors.push(`CLAUDE.md  cart-land header not indexed: runtime/${name} — add a one-line pointer to the runtime/ block (or allowlist it in lint-docs ENGINE_INTERNALS if it's a platform seam)`);

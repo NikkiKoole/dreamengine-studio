@@ -74,7 +74,15 @@ stage_cart "$AU_CART" au
 # catalog reference is always emitted). APP builds with a manifest "icon" already staged
 # gen/Assets.xcassets; otherwise (single cart / editor / icon-less app) stage the repo's
 # default placeholder so CompileAssetCatalog succeeds for ANY cart.
-if [ ! -f gen/Assets.xcassets/AppIcon.appiconset/Contents.json ]; then
+# ⚠ THE CONDITION IS `no APP`, NOT `no catalog`. It used to test whether Contents.json existed —
+# but gen/Assets.xcassets was COMMITTED (so a manual Xcode build still got an icon), so the test
+# was never true and this branch was dead. Nothing ever RESET the icon, so a single-cart or editor
+# build silently inherited whatever the last app build had staged: you got the pedalboard icon on
+# an acidcandy build, depending only on what you had built last. Reported by the maker as "I see
+# the wrong icons"; it is last-writer-wins on a tracked build artifact. The catalog is untracked
+# now (ios/.gitignore) AND this resets every non-APP build, because either fix alone leaves the
+# repeat case broken: untracking only helps until your first app build recreates the file.
+if [ -z "${APP:-}" ]; then
   mkdir -p gen/Assets.xcassets/AppIcon.appiconset
   printf '{ "info": { "author": "xcode", "version": 1 } }\n' > gen/Assets.xcassets/Contents.json
   cp default-icon.png gen/Assets.xcassets/AppIcon.appiconset/icon-1024.png

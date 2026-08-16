@@ -78,7 +78,7 @@ missing capability" is the problem statement) and refines the Phase-2 frontier o
   collapses dual-carriageway twins + roundabout rings. Deterministic (seeded LCG). 28 MB Rotterdam
   in 0.7 s. **The first target table** (the notes' open "per-pattern numeric table", now measured):
 
-  <!-- de:driftable cmd="node tools/sndi-check.js data/lower-manhattan.rvb data/san-francisco-hills.rvb data/amersfoort-netherlands.rvb data/rotterdam-netherlands.rvb data/konigssee.rvb" as-of="2026-07-06" inputs="tools/sndi-check.js,data-tools/roadview/osm-roads.js" -->
+  <!-- de:driftable cmd="node tools/sndi-check.js data/lower-manhattan.rvb data/san-francisco-hills.rvb data/amersfoort-netherlands.rvb data/rotterdam-netherlands.rvb data/konigssee.rvb" as-of="2026-08-16" inputs="tools/sndi-check.js,data-tools/roadview/osm-roads.js" -->
   | | Manhattan (grid) | SF hills (grid) | Amersfoort (NL organic) | Rotterdam (NL mixed) | Königssee (alpine) |
   |---|---|---|---|---|---|
   | mean degree | 3.04 | 3.06 | 2.71 | 2.84 | 2.20 |
@@ -97,6 +97,20 @@ missing capability" is the problem statement) and refines the Phase-2 frontier o
   *Caveats:* intersection density + block area use the bbox (not hull) area, and the `.rvb`s cover
   different extents — read those two rows comparatively, not absolutely. Delft-centre wasn't in
   `data/` at measure time; add it when refetched.
+
+  ⚠ **This table cannot be re-run as written, and the driftable `cmd` above is aspirational.**
+  `data/` is gitignored (the OSM extracts are 5–40 MB each), so the `.rvb`s are per-clone fetch
+  artifacts, not repo state — and four of these five are gone from this clone; only
+  `rotterdam-netherlands.rvb` survives. Refetch with `data-tools/roadview/osm-roads.js --place`
+  before trying. *Checked 2026-08-16:* the numbers have **not** drifted from a tool change — the one
+  commit to `sndi-check.js` after the snapshot (`63daef21`, the `--compare` gate) is purely
+  additive, 45 insertions and 0 deletions, and touches no metric code. What could not be re-verified
+  is the measurement itself. Evidence that the extents really do dominate, per the caveat above:
+  today's `rotterdam-netherlands.rvb` scores mean degree 2.62 / 27.7-56.2-15.0 / dendricity 0.242 /
+  circuity 1.660 / ~block 7.71 ha against the column's 2.84 / 20-60-20 / 0.19 / 1.54 / 10.8 — a
+  different Rotterdam extract, not a different Rotterdam. **Read the table as a signature-shape
+  reference, never as a target to hit digit-for-digit** (rung 5's calibration gate is
+  `sndi-check --compare`, which carries its own tolerances for exactly this reason).
 - [x] **Rung 1 — the seam first (= Track-A A1). ✅ SHIPPED 2026-07-06.** `road_at()` over
   roadnet2's graph; sloop drives it. Built as `runtime/worldnet.h` (the ADR-0006 extraction fired
   immediately — sloop was the second consumer): roadnet2's terrain + lattice + spline links

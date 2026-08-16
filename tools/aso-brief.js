@@ -160,7 +160,18 @@ md += `---\n_worksheet regenerable; edit \`press.md\`, not this file. Terms drif
 // seeds/manifest/tools move after `as-of`. NB the DOMINANT drift is live Google/App-Store search
 // data, which no file-mtime can see — so re-run before a launch pass regardless. Single line (the
 // scanner reads line-by-line, skipping code fences).
-md += `\n<!-- de:driftable cmd="node tools/aso-brief.js ${app}" as-of="${stamp}" `
+//
+// The cmd MUST carry the flags that chose the CONTENT — the seeds and the market. A bare
+// `aso-brief.js <app>` re-derives seeds from de:meta, which for a branded app yields the app's own
+// NAME ("tiny acid jam"): a brand-name seed returns junk store words and ZERO phrases, so re-running
+// the recorded cmd verbatim silently REPLACES a good worksheet with a worse one (it did, once).
+// `--quick` is deliberately NOT recorded: it is a speed knob, not a choice about the market, and
+// baking it in would make every refresh a degraded run.
+// SINGLE quotes around the seed list: the marker's own parser is cmd="([^"]*)", so a nested
+// double quote silently TRUNCATES the recorded command mid-flag.
+const cmdFlags = (seedOverride != null ? ` --seeds '${seeds.join(', ').replace(/'/g, '')}'` : '')
+  + (country !== 'us' ? ` --country ${country}` : '')
+md += `\n<!-- de:driftable cmd="node tools/aso-brief.js ${app}${cmdFlags}" as-of="${stamp}" `
   + `inputs="tools/carts,apps/${app}/app.json,tools/aso-brief.js,tools/aso-research.js,tools/aso-suggest.js" watch="numbers" -->\n`
 
 // hidden machine-readable contract for aso-coverage.js (invisible in rendered markdown)

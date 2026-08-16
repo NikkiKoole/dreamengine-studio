@@ -105,6 +105,7 @@ const CHECKS = [
   // NEGATIVE direction, which is self-sealing (no finding means no reason to look). Its --check flag
   // is the older spelling of --selfcheck; both are accepted here.
   { name: "selftest: demand",  tool: "reddit-gaps.js",     args: ["--check"], gate: true },
+  { name: "selftest: apps",    tool: "build-app.js",       args: ["--selfcheck"], gate: true },
   // GATED from birth (2026-07-30): mechanical (an FX_* kind either has a glyph or it doesn't),
   // and it was written already AT zero after fixing the two kinds that had shipped without one —
   // so there is no backlog to work down first, unlike the ledger row above.
@@ -118,6 +119,15 @@ const CHECKS = [
   // selftest row proves the checker works on a fixture; only this row proves it is looking at the
   // repo. Any lint worth a --selfcheck row is worth this one too.
   { name: "aux params",  tool: "lint-aux-params.js",   args: ["--quiet"],     gate: true },
+  // JOINED 2026-08-16, and it is the aux-param story again in the one place that HURTS: the store
+  // path. Nothing in this repo ran build-app.js — only a human about to ship did — so when
+  // SOUND_CART_CTX moved into the generated sound_ctx.h and the parser still grepped sound.h, EVERY
+  // app build was dead for weeks behind a fully green board, and the error blamed the wrong file.
+  // This stages every apps/*/app.json through the real front half. ⚠ It stops before the first
+  // clang, so a cart that no longer COMPILES still breaks an archive and this stays green — that
+  // half is build-all.js. It covers what build-all cannot see: the manifest, the roster, the ctx
+  // cap, the engine constants the builder reads.
+  { name: "app manifests", tool: "build-app.js",       args: ["--check"],     gate: true },
   // JOINED 2026-08-14, at zero from birth. Every engine static must be either moved into a context
   // or written down in ctx-classification.json with a reason. It checks the CLASS the per-instance
   // refactor kept failing at — a group moved HALF way — rather than its instances, and it found two

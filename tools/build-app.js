@@ -9,6 +9,19 @@
 //                                              #   (rung 4: mac-app.sh signs+notarizes+staples;
 //                                              #    name+bundleId come from the manifest. Add
 //                                              #    --no-notarize for a quick local-only .app.)
+//   node tools/build-app.js --check            # CAN EVERY apps/*/app.json STILL BE STAGED? the gate
+//   node tools/build-app.js tinyjam --dry      #   one app: validate + generate, stop before clang
+//   node tools/build-app.js --selfcheck        #   known-answer fixture for --check (20 assertions)
+//
+// ⚠ WHY --check EXISTS. Nothing in this repo ran build-app.js: only a human about to ship did. So
+// when SOUND_CART_CTX moved into the generated sound_ctx.h during the per-instance work and the
+// parser here still grepped sound.h, EVERY app build was dead for weeks behind a fully green health
+// board — and the error named the symbol while blaming the wrong file, so it read like engine
+// corruption rather than a stale path. --check stages every manifest through the REAL front half
+// (--dry, one child process each, so one broken app reports and the sweep continues).
+// It stops before the first clang, so a cart that no longer COMPILES still breaks an archive and
+// this stays green: that half is build-all.js. This covers what build-all cannot see — the manifest,
+// the roster, the ctx cap, the icon path, the engine constants the builder reads.
 //
 // Manifest (apps/<name>/app.json — the committed home per share-panel.md open-q #1 +
 // ADR-0026's metadata-next-to-manifest layout):
@@ -63,9 +76,100 @@ const run = args.includes('--run')
 const mac = args.includes('--mac')            // rung 4: wrap the binary into a signed+notarized .app
 const noNotarize = args.includes('--no-notarize')  // local .app test build (skips notarize+staple)
 const ios = args.includes('--ios')            // Spike A: stage the multi-cart sources for the iOS Xcode build
-const target = args.find(a => !a.startsWith('--'))
+const dry = args.includes('--dry')            // validate + generate, stop before the first compile (see --check)
+const check = args.includes('--check')        // every manifest through --dry; the repo-doctor row
+const target = args.find((a, i) => !a.startsWith('--') && args[i - 1] !== '--apps-dir')
+
+// ── --selfcheck: can the gate above go RED? ──────────────────────────────────
+// A gate never seen to fail is indistinguishable from one gone blind (tools/gate-controls.js). This
+// one is especially exposed to that: its steady state is PASS, and it would go quietly green if the
+// fan-out stopped finding manifests, if a child's nonzero status stopped being read, or if `--dry`
+// started exiting 0 on a manifest it never actually parsed. So: a fixture tree of KNOWN-BAD apps,
+// each broken a different way, plus a known-good control that must still pass beside them.
+if (args.includes('--selfcheck')) {
+  const dir = path.join(ROOT, 'build', '.app-selfcheck')
+  fs.rmSync(dir, { recursive: true, force: true })
+  const write = (n, j) => { fs.mkdirSync(path.join(dir, n), { recursive: true })
+    fs.writeFileSync(path.join(dir, n, 'app.json'), typeof j === 'string' ? j : JSON.stringify(j)) }
+  const good = JSON.parse(fs.readFileSync(path.join(ROOT, 'apps/tinyacidjam/app.json'), 'utf8'))
+  const cases = [
+    ['aa_control',    { ...good, name: 'Control' },                                     true,  null],
+    ['bad_cart',      { ...good, carts: ['no_such_cart_exists'] },                      false, /cart not found/],
+    ['bad_overflow',  { ...good, carts: ['acidcandy','epiano','moog','tb303','sh101','omnichord','otamatone','pedalboard','combo'] },
+                                                                                        false, /SOUND_CART_CTX/],
+    ['bad_nocarts',   { name: 'No Carts', bundleId: 'x.y' },                            false, /needs at least/],
+    ['bad_json',      '{ this is not json',                                             false, /./],
+    ['bad_icon',      { ...good, icon: 'apps/tinyacidjam/nope.png' },                   false, /icon/i],
+  ]
+  for (const [n, j] of cases) write(n, j)
+  const r = spawnSync(process.execPath, [__filename, '--check', '--apps-dir', dir], { cwd: ROOT, encoding: 'utf8' })
+  const out = (r.stdout || '') + (r.stderr || '')
+  let pass = 0, fail = 0
+  const assert = (ok, what) => { if (ok) pass++; else { fail++; console.log(`  ✗ ${what}`) } }
+  for (const [n, , shouldPass, why] of cases) {
+    assert(new RegExp(`[✓✗] ${n}$`, 'm').test(out), `${n}: reported at all`)
+    assert(new RegExp(`${shouldPass ? '✓' : '✗'} ${n}$`, 'm').test(out), `${n}: expected ${shouldPass ? 'PASS' : 'FAIL'}`)
+    if (why) {
+      const seg = out.split(new RegExp(`✗ ${n}$`, 'm'))[1] || ''
+      assert(why.test(seg.split(/^[ ]{2}[✓✗]/m)[0] || ''), `${n}: reason matches ${why}`)
+    }
+  }
+  // the sweep must not ABORT on the first bad one — the control sorts first, a broken app follows,
+  // and the last case must still have been reported. That is the property a naive loop loses.
+  assert(/[✓✗] bad_nocarts$/m.test(out), 'sweep continues past a failure')
+  assert(r.status === 1, 'exits 1 when any manifest is broken')
+  const clean = spawnSync(process.execPath, [__filename, '--check'], { cwd: ROOT, encoding: 'utf8' })
+  assert(clean.status === 0, 'exits 0 on the REAL apps/ tree (else this gate is just broken)')
+  fs.rmSync(dir, { recursive: true, force: true })
+  console.log(fail ? `build-app --selfcheck: ${pass} ok, ${fail} FAILED` : `build-app --selfcheck: ${pass}/${pass} known answers correct`)
+  process.exit(fail ? 1 : 0)
+}
+
+// ── --check: can every app still be staged? ──────────────────────────────────
+// WHY THIS EXISTS: nothing in the repo ran build-app.js except a human about to ship, so the STORE
+// PATH could be fatally broken while every gate stayed green — and was. `SOUND_CART_CTX` moved into
+// the generated sound_ctx.h during the per-instance work and the parser above still grepped sound.h,
+// so EVERY app build died on a message that named the symbol and blamed the wrong file. Nobody
+// noticed until an archive was attempted, weeks later.
+//
+// It runs each manifest through the REAL front half (`--dry`), in a child process so one broken app
+// reports and the sweep continues rather than aborting on the first. Re-implementing the checks here
+// would prove nothing about the code that actually ships; that is the whole point.
+//
+// ⚠ WHAT IT DOES NOT COVER, and say so rather than let a green row imply it: it stops before the
+// first `clang`, so a cart that no longer COMPILES still breaks the archive and this stays green.
+// That gap is `tools/build-all.js`'s (every cart vs the current studio.h). This gate covers the
+// part build-all cannot see — the manifest, the roster, the ctx cap, the engine constants it reads —
+// which is exactly where the break was.
+if (check) {
+  const ai = args.indexOf('--apps-dir')          // --selfcheck points this at a fixture tree
+  const appsDir = ai >= 0 ? path.resolve(args[ai + 1]) : path.join(ROOT, 'apps')
+  const manifests = fs.readdirSync(appsDir)
+    .filter(d => fs.existsSync(path.join(appsDir, d, 'app.json'))).sort()
+  if (!manifests.length) { console.error('✗ no apps/*/app.json found — that is itself suspicious'); process.exit(1) }
+  let bad = 0
+  for (const name of manifests) {
+    // an ABSOLUTE manifest path, so a fixture tree outside apps/ resolves the same way
+    const r = spawnSync(process.execPath, [__filename, path.join(appsDir, name, 'app.json'), '--dry'],
+      { cwd: ROOT, encoding: 'utf8' })
+    if (r.status === 0) {
+      console.log(`  ✓ ${name}`)
+    } else {
+      bad++
+      const why = ((r.stderr || '') + (r.stdout || '')).trim().split('\n').filter(Boolean)
+      console.log(`  ✗ ${name}`)
+      for (const l of why.slice(-3)) console.log(`      ${l}`)
+    }
+  }
+  console.log(bad
+    ? `✗ ${bad}/${manifests.length} app manifest(s) cannot be staged (does NOT cover per-cart compiles — that is build-all.js)`
+    : `ok — ${manifests.length} app manifest(s) stage (front half only; per-cart compiles are build-all.js)`)
+  process.exit(bad ? 1 : 0)
+}
+
 if (!target) {
   console.error('usage: node tools/build-app.js <app-name | apps/<name>[/app.json]> [--run] [--mac [--no-notarize]] [--ios]')
+  console.error('       node tools/build-app.js --check      # can every apps/*/app.json still be staged?')
   process.exit(1)
 }
 
@@ -86,6 +190,12 @@ if (!app.name || !Array.isArray(app.carts) || app.carts.length === 0) {
 }
 for (const k of ['iap'])
   if (app[k]) console.log(`note: manifest "${k}" is parked for a later rung — accepted, unused today`)
+// Icon existence is validated HERE rather than only at the --ios staging step far below, so that a
+// manifest pointing at a moved icon is caught by `--check` instead of at archive time. Found by the
+// selfcheck: the bad-icon fixture PASSED, because the only check was past the compile boundary.
+if (app.icon && !fs.existsSync(path.join(ROOT, app.icon))) {
+  console.error(`✗ manifest "icon" not found: ${app.icon}`); process.exit(1)
+}
 
 // ── cap: contexts the engine actually has (never drifts from the engine) ──────
 // Read from wherever the define LIVES, not from where it once lived. It moved out of sound.h into
@@ -268,6 +378,17 @@ int  app_current(void);   // roster index of the rack most recently active (-1 =
     fs.mkdirSync(path.join(ROOT, 'ios/gen/app'), { recursive: true })
     fs.writeFileSync(path.join(ROOT, 'ios/gen/app/Tinyjam.storekit'), JSON.stringify(storekit, null, 2) + '\n')
   }
+}
+
+// ── --dry: everything above ran, nothing has been compiled ───────────────────
+// The boundary is deliberate: everything ABOVE is manifest parsing, cart resolution, the screen/grid
+// agreement, the ctx cap read out of the engine, the sprite/map bake and the launcher roster — all
+// the parts that rot silently when something else in the repo moves. Everything BELOW is clang.
+// What ran above wrote only into build/.app-* (and ios/gen for --ios), both gitignored scratch.
+if (dry) {
+  console.log(`✓ dry: "${app.name}" stages — ${carts.length} cart(s)${launcher ? ' + launcher' : ''}, `
+    + `${nCtx}/${ctxCap} ctx, ${d0.screenW}x${d0.screenH}  (no compile attempted)`)
+  process.exit(0)
 }
 
 // ── compile each cart TU with renamed entry points ───────────────────────────

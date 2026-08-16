@@ -16,8 +16,8 @@ This page is only the routing layer.
 | a software-canvas primitive (`spr`/`map`/fills/`line`/blits) | **`canvas-diff.js <cart>`** | GPU vs `DE_SOFTWARE_CANVAS` render match (handles the `sw_force_gpu` + `DE_CPU_RASTER` gotchas for you) |
 | **any** draw primitive (the everything-cart) | **`canvas-diff.js drawall`** | `drawall.c` exercises EVERY draw command with per-frame rotation — one run covers the whole draw layer. Budget is the cart's declared **`--max 64`** (a `// canvas-diff: max` directive canvas-diff reads): almost everything is byte-exact, and the one accepted ~63px is the FRACTIONAL-scale `sspr` (16→24) whose nearest-neighbour texel-boundary ties aren't byte-portable across GPUs. **This is a GPU↔SW PARITY oracle — it catches gross breakage, NOT a subtle ±1-texel sampler change** (a parity oracle can't: on a GPU that rounds the tie down, the old truncation bug even makes the diff *shrink*). **Now automated: the `sw canvas` row in `repo-doctor` runs `canvas-diff drawall --golden` every time**, because as a manual command it sat RED for 20 days (the golden was blessed three minutes before `drawall` gained its blend strips and nobody re-blessed). To lock the SW sampler's absolute output use **`canvas-diff.js <cart> --golden`** (SW render vs a committed golden PNG in `tools/canvas-golden/<cart>/`; deterministic across machines, so it fails on any sampler/rasterizer drift regardless of GPU tie-breaking; `--bless` to (re)record). **Adding a draw command? add a call there too** (CLAUDE.md "Adding a new API function" step 5). |
 | `cls`/`pset`/`pset_rgb`/fills on the canvas (byte-exactness) | the `swcanvas_test` **cart** (`canvas-diff --bytecheck`, or the two-run `shasum` in its header) | byte-identical GPU↔SW for the integer primitives |
-| anything that should be **left/right symmetric** | **`mirror-diff.js <cart>`** | the render mirrors about its centre (catches handed rasterizers) |
-| a **coverage-based road / field** (streetlab, roadlab) | **`road-check.js [--all] [--overlay]`** | framebuffer invariants (no naked edges/strays/floating kerb) at any angle |
+| anything that should be **left/right symmetric** | **`mirror-diff.js <cart>`** | the render mirrors about its centre (catches handed rasterizers). A bare run MEASURES and exits 0; `--quiet` gates at zero, and **`--expect <n>` gates a nonzero accepted floor** — which is what a "68=68" gate needs and could not express before, so it was a person reading two terminal outputs. A count *below* the expectation fails too. |
+| a **coverage-based road / field** (streetlab, roadlab) | **`road-check.js [--all] [--overlay]`** | framebuffer invariants (no naked edges/strays/floating kerb) at any angle. Note `unknown` is info-only unless `--strict`; the control now refuses a frame that could not have failed at all (no asphalt / no kerb / no open colour / an empty play area) |
 | a **procedural street-network generator** (citygen.h, the worldgen rungs) | **`sndi-check.js <real.rvb \| graph.json>…`** | THE realism number: the SNDi composite (degree shares/dendricity/circuity/sinuosity/orient-entropy) vs real cities — generated matches real = done |
 | `fill`/`outline`/`dither` of a shape | the `raster_test` **cart**: `node tools/play.js raster_test script tools/raster_test.script --headless --trace build/raster_trace.jsonl --frames 60` | fill, outline, dither and solid all agree pixel-for-pixel. **PASS = every `fs=2` frame reports `mismatches:"0"` and the `eq` line shows `total=0`.** Interactively instead: drag `editor/public/carts/raster_test.cart.png` into the editor (Z outline · X dither · C cycles 4 pages · SPACE analyse). ([`rasterization-consistency.md`](../design/rasterization-consistency.md)) |
 | the **off-screen bbox clamp** on `tri`/`trifill`/`thickline` (a perf cliff, not a wrong pixel) | the `trifill_stress` **cart** + the ⏱ profiler | a pinwheel of thin tris reaching ~1100px off-screen. It should hold 60fps **with reach cranked to max**; if the clamp regresses, pushing reach tanks the fps (was **~46.7 ms** unclamped vs **~2.7 ms** clamped at the defaults). It runs `raster_test` for correctness, so this is the *budget* half only — the pixels are that row's job |
@@ -242,9 +242,16 @@ reason, and every one was caught by a **control** rather than by the assertion i
 | "every note-on is matched by a note-off" | **Wrong axis.** The defect was that drum notes were ZERO-LENGTH (on and off in the same millisecond, which records wrong in a DAW). A zero-length note is perfectly balanced, so the pair count was not merely blind to the bug — it *rewarded* it. Found by the maker's ear in GarageBand, not by the gate. |
 | `sync_automated` (ignore a real clock in automated runs) | **The code never ran.** Its assignment sat inside `#ifdef DE_SPEC`, which only `spec.js` defines — so in every `play.js` run it was meant to protect, the flag stayed 0. Every sync gate passed, because `--midi-clock` runs take an earlier branch and those are the runs the gates exercise. |
 | "quitting never leaves a note droning" | **True by luck.** `MIDIReceived` is asynchronous, and the shutdown flush disposed the endpoint on the next line, dropping the note-offs in flight. It passed once, then failed with exactly the two notes still held. A pass that depends on a race is not a pass. |
+| `param-check` green on the host-PARAMETER seam (2026-08-16) | **It measured a different BUILD's code path.** `struct DeInstance` and every context resolver live inside `studio.c`'s `#ifdef DE_NO_RAYLIB`, so the *native* build has no instances at all: a headless run exercises the DEFAULT shared table through the thread-local, while a host exercises the PER-INSTANCE one. Every assertion was true and none of them was about the path a DAW takes. It surfaced only by accident, when a seam function grew a body `-O2` could not fold and the native build stopped **linking** on code that runs fine under the plug-in. |
 
-**The one question that catches all three:** *what would I have to break to make this go red?* If you
-cannot name a specific edit, the assertion is decoration. Run it on the three above: break the gate
+**The one question that catches the first three:** *what would I have to break to make this go red?*
+If you cannot name a specific edit, the assertion is decoration.
+
+**And a second one, for the fourth:** *does this gate run the same BUILD the user runs?* A repo with
+a `#ifdef` at the platform seam has two programs in one tree, and a headless harness reaches for the
+convenient one. Where a feature only exists on the other side of that fork, the honest answer is a
+gate that crosses it — which is what `au-transport-check --params` is to `param-check`, and why the
+latter's header says ENGINE HALF ONLY in capitals. Run it on the three above: break the gate
 length → the pair counter stays green. Delete `sync_automated` → every sync gate stays green. No-op
 the shutdown flush → green, most of the time.
 
@@ -278,7 +285,11 @@ Coverage is tracked: **`node tools/gate-controls.js`** lists gates that have nei
 a negative control (advisory row in `repo-doctor`). It cannot tell you a gate is *good* — only that
 nothing in it has ever been shown to fail.
 
-### Giving an AUDIO gate a known-answer fixture (the recipe, and two worked examples)
+### Giving a RENDER-OR-AUDIO gate a known-answer fixture (the recipe, and ten worked examples)
+
+> Started with the audio block and kept going: the audio gates, then `spec.js` (game logic), then
+> the three pixel gates. **Ten gates, and eight of them were broken.** The two failure shapes at the
+> bottom of this section are the reusable part — check any gate you write for both, by name.
 
 The audio gates were the largest block on `gate-controls`' list, and for a bad reason: the
 discipline above *reads* as being for linters, so "it's audio, you need a render" became an excuse.
@@ -419,13 +430,6 @@ a floor that ramped for twenty cycles and dipped on the twenty-fourth read as 1.
 pinned as a regression guard. Distinguish this from a tolerance choice — the threshold was fine, the
 statistic was wrong.
 
-**Still without one** — always take the list from `node tools/gate-controls.js --list` rather than
-from a count written in prose; several agents work this repo at once and this tally moved twice in
-one afternoon. At the time of writing: `psola-check` and `web-audio-check`. `psola-check` needs
-synthetic signals carrying a *specific* artifact (a splice, a staircase, a period doubling), where a
-mis-synthesis pins the fixture rather than the detector; `web-audio-check` compares two platforms,
-so its control is a deliberate divergence and its fixture needs a toolchain.
-
 **`spec.js --selfcheck`** (23 answers). Not an audio gate — the *gameplay* one — but it turned out to
 carry soak-check's hole in a worse place, so it is written up here with its siblings. Every verdict
 it makes is "no assertion failed", which is trivially true of a run that made no assertions.
@@ -452,18 +456,83 @@ Worth copying: a control that cross-checks *two independently produced numbers* 
 line count against the count the binary reported — costs almost nothing and catches a class no
 threshold can, because both numbers stay individually plausible.
 
-**The pattern across all seven, worth reading as one thing.** Only `tune-check` and `click-check`
-turned out to be sound as they stood. The other five were each broken in a way their own output
-could not show: `dc-check` measured its window rather than the engine, `level-check` diffed PIANO
-against a different PIANO and silently dropped a note, `fx-check` never checked the reference
-everything else was compared against, `soak-check` could not tell a long run from no run, and
-`spec.js` counted an empty spec as a pass. None of these was found by reading the code — each one
-came out of writing down what the tool *should* answer for an input whose answer was already known.
+#### The three PIXEL gates, taken together
+
+`mirror-diff`, `road-check` and `canvas-diff` were done as one batch, and they are worth reading as
+one entry because **all three had the identical defect in the identical place**. Each one's verdict
+is "no bad pixel/frame was found", which is trivially true when nothing was examined:
+
+| gate | the measured vacuous pass |
+|---|---|
+| `mirror-diff` | `--band 500,600` on a 200-tall frame compared **0 of 0 pixel-pairs**, exit 0 |
+| `road-check` | the wrong palette made **all 36480 play-area pixels unrecognised** — `unknown` is info-only without `--strict` — verdict PASS |
+| `canvas-diff` | both runs dumping nothing printed a green **"PASS — canvas matches GPU within budget"** under an empty frame table |
+
+Every one is a plausible accident rather than a contrived one: a typo'd band, a changed palette or a
+cart that did not draw its road, a dump that renamed its frames. And in all three the mistake makes
+the gate *easier* rather than louder, so nothing downstream can notice.
+
+The controls differ in shape, and the choice is the interesting part. `mirror-diff` and
+`canvas-diff` can just count what they compared. `road-check` cannot — a frame with pixels in it is
+not evidence that any *invariant could have fired* — so its control asserts one necessary condition
+per invariant, each naming the check it silently disables ("no kerb anywhere, so *stray* and
+*floating* are checks on a class that is absent"). No invented percentages: all of them are `> 0`.
+
+Each also had a defect of its own, and two are worth copying elsewhere:
+
+- **`mirror-diff` could not hold the number it was gating.** streetlab's accepted symmetry floor is
+  nonzero, but `--quiet` can only assert zero — so the roadkit extraction's *"mirror-diff 68=68"*
+  gate was **a person reading two terminal outputs**, and nothing ran it again afterwards. `--expect
+  <n>` makes it runnable, and a count *below* the expectation fails too: an accepted floor is a
+  value you re-bless on purpose, not a ceiling to come in under. Separately, its PNG decoder
+  answered on images it cannot read — a maximally asymmetric **palette** PNG reported *2 mismatches
+  of 16 instead of 16 of 16*, because palette data is 1 byte per pixel read at a 4× stride. Refused
+  now, along with 16-bit, interlaced and truncated.
+- **`canvas-diff` passed unreadable frames.** `ae()` returns `NaN` when magick cannot read a frame,
+  and every comparison with `NaN` is false, so `d > maxPx` said *within budget*. Its own `--golden`
+  mode already had this right with `d === 0` — **the two modes disagreed on the same condition**,
+  which is a smell worth looking for in any tool with more than one comparison path.
+
+**A trap this batch fell into, having documented it two commits earlier.** Mutating canvas-diff's
+real per-frame predicate left the whole suite green, because the fixture had re-implemented
+`d > maxPx` locally instead of calling it — a fixture pinning *a copy of* the logic. Extracted as one
+shared `withinBudget()` used by both. The same round caught the mirror image in `mirror-diff`:
+loosening `--expect` from `===` to `<=` passed all 27 assertions, because none of them tested a count
+below the expectation. **Step 5 is not optional, and it earns its keep on the assertions you were
+most confident about.**
+
+#### The pattern across all ten
+
+Only `tune-check` and `click-check` turned out to be sound as they stood. The other eight were each
+broken in a way their own output could not show: `dc-check` measured its window rather than the
+engine, `level-check` diffed PIANO against a different PIANO and silently dropped a note, `fx-check`
+never checked the reference everything else was compared against, `soak-check` could not tell a long
+run from no run, `spec.js` counted an empty spec as a pass, and the three pixel gates each called an
+empty comparison a match. **None of these was found by reading the code** — each came out of writing
+down what the tool *should* answer for an input whose answer was already known.
 
 Two failure shapes account for almost all of it, and both are worth checking for by name in any gate
-you write. **Vacuity**: the verdict is a statement about a set, and the empty set satisfies it
-(`soak-check`, `spec.js`). **An unchecked reference**: everything is measured relative to something
-that is itself never measured (`fx-check`'s DRY, `level-check`'s baseline key, `dc-check`'s window).
+you write:
+
+- **Vacuity** — the verdict is a statement about a set, and the empty set satisfies it. `soak-check`,
+  `spec.js`, and all three pixel gates. The tell is a verdict phrased as *"no X was found"* with
+  nothing asserting that X *could* have been found. No threshold can ever catch it, because the
+  counts are honestly zero; only a separate question — *did the measurement happen?* — can.
+- **An unchecked reference** — everything is measured relative to something that is itself never
+  measured. `fx-check`'s DRY, `level-check`'s baseline key, `dc-check`'s window, `mirror-diff`'s PNG
+  decoder. The tell is a value that appears in every comparison and in no assertion.
+
+A third, rarer but nastier: **a statistic that does not measure what its message says** (`soak-check`
+accumulation as `last - min`). Distinguish it from a tolerance choice — the threshold was fine.
+
+**Still without one** — always take the list from `node tools/gate-controls.js --list` rather than
+from a count written in prose; several agents work this repo at once and this tally moved twice in
+one afternoon. Of the audio/render family, `psola-check` and `web-audio-check` remain: `psola-check`
+needs synthetic signals carrying a *specific* artifact (a splice, a staircase, a period doubling),
+where a mis-synthesis pins the fixture rather than the detector, and `web-audio-check` compares two
+platforms, so its control is a deliberate divergence and its fixture needs a toolchain. Most of the
+rest of the list is `build-*.js --check` staleness gates, where failure is loud and immediate and a
+control buys little — **spend one where PASS is the steady state and failure would be silent.**
 
 ## The THIRD way a check lies: it goes RED about something you did not change
 
@@ -481,6 +550,8 @@ differed between the two sides of the comparison.
 | `midi-check` phase B, all six assertions at once | the sender published for a fixed 12s of wall clock; the cart starts after a *variable* compile (3.9s idle → 13.7s under three `build-all` sweeps). On a busy machine the cart booted after the sender exited. Nothing was measured |
 | `refactor-guard`: *"audio diverges at 0.0s · state diverges at frame 0"* | `build/saves/<cart>/` — untracked, mutable, **rewritten by every run**. `acidcandy` persists a 437 KB `cart.blob`; deleting it produced that message with identical numbers on an unmodified tree |
 | a hand-rolled `--resize` A/B across two worktrees | the same save blob, in two trees with different run histories. It cost a correct refactor a day and a "reverted as unsafe" verdict that was wrong |
+| `refactor-guard`, red *immediately after its own bless* (2026-08-16) | **HEAD moved between the bless and the compare.** Several agents commit to this branch and one landed a `runtime/studio.c` change mid-loop, so the baseline described a tree that no longer existed. Caught in the act on the run that finally worked: HEAD went `5873a465` → `dc35b110` *while the bless was still running*. Four bless/compare cycles were spent before `git log` explained it. The guard now compares its recorded `blessed_at_commit` against HEAD and says so — in `--quiet` too, since that is the form repo-doctor shows |
+| `au-transport-check`: *"the same 8 beats fire the same notes at 2x tempo"*, ratio 0.87 → 0.69 (2026-08-16) | **The assertion was fine and its PROXY stopped being valid.** Onsets are detected as an envelope rise against the envelope 6 ms earlier, so anything *sustained* lifts the floor a transient must clear. The cart had just been changed to boot with an audible legato 303, which masked drum onsets — and more so at the faster tempo, where the line is denser. The sequencer was measured at exactly **4.00 steps/beat at both tempos**. ⚠ Then the obvious repair made it worse: lowering the detection floor to count more onsets dropped the ratio to **0.52**, the exact signature of a free-running sequencer, because 8 beats at 180 BPM is *half the seconds* of 8 beats at 90 and the extra events were reverb tails scaling with WALL TIME. Fixed by high-passing the detector, not by moving the threshold |
 
 What to do about it:
 

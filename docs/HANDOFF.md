@@ -271,38 +271,42 @@ a broken doc link or `#section`).
 >
 > Hot files: `runtime/sound.h`, `runtime/studio.c` (targeted `Edit`s only), `tools/lint-engine-seam.js`.
 
-> **▶ ACTIVE THREAD (2026-08-15) — GATES THAT CANNOT PROVE THEY GO RED: the audio block.**
+> **▶ ACTIVE THREAD (2026-08-16) — GATES THAT CANNOT PROVE THEY GO RED.**
 >
-> `gate-controls` counts gates carrying a self-test or a negative control. It had been stuck for
-> weeks, and the largest untouched block was the AUDIO gates — for a bad reason: the discipline
-> reads as being for linters, so "it's audio, you need a render" became the excuse. It is not true.
-> Every audio gate splits into a **pure analyser** and the thing that made the sound, and the
-> analyser takes a signal you synthesise with an answer you know from arithmetic.
+> `gate-controls` counts gates carrying a self-test or a negative control. **Ten done, and eight of
+> them turned out to be broken** — not "lacking a test", actually wrong in a way their own green
+> output could not show. That hit rate is the reason this lane is worth continuing.
 >
-> **SHIPPED (2026-08-15), two worked examples, both mutation-tested and both in `repo-doctor`:**
-> `tune-check --selfcheck` (20 answers) — and the fixture was the smaller half: its **SINE control
-> was held to the ENGINE thresholds**, so a 3-cent analyser bias printed "no new tuning drift",
-> exited 0, and *lowered* the waived-residual count because it nudged PIPE and BRASS toward nominal.
-> A broken analyser read as "we fixed some tuning". Control now has a 1-cent bound of its own ·
-> `click-check --selfcheck` (20 answers) — catches the wavetable-swap-at-continuous-phase case it
-> was born for, and pointing it at a real `acidcandy` render found that **a sparse percussive take
-> scores 44 events, worst 1834x, all kick drums** (an onset after a quiet passage divides by an
-> almost-silent baseline). Documented in its header; it is a compare-before-and-after tool on that
-> material, not a pass/fail one.
+> **SHIPPED**, each its own commit, each mutation-tested and registered in `repo-doctor`:
+> the audio block (`tune-check` · `click-check` · `dc-check` · `level-check` · `fx-check` ·
+> `soak-check`), then `spec.js` (game logic), then the three pixel gates (`mirror-diff` ·
+> `road-check` · `canvas-diff`). Sound as they stood: only `tune-check` and `click-check`.
+> The other eight, in one line each — `dc-check` measured its own window and not the engine ·
+> `level-check` diffed PIANO against a *different* PIANO and had silently stopped rendering the last
+> note · `fx-check` never checked the DRY reference everything is compared against · `soak-check`
+> could not tell a 24-cycle run from no run · `spec.js` scored an empty `spec()` as a green tick, and
+> its second control found `tenement` losing two assertion lines to an unescaped quote · all three
+> pixel gates called an empty comparison a match.
 > ⚠ **Do not quote a coverage tally here.** Several agents work this repo at once and the number
 > moved twice while this lane was being written. `node tools/gate-controls.js` is the live count.
 >
-> ⚠ **THE ONE RULE THAT PAID: MEASURE BEFORE YOU ASSERT.** Three of my expected "known answers" were
-> wrong, and writing them down unmeasured would have moved an assumption into a file that then looks
-> authoritative. The table of all three (the octave-up asymmetry, the naked saw, the two silences) is
-> in the guide.
+> ⚠ **TWO RULES THAT PAID.** *Measure before you assert* — several expected "known answers" were
+> wrong (the octave-up asymmetry, the naked saw, the two silences, the window residual), and writing
+> them down unmeasured would have moved an assumption into a file that then looks authoritative.
+> *Mutate the control too, not just the analyser* — two plausible controls sat green through the very
+> failure they were written for (level-check's SINE pair against a sliding window; canvas-diff's
+> fixture re-implementing the predicate instead of calling it).
 >
-> **Resume-at: [the recipe + what is left](guides/checks-and-oracles.md#the-other-way-a-green-check-lies-it-was-never-measuring-the-thing)** —
-> five steps, the two worked examples, and a per-tool note on the six audio gates still without one.
-> `dc-check` and `level-check` are the easy next two (simple statistics over a buffer, so the
-> arithmetic answers are immediate); `soak-check` and `fx-check` are harder because their subject is
-> behaviour over time; `web-audio-check` compares two platforms, so its control is a deliberate
-> divergence rather than a synthetic signal.
+> **Resume-at: [the recipe + the two failure shapes](guides/checks-and-oracles.md#the-other-way-a-green-check-lies-it-was-never-measuring-the-thing)** —
+> five steps and ten worked examples. The reusable part is the two shapes to check any new gate for by
+> name: **vacuity** (the verdict is about a set, and the empty set satisfies it) and **an unchecked
+> reference** (everything is measured against something never measured itself).
+>
+> **What is left:** `psola-check` (needs synthetic signals carrying a *specific* artifact, where a
+> mis-synthesis pins the fixture rather than the detector) and `web-audio-check` (compares two
+> platforms, so its control is a deliberate divergence and its fixture needs a toolchain). Most of the
+> remaining `--list` is `build-*.js --check` staleness gates where failure is loud — spend a control
+> where PASS is the steady state and failure would be silent.
 >
 > Hot files: none shared — each gate is its own file in `tools/`. Add the `repo-doctor` row in the
 > same change (`selftest:` block) or the fixture exists and nothing runs it.

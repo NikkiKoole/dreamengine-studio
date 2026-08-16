@@ -385,6 +385,20 @@ async function pushReviewContact() {
   const r = manifest.review || {}
   const missing = ['firstName', 'lastName', 'phone', 'email'].filter(k => !r[k])
   if (missing.length) die(`review contact needs manifest "review": { ${missing.map(k => `"${k}"`).join(', ')} }`)
+  // ⚠ AN UNFILLED PLACEHOLDER MUST NEVER REACH A REVIEWER. Apple's 2.1 "Information Needed" reply is
+  // a numbered form, it is written from a template, and the reply that went out for one app carried
+  // a literal "[FILL IN — e.g. iPhone 15 Pro running iOS 18.5]" where the tested-devices answer
+  // belonged: an unanswered question, sent as though answered. Nothing catches that by eye, because
+  // the surrounding six answers look complete. Cheap to refuse here, expensive as a review round-trip.
+  // Two patterns, and the split is the whole precision story. BRACKETED forms are unambiguous, so
+  // they match case-insensitively. BARE words must be UPPERCASE, because lowercase "fill in" is
+  // ordinary prose — and in a music app especially ("the pattern will fill in as you tap steps", a
+  // drum "fill"), which a single case-insensitive pattern flagged on its first test.
+  const HOLE_BRACKET = /\[\s*(FILL[ _-]?IN|TODO|TBD|XXX|placeholder)\b[^\]]*\]|<[^>]*your[^>]*>/i
+  const HOLE_SHOUTED = /\b(FILL[ _-]?IN|TBD|XXX)\b/
+  const hole = r.notes && (r.notes.match(HOLE_BRACKET) || r.notes.match(HOLE_SHOUTED))
+  if (hole) die(`review notes still contain a placeholder: ${JSON.stringify(hole[0])}\n`
+    + `  Fill it in in apps/<app>/app.json "review".notes — this is the field a reviewer reads.`)
   const app = await resolveApp()
   const { version } = await editableVersionLoc(app.id)
   const attributes = {

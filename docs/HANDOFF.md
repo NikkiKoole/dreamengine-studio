@@ -76,11 +76,20 @@ a broken doc link or `#section`).
 > `DERIVE_ONLY=1 APP=<name> ./testflight.sh` runs it in a second with no Xcode. Six validators,
 > mutation-tested; one of them was green and BLIND (`*[A-Z]*` passes `mpla`, since a shell bracket
 > range is collation-based) which is worth knowing for every `[A-Z]` in a shell script here.
-> **▶ NEXT, and the last thing before a submittable build: a real `APP=tinyacidjam ./testflight.sh`**,
-> because the AU target means cloud signing now needs the CHILD App ID
-> `com.mipolai.tinyacidjam.TinyjamAU`, which the stripped path had been avoiding and which only a
-> real archive will surface. **`device.sh` is still unpatched** (the dev loop over a cable is still
-> `TinyjamHello`), which is the other half of the maker's "wrong icons and names".
+> **✅ IT ARCHIVES, WITH THE PLUG-IN IN IT (2026-08-16).** `SKIP_UPLOAD=1 APP=tinyacidjam
+> ./testflight.sh` produces `com.mipolai.tinyacidjam` + the extension
+> `com.mipolai.tinyacidjam.TinyjamAU` carrying `aumu tacj Mpla` "Mipolai: Tiny Acid Jam" and
+> `com.apple.AudioUnit-UI` (so the panel, not host sliders). The CHILD App ID was a non-issue:
+> `-allowProvisioningUpdates` registered it, no portal work. **`device.sh` derives the same names
+> now**, into a gitignored `project-dev.yml` copy so `project.yml` is never rewritten.
+> ⚠ **What actually blocked the first archive was neither**: `build-app.js` staged NOTHING because
+> `SOUND_CART_CTX` moved into the generated `sound_ctx.h` and the parser still grepped `sound.h`, so
+> EVERY app build was dead at a message that blames the wrong file. Fixed (searches both homes).
+> Worth remembering: no gate in the repo runs `build-app.js --ios`, so the store path can be fatally
+> broken and green. **▶ NEXT: the upload itself is unrun** (`APP=tinyacidjam ./testflight.sh` without
+> `SKIP_UPLOAD`) — the maker's call, since it publishes a build. And the ICON warns that the mask cuts
+> real detail (bottom-right 45.4%): it is shaving the purple chassis border at the corners, legible
+> but uneven, `node tools/icon-mask.js preview apps/tinyacidjam/icon.png` to judge.
 > Same section covers the identity gap the maker noticed (wrong names on deploy):
 > the app's bundle id / version / display name / icon ARE derived from the manifest, but the AU's
 > `CFBundleDisplayName`, its **component name** `Tinyjam: Demo` (the string a DAW lists) and the

@@ -256,15 +256,40 @@ letters too. Reading it will not show you this. Feeding it a deliberately bad va
 POSIX classes (`[[:upper:]]`, `[[:alnum:]]`), and the same trap applies to every `[A-Z]`/`[a-z]` range
 in a shell script in this repo.
 
-⚠ **Still open, and the one thing left before a submittable build:** with the AU target present, cloud
-signing needs the CHILD App ID `com.mipolai.tinyacidjam.TinyjamAU`, not just the parent.
-`testflight.sh`'s header calls this out as the reason single-cart standalones were cheaper to ship.
-The first archive is where it shows up, and it needs a real `APP=tinyacidjam ./testflight.sh` run to
-find out (`DERIVE_ONLY` deliberately stops short of it). Not fixable from a doc.
+✅ **The child App ID was a non-issue, and only a real archive could say so.** With the AU target
+present, cloud signing needs `com.mipolai.tinyacidjam.TinyjamAU` as well as the parent, and
+`testflight.sh`'s header names that as the reason single-cart standalones were cheaper to ship. Ran
+it (`SKIP_UPLOAD=1 APP=tinyacidjam ./testflight.sh`, 2026-08-16): `-allowProvisioningUpdates`
+registered the child and minted its profile with no manual portal work. The archive verifies:
 
-⚠ **And `device.sh` still patches nothing**, so the dev loop over a cable is still `TinyjamHello` with
-whatever the last staging left in the asset catalog. That is the other half of the maker's original
-"wrong icons and names" and it is untouched by this change, which only ever runs on the store path.
+| | value |
+|---|---|
+| app | `com.mipolai.tinyacidjam` · "Tiny Acid Jam" · v1.0 |
+| extension | `com.mipolai.tinyacidjam.TinyjamAU` · "Tiny Acid Jam" |
+| component | `aumu` · `tacj` · `Mpla` · "Mipolai: Tiny Acid Jam" |
+| view | `NSExtensionPointIdentifier: com.apple.AudioUnit-UI` (so the panel, not host sliders) |
+
+✅ **`device.sh` derives the same names now** (2026-08-16), into a COPY of the spec
+(`project-dev.yml`, gitignored) so `project.yml` is never rewritten and a bare `xcodegen generate`
+still yields the plain dev-loop project. The dev bundle id stays the throwaway `com.tinyjam.hello`.
+⚠ The AU subtype/manufacturer follow the manifest there too, so a cable build registers the SAME
+component triple the store build will. Deliberate (you are testing the real plug-in identity), and it
+means a dev install can shadow a store install of the same app in a host's list. Install one, not both.
+
+⚠ **What actually blocked the first archive was neither of those.** `build-app.js` staged nothing at
+all: `SOUND_CART_CTX` had moved out of `sound.h` into the generated `sound_ctx.h` during the
+per-instance context work, and the parser still grepped `sound.h`, so **every app build** died at
+`could not parse SOUND_CART_CTX from runtime/sound.h`. The message names the symbol and blames the
+wrong file, which reads like engine corruption rather than a stale path. It searches both homes now.
+The lesson for this doc: the store path had a fatal break that no gate in the repo could see, because
+nothing runs `build-app.js --ios` except a human about to ship. Reasoning about the archive would
+never have found it; running it found it in four seconds.
+
+⚠ **One real thing left, and it is about the icon rather than the plug-in.** Staging warns that the
+mask is cutting real detail: *"worst: bottom-right, 45.4% of its cut region is not flat background"*.
+iOS shaves ~6% off a square icon and Apple's corner curve is continuous where a hand-drawn rounded
+rect is circular, which is the trap `docs/design/app-icon-mask.md` exists for and which has already
+bitten two apps in review. See it with `node tools/icon-mask.js preview apps/tinyacidjam/icon.png`.
 
 **The fix shape**, if we take it: derive the AU identity from the manifest the same way the app
 identity already is (a couple more `sed` lines in `testflight.sh`, plus manifest keys for the AU

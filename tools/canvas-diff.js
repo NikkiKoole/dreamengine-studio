@@ -35,6 +35,13 @@
 //   2. GL-vs-CPU rasterization (line, rotated fill) — neutralized by DE_CPU_RASTER=on on the
 //      reference (unless --raw), so a line/rotated-fill cart A/Bs byte-exact instead of with noise.
 //   3. wrong oracle — pixel-diff (magick AE) by default, not shasum; --bytecheck only where exact.
+//   4. NOTHING COMPARED — the one the other three cannot see, because they are all about comparing
+//      the WRONG thing and this is about comparing nothing at all. The verdict is "no frame exceeded
+//      the budget", which is trivially true of no frames: with both runs producing nothing this
+//      printed a green "PASS — canvas matches GPU within budget" under an empty table and exited 0.
+//      Partial coverage was silent too (3 compared of 10 requested read like 10 of 10), and an
+//      UNREADABLE frame passed, because ae() returns NaN and `NaN > maxPx` is false. controlCheck()
+//      + withinBudget() close all three; --golden mode already got the NaN case right.
 //
 // Exit: 0 = within budget (or byte-identical), 1 = exceeded / mismatch, 2 = setup error.
 // Routing among all the gates: docs/guides/checks-and-oracles.md.
@@ -59,7 +66,79 @@ const maxArg    = opt('--max', null);     // null = not passed → fall back to 
 const seed      = opt('--seed', '1');     // fixed RNG seed for BOTH runs, else rnd()-driven carts diverge
 const cart      = args[0];
 
-if (!cart) { console.error('usage: node tools/canvas-diff.js <cart> [--frames N] [--bytecheck] [--raw] [--max N] [--heatmap] [--keep]\n       node tools/canvas-diff.js <cart> --golden [--bless] [--frames N]'); process.exit(2); }
+// ── --selfcheck: KNOWN ANSWERS FOR THE COMPARISON ────────────
+// Compiles nothing and renders nothing. What it pins is this file's own reasoning: which runs are
+// evidence, how a frame's diff becomes a verdict, and the two source-reading rules (the declared
+// budget and the sw_force_gpu grep) that decide how the A/B is set up in the first place.
+function selfcheck() {
+  let pass = 0, fail = 0;
+  const ok = (name, cond, got) => {
+    if (cond) { pass++; console.log(`  ✓ ${name}`); } else { fail++; console.log(`  ✗ ${name}   got: ${got}`); }
+  };
+  // the per-frame verdict, exactly as the loop applies it
+  const within = withinBudget, fails = (d, max) => !withinBudget(d, max);
+
+  console.log('canvas-diff --selfcheck — known answers for the comparison (nothing is rendered)\n');
+
+  console.log('THE CONTROL — comparing nothing is not a match');
+  ok('0 frames compared is refused', controlCheck(0, 10, [0,1,2,3,4,5,6,7,8,9]).some(c => c.includes('NO frames')),
+     controlCheck(0, 10, []));
+  ok('  …and it says how many were asked for', controlCheck(0, 10, []).some(c => c.includes('10 requested')),
+     controlCheck(0, 10, []));
+  ok('3 of 10 compared is refused — partial coverage used to read like full coverage',
+     controlCheck(3, 10, [3,4,5,6,7,8,9]).some(c => c.includes('only 3 of 10')), controlCheck(3, 10, [3,4,5,6,7,8,9]));
+  ok('  …and it names the frames that never rendered',
+     controlCheck(3, 10, [3,4,5]).some(c => c.includes('3, 4, 5')), controlCheck(3, 10, [3,4,5]));
+  ok('a full run raises nothing', controlCheck(10, 10, []).length === 0, controlCheck(10, 10, []));
+  ok('  …and a single-frame run is fine when that is what was asked for',
+     controlCheck(1, 1, []).length === 0, controlCheck(1, 1, []));
+
+  console.log('\nTHE PER-FRAME VERDICT, AND THE UNREADABLE-FRAME HOLE');
+  ok('a diff inside the budget passes', within(30, 64), '30 vs 64');
+  ok('a diff over the budget fails', fails(65, 64), '65 vs 64');
+  ok('  …and exactly at the budget passes (the budget is inclusive)', within(64, 64) && !fails(64, 64), '64 vs 64');
+  ok('a byte-identical frame passes a zero budget', within(0, 0), '0 vs 0');
+  // measured: ae() returns NaN when magick cannot read a frame ("insufficient image data"), and
+  // every comparison with NaN is false — so `d > maxPx` said "within budget" for an unreadable frame
+  ok('an UNREADABLE frame (NaN) FAILS', fails(NaN, 64), 'passed');
+  ok('  …which the old `d > max` test did NOT — this is the regression guard',
+     (NaN > 64) === false && fails(NaN, 64) === true, 'inconsistent');
+  ok('  …and it fails against a ZERO budget too, where "unreadable" is likeliest to hide',
+     fails(NaN, 0), 'passed');
+
+  console.log('\nTHE DECLARED BUDGET (read out of the cart source)');
+  const withDecl = 'void draw(void){}\n// canvas-diff: max 64\n';
+  ok('a cart\'s declared budget is used when --max is absent', resolveBudget(null, withDecl).maxPx === 64,
+     resolveBudget(null, withDecl).maxPx);
+  ok('  …and reported as declared', resolveBudget(null, withDecl).declared === 64,
+     resolveBudget(null, withDecl).declared);
+  ok('an explicit --max always wins over the declaration', resolveBudget('8', withDecl).maxPx === 8,
+     resolveBudget('8', withDecl).maxPx);
+  ok('  …including --max 0, which must not fall back to 64', resolveBudget('0', withDecl).maxPx === 0,
+     resolveBudget('0', withDecl).maxPx);
+  ok('no declaration and no --max means a ZERO budget (byte-exact by default)',
+     resolveBudget(null, 'void draw(void){}').maxPx === 0, resolveBudget(null, 'void draw(void){}').maxPx);
+  ok('  …and reports that nothing was declared', resolveBudget(null, 'void draw(void){}').declared === null,
+     resolveBudget(null, 'void draw(void){}').declared);
+
+  console.log('\nGOTCHA #1: THE sw_force_gpu GREP, AND ITS EXEMPT CLASSES');
+  ok('a real camera_ex call is detected', detectForceGpu('void draw(void){ camera_ex(1,2,0.5f); }').length === 1,
+     detectForceGpu('void draw(void){ camera_ex(1,2,0.5f); }'));
+  ok('a // comment mentioning it does NOT trip the warning',
+     detectForceGpu('// we deliberately avoid camera_ex(...) here\nvoid draw(void){}').length === 0, 'tripped');
+  ok('  …nor does a /* block */ comment',
+     detectForceGpu('/* camera_ex(0,0,1) would break the A/B */\nvoid draw(void){}').length === 0, 'tripped');
+  ok('a name that merely CONTAINS it is not a call (word boundary)',
+     detectForceGpu('void draw(void){ my_camera_extra(1); }').length === 0, 'tripped');
+  ok('a clean cart is silent', detectForceGpu('void draw(void){ cls(0); spr(1,2,3); }').length === 0, 'tripped');
+
+  console.log(`\n${fail ? '✗' : '✓'} ${pass} passed, ${fail} failed`);
+  return fail ? 1 : 0;
+}
+
+if (flag('--selfcheck')) process.exit(selfcheck());
+
+if (!cart) { console.error('usage: node tools/canvas-diff.js <cart> [--frames N] [--bytecheck] [--raw] [--max N] [--heatmap] [--keep]\n       node tools/canvas-diff.js <cart> --golden [--bless] [--frames N]\n       node tools/canvas-diff.js --selfcheck'); process.exit(2); }
 
 const src = path.join('tools/carts', `${cart}.c`);
 if (!fs.existsSync(src)) { console.error(`canvas-diff: no such cart ${src}`); process.exit(2); }
@@ -72,20 +151,29 @@ const source = fs.readFileSync(src, 'utf8');
 // nearest-neighbour texel-boundary ties the GPU and CPU floor resolve opposite ways — see
 // docs/design/software-canvas.md). An explicit --max always wins; else this default; else 0. This is
 // what stops `canvas-diff <cart>` from being a recurring false alarm on a known, accepted divergence.
-const declared = source.match(/\/\/\s*canvas-diff:\s*max\s+(\d+)/);
-const maxPx    = maxArg != null ? parseInt(maxArg, 10)
-               : declared      ? parseInt(declared[1], 10)
-               :                 0;
+function resolveBudget(maxArg, src) {
+  const declared = src.match(/\/\/\s*canvas-diff:\s*max\s+(\d+)/);
+  return { maxPx: maxArg != null ? parseInt(maxArg, 10) : declared ? parseInt(declared[1], 10) : 0,
+           declared: declared ? parseInt(declared[1], 10) : null };
+}
+const budget   = resolveBudget(maxArg, source);
+const maxPx    = budget.maxPx;
+const declared = budget.declared !== null;
 // stdout, NOT stderr: this is an informational banner, not an error. On stderr it broke any caller
 // that captures `stdout + stderr` and reads the LAST line as the verdict — repo-doctor did exactly
 // that and showed this banner instead of the PASS/FAIL line.
 if (maxArg == null && declared) console.log(`canvas-diff: using ${cart}'s declared budget --max ${maxPx} (\`// canvas-diff: max\` in source)\n`);
-// strip // line comments + /* */ blocks so a comment mentioning spr_rot doesn't false-positive
-const code = source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
 // All rotated PRIMITIVES (rectfill_rot/spr_rot/sspr_ex/print_rot) now render in software. The only
 // thing still tripping the sticky sw_force_gpu fallback is a rotating camera (Tier-2, by design):
-const ROT = ['camera_ex'];
-const hits = ROT.filter(p => new RegExp(`\\b${p}\\s*\\(`).test(code));
+// the list lives INSIDE the function: --selfcheck calls this before the module's consts are
+// initialised, and a hoisted function closing over a later `const` is a temporal-dead-zone crash
+function detectForceGpu(src) {
+  const ROT = ['camera_ex'];
+  // strip // line comments + /* */ blocks so a comment mentioning camera_ex doesn't false-positive
+  const code = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+  return ROT.filter(p => new RegExp(`\\b${p}\\s*\\(`).test(code));
+}
+const hits = detectForceGpu(source);
 if (hits.length) {
   console.error('\x1b[33m⚠ WARNING: this cart calls camera_ex\x1b[0m');
   console.error('  camera_ex(angle≠0) trips sw_force_gpu → the =on build falls back to GPU mid-frame, so');
@@ -151,6 +239,30 @@ if (golden) {
   process.exit(gfail ? 1 : 0);
 }
 
+// ⚠ THE CONTROL — gotcha #4, and the one the other three could not see. The verdict is "no frame
+// exceeded the budget", which is trivially true of no frames. Measured: with both runs producing
+// nothing, this printed a green "PASS — canvas matches GPU within budget" and exited 0, under an
+// empty frame table. The three documented gotchas are all about comparing the WRONG thing; this is
+// about comparing NOTHING, and it is the more likely accident — a dump that renamed its frames, a
+// cart that exits early, a --frames the run never reached. Partial coverage was silent too, so 3
+// compared of 10 requested read exactly like 10 of 10.
+// The per-frame verdict, as ONE named function used by both the loop and --selfcheck. It started
+// out inline as `d > maxPx`, and the fixture re-implemented it — so mutating the real test left the
+// suite green, which is a fixture that pins a copy of the logic rather than the logic. Written this
+// way so there is only one of it.
+// NOT `d > maxPx`: ae() returns NaN when magick cannot read a frame (measured on a truncated PNG),
+// and every comparison with NaN is false, so an unreadable frame scored as within budget.
+function withinBudget(d, maxPx) { return d <= maxPx; }
+
+function controlCheck(compared, requested, missing) {
+  const bad = [];
+  if (compared === 0)
+    bad.push(`NO frames were compared (${requested} requested) — an empty comparison is not a match; check that both runs actually dumped frames`);
+  else if (missing.length)
+    bad.push(`only ${compared} of ${requested} frames were compared — ${missing.length} never rendered in one or both modes (${missing.slice(0, 8).join(', ')}${missing.length > 8 ? ', …' : ''})`);
+  return bad;
+}
+
 const refEnv  = raw ? {} : { DE_CPU_RASTER: 'on' };        // gotcha #2
 console.error(`canvas-diff ${cart}: reference = GPU${raw ? ' (raw GL rasterizers)' : ' + DE_CPU_RASTER=on'}, test = DE_SOFTWARE_CANVAS=on, ${frames} frames`);
 run(refDir,  refEnv, 'reference (GPU)');
@@ -165,22 +277,38 @@ function ae(a, b) {            // gotcha #3: pixel diff, not shasum
 }
 
 let worst = -1, worstFrame = -1, total = 0, n = 0, fail = false;
+const missing = [];
 console.log(`\nframe   ${bytecheck ? 'bytes' : 'diff px'}`);
 for (let i = 0; i < frames; i++) {
   const a = frameFile(refDir, i), b = frameFile(testDir, i);
-  if (!fs.existsSync(a) || !fs.existsSync(b)) continue;
+  // a frame that never rendered used to be skipped in silence, so 3 compared of 10 requested read
+  // exactly like 10 of 10. Recorded now, and the control below refuses the run.
+  if (!fs.existsSync(a) || !fs.existsSync(b)) { missing.push(i); continue; }
   if (bytecheck) {
     const same = sha(a) === sha(b);
     if (!same) fail = true;
+    n++;
     console.log(`${String(i).padStart(5)}   ${same ? 'identical' : '\x1b[31mDIFFER\x1b[0m'}`);
     if (!same && worstFrame < 0) worstFrame = i;
   } else {
-    const d = ae(a, b); n++; total += d;
-    if (d > worst) { worst = d; worstFrame = i; }
-    if (d > maxPx) fail = true;
-    console.log(`${String(i).padStart(5)}   ${d}${d > maxPx ? '  \x1b[31m> '+maxPx+'\x1b[0m' : ''}`);
+    const d = ae(a, b); n++;
+    // ⚠ NOT `d > maxPx`. ae() returns NaN when magick cannot read a frame (measured with a
+    // truncated PNG: "insufficient image data", no number to parse), and every comparison with NaN
+    // is false — so an UNREADABLE frame scored as within budget and passed. Inverting the test
+    // makes NaN fail, which is what golden mode already did with `d === 0`; the two modes
+    // disagreed on the same condition.
+    if (!withinBudget(d, maxPx)) fail = true;
+    if (Number.isNaN(d)) {
+      console.log(`${String(i).padStart(5)}   \x1b[31mUNREADABLE\x1b[0m  (magick could not compare these frames)`);
+    } else {
+      total += d;
+      if (d > worst) { worst = d; worstFrame = i; }
+      console.log(`${String(i).padStart(5)}   ${d}${d > maxPx ? '  \x1b[31m> '+maxPx+'\x1b[0m' : ''}`);
+    }
   }
 }
+const control = controlCheck(n, frames, missing);
+if (control.length) fail = true;
 
 if (!bytecheck && n)
   console.log(`\nworst ${worst}px (frame ${worstFrame}), mean ${Math.round(total/n)}px, budget ${maxPx}px`);
@@ -193,6 +321,12 @@ if (heatmap && worstFrame >= 0 && haveMagick) {
 if (!keep && !heatmap) fs.rmSync(outRoot, { recursive: true, force: true });
 else if (!keep && heatmap) { fs.rmSync(refDir, {recursive:true,force:true}); fs.rmSync(testDir, {recursive:true,force:true}); }
 
-console.log(fail ? '\n\x1b[31mFAIL\x1b[0m — canvas render diverges from GPU (see above; --heatmap to localise)'
-                 : '\n\x1b[32mPASS\x1b[0m — canvas matches GPU within budget');
+if (control.length) {
+  console.error('\n\x1b[31m✗ THIS COMPARISON IS NOT EVIDENCE\x1b[0m');
+  for (const c of control) console.error(`    ${c}`);
+  console.error('  `node tools/canvas-diff.js --selfcheck` checks the comparison itself.');
+} else {
+  console.log(fail ? '\n\x1b[31mFAIL\x1b[0m — canvas render diverges from GPU (see above; --heatmap to localise)'
+                   : `\n\x1b[32mPASS\x1b[0m — canvas matches GPU within budget (${n} frames)`);
+}
 process.exit(fail ? 1 : 0);

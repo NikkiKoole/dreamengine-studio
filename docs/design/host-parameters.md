@@ -86,15 +86,35 @@ Out of process, a host reading a parameter back gets the value it held **before 
 
 What is known, from measurement rather than reasoning:
 
-- **The provider is wired and reads real cart state.** A parameter nothing has written reads back its
-  exact cart default (addr 10 = 0.55), which a broken provider could not do.
-- **The write reaches the DSP.** The mix closes, measured, twice.
-- **It is not our push-back logic.** Disabling the panel-move poll entirely changed nothing, and
-  neither did removing the suppression that stops a host write echoing back. Both tested, both
-  negative. Recorded because two ruled-out causes are worth more to the next person than a guess.
+- **The provider IS consulted on every read**, and this is now proven rather than inferred: pinning
+  `implementorValueProvider` to a constant `0.123` made the host read back `0.123` for every
+  parameter. An earlier version of this doc claimed the same thing from "a parameter nothing wrote
+  reads 0.55, its cart default" — that was **not** proof, because 0.55 was also the AUParameter's
+  cached default. The constant is the discriminator; the default was ambiguous.
+- **The write reaches the DSP.** The mix closes, measured, repeatedly.
+- **Therefore `de_param_get` genuinely returns the stale value.** The provider is asked, it reads
+  `*slot`, and the answer is the pre-write value while the DSP is audibly playing the new one. The
+  bug is on OUR side of the seam, not in the host's mirroring — which is where the first write-up
+  pointed, wrongly.
 
-The remaining suspect is **out-of-process parameter mirroring**: the host side of an AUv3 keeps its
-own cache of the tree and does not necessarily consult the extension on every read.
+**Three causes ruled out by experiment**, each recorded so nobody pays for them twice:
+
+1. **The panel-move poll.** Disabling it entirely changed nothing.
+2. **The drain's echo suppression.** Removing it changed nothing.
+3. **The `parameterTree` override.** The first cut stored the tree in a property and overrode the
+   accessor with a no-op setter, which swallowed `AUAudioUnit`'s own setter and the framework
+   installation it performs. That was a real defect and is fixed (assign `parameterTree` the ordinary
+   way) — but it was *not* this bug. ⚠ Note it also invalidated cause 1's first test, which had run
+   while the tree was not properly installed; it was re-run afterwards and is still negative.
+
+**Where to look next, and it is structural.** The per-instance seam — `de_instance_midi`,
+`de_instance_param`, the whole block — is compiled **only under `#ifdef DE_NO_RAYLIB`**
+(`runtime/studio.c:2958`). The native harness build does not contain it: a `de_param_get` call added
+there fails to LINK. So the headless gates exercise the **default, shared** table via the
+thread-local, while the AU exercises the **per-instance** one, and `param-check` being green says
+nothing about the path a host actually takes. That is the same shape as the `de_frame`-versus-
+`loop_step` trap this design already hit once, and it is the obvious suspect for a value that is
+written in one place and read from another.
 
 **Consequence if never fixed:** a host's generic view and a reopened project can show a knob at its
 old value until something writes it again. Automation still *works*; it may just not display where it

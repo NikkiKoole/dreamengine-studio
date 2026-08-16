@@ -152,11 +152,14 @@ public final class TinyjamAU: AUAudioUnit {
     // written here. A table in Swift would be a second source of truth for a fantasy console whose
     // whole point is swapping carts: change the cart and the plug-in's parameters change with it,
     // with nothing to keep in sync.
-    private var paramTree: AUParameterTree?
-    public override var parameterTree: AUParameterTree? {
-        get { paramTree }
-        set { /* the tree is the cart's, and a host does not get to replace it */ }
-    }
+    // ⚠ NO `parameterTree` OVERRIDE. The first cut stored the tree in a property and overrode the
+    // accessor with a no-op setter, reasoning that "a host does not get to replace our tree". That
+    // swallowed AUAudioUnit's OWN setter, which is not a formality: it is what installs the tree with
+    // the framework, and out of process that installation is what keeps the HOST-SIDE MIRROR fed.
+    // The symptom was oddly specific and cost a long detour — a host could SEE all 21 parameters and
+    // WRITE them (the write reached the DSP, measured), but reading one back returned the value it
+    // held BEFORE the write, because the extension never published anything to mirror. Assign it the
+    // ordinary way and the framework does its half.
 
     private func buildParameterTree() {
         let n = Int(de_param_count(engine))
@@ -194,7 +197,7 @@ public final class TinyjamAU: AUAudioUnit {
         tree.implementorValueProvider = { param in
             de_param_get(eng, Int32(param.address))
         }
-        paramTree = tree
+        parameterTree = tree
         deDiag("[tinyjam] AU PARAMS · \(params.count) exposed")
     }
 
@@ -205,7 +208,7 @@ public final class TinyjamAU: AUAudioUnit {
     // reported. Without that, every automated value would be echoed back at the host that just sent
     // it, and a lane would fight the value it is writing.
     private func publishPanelMoves() {
-        guard let tree = paramTree else { return }
+        guard let tree = parameterTree else { return }
         var addr: Int32 = 0, v: Float = 0
         var guard_ = 0
         while de_param_changed(engine, &addr, &v) != 0 && guard_ < 64 {

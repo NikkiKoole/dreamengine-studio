@@ -7,6 +7,9 @@
   "icon":     "apps/tinyacidjam/icon.png",
   "carts":    ["acidcandy"],
   "auCart":   "acidcandy",
+  "auName":   "Mipolai: Tiny Acid Jam",
+  "auSubtype": "tacj",
+  "auManufacturer": "Mpla",
   "review":   { "firstName": "Nikki", "lastName": "Koole", "email": "nikkikoole@gmail.com", "phone": "+31647048515" },
   "listing": {
     "title":    "Tiny Acid Jam: 303 Groovebox",

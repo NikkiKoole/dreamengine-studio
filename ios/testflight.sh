@@ -45,6 +45,49 @@ SCHEME="TinyjamHello"
 # AU by setting "auCart":"epiano" in its manifest.
 AU_CART="${AU_CART:-$(node -p "require('../apps/$APP/app.json').auCart || ''")}"
 
+# ── AU IDENTITY, DERIVED FROM THE MANIFEST ───────────────────────────────────────────────────────
+# project.yml is the DEV-LOOP spec and it is SHARED by every app, so its hand-written AU identity
+# (Tinyjam Demo / tnyj / Tnyj / "Tinyjam: Demo") used to ship on whatever app was being archived.
+# With two apps setting auCart that is not merely an ugly name, it is a COLLISION: a host addresses
+# a plug-in by the triple (type, subtype, manufacturer) and two apps claiming `aumu tnyj Tnyj` means
+# it loads whichever it registered first. project-mac.yml already solved this by hand for one app;
+# this derives it for all of them, the way bundleId/version/CFBundleDisplayName already are.
+#
+# ⚠ THE CODES ARE FOREVER, in the same sense a host parameter's address is. A DAW stores the triple
+# in the saved project to re-instantiate the plug-in, so changing a SHIPPED subtype or manufacturer
+# makes every project that used it come back with a missing plug-in and no way to reconnect it.
+# Pick them once, per app, and never edit them again. The NAME strings are display only and are safe
+# to improve at any time. (This is why tinyjam's manifest repeats its existing tnyj/Tnyj verbatim
+# rather than being given nicer codes: it is already out there.)
+#
+# Apple reserves all-lowercase manufacturer codes for itself, so one uppercase letter is required.
+if [ -n "$AU_CART" ]; then
+  AU_NAME="$(node -p "require('../apps/$APP/app.json').auName || ''")"
+  AU_SUBTYPE="$(node -p "require('../apps/$APP/app.json').auSubtype || ''")"
+  AU_MANUF="$(node -p "require('../apps/$APP/app.json').auManufacturer || ''")"
+  AU_DISPLAY="$(node -p "require('../apps/$APP/app.json').auDisplayName || require('../apps/$APP/app.json').name")"
+  for pair in "auName:$AU_NAME" "auSubtype:$AU_SUBTYPE" "auManufacturer:$AU_MANUF"; do
+    [ -n "${pair#*:}" ] || { echo "✗ manifest sets auCart but no ${pair%%:*} — an AU needs its own identity."; \
+      echo "  Add to apps/$APP/app.json (the codes are FOREVER, see this script's header):"; \
+      echo '    "auName": "Studio: My App", "auSubtype": "abcd", "auManufacturer": "Abcd"'; exit 1; }
+  done
+  # Exactly 4 alphanumerics, or the component is silently unaddressable.
+  # ⚠ POSIX CLASSES, NOT RANGES. `[A-Z]` in a shell bracket expression is a COLLATION range, and
+  # under a UTF-8 locale that range contains the lowercase letters too — so the all-lowercase
+  # manufacturer check below passed a plain `mpla` when it was written as `*[A-Z]*`, i.e. the guard
+  # was present, green, and blind. Caught by mutation-testing the validators, not by reading them.
+  for pair in "auSubtype:$AU_SUBTYPE" "auManufacturer:$AU_MANUF"; do
+    case "${pair#*:}" in
+      [[:alnum:]][[:alnum:]][[:alnum:]][[:alnum:]]) ;;
+      *) echo "✗ ${pair%%:*} must be exactly 4 alphanumeric chars, got '${pair#*:}'"; exit 1 ;;
+    esac
+  done
+  case "$AU_MANUF" in *[[:upper:]]*) ;; *) echo "✗ auManufacturer '$AU_MANUF' is all lowercase — Apple reserves those. Capitalise one letter."; exit 1 ;; esac
+  # these land inside a sed replacement and a YAML scalar; refuse what would corrupt either
+  case "$AU_NAME$AU_DISPLAY" in *[\\\&\|\"]*) echo "✗ auName/auDisplayName cannot contain \\ & | or \" (they break the spec derivation)"; exit 1 ;; esac
+  echo "▸ AU identity: \"$AU_NAME\"  ·  aumu $AU_SUBTYPE $AU_MANUF  ·  shown as \"$AU_DISPLAY\""
+fi
+
 BUNDLE_ID="$(node -p "require('../apps/$APP/app.json').bundleId")"
 APP_NAME="$(node -p "require('../apps/$APP/app.json').name")"
 VERSION="$(node -p "require('../apps/$APP/app.json').version || '0.1'")"
@@ -52,6 +95,9 @@ BUILD_NUM="$(date +%Y%m%d%H%M)"
 [ "$BUNDLE_ID" = "undefined" ] && { echo "✗ manifest has no bundleId"; exit 1; }
 echo "▸ $APP → $BUNDLE_ID  ·  \"$APP_NAME\" v$VERSION ($BUILD_NUM)  ·  team $TEAM"
 
+if [ -n "${DERIVE_ONLY:-}" ]; then
+  echo "▸ DERIVE_ONLY — skipping cart staging (the derived spec does not depend on it)"
+else
 echo "▸ staging MULTI-CART app '$APP' → gen/app…"
 ( cd .. && node tools/build-app.js "$APP" --ios ) || { echo "✗ build-app.js --ios failed"; exit 1; }
 [ -f gen/app.dims ] && { set -a; . ./gen/app.dims; set +a; }
@@ -65,6 +111,7 @@ if [ -n "$AU_CART" ]; then
 else
   echo "▸ no AU extension (manifest sets no auCart) — single-cart standalone build"
 fi
+fi
 
 # cart dims → preprocessor override (same as device.sh)
 SW="${DE_SCREEN_W:-320}"; SH="${DE_SCREEN_H:-200}"
@@ -75,11 +122,34 @@ echo "▸ deriving store spec (project-store.yml: $BUNDLE_ID, v$VERSION${AU_CART
 sed -e "s/com\.tinyjam\.hello/$BUNDLE_ID/g" \
     -e "s/MARKETING_VERSION: \"[^\"]*\"/MARKETING_VERSION: \"$VERSION\"/g" \
     project.yml > project-store.yml
+if [ -n "$AU_CART" ]; then
+  # The AU identity (validated at the top). CFBundleDisplayName is emitted QUOTED because an app
+  # name may contain a colon, which is a mapping separator to a bare YAML scalar. `|` is the sed
+  # delimiter since a name contains `/` far more often than it contains a pipe, and both `|` and `&`
+  # are rejected above anyway.
+  sed -e "s|CFBundleDisplayName: Tinyjam Demo|CFBundleDisplayName: \"$AU_DISPLAY\"|" \
+      -e "s|subtype: tnyj|subtype: $AU_SUBTYPE|" \
+      -e "s|manufacturer: Tnyj|manufacturer: $AU_MANUF|" \
+      -e "s|name: \"Tinyjam: Demo\"|name: \"$AU_NAME\"|" \
+      project-store.yml > project-store.yml.tmp
+  mv project-store.yml.tmp project-store.yml
+  # A silently-missed substitution ships the WRONG IDENTITY, which is the entire bug this replaced,
+  # so assert the RESULT rather than trusting four seds to have matched. Asserting the outcome (the
+  # values we asked for are present) and not the absence of the dev-loop strings is deliberate: for
+  # tinyjam the two are the same text, so an absence check would either fail on a correct build or
+  # be skipped for it, and "skipped" is how a guard goes quietly blind.
+  for want in "CFBundleDisplayName: \"$AU_DISPLAY\"" "subtype: $AU_SUBTYPE" "manufacturer: $AU_MANUF" "name: \"$AU_NAME\""; do
+    grep -qF -- "$want" project-store.yml || { echo "✗ AU identity did not substitute: expected '$want'"; \
+      echo "  project.yml's AU block moved — fix the sed targets above."; exit 1; }
+  done
+fi
 if [ -z "$AU_CART" ]; then
   # opt-in AU: strip the AU target + the app's embed dependency (both fenced de:au-begin/end in project.yml)
   awk '/# de:au-begin/{skip=1} !skip{print} /# de:au-end/{skip=0}' project-store.yml > project-store.yml.tmp
   mv project-store.yml.tmp project-store.yml
 fi
+[ -n "${DERIVE_ONLY:-}" ] && { echo "✓ DERIVE_ONLY — project-store.yml written, not generated or archived."; \
+  echo "  AU block as derived:"; awk '/AudioComponents:/{p=1} p&&!/^ *#/{print "    "$0} /tags:/{if(p)exit}' project-store.yml; exit 0; }
 xcodegen generate --spec project-store.yml >/dev/null
 
 ARCHIVE="build/$APP.xcarchive"

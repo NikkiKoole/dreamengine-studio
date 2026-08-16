@@ -66,15 +66,21 @@ a broken doc link or `#section`).
 >
 > ⚠ **A ship-blocker found on the way: `apps/tinyacidjam/app.json` set no `auCart`, so
 > `testflight.sh` STRIPPED the AU target and Tiny Acid Jam was going to the store with NO PLUG-IN.**
-> **Manifest line added 2026-08-15, and it is necessary but NOT sufficient** (doc §6.1): the iOS
-> `project.yml` AU identity is *tinyjam's* (`tnyj`/`Tnyj`/`"Tinyjam: Demo"`) and the file is shared
-> by both apps, so with `auCart` on both they ship plug-ins claiming the SAME component triple, the
-> collision `project-mac.yml`'s own comment warns about. macOS is already right (`tacj`/`Mpla`/
-> `"Mipolai: Tiny Acid Jam"`), which is the end state to copy. **▶ NEXT: derive the AU identity from
-> the manifest** (`auName`/`auSubtype`/`auManufacturer` + a few sed lines in `testflight.sh`), the way
-> bundle id / version / display name already are. Until then a TestFlight build lists as
-> "Tinyjam: Demo" in every DAW, and the first archive will also need the CHILD App ID
-> `com.mipolai.tinyacidjam.TinyjamAU` registered, which the stripped path was avoiding.
+> **Manifest line added 2026-08-15; the identity it needed is DERIVED as of 2026-08-16** (doc §6.1).
+> The iOS `project.yml` AU identity was *tinyjam's* (`tnyj`/`Tnyj`/`"Tinyjam: Demo"`) and the file is
+> shared by both apps, so with `auCart` on both they would have shipped plug-ins claiming the SAME
+> component triple, the collision `project-mac.yml`'s own comment warns about. Now four manifest keys
+> (`auName`/`auSubtype`/`auManufacturer`/`auDisplayName`) are validated + substituted in
+> `testflight.sh`; Tiny Acid Jam derives `aumu tacj Mpla` (matching the mac spec) and **Tiny Jam is a
+> byte-identical no-op**, because a shipped triple is FOREVER (a DAW stores it to re-instantiate).
+> `DERIVE_ONLY=1 APP=<name> ./testflight.sh` runs it in a second with no Xcode. Six validators,
+> mutation-tested; one of them was green and BLIND (`*[A-Z]*` passes `mpla`, since a shell bracket
+> range is collation-based) which is worth knowing for every `[A-Z]` in a shell script here.
+> **▶ NEXT, and the last thing before a submittable build: a real `APP=tinyacidjam ./testflight.sh`**,
+> because the AU target means cloud signing now needs the CHILD App ID
+> `com.mipolai.tinyacidjam.TinyjamAU`, which the stripped path had been avoiding and which only a
+> real archive will surface. **`device.sh` is still unpatched** (the dev loop over a cable is still
+> `TinyjamHello`), which is the other half of the maker's "wrong icons and names".
 > Same section covers the identity gap the maker noticed (wrong names on deploy):
 > the app's bundle id / version / display name / icon ARE derived from the manifest, but the AU's
 > `CFBundleDisplayName`, its **component name** `Tinyjam: Demo` (the string a DAW lists) and the

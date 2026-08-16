@@ -191,9 +191,9 @@ Separate topic, same root cause, and it is why a deployed build shows the wrong 
 | marketing version | `project.yml` | ✅ sed |
 | app display name | `INFOPLIST_KEY_CFBundleDisplayName` | ✅ `testflight.sh` passes `app.json` `name` |
 | app icon | `ios/gen/Assets.xcassets` | ✅ `build-app.js --ios` stages `app.json` `icon` (and runs the mask check) |
-| **AU display name** | `project.yml:121` `CFBundleDisplayName: Tinyjam Demo` | ❌ hardcoded. `testflight.sh`'s own header says "the AU keeps its own hand-authored Info.plist" |
-| **AU component name** | `project.yml:135` `name: "Tinyjam: Demo"` | ❌ hardcoded. **This is the string a DAW shows in its plug-in list** |
-| AU manufacturer / subtype codes | `project.yml` | ❌ hardcoded, and they are the `auval` triple |
+| **AU display name** | `project.yml:121` `CFBundleDisplayName` | ✅ **since 2026-08-16**: `auDisplayName`, falling back to the app's own `name` |
+| **AU component name** | `project.yml:135` `name:` | ✅ **since 2026-08-16**: `auName`. **This is the string a DAW shows in its plug-in list** |
+| AU manufacturer / subtype codes | `project.yml` | ✅ **since 2026-08-16**: `auSubtype` / `auManufacturer`, the `auval` triple |
 | **anything at all on the dev loop** | `device.sh` | ❌ nothing. A cable install is always `TinyjamHello` |
 
 So: over the cable you always see the hello-world identity, and in a DAW you always see
@@ -206,7 +206,7 @@ you go through `APP=<name>` rather than a bare single-cart `play.js` staging (wh
 standalone app with **no plug-in at all**. **FIXED 2026-08-15** (`"auCart": "acidcandy"`), which is
 necessary and NOT sufficient: see the correction and the collision immediately below.
 
-### §6.1 Correction: macOS is already right, and that is where the collision is
+### §6.1 Correction: macOS was already right, and that is where the collision was — DERIVED 2026-08-16
 
 The table above is the **iOS** spec. `ios/project-mac.yml` already carries the correct per-app
 identity: `CFBundleDisplayName: Tiny Acid Jam`, subtype `tacj`, manufacturer `Mpla`, component name
@@ -219,16 +219,52 @@ apps would ship plug-ins claiming the **same component triple** `aumu tnyj Tnyj`
 comment names this hazard exactly: *"DISTINCT 4-char codes … the two can be registered on one machine
 and a collision would make the host pick whichever it saw first."*
 
-So `project.yml`'s AU identity cannot simply be swapped to `tacj`/`Mpla` (that just moves the wrong
-name onto the other app). It has to be **derived from the manifest**, the way the app's own bundle id,
-version and display name already are: new manifest keys (`auName`, `auSubtype`, `auManufacturer`) and
-a few more `sed` lines in `testflight.sh`. Until that lands, a Tiny Acid Jam TestFlight build with
-`auCart` set will list itself in every DAW as **"Tinyjam: Demo"**.
+So `project.yml`'s AU identity could not simply be swapped to `tacj`/`Mpla` (that just moves the wrong
+name onto the other app). It had to be **derived from the manifest**, the way the app's own bundle id,
+version and display name already are. **Done 2026-08-16** in `testflight.sh`: four manifest keys
+(`auName`, `auSubtype`, `auManufacturer`, and `auDisplayName` which falls back to the app's `name`),
+validated before any staging runs, then substituted into the derived spec.
 
-⚠ One more thing the stripped path was hiding: with the AU target present, cloud signing needs the
-CHILD App ID `com.mipolai.tinyacidjam.TinyjamAU`, not just the parent. `testflight.sh`'s header calls
-this out as the reason single-cart standalones were cheaper to ship. First archive after this change
-is where that shows up.
+```
+▸ AU identity: "Mipolai: Tiny Acid Jam"  ·  aumu tacj Mpla  ·  shown as "Tiny Acid Jam"
+```
+
+**Tiny Jam is a deliberate no-op**: its manifest repeats `tnyj`/`Tnyj`/`"Tinyjam: Demo"` verbatim, so
+its derived component triple is byte-identical to what it had before. That is the FOREVER rule in
+practice, and it is why the keys are per-app data rather than something generated from the app name:
+a DAW stores the triple in the saved project to re-instantiate the plug-in, so changing a shipped
+subtype makes every project that used it come back with a missing plug-in and no way to reconnect it.
+The name strings are display only and safe to improve whenever. (Tiny Jam's AU display name did move,
+from `Tinyjam Demo` to `Tiny Jam`, which is the safe half.)
+
+**What the derivation refuses**, each checked before the expensive staging step so a bad manifest
+fails in a second rather than after a compile: a missing key when `auCart` is set · a code that is not
+exactly 4 alphanumerics · an all-lowercase manufacturer (Apple reserves those) · a name containing
+`\ & | "`, which would corrupt either the `sed` replacement or the YAML scalar it lands in. Then, after
+substituting, it asserts the four **expected values are present** in the derived spec rather than that
+the dev-loop strings are absent: for Tiny Jam those two are the same text, so an absence check would
+either fail on a correct build or be skipped for it, and "skipped" is how a guard goes quietly blind.
+
+`DERIVE_ONLY=1 APP=<name> ./testflight.sh` runs the whole derivation and stops before xcodegen,
+printing the AU block it produced. No Xcode, no archive, about a second. That is what makes the
+validators testable.
+
+⚠ **A guard here was green and blind, and only mutation-testing found it.** The all-lowercase
+manufacturer check was first written `case "$AU_MANUF" in *[A-Z]*)`, which passed a plain `mpla`:
+a shell bracket **range** is collation-based, and under a UTF-8 locale `[A-Z]` contains the lowercase
+letters too. Reading it will not show you this. Feeding it a deliberately bad value will. The fix is
+POSIX classes (`[[:upper:]]`, `[[:alnum:]]`), and the same trap applies to every `[A-Z]`/`[a-z]` range
+in a shell script in this repo.
+
+⚠ **Still open, and the one thing left before a submittable build:** with the AU target present, cloud
+signing needs the CHILD App ID `com.mipolai.tinyacidjam.TinyjamAU`, not just the parent.
+`testflight.sh`'s header calls this out as the reason single-cart standalones were cheaper to ship.
+The first archive is where it shows up, and it needs a real `APP=tinyacidjam ./testflight.sh` run to
+find out (`DERIVE_ONLY` deliberately stops short of it). Not fixable from a doc.
+
+⚠ **And `device.sh` still patches nothing**, so the dev loop over a cable is still `TinyjamHello` with
+whatever the last staging left in the asset catalog. That is the other half of the maker's original
+"wrong icons and names" and it is untouched by this change, which only ever runs on the store path.
 
 **The fix shape**, if we take it: derive the AU identity from the manifest the same way the app
 identity already is (a couple more `sed` lines in `testflight.sh`, plus manifest keys for the AU

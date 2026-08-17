@@ -52,7 +52,13 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.tinyjam.mac
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         INFOPLIST_KEY_ITSAppUsesNonExemptEncryption: NO
-        INFOPLIST_KEY_NSMicrophoneUsageDescription: "Lets you play your guitar, voice, or any sound live through the effects."
+        # NO NSMicrophoneUsageDescription HERE. It used to be hardcoded, with pedalboard's guitar
+        # wording, on every app built from this shared spec — so Tiny Acid Jam, which makes zero mic
+        # calls, shipped a purpose string for a capability it does not have. It is now DERIVED:
+        # build-app.js reads the app's carts for mic_start(), writes DE_MIC_USAGE into gen/app.dims
+        # only when one of them opens the mic, and ios/app-flags.sh turns that into the key. An app
+        # that needs it cannot be built without wording (the crash direction — iOS terminates an app
+        # that asks for the mic with no string), and an app that does not need it emits nothing.
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
         SWIFT_OBJC_BRIDGING_HEADER: Sources/Bridging-Header.h
         HEADER_SEARCH_PATHS: [$(SRCROOT)/../runtime, $(SRCROOT)/gen/mac, $(SRCROOT)/Sources]

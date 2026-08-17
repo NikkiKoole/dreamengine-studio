@@ -224,7 +224,7 @@ xcodebuild -project "$SCHEME.xcodeproj" -scheme "$SCHEME" -configuration "$CONFI
   -destination "$DEST" -derivedDataPath build \
   GCC_PREPROCESSOR_DEFINITIONS="$DEFS" \
   ${APP_DISPLAY:+INFOPLIST_KEY_CFBundleDisplayName="$APP_DISPLAY"} \
-  "${ORIENT_SETTINGS[@]}" \
+  ${ORIENT_SETTINGS[@]+"${ORIENT_SETTINGS[@]}"} \
   -allowProvisioningUpdates DEVELOPMENT_TEAM="$TEAM" CODE_SIGN_STYLE=Automatic build >/dev/null
 
 echo "▸ installing + launching on device…"

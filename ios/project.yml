@@ -51,9 +51,13 @@ targets:
         # no in-app encryption beyond OS-provided → auto-answers the ASC export-compliance
         # question, so TestFlight builds go straight to "Ready to Test" after processing
         INFOPLIST_KEY_ITSAppUsesNonExemptEncryption: NO
-        # microphone permission prompt copy (mic-and-sampling.md Tier-1) — required or the app
-        # crashes the first time a cart calls mic_start(). Only carts that opt in ever trigger it.
-        INFOPLIST_KEY_NSMicrophoneUsageDescription: "Lets you play your guitar, voice, or any sound live through the effects — and instruments you play by humming or clapping."
+        # NO NSMicrophoneUsageDescription HERE. It used to be hardcoded, with pedalboard's guitar
+        # wording, on every app built from this shared spec — so Tiny Acid Jam, which makes zero mic
+        # calls, shipped a purpose string for a capability it does not have. It is now DERIVED:
+        # build-app.js reads the app's carts for mic_start(), writes DE_MIC_USAGE into gen/app.dims
+        # only when one of them opens the mic, and ios/app-flags.sh turns that into the key. An app
+        # that needs it cannot be built without wording (the crash direction — iOS terminates an app
+        # that asks for the mic with no string), and an app that does not need it emits nothing.
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
         # device-adaptive Phase 2: allow rotation. layoutSubviews fires on rotate → de_resize reflows
         # a resizable cart to the new shape for free. (Fixed carts just re-letterbox in the new bounds.)

@@ -590,10 +590,33 @@ ${fs.readFileSync(c.src, 'utf8')}`)
   if (launcher) fs.copyFileSync(path.join(stage, 'app_roster.h'), path.join(dir, 'app_roster.h'))
   fs.copyFileSync(path.join(stage, 'sprites_data.h'), path.join(dir, 'sprites_data.h'))
   fs.copyFileSync(path.join(stage, 'map_data.h'), path.join(dir, 'map_data.h'))
+  // ── does this app need the MICROPHONE? DERIVED, never declared ──────────────────────────────
+  // A manifest key alone would be wrong in BOTH directions, and one of them is a crash:
+  //   · declare it and never use it → the app ships a purpose string for a capability it does not
+  //     have (Tiny Acid Jam shipped pedalboard's guitar wording; harmless but false, and purpose
+  //     strings are on Apple's own review-tips list), and
+  //   · USE it without declaring → iOS TERMINATES the app the moment it asks for permission. Not a
+  //     warning, not a denied prompt: an instant kill, in front of a reviewer.
+  // So the FACT is read from the carts (mic.h: nothing captures until a cart calls mic_start) and
+  // only the WORDING comes from the manifest. That makes the crash unreachable — an app containing
+  // a mic cart cannot be built without a string — and the false claim impossible, because an app
+  // with no mic cart emits no key at all.
+  const micCarts = units.filter(c => /\bmic_start\s*\(/.test(fs.readFileSync(c.src, 'utf8'))).map(c => c.name)
+  if (micCarts.length && !app.micUsage) {
+    console.error(`✗ ${micCarts.join(', ')} call mic_start(), so this app needs a microphone purpose string.`)
+    console.error(`  Add to apps/${target}/app.json:`)
+    console.error(`    "micUsage": "<why this app listens, and what it does with the audio>"`)
+    console.error(`  ⚠ Not optional: iOS kills an app that requests the mic without one.`)
+    process.exit(1)
+  }
+  if (micCarts.length) console.log(`✓ microphone: declared (${micCarts.join(', ')})`)
+  // single-quoted for the shell that sources this; ' inside the string is escaped the POSIX way
+  const shq = (s) => `'${String(s).replace(/'/g, `'\\''`)}'`
   fs.writeFileSync(path.join(ROOT, 'ios/gen/app.dims'),   // outside gen/app so it's not a compiled source
     `DE_SCREEN_W=${d0.screenW}\nDE_SCREEN_H=${d0.screenH}\nDE_MAP_W=${d0.mapW}\nDE_MAP_H=${d0.mapH}\nDE_CELL_W=${d0.cellW}\nDE_CELL_H=${d0.cellH}\n`
-    + (appResizable ? 'DE_RESIZABLE=1\n' : '')                    // ios/build.sh → -DDE_RESIZABLE (reflow to fill)
-    + (app.orientation ? `DE_ORIENT=${app.orientation}\n` : ''))  // ios/build.sh → INFOPLIST orientation lock
+    + (appResizable ? 'DE_RESIZABLE=1\n' : '')                    // ios/app-flags.sh → -DDE_RESIZABLE (reflow to fill)
+    + (app.orientation ? `DE_ORIENT=${app.orientation}\n` : '')   // ios/app-flags.sh → INFOPLIST orientation lock
+    + (micCarts.length ? `DE_MIC_USAGE=${shq(app.micUsage)}\n` : ''))  // ios/app-flags.sh → NSMicrophoneUsageDescription
   // App icon: manifest "icon" (repo-relative PNG — the STORE format: 1024x1024, no alpha) →
   // the single-size asset catalog at ios/gen/Assets.xcassets. project.yml lists that path as an
   // AppIcon source. The catalog (with a DEFAULT icon = ios/default-icon.png) is COMMITTED, so a

@@ -119,7 +119,7 @@ xcodebuild -project "$SCHEME.xcodeproj" -scheme "$SCHEME" -configuration Release
   GCC_PREPROCESSOR_DEFINITIONS="$DEFS" \
   CURRENT_PROJECT_VERSION="$BUILD_NUM" \
   INFOPLIST_KEY_CFBundleDisplayName="$APP_NAME" \
-  "${ORIENT_SETTINGS[@]}" \
+  ${ORIENT_SETTINGS[@]+"${ORIENT_SETTINGS[@]}"} \
   INFOPLIST_KEY_ITSAppUsesNonExemptEncryption=NO \
   -allowProvisioningUpdates DEVELOPMENT_TEAM="$TEAM" CODE_SIGN_STYLE=Automatic \
   archive > build/archive.log 2>&1 \

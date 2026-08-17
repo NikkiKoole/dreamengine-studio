@@ -4,6 +4,7 @@
   "version":  "0.1",
   "icon":     "docs/marketing/tinyjam/icons/tinyjam-icon-1024.png",
   "carts":    ["acidrack", "epiano", "omnichord", "pedalboard", "otamatone"],
+  "micUsage": "Lets you play your guitar, voice, or any sound live through the effects in real time. Audio is processed on your device and is never recorded, stored or sent anywhere.",
   "launcher": "tinyjam-menu",
   "auCart":   "epiano",
   "auName":   "Tinyjam: Demo",

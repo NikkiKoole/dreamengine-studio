@@ -6,6 +6,7 @@
   "orientation": "landscape",
   "icon":     "apps/pedalboard/icon.png",
   "carts":    ["pedalboard"],
+  "micUsage": "Lets you play your guitar, voice, or any sound live through the effects in real time. Audio is processed on your device and is never recorded, stored or sent anywhere.",
   "review":   { "firstName": "Nikki", "lastName": "Koole", "email": "nikkikoole@gmail.com", "phone": "+31647048515" },
   "listing": {
     "title":    "Tiny Pedalboard: Guitar FX",

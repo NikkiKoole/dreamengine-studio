@@ -7,7 +7,7 @@
 > **here**, then fix the prose in the relevant design doc. If a design doc and this file
 > disagree, this file wins.
 
-_Last updated: 2026-07-30 — **Synth Secrets phases 1 + 2**: PIANO's dispersion chain was inert and its stretched tuning was cancelled in the bass, both while every audio gate stayed green; fixed, and `tune-check` now gates stretched tuning as a **differential** so it cannot pass again by accident. See the first Shipped entry below, [`design/synth-secrets-plan.md`](design/synth-secrets-plan.md), and [`HANDOFF.md`](HANDOFF.md) for what is in flight._
+_Last updated: 2026-08-17 — **Tiny Pedalboard is LIVE on the App Store** (1.1 and 1.0 both `READY_FOR_SALE`), the first thing built here that a stranger can buy; and the same cart now loads in GarageBand as an audio EFFECT (`aumf`), with one open defect. See the top two Shipped entries below, and [`HANDOFF.md`](HANDOFF.md) for what is in flight._
 
 > **This line is a headline, not an entry.** It reached **9,064 characters** and was the only place in the file that recorded `FILTER_DIODE`, `filter-spec.js` and `rebirth-classic.md` — three shipped things, invisible because nobody reads a shipped feature out of a `_Last updated:_` line. They have a real entry now (2026-07-02, above `sprite-draw.js`). Keep this to one date, one sentence, one link; `status-check --check` fails past 900 chars.
 
@@ -29,6 +29,20 @@ _Last updated: 2026-07-30 — **Synth Secrets phases 1 + 2**: PIANO's dispersion
   process-global). Defect + ranked diagnosis:
   [`design/auv3-plugin-types.md` §4.1b](design/auv3-plugin-types.md#41b-open-defect-it-loads-the-panel-works-and-no-audio-comes-through);
   runbook: [`guides/cart-as-plugin.md`](guides/cart-as-plugin.md).
+- **TINY PEDALBOARD IS LIVE ON THE APP STORE — the first thing built here a stranger can buy**
+  (2026-08-17). `apps/pedalboard` → **1.1 and 1.0 both `READY_FOR_SALE`** at $1.99. That closes the
+  whole chain for the first time: a cart in `tools/carts/`, an `app.json` manifest, `build-app.js
+  --ios`, `testflight.sh`, `asc-push` for the listing copy and screenshots, review, sale. Everything
+  the store lane built was theory until a version went `READY_FOR_SALE`; it is not theory now, and
+  `tinyacidjam` (submitted the same day, `WAITING_FOR_REVIEW`) is walking a path that has been walked.
+  The 1.1 update also proves the UPDATE path, which is a separate thing from the first submission:
+  bump the manifest `version`, `--new-version`, push metadata, upload a build carrying the same
+  version string. ⚠ **A live version is frozen** — every `asc-push` action dies with "no editable App
+  Store version" until `--new-version` opens the next one, so a typo in the description costs a
+  version bump. That error message is also the cheapest way to CONFIRM an app is live, which is how
+  this entry was verified rather than asserted. Product half of the `pedalboard` lane in
+  [`HANDOFF.md`](HANDOFF.md); the cart's own punch list is still open (`node tools/cart-todos.js
+  pedalboard`).
 
 - **THE STORE PATH IS GATED, and it was fatally broken while every check was green** (2026-08-17).
   Nothing in the repo ran `build-app.js` — only a human about to ship did — so when `SOUND_CART_CTX`

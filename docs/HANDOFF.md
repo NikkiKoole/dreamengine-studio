@@ -93,7 +93,7 @@ a broken doc link or `#section`).
 > **Runbook for all of this:** [`guides/cart-as-plugin.md`](guides/cart-as-plugin.md).
 > **Resume-at:** [`design/auv3-plugin-types.md` → §4.1b OPEN DEFECT](design/auv3-plugin-types.md#41b-open-defect-it-loads-the-panel-works-and-no-audio-comes-through)
 
-> **▶ ACTIVE THREAD (2026-08-15) — THE OTHER FOUR PLUG-IN SHAPES: we ship `aumu` and the ecosystem has five.**
+> **▶ ACTIVE THREAD (2026-08-17) — THE OTHER FOUR PLUG-IN SHAPES: we ship `aumu` and the ecosystem has five.**
 >
 > A survey, not built work. The AUv3 lane below got `acidcandy` behaving as an INSTRUMENT
 > (`aumu`), which was the right first goal and is also the only shape anyone has looked at.
@@ -1504,15 +1504,20 @@ a broken doc link or `#section`).
 > for the AU arc (incl. the three signing/entitlement gates and their symptoms), and
 > [external-clock-sync.md](design/external-clock-sync.md) for the clock seam itself.
 
-> **▶ ACTIVE THREAD (2026-07-30) — `pedalboard`: the guitar rig, and an APP IN REVIEW.**
+> **▶ ACTIVE THREAD (2026-08-17) — `pedalboard`: the guitar rig, and the first app LIVE ON THE APP STORE.**
 > **This lane did not exist until 2026-07-30, and it should have.** A handoff audit found `pedalboard` was
 > the single most active thread in the repo — 18 commits since 07-28 (fret wires warmed into the board, the
 > mute check tracking the hand, TRAVIS picking as a second autoplay style, autoplay keeping YOUR chord
 > shape, boot on G major, `mouse_wheel_x()`) — while appearing in this file exactly once, as one of 23
 > carts that use `INSTR_GUITAR`. A cold agent would not have known the effort existed.
-> It is also a PRODUCT: `apps/pedalboard` has its icon, screenshots, listing and review contact pushed,
-> and is **in review** (see `STATUS.md`). The engine seam it rides is the `input_monitor(gain)` pedal tier
-> that shipped 07-22, so real GUITAR IN → amp → pedals works on desktop.
+> **✅ IT IS ON SALE (2026-08-17).** *Tiny Pedalboard* is the FIRST thing built here that a stranger can
+> buy: **1.1 and 1.0 are both `READY_FOR_SALE`** at $1.99, confirmed against Apple's own API rather than
+> from memory (`node tools/asc-push.js pedalboard --metadata --dry-run` reports "no editable App Store
+> version", which is what a live app looks like). So the whole chain works end to end, cart to store
+> page to purchase, and `tinyacidjam` is the second app walking the path this one proved.
+> ⚠ **A live version is FROZEN**: nothing in the listing is editable until `--new-version` creates the
+> next one, so a copy fix now costs a version bump. The engine seam it rides is the `input_monitor(gain)`
+> pedal tier that shipped 07-22, so real GUITAR IN → amp → pedals works on desktop.
 > **Resume-at:** the cart's own punch list — `node tools/cart-todos.js pedalboard` — plus
 > [`design/effects-bus-architecture.md` → Increment E, the output stage](design/effects-bus-architecture.md#increment-e--the-output-stage-4th-zone-cabinets--ampcab--leslie)
 > for the amp/cabinet model

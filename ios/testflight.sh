@@ -90,6 +90,11 @@ fi
 SW="${DE_SCREEN_W:-320}"; SH="${DE_SCREEN_H:-200}"
 MW="${DE_MAP_W:-128}"; MH="${DE_MAP_H:-64}"; CWv="${DE_CELL_W:-16}"; CHv="${DE_CELL_H:-16}"
 DEFS="\$(inherited) DE_NO_RAYLIB=1 SCREEN_W=$SW SCREEN_H=$SH SCALE=1 MAP_W=$MW MAP_H=$MH CELL_W=$CWv CELL_H=$CHv"
+# ⚠ The STORE path honoured NEITHER DE_RESIZABLE NOR DE_ORIENT until 2026-08-17, so a manifest's
+# "orientation": "landscape" reached build.sh (the simulator) and nothing that ships. Shared helper
+# now, and the two flags move together — app-flags.sh explains why splitting them breaks the lock.
+. ./app-flags.sh
+app_flags
 
 echo "▸ deriving store spec (project-store.yml: $BUNDLE_ID, v$VERSION${AU_CART:+, AU=$AU_CART})…"
 sed -e "s/com\.tinyjam\.hello/$BUNDLE_ID/g" \
@@ -114,6 +119,7 @@ xcodebuild -project "$SCHEME.xcodeproj" -scheme "$SCHEME" -configuration Release
   GCC_PREPROCESSOR_DEFINITIONS="$DEFS" \
   CURRENT_PROJECT_VERSION="$BUILD_NUM" \
   INFOPLIST_KEY_CFBundleDisplayName="$APP_NAME" \
+  "${ORIENT_SETTINGS[@]}" \
   INFOPLIST_KEY_ITSAppUsesNonExemptEncryption=NO \
   -allowProvisioningUpdates DEVELOPMENT_TEAM="$TEAM" CODE_SIGN_STYLE=Automatic \
   archive > build/archive.log 2>&1 \
@@ -131,6 +137,10 @@ cat > build/ExportOptions.plist <<PLIST
   <key>manageAppVersionAndBuildNumber</key><false/>
 </dict></plist>
 PLIST
+
+# Does the ARTIFACT match what the manifest asked for? Runs before BOTH the upload and the
+# SKIP_UPLOAD exit, so a --skip run still tells you. See app-flags.sh for what each check has cost.
+app_preflight "$ARCHIVE/Products/Applications/$SCHEME.app" || exit 1
 
 [ -n "${SKIP_UPLOAD:-}" ] && { echo "✓ done (SKIP_UPLOAD set — no upload)"; exit 0; }
 

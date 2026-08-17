@@ -155,9 +155,12 @@ stage_cart "$AU_CART" au
 SW="${DE_SCREEN_W:-320}"; SH="${DE_SCREEN_H:-200}"
 MW="${DE_MAP_W:-128}"; MH="${DE_MAP_H:-64}"; CWv="${DE_CELL_W:-16}"; CHv="${DE_CELL_H:-16}"
 DEFS="\$(inherited) DE_NO_RAYLIB=1 SCREEN_W=$SW SCREEN_H=$SH SCALE=1 MAP_W=$MW MAP_H=$MH CELL_W=$CWv CELL_H=$CHv"
-# RESIZABLE=1: build with -DDE_RESIZABLE so a resizable cart reflows to fill the device viewport
-# (CanvasView calls de_resize) — same flag build.sh uses. e.g. RESIZABLE=1 CART=acidwire ./device.sh
-[ -n "${RESIZABLE:-}" ] && DEFS="$DEFS DE_RESIZABLE=1"
+# Resizable define + the manifest's orientation lock, via the SHARED helper (app-flags.sh).
+# ⚠ This used to read only the RESIZABLE env var and ignore DE_ORIENT entirely, so `APP=<name>`
+# deployed a build that did not honour its own manifest — the lock reached the simulator and nothing
+# else. e.g. RESIZABLE=1 CART=acidwire ./device.sh still works for a single cart.
+. ./app-flags.sh
+app_flags
 
 CONFIG="${CONFIG:-Debug}"   # CONFIG=Release for the optimized engine (real perf; no #if DEBUG perf overlay)
 
@@ -221,6 +224,7 @@ xcodebuild -project "$SCHEME.xcodeproj" -scheme "$SCHEME" -configuration "$CONFI
   -destination "$DEST" -derivedDataPath build \
   GCC_PREPROCESSOR_DEFINITIONS="$DEFS" \
   ${APP_DISPLAY:+INFOPLIST_KEY_CFBundleDisplayName="$APP_DISPLAY"} \
+  "${ORIENT_SETTINGS[@]}" \
   -allowProvisioningUpdates DEVELOPMENT_TEAM="$TEAM" CODE_SIGN_STYLE=Automatic build >/dev/null
 
 echo "▸ installing + launching on device…"

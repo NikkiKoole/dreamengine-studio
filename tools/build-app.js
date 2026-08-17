@@ -34,6 +34,21 @@
 //                                                  // a squircle and eats 6.1% — check before you
 //                                                  // ship: tools/icon-mask.js check/preview
 //                                                  // (staging below prints the verdict)
+//     "orientation": "landscape",                  // optional lock. ⚠ WITHHOLDS the resizable
+//                                                  // build (a resizable cart asks UIKit for free
+//                                                  // rotation) — ios/app-flags.sh explains why the
+//                                                  // two cannot both be had yet
+//     "micUsage": "why this app listens…",         // REQUIRED IFF a cart calls mic_start(), and
+//                                                  // refused otherwise: derived below, never
+//                                                  // declared. Missing it on a mic app is an iOS
+//                                                  // kill at the permission prompt
+//     "auCart": "epiano",                          // ship this cart as an AUv3 extension. Absent →
+//                                                  // testflight.sh strips the AU target entirely
+//     "auName": "Studio: My App",                  // ⚠ the AU identity, and the two CODES are
+//     "auSubtype": "abcd",                         //   FOREVER: a DAW stores (type,subtype,manufacturer)
+//     "auManufacturer": "Abcd",                    //   to re-instantiate a saved plug-in. 4 chars,
+//     "auDisplayName": "My App",                   //   one uppercase in the manufacturer. Required
+//                                                  //   when auCart is set — ios/au-identity.sh
 //     "iap": {}                                    // parked: mac-app / iOS rungs
 //   }
 //

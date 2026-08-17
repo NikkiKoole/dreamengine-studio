@@ -18,6 +18,28 @@ Why we ship apps (not the editor): [ADR-0023](../docs/decisions/0023-ship-carts-
 Everything below is **simulator-only: no code-signing, no Apple-account interaction, free.**
 (Only AUv3 — spike 7 — will need a physical device.)
 
+## The scripts, and which one ships
+
+| script | rung | notes |
+|---|---|---|
+| `build.sh` | simulator | no signing, no Apple account, free |
+| `device.sh` | cable | signed, installs to a connected iPhone/iPad. `APP=<name>` for a manifest app |
+| `testflight.sh` | **store** | archive + upload. `SKIP_UPLOAD=1` to stop after archiving, `DERIVE_ONLY=1` to run only the spec derivation (~1s, no Xcode) |
+| `mac.sh` | macOS | the Mac Catalyst variant + its AUv3 |
+
+Two files are **sourced, not run**, by all three, because a per-app rule with three copies drifts and
+the copy that mattered least kept being the only correct one:
+
+- **`au-identity.sh`** — the AU's name and its `(type, subtype, manufacturer)` triple, derived from
+  the app manifest. ⚠ Those codes are **forever**: a DAW stores them to re-instantiate a saved
+  plug-in, so changing a shipped one orphans every project that used it.
+- **`app-flags.sh`** — the resizable define and the orientation decision (they are one decision, and
+  the file says why), the microphone purpose string, and **`app_preflight`**: the pre-upload
+  assertion that the built archive matches what the manifest asked for. Everything it checks has
+  actually gone wrong — an extension stamped with a different `CFBundleVersion` than its app
+  (ITMS-90473), an orientation lock that reached only the simulator, a purpose string for a
+  capability the app does not have.
+
 ## Run the demo yourself (terminal)
 
 ```bash

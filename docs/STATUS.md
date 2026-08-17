@@ -15,6 +15,25 @@ _Last updated: 2026-07-30 — **Synth Secrets phases 1 + 2**: PIANO's dispersion
 
 ## Shipped ✓
 
+- **THE STORE PATH IS GATED, and it was fatally broken while every check was green** (2026-08-17).
+  Nothing in the repo ran `build-app.js` — only a human about to ship did — so when `SOUND_CART_CTX`
+  moved into the generated `sound_ctx.h`, **every app build died** for weeks behind a clean health
+  strip, at an error that named the symbol and blamed the wrong file. Fixing that one parse would not
+  have stopped the next one, and there were five more: Tiny Acid Jam shipping with no plug-in at all
+  (no `auCart`), the AU wearing another app's name and a **colliding component triple**, the wrong
+  app's icon on every non-app build (a reset branch tested for a file that was committed), an
+  extension stamped a different `CFBundleVersion` than its app (ITMS-90473, caught by Apple not by
+  us), and an orientation lock that reached the simulator and nothing that ships. One shape behind
+  all of them: **a per-app value hardcoded in a spec shared by every app.** So per-app facts are
+  DERIVED (`ios/au-identity.sh` for the AU identity, `build-app.js` for the mic string, from
+  `mic_start()` calls in the carts) and the ARTIFACT is asserted before upload (`app_preflight`, 4
+  checks on the built archive). Plus `build-app.js --check` in repo-doctor, with a mutation-tested
+  `--selfcheck`. ⚠ Two fixes were only correct because they were RUN: restricting orientations
+  restricts iPad too and is a documented upload rejection, and passing the resizable define alone
+  silently unlocks rotation. Survey + the open questions:
+  [`design/auv3-plugin-types.md`](design/auv3-plugin-types.md) §6. Still ungated: **nothing runs an
+  actual archive**, so the next break in signing or the Xcode spec surfaces only when you ship.
+
 - **ISO ROOMS — a rotating isometric view at 2D-only cost, and the verdict is FOUR rotations** (2026-08-12).
   The renderer probe gating whether a Sims-style life sim is buildable here. The question was never "can we
   draw isometric" — it was whether ONE model can supply every view rotation *without* paying triangles at

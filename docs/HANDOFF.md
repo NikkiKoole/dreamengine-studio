@@ -109,6 +109,22 @@ a broken doc link or `#section`).
 > requires a live tunnel. And the ICON still cuts real detail (bottom-right 45.4%): it shaves the
 > purple chassis border at the corners, legible but uneven,
 > `node tools/icon-mask.js preview apps/tinyacidjam/icon.png` to judge.
+>
+> **✅ AND THE CLASS IS CLOSED, not just the instances (2026-08-17).** Every failure above shares one
+> shape: **a per-app value hardcoded in a spec shared by every app**. So per-app facts are now
+> DERIVED and the artifact is ASSERTED before upload. `ios/app-flags.sh` holds the resizable/
+> orientation decision + the mic string + `app_preflight` (4 checks on the built archive, run before
+> the upload AND before the `SKIP_UPLOAD` exit); `ios/au-identity.sh` holds the AU identity; both are
+> SOURCED by build/device/testflight so the three cannot drift again. `build-app.js` derives the mic
+> string from `mic_start()` calls in the carts and REFUSES to build a mic app with no wording.
+> ⚠ **Two of these were caught only by running the thing**, and both are written up where they bit:
+> restricting `UISupportedInterfaceOrientations` restricts iPad too (the `~ipad` variant never
+> reaches the built plist), which is the upload rejection `project.yml` dates to 2026-07-06 — so a
+> declared orientation is honoured at RUNTIME and WITHHOLDS the resizable define instead, and the
+> preflight asserts that precondition. And `"${arr[@]}"` on an empty array is fatal under `set -u` in
+> macOS's bash 3.2. **▶ Open, deliberately:** reflow and a locked orientation cannot both be had
+> until the manifest's orientation reaches the runtime; and the mic purpose string is per-APP, so a
+> multi-cart app wears one sentence for whichever rack listens.
 > Same section covers the identity gap the maker noticed (wrong names on deploy):
 > the app's bundle id / version / display name / icon ARE derived from the manifest, but the AU's
 > `CFBundleDisplayName`, its **component name** `Tinyjam: Demo` (the string a DAW lists) and the

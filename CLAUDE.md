@@ -508,6 +508,21 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
                              --selfcheck (31 answers) judges the ANALYSER and builds nothing, so it runs
                              anywhere; --bypass rebuilds the wasm side with -ffast-math and requires the gate
                              to go RED (16/16 engines diverge) — the only proof the comparison reaches the DSP
+             insert-latency.js  how long a sample takes from `de_audio_input()` to the OUTPUT — the number
+                             that decides whether a cart can be an INSERT EFFECT (auv3-plugin-types.md §4.1's
+                             first caveat: the mic ring was built for ANALYSIS, latency unmeasured). Feeds
+                             IMPULSES through the real path via the harness's DE_MIC_WAV hook (a sine's phase
+                             is ambiguous by whole periods — the exact ambiguity that makes a latency figure
+                             wrong by a round number) and reports delay · whether it is CONSTANT (a host can
+                             only compensate a fixed latency) · whether anything was DROPPED · and unity gain
+                             for free, since 0.5 stays under the soft-clip knee. Probe cart = `inslat`.
+                             MEASURED 2026-08-17: 0 samples, constant, unity, nothing dropped. ⚠ That 0 is a
+                             property of push-then-render at 1:1 — which is what an AU render block does, so it
+                             is the right model, but the AU wiring must preserve the ordering. `--check` = 10
+                             known answers over SYNTHETIC signals (so a broken analyser and a broken engine
+                             cannot print the same table), incl. the two that matter: silence must yield NO
+                             arrivals (a dead render must not look fast) and a dropped impulse must read as
+                             missing rather than as delay 0
              click-check.js  the CLICK/SPLICE oracle: waveform DISCONTINUITIES in a WAV and WHERE (first
                              difference vs the LOCAL step-rms, so a saw's flyback isn't a false positive; a cart's
                              own slope ≈2-3x, an audible click 6-20x). `--quiet` = PASS/FAIL gate. Run it after any

@@ -3577,6 +3577,19 @@
     "genre": "platformer"
   },
   {
+    "title": "insert latency probe",
+    "description": "Measures how long a sample takes to get from de_audio_input() to the output — the number that decides whether a cart can be an INSERT EFFECT (a guitar pedal cares; an envelope follower does not). Deliberately the emptiest cart that can answer it: input_monitor(1.0) and NOTHING else makes a sound, so every sample in the render came from the input ring. No effects either, so the figure is the RING, not the pedals. Feed it impulses with DE_MIC_WAV and the output offset minus the input offset is the latency; several impulses spaced apart say whether it is CONSTANT (declarable to a host via the AU's latency property) or drifts. Driven by `node tools/insert-latency.js`; not meant to be played.",
+    "file": "inslat.cart.png",
+    "created": "2026-08-17",
+    "kind": [
+      "tech-demo"
+    ],
+    "teaches": [
+      "audio-input"
+    ],
+    "lineage": "Measurement probe for the aumf (audio-effect plug-in) question in docs/design/auv3-plugin-types.md §4.1: the mic ring was built for ANALYSIS, so its insert latency was unmeasured. Driven by tools/insert-latency.js, not played by hand."
+  },
+  {
     "title": "shakespearean insults",
     "description": "Procedural text from three word lists. Pick one word from each column and glue them into Thou [A] [B] [C]! With ~50 words per column thats over a hundred thousand insults from one tiny program — that multiplication is combinatorics, and the picking is just rnd() indexing into arrays, the same trick behind procedural names and loot. Z hurls a fresh one.",
     "file": "insult.cart.png",

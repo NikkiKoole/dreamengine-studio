@@ -98,8 +98,16 @@ What comes alive for free if that lands:
 
 Three honest caveats before anyone budgets this as trivial:
 
-1. The mic ring was built for **analysis**, not for a sample-exact insert path. Latency and block
-   alignment are unmeasured. An envelope follower does not care; a guitar pedal does.
+1. ~~The mic ring was built for **analysis**, not for a sample-exact insert path. Latency and block
+   alignment are unmeasured.~~ **MEASURED 2026-08-17, and it is a non-issue: 0 samples, constant,
+   unity gain, nothing dropped** (`node tools/insert-latency.js`, probe cart `inslat`). The ring is
+   transparent — it is a rate-adapting FIFO whose reader is aligned to its writer on start
+   (`sound_extin_reset`) and then consumes exactly one sample per output sample, so with a producer
+   and consumer clocked 1:1 the depth stays at zero. ⚠ **That zero is a property of push-then-render
+   at 1:1**, which is precisely what an AU render block does (N in, N out, one callback) — so it is
+   the right model, but the wiring must preserve the ordering, and a host whose block size does not
+   divide the engine's frame is still unmeasured. Non-44.1k hosts are handled: `mic_input_push`
+   linearly resamples to `SOUND_SAMPLE_RATE`, with a stateless fast path at 44.1k.
 2. `input_monitor` is marked **LIVE** (ADR-0032), so it breaks `.rec` replay and no determinism gate
    covers it. An effect plug-in is a live-only product by nature, but that means the gates we lean
    on elsewhere will not be there.
@@ -311,10 +319,21 @@ rather than after.
 
 ## §8 Open questions
 
-1. Is the mic ring's latency acceptable for an insert effect, or does an `aumf` need a separate,
-   sample-exact input path? (Measure before designing.)
-2. Does `de_audio_input` become per-instance, and what happens to the mic's "one device per process"
-   reasoning when the same seam serves N effect instances?
+1. ~~Is the mic ring's latency acceptable for an insert effect?~~ **ANSWERED 2026-08-17 — yes, 0
+   samples and constant** (§3.1 caveat 1; `tools/insert-latency.js`). No separate input path is
+   needed. What the measurement *reframed*: the blocker for an `aumf` was never latency, it is
+   question 2 below, which the measurement work made concrete.
+2. **THE ACTUAL BLOCKER** (promoted 2026-08-17, once latency turned out to be free). Does
+   `de_audio_input` become per-instance, and what happens to the mic's "one device per process"
+   reasoning when the same seam serves N effect instances? The per-instance work deliberately left
+   this whole path SHARED, and `tools/ctx-classification.json` wrote down why in terms that name
+   their own expiry: `mic_h.shared` says *"ONE CAPTURE DEVICE per process… **Revisit if an instance
+   ever needs its own mic routing**"*, and the extin group is filed as *"the plug-in has no mic path
+   at all… never exercised multi-instance today"*. An `aumf` insert is exactly the condition both
+   sentences were waiting for — each instance's input is its own track. Concretely, `mic_input_push`
+   holds `rs_q`/`rs_prev` as **function-local statics** (`runtime/mic.h:116`), the class a `#define`
+   cannot fix — the declarations have to move. At 44.1k the fast path is stateless, so two instances
+   are safe today; at any other host rate two instances would corrupt each other's resampling.
 3. Does the MIDI-out ring **replace** the CoreMIDI virtual source in a plug-in build, or run
    alongside it? (Alongside means an appex publishing a system-wide port, which we have flagged as
    uncovered.)

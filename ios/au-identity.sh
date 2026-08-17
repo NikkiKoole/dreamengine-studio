@@ -29,6 +29,17 @@ au_identity_load() {
   AU_SUBTYPE="$(node -p "require('$m').auSubtype || ''")"
   AU_MANUF="$(node -p "require('$m').auManufacturer || ''")"
   AU_DISPLAY="$(node -p "require('$m').auDisplayName || require('$m').name")"
+  # THE COMPONENT TYPE, and it is part of the FOREVER triple — a host addresses a plug-in by
+  # (type, subtype, manufacturer), so changing a SHIPPED type orphans every project that used it just
+  # as surely as changing the subtype would. Defaults to `aumu` because that is what every app built
+  # before this key existed shipped as, and this file must not silently re-type them.
+  # `aumf` (MUSIC EFFECT — the `m` is music, the `f` is effect) is the one to pick for an effect that
+  # also wants notes; plain `aufx` has no reliable MIDI in. docs/design/auv3-plugin-types.md §1.
+  AU_TYPE="$(node -p "require('$m').auType || 'aumu'")"
+  case "$AU_TYPE" in
+    aumu|augn|aufx|aumf|aumi) ;;
+    *) echo "✗ auType '$AU_TYPE' is not one of aumu/augn/aufx/aumf/aumi (docs/design/auv3-plugin-types.md §1)"; return 1 ;;
+  esac
   for pair in "auName:$AU_NAME" "auSubtype:$AU_SUBTYPE" "auManufacturer:$AU_MANUF"; do
     [ -n "${pair#*:}" ] || { echo "✗ manifest sets auCart but no ${pair%%:*} — an AU needs its own identity."; \
       echo "  Add to apps/$app/app.json (the codes are FOREVER, see ios/au-identity.sh):"; \
@@ -48,7 +59,7 @@ au_identity_load() {
   case "$AU_MANUF" in *[[:upper:]]*) ;; *) echo "✗ auManufacturer '$AU_MANUF' is all lowercase — Apple reserves those. Capitalise one letter."; return 1 ;; esac
   # these land inside a sed replacement and a YAML scalar; refuse what would corrupt either
   case "$AU_NAME$AU_DISPLAY" in *[\\\&\|\"]*) echo "✗ auName/auDisplayName cannot contain \\ & | or \" (they break the spec derivation)"; return 1 ;; esac
-  echo "▸ AU identity: \"$AU_NAME\"  ·  aumu $AU_SUBTYPE $AU_MANUF  ·  shown as \"$AU_DISPLAY\""
+  echo "▸ AU identity: \"$AU_NAME\"  ·  $AU_TYPE $AU_SUBTYPE $AU_MANUF  ·  shown as \"$AU_DISPLAY\""
 }
 
 # ── THE CARRIER (macOS only) ──────────────────────────────────────────────────────────────────────
@@ -122,6 +133,7 @@ au_identity_apply() {
   # separator to a bare YAML scalar. `|` is the sed delimiter since a name contains `/` far more often
   # than a pipe, and both `|` and `&` are rejected by the loader anyway.
   sed -E -e "s|^( +)CFBundleDisplayName: .*$|\\1CFBundleDisplayName: \"$AU_DISPLAY\"|" \
+         -e "s|^( +)- type: [a-z]{4}$|\\1- type: $AU_TYPE|" \
          -e "s|^( +)subtype: .*$|\\1subtype: $AU_SUBTYPE|" \
          -e "s|^( +)manufacturer: .*$|\\1manufacturer: $AU_MANUF|" \
          -e "s|^( +)name: \".*\"$|\\1name: \"$AU_NAME\"|" \
@@ -132,7 +144,7 @@ au_identity_apply() {
   # we asked for are present) and not the absence of the dev-loop strings is deliberate: for tinyjam the
   # two are the same text, so an absence check would either fail on a correct build or be skipped for
   # it, and "skipped" is how a guard goes quietly blind.
-  for want in "CFBundleDisplayName: \"$AU_DISPLAY\"" "subtype: $AU_SUBTYPE" "manufacturer: $AU_MANUF" "name: \"$AU_NAME\""; do
+  for want in "CFBundleDisplayName: \"$AU_DISPLAY\"" "- type: $AU_TYPE" "subtype: $AU_SUBTYPE" "manufacturer: $AU_MANUF" "name: \"$AU_NAME\""; do
     grep -qF -- "$want" "$spec" || { echo "✗ AU identity did not substitute: expected '$want'"; \
       echo "  $spec's AU block moved — fix the sed targets in ios/au-identity.sh."; return 1; }
   done

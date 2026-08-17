@@ -25,6 +25,14 @@ private let deDiagLog = OSLog(subsystem: "com.tinyjam", category: "diag")
 // readable on a device for the same reason the ledger is.
 func deDiag(_ s: String) { os_log("%{public}@", log: deDiagLog, type: .default, s as NSString) }
 
+// An OSType back to the four ASCII bytes it is ("aumf"), so a diagnostic names the type the way the
+// plist and `auval` do rather than printing 1635085670 and making the reader do the arithmetic.
+func fourCCString(_ t: OSType) -> String {
+    let b = [UInt8(truncatingIfNeeded: t >> 24), UInt8(truncatingIfNeeded: t >> 16),
+             UInt8(truncatingIfNeeded: t >> 8),  UInt8(truncatingIfNeeded: t)]
+    return b.allSatisfy { $0 >= 0x20 && $0 < 0x7f } ? String(decoding: b, as: UTF8.self) : "0x\(String(t, radix: 16))"
+}
+
 // The AUv3 instrument extension — hosting the REAL dreamengine (not the spike arpeggio), played
 // by host MIDI. It runs the same engine the standalone app does. Each render block, in order:
 //
@@ -68,6 +76,31 @@ public final class TinyjamAU: AUAudioUnit {
     private var _outputBusArray: AUAudioUnitBusArray!
     private var _inputBusArray: AUAudioUnitBusArray!
 
+    // ── EFFECT INPUT (docs/design/auv3-plugin-types.md §4.1) ──────────────────────────────────────
+    // An INSTRUMENT (`aumu`) declares NO input bus and this stays false, so everything below is
+    // inert and instrument racks are byte-for-byte unaffected. An EFFECT (`aumf`) declares one, and
+    // the render block pulls the host's track into the engine's input ring — which `input_monitor()`
+    // feeds into the master insert chain, i.e. the cart's pedals (sound.h:6536, before the chain at
+    // 6541). That is what makes "hear your piano through the pedalboard" work.
+    //
+    // Read from our OWN componentDescription rather than a build flag: the type is already declared
+    // in the Info.plist that the system used to instantiate us, so this cannot drift from it. A
+    // `-D` would be a second source of truth for the same fact.
+    //
+    // ⚠⚠ ONE INSTANCE ONLY, TODAY. The input ring is process-GLOBAL: `extin_mon_on`/`extin_mon_gain`
+    // moved into the per-instance context, but `sound_extin[]`, `extin_w`, `extin_r` and `extin_on`
+    // did not — deliberately, and `tools/ctx-classification.json` says why in words that name their
+    // own expiry ("ONE CAPTURE DEVICE per process… Revisit if an instance ever needs its own mic
+    // routing"). That ring is SINGLE-producer/SINGLE-consumer by construction, so two effect
+    // instances would be two producers racing on `extin_w` AND two consumers each eating samples the
+    // other needed — garbled at ANY sample rate, not just off 44.1k. Making the extin group
+    // per-instance (plus `rs_q`/`rs_prev`, function-local statics in mic_input_push) is the
+    // prerequisite for a second instance. §8 Q2.
+    private let isEffect: Bool
+    private let inScratch = UnsafeMutablePointer<Float>.allocate(capacity: 16384 * 2)  // pull target, per-channel halves
+    private let inMono    = UnsafeMutablePointer<Float>.allocate(capacity: 16384)      // downmix the ring actually takes
+    private let inABL     = AudioBufferList.allocate(maximumBuffers: 2)
+
     private static let ENGINE_RATE = 44100.0        // what sound.h is COMPILED for. Not negotiable.
     private static let SAMPLES_PER_FRAME = 735      // 44100 / 60
     // stable interleaved L,R scratch — allocated once so the render block never allocates on the
@@ -96,10 +129,20 @@ public final class TinyjamAU: AUAudioUnit {
         // de:engine-owner — an audio unit IS a rack; it creates the engine and hands the SAME pointer to
         // its view (that is why the AUv3 never had the double-engine bug the app did).
         engine = de_instance_create(DE_RENDERER_SOFTWARE)   // THIS unit's own engine
+        // Both effect types, because `aufx` is a legitimate declaration even though §4.1 argues for
+        // `aumf` (same wiring cost, and `aumf` also gets notes — so an effect rack keeps its own
+        // playable instrument). Deciding here means the bus follows the plist, whichever was chosen.
+        let ct = componentDescription.componentType
+        isEffect = (ct == kAudioUnitType_MusicEffect || ct == kAudioUnitType_Effect)
         try super.init(componentDescription: componentDescription, options: options)
         let outBus = try AUAudioUnitBus(format: format)
         _outputBusArray = AUAudioUnitBusArray(audioUnit: self, busType: .output, busses: [outBus])
-        _inputBusArray  = AUAudioUnitBusArray(audioUnit: self, busType: .input,  busses: [])
+        // An instrument keeps the EMPTY array it has always had. Declaring an input bus on an `aumu`
+        // is not merely useless — hosts read the bus arrays to decide what to offer the user, and
+        // Apple's own instrument template declares none.
+        let inBusses = isEffect ? [try AUAudioUnitBus(format: format)] : []
+        _inputBusArray  = AUAudioUnitBusArray(audioUnit: self, busType: .input,  busses: inBusses)
+        if isEffect { deDiag("[tinyjam] AU is an EFFECT (\(fourCCString(ct))) — input bus declared") }
         acc.pointee = 0
         rate.initialize(to: RateState())
         startWorker()   // BEFORE any render: a view can open while the host is stopped and still
@@ -498,6 +541,11 @@ public final class TinyjamAU: AUAudioUnit {
         let scratch = self.scratch, cap = self.scratchCap, acc = self.acc
         let echunk = self.echunk, rate = self.rate, signal = self.frameSignal
         let spf = TinyjamAU.SAMPLES_PER_FRAME
+        // Effect input, resolved off the audio thread like everything else in this capture list. The
+        // HOST RATE is read here rather than in the block because that is where it is knowable: the
+        // render block is re-fetched after allocateRenderResources, which is what negotiates it.
+        let isEffect = self.isEffect, inScratch = self.inScratch, inMono = self.inMono, inABL = self.inABL
+        let hostRate = Int32(_outputBusArray[0].format.sampleRate.rounded())
         // Capture SELF unretained, not the two host blocks themselves. The host assigns
         // musicalContextBlock / transportStateBlock AFTER it fetches this render block, so reading
         // them out here would capture nil forever — the documented AUv3 trap. takeUnretainedValue()
@@ -509,7 +557,7 @@ public final class TinyjamAU: AUAudioUnit {
         // Same rule as the rest of this capture list: resolved HERE, off the audio thread. Touching
         // a `static var` inside the block would put swift_once on the render path.
         let engine = self.engine
-        return { _, _, frameCount, _, outputData, eventListHead, _ in
+        return { _, timestamp, frameCount, _, outputData, eventListHead, pullInput in
             let n = Int(frameCount)
             if n * 2 > cap { return kAudioUnitErr_TooManyFramesToProcess }
             renderedBy.pointee = myID       // "this is the instance you can hear" — see audibilityReport
@@ -554,6 +602,43 @@ public final class TinyjamAU: AUAudioUnit {
                 }
                 ev = UnsafePointer(e.pointee.head.next)
             }
+
+            // 1.5) EFFECT INPUT → the engine's input ring, BEFORE anything below renders a sample.
+            //      THE ORDERING IS THE LATENCY. tools/insert-latency.js measured this path at 0
+            //      samples, and that zero is a property of push-then-render at 1:1, not of the ring:
+            //      its reader is aligned to its writer on start and then takes exactly one sample per
+            //      output sample. Push AFTER rendering and every sample is a full block late, for
+            //      free, with nothing to show it but a phase shift nobody looks at.
+            //      ⚠ Still not necessarily zero IN A HOST: the engine renders in whole 735-sample cart
+            //      frames while a host may hand us 512, so input pushed now can be read by a frame
+            //      that renders later. The ring absorbs that (it is what it is for) at up to one
+            //      engine frame of delay. MEASURE IN THE HOST before claiming a `latency` to it.
+            if isEffect, let pull = pullInput {
+                var flags = AudioUnitRenderActionFlags()
+                // Point the pull target at our own preallocated memory and state the size, every
+                // block: a render block must not allocate, and the host is entitled to hand us a
+                // different frameCount each time.
+                let half = 16384
+                inABL[0].mNumberChannels = 1
+                inABL[1].mNumberChannels = 1
+                inABL[0].mDataByteSize = UInt32(n * 4)
+                inABL[1].mDataByteSize = UInt32(n * 4)
+                inABL[0].mData = UnsafeMutableRawPointer(inScratch)
+                inABL[1].mData = UnsafeMutableRawPointer(inScratch + half)
+                if n <= half, pull(&flags, timestamp, frameCount, 0, inABL.unsafeMutablePointer) == noErr {
+                    // MONO, because that is what the ring takes (mic_input_push is one channel — it
+                    // was built for a microphone). Averaging L+R is the honest downmix for a pedal
+                    // chain whose effects are mono-in anyway; a stereo insert path is a later job.
+                    let L = inScratch, R = inScratch + half
+                    if inABL.count >= 2 { for i in 0..<n { inMono[i] = (L[i] + R[i]) * 0.5 } }
+                    else                { for i in 0..<n { inMono[i] = L[i] } }
+                    // No engine handle: de_audio_input is the process-global seam (see the ⚠ on
+                    // isEffect). hostRate, not ENGINE_RATE — mic_input_push resamples when they
+                    // differ, and lying here would pitch the host's track by the rate ratio.
+                    de_audio_input(inMono, Int32(n), hostRate)
+                }
+            }
+
             let abl = UnsafeMutableAudioBufferListPointer(outputData)
             let offline = me.isRenderingOffline
 

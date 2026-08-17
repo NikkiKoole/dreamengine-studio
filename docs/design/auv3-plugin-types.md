@@ -139,7 +139,27 @@ bookkeeping. The cart side is **zero**: `mout_on` already gates it and the patte
 
 ## §4 The three product shapes, ranked
 
-### §4.1 `aumf`, not `aufx`
+### §4.1 `aumf`, not `aufx` — ✅ WIRED ON macOS (2026-08-17)
+
+> **The spike landed.** `apps/pedalboard` declares `"auType": "aumf"` (derived per app by
+> `ios/au-identity.sh`, so an effect app and an instrument app share `project.yml`/`project-mac.yml`
+> without re-typing each other), `TinyjamAU` declares an input bus when its own
+> `componentDescription.componentType` is an effect, and the render block pulls the host's audio and
+> pushes it through `de_audio_input` **before** rendering — the ordering the 0-sample latency depends
+> on. `aumf tpdl Mpla "Mipolai: Tiny Pedalboard"` registers as an EFFECT and
+> **`auval -v aumf tpdl Mpla` → AU VALIDATION SUCCEEDED**, including its effect render tests at
+> 512/64/4096 frames and at 11025–192000 Hz, which is real coverage of the block-size and rate
+> mismatch §3.1 listed as unmeasured. `Test MIDI` passes too — the `aumf` argument below, confirmed.
+>
+> ⚠ **ONE INSTANCE.** The extin ring is still process-global (§8 Q2), so a second effect instance is
+> two producers on a single-producer ring. Fix that before shipping.
+> ⚠ **Not yet judged by eye or by a DAW** — `auval` is not GarageBand, and `au-transport-check`
+> structurally cannot host an effect (its rig feeds the input nothing; the transport and `--panel`
+> gates now SKIP for an effect type rather than fail misleadingly).
+> ⚠ **iOS is untouched** — this is the Mac Catalyst path only.
+> One `auval` warning worth a look: *"Can Initialize Unit to un-supported num channels: InputChan:4,
+> OutputChan:5"* — we accept a channel layout we do not support, because the AU implements no channel
+> capability restriction. It passes, but a host could hand us a 4-in config and be surprised.
 
 If we do the input bus at all, declare `aumf`. Same wiring cost, strictly more useful: you get the
 host's audio *and* its notes, which is what makes "the visuals know what the track is playing"
@@ -332,8 +352,18 @@ rather than after.
    at all… never exercised multi-instance today"*. An `aumf` insert is exactly the condition both
    sentences were waiting for — each instance's input is its own track. Concretely, `mic_input_push`
    holds `rs_q`/`rs_prev` as **function-local statics** (`runtime/mic.h:116`), the class a `#define`
-   cannot fix — the declarations have to move. At 44.1k the fast path is stateless, so two instances
-   are safe today; at any other host rate two instances would corrupt each other's resampling.
+   cannot fix — the declarations have to move.
+   ⚠ **Correction (same day, found while wiring §4.1):** an earlier draft of this entry said "at
+   44.1k the fast path is stateless, so two instances are safe today". **That is wrong**, and the
+   reason is worth keeping because it is the more general shape of the bug. `rs_q`/`rs_prev` are only
+   the resampler's *private* state; the RING ITSELF is shared — `extin_mon_on`/`extin_mon_gain` moved
+   into the per-instance context but `sound_extin[]`, `extin_w`, `extin_r` and `extin_on` did not. It
+   is a SINGLE-producer/SINGLE-consumer ring by construction, so two effect instances are two
+   producers racing on `extin_w` **and** two consumers each eating samples the other needed —
+   garbled at **any** sample rate. `extin_on` compounds it: one instance switching its monitor off
+   clears the shared flag and stops the other's writes. So the unit of work is the whole extin group,
+   not two stray locals. Reading half a moved group and concluding the rest was fine is exactly the
+   half-moved-group hazard this refactor warns about elsewhere.
 3. Does the MIDI-out ring **replace** the CoreMIDI virtual source in a plug-in build, or run
    alongside it? (Alongside means an appex publishing a system-wide port, which we have flagged as
    uncovered.)

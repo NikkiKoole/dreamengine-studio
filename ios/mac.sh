@@ -8,6 +8,8 @@
 #   CART=epiano zsh ios/mac.sh     # a bare cart in the plug-in (keeps APP's identity)
 #   RESIZABLE=1 APP=… zsh ios/mac.sh   # let a resizable cart REFLOW to the host's panel size
 #   zsh ios/mac.sh --no-auval      # skip auval (still runs the host-transport gate)
+#   ios/au-transport-check --free  # the NEGATIVE CONTROL: no transport blocks, must fail
+#   ios/au-transport-check --loadable  # can a DAW load our code? (the gate GarageBand needed)
 #
 # ⚠ THE AU IDENTITY IS DERIVED FROM AN APP MANIFEST (ios/au-identity.sh), like testflight.sh and
 # device.sh. This script was the LAST one hardcoding it: project-mac.yml's `tacj`/`Mpla` and a
@@ -15,8 +17,8 @@
 # a wrong name, because BOTH of those gates were pinned to Tiny Acid Jam's triple while `CART=` put
 # whatever you asked for inside it — so auditioning another cart registered it under Tiny Acid Jam's
 # FOREVER codes and then reported green on the wrong plug-in. APP= now picks both halves together.
-#   ios/au-transport-check --free  # the NEGATIVE CONTROL: no transport blocks, must fail
-#   ios/au-transport-check --loadable  # can a DAW load our code? (the gate GarageBand needed)
+# The component TYPE is derived too (`auType`, default aumu), so an EFFECT app (pedalboard, aumf)
+# and an INSTRUMENT app (tinyacidjam, aumu) can share these specs without re-typing each other.
 #
 # WHAT "REGISTER" MEANS: on macOS an AUv3 lives in an app bundle's PlugIns/ and the system only
 # learns about it when that app is LAUNCHED ONCE. So this opens the app, waits, and quits it. The
@@ -49,7 +51,7 @@ au_carrier_load  "$APP" || exit 1
 # EXPORTED for au-transport-check, which addresses the plug-in by this triple and the carrier by these
 # paths, and used to hardcode all four — see the notes at the top of au-transport-check.swift for why a
 # stale default is not benign.
-export AU_SUBTYPE AU_MANUF
+export AU_SUBTYPE AU_MANUF AU_TYPE
 export AU_CARRIER_APP="$CARRIER_APP_PATH" AU_APPEX_ID="$CARRIER_APPEX_ID"
 
 # The cart in the plug-in: the manifest's auCart, else its first cart, else an explicit CART=.
@@ -64,7 +66,7 @@ CART="${CART:-$AU_CART}"
 # a defect is the cart's or the AU's) — what is NOT acceptable is not KNOWING which cart the green
 # gates below just judged, or which name it went into the machine's AU registry under.
 if [ "$CART" != "$AU_CART" ]; then
-  echo "⚠ CART=$CART is NOT $APP's cart ($AU_CART) — it will register as \"$AU_NAME\" (aumu $AU_SUBTYPE $AU_MANUF)."
+  echo "⚠ CART=$CART is NOT $APP's cart ($AU_CART) — it will register as \"$AU_NAME\" ($AU_TYPE $AU_SUBTYPE $AU_MANUF)."
   echo "  Every gate below judges '$CART' while wearing $APP's identity. Deliberate? fine. Otherwise use APP=."
 fi
 
@@ -184,8 +186,8 @@ else
 fi
 
 if [ "$WANT_AUVAL" = "1" ]; then
-  echo "▸ auval -v aumu $AU_SUBTYPE $AU_MANUF  (Apple's validator)"
-  auval -v aumu "$AU_SUBTYPE" "$AU_MANUF" 2>&1 | tail -25
+  echo "▸ auval -v $AU_TYPE $AU_SUBTYPE $AU_MANUF  (Apple's validator)"
+  auval -v "$AU_TYPE" "$AU_SUBTYPE" "$AU_MANUF" 2>&1 | tail -25
 fi
 
 # HOST TRANSPORT gate. auval cannot cover this: it never SETS musicalContextBlock, so it only ever

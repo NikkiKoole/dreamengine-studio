@@ -85,7 +85,10 @@ func envStr(_ key: String, _ fallback: String) -> String {
 }
 let AU_SUBTYPE = envCode("AU_SUBTYPE", "tacj")
 let AU_MANUF   = envCode("AU_MANUF",   "Mpla")
-let desc = AudioComponentDescription(componentType: kAudioUnitType_MusicDevice,
+// The TYPE is part of the triple too, so a plug-in declared `aumf` is simply not found by a search
+// for `aumu` — the gate would report "is it registered?" about a plug-in sitting right there.
+let AU_TYPE    = envCode("AU_TYPE",    "aumu")
+let desc = AudioComponentDescription(componentType: fourCC(AU_TYPE),
                                      componentSubType: fourCC(AU_SUBTYPE),
                                      componentManufacturer: fourCC(AU_MANUF),
                                      componentFlags: 0, componentFlagsMask: 0)
@@ -238,7 +241,7 @@ while !instantiated, Date() < deadline {
     RunLoop.main.run(mode: .default, before: Date().addingTimeInterval(0.05))
 }
 guard let avAU = au else {
-    print("✗ could not instantiate aumu/\(AU_SUBTYPE)/\(AU_MANUF) — is it registered? run: zsh ios/mac.sh")
+    print("✗ could not instantiate \(AU_TYPE)/\(AU_SUBTYPE)/\(AU_MANUF) — is it registered? run: zsh ios/mac.sh")
     exit(1)
 }
 
@@ -702,6 +705,22 @@ if argv.contains("--params") {
 
 if argv.contains("--panel") {
     print("▸ panel: is it attached to the audio unit that RENDERS?")
+    // Same limitation as the transport gate, for the same reason, and it has to be said out loud
+    // here too: this check waits for the panel to report CONNECTED, which the extension only does
+    // once it observes audio RENDERING. The rig feeds an effect's input nothing, so an effect never
+    // renders and never reports — "never reported CONNECTED" then reads as a broken panel when the
+    // truth is that nothing asked it to draw a frame.
+    // ▶ THE PROPER FIX, deliberately not taken yet: give Rig an input SOURCE when the unit is an
+    // effect (attach an AVAudioSourceNode and connect it INTO the AU), which would make this gate and
+    // the transport one work for both types. It is ~10 lines, and the reason to be careful is that the
+    // instrument path must stay byte-identical — a gate that currently passes must not be blunted to
+    // make a new case work. Until then, refusing is honest and passing-by-silence is not.
+    if AU_TYPE == "aumf" || AU_TYPE == "aufx" {
+        print("  SKIPPED — \(AU_TYPE) is an EFFECT and this rig gives it no input, so it never renders.")
+        print("  --view still applies (and covers that a host can obtain the view at all).")
+        print("  Judge the picture in a DAW; `auval -v \(AU_TYPE) \(AU_SUBTYPE) \(AU_MANUF)` covers the audio.")
+        exit(0)
+    }
     // WHICH PROCESS is the audio in? The channel answers from wherever the AU's code actually lives.
     var enginePid = -1
     if #available(macOS 13.0, macCatalyst 16.0, *) {
@@ -764,6 +783,26 @@ if argv.contains("--panel") {
 }
 
 // ═══ the three transport checks ══════════════════════════════════════════════════════════════════
+//
+// ⚠ INSTRUMENT-ONLY, AND IT HAS TO SAY SO. This rig attaches the AU and connects it to the main
+// mixer (Rig.init) and feeds its INPUT nothing, which is the whole truth for an instrument and
+// useless for an EFFECT: AVAudioEngine will not run an effect with no source, so every check below
+// reads 0 onsets / peak 0.000. That is not a defect in the plug-in — it is this gate being the wrong
+// host — but five red lines are indistinguishable from a broken rack, and worse, one of them ("STOPS
+// when the host stops") goes GREEN because silence satisfies it. A gate that fails for a reason
+// unrelated to what it names is worse than no gate, so refuse the question rather than answer it
+// wrongly. `auval` is the right tool here and already knows how: for an effect it feeds real input at
+// several block sizes and sample rates. Verified on `aumf tpdl Mpla` — AU VALIDATION SUCCEEDED.
+if AU_TYPE == "aumf" || AU_TYPE == "aufx" {
+    print("▸ host-transport gate: SKIPPED — \(AU_TYPE) is an EFFECT, and this rig hosts INSTRUMENTS.")
+    print("  It connects the AU to the mixer and feeds its input nothing, so an effect renders silence")
+    print("  and every check below would fail for a reason that has nothing to do with the plug-in.")
+    print("  Use Apple's validator, which feeds an effect real input:")
+    print("      auval -v \(AU_TYPE) \(AU_SUBTYPE) \(AU_MANUF)")
+    print("  The type-agnostic gates DO apply to an effect and are worth running: --loadable --view")
+    print("  --panel --state --wheel --params.")
+    exit(0)
+}
 if hostRate != ENGINE_SR { print("▸ host rendering at \(Int(hostRate)) Hz (engine is compiled for \(Int(ENGINE_SR)))") }
 let rig = try! Rig(au: avAU, sr: hostRate)
 if let p = wavPrefix {

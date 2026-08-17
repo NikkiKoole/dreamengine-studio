@@ -6,6 +6,7 @@
   "orientation": "landscape",
   "icon":     "apps/pedalboard/icon.png",
   "carts":    ["pedalboard"],
+  "auType":         "aumf",
   "auName":         "Mipolai: Tiny Pedalboard",
   "auSubtype":      "tpdl",
   "auManufacturer": "Mpla",

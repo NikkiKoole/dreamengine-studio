@@ -56,6 +56,27 @@ What a green run proves, and what it doesn't:
 | `--state` / `--wheel` / `--params` | `fullState`, CC, and the automatable knob tree | — |
 | transport | the rack follows play/stop/tempo/loop | — |
 
+### If the cart is an EFFECT (`"auType": "aumf"`)
+
+Add `"auType": "aumf"` to the manifest and the AU declares an input bus, pulls the host's audio in
+its render block, and pushes it into the ring `input_monitor()` feeds through the pedal chain. The
+type is derived per app, so an effect app and an instrument app share these specs without re-typing
+each other — and ⚠ **the type is part of the FOREVER triple**, so choose it before the first upload.
+
+**The right gate for an effect is `auval`, not this script.** `au-transport-check`'s rig connects the
+AU to a mixer and feeds its input nothing, which is the whole truth for an instrument and useless for
+an effect: it renders silence, so the transport and `--panel` gates fail for a reason unrelated to the
+plug-in (and "STOPS when the host stops" goes *green* on the silence). Both now SKIP for an effect
+type and point at `auval`, which feeds real input at several block sizes and sample rates:
+
+```bash
+auval -v aumf <subtype> <manufacturer>
+```
+
+`--loadable` and `--view` still apply. Giving the rig an input source (~10 lines) would make the rest
+work for both types and is the known follow-up; the care needed is that the instrument path must stay
+byte-identical, since a gate that passes today must not be blunted to make a new case work.
+
 ⚠ **The transport gate is written for a SEQUENCER.** Four of its six checks require `onsets >= 8`
 over 8 beats — at least one onset per beat, which is `acidcandy`'s drum density. A cart that strums
 once a bar fails them while playing perfectly well. Read the numbers, not the ✗: a peak well above
@@ -156,7 +177,7 @@ comparing `acidcandy` (does all of it) against `pedalboard` (did none of it):
 | session state | `de_state_for_saved` / `DE_CTX_BLOCK_SAVED` | your patch is gone when the project reopens |
 | host tempo | the `sync_*` set (Part 1) | it plays at its own speed, ignoring the project |
 | two instances | Part 2 | track 2's knob moves track 1's |
-| audio input | an `aumf` input bus — **not yet wired**, `auv3-plugin-types.md` §4.1 | it cannot hear the track it is inserted on |
+| audio input | `"auType": "aumf"` in the manifest — **WIRED 2026-08-17** (macOS; `auval` validates it) | it cannot hear the track it is inserted on |
 
 ⚠ **Parameter addresses are forever too**, in the same way the component triple is: a saved
 automation lane stores nothing else. Append, never renumber.

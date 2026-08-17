@@ -119,6 +119,20 @@ targets:
       path: AU/Info.plist
       properties:
         CFBundleDisplayName: Tinyjam Demo
+        # ⚠ THESE TWO MUST BE HERE, and must be the $(…) forms. The APP target uses
+        # GENERATE_INFOPLIST_FILE, so testflight.sh's `CURRENT_PROJECT_VERSION=<build no>` on the
+        # xcodebuild command line reaches it. This target has a HAND-SPECIFIED plist, and xcodegen
+        # fills any version key the spec omits with a literal default — CFBundleVersion: 1 — which
+        # no command-line setting can then override, because it is a literal in the file rather
+        # than a reference. Result: the app shipped as build 202608162137 with its own extension
+        # stamped build 1, and Apple bounced the delivery with
+        #   ITMS-90473: CFBundleVersion Mismatch — '1' of extension TinyjamAU.appex does not match
+        #   '202608162137' of its containing application
+        # (a warning, not a rejection — the build still validated, which is exactly why nobody
+        # noticed until the email arrived). Referencing the build settings makes the extension
+        # inherit whatever the app is stamped with, forever.
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        CFBundleShortVersionString: $(MARKETING_VERSION)
         NSExtension:
           # -UI, not plain com.apple.AudioUnit: that is what tells the system this extension HAS a
           # view, and the principal class must then be the AUViewController that also implements

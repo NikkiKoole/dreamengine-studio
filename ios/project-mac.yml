@@ -108,6 +108,12 @@ targets:
       path: AU/Info-mac.plist
       properties:
         CFBundleDisplayName: Tiny Acid Jam
+        # Same fix as project.yml, for the same reason — see the long note there. xcodegen fills an
+        # omitted version key with a literal (CFBundleVersion: 1) that no command-line setting can
+        # override, so the extension drifts from its host app. The MARKETING_VERSION comment on the
+        # targets above already learned half this lesson; this is the other half.
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        CFBundleShortVersionString: $(MARKETING_VERSION)
         NSExtension:
           # -UI, not plain com.apple.AudioUnit: that is what tells the system this extension HAS a
           # view, and the principal class must then be the AUViewController that also implements

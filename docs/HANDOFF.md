@@ -520,7 +520,7 @@ a broken doc link or `#section`).
 > **Resume-at:** [`design/tenement.md` → The building does not contend, and the four reasons are stacked](design/tenement.md#12-the-building-does-not-contend-and-the-four-reasons-are-stacked),
 > plus the cart's own punch list, `node tools/cart-todos.js tenement` (the rim first).
 
-> **▶ ACTIVE THREAD (2026-08-14) — EXTERNAL CLOCK + the AUv3 on macOS: a cart can be slaved, and acidcandy is a GarageBand plug-in.**
+> **▶ ACTIVE THREAD (2026-08-15) — EXTERNAL CLOCK + the AUv3 on macOS: a cart can be slaved, and acidcandy is a GarageBand plug-in.**
 > **▶▶ START HERE IN A FRESH SESSION (rewritten 2026-08-13 end-of-day). GOAL: a well-behaved macOS
 > AUv3.** No iPad — macOS IS the target. Everything you need to act is in THIS block; the shipped history
 > follows it, and inside that history the block headed `▼ superseded` is factually WRONG and kept only so

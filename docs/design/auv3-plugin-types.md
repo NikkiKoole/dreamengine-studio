@@ -166,7 +166,9 @@ bookkeeping. The cart side is **zero**: `mout_on` already gates it and the patte
 If we do the input bus at all, declare `aumf`. Same wiring cost, strictly more useful: you get the
 host's audio *and* its notes, which is what makes "the visuals know what the track is playing"
 possible rather than only "the visuals react to loudness". `pedalboard` becomes an insert effect,
-which matters because it is already an app in review.
+which matters because it is already **on sale** (`READY_FOR_SALE` since 2026-08-17), so the audience
+exists before the plug-in does. ⚠ Two prerequisites in front of it, both §6: the plug-in TYPE is not
+derivable per app yet (§6.2), and this app ships no AU target at all (§6.3).
 
 ### §4.1b OPEN DEFECT: it loads, the panel works, and no audio comes through
 
@@ -372,11 +374,47 @@ iOS shaves ~6% off a square icon and Apple's corner curve is continuous where a 
 rect is circular, which is the trap `docs/design/app-icon-mask.md` exists for and which has already
 bitten two apps in review. See it with `node tools/icon-mask.js preview apps/tinyacidjam/icon.png`.
 
-**The fix shape**, if we take it: derive the AU identity from the manifest the same way the app
-identity already is (a couple more `sed` lines in `testflight.sh`, plus manifest keys for the AU
-name and the four-char subtype), and give `device.sh` the display-name override so the dev loop
-stops lying about which app it is. Small, mechanical, and worth doing before the next submission
-rather than after.
+~~**The fix shape**, if we take it: derive the AU identity from the manifest…~~ **Done, above.** This
+paragraph proposed the work that the rest of §6.1 records as shipped on 2026-08-16, and survived the
+edit that shipped it. Struck rather than deleted because a proposal left standing next to its own
+completion is the exact drift this doc keeps getting caught by, and it is worth being able to see one.
+
+### §6.2 The TYPE is still hardcoded, which is what blocks an effect build — OPEN
+
+Verified 2026-08-17 by reading the specs, not assumed. The identity work of §6.1 derived the
+*subtype*, *manufacturer* and *names* per app. It did **not** touch `componentType`, which is
+still the literal `aumu` in five places:
+
+| where | line |
+|---|---|
+| `ios/project.yml` · `project-store.yml` · `project-dev.yml` · `project-mac.yml` | `- type: aumu` |
+| `ios/AU/Info.plist` | `<string>aumu</string>` |
+| `ios/au-identity.sh` | the echoed summary, `aumu $AU_SUBTYPE $AU_MANUF` |
+| `ios/mac.sh` | `auval -v aumu tacj Mpla` |
+
+So **the shape of the plug-in is a property of the shared spec, not of the app**, which is the sixth
+instance of the one shape behind every store-path failure: *a per-app value hardcoded in a spec every
+app shares*. It went unnoticed because every app we have shipped so far wanted the same value.
+
+It stops mattering the moment two apps want different shapes, and that is now: an effect build has to
+declare `aumf` (or `aufx`), so `apps/<app>/app.json` needs an `auType` key defaulting to `aumu`,
+derived and asserted exactly like the other four. That is a prerequisite for §4.1, not a follow-up —
+and note `mac.sh`'s `auval` line has to follow, or the validator will look up a component that is no
+longer there and report a plug-in that builds fine as missing.
+
+### §6.3 `pedalboard` ships no plug-in at all — OPEN
+
+`apps/pedalboard/app.json` sets no `auCart`, so `testflight.sh` strips the AU target (*"no AU
+extension (manifest sets no auCart) — single-cart standalone build"*). **Tiny Pedalboard went on sale
+on 2026-08-17 as a standalone app with no AUv3 in it**, which is the same ship-blocker caught for Tiny
+Acid Jam on 08-15, in the same week, on the app nobody re-checked because it was already through
+review.
+
+Ordering matters here and it is not the obvious one. Setting `auCart` today would ship a pedalboard
+**instrument**, because of §6.2 — an `aumu` with no input bus, which is the one shape this cart has no
+use for. And a shipped triple is FOREVER. So the sequence is: `auType` first (§6.2), then the input
+bus (§3.1), and only then `auCart` plus a subtype for this app, so its first published component is
+the one it should have had.
 
 ## §7 Traps
 

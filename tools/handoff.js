@@ -4,7 +4,8 @@
 // docs/design/driftable-docs.md (front door primes going in, back door catches what slipped):
 //
 //   node tools/handoff.js          # FRONT DOOR — list the active ▶ lanes + age (wired into orient)
-//   node tools/handoff.js --check  # BACK DOOR  — flag lanes >2wk old, a MISSING or UNANCHORED
+//   node tools/handoff.js --check  # BACK DOOR  — flag lanes >2wk old, a lane whose BODY WAS EDITED
+//                                  #   AFTER its date, a MISSING or UNANCHORED
 //                                  #   Resume-at, a broken doc link, or a
 //                                    broken #anchor (a Resume-at pointing at a section that no
 //                                    longer exists — the precise "the doc moved under the pointer"
@@ -15,6 +16,24 @@
 // rule (stated in HANDOFF.md's header): refresh a lane's date when you touch it, prune it when it
 // ships (its detail lives in STATUS.md + the doc's pick-up point). This tool makes a forgotten
 // stale lane SURFACE instead of rotting silently — the exact failure that bit the old handoff.
+//
+// ⚠ THE AGE CHECK IS BLIND TO THE COMMONEST DRIFT, which is why `edited` exists. Age asks "has
+// anyone touched this lane lately", and a lane nobody touches goes stale loudly. But the failure
+// that actually bit (2026-08-17) is the OPPOSITE: two commits wrote a whole app submission into a
+// lane's body and neither bumped its header date, so the front door aged today's work at 2d and
+// the back door said nothing — the lane read FRESHER than the thing it described, and a reader
+// choosing what to resume was told the newest work was two days cold. So the second question is
+// "is this lane's date at least as new as its BODY", answered from `git blame` over the lane's
+// line range (one blame for the whole file, bucketed per lane; uncommitted lines count as today,
+// deliberately, so it fires while you can still fix it rather than after you commit).
+// DE_HANDOFF_EDITED = {"<title substring>":"YYYY-MM-DD"} injects those dates for --selfcheck,
+// which runs against a fixture in a temp dir that git cannot blame.
+// ⚠ Its known false positive: a MASS edit (a reflow, a file-wide audit) touches many lane bodies
+// without any of them being new work, and every one then reads as edited-after-its-date. That is
+// why this is advisory and why the finding names the edit DATE — you can recognise a sweep by
+// seeing the same date across unrelated lanes. The response is the same either way: bump if the
+// lane is live, prune if it shipped. Do NOT bump a date merely to silence this; a lane that is
+// genuinely stale should keep saying so.
 'use strict'
 
 const fs = require('fs')
@@ -40,24 +59,31 @@ if (process.argv.slice(2).includes('--selfcheck')) {
   const src = path.join(__dirname, 'fixtures', 'handoff', 'HANDOFF.md')
   const iso = (d) => new Date(d).toISOString().slice(0, 10)
   const today = iso(Date.now())
+  const recent = iso(Date.now() - 5 * 86400000)     // inside the 14-day bar ON PURPOSE, see below
   const ancient = iso(Date.now() - 90 * 86400000)
   const tmp = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'de-handoff-')), 'HANDOFF.md')
   fs.writeFileSync(tmp, fs.readFileSync(src, 'utf8')
-    .replace(/__TODAY__/g, today).replace(/__ANCIENT__/g, ancient))
+    .replace(/__TODAY__/g, today).replace(/__RECENT__/g, recent).replace(/__ANCIENT__/g, ancient))
+
+  // git cannot blame a temp file, so inject the "last edited" answers the fixture is asserting
+  // against. BOTH DIRECTIONS are injected: one lane edited after its date (must report) and one
+  // edited before it (must NOT) — without the second, a check that flagged every lane carrying
+  // any edit history at all would pass this fixture.
+  const edited = JSON.stringify({ 'edited after its date': today, 'edited before its date': ancient })
 
   let raw
   try {
     raw = require('child_process').execFileSync(process.execPath, [__filename, '--json'],
-      { env: { ...process.env, DE_HANDOFF_FILE: tmp }, encoding: 'utf8', maxBuffer: 1 << 26 })
+      { env: { ...process.env, DE_HANDOFF_FILE: tmp, DE_HANDOFF_EDITED: edited }, encoding: 'utf8', maxBuffer: 1 << 26 })
   } catch (e) { raw = e.stdout }
   const g = JSON.parse(raw)
   const lane = (frag) => g.lanes.find(l => l.title.toLowerCase().includes(frag.toLowerCase()))
   const clean = (l) => l && !l.broken.length && !l.brokenAnchors.length && !l.noResume &&
-                       !l.unanchored && !(l.age != null && l.age > g.staleDays)
+                       !l.unanchored && !l.editedAfter && !(l.age != null && l.age > g.staleDays)
   const T = []
   const t = (n, ok) => T.push({ n, ok })
 
-  t('all 10 lanes parsed', g.lanes.length === 10)
+  t('all 12 lanes parsed', g.lanes.length === 12)
   t('a clean lane → no finding', clean(lane('a clean lane')))
   t('an old lane → stale', (lane('a stale lane')?.age ?? 0) > g.staleDays)
   t('a broken doc link → reported', lane('broken doc link')?.broken.length === 1)
@@ -68,6 +94,10 @@ if (process.argv.slice(2).includes('--selfcheck')) {
   t('label mid-bold → clean  [regression guard]', clean(lane('label mid-bold')))
   t('a date qualified with prose still parses  [regression guard]', !!lane('qualified date'))
   t('a drifted lowercase spelling → clean  [regression guard]', clean(lane('lowercase spelling')))
+  t('body edited AFTER its date → reported', !!lane('edited after its date')?.editedAfter)
+  t('…and that lane is NOT flagged by age  [the age check is blind to it]',
+    (lane('edited after its date')?.age ?? 99) <= g.staleDays)
+  t('body edited BEFORE its date → clean  [negative control]', clean(lane('edited before its date')))
 
   const bad = T.filter(x => !x.ok)
   for (const x of T) console.log(`  ${x.ok ? '\x1b[32m✓\x1b[0m' : '\x1b[31m✗\x1b[0m'} ${x.n}`)
@@ -106,6 +136,44 @@ function docAnchors(relPath) {          // relPath = 'design/foo.md' (no #), DOC
   } catch { set = null }                 // unreadable → caller already flags the file as broken
   anchorCache.set(relPath, set)
   return set
+}
+
+// ── when was each LINE of the handoff last edited? ───────────────────────────
+// One `git blame --line-porcelain` for the whole file, bucketed per lane below. Returns an array
+// indexed by 0-based line → 'YYYY-MM-DD', or null when git cannot answer (no repo, a fixture in a
+// temp dir, git missing). null is NOT a finding: an unanswerable question must stay silent rather
+// than flag every lane, since this check's failure mode is a false positive on every single one.
+// Uncommitted lines blame as all-zero hash with the CURRENT time, which is what we want — an
+// unbumped date is caught while it is still a working-tree edit.
+function blameDates () {
+  const inj = process.env.DE_HANDOFF_EDITED
+  if (inj) return { injected: JSON.parse(inj) }
+  try {
+    const out = require('child_process').execFileSync(
+      'git', ['blame', '--line-porcelain', '--', HANDOFF],
+      { cwd: ROOT, encoding: 'utf8', maxBuffer: 1 << 28, stdio: ['ignore', 'pipe', 'ignore'] })
+    const dates = []
+    for (const ln of out.split('\n')) {
+      const m = ln.match(/^committer-time (\d+)$/)
+      if (m) dates.push(new Date(Number(m[1]) * 1000).toISOString().slice(0, 10))
+    }
+    return dates.length ? { dates } : null
+  } catch { return null }
+}
+const BLAME = blameDates()
+
+// the newest edit anywhere in [from,to) — 0-based, `to` exclusive
+function editedIn (from, to, title) {
+  if (!BLAME) return null
+  if (BLAME.injected) {
+    const hit = Object.entries(BLAME.injected).find(([k]) => title.toLowerCase().includes(k.toLowerCase()))
+    return hit ? hit[1] : null
+  }
+  let newest = null
+  for (let k = from; k < to && k < BLAME.dates.length; k++) {
+    if (!newest || BLAME.dates[k] > newest) newest = BLAME.dates[k]
+  }
+  return newest
 }
 
 const lanes = []
@@ -147,8 +215,14 @@ for (let i = 0; i < lines.length; i++) {
   const noResume = rIdx < 0
   const unanchored = rIdx >= 0 &&
     !/\]\([^)\s]+\.md#[^)\s]*\)/.test(block.slice(rIdx).join('\n'))
-  lanes.push({ date: m[1], title: m[2].trim(), age: ageOf(m[1]), links: targets, broken, brokenAnchors,
-               noResume, unanchored, line: i + 1 })
+  const title = m[2].trim()
+  // Compare STRINGS, not parsed dates: both sides are ISO 'YYYY-MM-DD', which sorts correctly as
+  // text, and this way a lane dated the same day as its last edit is equal (not "one is 3 hours
+  // newer") — the check is about the DAY somebody wrote, not about clock skew inside it.
+  const edited = editedIn(i, j, title)
+  const editedAfter = edited && edited > m[1] ? edited : null
+  lanes.push({ date: m[1], title, age: ageOf(m[1]), links: targets, broken, brokenAnchors,
+               noResume, unanchored, edited, editedAfter, line: i + 1 })
   i = j
 }
 
@@ -158,7 +232,7 @@ const tty = process.stdout.isTTY
 const b = s => tty ? `\x1b[1m${s}\x1b[0m` : s
 const dim = s => tty ? `\x1b[2m${s}\x1b[0m` : s
 const warn = s => tty ? `\x1b[33m${s}\x1b[0m` : s
-const isStale = l => (l.age != null && l.age > STALE_DAYS) || l.broken.length > 0 || l.brokenAnchors.length > 0 || l.noResume || l.unanchored
+const isStale = l => (l.age != null && l.age > STALE_DAYS) || l.broken.length > 0 || l.brokenAnchors.length > 0 || l.noResume || l.unanchored || !!l.editedAfter
 
 if (!lanes.length) {
   console.log('no active lanes in docs/HANDOFF.md — add a `▶ ACTIVE THREAD (date) — title.` callout when you start complex work')
@@ -176,6 +250,7 @@ if (check) {
       l.brokenAnchors.length ? `broken #section: ${l.brokenAnchors.join(', ')}` : null,
       l.noResume   ? 'NO Resume-at (a lane with no pick-up point cannot be resumed)' : null,
       l.unanchored ? 'Resume-at has no #anchor (so the anchor check is INERT for this lane)' : null,
+      l.editedAfter ? `body edited ${l.editedAfter}, AFTER its ${l.date} date (bump it — the lane reads fresher than the work)` : null,
     ].filter(Boolean).join(' · ')
     console.log(`  ${warn('⚠')} ${l.title}  ${dim('(' + l.date + ')')}  ${why}`)
   }
@@ -187,7 +262,8 @@ console.log(b('ACTIVE LANES') + dim('  (docs/HANDOFF.md — resume complex work 
 for (const l of lanes) {
   const age = l.age == null ? '?' : l.age === 0 ? 'today' : `${l.age}d`
   const flag = l.broken.length ? ' · broken link' : l.brokenAnchors.length ? ' · broken #section'
-             : l.noResume ? ' · no Resume-at' : l.unanchored ? ' · Resume-at unanchored' : ' stale'
+             : l.noResume ? ' · no Resume-at' : l.unanchored ? ' · Resume-at unanchored'
+             : l.editedAfter ? ` · edited ${l.editedAfter}, date not bumped` : ' stale'
   const tag = isStale(l) ? warn(`⚠ ${age}${flag}`) : dim(age)
   // print the LINE so the front door IS the index — a hand-maintained one drifted for 3 lanes / 4 days
   console.log(`  · ${dim('L' + String(l.line).padEnd(4))} ${l.title}  ${tag}`)

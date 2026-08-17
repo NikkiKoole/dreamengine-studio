@@ -41,6 +41,12 @@
 //   (keyId derived from its filename). Same key shape testflight.sh's AUTH_KEY/AUTH_ISSUER uses.
 //   NEVER commit the .p8 or the IDs — the repo .gitignore blocks *.p8 as a backstop.
 //
+// IS THE APP LIVE? `--metadata --dry-run` answers it in one call and costs nothing:
+//   ✗ no editable App Store version. Existing: 1.1 (READY_FOR_SALE), 1.0 (READY_FOR_SALE)
+//   That refusal IS the answer — it lists every version and its state, so it is the cheapest way to
+//   check a claim like "this shipped" against Apple rather than against memory or a stale doc. Worth
+//   knowing because STATUS.md went weeks with no entry for a LIVE app while HANDOFF said "in review".
+//
 // UPDATING A LIVE APP: once a version is READY_FOR_SALE nothing is editable, so every other action
 //   here dies with "no editable App Store version". The fix is a NEW version, and --new-version is
 //   it: bump the manifest `version`, run `--new-version` (idempotent — an existing editable version
@@ -106,6 +112,16 @@ const FILE_TO_FIELD = {
 // ── args ──────────────────────────────────────────────────────────────────────────────────────
 const argv = process.argv.slice(2)
 const opt = { app: '', metadata: false, screenshots: false, iap: false, promote: false, category: false, ageRating: false, price: false, contentRights: false, reviewContact: false, newVersion: false, replace: false, dryRun: false, check: false, locale: 'en-US', version: '', json: false, only: null, reprice: false }
+// `--help` used to die with `unknown arg: --help`, which reads as "this tool is broken" rather than
+// "read the header". Print the header's usage block, which is the contract anyway.
+if (argv.includes('--help') || argv.includes('-h')) {
+  const src = fs.readFileSync(__filename, 'utf8').split('\n')
+  for (const ln of src.slice(1)) {          // slice(1): skip the shebang, or the loop stops at line 1
+    if (!ln.startsWith('//')) break
+    console.log(ln.replace(/^\/\/ ?/, ''))
+  }
+  process.exit(0)
+}
 for (let i = 0; i < argv.length; i++) {
   const a = argv[i]
   if (a === '--metadata') opt.metadata = true

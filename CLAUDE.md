@@ -949,7 +949,10 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
                              count); `--selfcheck` = known-answer fixture, gated in repo-doctor
              handoff.js      the ACTIVE-LANE tracker for docs/HANDOFF.md — keeps it recent + the reliable place to
                              resume complex in-flight work. Bare = FRONT DOOR: list the ▶ ACTIVE THREAD lanes + age
-                             (wired into orient.js). --check = BACK DOOR: flag lanes >2wk old / broken doc links /
+                             (wired into orient.js). --check = BACK DOOR: flag lanes >2wk old / a lane whose BODY WAS
+                             EDITED AFTER its date (git blame per lane — the AGE check is structurally blind to this,
+                             and it is the commoner drift: two commits wrote a whole app submission into one lane and
+                             neither bumped the header, so the front door aged today's work at 2d) / broken doc links /
                              broken #section anchors (write Resume-ats as [text](doc.md#section) so a renamed section
                              is caught; surfaced by cart-status.js). Same two-door pattern as driftable-docs.
                              `--selfcheck` = known-answer fixture (all five lane judgements + all three false

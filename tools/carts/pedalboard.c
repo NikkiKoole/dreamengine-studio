@@ -70,11 +70,21 @@ de:meta */
 //
 // Mouse + touch both work — every contact is its own pointer. The mouse is merged in explicitly.
 
+// THIS CART IS A PLUG-IN RACK — an AUv3 host can load it TWICE, and both copies land in ONE
+// process. A cart is one translation unit, so without this every `static` in the cart AND in every
+// header it includes would be shared: two DAW tracks fighting over one pedal chain, one chord
+// selection, one finger pool. DE_CART_CTX forks the cart's state (pedalboard_state.h) and the
+// cart-land headers (runtime/cart_ctx.h) onto the per-instance path — each instance gets its own
+// slice, found by address through de_state_for. Every other cart leaves this undefined and pays
+// nothing. MUST precede studio.h and every cart-land header, or they take the shared path.
+// docs/guides/cart-as-plugin.md; design in docs/design/engine-context.md.
+#define DE_CART_CTX
 #include "studio.h"
 #include "pointer.h"     // multi-finger pool: PTR_MAX/PTR_NONE + PTR_CLEAR/PTR_ACQUIRE/PTR_FIND
 #include "fxicons.h"      // shared effect icons + colours (also used by the epiano)
 #include "ampcab.h"       // the shared amp/cab voicing table — the CABINET slot's "guitar amp" tenant
 #include <math.h>
+#include "pedalboard_state.h"   // GENERATED per-instance context (tools/ctx-gen.js)
 
 // DEVICE REFLOW (device-adaptive-layout.md) — LANDSCAPE-only, authored at 320x200. We never scale
 // the render (that desyncs ui.h/tapp; see CLAUDE.md); instead canvas_resize() to a small canvas that
@@ -85,7 +95,6 @@ de:meta */
 // The SAFE-AREA layout frame: the whole layout lives inside (saX,saY,saW,saH) so controls dodge the
 // notch / Dynamic Island / home-bar, while the background (cls) bleeds to the full canvas. On desktop
 // safe_rect == the whole canvas, so saX/saY = 0 and saW/saH = screen_w()/h() → the base is unchanged.
-static int saX, saY, saW, saH;
 static void fit_canvas(void) {
     int cw = screen_w(), ch = screen_h();
     if (cw <= 0 || ch <= 0) return;
@@ -99,14 +108,10 @@ static void fit_canvas(void) {
 
 #define I_GTR  5
 #define I_MUTE 6      // a choked, muted voice for picking the short nut-side string segment
-#define NSTR   6
-#define MAXK   4
-#define NROOT  7
 
 // ── the effect catalog: every pedal you can drag into the chain ──────────────────────────────
 // kind = the engine FX_* insert kind (its slot in the reorderable chain). Every pedal — REVERB
 // included now (FX_REVERB via reverb_insert) — is a real insert, so chain order is audible.
-enum { C_BIT, C_EQ, C_CHO, C_PHA, C_FLG, C_TAP, C_TRM, C_WAH, C_RVB, C_FMT, C_PAN, C_FIL, C_RNG, C_DLY, C_LOFI, C_FUZZ, C_GRN, C_EQ2, C_OD, C_SHW, C_GATE, C_SHMR, NCAT };
 typedef struct {
     const char *name; int body, accent, kind, nk;
     const char *klabel[MAXK]; float kdef[MAXK];
@@ -159,22 +164,11 @@ static const FxDef CAT[NCAT] = {
 };
 
 // ── the chain: an ordered list of DISTINCT catalog ids, each with its own knobs + on-state ──
-typedef struct { int cat; float k[MAXK]; bool on; } Slot;
-static Slot  chain[NCAT];
-static int   chain_n   = 0;
-static float scroll_x  = 0.0f;     // horizontal pan of the chain view
-static bool  palette_open = false;
-static int   dirty     = 1;
 
 // ── the pinned CABINET output stage (Increment E): none / guitar amp / Leslie ──
 // "none" is a true no-op — pedalboard byte-identical to before; the cabinet only colours the output
 // once you opt in. Amp = the AMP_VC bundle (drive+eq+glue on the guitar slot + master glue); Leslie
 // = the rotary cabinet (master leslie). Both run AFTER the insert chain, off the shared insert buses.
-enum { CAB_NONE, CAB_AMP, CAB_LESLIE };
-static int   cab_tenant  = CAB_NONE;
-static bool  cabfuzz_applied = false;    // was the cabinet OR fuzz engaged last apply? (untouched session stays byte-identical)
-static int   cab_voicing = 2;            // AMP_VC index (CRUNCH)
-static int   cab_speed   = LESLIE_SLOW;  // Leslie rotor speed
 
 // ── the output stage as ONE FLAT LIST: OFF · the five amps · ROTARY ─────────────────────────────
 // It used to be TWO STACKED HIDDEN CYCLES — tapping the header cycled NONE→AMP→LESLIE and tapping
@@ -199,7 +193,6 @@ static int cab_sel(void) {
 static const char *cab_sel_name(int i) {
     return i == 0 ? "OFF" : i <= AMPCAB_N ? AMP_VC[i - 1].name : "ROTARY";
 }
-static float cab_k[2]    = { 0.5f, 0.5f }; // amp: GAIN, SAG  ·  leslie: DRIVE, BALANCE
 static const float CAB_KDEF[2] = { 0.5f, 0.5f };   // …their double-click-to-default targets
 // DOUBLE-TAP TO DEFAULT. Semantics lifted from acidcandy's _knobx (tools/carts/acidcandy.c), which
 // already solved this: the reset fires on RELEASE, and only if the press was a genuine TAP — the
@@ -223,21 +216,19 @@ static const float CAB_KDEF[2] = { 0.5f, 0.5f };   // …their double-click-to-d
 #define KNOB_GEARMAX 2.5f     // cap, so FINE still covers real ground
 // which knob a finger is on RIGHT NOW + whether it is in fine gear — draw() reads these, because a
 // mode with no visible sign is not a control (the rule acidcandy's FX-hub entry paid for twice).
-static int  drag_cat = -99, drag_knob = -1;
-static bool drag_fine = false;
 static float knob_gear(int px, int cx) {           // horizontal distance from the knob → gear ratio
     int ox = px - cx; if (ox < 0) ox = -ox;
     float g = 1.0f + ox / KNOB_GEAR;
     return g > KNOB_GEARMAX ? KNOB_GEARMAX : g;
 }
 
-#define KM_N   8
 #define KM_CAB (-2)
 #define TAP_FRAMES 15                              // longer press than this = a drag, not a tap
 #define DBL_FRAMES 22                              // ~0.36s between the two taps (comfortable on touch)
 #define KM_MOVE    0.02f                           // moved more than this = a drag, not a tap
-static int frame_no = 0;
-static struct { int used, cat, knob, gf, ltf; float gval; } kmeta[KM_N];
+// A NAMED type, not an inline anonymous struct: a per-instance context needs to declare this array
+// as a struct MEMBER, and a member cannot be given a type that was only ever spelled out at its one
+// declaration site. Naming it is what lets kmeta move with the rest of the state.
 static int kmeta_i(int cat, int knob) {
     for (int i = 0; i < KM_N; i++) if (kmeta[i].used && kmeta[i].cat == cat && kmeta[i].knob == knob) return i;
     for (int i = 0; i < KM_N; i++) if (!kmeta[i].used) {
@@ -261,7 +252,6 @@ static void km_release(int cat, int knob, float *v, float def) {   // ON RELEASE
 // ── RIG recall (Phase 3): named "legendary setups" that load the WHOLE board at once — which
 // pedals (with their default knobs, all switched on) AND the cabinet tenant/voicing. The cabinet
 // is the centrepiece each rig points at; the pedals just add the era flavour. Tweak after loading.
-static bool rig_open = false;
 typedef struct { const char *name, *sub; int n, cat[4]; int tenant, voicing, speed; float k0, k1; } Rig;
 #define NRIG 6
 static const Rig RIG[NRIG] = {
@@ -294,8 +284,6 @@ static const int OPEN[NSTR] = { 40, 45, 50, 55, 59, 64 };   // E A D G B E (low�
 // from the sounding str_midi[] for all 7 roots, which is what makes 154 hand-typed frets safe.
 #define FRET_MUTE (-1)
 #define PC(i) (1 << (i))                     // one interval, semitones above the root
-enum { TH_NONE, TH_MIN, TH_SUS4, TH_SUS2, TH_5, NTHIRD };   // the THIRDS group (none = major)
-enum { SV_NONE, SV_7, SV_MAJ7, NSEV };                      // the SEVENTH group
 typedef struct {
     int third, sev; bool add9;   // the button state this grip answers
     const char *suffix;          // appended to the root name: "m7", "9", "sus4" …
@@ -342,7 +330,6 @@ static const Grip GRIP[] = {
 };
 #define NGRIP ((int)(sizeof GRIP / sizeof GRIP[0]))
 static const int   ROOT_FRET[NROOT]   = { 0, 1, 3, 5, 7, 8, 10 };         // barre fret for E F G A B C D
-static const char *ROOT_NAME[NROOT]   = { "E", "F", "G", "A", "B", "C", "D" };
 static const char  ROOT_KEY[NROOT]    = { 'Z', 'X', 'C', 'V', 'B', 'N', 'M' };
 // Neck geometry. NFRETS is the highest the chord table can reach (root D = fret 10, + a shape
 // offset of 2), and FRET_W is DERIVED so all of them always land clear of the strum zone. It used
@@ -361,11 +348,6 @@ static const char  ROOT_KEY[NROOT]    = { 'Z', 'X', 'C', 'V', 'B', 'N', 'M' };
 // chord: maj rings all six strings (barre at fret 3 = G B D), where the "5" shape damps three of
 // them, so the old default led with a bare fifth AND with half the neck muted. It also puts dots
 // out at frets 3-5 instead of parking everything on the nut, so the fretboard shows what it does.
-static int  sel_third = TH_NONE;   // TH_NONE + SV_NONE + no add9 = plain major
-static int  sel_sev   = SV_NONE;
-static bool sel_add9  = false;
-static int  sel_root  = 2;   // ROOT_NAME[2]  = "G"  (ROOT_FRET 3)
-static int  str_midi[NSTR];
 
 // ── the chord state: three exclusive groups and one independent toggle ──
 // root       exactly one          (the barre position)
@@ -450,9 +432,6 @@ static bool qb_on(int i) {
 // button somebody just pressed.
 static bool qb_dim(int i) { return sel_third == TH_5 && QB[i].grp != PR_THIRD; }
 
-static float amp[NSTR];
-static float vib_ph[NSTR];
-static int   pend[NSTR];
 
 // AUTOPLAY STYLES. Was a bool. TRAVIS is Merle Travis's fingerstyle: the thumb keeps a metronomic
 // alternating bass on the low strings while the fingers pick syncopated notes BETWEEN those beats,
@@ -463,19 +442,11 @@ static int   pend[NSTR];
 // that defines the technique collapses.
 // It also demos a pedalboard better than strumming does: a constant bass gives delay/reverb
 // something to chew on, and the offbeat trebles expose modulation a chord-every-4-beats cannot.
-enum { AP_OFF, AP_STRUM, AP_TRAVIS };
-static const char *AP_NAME[3] = { "off", "strum", "travis" };
-static int   autoplay = AP_STRUM;
 // Has the player taken the HARMONY? Autoplay is really two players in one: a left hand walking a
 // chord progression and a right hand strumming/picking it. Touching a chord button fires the left
 // one and keeps the right — so Travis keeps rolling underneath while you change chords, which is the
 // whole point of having 154 of them. Only STRUMMING YOURSELF stops autoplay outright, because that
 // is the one gesture that collides with it: two right hands on the same six strings.
-static bool  ap_own_chord = false;
-static int   cart_bpm = 100;        // mirrors the bpm() call in init — the API has no getter
-static int   apos = 0;
-static bool  guitar_in = false;   // GUITAR IN: route the live mic THROUGH the built chain (input_monitor)
-static int   ap_gtr_in = -1;      // applied-state shadow — push input_monitor() only on a change (set-and-hold)
 
 // ── geometry ──
 // The top strip (bar + pedal chain) is FIXED-height and top-anchored; only WIDTH-dependent anchors
@@ -602,10 +573,6 @@ static void chain_move(int from, int to) {   // move element `from` to FINAL ind
 // strum, formant_tick() every frame easing the vowel toward its target and re-pushing only when it
 // moved (a swept vowel is the intended motion — a cheap coeff update, no buffer churn).
 static const int   FMT_WORD[6] = { 0, 2, 4, 2, 3, 1 };   // OO AH EE AH EH OH — the spoken "word"
-static float fmt_vowel = 0.5f, fmt_target = 0.5f, fmt_env = 0.0f;
-static int   fmt_step = 0;
-static float fmt_lfo_ph = 0.0f;                          // free-running LFO phase (LFO mode)
-static float fmt_last_v = -2.0f;
 static int   fmt_mode_of(Slot *sl) { return (int)(sl->k[3] * 3.99f); }   // k[3] 0..1 → 0/1/2/3
 static float fmt_live_vowel(Slot *sl) {
     int m = fmt_mode_of(sl);
@@ -787,8 +754,6 @@ static void apply_fx(void) {
 
 // ── per-contact pointer pool ── (declared before init so init() can PTR_CLEAR it)
 enum { PTR_IDLE, PTR_KNOB, PTR_PICK, PTR_DRAGSLOT, PTR_DRAGPAL, PTR_SCROLL, PTR_CABKNOB, PTR_PAN };
-typedef struct { int id, mode, slot, knob, cat, prevY, x, y; } Ptr;   // id MUST be first (pointer.h)
-static Ptr ptr[PTR_MAX];
 
 void init(void) {
     instrument(I_GTR, INSTR_GUITAR, 1, 0, 7, 1200);
@@ -1417,8 +1382,11 @@ static void draw_guitar(void) {
 static void draw_cabinet(void) {
     int x = CAB_X, cx = x + CAB_W / 2;
     int sel = cab_sel();
-    bool amp = (cab_tenant == CAB_AMP), none = (cab_tenant == CAB_NONE), rot = (cab_tenant == CAB_LESLIE);
-    int accent = amp ? AMP_VC[cab_voicing].col : none ? CLR_DARKER_GREY : CLR_LIGHT_GREY;
+    // is_amp, not `amp`: the file-scope `amp[NSTR]` (per-string amplitude) is a MUTABLE per-instance
+    // variable, and a local of the same name blocks it from moving into the cart's context — the
+    // access macro `#define amp (…)` would rewrite this declaration too. See docs/guides/cart-as-plugin.md.
+    bool is_amp = (cab_tenant == CAB_AMP), none = (cab_tenant == CAB_NONE), rot = (cab_tenant == CAB_LESLIE);
+    int accent = is_amp ? AMP_VC[cab_voicing].col : none ? CLR_DARKER_GREY : CLR_LIGHT_GREY;
     // "…into the amp". FONT_TINY and parked between the header and the first knob-label row: at the
     // old FONT_NORMAL/+33 it sat right on the last visible pedal's right-column label (ui-audit's
     // long-standing "DMP overlaps >").
@@ -1445,7 +1413,7 @@ static void draw_cabinet(void) {
     }
     int ky = PED_Y + (rot ? 42 : 46), kx0 = x + 15, kx1 = x + CAB_W - 15;   // rotary lifts the knobs:
                                                                             // the speed row needs the floor
-    const char *l0 = amp ? "GAIN" : "DRV", *l1 = amp ? "SAG" : "BAL";
+    const char *l0 = is_amp ? "GAIN" : "DRV", *l1 = is_amp ? "SAG" : "BAL";
     for (int j = 0; j < 2; j++) {
         int kx = j ? kx1 : kx0;
         bool turning = (drag_cat == KM_CAB && drag_knob == j);

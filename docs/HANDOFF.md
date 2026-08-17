@@ -86,10 +86,29 @@ a broken doc link or `#section`).
 > `SOUND_CART_CTX` moved into the generated `sound_ctx.h` and the parser still grepped `sound.h`, so
 > EVERY app build was dead at a message that blames the wrong file. Fixed (searches both homes).
 > Worth remembering: no gate in the repo runs `build-app.js --ios`, so the store path can be fatally
-> broken and green. **▶ NEXT: the upload itself is unrun** (`APP=tinyacidjam ./testflight.sh` without
-> `SKIP_UPLOAD`) — the maker's call, since it publishes a build. And the ICON warns that the mask cuts
-> real detail (bottom-right 45.4%): it is shaving the purple chassis border at the corners, legible
-> but uneven, `node tools/icon-mask.js preview apps/tinyacidjam/icon.png` to judge.
+> broken and green.
+>
+> **✅ SUBMITTED (2026-08-17): v1.0 is WAITING_FOR_REVIEW with build `202608162137`**, which carries
+> the AUv3. The 2.1.0 rejection was Apple's standard new-app "Information Needed" form, not a defect:
+> the seven answers now live in `apps/tinyacidjam/app.json` → `review.notes` (pushed by
+> `asc-push --review-contact`, which now REFUSES a notes body containing a placeholder — the previous
+> app's reply went out with a literal `[FILL IN …]` where the tested-devices answer belonged).
+> **▶ NEXT: nothing until Apple answers.**
+>
+> ⚠ **Three traps from getting there, each worth an hour to the next app.** (1) **ITMS-90473** after
+> the upload: the AU shipped `CFBundleVersion: 1` inside an app stamped with the build number, because
+> the app uses `GENERATE_INFOPLIST_FILE` (so the command-line `CURRENT_PROJECT_VERSION` reaches it)
+> while the AU has a hand-written plist, into which xcodegen bakes a LITERAL that no build setting can
+> override. Both specs now reference `$(CURRENT_PROJECT_VERSION)`; fixed AFTER the submitted build, so
+> it rides the next upload. (2) **QuickTime's iOS-device capture crashes on macOS 26.5.2** when the
+> device rotates — AVKit's floating playback controls throw inside their own KVO teardown, and the
+> crash log is 100% Apple frames with nothing of ours in it, so it reads like an app crash and is not.
+> Use OBS, source set to Transform → Fit to screen, or the app records at a quarter of the frame.
+> (3) **`device.sh` deployed to an OFFLINE iPad while the iPhone was plugged in** — devicectl lists
+> every device it ever paired with, the pick filtered on NAME, and a remembered iPad has one. Now
+> requires a live tunnel. And the ICON still cuts real detail (bottom-right 45.4%): it shaves the
+> purple chassis border at the corners, legible but uneven,
+> `node tools/icon-mask.js preview apps/tinyacidjam/icon.png` to judge.
 > Same section covers the identity gap the maker noticed (wrong names on deploy):
 > the app's bundle id / version / display name / icon ARE derived from the manifest, but the AU's
 > `CFBundleDisplayName`, its **component name** `Tinyjam: Demo` (the string a DAW lists) and the

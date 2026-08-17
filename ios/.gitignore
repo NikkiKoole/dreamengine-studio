@@ -31,3 +31,5 @@ au-transport-check
 rate-convert-check
 build-test/
 project-dev.yml
+# derived Mac Catalyst spec (ios/mac.sh output — project-mac.yml + the app's AU identity)
+project-mac-dev.yml

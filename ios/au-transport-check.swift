@@ -61,11 +61,33 @@ import AppKit
 // rather than guessing an import per build, the same technique that settled the CoreAudio one.
 import CoreAudioKit
 
-// ── the component we built (must match project-mac.yml's AudioComponents entry) ──
+// ── the component we built (must match the derived spec's AudioComponents entry) ──
+//
+// ⚠ FROM THE ENVIRONMENT, because the identity is DERIVED PER APP (ios/au-identity.sh) and these
+// two codes were hardcoded to Tiny Acid Jam's. That is not merely a stale default: with two of our
+// plug-ins registered on one machine, every gate below would instantiate `tacj`/`Mpla` and PASS
+// while the plug-in you had just built and were reasoning about was never loaded at all. A gate
+// that reports on a different binary than the one under test is worse than no gate. mac.sh exports
+// these; the defaults keep a bare `./au-transport-check` working as documented.
 func fourCC(_ s: String) -> OSType { s.utf8.reduce(0) { ($0 << 8) | OSType($1) } }
+func envCode(_ key: String, _ fallback: String) -> String {
+    guard let v = ProcessInfo.processInfo.environment[key], v.count == 4 else { return fallback }
+    return v
+}
+// The CARRIER is per-app too (its bundle id and product name are derived from the manifest, so two
+// of our plug-ins can be registered at once — see ios/au-identity.sh). Both of these used to be
+// hardcoded to the one shared `TinyjamMac` carrier, which is the same failure mode as the component
+// codes above: the gate would inspect whichever carrier happened to be installed rather than the one
+// just built, and pass or fail on a bundle nobody was asking about.
+func envStr(_ key: String, _ fallback: String) -> String {
+    guard let v = ProcessInfo.processInfo.environment[key], !v.isEmpty else { return fallback }
+    return v
+}
+let AU_SUBTYPE = envCode("AU_SUBTYPE", "tacj")
+let AU_MANUF   = envCode("AU_MANUF",   "Mpla")
 let desc = AudioComponentDescription(componentType: kAudioUnitType_MusicDevice,
-                                     componentSubType: fourCC("tacj"),
-                                     componentManufacturer: fourCC("Mpla"),
+                                     componentSubType: fourCC(AU_SUBTYPE),
+                                     componentManufacturer: fourCC(AU_MANUF),
                                      componentFlags: 0, componentFlagsMask: 0)
 
 let ENGINE_SR = 44100.0   // what the engine is COMPILED for; the baseline every rate is compared to
@@ -117,7 +139,7 @@ if argv.contains("--loadable") {
     }
     let appPath = { () -> String in
         if let i = argv.firstIndex(of: "--app"), i + 1 < argv.count { return argv[i + 1] }
-        return ("~/Applications/TinyjamMac.app" as NSString).expandingTildeInPath
+        return (envStr("AU_CARRIER_APP", "~/Applications/TinyjamMac.app") as NSString).expandingTildeInPath
     }()
     print("▸ can a native macOS host load our code? (\(appPath))")
     let plugIns = appPath + "/Contents/PlugIns"
@@ -199,7 +221,7 @@ if argv.contains("--loadable") {
 // app-extension has its own container, so without this every run boots from whatever the LAST run
 // left — the onset counts drift between runs and a gate that drifts is not a gate. It is also how a
 // silent state got stuck to the plug-in during the maker's play-test: worth knowing the path.
-let blob = ("~/Library/Containers/com.tinyjam.mac.AU/Data/cart.blob" as NSString).expandingTildeInPath
+let blob = ("~/Library/Containers/\(envStr("AU_APPEX_ID", "com.tinyjam.mac.AU"))/Data/cart.blob" as NSString).expandingTildeInPath
 try? FileManager.default.removeItem(atPath: blob)
 
 // ── instantiate the plug-in (out of process, as a real host does) ──
@@ -216,7 +238,7 @@ while !instantiated, Date() < deadline {
     RunLoop.main.run(mode: .default, before: Date().addingTimeInterval(0.05))
 }
 guard let avAU = au else {
-    print("✗ could not instantiate aumu/tacj/Mpla — is it registered? run: zsh ios/mac.sh")
+    print("✗ could not instantiate aumu/\(AU_SUBTYPE)/\(AU_MANUF) — is it registered? run: zsh ios/mac.sh")
     exit(1)
 }
 

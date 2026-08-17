@@ -4,8 +4,17 @@
 # AUv3 arc; the spec is project-mac.yml (separate from project.yml on purpose — see its header).
 #
 #   zsh ios/mac.sh                 # stage acidcandy → build → register → auval
-#   CART=epiano zsh ios/mac.sh     # a different cart in the plug-in
+#   APP=pedalboard zsh ios/mac.sh  # a DIFFERENT APP's plug-in: its cart AND its AU identity
+#   CART=epiano zsh ios/mac.sh     # a bare cart in the plug-in (keeps APP's identity)
+#   RESIZABLE=1 APP=… zsh ios/mac.sh   # let a resizable cart REFLOW to the host's panel size
 #   zsh ios/mac.sh --no-auval      # skip auval (still runs the host-transport gate)
+#
+# ⚠ THE AU IDENTITY IS DERIVED FROM AN APP MANIFEST (ios/au-identity.sh), like testflight.sh and
+# device.sh. This script was the LAST one hardcoding it: project-mac.yml's `tacj`/`Mpla` and a
+# `grep -i "tacj\|Tiny Acid Jam"` + `auval -v aumu tacj Mpla` further down. That is worse here than
+# a wrong name, because BOTH of those gates were pinned to Tiny Acid Jam's triple while `CART=` put
+# whatever you asked for inside it — so auditioning another cart registered it under Tiny Acid Jam's
+# FOREVER codes and then reported green on the wrong plug-in. APP= now picks both halves together.
 #   ios/au-transport-check --free  # the NEGATIVE CONTROL: no transport blocks, must fail
 #   ios/au-transport-check --loadable  # can a DAW load our code? (the gate GarageBand needed)
 #
@@ -23,11 +32,41 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-CART="${CART:-acidcandy}"
 WANT_AUVAL=1
 [ "${1:-}" = "--no-auval" ] && WANT_AUVAL=0
 
 command -v xcodegen >/dev/null || { echo "✗ need xcodegen (brew install xcodegen)"; exit 1; }
+
+# ── AU IDENTITY + CART, both from the app manifest ────────────────────────────────────────────────
+# APP defaults to tinyacidjam so a bare `zsh ios/mac.sh` behaves exactly as it did before this was
+# derived: acidcandy inside `aumu tacj Mpla` "Mipolai: Tiny Acid Jam". That default is the point —
+# it means the hardcoding could be removed without changing a single existing invocation.
+APP="${APP:-tinyacidjam}"
+[ -f "../apps/$APP/app.json" ] || { echo "✗ no such app manifest: apps/$APP/app.json"; exit 1; }
+. ./au-identity.sh
+au_identity_load "$APP" || exit 1
+au_carrier_load  "$APP" || exit 1
+# EXPORTED for au-transport-check, which addresses the plug-in by this triple and the carrier by these
+# paths, and used to hardcode all four — see the notes at the top of au-transport-check.swift for why a
+# stale default is not benign.
+export AU_SUBTYPE AU_MANUF
+export AU_CARRIER_APP="$CARRIER_APP_PATH" AU_APPEX_ID="$CARRIER_APPEX_ID"
+
+# The cart in the plug-in: the manifest's auCart, else its first cart, else an explicit CART=.
+# A single-cart app (pedalboard) sets no auCart, and for a LOCAL audition that should not be a
+# blocker — auCart is the STORE opt-in (testflight.sh strips the AU target without it), and the
+# question "is this worth shipping as a plug-in?" is exactly what you run this script to answer.
+AU_CART="$(node -p "require('../apps/$APP/app.json').auCart || require('../apps/$APP/app.json').carts[0] || ''")"
+CART="${CART:-$AU_CART}"
+[ -n "$CART" ] || { echo "✗ apps/$APP/app.json names no cart (auCart or carts[0])"; exit 1; }
+# ⚠ A MISMATCH IS THE BUG THIS SCRIPT USED TO HAVE SILENTLY, so say it out loud rather than refuse:
+# CART= over an app is legitimate (drop any cart into a known-good plug-in shell to isolate whether
+# a defect is the cart's or the AU's) — what is NOT acceptable is not KNOWING which cart the green
+# gates below just judged, or which name it went into the machine's AU registry under.
+if [ "$CART" != "$AU_CART" ]; then
+  echo "⚠ CART=$CART is NOT $APP's cart ($AU_CART) — it will register as \"$AU_NAME\" (aumu $AU_SUBTYPE $AU_MANUF)."
+  echo "  Every gate below judges '$CART' while wearing $APP's identity. Deliberate? fine. Otherwise use APP=."
+fi
 
 # Stage into gen/mac + gen/macau, NOT the iOS spec's gen/app + gen/au: those are shared with
 # whatever iOS build another agent is running in this tree, and gen/app can legitimately hold a
@@ -67,8 +106,26 @@ SW=$(echo "$DIMS" | cut -d" " -f1); SH=$(echo "$DIMS" | cut -d" " -f2)
 DEFS="\$(inherited) DE_NO_RAYLIB=1 SCALE=1 SCREEN_W=$SW SCREEN_H=$SH"
 echo "▸ cart dims ${SW}x${SH}"
 
+# REFLOW, via the shared rule rather than a fourth copy of it (ios/app-flags.sh). A plug-in panel is
+# the case that wants this most — §7 of docs/design/auv3-plugin-types.md: hosts resize the view to
+# arbitrary shapes, sometimes a short wide strip — and TinyjamAUViewController's preferredContentSize
+# is explicitly "a preference and not a constraint" because the cart is expected to reflow into it.
+# app-flags' orientation-vs-reflow conflict cannot arise here: DE_ORIENT is a UIKit lock on the
+# CARRIER APP's window, and the carrier is a throwaway that exists only to register the extension.
+. ./app-flags.sh
+DE_MIC_USAGE="$(node -p "require('../apps/$APP/app.json').micUsage || ''")"
+export DE_MIC_USAGE
+app_flags
+
+echo "▸ deriving Mac spec (project-mac-dev.yml) — project-mac.yml is never rewritten…"
+# A DERIVED COPY, exactly as device.sh does with project-dev.yml: the spec is shared by every app in
+# a tree several agents work in at once, so an in-place sed is both a foreign edit and a race.
+cp project-mac.yml project-mac-dev.yml
+au_identity_apply project-mac-dev.yml || exit 1
+au_carrier_apply  project-mac-dev.yml || exit 1
+
 echo "▸ generating TinyjamMac.xcodeproj…"
-xcodegen generate --spec project-mac.yml >/dev/null
+xcodegen generate --spec project-mac-dev.yml >/dev/null
 
 # REAL signing, not ad-hoc. macOS refuses to REGISTER an app extension from an ad-hoc-signed app:
 # the build succeeds, the .appex embeds, and the system then silently ignores it (codesign shows
@@ -84,14 +141,17 @@ xcodebuild -project TinyjamMac.xcodeproj -scheme TinyjamMac \
   -destination 'platform=macOS,variant=Mac Catalyst' -configuration "$CONFIG" \
   -derivedDataPath build-mac -allowProvisioningUpdates \
   GCC_PREPROCESSOR_DEFINITIONS="$DEFS" \
+  ${ORIENT_SETTINGS[@]+"${ORIENT_SETTINGS[@]}"} \
   DEVELOPMENT_TEAM="$TEAM" CODE_SIGN_STYLE=Automatic \
   build 2>&1 | tail -6
 
-APP="$(ls -d "build-mac/Build/Products/$CONFIG-maccatalyst/TinyjamMac.app" 2>/dev/null || true)"
-[ -n "$APP" ] || { echo "✗ no .app produced — see the build output above"; exit 1; }
-echo "▸ built $APP"
-if [ -d "$APP/Contents/PlugIns" ]; then
-  echo "▸ embedded plug-ins: $(ls "$APP/Contents/PlugIns")"
+# APP_BUNDLE, not APP: $APP is the app NAME (the manifest this build's identity came from) and
+# reusing it here used to be harmless only because nothing read the name again afterwards.
+APP_BUNDLE="$(ls -d "build-mac/Build/Products/$CONFIG-maccatalyst/$CARRIER_SLUG.app" 2>/dev/null || true)"
+[ -n "$APP_BUNDLE" ] || { echo "✗ no .app produced — see the build output above"; exit 1; }
+echo "▸ built $APP_BUNDLE"
+if [ -d "$APP_BUNDLE/Contents/PlugIns" ]; then
+  echo "▸ embedded plug-ins: $(ls "$APP_BUNDLE/Contents/PlugIns")"
 else
   echo "✗ no PlugIns/ in the bundle — the extension did not embed"; exit 1
 fi
@@ -99,18 +159,22 @@ fi
 # Install to ~/Applications before launching. Two reasons: `open` needs a real path (not `open -a`,
 # which takes an app NAME and fails with "Unable to find application named"), and macOS is far more
 # willing to register an app extension from a stable location than from deep inside derivedData.
-DEST="$HOME/Applications/TinyjamMac.app"
+# PER-APP DEST. This was ~/Applications/TinyjamMac.app for every app, with the rm -rf below, so each
+# build DEREGISTERED the previous app's plug-in — silently, and looking like the plug-in had broken.
+# The rm -rf stays (a stale bundle must not survive a rename inside it) but it now only ever destroys
+# THIS app's own carrier. See au_carrier_load in ios/au-identity.sh.
+DEST="$CARRIER_APP_PATH"
 echo "▸ installing → $DEST"
 mkdir -p "$HOME/Applications"
 rm -rf "$DEST"
-ditto "$APP" "$DEST"          # ditto, not cp -R: preserves the code signature
+ditto "$APP_BUNDLE" "$DEST"          # ditto, not cp -R: preserves the code signature
 echo "▸ launching once so macOS registers the extension…"
 open "$DEST" || { echo "✗ could not launch the carrier app"; exit 1; }
 sleep 8
-osascript -e 'tell application "TinyjamMac" to quit' >/dev/null 2>&1 || true
+osascript -e "tell application \"$CARRIER_SLUG\" to quit" >/dev/null 2>&1 || true
 
 echo "▸ is it in the Audio Unit registry?"
-if auval -a 2>/dev/null | grep -i "tacj\|Tiny Acid Jam"; then
+if auval -a 2>/dev/null | grep -F "$AU_SUBTYPE $AU_MANUF"; then
   echo "  ✓ registered"
 else
   echo "  ✗ NOT registered — macOS has not picked up the extension."
@@ -120,8 +184,8 @@ else
 fi
 
 if [ "$WANT_AUVAL" = "1" ]; then
-  echo "▸ auval -v aumu tacj Mpla  (Apple's validator)"
-  auval -v aumu tacj Mpla 2>&1 | tail -25
+  echo "▸ auval -v aumu $AU_SUBTYPE $AU_MANUF  (Apple's validator)"
+  auval -v aumu "$AU_SUBTYPE" "$AU_MANUF" 2>&1 | tail -25
 fi
 
 # HOST TRANSPORT gate. auval cannot cover this: it never SETS musicalContextBlock, so it only ever

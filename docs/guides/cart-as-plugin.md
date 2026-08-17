@@ -15,7 +15,9 @@
 1. **Is this cart worth a plug-in slot?** A plug-in competes on a shelf, and the type you declare
    decides which shelf. `auv3-plugin-types.md` §4 ranks the shapes. Get this wrong and the rest is
    wasted: `pedalboard` audition-passed every structural gate as an `aumu` while being unable to do
-   the one thing its name promises, because an instrument declares no audio input.
+   the one thing its name promises. The engine's audio-input capability ✓ SHIPS (`de_audio_input`,
+   `mic_start`, `input_monitor` — and its insert latency measures 0 samples); what an `aumu`
+   declares is no input BUS, so there is nothing for the host to hand it.
 2. **Will it survive being loaded twice?** Apple puts **every instance of one plug-in in a single
    process** — there is no setting that changes it. A cart is ONE translation unit, so without the
    work in Part 2, two DAW tracks share every `static` in the cart and in every header it includes.

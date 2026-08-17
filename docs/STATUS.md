@@ -15,6 +15,21 @@ _Last updated: 2026-07-30 — **Synth Secrets phases 1 + 2**: PIANO's dispersion
 
 ## Shipped ✓
 
+- **A CART CAN BE AN AUDIO EFFECT: `pedalboard` is an `aumf` a DAW inserts on a track** (2026-08-17).
+  The host's audio is pulled in the AU render block and pushed through `de_audio_input` into the ring
+  `input_monitor()` feeds the master insert chain — so a piano runs through the pedals. `auval -v aumf
+  tpdl Mpla` SUCCEEDS incl. effect render tests at 512/64/4096 frames and 11025–192000 Hz. Four things
+  came with it: the **insert latency measured 0 samples, constant** (`tools/insert-latency.js` + probe
+  cart `inslat`), which retired the caveat this was blocked on; **`pedalboard` went per-instance**
+  (43/43 statics via `ctx-gen --target cart`, byte-identical); the **carrier and component type are
+  derived per app**, after auditioning one plug-in silently deregistered another mid-review; and two
+  gates stopped lying (an effect renders silence in an instrument-only rig, which produced five
+  meaningless red checks and one green one passing *because* of the silence). ⚠ **OPEN: it is SILENT in
+  GarageBand** — loads, panel works, no audio through. One instance only (the extin ring is still
+  process-global). Defect + ranked diagnosis:
+  [`design/auv3-plugin-types.md` §4.1b](design/auv3-plugin-types.md#41b-open-defect-it-loads-the-panel-works-and-no-audio-comes-through);
+  runbook: [`guides/cart-as-plugin.md`](guides/cart-as-plugin.md).
+
 - **THE STORE PATH IS GATED, and it was fatally broken while every check was green** (2026-08-17).
   Nothing in the repo ran `build-app.js` — only a human about to ship did — so when `SOUND_CART_CTX`
   moved into the generated `sound_ctx.h`, **every app build died** for weeks behind a clean health

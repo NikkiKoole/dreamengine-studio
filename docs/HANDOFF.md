@@ -42,6 +42,57 @@ a broken doc link or `#section`).
 > What a reader needs to *choose* a lane is in the front-door output; what they need to *resume*
 > one is in the lane itself. A summary in between is a third copy, and it is the copy nobody
 > updates. If you find yourself writing one again, teach `handoff.js` to print it instead.
+> **▶ ACTIVE THREAD (2026-08-17) — `pedalboard` AS AN AUDIO EFFECT (`aumf`): it loads in GarageBand, the panel works, and NO SOUND COMES THROUGH.**
+>
+> The §4.1 spike, built and half-landed in one session. **Pick up at the defect, not the design** —
+> the design question is settled and the build is done; what is left is one diagnosis.
+>
+> **✅ SHIPPED (5 commits, `f62d4e64`..`8ef2c99e`).**
+> 1. **Per-app CARRIER + identity** — auditioning pedalboard on macOS silently DEREGISTERED the Tiny
+>    Acid Jam plug-in mid-review, because `project-mac.yml` hardcoded one carrier (`com.tinyjam.mac`,
+>    product `TinyjamMac`) for every app and `mac.sh` installed it to one path with an `rm -rf`.
+>    Renaming the `.app` would not have fixed it — LaunchServices keys by BUNDLE ID. Both derived now;
+>    `TinyAcidJamMac.app` and `TinyPedalboardMac.app` coexist and both register.
+> 2. **`pedalboard` is per-instance** — 43/43 mutable statics into generated `runtime/pedalboard_state.h`
+>    via `ctx-gen.js --target cart` + `#define DE_CART_CTX`. Byte-identical at every stage.
+> 3. **Insert latency MEASURED: 0 samples, constant, unity gain** (`tools/insert-latency.js`, probe cart
+>    `inslat`, `--check` 10/10). This retired §8 Q1 and promoted Q2 to the real blocker.
+> 4. **`aumf` WIRED** — `"auType"` derived per app (so an effect app and an instrument app share the
+>    specs without re-typing each other), input bus declared when the unit's own componentType is an
+>    effect, render block pulls host audio → `de_audio_input` BEFORE rendering. `auval -v aumf tpdl Mpla`
+>    SUCCEEDS incl. effect render tests at 512/64/4096 frames and 11025–192000 Hz.
+> 5. **Two gates stopped lying** — `au-transport-check`'s rig feeds an effect no input, so it rendered
+>    silence: 5 red checks that meant nothing plus one GREEN ("STOPS when the host stops") passing
+>    BECAUSE of the silence. Transport + `--panel` now SKIP for effect types; verified both directions
+>    (instrument still passes, 16 onsets peak 0.607).
+>
+> **▶ THE ONE OPEN THING.** In GarageBand the plug-in appears under the E-Piano, the panel draws,
+> `GTR: IN` is lit, `AUTO` is `off` — and playing the piano is SILENT. Because AUTO is off the cart
+> makes no sound of its own, so the monitored input is the only possible source: this is a clean
+> signal, not a mix problem. `auval` passing its effect render tests means pull→ring→output works
+> *somewhere*, so the fault is between GarageBand and that path.
+> **Start with the cheap split:** add a `deDiag` counter for pull failures + the peak of `inMono`, read
+> it with `/usr/bin/log show --last 2m --predicate 'eventMessage CONTAINS "[tinyjam]"'` (⚠ `/usr/bin/log` —
+> zsh shadows `log`). That separates "the host never gave us audio" from "we got it and lost it", which
+> have disjoint fixes. Second suspect: `GTR: IN` lit only proves the cart's flag flipped; the cart is
+> set-and-hold via an `ap_gtr_in` shadow, so anything zeroing `extin_mon_gain` after it applied
+> (`sound.h:8334` does that in a reset path) leaves a lit lamp over a dead monitor.
+>
+> ⚠ **ONE INSTANCE ONLY** — the extin ring is still process-global (`sound_extin[]`/`extin_w`/`extin_r`/
+> `extin_on` did NOT move; only `extin_mon_on`/`_gain` did), and it is single-producer/single-consumer,
+> so two effect instances garble each other at ANY rate. Fix that group before shipping an effect.
+> ⚠ **The component TYPE is part of the FOREVER triple.** pedalboard could be typed freely only because
+> it has never shipped a plug-in — its manifest still sets **no `auCart`**, so nothing goes to the store
+> yet. Decide before the first upload.
+> ⚠ **iOS untouched** — Mac Catalyst only. And `auval` is not a DAW: nothing here was judged by ear.
+> ⚠ **Quit the DAW before rebuilding a plug-in.** A hot swap makes GarageBand show "An Audio Unit
+> plug-in reported a problem", which is indistinguishable from a real crash (verified benign that
+> time: no `.ips` anywhere, and the unified log showed only clean teardowns).
+>
+> **Hot files:** `ios/AU/TinyjamAU.swift`, `ios/au-identity.sh`, `ios/mac.sh`, `ios/au-transport-check.swift`.
+> **Runbook for all of this:** [`guides/cart-as-plugin.md`](guides/cart-as-plugin.md).
+> **Resume-at:** [`design/auv3-plugin-types.md` → §4.1b OPEN DEFECT](design/auv3-plugin-types.md#41b-open-defect-it-loads-the-panel-works-and-no-audio-comes-through)
+
 > **▶ ACTIVE THREAD (2026-08-15) — THE OTHER FOUR PLUG-IN SHAPES: we ship `aumu` and the ecosystem has five.**
 >
 > A survey, not built work. The AUv3 lane below got `acidcandy` behaving as an INSTRUMENT

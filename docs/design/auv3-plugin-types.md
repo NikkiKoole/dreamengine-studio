@@ -139,8 +139,10 @@ bookkeeping. The cart side is **zero**: `mout_on` already gates it and the patte
 
 ## §4 The three product shapes, ranked
 
-### §4.1 `aumf`, not `aufx` — ✅ WIRED ON macOS (2026-08-17)
+### §4.1 `aumf`, not `aufx`
 
+> **STATUS: WIRED on macOS 2026-08-17, and SILENT IN GARAGEBAND — see §4.1b below for the defect.**
+>
 > **The spike landed.** `apps/pedalboard` declares `"auType": "aumf"` (derived per app by
 > `ios/au-identity.sh`, so an effect app and an instrument app share `project.yml`/`project-mac.yml`
 > without re-typing each other), `TinyjamAU` declares an input bus when its own
@@ -165,6 +167,47 @@ If we do the input bus at all, declare `aumf`. Same wiring cost, strictly more u
 host's audio *and* its notes, which is what makes "the visuals know what the track is playing"
 possible rather than only "the visuals react to loudness". `pedalboard` becomes an insert effect,
 which matters because it is already an app in review.
+
+### §4.1b OPEN DEFECT: it loads, the panel works, and no audio comes through
+
+**Observed by the maker, 2026-08-17, GarageBand on macOS.** Tiny Pedalboard appears in the track's
+Plug-ins list under the E-Piano, the panel draws at a sensible size, `GTR: IN` is lit and `AUTO` is
+`off` — and playing the piano produces **silence**.
+
+**What this rules out**, which is most of the surface:
+
+- `aumf` is visible to GarageBand and instantiable by it (the risk we thought was likeliest — dead).
+- The view/panel path works in a real host, which no gate here could prove.
+- The audio path itself is sound: `auval -v aumf tpdl Mpla` SUCCEEDS including effect render tests at
+  512/64/4096 frames and 11025–192000 Hz. **auval feeds real input**, so pull → ring → output demonstrably
+  works *somewhere*.
+
+**Why the symptom is clean rather than muddy:** with `AUTO: off` the cart generates nothing of its own,
+so the monitored input is the ONLY possible sound. Silence means the input is not arriving at the
+output — it is not masking or mixing confusion.
+
+**Diagnose in this order.** The first two are cheap and would settle it:
+
+1. **Is the input pull succeeding?** The render block skips silently when
+   `pull(...) != noErr`, which produces exactly this symptom and says nothing. Add a `deDiag` counter
+   (pull failures, and the peak of `inMono`) and read it back with
+   `/usr/bin/log show --last 2m --predicate 'eventMessage CONTAINS "[tinyjam]"'` — note `/usr/bin/log`,
+   because zsh shadows `log` (CLAUDE.md). **This is the highest-value next step**: it splits "the host
+   never gave us audio" from "we got audio and lost it downstream", and those have disjoint fixes.
+2. **Did `input_monitor` actually take in THIS instance?** `GTR: IN` lit only proves the cart's own
+   `guitar_in` flag flipped. The cart is set-and-hold via an `ap_gtr_in` shadow, so if anything zeroed
+   `extin_mon_gain` after the cart applied it (`sound.h:8334` does exactly that in a reset path), the
+   cart would never re-apply and the lamp would stay lit over a dead monitor. Trace `extin_mon_on` /
+   `extin_mon_gain` / `extin_on` in the plug-in instance.
+3. **Rate mismatch.** We pass the host's rate to `de_audio_input`, and `mic_input_push` resamples when
+   it differs from 44.1k. Check GarageBand's actual rate; if it is 48k, the resampler path is running
+   and `rs_q`/`rs_prev` are in play.
+4. **Ordering.** The pull sits before the render deliberately (that is what makes latency 0), but the
+   engine renders in whole 735-sample cart frames while GarageBand hands us its own block size. The
+   ring should absorb it — verify it is not systematically underrunning and returning `0.0f`.
+
+⚠ **Do not conclude anything from `au-transport-check`** here: its rig gives an effect no input, so it
+renders silence by construction. Both it and `--panel` now SKIP for effect types for that reason.
 
 ### §4.2 The `aumi` sequencer, the sleeper
 

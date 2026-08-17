@@ -205,6 +205,16 @@ output — it is not masking or mixing confusion.
 4. **Ordering.** The pull sits before the render deliberately (that is what makes latency 0), but the
    engine renders in whole 735-sample cart frames while GarageBand hands us its own block size. The
    ring should absorb it — verify it is not systematically underrunning and returning `0.0f`.
+5. **CHANNEL COUNT — a concrete cause for suspect 1, and the one with real evidence behind it.**
+   `auval` warned *"Can Initialize Unit to un-supported num channels: InputChan:4, OutputChan:5"*: we
+   ACCEPT layouts we do not support, because the AU implements no channel-capability restriction. The
+   render block allocates `AudioBufferList.allocate(maximumBuffers: 2)` and assumes two mono buffers
+   (`inABL.count >= 2` → average, else copy channel 0). If GarageBand negotiates anything other than
+   2-channel deinterleaved, the pull can fail into a buffer list that cannot hold what the host wants
+   to write — **and a failed pull is skipped silently**, which is exactly the observed symptom.
+   Fixing it properly means declaring channel capabilities so a host cannot negotiate a layout we
+   mishandle, rather than widening the buffer and hoping. Log `inABL.count` and the negotiated input
+   bus format alongside suspect 1's counter and this either falls out immediately or is eliminated.
 
 ⚠ **Do not conclude anything from `au-transport-check`** here: its rig gives an effect no input, so it
 renders silence by construction. Both it and `--panel` now SKIP for effect types for that reason.

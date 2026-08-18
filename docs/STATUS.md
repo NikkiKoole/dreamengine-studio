@@ -24,9 +24,16 @@ _Last updated: 2026-08-17 — **Tiny Pedalboard is LIVE on the App Store** (1.1 
   (43/43 statics via `ctx-gen --target cart`, byte-identical); the **carrier and component type are
   derived per app**, after auditioning one plug-in silently deregistered another mid-review; and two
   gates stopped lying (an effect renders silence in an instrument-only rig, which produced five
-  meaningless red checks and one green one passing *because* of the silence). ⚠ **OPEN: it is SILENT in
-  GarageBand** — loads, panel works, no audio through. One instance only (the extin ring is still
-  process-global). Defect + ranked diagnosis:
+  meaningless red checks and one green one passing *because* of the silence). ✅ **AND IT PASSES AUDIO
+  (2026-08-18, maker-verified in GarageBand):** a piano track runs through the pedal chain, probe
+  reading `peak 0.26050` and tracking the playing. The silence was OURS — `mData` is an IN-OUT field,
+  we offered the host our scratch buffer, the host pointed `mData` at its own memory (legal, and how
+  no-copy rendering works), and we read our scratch back. Fresh pages are kernel-zeroed, so we fed the
+  engine perfect silence with every counter green. ⚠ `GTR: IN` must be switched on (`input_monitor()`
+  boots off), and an insert reaches the 9 pedals, the amp DRIVE/GLUE and the Leslie but **not** the
+  amp's EQ/TIMBRE nor the FUZZ, which are per-voice — a design call, §4.1c. One instance only (the
+  extin ring is still process-global). Still open: why the chain was DRY at boot until a control was
+  touched (`apply_fx` is set-and-hold; probe in place). The find + the method:
   [`design/auv3-plugin-types.md` §4.1b](design/auv3-plugin-types.md#41b-open-defect-it-loads-the-panel-works-and-no-audio-comes-through);
   runbook: [`guides/cart-as-plugin.md`](guides/cart-as-plugin.md).
 - **TINY PEDALBOARD IS LIVE ON THE APP STORE — the first thing built here a stranger can buy**

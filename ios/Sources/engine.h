@@ -60,6 +60,7 @@ void            de_audio_render(DeInstance *in, float *out, int frames);
 // routing that decision changes, and so do these three lines.
 void de_audio_input(const float *mono, int n, int sample_rate);  // seam-lint-ignore: one capture device per process
 int  de_fx_chain_probe(int bus, int *kinds, int max);            // seam-lint-ignore: diagnostic, reads the active context (§4.1c) — remove with the diagnosis
+int  de_sound_dropped(void);                                     // seam-lint-ignore: diagnostic — requests lost to a full queue (silent in an AU)
 int  de_mic_wanted(void);                                        // seam-lint-ignore: one capture device per process
 void de_mic_set_active(int on);                                  // seam-lint-ignore: one capture device per process
 

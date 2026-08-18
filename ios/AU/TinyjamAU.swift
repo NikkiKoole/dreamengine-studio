@@ -630,7 +630,8 @@ public final class TinyjamAU: AUAudioUnit {
             let cn = kinds.withUnsafeMutableBufferPointer { de_fx_chain_probe(0, $0.baseAddress, 16) }
             var list = ""
             if cn > 0 { for i in 0..<Int(min(cn, 16)) { list += (i == 0 ? "" : ",") + String(kinds[i]) } }
-            deDiag("[tinyjam] FXCHAIN · bus 0 holds \(cn) insert(s)" + (cn > 0 ? " · kinds \(list)" : " · EMPTY"))
+            deDiag("[tinyjam] FXCHAIN · bus 0 holds \(cn) insert(s)" + (cn > 0 ? " · kinds \(list)" : " · EMPTY")
+                   + " · dropped \(de_sound_dropped())")
         }
         t.resume()
         inDiagTimer = t

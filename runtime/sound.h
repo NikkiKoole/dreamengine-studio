@@ -7749,6 +7749,12 @@ int sound_fx_chain_probe(int bus, int *kinds, int max) {
     for (int i = 0; i < n && i < max; i++) kinds[i] = insert_order[bus][i];
     return n;
 }
+// The OTHER silent way a cart's fx never arrive: the request queue was full and the push was
+// DROPPED. sound_tick() screams about this through printh, which reaches the editor log and the
+// bake output — and NOTHING in an AUv3, where stdout goes nowhere. So a plug-in can lose every
+// effect it configured and look exactly like a plug-in that configured none. Same reading, same
+// line, one test.
+int sound_dropped_probe(void) { return atomic_load_explicit(&sound_dropped, memory_order_relaxed); }
 void autotune_mic(int root, int scale, float amount) {   // LIVE streaming auto-tune of the mic (needs mic_start)
     sound_push_ctrl(SR_AUTOTUNE_MIC, (int)(amount * 1000.0f), root, scale, 0, 0, 0);
 }

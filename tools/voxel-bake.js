@@ -65,11 +65,13 @@
 //                    the note on sheet size below) and exit
 //   --json           machine-readable report on stdout
 //
-// SHEET SIZE, THE THING THAT WILL BITE. make-cart.js bakes a cart's sheet at a
-// hard-coded 128×128 (8×8 grid of 16×16 slots) and DROPS any slot index >= 64, so a
-// generator cart cannot currently ship a wider atlas — even though the runtime handles
-// it fine (`cols` is derived from the loaded sheet's real width, and sspr() addresses
-// any sub-rect). This tool therefore reports total atlas pixels so the decision to widen
+// SHEET SIZE, THE THING THAT WILL BITE — LESS THAN IT DID. make-cart.js DEFAULTS a cart's
+// sheet to 128×128 (8×8 grid of 16×16 slots) and drops any slot index >= 64, BUT since
+// 2026-08-12 a `.cart.js` may declare a bigger one (`sheet: {w,h}`, or `sheet: 256` for
+// square) and the cap scales with it. So a generator cart CAN ship a wider atlas; the
+// sprite editor still assumes the 8×8 grid, so this is a generator-only escape. The runtime
+// was never the limit (`cols` is derived from the loaded sheet's real width, and sspr()
+// addresses any sub-rect). This tool reports total atlas pixels so the decision to widen
 // that cap is made against a measurement instead of an estimate. 128×128 = 16384 px.
 'use strict'
 

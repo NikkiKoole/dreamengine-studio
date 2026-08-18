@@ -20,10 +20,11 @@ writes the actual `tools/carts/<name>.c` (+ `.cart.js`).
 ### Building many in parallel
 
 The whole point of the spec/brief split is to fan a batch out across many agents at once.
-Two ways, same shape — every agent **builds its cart fully but skips the two shared-file
-steps that race the others** (the `--run` thumbnail bake + the `index.json` edit), and a
-**coordinator does those serially** at the end to avoid clobbering the shared `build/`
-dir and `index.json`.
+Two ways, same shape — every agent **builds its cart fully but skips the one shared-file step
+that races the others** (the `--run` thumbnail bake, which fights over the shared `build/` dir),
+and a **coordinator does that serially** at the end. *(It used to be two steps: `index.json` was
+hand-merged by the coordinator. Since 2026-06-29 the index is GENERATED from each cart's
+`de:meta` block, so a cart's metadata touches only its own `.c` and that race is gone.)*
 
 - **By hand (copy-paste):** paste [`AGENT-MESSAGE.md`](AGENT-MESSAGE.md) into each session
   alongside its `brief + spec`. It instructs the session to build, run only the
@@ -41,7 +42,7 @@ dir and `index.json`.
   locked slice + which exemplar carts to read) and assembles each agent's prompt from the
   brief. When the fan-out returns, the **main loop becomes the coordinator**: bake each
   `--run` thumbnail serially (fixing any compile error — this is where they surface, since
-  CREATE doesn't compile) and merge the validated entries into `index.json`.
+  CREATE doesn't compile) and regenerate `index.json` with `node tools/build-cart-index.js`.
 
   Why the bake stays serial in the main loop, not in the workflow: `--run` fights over the
   shared `build/` dir, and compile-error fixing wants real read/edit/retry reasoning. (If

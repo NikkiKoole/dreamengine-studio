@@ -3,7 +3,7 @@
 STATUS: EXPLORING (gap ledger) — genre-true ideals vs what we built, per station and aggregated; a ledger of opportunities.
 
 What would a *genre-true* version of each radio station need, what did we actually
-build, and where are the holes? This is a gap analysis across all 20 stations on
+build, and where are the holes? This is a gap analysis across the **first 20** stations on
 [`runtime/radio.h`](../../runtime/radio.h) — design exploration, not a how-to.
 
 > **Genre: design exploration.** A ledger of *opportunities*, not a bug list. The

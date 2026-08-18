@@ -43,7 +43,7 @@ A console for building **deep, honest simulations hidden behind a humble lo-fi /
   pick this up and want to keep touching it?" is the test that guards legibility and delight
   ([decision 0022](decisions/0022-collaboration-is-the-north-star.md)). Retired as an *audience*,
   retained as a *yardstick*.
-- **Platform:** native desktop done (Electron + clang). Browser sharing target and iPad runtime are still future work — the editor renders in a browser tab but ▶ run currently needs Electron because it spawns the compiler. Touch input (`stick_x/y`, `tap`, on-screen stick + A/B) is already wired in the runtime to make the iPad path easier later.
+- **Platform:** native desktop (Electron + clang), the **wasm gallery** and **iOS/iPadOS** all ship — a cart built here is on the App Store. Android is in spikes. The editor renders in a browser tab but ▶ run needs Electron because it spawns the compiler. Touch input (`stick_x/y`, `tap`, on-screen stick + A/B), `safe_rect()`, `device_class()` and reflow layout are all wired. *(This line read "browser sharing target and iPad runtime are still future work" until 2026-08-18.)*
 - **Constraints — two kinds, justified differently** ([0022](decisions/0022-collaboration-is-the-north-star.md) split a bundle the docs used to cross-justify):
   - **Aesthetic constraints — KEPT, as deliberate art direction.** Fixed resolution (320×200),
     32-colour palette, 8 sound voices, the lo-fi SNES skin. Justified by *legibility of the
@@ -65,7 +65,8 @@ demoted the pedagogical constraints from rules to breakable defaults). It's a cl
 to build a contained cart and almost every cart wants it; break it (`#include`, a heap, a raw-loop
 opt-out) when a specific honest sim genuinely needs to, not out of principle.
 
-The API has grown well past the original "~20 functions" sketch — currently ~120 functions plus
+The API has grown well past the original "~20 functions" sketch — run `node tools/api-usage.js`
+for the live count rather than trusting prose (396 functions at the last count) plus
 ~80 constants, organised into sections (graphics, input, touch, sound, map, utility, palette,
 screen). **It can grow toward what we actually reach for** — the old "prune it if it gets
 overwhelming" instinct was beginner-protection (now retired as an audience); the size is fine

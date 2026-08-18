@@ -6,9 +6,11 @@ density field + tensor-field arterials + per-district minor fill, **calibrated t
 Rotterdam** — `sndi-check --compare` PASSES 0/8, five metrics dead-on). The remaining SNDi gaps
 (deg-4+/deg-3 split, circuity, sinuosity) are a **structural ceiling** — the arterial tensor-field's
 pure X-crossings + straight minor segments — needing an **arterial-junction pass** (stagger crossings
-into Ts, curve minors), which is rung-3-adjacent / folds into rung 6, not rung-5 tuning. Next: rung
-5.5 (extract `citygen.h`, wire into the spine so sloop *drives* generated cities), then rung 6
-(junction emission) which absorbs the arterial-junction work. Rungs expand Track-A items A2–A4 of
+into Ts, curve minors), which is rung-3-adjacent / folds into rung 6, not rung-5 tuning.
+**Rungs 0-6 SHIPPED** (2026-07-10), plus rung 7's buildings: `citygen.h` is extracted, sloop
+DRIVES a generated city on `M`, and junction emission landed. The one thing left in rung 5.5 is
+the **infinite-world reconciliation** — making `wn_road_at` fall through to `citygen_road_at` so
+the N-spine and the M-city are one world (see §Rung 5.5 "Still open"). Rungs expand Track-A items A2–A4 of
 [`driving-world-program.md`](driving-world-program.md)'s sequenced build order.
 
 The plan of attack for closing the program's named gap: **we don't yet have *realistic* procedural

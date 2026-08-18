@@ -8,8 +8,10 @@
 // scene is mirror-symmetric (e.g. streetlab's default 4-way junction about x=160) should
 // be pixel-symmetric too. It isn't — that's the ≤1px corner floor the road docs accept
 // (docs/design/road-program-state.md "Accepted floor", streetlab.c §SEAM). This tool
-// MEASURES that floor and, once the symmetric-corner mirror-blit fix lands
-// (docs/design/streetlab-corner-symmetry-plan.md), GATES it back to zero.
+// MEASURES that floor and GATES it. The symmetric-corner mirror-blit fix LANDED 2026-06-23
+// (docs/design/streetlab-corner-symmetry-plan.md: mirror_blit() in streetlab.c took the kerb band
+// from 7 mismatches to 0), so `--band 20,110 --quiet` gates that band at zero today; use
+// `--expect <n>` for a residual you have accepted elsewhere.
 //
 // Promoted from the throwaway pngdiff.js prototype written during the arcsym
 // investigation (the cart `arcsym` is the petri-dish demo of the same mechanism).

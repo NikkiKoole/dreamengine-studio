@@ -165,5 +165,5 @@ proportionate answer.
 
 ## See also
 - [`../../tools/stale-doc-check.js`](../../tools/stale-doc-check.js) — the checker (header = full contract)
-- [`api-usage-audit.md`](api-usage-audit.md), [`worldgen-plan.md`](worldgen-plan.md), `apps/tinyjam/seo-brief.md` — the currently registered driftable docs ([`teaching-gaps.md`](teaching-gaps.md) no longer carries a marker)
+- the currently registered driftable docs — **run `node tools/stale-doc-check.js --driftable`**, which prints them with their freshness. (Hand-listing them here went stale immediately: the list read three when there were four. [`teaching-gaps.md`](teaching-gaps.md) no longer carries a marker.)
 - [`../guides/checks-and-oracles.md`](../guides/checks-and-oracles.md) — the task→gate reverse index

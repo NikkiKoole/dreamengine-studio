@@ -25,6 +25,11 @@
 // ============================================================================
 
 const CAPS = [
+  // blend was ABSENT until 2026-08-18, which is why STATUS.md could carry "a real capability
+  // dreamengine lacks" about a shipped, 24-cart-deep draw primitive and lint-capability-claims
+  // stayed green. A capability missing from this roster is invisible to the linter.
+  { cap: "blend",      proof: "blend",            words: ["blend table", "blend tables"],
+    wire: ["blend", "blend_reset"] },
   { cap: "reverb",     proof: "reverb",           words: ["reverb"],
     wire: ["reverb", "instrument_reverb", "reverb_bus", "reverb_insert", "reverb_spring"] },
   { cap: "chorus",     proof: "chorus",           words: ["chorus"] },

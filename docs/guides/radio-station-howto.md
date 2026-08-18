@@ -8,8 +8,10 @@ Follow it top to bottom; don't skip ahead (Phase 0 exists because the natural in
 
 > **What a station IS:** an *auto-composing* cart built on [`radio.h`](../../runtime/radio.h)
 > — it plays itself forever from a seed, and the player tunes it (SPACE = new song, feel/
-> tempo/tone knobs, the B band panel). Twenty-one ship today; the newest, **`afrobeat.c`**,
-> is the worked example referenced throughout below.
+> tempo/tone knobs, the B band panel). **36 ship today** (`node tools/collections.js radio` for the
+> live list — re-derive it rather than trusting a number here). **`afrobeat.c`** is the worked
+> example referenced throughout below; it is no longer the newest, so also look at `modaljazz`
+> (the first modal-generating station) and the ARTIST-station pattern in `thexx`/`plaid`.
 
 > **Key term — a "brain":** the family's word for one *reusable unit of generative logic*.
 > A station isn't a monolith; it's a **pick of interchangeable brains** — a **chord brain**
@@ -39,8 +41,8 @@ synth kit copied into 6 stations, every piano faked on TRI, near-clone basses). 
 cousin in Phase 3 — but only for its *wiring*, never before you've designed your own band.
 
 → The why, in full: [`cart-authoring-prompt.md`](cart-authoring-prompt.md) §"Designing a
-sound cart's voices — intent-first, then shop". The cost of skipping it, measured across all
-21 stations: [`../design/radio-genre-fidelity.md`](../design/radio-genre-fidelity.md).
+sound cart's voices — intent-first, then shop". The cost of skipping it, measured across the
+first 20 stations: [`../design/radio-genre-fidelity.md`](../design/radio-genre-fidelity.md).
 
 ## Phase 1 — Design the band BLIND
 
@@ -134,9 +136,11 @@ Then prove the brains actually fire (don't trust a clean compile):
 
 ## Phase 6 — Register + keep the recipe docs current (a rule, not a nicety)
 
-1. **Register** — add a tagged entry (`kind:["toy","instrument"]` + `homage`) to
-   `editor/public/carts/index.json`; `node tools/lint-carts.js`. *(Shared file — check it's
-   not dirty with another agent's edits first; CLAUDE.md hazard #2.)*
+1. **Register** — write the `de:meta` block at the top of your `tools/carts/<name>.c`
+   (`kind:["toy","instrument"]` + `homage` + `slug` + `created` + `teaches`); `make-cart.js`
+   REGENERATES `editor/public/carts/index.json` from it, so never hand-edit that file. Then
+   `node tools/lint-carts.js`. *(This used to be a hand-edit of the shared index, which is what
+   CLAUDE.md hazard #2 was about; generating it killed that conflict.)*
 2. **Chart it** — add the station's voice chart (slot → role → preset → engine) to
    [`radio-voices.md`](radio-voices.md).
 3. **Name the recipes** — new presets + **used by** lines in

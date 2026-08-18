@@ -1,6 +1,6 @@
 # Future radio stations — the parking lot
 
-STATUS: EXPLORING — candidate radio stations ranked by engine fit/demand; 20 shipped, directions noted for the next batch.
+STATUS: EXPLORING — candidate radio stations ranked by engine fit/demand; **36 stations ship** (this doc's ranking was written at 20), directions noted for the next batch.
 
 Candidate stations for the radio family, ranked by engine fit, the citypop
 conditions, and "what does the engine LEARN from this cart" — plus the IDM and
@@ -38,7 +38,7 @@ This is the station-side mirror of the instrument new-sound score in
 | ✅ shipped | ~~**Afrobeat**~~ → `afrobeat.c` | delivered all three: first radio `INSTR_GUITAR` (the interlocking guitars) + first radio `INSTR_BRASS` & a `REED`+`BRASS` horn section + the `euclid()` polyrhythm bell/conga. The prediction held. |
 | ✅ shipped | ~~**Mariachi / son jalisciense**~~ → `mariachi.c` | **first radio `INSTR_BOWED`** (the violin section, with a portamento scoop) + `INSTR_BRASS` trumpet call-and-response + `INSTR_GUITAR` ×3 (vihuela/guitarra/guitarrón). New brain: **THE SESQUIALTERA** — a TIME brain reading one 12-step bar as 6/8 and 3/4 at once (2-against-3 hemiola). |
 | ✅ shipped | ~~**AIR / Moon Safari**~~ → `air.c` | **first radio melodic `INSTR_VOICE`** (vocoder lead) + first radio `INSTR_PIPE` flute. New brain: **the ARTIST station / SONG-ARCHETYPE roll** — cited tracks encoded as template bundles (progression + groove + tempo + lead voice + form), so the dial plays recognizably different songs *of one act*, not one re-keyed texture. |
-| ★★☆☆☆ | **J-fusion / Lofi-hiphop / Boards of Canada** | mostly covered engine territory (FM/EPIANO/saws); the *new* is brains (mistuning, swing), not timbre |
+| ★★☆☆☆ | **J-fusion / ~~Lofi-hiphop~~ / Boards of Canada** (lofi ✅ shipped as `lofi.c`) | mostly covered engine territory (FM/EPIANO/saws); the *new* is brains (mistuning, swing), not timbre |
 
 So the newest demand rhymes with the instrument finding: the candidates that need the
 **untapped engines** top the list. Pair this with the **intent-first voice brief** in
@@ -215,8 +215,9 @@ and Sakamoto unprompted.
   **Now even cheaper: `eno.c` shipped the coprime-loop phasing form brain** — Reich
   is that brain applied to a repeating melodic CELL (not held single notes) with a
   step grid, so it's a re-skin of eno's loop engine + a pattern.
-- **Lofi hip-hop jazz** — still in game-music's style cheat-sheet; most of its parts
-  (swing, rhodes, crackle, groove template) now exist across other carts.
+- ~~**Lofi hip-hop jazz**~~ → **BUILT as `lofi.c`** (2026-06-22, Nujabes/J Dilla; charted in
+  [`../guides/radio-voices.md`](../guides/radio-voices.md)). Its parts (swing, rhodes, crackle,
+  groove template) had already accumulated across other carts, which is why it was cheap.
 
 Build order advice: pick by which *new engine trick* the station would prove,
 not just by genre appeal — that's what kept the first seven carts each earning

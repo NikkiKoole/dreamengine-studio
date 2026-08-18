@@ -9,16 +9,17 @@ radio stations, and the sound-making toys. Two jobs:
    already exists and which existing cart is its closest relative, so you start from a
    working model instead of a blank file.
 
-Exact controls live in each cart's `editor/public/carts/index.json` entry (the
-`description` ends with its key map) — that's the source of truth; this doc stays at
-the "what is it / what's it like" altitude so it doesn't drift.
+Exact controls live in each cart's **`de:meta` block** in `tools/carts/<name>.c` (the
+`description` ends with its key map) — that's the source of truth, and
+`editor/public/carts/index.json` is generated from it. This doc stays at the
+"what is it / what's it like" altitude so it doesn't drift.
 
 > **Looking for a specific sound/preset to grab?** [`instrument-recipes.md`](instrument-recipes.md)
 > is the palette: every named instrument recipe across these carts (the showcase presets,
 > the Roland drum voices, the whimsical patches), **organized by engine** — 107 recipes you
 > can copy into a new cart. The shelf (this doc) is "which cart"; the palette is "which
 > *recipe*." On the radio side, [`instrument-presets.md`](instrument-presets.md) +
-> [`radio-voices.md`](radio-voices.md) chart what the 20 stations actually use.
+> [`radio-voices.md`](radio-voices.md) chart what the stations actually use (34 charted of 36).
 
 > Scope: this covers carts that **make sound**. Purely-visual toys that happen to be
 > tagged `toy` (mandala, traffic jam, the love parade, bloom, dutch sky, oil show/plate,
@@ -335,8 +336,9 @@ overlay to swap a chair's instrument mid-song. Candidate swaps:
    double-handle tap buttons with `mouse_pressed()` — the mouse is already a synthetic touch.
 4. **If it's a station**, read [`game-music.md`](game-music.md) for the chord/clock
    brain and pin the seed so THE BAND swaps stay byte-identical.
-5. **Follow the standard cart-add flow** (build → bake screenshot → register in
-   `index.json` with `kind:["instrument"]` (+ `"toy"` for stations) → `lint-carts.js`):
+5. **Follow the standard cart-add flow** (write the `de:meta` block with
+   `kind:["instrument"]` (+ `"toy"` for stations) → build → bake screenshot → `lint-carts.js`;
+   `index.json` is regenerated from your `de:meta`, never hand-edited):
    [`cart-authoring.md`](cart-authoring.md).
 5b. **A voice drops out or a lead "gets cut off by another instrument"?** `node
    tools/voice-trace.js <trace>` reads the voice events (on/off/reuse/steal/choke) — real

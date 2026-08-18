@@ -1,5 +1,14 @@
 # HANDOFF — effects lanes / chains (fx_order, pedalboard builder)
 
+> ⚠ **HISTORICAL — 2026-06-12, and nothing links here.** Kept for the trail of how the
+> effects-bus work was sequenced. Two things in it are no longer true: the "next chapters
+> (parked, not started)" list includes **the output stage / cabinets, which SHIPPED 2026-06-14**
+> (`runtime/ampcab.h`, increment E — see
+> [`design/effects-bus-architecture.md`](design/effects-bus-architecture.md)), and the
+> don't-edit-`sound.h`/`studio.h` collision warning below is a one-session instruction, not a
+> standing rule (the standing rules are in `CLAUDE.md` → "Hot shared source files").
+> **The live lane tracker is [`HANDOFF.md`](HANDOFF.md)** (`node tools/handoff.js`).
+
 _Session handoff, 2026-06-12. Cross-machine continuity for the reorderable-effects work._
 _Everything below is committed AND pushed to `master` — on a fresh machine, `git pull` makes you current._
 
@@ -49,7 +58,7 @@ Working tree is dirty with **other agents'** in-flight work (none mine — all m
   `FX_REVERB`. The **reverb spaces** CRUSH toggle is the signature demo. Left here as a record, not a TODO.
 - **Migrate `reverb()` onto the bus path** (effects-bus-architecture.md §7 open call #3) — optional cleanup
   so there's *one* reverb mechanism. Today tank 0 stays a master parallel send (deliberate, kept bytes-identical).
-- **The output stage (4th zone): cabinets — amp/cab · Leslie** — now a full design section,
+- ~~**The output stage (4th zone): cabinets~~ **SHIPPED 2026-06-14** (increment E, `ampcab.h`) — amp/cab · Leslie** — now a full design section,
   [`effects-bus-architecture.md` → "Increment E"](design/effects-bus-architecture.md). Leslie shipped
   (the one tenant that exists); E generalizes it to a pinned **"pick your cabinet" slot** where a guitar
   amp is the obvious next tenant. An amp = a **cart-side recipe** (drive + cab-shaped EQ + `glue` power-sag

@@ -87,8 +87,9 @@ Two tracks that pull opposite ways — keep them separate:
 
 Why intent-first: it stops accidental copy-paste sameness, and it surfaces **upgrade gaps** —
 imagine "a grand piano," go looking, and you find `INSTR_PIANO` instead of faking it on TRI.
-The richest new sound lives in the engines no station uses yet (`GUITAR`/`PIPE`/`BOWED`/
-`PIANO`/`VOICE` — see the palette's untapped shelves). On ship, update both recipe docs
+Go looking for the engine you actually want rather than the one you remember — `node
+tools/api-usage.js --where INSTR_<x>` says who already uses it, which is a moving target (all five
+of `GUITAR`/`PIPE`/`BOWED`/`PIANO`/`VOICE` were once untapped by any station and now have consumers). On ship, update both recipe docs
 (the CLAUDE.md / instrument-carts rule).
 
 ## The runtime model
@@ -163,9 +164,11 @@ feature would fight the game, leave it out.
   after recoloring an entity.
 - Keep movement framerate-independent with `dt()`. Angles are **degrees**.
 
-## Tag the cart — `teaches` + `lineage` in its index.json entry
-Your `index.json` entry (the one you write in the ship step below) carries two fields
-beyond title/description/file/kind, which feed the ★ techniques compendium:
+## Tag the cart — `teaches` + `lineage` in its `de:meta` block
+The `de:meta` block at the top of your `tools/carts/<name>.c` is the ONE home for a cart's
+metadata; `editor/public/carts/index.json` is **generated** from it by `make-cart.js` and must
+never be hand-edited. Alongside `title`/`description`/`kind`/`slug` (= the `.c` filename stem)
+and `created`, it carries two fields that feed the ★ techniques compendium:
 
     { "title": "traffic jam", "description": "…", "file": "trafficjam.cart.png",
       "kind": ["toy"],
@@ -184,21 +187,23 @@ beyond title/description/file/kind, which feed the ★ techniques compendium:
   legitimately do); the empty array is the explicit "nothing here," not an oversight.
 - **`lineage`** — one prose line: what this descends from and what's genuinely new here.
   Name the cart whose chassis you copied, if any. (Free prose; the history page pulls on it.)
-- Do **not** put these in the `.c` as `// TEACHES:` comments — the index.json entry is the
-  one home, so the tags can't drift from the registry.
+- Put these in the `.c`'s **`de:meta` block**, never in loose `// TEACHES:` comments and never
+  by hand in `index.json` — the block is the one home, and the registry is derived from it, so
+  the two cannot drift. Schema: [`../design/cart-metadata.md`](../design/cart-metadata.md).
 
 ## Authoring & ship pipeline (state these steps in your output)
 For the game produce: (a) `tools/carts/<name>.c`, (b) an optional
 `tools/carts/<name>.cart.js` for sprites/map, (c) the build + screenshot commands
 (`node tools/make-cart.js tools/carts/<name>.c editor/public/carts/<name>.cart.png`
-then `node tools/make-cart.js --run …`), (d) the full `index.json` entry — `title`,
-`description` (+ controls), `file`, `kind`, `genre` if a game, **plus `teaches` (from
-the controlled vocabulary) and `lineage`** per "Tag the cart" above.
+then `node tools/make-cart.js --run …`), (d) the cart's **`de:meta` block** — `title`, `slug`,
+`created`, `description` (+ controls), `kind`, `genre` if a game, **plus `teaches` (from the
+controlled vocabulary) and `lineage`** per "Tag the cart" above. (`index.json` is generated
+from it; do not write one.)
 
 ## Output format
 Give: a 2–3 line **design pitch** (the hook + which engine features it leans into and
-why), then the **complete C**, then the **`.cart.js`** if used, then the **full
-`index.json` entry** (including `teaches`/`lineage`, not just the description string).
+why), then the **complete C** (with its `de:meta` block at the top, including `teaches`/`lineage`
+and not just the description string), then the **`.cart.js`** if used.
 Code must be self-contained and compile as-is.
 
 ---

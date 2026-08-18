@@ -1,7 +1,7 @@
 # Engine simplification backlog — duplication, missing helpers, naming
 
-> **STATUS: ROUND 2 OPEN — 27/39, 2026-08-15** with nothing half-finished. (37, not 35: two more
-> were FOUND on the device this session — see the Swift/iOS list.) Round 1 below is
+> **STATUS: ROUND 2 OPEN — 27 of 39 done, 12 open, 2026-08-15** with nothing half-finished.
+> (39, not 37: two more were FOUND on the device this session — see the Swift/iOS list.) Round 1 below is
 > closed 33/33 and its ❌ won't-do calls were RE-VERIFIED this round, not assumed — see
 > [Round 2](#round-2--after-the-per-instance-refactor-2026-08-14).
 >

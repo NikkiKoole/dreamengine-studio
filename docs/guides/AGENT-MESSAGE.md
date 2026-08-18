@@ -35,11 +35,13 @@ DO:
      the CREATE step + this one until both pass.
 
 DO NOT:
-  • do NOT edit editor/public/carts/index.json — concurrent appends clobber each other.
-    Leave the merge to the coordinator (see FINISH).
+  • do NOT edit editor/public/carts/index.json — it is GENERATED from each cart's de:meta
+    block (tools/build-cart-index.js). Hand-edits are silently reverted by the next bake.
+    Put your metadata in the .c and the registry follows.
 
-FINISH by ending your final message with ONLY your index.json entry as a JSON object —
-nothing after it — like:
+FINISH by ending your final message with ONLY your cart's de:meta block — nothing after it.
+It goes at the top of tools/carts/<name>.c and the registry is regenerated from it; it needs
+slug (= the .c filename stem) and created (today, YYYY-MM-DD) alongside:
 
   { "title": "your title", "description": "what it is + the controls", "file": "<name>.cart.png",
     "kind": ["game"], "genre": "arcade",
@@ -51,6 +53,7 @@ teaches/lineage feed the ★ techniques compendium. teaches is a CONTROLLED voca
 tag. teaches is REQUIRED — use [] if the cart teaches nothing conceptually distinctive.
 lineage is OPTIONAL but encouraged — one prose line on what the cart descends from and
 what's new (name the cart you copied a chassis from); omit it if there's no real story.
-Do NOT put these as // TEACHES: comments in the .c — the index.json entry is the only home.
-The coordinator will merge that entry into index.json (your thumbnail is already baked).
+Put these in the de:meta block, not as loose // TEACHES: comments and not by hand in
+index.json — the block is the only home, and the registry is derived from it, so the two
+cannot drift. The coordinator bakes your thumbnail and regenerates the index.
 ```

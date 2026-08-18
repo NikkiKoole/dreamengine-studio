@@ -17,8 +17,8 @@
 //
 // THE FRICTION THIS KILLS. A fully-designed, ready-to-build feature can sit
 // unstarted in docs/design/ and nobody knows — touch-controls.md's complete
-// 7-step plan was found by accident; road-program-state.md sits at 0/14 with no
-// status line at all. STATUS.md and action-plan.md are hand-maintained and
+// 7-step plan was found by accident; road-program-state.md SAT at 0/14 with no
+// status line at all (it has one now — this tool is why). STATUS.md and action-plan.md are hand-maintained and
 // drift. This derives the board straight from the docs, so the answer to "what's
 // designed and waiting?" is one command, always current. The headline bucket is
 // READY TO BUILD — specced work with nobody on it.

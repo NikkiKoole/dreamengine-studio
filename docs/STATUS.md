@@ -7,7 +7,7 @@
 > **here**, then fix the prose in the relevant design doc. If a design doc and this file
 > disagree, this file wins.
 
-_Last updated: 2026-08-17 — **Tiny Pedalboard is LIVE on the App Store** (1.1 and 1.0 both `READY_FOR_SALE`), the first thing built here that a stranger can buy; and the same cart now loads in GarageBand as an audio EFFECT (`aumf`), with one open defect. See the top two Shipped entries below, and [`HANDOFF.md`](HANDOFF.md) for what is in flight._
+_Last updated: 2026-08-18 — **Tiny Pedalboard is LIVE on the App Store** (1.1 and 1.0 both `READY_FOR_SALE`), the first thing built here that a stranger can buy; and the same cart now loads in GarageBand as an audio EFFECT (`aumf`), with one open defect. See the top two Shipped entries below, and [`HANDOFF.md`](HANDOFF.md) for what is in flight._
 
 > **This line is a headline, not an entry.** It reached **9,064 characters** and was the only place in the file that recorded `FILTER_DIODE`, `filter-spec.js` and `rebirth-classic.md` — three shipped things, invisible because nobody reads a shipped feature out of a `_Last updated:_` line. They have a real entry now (2026-07-02, above `sprite-draw.js`). Keep this to one date, one sentence, one link; `status-check --check` fails past 900 chars.
 
@@ -37,7 +37,10 @@ _Last updated: 2026-08-17 — **Tiny Pedalboard is LIVE on the App Store** (1.1 
   [`design/auv3-plugin-types.md` §4.1b](design/auv3-plugin-types.md#41b-open-defect-it-loads-the-panel-works-and-no-audio-comes-through);
   runbook: [`guides/cart-as-plugin.md`](guides/cart-as-plugin.md).
 - **TINY PEDALBOARD IS LIVE ON THE APP STORE — the first thing built here a stranger can buy**
-  (2026-08-17). `apps/pedalboard` → **1.1 and 1.0 both `READY_FOR_SALE`** at $1.99. That closes the
+  (recorded 2026-08-17; ⚠ **that is the date it was VERIFIED, not the release date** — the app was
+  versioned for submission 2026-07-22 and had been on sale for weeks while this ledger said nothing,
+  which is the whole point of the entry). `apps/pedalboard` → **1.1 and 1.0 both `READY_FOR_SALE`**
+  at $1.99. That closes the
   whole chain for the first time: a cart in `tools/carts/`, an `app.json` manifest, `build-app.js
   --ios`, `testflight.sh`, `asc-push` for the listing copy and screenshots, review, sale. Everything
   the store lane built was theory until a version went `READY_FOR_SALE`; it is not theory now, and

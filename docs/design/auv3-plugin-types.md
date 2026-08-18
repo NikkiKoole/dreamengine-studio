@@ -169,7 +169,9 @@ bookkeeping. The cart side is **zero**: `mout_on` already gates it and the patte
 If we do the input bus at all, declare `aumf`. Same wiring cost, strictly more useful: you get the
 host's audio *and* its notes, which is what makes "the visuals know what the track is playing"
 possible rather than only "the visuals react to loudness". `pedalboard` becomes an insert effect,
-which matters because it is already **on sale** (`READY_FOR_SALE` since 2026-08-17), so the audience
+which matters because it is already **on sale** (verified `READY_FOR_SALE` 2026-08-17; released
+earlier — the manifest was versioned for submission 2026-07-22, and the exact release date is not
+recorded here), so the audience
 exists before the plug-in does. Both prerequisites this paragraph once listed have since landed: the
 type is derived per app (§6.2) and the spike is built (§4.1b holds the one remaining defect).
 
@@ -587,8 +589,8 @@ longer there and report a plug-in that builds fine as missing.
 ### §6.3 `pedalboard` ships no plug-in at all — OPEN
 
 `apps/pedalboard/app.json` sets no `auCart`, so `testflight.sh` strips the AU target (*"no AU
-extension (manifest sets no auCart) — single-cart standalone build"*). **Tiny Pedalboard went on sale
-on 2026-08-17 as a standalone app with no AUv3 in it**, which is the same ship-blocker caught for Tiny
+extension (manifest sets no auCart) — single-cart standalone build"*). **Tiny Pedalboard is on sale as a standalone app with no AUv3 in it**
+(verified 2026-08-17; it had been live for some weeks by then — submission-versioned 2026-07-22), which is the same ship-blocker caught for Tiny
 Acid Jam on 08-15, in the same week, on the app nobody re-checked because it was already through
 review.
 

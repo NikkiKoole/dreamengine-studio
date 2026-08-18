@@ -1,11 +1,14 @@
 # AUv3 plug-in types — the five shapes a cart could take in a DAW
 
-> **STATUS: EXPLORING — ★ MAP (2026-08-15).** The engine ships ONE plug-in shape (`aumu`, an
-> instrument) and the AUv3 ecosystem has five. This doc is the survey: what each type is, what
+> **STATUS: BUILDING — ★ MAP (2026-08-15, updated 2026-08-17).** The engine ships **TWO** plug-in
+> shapes: `aumu` (an instrument) and, since 2026-08-17, `aumf` (an audio EFFECT — `pedalboard`,
+> `auval` SUCCEEDS, one open defect in §4.1b). The AUv3 ecosystem has five, so three are still
+> unexplored. This doc is the survey: what each type is, what
 > dreamengine would be as each one, and precisely which seam is missing per type. Written after
 > discovering that `acidcandy` is already a complete MIDI sequencer whose output cannot reach a
 > host, and that `runtime/platform.h` already declares the exact seam an audio-effect plug-in needs.
-> Nothing here is committed work. It is the map you read before picking the next AUv3 lane.
+> Part of this is committed work now (§4.1). It is still the map you read before picking the next
+> AUv3 lane.
 >
 > See also [`ios-plan.md`](ios-plan.md) (the build ladder that got us here),
 > [`host-parameters.md`](host-parameters.md) (the knobs a host can automate),
@@ -429,10 +432,12 @@ Separate topic, same root cause, and it is why a deployed build shows the wrong 
 | **AU display name** | `project.yml:121` `CFBundleDisplayName` | ✅ **since 2026-08-16**: `auDisplayName`, falling back to the app's own `name` |
 | **AU component name** | `project.yml:135` `name:` | ✅ **since 2026-08-16**: `auName`. **This is the string a DAW shows in its plug-in list** |
 | AU manufacturer / subtype codes | `project.yml` | ✅ **since 2026-08-16**: `auSubtype` / `auManufacturer`, the `auval` triple |
-| **anything at all on the dev loop** | `device.sh` | ❌ nothing. A cable install is always `TinyjamHello` |
+| **anything at all on the dev loop** | `device.sh` | ✅ **since 2026-08-16** — `device.sh` derives the same AU names the store build does (`ios/au-identity.sh` into a COPY of the spec); the dev *bundle id* stays `com.tinyjam.hello`. See §6.1 |
 
-So: over the cable you always see the hello-world identity, and in a DAW you always see
-"Tinyjam: Demo" whichever app you built. The icon is the one thing that is already right, provided
+**Both halves of that are fixed now** (see §6.1 and the AU-identity work): the cable install and the
+DAW both show the app's own AU names. *(It used to read: over the cable you always see the
+hello-world identity, and in a DAW you always see "Tinyjam: Demo" whichever app you built.)* The
+icon is the one thing that was already right, provided
 you go through `APP=<name>` rather than a bare single-cart `play.js` staging (which stages
 `ios/default-icon.png`).
 

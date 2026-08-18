@@ -5,8 +5,13 @@ NOT this repo. This brief is self-contained; everything you need is inline.
 
 **Why this exists:** Apple **requires** a support URL to submit an iOS app for review, and the
 reviewer actually opens it — a broken, parked, empty, or irrelevant page is a common rejection.
-Right now Tiny Jam has no support URL, and it's the one thing blocking submission. Your job: ship
-a small, real, reachable support page and hand back its **public URL**.
+**▶ DONE 2026-07-08 — the page is LIVE at <https://mipolai.com/tinyjam/support/>** (recorded as
+`support_url` in `apps/tinyjam/metadata/en-US/`). Kept as the spec for the next app's page. Two
+things the original brief got wrong by the time you read it: the page exists, and Tiny Jam sits at
+`PREPARE_FOR_SUBMISSION` for product reasons, not because of a missing URL.
+
+▼ the brief, as written: Tiny Jam has no support URL, and it's the one thing blocking submission.
+Your job: ship a small, real, reachable support page and hand back its **public URL**.
 
 ## The one input needed from the maker (do not guess)
 - **Contact email** to publish on the page (e.g. a `support@…` or personal address). Everything

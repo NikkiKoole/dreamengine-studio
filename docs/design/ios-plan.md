@@ -56,7 +56,7 @@ Each spike is a small throwaway that kills one unknown. Riskiest cheap-thing fir
 | 5 | App Group: app writes unlocked racks, a reader sees them via the shared suite | entitlement sharing for AUv3 | sim | ✅ **done** — `AppGroup.swift` (UserDefaults suite); Store mirrors entitlements in; test proves write→read. Entitlement wired in `project.yml`; the *true cross-process container* needs signing (lands with the spike-7 extension). See `ios/history/spike5-appgroup.png` |
 | 6 | CloudKit sync of a saved tinyjam across devices (native-only nicety) | free cross-device sync | sim | — |
 | 6.5 | **standalone app runs on a real iPhone** (signed) | signing + device deploy | **device** | ✅ **done** — iPhone (iOS 15.4.1), maker confirmed running. `ios/device.sh` |
-| 7 | AUv3 extension makes sound, hosted | the killer feature | sim | ✅ **done** — extension reuses the C synth (`AU/TinyjamAU.swift`); our OWN host test finds it via `AVAudioUnitComponentManager`, instantiates + renders it offline (peak 0.180). No GarageBand/AUM/device needed. Real-host (AUM/GB) confirmation deferred to whenever a host is installed. |
+| 7 | AUv3 extension makes sound, hosted | the killer feature | sim | ✅ **done** — extension reuses the C synth (`AU/TinyjamAU.swift`); our OWN host test finds it via `AVAudioUnitComponentManager`, instantiates + renders it offline (peak 0.180). No GarageBand/AUM/device needed. **Real-host confirmed: GarageBand on macOS, the maker, 2026-08-12/13** (loads on a software-instrument track, plays, follows transport + tempo, own panel attached). AUM/iOS-host still unconfirmed. |
 | 8 | **the REAL engine (a cart) renders + sounds on iOS** (Phase 2) | the whole point | sim | ✅ **done** — omnichord (real `studio.c`+`sound.h`, zero Raylib) renders pixel-correct + upright on the iPhone 15 sim (`history/spike8-omnichord.png`); CoreAudio pulls the real mixer; UIKit touch drives it. See "Phase 2" below. |
 | 8.5 | **a MULTI-CART app (the standalone Tinyjam) renders on iOS** | the umbrella app on a phone | sim | ✅ **done (2026-07-03)** — `build-app.js --ios` stages the dispatcher shim + per-cart wrappers into `ios/gen/app`; `project.yml` sources that directory; `ios/build.sh`/`device.sh` `APP=<manifest>`. Tinyjam's launcher (acid rack / session desk from de:meta, `>` cursor, footer) renders on the iPhone 15 sim, and **on a real iPhone** (`device.sh APP=tinyjam`, maker-confirmed). Touch back-to-launcher = temporary **hold-to-home** (hold the top-left corner ~0.3s; shim-drawn fat-finger pad, in racks only, device-confirmed). [share-panel.md](share-panel.md) "Spike A" / next-spike #5. |
 | 9 | **two AU instances render at once** in the spike-7 own host — one of each extension AND two of the same | AUv3 concurrency reality | sim | — |
@@ -208,8 +208,11 @@ AppKit target would mean a second host view to maintain forever.
 **Status: WORKING in GarageBand on macOS (confirmed by the maker, 2026-08-12).** `zsh ios/mac.sh`
 builds, signs, installs, registers, and `auval -v aumu tacj Mpla` reports **AU VALIDATION
 SUCCEEDED**. In GarageBand the plug-in loads on a software-instrument track, plays, **stops when the
-host stops, and follows the host's tempo** (phase 2, below). What it does NOT have is a view: the
-host shows its generic panel, which is phase 3 and the bulk of the remaining work.
+host stops, and follows the host's tempo** (phase 2, below). **It has a view too** — phase 3
+shipped: `ios/AU/TinyjamAUViewController.swift` is a real `AUViewController`/`AUAudioUnitFactory`
+installing `CanvasView(hosted: true)`, the archive declares
+`NSExtensionPointIdentifier: com.apple.AudioUnit-UI`, and the panel is CONFIRMED attached to the
+rendering audio unit in GarageBand (the maker, 2026-08-13; see §4 below).
 
 Getting from "builds" to "loads" was three separate gates, each of which reported a different
 symptom, and none of which was a code bug:

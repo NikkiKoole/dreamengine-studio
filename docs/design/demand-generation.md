@@ -68,7 +68,9 @@ Most of #1–#4 is execution, but one tool would feed the top of the funnel dire
 > **9:16 social video** (the pixel faceplate / Game-&-Watch dancer), ready to post. It reuses
 > `make-gif.js` + `store-shots.js`, and it's the concrete form of lever #2. Scoped in
 > tinyjam-marketing §4.1 and the share-panel make-clip button
-> ([`share-panel.md`](share-panel.md) v1); not built.
+> ([`share-panel.md`](share-panel.md) v1). **The captioned 9:16 half SHIPPED 2026-07-20 as
+> `tools/dress-clip.js`** (driveable from the editor's Promote ✨ dress modal); what is still
+> unbuilt is the per-module landing pages below.
 
 Per-module landing pages (#4, tinyjam-marketing §7.2) are the other unbuilt piece — the
 funnel *destination*, not the 400-cart gallery.
@@ -79,7 +81,8 @@ funnel *destination*, not the 400-cart gallery.
 YouTube Data API v3 modelled on `asc-push.js`. YouTube first because it has the only usable
 official upload API of the short-video venues (TikTok/Reels stay manual); the *why-not-the-others*
 and the in-house-vs-service call are [ADR-0033](../decisions/0033-youtube-first-video-distribution.md).
-Ready to build, not built.
+**BUILT 2026-07-20** and proven live — `tools/youtube-push.js`, see
+[`video-distribution.md`](video-distribution.md).
 
 ### App-trailer pipeline — v1 backbone SHIPPED (2026-07-03)
 

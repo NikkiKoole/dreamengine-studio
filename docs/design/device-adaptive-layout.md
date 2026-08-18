@@ -22,7 +22,7 @@ at-a-glance.
 | R4 | judgment oracle — `ui-audit` reads disclose's self-report | ⬜ todo — needs the `DE_TRACE` self-report first |
 | R5 | **re-land acidrack on the method** — call `disclose.h`, build the missing iPad arrangement, make the compact/page CONTENT calls *playing it* | ⬜ todo — the big one |
 | R6 | `epiano` fresh from a brief — the method's test; keybed reflow → `keybed.h` | ⬜ todo |
-| Phase 4 | App Store screenshots/assets from the finished racks | ⬜ later |
+| Phase 4 | App Store screenshots/assets from the finished racks | ✅ **done** — `apps/pedalboard/store-shots/` + `screenshots/` are committed device shots, reshot at the real device canvas for 1.1 |
 
 **Sequence — what unblocks what:**
 1. ~~R3~~ ✅ done — the finger unit is a real engine primitive (`finger_px()`), so footprints are honest across chunks/HiDPI, not the SCALE=1 coincidence.

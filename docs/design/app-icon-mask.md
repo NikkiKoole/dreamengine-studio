@@ -181,5 +181,7 @@ band, and reported min=9 on a fully opaque icon.
   mask it. Icon Composer's layered `.icon` format buys the iOS 26 glass / tinted / dark renditions
   instead of one flat image for all of them. Not adopted; it would be a real design decision, not a
   build change.
-- **A `check` step in the app build.** `build-app.js --ios` stages the icon; it could run the corner
-  check and refuse a build that loses detail.
+- ~~**A `check` step in the app build.**~~ **SHIPPED, as advisory** (same commit that wrote this
+  list, 2026-07-28): `build-app.js` spawns `icon-mask.js check <icon> --no-proof` right after
+  staging. Refusing the build was deliberately declined — its own comment says "the build is not the
+  place to refuse over taste".

@@ -1,8 +1,9 @@
 # Tiny Jam — App Store listing (US launch)
 
 > **Status:** DRAFT (2026-07-03). Canonical display name is **Tiny Jam** (two words — better
-> tokenisation than the compound, and no name collision; the `tinyjam` directory and
-> `com.dreamengine.tinyjam` bundle id keep the compact form). The concrete App Store
+> tokenisation than the compound, and no name collision; the `tinyjam` directory keeps the compact
+> form, and the shipping bundle id is **`com.mipolai.tinyjam`** — ASC record 6787894684, not the
+> `com.dreamengine.*` prefix this line used to name). The concrete App Store
 > *metadata* for the Tiny Jam umbrella
 > app — title, subtitle, keyword field, and the per-module IAP naming scheme. US-first (one
 > market, one set of fields; localization is deliberately deferred). Companion to the

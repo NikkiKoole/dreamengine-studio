@@ -52,9 +52,10 @@ staged layer (drag polish B · 9:16 social export · IAP-tease ordering). See
 [`trailer-builder.md`](trailer-builder.md).
 
 **Next — the store track (maker-gated), in priority order:**
-1. **The real submission gates** — which app first, price, the original-palette rule
-   ([`sharing-channels.md`](sharing-channels.md) §Channel B). *Nothing ships until these are
-   the maker's call.*
+1. ~~**The real submission gates**~~ **ALL ANSWERED.** Which app first: **Tiny Pedalboard**.
+   Price: **$1.99**. The original-palette rule: **VOID** (maker, 2026-08-18 — it was never met and
+   two paid apps shipped anyway, see [`palette-and-color.md`](palette-and-color.md)). Channel B's
+   blocker list is closed: [`sharing-channels.md`](sharing-channels.md) §Channel B.
 2. **The ASC upload + TestFlight tool** — ~~the one big unbuilt piece~~ **BUILT (2026-07-07):
    `tools/asc-push.js`** ([ADR-0026](../decisions/0026-store-pipeline-in-house-not-fastlane.md)):
    in-house against the App Store Connect API (JWT/ES256 from a `.p8`, zero deps), proven live
@@ -113,10 +114,10 @@ staged layer (drag polish B · 9:16 social export · IAP-tease ordering). See
 5. **Post-launch: your OWN app metrics in the Apps view** — the honest counterpart to all the
    *proxy* signals above (research difficulty, Google demand): real downloads / impressions /
    conversion / %-from-search pulled from App Store Connect onto the app card, the one volume
-   number that's truly yours (closes the ASO loop). **DEFERRED until after ship (maker's call,
-   2026-07-03):** an empty repo app (Tiny Jam isn't live) has no data, and it needs the same ASC
-   API key (`.p8`, JWT/ES256) as #2 — so it comes *after* the upload tool stands up that auth, not
-   before. Reader-first is then the low-risk way to exercise the ASC auth.
+   number that's truly yours (closes the ASO loop). **UN-DEFERRED 2026-08-17** (was deferred on
+   2026-07-03 because "an empty repo app has no data"): **Tiny Pedalboard is live and has real App
+   Analytics.** It needs the same ASC API key (`.p8`, JWT/ES256) as #2, which the upload tool has
+   already stood up. Reader-first is then the low-risk way to exercise the ASC auth.
 
 ## App Store Connect record ids (reference, not used by the tooling)
 
@@ -125,7 +126,9 @@ they are what you type into the ASC web UI to find a record, and they exist nowh
 
 | app | ASC app record id |
 |---|---|
-| Tiny Acid Jam (`apps/tinyacidjam`) | **6792504925** — name reserved globally, created 2026-07-06 |
+| Tiny Pedalboard (`apps/pedalboard`) | **6793576923** — **LIVE**, 1.1 + 1.0 both `READY_FOR_SALE` at $1.99 |
+| Tiny Acid Jam (`apps/tinyacidjam`) | **6792504925** — created 2026-07-06; v1.0 `WAITING_FOR_REVIEW` since 2026-08-17 |
+| Tiny Jam (`apps/tinyjam`) | **6787894684** — v1.0 `PREPARE_FOR_SUBMISSION`, never submitted |
 
 The ASC **API key id** lives in `~/.appstoreconnect/config.json` (with the `.p8`), never in git — see the
 auth note above. If you need to confirm which key a push used, read it there rather than recording it here.

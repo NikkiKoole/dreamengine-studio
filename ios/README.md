@@ -15,8 +15,11 @@ Why we ship apps (not the editor): [ADR-0023](../docs/decisions/0023-ship-carts-
   ```
 - **xcodegen** — `brew install xcodegen`.
 
-Everything below is **simulator-only: no code-signing, no Apple-account interaction, free.**
-(Only AUv3 — spike 7 — will need a physical device.)
+**`build.sh` is simulator-only: no code-signing, no Apple-account interaction, free.** The other
+three scripts below are not — `device.sh` signs and installs over a cable, `testflight.sh` archives
+and uploads to App Store Connect, and `mac.sh` builds the Catalyst variant and its AUv3. (This
+sentence used to scope the whole file, which stopped being true when the device and store rungs
+landed; AUv3 itself was completed in the simulator, spike 7.)
 
 ## The scripts, and which one ships
 

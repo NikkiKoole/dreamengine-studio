@@ -7755,6 +7755,15 @@ int sound_fx_chain_probe(int bus, int *kinds, int max) {
 // effect it configured and look exactly like a plug-in that configured none. Same reading, same
 // line, one test.
 int sound_dropped_probe(void) { return atomic_load_explicit(&sound_dropped, memory_order_relaxed); }
+// Is the cart routing the live input THROUGH the master chain right now? (`input_monitor(g)` with
+// g > 0 — pedalboard's `GTR: IN`.) Read-only, no queue, no side effects.
+// WHY A HOST NEEDS THIS: an insert effect must pass its input to its output, and this engine's only
+// input path (sound.h's `extin_mon_on` branch in the mixer) sums the input into the mix BEFORE the
+// insert chain and boots OFF — so with the monitor off, host audio reaches the output through NO
+// path at all and the plug-in REPLACES the track instead of processing it. See auv3-plugin-types.md
+// §4.1d. The AU adds the DRY input back when this reads 0, and must not when it reads 1 or the
+// signal would be summed twice. That is the whole reason this is exported rather than inferred.
+int sound_input_monitor_on(void) { return extin_mon_on && extin_mon_gain > 0.0f; }
 void autotune_mic(int root, int scale, float amount) {   // LIVE streaming auto-tune of the mic (needs mic_start)
     sound_push_ctrl(SR_AUTOTUNE_MIC, (int)(amount * 1000.0f), root, scale, 0, 0, 0);
 }

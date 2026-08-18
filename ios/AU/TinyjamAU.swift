@@ -133,6 +133,19 @@ public final class TinyjamAU: AUAudioUnit {
     private let inDiag = UnsafeMutablePointer<InDiag>.allocate(capacity: 1)
     private var inDiagTimer: DispatchSourceTimer?
 
+    // THE HOST'S OFF SWITCH (§4.1d). AUAudioUnit declares `shouldBypassEffect` and a host sets it
+    // when the user clicks a plug-in's power button; an effect is expected to honour it by passing
+    // its input to its output untouched. We never read it, so the render block kept running and kept
+    // REPLACING the track — the off switch did nothing at all.
+    // Stored behind a pointer rather than read as a property on the audio thread: an ObjC property
+    // access on the render path is exactly the kind of thing the rest of this capture list exists to
+    // avoid, and the setter is called from the host's main thread, not ours.
+    private let bypassFlag = UnsafeMutablePointer<Int32>.allocate(capacity: 1)
+    public override var shouldBypassEffect: Bool {
+        get { bypassFlag.pointee != 0 }
+        set { bypassFlag.pointee = newValue ? 1 : 0 }
+    }
+
     private static let ENGINE_RATE = 44100.0        // what sound.h is COMPILED for. Not negotiable.
     private static let SAMPLES_PER_FRAME = 735      // 44100 / 60
     // stable interleaved L,R scratch — allocated once so the render block never allocates on the
@@ -175,6 +188,7 @@ public final class TinyjamAU: AUAudioUnit {
         let inBusses = isEffect ? [try AUAudioUnitBus(format: format)] : []
         _inputBusArray  = AUAudioUnitBusArray(audioUnit: self, busType: .input,  busses: inBusses)
         inDiag.initialize(to: InDiag())
+        bypassFlag.initialize(to: 0)     // allocate() does not zero; a garbage byte here reads as "bypassed"
         if isEffect { deDiag("[tinyjam] AU is an EFFECT (\(fourCCString(ct))) — input bus declared") }
         acc.pointee = 0
         rate.initialize(to: RateState())
@@ -671,6 +685,7 @@ public final class TinyjamAU: AUAudioUnit {
         // render block is re-fetched after allocateRenderResources, which is what negotiates it.
         let isEffect = self.isEffect, inScratch = self.inScratch, inMono = self.inMono, inABL = self.inABL
         let inDiag = self.inDiag
+        let bypass = self.bypassFlag       // §4.1d — resolved here, off the audio thread, like the rest
         let hostRate = Int32(_outputBusArray[0].format.sampleRate.rounded())
         // Capture SELF unretained, not the two host blocks themselves. The host assigns
         // musicalContextBlock / transportStateBlock AFTER it fetches this render block, so reading
@@ -739,6 +754,9 @@ public final class TinyjamAU: AUAudioUnit {
             //      frames while a host may hand us 512, so input pushed now can be read by a frame
             //      that renders later. The ring absorbs that (it is what it is for) at up to one
             //      engine frame of delay. MEASURE IN THE HOST before claiming a `latency` to it.
+            // §4.1d: does inMono hold THIS block's audio? A failed pull leaves the PREVIOUS block's
+            // samples in it, and passing those through would stutter a repeat of the last buffer.
+            var haveInput = false
             if isEffect, let pull = pullInput {
                 var flags = AudioUnitRenderActionFlags()
                 // Point the pull target at our own preallocated memory and state the size, every
@@ -832,6 +850,7 @@ public final class TinyjamAU: AUAudioUnit {
                     // isEffect). hostRate, not ENGINE_RATE — mic_input_push resamples when they
                     // differ, and lying here would pitch the host's track by the rate ratio.
                     de_audio_input(inMono, Int32(n), hostRate)
+                    haveInput = true
                 }
             }
 
@@ -877,12 +896,46 @@ public final class TinyjamAU: AUAudioUnit {
                 rate.pointee = st
             }
 
+            // ── §4.1d THE INPUT MUST REACH THE OUTPUT ────────────────────────────────────────
+            // Everything above renders the CART. For an instrument that is the whole signal; for an
+            // INSERT it is only half, and until now the write below dropped the other half on the
+            // floor — the engine's mix simply overwrote the host's buffer, so the plug-in REPLACED
+            // the track rather than processing it. Two cases, and they are not the same:
+            //
+            //   BYPASSED — the host's power button is off. Input to output, untouched, engine
+            //   ignored. We still ran the whole pipeline above (pushed the ring, ticked the frame,
+            //   rendered): bypass is about the SIGNAL being transparent, not about saving CPU, and
+            //   skipping the push would leave the input ring's reader unaligned for the resume.
+            //
+            //   DRY-THROUGH — running, but the cart is not routing the input through its chain
+            //   (`GTR: IN` off → `input_monitor(0)`). The engine's mixer only sums the input in when
+            //   the monitor is ON, so with it off the host's audio has NO path to the output at all.
+            //   Add it back dry. ⚠ Only when the monitor is off: when it is on the engine already
+            //   summed it in before the insert chain, and adding it here would sum the same signal
+            //   TWICE — a wet/dry comb filter that would read as "the pedals sound thin".
+            //
+            // MONO, like the rest of this path: the ring `de_audio_input` feeds takes one channel
+            // (it was built for a microphone), so a bypassed stereo track folds to mono here. That
+            // is a real fidelity cost on a transparent path and the reason a stereo insert is worth
+            // doing; it is NOT a reason to keep dropping the signal entirely, which is what it fixes.
+            let bypassed  = isEffect && bypass.pointee != 0
+            let dryThrough = isEffect && !bypassed && haveInput && de_input_monitor_on() == 0
             if abl.count >= 2,
                let l = abl[0].mData?.assumingMemoryBound(to: Float.self),
                let r = abl[1].mData?.assumingMemoryBound(to: Float.self) {
-                for i in 0..<n { l[i] = scratch[i*2]; r[i] = scratch[i*2 + 1] }
+                if bypassed && haveInput {
+                    for i in 0..<n { l[i] = inMono[i]; r[i] = inMono[i] }
+                } else {
+                    for i in 0..<n { l[i] = scratch[i*2]; r[i] = scratch[i*2 + 1] }
+                    if dryThrough { for i in 0..<n { l[i] += inMono[i]; r[i] += inMono[i] } }
+                }
             } else if let l = abl.first?.mData?.assumingMemoryBound(to: Float.self) {
-                for i in 0..<n { l[i] = scratch[i*2] }               // mono fallback
+                if bypassed && haveInput {
+                    for i in 0..<n { l[i] = inMono[i] }                  // mono fallback, bypassed
+                } else {
+                    for i in 0..<n { l[i] = scratch[i*2] }               // mono fallback
+                    if dryThrough { for i in 0..<n { l[i] += inMono[i] } }
+                }
             }
             return noErr
         }

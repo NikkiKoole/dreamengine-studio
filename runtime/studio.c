@@ -2927,6 +2927,8 @@ DE_WEB_EXPORT void de_audio_input(const float *mono, int n, int sr) { mic_input_
 DE_WEB_EXPORT int de_fx_chain_probe(int bus, int *kinds, int max) { return sound_fx_chain_probe(bus, kinds, max); }
 // seam-lint-ignore: diagnostic pair of the above — remove with the diagnosis
 DE_WEB_EXPORT int de_sound_dropped(void) { return sound_dropped_probe(); }
+// seam-lint-ignore: reads the active context by design — an insert's passthrough decision (§4.1d)
+DE_WEB_EXPORT int de_input_monitor_on(void) { return sound_input_monitor_on(); }
 DE_WEB_EXPORT int  de_mic_wanted(void) { return mic_g_wanted; }            // engine → host: is the mic wanted?
 DE_WEB_EXPORT int  de_midi_wanted(void) { return midi_g_wanted; }          // engine → host: has the cart read MIDI? (web asks for the MIDI permission only when so — mirrors de_mic_wanted)
 DE_WEB_EXPORT void de_mic_set_active(int on) {                            // host → engine: capture is live

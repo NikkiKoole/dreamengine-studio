@@ -1,8 +1,11 @@
 # AUv3 plug-in types — the five shapes a cart could take in a DAW
 
-> **STATUS: BUILDING — ★ MAP (2026-08-15, updated 2026-08-17).** The engine ships **TWO** plug-in
+> **STATUS: BUILDING — ★ MAP (2026-08-15, updated 2026-08-18).** The engine ships **TWO** plug-in
 > shapes: `aumu` (an instrument) and, since 2026-08-17, `aumf` (an audio EFFECT — `pedalboard`,
-> `auval` SUCCEEDS, one open defect in §4.1b). The AUv3 ecosystem has five, so three are still
+> `auval` SUCCEEDS incl. the Bypass Effect property). §4.1b's silence, §4.1c's boot-chain question and
+> §4.1d's passthrough defect are all CLOSED; the effect now processes a track instead of replacing it.
+> Open for an effect: the §4.1c routing DESIGN CALL (amp EQ/TIMBRE + FUZZ are per-voice), no bound
+> parameters, a mono-only input path, and the process-global extin ring (ONE instance only). The AUv3 ecosystem has five, so three are still
 > unexplored. This doc is the survey: what each type is, what
 > dreamengine would be as each one, and precisely which seam is missing per type. Written after
 > discovering that `acidcandy` is already a complete MIDI sequencer whose output cannot reach a
@@ -431,7 +434,13 @@ DIFFERENT app's plug-in (Tiny Jam, not Tiny Pedalboard), and the giant `runningb
 ⚠ **Do not conclude anything from `au-transport-check`** here: its rig gives an effect no input, so it
 renders silence by construction. Both it and `--panel` now SKIP for effect types for that reason.
 
-### §4.1d The effect does not PASS ITS INPUT THROUGH — and that is the real blocker
+### §4.1d The effect must PASS ITS INPUT THROUGH — ✅ FIXED 2026-08-18, confirmed by ear
+
+> **STATUS: SHIPPED.** Both defects below are fixed and verified by the maker in GarageBand on macOS:
+> with `GTR: IN` off the host's piano is audible and unaffected; with it on the piano runs through the
+> pedals; the host's power button returns it to clean. `auval -v aumf tpdl Mpla` SUCCEEDS and now
+> exercises `VERIFYING PROPERTY: Bypass Effect` — PASS. What follows is the defect as found, kept
+> because the mechanism is the part worth remembering.
 
 Raised by the maker 2026-08-18, immediately after §4.1c closed, as two plain expectations of anyone
 who has ever inserted a plug-in on a track. Both are correct, both are currently violated, and the
@@ -454,9 +463,35 @@ insert slot, and every DAW user relies on it before they touch a single control.
 original *"I hear the piano, but unaffected"* report better than anything in §4.1c: the piano heard was
 the DRY track, because at that moment the plug-in was contributing nothing to it.
 
-⚠ This **reframes §4.1c's design call.** That question was "should amp EQ/TIMBRE and FUZZ reach an
-insert?". The prior question is "does the insert pass audio at all?", and until it does, the routing
-question is premature.
+⚠ This **reframed §4.1c's design call.** That question was "should amp EQ/TIMBRE and FUZZ reach an
+insert?". The prior question was "does the insert pass audio at all?" — now answered, so the routing
+question is live again and is the next thing needing the maker.
+
+**THE FIX, both halves at the output stage of the render block** (`ios/AU/TinyjamAU.swift`):
+
+| case | behaviour |
+|---|---|
+| **bypassed** (`shouldBypassEffect`) | input straight to output, engine ignored |
+| **dry-through** (running, monitor off) | engine mix **+** the dry input added back |
+| monitor ON | engine mix only — the input is already in it, ahead of the insert chain |
+
+⚠ **The third row is why `de_input_monitor_on()` exists** (`sound.h` → `studio.c` → `ios/Sources/engine.h`).
+The dry add must happen ONLY when the monitor is off. With it on, the engine already summed the input
+in before the chain, and adding it again sums the same signal twice — a wet/dry comb filter that would
+not read as a routing bug at all, but as *"the pedals sound thin"*.
+
+⚠ **Bypass still runs the whole pipeline** (pushes the ring, ticks the frame, renders) and discards the
+result. Bypass is about the SIGNAL being transparent, not about saving CPU, and skipping the push would
+leave the input ring's reader unaligned on resume — that alignment is exactly what makes
+`tools/insert-latency.js` measure 0 samples.
+
+⚠ **A failed pull leaves the PREVIOUS block in `inMono`.** Passing that through would stutter a repeat
+of the last buffer, so the write is gated on a `haveInput` flag set only where the engine is fed. Found
+while writing the passthrough, not by a gate — nothing here would have caught it.
+
+⚠ **Still MONO.** `de_audio_input` feeds a ring built for a microphone, so a bypassed STEREO track folds
+to mono — a real fidelity cost on a path whose whole job is transparency, and the strongest argument yet
+for a stereo insert path. It is not a reason to keep dropping the signal, which is what this replaced.
 
 **2. Turning the plug-in OFF in the host should restore the dry signal. We never see the off switch.**
 

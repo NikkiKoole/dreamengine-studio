@@ -44,7 +44,34 @@ a broken doc link or `#section`).
 > What a reader needs to *choose* a lane is in the front-door output; what they need to *resume*
 > one is in the lane itself. A summary in between is a third copy, and it is the copy nobody
 > updates. If you find yourself writing one again, teach `handoff.js` to print it instead.
-> **▶ ACTIVE THREAD (2026-08-18) — `pedalboard` AS AN AUDIO EFFECT (`aumf`): the host's track REACHES THE PEDALS. Open = which controls an insert can reach.**
+> **▶ ACTIVE THREAD (2026-08-18) — `pedalboard` AS AN AUDIO EFFECT (`aumf`): IT WORKS IN GARAGEBAND. Five open items, listed first because this lane is long.**
+>
+> **▶▶ PICK UP HERE. Verified working by the maker 2026-08-18:** the cart plays its own guitar AND
+> the host's piano runs through the pedal chain, in GarageBand on macOS. What is left, ranked:
+>
+> | # | Open item | Kind | Where |
+> |---|---|---|---|
+> | 1 | **Was the chain DRY at boot?** Never measured cleanly — every attempt mixed "before touching" with "after touching". `apply_fx()` is set-and-hold behind a `dirty` flag, so if anything clears the engine's inserts after `init()` nothing re-pushes. The probes for it are installed. | measurement, 2 min | §4.1c |
+> | 2 | **An insert cannot reach the amp EQ/TIMBRE or the FUZZ** — they are per-voice (`instrument_*(I_GTR,…)`) and the monitored input joins the mix after them. The pedals, amp DRIVE, amp GLUE and Leslie DO reach it. Both will read as broken controls on a track. | **DESIGN CALL, the maker's** | §4.1c |
+> | 3 | **`apps/pedalboard/app.json` sets no `auCart`**, so the shipping app contains no plug-in. Correct to hold until 1 and 2 close: a component triple is FOREVER and `aumf tpdl Mpla` is still free. | sequencing | §6.3 |
+> | 4 | **`param_bind` is called ZERO times** (acidcandy: 15), so `parameterTree` is nil and a DAW can automate no knob on this rack. | separate job | — |
+> | 5 | **Both probes are still in the code** (`de_fx_chain_probe`, `de_sound_dropped`, the INDIAG block). Marked to delete with the diagnosis, i.e. when 1 closes. | cleanup | §4.1c |
+>
+> ⚠ **THREE TRAPS THAT COST THE MORNING, all of them mine, none of them the engine:**
+> 1. **NEVER rebuild while the DAW has the plug-in loaded.** It leaves GarageBand holding a plug-in
+>    that no longer exists on disk: the slot keeps the panel and stops receiving audio. Quit the DAW,
+>    then build. (Recovery if it happens: clear the slot → quit → reopen → re-insert. If still dead,
+>    the AU cache may be stale — `~/Library/Caches/AudioUnitCache/com.apple.audiounits.sandboxed.cache`,
+>    move it aside and `killall -9 AudioComponentRegistrar`.)
+> 2. **READ THE PROBE PER PID.** A panel can live in its own process whose audio unit never renders
+>    by design, so `IDLE` from that pid is not a verdict on the plug-in. Two pids in the log = look
+>    for the one with `pulls` climbing. `TinyjamAUViewController` already prints "which is the orphan".
+> 3. **Two kinds of log noise that are NOT ours:** `com.tinyjam.mac.AU` teardown chatter is a
+>    DIFFERENT app's plug-in (Tiny Jam), and a `runningboardd` `RBSStateCapture` block lists every
+>    process on the machine.
+>
+> ⚠ **An uninstalled change is pending:** the `IDLE` message was reworded (commit `d6ae16b9`) and
+> NOT rebuilt, because the maker's DAW was open. First build on the next machine picks it up.
 >
 > **✅ THE SILENCE IS CLOSED (2026-08-18), and it was OURS.** `mData` is an IN-OUT field: we offered
 > the host our scratch buffer, the host pointed `mData` at its own memory (legal, and how no-copy

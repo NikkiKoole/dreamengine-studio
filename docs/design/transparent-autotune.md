@@ -97,11 +97,12 @@ Two very different things hide under the name "auto-tune":
   because it never had to move your actual voice — it re-synthesized one. That's why it was a cart
   afternoon.
 
-- **Transparent auto-tune (this doc) — UNBUILT.** Keep your *real* voice — your timbre, your breath,
-  your identity — and only **nudge the pitch** onto the scale. This is the modern-pop vocal: you
-  can't hear it working, the singer just sounds impossibly in-tune. It is a genuine DSP build because
-  you have to move the pitch of a real recording *without moving the formants* — and the engine has
-  no primitive that can do that.
+- **Transparent auto-tune (this doc) — SHIPPED 2026-07-17** (this bullet described it while it was
+  still the ask; kept because it states the goal well). Keep your *real* voice — your timbre, your
+  breath, your identity — and only **nudge the pitch** onto the scale. This is the modern-pop vocal:
+  you can't hear it working, the singer just sounds impossibly in-tune. It was a genuine DSP build
+  because you have to move the pitch of a real recording *without moving the formants*; the primitive
+  that does it is `sample_autotune()` (`studio.h`), gated by `formant-check.js` and `psola-check.js`.
 
 ## Why it's hard: formants, and why everything we have moves them
 

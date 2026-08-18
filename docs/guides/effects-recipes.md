@@ -414,7 +414,8 @@ sample-&-hold clock (`mod_sh`, the modulation kit) rolls the dice each step and,
 **stumbles**: drops in level AND goes dull (HF loss), then recovers in ~25 ms. `amount` 0–1 = how
 **often** the tape catches (`P(catch)` per step), `depth` 0–1 = how **hard** (level dip + how dull).
 A **master-stage** effect (runs at the sum, before the soft-clip — *not* a reorderable `FX_*` insert,
-since the packing is full and a whole-mix failure belongs at the master). amount 0 = off (byte-identical).
+because a whole-mix failure belongs at the master; the old reason, "the packing is full", stopped being
+true when `fx_order` went to 5 bits per slot and kinds 16..31 opened up). amount 0 = off (byte-identical).
 **Showcase: `genloss`** (crush→tape→dropout, with a VHS tape-transport that tears its tracking on a catch).
 
 | recipe | call | character | used by |

@@ -76,21 +76,23 @@ Three corollaries:
 > drive / master soft-clip / the echo bus (§17), and the 8→16 voice flip (§15).
 > Prior refresh 2026-06-04 (the §11 mod-envelopes; `schedule_hit`, `wave_set` +
 > `INSTR_USER0..3`; `music()` cut — [decision 0013](../decisions/0013-cut-music-api.md)).
-> This is the authoritative map of the shipped sound surface: **45 functions +
-> 39 constants** (recount with `node tools/api-usage.js` when in doubt). §5–§11 hold the
+> This is the authoritative map of the shipped sound surface. (It carried a **45 functions + 39
+> constants** count that stood while the surface grew; recount with `node tools/api-usage.js`
+> rather than trusting a number in prose here.) §5–§11 hold the
 > rationale for how it got here; STATUS item 5 holds what's next (organ, SFX authoring).
 
 **Engine**
-- 16 voices (`SOUND_VOICES` — 8 until 2026-06-05, raised after the §15 starvation
-  measurement), 44.1 kHz, **mono**, software-mixed (sum × 0.2 gain each, then the §17
+- **32 voices** (`SOUND_VOICES` — 8 → 16 on 2026-06-05 after the §15 starvation measurement,
+  → 32 on 2026-06-15 with `SOUND_HANDLE_BITS` 4→5), 44.1 kHz, **stereo** since 2026-06-10
+  (`pan_law`, per-voice pan, stereo inserts — see [stereo.md](stereo.md) and §9), software-mixed (sum × 0.2 gain each, then the §17
   **master soft-clip**: linear below a ±0.8 knee, tanh-shaped above — quiet mixes
   bit-identical, hot mixes glue instead of slamming a wall). Runs on raylib's
   audio-stream callback (the **audio thread**).
 - Voice allocation: first free → else a **non-held** voice → else voice 0. Held notes
   are stolen last — they're meant to last. Ringing engines get a ~3ms steal-declick tail.
-- Held-note **handles** pack slot (low `SOUND_HANDLE_BITS` = 4 bits, guarded by a
+- Held-note **handles** pack slot (low `SOUND_HANDLE_BITS` = **5** bits, guarded by a
   `_Static_assert` against `SOUND_VOICES`) + generation; a stale handle (its voice was
-  stolen or the slot reused) silently no-ops. 16 handle slots. See `held-notes.md`.
+  stolen or the slot reused) silently no-ops. 32 handle slots. See `held-notes.md`.
 
 **The surface, in four layers**
 
@@ -197,8 +199,11 @@ covers only `drive` + `echo`. Constants: `LFO_HARMONICS/TIMBRE/MORPH` = 4/5/6,
   [`input-recording-looper.md`](input-recording-looper.md).
 
 **Thread-safe control (the important architectural fact)**
-- Main thread → audio thread via a 512-entry **request ring buffer**; kinds 0–28 cover
-  play (0–2), define (3–6, 18, 20 = `wave_set` packed 4 samples/request, 21 macros,
+- Main thread → audio thread via a 512-entry **request ring buffer** (`SOUND_REQ_QUEUE`), with
+  `atomic_int` head/tail since the atomics hardening. The `SR_*` kind enum has grown well past the
+  0–28 this line once listed (146 at the last count, through mic, sync, parameter and state-restore
+  requests) — read the enum in `runtime/sound_ctx.h`, not a number here. The original span, for the
+  shape of it: play (0–2), define (3–6, 18, 20 = `wave_set` packed 4 samples/request, 21 macros,
   23 choke, 24 drive, 26–27 echo), and held-note live control (7–17, 19, 22, 25, 28).
   Delayed requests (`strum`/`schedule`/`schedule_hit`) sit in a 64-entry holding pen on
   the audio thread.
@@ -1582,8 +1587,8 @@ v1, document it on the panel.
     set ("a `master_*` API only if carts ask"). Stateless waveshaping (no buffer), so it's the cheapest
     insert: `drive_shape()` is a **verbatim copy** of the per-voice `DRIVE_*` switch (HARD/FOLD/ASYM/SOFT)
     so the bus version A/Bs against per-voice character, + a one-pole DC blocker on the wet path (ASYM is
-    one-sided, like the voice path). `FX_DRIVE`=15 — the **last** kind that fits `fx_order`'s 4-bit-per-slot
-    packing (a 16th `FX_*` needs a packing change). `SR_DRIVE_INSERT`=89; master-only, NOT in the default
+    one-sided, like the voice path). `FX_DRIVE`=15 — was the last kind that fitted `fx_order`'s 4-bit-per-slot
+    packing (**superseded by §17 #23: the packing is 5 bits per slot now, kinds 16..31 are free**). `SR_DRIVE_INSERT`=89; master-only, NOT in the default
     chain (the cart places `FX_DRIVE` via `fx_order(0,…)`, like FX_ECHO/REVERB). `mix 0` (or `amount 0`) →
     dormant/byte-identical.
     **TRAP (cost an hour, motionbox 2026-07-09): `drive_insert()` does NOT self-place `FX_DRIVE` in the

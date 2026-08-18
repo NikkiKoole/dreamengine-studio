@@ -324,7 +324,8 @@ voicing/stiffness / hammer-softness / pedal-sustain.
 | piano/clavichord | piano.c | h0.75 t0.50 m0.30 | Extreme stiffness, intimate soft hammer, short damped tone. |
 | piano/celesta | piano.c | h0.92 t0.50 m0.60 | Maximum metallic shimmer, bright tuned percussion, long sustain. |
 
-> **Cross-ref:** **no charted radio station uses `INSTR_PIANO`** — every piano on the dial
+> **Cross-ref:** `INSTR_PIANO` reached the dial with **eno** (the first radio station to use it).
+> Before that, every piano on the dial
 > is faked on TRI/SINE (`tri/felt-grand`, `sine/closed-lid-piano`, satie's `tri/felt-piano`).
 > piano.c models the real thing; satie in particular is flagged as an *upgrade candidate*
 > (it predates the engine) in [`instrument-presets.md`](instrument-presets.md). The six
@@ -346,7 +347,8 @@ cart" for those. The named layouts:
 | voice/formant | vox.c (voice) | A45 D60 S7 R200 · vib 5.5Hz · voice_consonant/coda | Interactive formant synth — VOWEL/SIZE/EFFORT axes, CV/VC onset/coda timing, pentatonic jam pad. |
 | voice/melodyne | voxroll.c (melodyne roll) | A40 D80 S7 R220 · MONOPHONIC 1 voice · `note_pitch` drives the drawn contour · `note_glide` 45ms legato · `note_lfo` vib 5.5Hz · per-note VOWEL (harmonics) + SIZE (timbre) | Melodyne-style vocal piano roll — draggable vowel-blobs, FORMANT (size) decoupled from pitch via the ✱ tab, connect-on-touch glide (touching notes slide, gaps break + re-attack). |
 
-> **Cross-ref:** no radio station uses `INSTR_VOICE` yet. The voice carts (voxlab, vox, say,
+> **Cross-ref:** `INSTR_VOICE` is on the dial in **air, eno, napoleon, polopan, thexx and wba**.
+> The voice carts (voxlab, vox, say,
 > voxab, voxpad) are the engine's reference + audition rigs; `voice/formant` (vox.c) is the
 > only one with a single concrete `instrument()` recipe worth naming — the rest live-modulate
 > a base voice (see "By cart").

@@ -1,6 +1,6 @@
 # Synth Secrets audit — the engine cross-checked against Gordon Reid's 63-part series
 
-STATUS: EXPLORING — findings ledger, nothing approved. Every item below is a *candidate*, deliberately
+STATUS: LIVING findings ledger — **partly executed**: 15 items below now carry a ✅ SHIPPED banner and name a live `studio.h` symbol (organ leak/perc, bowed body+size, keytracking, piano stiffness/stretch, `mono.h`). What landed and in what order is tracked in [synth-secrets-plan.md](synth-secrets-plan.md); the rest are still *candidates*, deliberately
 not queued. The owner's rule (2026-07-28): **one small step at a time, and no engine change lands
 without a cart where you can hear it.** So each item names its audible home before it names its code.
 

@@ -5,7 +5,11 @@ STATUS: LIVING (session entrypoint) — start sound sessions here; stays thin, p
 > **Genre: living entrypoint.** The one place to start a sound session: where the engine
 > roadmap stands, what's next, and where the durable knowledge lives. NOT a design doc —
 > it points at the canonical docs and stays thin. Fold anything that proves out into
-> §8.8.x and trim this. Last updated 2026-06-09.
+> §8.8.x and trim this. Last updated 2026-08-18. ⚠ **The roadmap below is spent:** the effects-bus
+> layer shipped (delay/tape/leslie/wah are all in `studio.h`), `INSTR_VOICE` shipped with a locked
+> mapping and is in the help tab, and the aux-channel lock-in was done 2026-06-14. For what is
+> actually next, read [`synth-secrets-plan.md`](synth-secrets-plan.md) and
+> [`effects-bus-architecture.md`](effects-bus-architecture.md).
 
 ## Where we are — the §8.5 engine roadmap
 

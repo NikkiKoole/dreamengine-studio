@@ -225,13 +225,14 @@ Together these turn "real engine on iOS" from surgery into "implement one iOS ba
 
 ## General engine health (independent of iOS)
 
-4. **Split the monoliths.** `studio.c` (~4,300 lines) and `sound.h` (~6,850) are huge — and CLAUDE.md
+4. **Split the monoliths.** `studio.c` (~6,830 lines) and `sound.h` (~8,400) are huge — and CLAUDE.md
    spends paragraphs on how parallel agents clobber them in the shared tree. Splitting into modules
    (gfx / input / audio-host / assets) *creates* the platform seam above **and** shrinks the
    parallel-edit blast radius that keeps biting.
-5. **Settle and prune the A/B flags.** `DE_POLY_FILL`, `DE_DISC_FILL`, `DE_CLAMP_CACHE`,
-   `DE_BATCH_PSET`, `DE_BLIT_FAST` — exploration toggles whose fast paths look blessed. Once decided,
-   deleting the legacy branches removes real code and footguns.
+5. ~~**Settle and prune the A/B flags.**~~ **DONE** (2026-07-10 / 2026-08-15): `DE_POLY_FILL`,
+   `DE_DISC_FILL`, `DE_CLAMP_CACHE`, `DE_BLIT_FAST` and `DE_TRITEX_FAST` are deleted, legacy branches
+   and all. Only `DE_BATCH_PSET` survives, deliberately. See
+   [engine-simplification.md](engine-simplification.md).
 6. **Asset-loading abstraction.** `LoadFontFromImage`/`LoadTexture` assume Raylib + files at `cwd`. A
    small loader (PNG → CPU buffer for the software canvas; bundle-relative paths) is needed for iOS and
    tidies the desktop/web split.

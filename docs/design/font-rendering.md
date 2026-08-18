@@ -17,8 +17,8 @@ STATUS: EXPLORING — text-effect proposals (print_wave / print_type / inline co
 
 ## Where we are today
 
-> **Note (2026-06-12):** the "one font" framing below is the *original* state. There are now
-> **five** fonts via `font()` — see [The font family + the bitmap-font pipeline](#the-font-family--the-bitmap-font-pipeline-2026-06-12-session-12) below for the current roster and how to add more.
+> **Note (2026-06-12, count refreshed 2026-08-18):** the "one font" framing below is the *original*
+> state. There are now **six** fonts via `font()` (`FONT_NORMAL/SMALL/TINY/COMIC/THIN/TIC`) — see [The font family + the bitmap-font pipeline](#the-font-family--the-bitmap-font-pipeline-2026-06-12-session-12) below for the current roster and how to add more.
 
 **One font, drawn two ways.** The in-game font is `dos_8x8` — a full DOS-OEM 8×8
 bitmap sheet (16×16 grid), loaded via `LoadFontFromImage(..., YELLOW, 0)` with

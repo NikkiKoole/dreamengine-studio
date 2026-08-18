@@ -124,12 +124,15 @@ programs and their uniform locations), open OS file handles, the process `argv`.
 those is N GPU allocations at best and a handle freed while a sibling samples it at worst. The
 classification records ~123 exceptions for this file, against 13 for `sound.h`.
 
-**And the platform seam has no instance argument.** This is the finding that matters. The AUv3 today
-runs ONE process-wide frame worker (its own comment: *"ONE worker per process, not per instance"*)
-and calls `de_frame(t)` with no instance parameter — as do `de_resize`, `de_copy_frame`,
-`de_set_safe_area`, `de_set_backing_scale`, `de_audio_render` and `de_set_save_dir`. **Once
-`studio.c`'s state is per-instance, one `de_frame()` per tick advances exactly one rack and the
-others freeze.**
+**And the platform seam had no instance argument.** This was the finding that mattered, and it is
+**FIXED** — every seam function takes a `DeInstance *` today (`runtime/platform.h`), and
+`lint-engine-seam.js` gates it (one engine per host, every seam uses its handle, no cart-declared
+engine externs). ▼ The analysis is kept because it is why the seam has the shape it has:
+the AUv3 then ran ONE process-wide frame worker (its own comment: *"ONE worker per process, not per
+instance"*) and called `de_frame(t)` with no instance parameter — as did `de_resize`,
+`de_copy_frame`, `de_set_safe_area`, `de_set_backing_scale`, `de_audio_render` and
+`de_set_save_dir`. **Once `studio.c`'s state was per-instance, one `de_frame()` per tick would
+advance exactly one rack and the others freeze.**
 
 The dangerous part is that **the macro move compiles and passes every byte-exact gate while leaving
 this broken**, because `refactor-guard` runs a single instance. So the mechanical pass is a
@@ -141,9 +144,9 @@ pending/seqlock machinery exists to prevent, reintroduced one level up. And **a 
 does not work here either**, which is a correction to the shape chosen for `sound.h`: the same
 instance is touched from THREE threads (UI thread resizes, the frame worker draws, the XPC/view
 thread copies the frame), and one worker serves many instances. There is no "current instance" for a
-thread to hold. **The seam must take an explicit handle.** Concretely `de_copy_frame(dst, cap, &w, &h)`
-has no instance parameter at all, and its reader must load `de_pres_buf` from the same context it
-loaded `de_pres_seq` from or the seqlock means nothing.
+thread to hold. **The seam must take an explicit handle** — and it now does: `de_copy_frame(DeInstance *in, dst,
+cap, &w, &h)`. (It had no instance parameter at all when this was written.) Its reader must load
+`de_pres_buf` from the same context it loaded `de_pres_seq` from or the seqlock means nothing.
 
 **→ The shape is now designed: [`engine-instance-seam.md`](engine-instance-seam.md).** An explicit
 `DeInstance *` at every seam function, plus a thread-local that is set and restored *within* a seam

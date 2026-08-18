@@ -7,7 +7,11 @@
 > [`product-notes.md`](product-notes.md), the wasm-vs-native engine parity in
 > [`web-audio-parity.md`](web-audio-parity.md); **this note owns timing jitter/drift**.
 >
-> **STATUS (2026-06-10): EXPLORING — investigation closed; decision pending.** Cause fully
+> **STATUS: SHIPPED via Path A (worklet build).** *(Was "EXPLORING, decision pending" on 2026-06-10.)*
+> `build-site.js` and the editor's `main.cjs` both pass `-sAUDIO_WORKLET=1 -sWASM_WORKERS=1`, and
+> instrument/radio carts default to a worklet build with `runtime/web_shell_worklet.html`. Stage 1
+> (atomics-harden the queue) also landed: the ring indices are `atomic_int` in `sound_ctx.h`.
+> The §3 diagnosis below is the *pre-fix* state, kept because it is how the cause was found. Cause fully
 > characterized and confirmed in the *shipped* artifact (web audio runs on the main
 > thread via `ScriptProcessorNode` — see §3). Shipped: the `frame_dt` clamp + a 512
 > web buffer — the **main-thread ceiling** ("tight with a small residual," reproducible
@@ -17,7 +21,7 @@
 > (worklet when isolated; the current ScriptProcessor build is the free auto-fallback).
 > Path B (postMessage worklet) + the synth-extraction/plugin angle are parked for future
 > research — the threading model, the A/B call, and the build plan live in
-> [`audio-threading.md`](audio-threading.md). Next step: Stage 1 (atomics-harden the queue).
+> [`audio-threading.md`](audio-threading.md). *(Stage 1 is done; see the STATUS line.)*
 
 ## Symptom
 
@@ -114,9 +118,10 @@ the threshold.
 
 ### 3. CONFIRMED (web, worst on mobile): the audio output clock runs on the main thread
 
-**This is the one that wobbles TRUTH**, and it's the deeper problem. The web build
-ships **no AudioWorklet and no worker threads** — neither `build-site.js` nor the
-editor's `main.cjs` passes `-sAUDIO_WORKLET`/`-sWASM_WORKERS`. With those flags absent,
+**This is the one that wobbles TRUTH**, and it was the deeper problem. ▼ *Superseded, kept as the
+diagnosis: both builds pass the worklet flags now (see the STATUS line).* At the time, the web build
+shipped **no AudioWorklet and no worker threads** — neither `build-site.js` nor the
+editor's `main.cjs` passed `-sAUDIO_WORKLET`/`-sWASM_WORKERS`. With those flags absent,
 emscripten + raylib's miniaudio fall back to a **`ScriptProcessorNode`, whose
 `onaudioprocess` runs on the main thread.**
 

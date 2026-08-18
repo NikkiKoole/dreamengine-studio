@@ -45,8 +45,10 @@ supposed to guarantee?"
 - **Opt-in, manual.** A weak stub → carts without a `spec()` cost nothing and are skipped
   (not failed). The runner is a manual/occasional gate like `build-all`, **not** a commit
   hook (parallel agents + compile cost).
-- **No `de_state` requirement.** 0/394 carts use it (`cart-analyze.js`); state is plain
-  file-scope `static`s. Specs read those directly.
+- **No `de_state` requirement.** Most carts keep state in plain file-scope `static`s and a spec reads
+  those directly. (The original note said "0/394 carts use it"; 24 of 582 do today —
+  `api-usage.js --where de_state` — including anything on the starter cart's `STATE`/`S` sugar, whose
+  state lives behind the `de_state()` pointer, so a spec for one of those reads through `S`.)
 
 ## Two verbs, because carts split in two
 
@@ -142,7 +144,8 @@ runner's `--help`.
 Sibling of `build-all.js`. For each cart whose source defines a non-empty `spec()`:
 compile with `-DDE_SPEC -DDE_TRACE`, run, collect JSONL pass/fail, per-cart report;
 `--quiet` exits 1 on any failure (CI). Auto-skips carts with no `spec()` (weak stub).
-`--golden` runs/blesses the framebuffer-hash check across all carts; `--save` re-blesses.
+*(A `--golden` flag was sketched here and never built on `spec.js`; the framebuffer-hash check
+shipped as `canvas-diff.js --golden` instead.)* `--save` re-blesses.
 
 ## Known boundaries (v1)
 

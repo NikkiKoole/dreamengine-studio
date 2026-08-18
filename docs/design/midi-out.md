@@ -18,8 +18,9 @@
 > **MIDI CC *in* shipped the same day** — the one dropped `else if` this doc's sibling kept
 > deferring — and it is **channel-aware**, which notes deliberately are not
 > ([why](#the-channel-map-and-why-drum-voices-are-notes-not-channels)).
-> **Still open:** wiring a rack to it (the target is **`acidcandy`/Tiny Acid Jam**, not `acidrack`
-> — that is where the shipping app is), the **slide encoding** decision, an AUv3 MIDI-out path
+> **Wired 2026-08-15:** `acidcandy`/Tiny Acid Jam sends on four channels plus clock (it was always
+> the target rather than `acidrack`, because that is where the shipping app is).
+> **Still open:** the **slide encoding** decision, an AUv3 MIDI-out path
 > (model B), and MPE in either direction. Sibling of the input layer —
 > [`midi-and-keybed.md`](midi-and-keybed.md). A 2026-07-19 r/ipadmusic drip put real numbers behind
 > it — see [Demand evidence](#demand-evidence-from-the-r-ipadmusic-drip).
@@ -229,7 +230,8 @@ reaching desktop Ableton is model A's job.
   channel/note/velocity/controller, plus a **negative control** (the same run without `--midi-out`
   must publish nothing, which is the only way to tell "correctly gated" from "not gated at all").
   Needs no IAC bus and no DAW, unlike [`sync-spike`](external-clock-sync.md).
-- **Still open:** wiring a rack to it, and the **slide encoding** decision above.
+- **Still open:** the **slide encoding** decision above. (Wiring a rack to it: done, `acidcandy`,
+  2026-08-15.)
 
 ### The inert guard, found while building this
 

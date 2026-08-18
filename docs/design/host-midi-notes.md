@@ -32,7 +32,7 @@ this one is blocked in the cart. Every hop verified by reading, not remembered:
 | AU parses the event list | ✅ `ios/AU/TinyjamAU.swift:467-468` → `de_midi_event` |
 | declared to Swift | ✅ `ios/Sources/engine.h:76` |
 | engine pushes to the ring | ✅ `runtime/midi_input.h:69`, drained by `midi_get()` at `:82` |
-| **the cart reads notes** | ❌ **`acidcandy` calls `midi_get()` / `midi_held()` zero times** |
+| **the cart reads notes** | ✅ **since 2026-08-15** — `acidcandy.c` drains `midi_get()` every frame (was: "calls it zero times", which is the gap this doc was written to close) |
 
 So host notes arrive, land in the ring, and nobody drains them. **The plumbing work is zero.
 All of the work is the musical decision.** (Bend and CC are already wired and mapped, 2026-08-14:

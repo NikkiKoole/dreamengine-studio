@@ -9,11 +9,12 @@ sound."
 Together they answer the question this pair was built for: *what are we using in what
 radio, and where are we (knowingly or not) reusing the same recipe?*
 
-> **Status: pilot.** Only **italo** is charted. We started here because it's the station
-> that prompted the question — it *feels* like a collage of other stations' sounds, and
-> charting it tests whether the format makes that borrowing visible. (It does: italo's
-> whole drum kit turned out to be `house`'s, lifted verbatim.) Grow one station at a time;
-> add each voice to the [preset catalog](instrument-presets.md) as you go.
+> **Status: 34 stations charted** (every `##` section below is one). It began as a pilot on
+> **italo** — the station that prompted the question, because it *feels* like a collage of other
+> stations' sounds, and charting it tested whether the format makes that borrowing visible. (It
+> does: italo's whole drum kit turned out to be `house`'s, lifted verbatim.) The format held, so it
+> grew one station at a time. Add each new voice to the [preset catalog](instrument-presets.md) as
+> you go, and re-derive the count from the section headings rather than trusting this line.
 
 ## How to read a chart
 

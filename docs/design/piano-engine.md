@@ -129,13 +129,12 @@ row-2 knobs (`decay`/`knock`/`velo`) tune it by ear.
    `cents = K·oct·|oct|`) so the inharmonic partials agree across notes. SEAM: `PIANO_STRETCH_K` →
    `0.0f` disables (back to ET). Pitch-based, decoupled from the stiffness macro. *(#5)*
 
-**Tunable knobs (eng_p) are still RAW indices** (`MODE_PIANO_DECAY`=2 / `MODE_PIANO_KNOCK`=3 as
-cart-local defines), deliberately not yet promoted to public `MODE_PIANO_*` constants via the
-four-places API ritual. Per-voicing `dd`/`knock` baselines are reasoned defaults, not yet ear-tuned.
+**Tunable knobs (eng_p) are PUBLIC constants** — `MODE_PIANO_DECAY`=2 and `MODE_PIANO_KNOCK`=3 went
+through the four-places ritual and live in `studio.h` + `studioDocs.js` + `shell.js`. Per-voicing
+`dd`/`knock` baselines are still reasoned defaults, not yet ear-tuned.
 
 ### Remaining polish (optional)
 - Ear-tune the per-voicing `dd`/`knock` baselines and `PIANO_STRETCH_K`.
-- Promote the eng_p indices to proper `MODE_PIANO_*` constants (studio.h + studioDocs + shell.js).
 - More voicings could carry a detuned 2nd/3rd string (only grand/bright/dulcimer do now).
 
 ## Verify any change

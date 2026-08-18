@@ -62,7 +62,8 @@ note_cutoff(h, 1800);                 // ... drive it live ...
 note_off(h);                          // ... release it
 ```
 
-A **handle** is an opaque int naming one of the 8 voices. The engine picks the voice and
+A **handle** is an opaque int naming one of the `SOUND_VOICES` voices (**32** today; this doc was
+written at 8). The engine picks the voice and
 hands you the address — so **polyphony falls out for free** (each `note_on` mints a new
 handle) and there's no fixed channel count to allocate against.
 
@@ -72,8 +73,7 @@ exists only to work around a fixed address space. Handles match the MIDI model e
 musician already knows (key down = `note_on`, key up = `note_off`) and serve both the
 polyphonic keyboard (moog) and the persistent single emitter (engine rev) cleanly.
 
-**The one cost handles carry — defused.** If all 8 voices are busy and a 9th `note_on`
-steals one, the stolen voice's handle is now stale. Left unhandled, a later
+**The one cost handles carry — defused.** If every voice is busy and one more `note_on` steals one, the stolen voice's handle is now stale. Left unhandled, a later
 `note_off(stale)` could kill the wrong note. Fix: a handle packs **`index + generation`**;
 the engine bumps a voice's generation every time it's freed or stolen, and **every setter
 and `note_off` silently no-ops if the handle's generation doesn't match the voice's
@@ -82,9 +82,9 @@ the wrong note. That single rule makes handles beginner-safe.
 
 A happy consequence: because stale handles are safe, **held voices are still stealable**
 (oldest-held first) — there's no "reserved channel starves the event pool" problem. Voice
-allocation stays uniform: 8 voices, LRU stealing, handles keep it honest.
+allocation stays uniform: `SOUND_VOICES` voices, LRU stealing, handles keep it honest.
 
-The two worlds coexist and share the 8 voices ([`audio-notes.md`](audio-notes.md) §6.3):
+The two worlds coexist and share the same voice pool ([`audio-notes.md`](audio-notes.md) §6.3):
 
 - **Events** (`note/hit/chord/sfx`) → blips, hits, music. Unchanged.
 - **States** (held notes) → engines, sliders, sirens, sustained keys, CV-modulated voices.
@@ -209,7 +209,7 @@ separately-proposed `slide()` primitive.
 ## 6. Implementation sketch
 
 Rides the existing architecture — **no new shared-state path.** Per
-[`audio-notes.md`](audio-notes.md) §2, the 32-entry request ring buffer
+[`audio-notes.md`](audio-notes.md) §2, the request ring buffer (`SOUND_REQ_QUEUE`, 512 entries)
 (`sound_push_req`) is the one correct place to mutate sound state.
 
 1. **New request kinds** on the ring: `3=note_on, 4=note_off, 5=note_pitch, 6=note_vol,

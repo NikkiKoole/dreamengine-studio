@@ -1,6 +1,6 @@
 # Effects bus architecture — reorderable inserts, multi-reverb, reverb-as-bus, sidechain
 
-**Status: Increments A, C, D all SHIPPED 2026-06-12.** A: reorderable inserts (`fx_order`). C:
+**Status: Increments A, C, D SHIPPED 2026-06-12; E and F SHIPPED 2026-06-14** (see their own sections below: E = the cabinet/amp output stage, "the cab story is complete"; F = per-instance `crush_inst`/`eq_inst` + `FX_INST`). G is the open one. A: reorderable inserts (`fx_order`). C:
 multi-reverb + reverb-as-bus-insert + effects-after-reverb (`reverb_bus_fx`) — see §5. **D: sidechain
 & bus compression (`sidechain`/`sidechain_key`/`glue`) — the sc_key send accumulator + envelope→gain
 stage of "Increment D" below, shipped; `groovebox` PUMP/GLUE is the showcase.** A design map for

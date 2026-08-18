@@ -1,6 +1,7 @@
 # Checks & oracles — *I changed X, what do I run?*
 
-> **Why this exists.** The repo has ~25 verification tools, but the tool list (CLAUDE.md) is a
+> **Why this exists.** The repo has dozens of verification tools (37 carry a `--selfcheck` alone),
+> but the tool list (CLAUDE.md) is a
 > *forward* index (tool → what it does). When you're mid-change you need the *reverse* map
 > (**what you touched → what proves it still works**). Agents kept missing the right oracle because
 > nothing answered that question in one place. This is that place. Run the matching check after the
@@ -54,6 +55,7 @@ This page is only the routing layer.
 | **designing** a dispersion / allpass cascade (before writing any engine code) | **`disp-model.js`** — solves the coefficient for a target inharmonicity `B` analytically, plus the phase delay it adds at the fundamental (which must be subtracted from the delay line) and whether the line survives at that pitch. **Do not patch `sound.h` to search a grid**: it is slow, and it holds a shared engine broken while parallel agents compile against it — and a timeout's SIGTERM skips your `finally` restore, which left the engine patched twice on 2026-07-30. Model the sweep, patch only to confirm one chosen point |
 | edited **`docs/STATUS.md`** (the shipped/open/cut ledger) | **`status-check.js --check`** — catches what no linter can, because none of it is a broken link: a **DONE marker inside `## Open`** (38% of the backlog when the check was written), an entry over the 25-line budget (rationale belongs in the owning design doc), an undated entry, Shipped out of reverse-chronological order, numbering inversions, a bloated `_Last updated:_`, and a dead "see Decided-against" pointer. Bare (no `--check`) prints the index the file lacks. **⚠ Never renumber to fix an inversion** — ~30 `STATUS #N` references across docs, tools and cart sources resolve today; reorder the entries instead |
 | added/changed an **`instrument_mode` aux param** or a `MODE_*` constant | **`lint-aux-params.js --quiet`** — the width is written in five places (both `eng_p[]` decls, BOTH `idx >= N` bounds, the note-on copy, the MODE_* constants + their 4-place registration) and missing one makes the parameter **silently inert**: the setter accepts the value, queues it, the handler drops it. Has bitten twice — piano's decay/knock sliders dead for months, then `MODE_PIANO_STRETCH` reading 0¢ everywhere |
+| bound a knob to a **host parameter** (`param_bind`), or touched the parameter queue | **`bash tools/param-check/run.sh`** — 9 assertions over the declaration table, the queue, the frame drain, the range clamp, and that a written value reaches the DSP and not merely the variable. TWO negative controls: two untouched renders byte-IDENTICAL, and a write to an address NOBODY BOUND changing nothing (else any traffic through the queue looks like a working parameter). ⚠ **ENGINE HALF ONLY** — that a HOST sees the tree is proven out of process by `./au-transport-check --params` in `ios/mac.sh`, and a green run here says nothing about it |
 | **inharmonicity / dispersion / stretched tuning** — the allpass chain in a string engine, a partial-ratio table, anything claiming partials are "stretched" | **`inharm-spec.js`** — partial frequencies in cents vs the ideal `n·f0`, plus the fitted stiff-string `B` and its residual. `tune-check` measures the FUNDAMENTAL and `harmonic-spec` measures partial LEVELS, so between them a partial can drift 30¢ sharp and read only as slightly quieter — which is how PIANO shipped with an inert dispersion chain (**§I4b**) and a stretched-tuning seam working in the treble but cancelled in the bass (**§I4c**) while both gates stayed green. **Run `--check` first**: a broken tool and a genuinely harmonic engine print the same table. **A voice's SUSTAIN changed?** `inharm-spec <wav> --f0 <hz> --decay` gives per-partial decay in dB/s — `wav-envelope` measures the whole signal and so cannot separate "the fundamental dies faster" (a loop bug) from "only the upper partials do" (spectral), which is the distinction that settled §I4b |
 | **levels / effects** | **`level-check.js`**, **`fx-check.js`**; feedback/voice-lifetime → **`soak-check.js`**; DC offset → **`dc-check.js`** |
 | engine math / optimizer | **`web-audio-check.js`** (wasm-vs-native parity) |
@@ -69,6 +71,11 @@ This page is only the routing layer.
 | You changed… | Run | What it proves |
 |---|---|---|
 | moved state around without meaning to change behaviour — the per-instance-context work, an extraction, a reorder | **`refactor-guard.js --bless`** first, then **`refactor-guard.js`** after every step | six probe carts are **byte-identical** across audio, frames and the `watch()` trace, with the divergence **located** ("audio diverges at 3.1s", "frame 137"). ⚠ **Every other gate on this page is the wrong shape for this job**: they assert semantic properties and therefore have tolerances, and a state move can slip inside all of them at once. Use `--full` to run those too, as a second opinion, not as the gate. Its own hazard is a *vacuous* pass, so probes carry liveness assertions and a dead probe fails loudly — that caught 2 of the first 6 probes chosen. **If your change touches something no probe reaches, add a probe and re-bless**; a green over a probe set that misses your edit is the same as no run at all |
+| touched a **host↔engine seam function** (`de_frame`/`de_resize`/`de_copy_frame`/`de_audio_render`/…), or added a component that creates an engine | **`lint-engine-seam.js --selfcheck`**-gated run (a `repo-doctor` row) | three bugs shipped in one day because the per-instance refactor changed what host code MEANS without changing what it SAYS: two components each booting their own rack (silence on device), six seam fns that take a `DeInstance *` and then drop it for the thread-local (never fails loudly, and the handle in the signature makes it READ as done), and a cart declaring its own 2-arg `extern` against a 3-arg definition (UB no compiler sees across TUs; it surfaced as a crash with `in = 0xa7`). A file may create an engine only if it says `de:engine-owner` |
+| **per-instance engine work** (a state move into a context, a new `*_ctx.h`) | **`bash tools/instance-check/run.sh`** | ONE process runs N INDEPENDENT engines: two instances driven with different transport must differ in frames AND audio. ⚠ This is what `refactor-guard` structurally CANNOT check — it runs one instance, so it proves a state move changed nothing and can never prove two instances are strangers (a variable wrongly left SHARED does not change a single-instance render). Negative control: two fresh instances driven the SAME must be byte-identical. Also gates destroy (heap flat over 8 rounds) and sample-exact interleaving |
+| added or reordered a **saved-state slice** (`de_state_for_saved` / `DE_CTX_BLOCK_SAVED`) | **`node tools/lint-saved-state.js`** then **`bash tools/state-check/run.sh`** | the lint: nothing in a saved slice may be meaningful only to the instance that wrote it (a POINTER is an error, a live VOICE HANDLE is advisory and matched by name, because a handle is a plain `int`), plus **APPEND-ONLY** against `tools/saved-state-layout.json` — the engine matches a blob to its slice by (index, SIZE), so it is structurally blind to a REORDER and only a committed record of the old order can see that. The gate: a saved rack comes back, scratch does NOT travel, a mangled or truncated blob is refused, and an older shorter blob prefix-restores (the update cliff) |
+| a cart's **host-MIDI note mapping** (what a note from the host MEANS) | **`bash tools/midi-note-check/run.sh`** | 27 assertions, headless, no DAW: a note names a SOUND or a PITCH per machine. Three negative controls, each stopping a different way of passing for the wrong reason — two untouched renders byte-IDENTICAL, holding the panel's OWN root byte-identical (the override is EXACT, not merely present), and a note outside the kit changing NOTHING. Direction is measured on the 303 **stem**, never the mix: a whole-rack centroid sits at the hats and drifts the wrong way |
+| **`runtime/sync.h`** or the external-clock seam | **`bash tools/sync-spike/run.sh`** | the whole arc over REAL CoreMIDI (arrive → START → run → STOP → hand back), which the synthetic `--midi-clock` path cannot cover because a deterministic run ignores real MIDI by design. Needs the IAC bus online, macOS only |
 
 ## Cart logic, registration, docs
 
@@ -124,7 +131,10 @@ feels self-evidently correct — and it is, right up until the check starts enco
 ("is this item done?", "is this reference a claim or a proposal?"). At that moment it is exactly as
 fallible as an FFT, and nobody has built the fixture.
 
-**So: if your check makes a judgement, give it a `--selfcheck`.** Fifteen now do — **278 assertions**
+**So: if your check makes a judgement, give it a `--selfcheck`.** 37 tools now carry one and
+**32 are gated in `repo-doctor` as a `selftest:` row** — always take the live figure from
+`node tools/gate-controls.js --list` or a `repo-doctor` run, never from a number in this prose.
+The fifteen that started it, and their counts at the time (several have grown since)
 — every one gated in `repo-doctor` as a `selftest:` row:
 
 | tool | fixture | pins |
@@ -622,10 +632,12 @@ accumulation as `last - min`). Distinguish it from a tolerance choice — the th
 
 **Still without one** — always take the list from `node tools/gate-controls.js --list` rather than
 from a count written in prose; several agents work this repo at once and this tally moved twice in
-one afternoon. Of the audio/render family, `psola-check` and `web-audio-check` remain: `psola-check`
-needs synthetic signals carrying a *specific* artifact (a splice, a staircase, a period doubling),
-where a mis-synthesis pins the fixture rather than the detector, and `web-audio-check` compares two
-platforms, so its control is a deliberate divergence and its fixture needs a toolchain. Most of the
+one afternoon. *(`psola-check` and `web-audio-check` were named here as the two audio/render holdouts, and both
+got their fixture later the same day — `psola-check --selfcheck` is 53 answers, `web-audio-check`
+is 31 plus a `--bypass` control. The hard part each faced is worth keeping: `psola-check` needed
+synthetic signals carrying a *specific* artifact (a splice, a staircase, a period doubling), where
+a mis-synthesis pins the fixture rather than the detector, and `web-audio-check` compares two
+platforms, so its control is a deliberate divergence and its fixture needs a toolchain.)* Most of the
 rest of the list is `build-*.js --check` staleness gates, where failure is loud and immediate and a
 control buys little — **spend one where PASS is the steady state and failure would be silent.**
 

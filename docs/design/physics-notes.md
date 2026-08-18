@@ -47,7 +47,10 @@ billiards, dominoes, a spinning crank**.
 - **Prepared (2026-07-14):** Box2D **v3** (the pure-C rewrite) is vendored at `runtime/box2d/`
   and the four-target compile gate (mac/win/wasm/ios) PASSES — so it's a viable cart-land lib.
   Evidence, flags, the coordinate-mapping + cross-platform-determinism gotchas, and the demo to
-  build (crate stacking / dominoes): [box2d-integration.md](box2d-integration.md). No cart yet.
+  build: [box2d-integration.md](box2d-integration.md).
+- **SHIPPED (2026-07-23):** `runtime/boxrig.h` (sprite alpha → `b2Hull`, tritex from the hull's own
+  verts, verlet↔rigid coupling) and **nine carts** on it: `puppet`, `boxlab`, `boxjelly`, `boxskin`,
+  `boxhuman`, `buggy`, `silverball`, `tombola`, `tumble`. Still opt-in, not in the default cart build.
 
 ### Particles + constraints (Verlet / PBD) — what the ragdoll already is
 Points have a position and an *implied* velocity (current − previous). Everything is:

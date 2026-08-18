@@ -23,10 +23,10 @@ rather than fact, because getting that wrong would be worse than leaving it open
 | **MIDI clock IN** — slave to a DAW or a drum machine | in | ✅ **SHIPPED** (`sync.h` + CoreMIDI), **macOS desktop only** — the iOS backend is open | ✅ incl. the iPad app |
 | **Host transport** (AUv3 `musicalContextBlock`) | in | ✅ **SHIPPED** on macOS; the panel/process fork is open ([ios-plan.md](ios-plan.md#the-out-of-process-wall-the-open-fork-2026-08-13)) | ReWire was its equivalent |
 | **Ableton Link** — peer tempo with phones in the room | both | ✗ **OPEN.** Same `sync_push_pos()` call, so small — but the lib is dual-licensed, check that FIRST | n/a (Link postdates it) |
-| **MIDI notes IN** — play the instrument | in | ✅ engine-wide (`midi_input.h`, keybed carts). ⚠ **acidcandy reads none** — it is a sequencer, which is why recording a GarageBand instrument track captures nothing | ✅ |
-| **MIDI CC IN** — turn its knobs from a controller or DAW automation | in | ✅ **SHIPPED 2026-08-13** — `midi_cc(ch, cc)` (polled, for riding a knob) + `midi_cc_get()` (drained, the MIDI-learn primitive). **Channel-aware**, unlike notes, so a rack can map per machine ([why](midi-out.md#the-channel-map-and-why-drum-voices-are-notes-not-channels)). ⚠ no cart reads it yet | ✅ (recall — this is the gap the maker was reaching for) |
+| **MIDI notes IN** — play the instrument | in | ✅ engine-wide (`midi_input.h`, keybed carts). ✅ **acidcandy reads them since 2026-08-15** (`midi_get()` drained per frame; a note names a SOUND or a PITCH per machine, see [host-midi-notes.md](host-midi-notes.md)). *Was: "acidcandy reads none, which is why recording a GarageBand instrument track captures nothing."* | ✅ |
+| **MIDI CC IN** — turn its knobs from a controller or DAW automation | in | ✅ **SHIPPED 2026-08-13** — `midi_cc(ch, cc)` (polled, for riding a knob) + `midi_cc_get()` (drained, the MIDI-learn primitive). **Channel-aware**, unlike notes, so a rack can map per machine ([why](midi-out.md#the-channel-map-and-why-drum-voices-are-notes-not-channels)). ✅ **acidcandy reads it** — CC1 (mod wheel) rides the master filter. | ✅ (recall — this is the gap the maker was reaching for) |
 | **MIDI clock OUT** — drive other gear from a cart | out | ✅ **SHIPPED 2026-08-13** — `midi_send_clock/start/stop` over a CoreMIDI virtual source (macOS + iOS). Gated by `tools/midi-check/run.sh`. See [`midi-out.md`](midi-out.md) | ✗ ReWire instead (recall) |
-| **MIDI notes OUT** — a cart as a sequencer for outboard | out | ✅ **SHIPPED 2026-08-13** — `midi_send_note(ch, …)` + `_cc` + `_bend`, channel-first. `midiout` is the demo. ⚠ no RACK wired to it yet (acidcandy is the target; slide encoding still open) | ✗ (recall) |
+| **MIDI notes OUT** — a cart as a sequencer for outboard | out | ✅ **SHIPPED 2026-08-13** — `midi_send_note(ch, …)` + `_cc` + `_bend`, channel-first. `midiout` is the demo. ✅ **acidcandy is wired** (`midi_send_note` on four channels + `midi_send_clock`); slide encoding still open | ✗ (recall) |
 | **Audio INTO another app / DAW** | out | AUv3 — plays, but the panel is not honestly wired (the fork above) | ✅ ReWire on desktop; **Audiobus** on iPad |
 | **In-app EXPORT of your track** | out | ✗ **nothing ships this.** The engine CAN capture its own output (`sound_wavcap_begin`), but the only trigger is the debug harness's request-file channel — see "what export would actually take" below | ✅ **iTunes + SoundCloud** |
 | **Background audio while slaved** (iOS) | — | ✗ open, and it is the pairing ReBirth shipped | ✅ |
@@ -90,7 +90,8 @@ The live 303-alikes on iOS set the baseline: **Troublemaker** (Bram Bos) has AUv
 Link, IAA/Audiobus/AUM routing, MIDI sync and audio-loop export. Against that list we have AUv3
 (panel unfinished), MIDI clock in on desktop, and — since 2026-08-13 — **CC in ✓ SHIPPED** plus MIDI
 **out**, which none of the three named above offer. **Link and export remain table stakes we lack**,
-and CC is shipped at the *engine* level only: no cart maps a knob to it yet, so a buyer cannot use it.
+and CC was shipped at the *engine* level first; **acidcandy maps CC1 to the master filter since
+2026-08-15**, so a buyer can use it.
 
 **So the short answer to the question, as it stood when asked.** The simplest thing was **MIDI CC
 in** — one `else if` in `midi_input.h` threw the bytes away, and with them "tweak the cutoff from a
@@ -333,8 +334,8 @@ transport and gate host sync deterministically.
 - **The tempo knob and transport go read-only while slaved.** Deliberate (be a proper slave,
   the ReBirth model), but acidcandy does not yet *show* that on the MST face, so a maker
   pressing play with a DAW attached gets no explanation. UI follow-up.
-- **No MIDI clock OUT.** Carts cannot yet drive someone else's tempo. That is the
-  output-direction feature discussed in [`midi-and-keybed.md`](midi-and-keybed.md), and it is
-  what would make the 303 sequence an Ableton set (the Rozeta pattern).
+- ~~**No MIDI clock OUT.**~~ **SHIPPED 2026-08-13** (see the table above): `midi_send_clock()` +
+  `_start`/`_stop`, and `acidcandy` drives it, which is what makes the 303 sequence an Ableton set
+  (the Rozeta pattern). Design: [`midi-out.md`](midi-out.md).
 - **No time signature.** Everything above assumes 4/4 for the bar:beat:16th readout. MIDI
   clock does not carry a signature at all; the AUv3 host block does.

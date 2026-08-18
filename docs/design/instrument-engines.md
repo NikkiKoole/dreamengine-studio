@@ -28,8 +28,10 @@ the effects-layer plan. **Genre: design exploration.**
 > **Engines: the roster is COMPLETE — all 12 shipped + 1 experimental.** PLUCK · MALLET ·
 > FM · ORGAN · EPIANO · PD · MEMBRANE · REED · PIPE · GUITAR · PIANO · BOWED, each behind an
 > `INSTR_*` id with the fixed 3-macro surface (harmonics/timbre/morph). **VOICE** (formant,
-> `INSTR_VOICE`) is EXPERIMENTAL — its public macro mapping isn't locked (driven raw via
-> `voice_param()` in the voxlab prototype). What's left on engines is **tweaking/tuning**,
+> `INSTR_VOICE`) SHIPPED 2026-06-10 with its mapping LOCKED and documented in `studio.h`
+> (harmonics = VOWEL, timbre = SIZE, morph = EFFORT), plus `voice_nasal`/`voice_consonant`/
+> `voice_coda`; `voice_param()` was the voxlab prototype's raw path and is not public API.
+> See [voice-engine.md](voice-engine.md). What's left on engines is **tweaking/tuning**,
 > not new engines. To add/tune one: its §8.8.x section + the shipping playbook §8.8.2.
 >
 > **Stereo (the effects-layer prerequisite): DONE.** Shipped 2026-06-09 (linear pan law,

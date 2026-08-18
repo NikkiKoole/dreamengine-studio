@@ -258,8 +258,9 @@ everything else (0 mismatches, partial sectors included). `arc` stays the curved
 > point-in-polygon test and per-pixel `DrawPixel` are gone for solid, axis-aligned fills (one
 > `DrawRectangle` per span instead), keeping the per-pixel CPU coverage *decision* intact so
 > the invariant holds (`raster_test` still 0; byte-identical). `roadlab` 2.7× faster. The
-> per-pixel cost below is now the *legacy* path (`DE_POLY_FILL=legacy`) and the rotated/zoomed/
-> dither fallback. Full writeup → [../guides/engine-optimization.md](../guides/engine-optimization.md).
+> per-pixel cost below was the *legacy* path (`DE_POLY_FILL=legacy`) and is now only the
+> rotated/zoomed/dither fallback — the flag and its branch were **deleted** in the 2026-07/08
+> simplification rounds. Full writeup → [../guides/engine-optimization.md](../guides/engine-optimization.md).
 
 - **Perf — measured, the cost is real (2026-06-01, `podracer`).** Direction 1 is
   CPU-per-pixel: `trifill` → `poly_fill_cov` scans the triangle's bounding box and does a

@@ -1,8 +1,9 @@
 # Software canvas — kill `rlVertex3f` by rasterizing the whole frame on the CPU
 
-STATUS: EXPLORING (proposal) — the fleet survey's #1 lever; the primitive forks are de-risked by tools/det-probes/; the GO/NO-GO probe is [software-canvas-phase0-plan.md](software-canvas-phase0-plan.md).
+STATUS: SHIPPED (2026-06-24) — built, measured GO, and made **the canonical 2D renderer for portable targets** by [ADR-0024](../decisions/0024-software-canvas-is-canonical-for-2d.md). iOS ships on it, `repo-doctor` gates it every run (`canvas-diff drawall --golden`). Kept for the measurements and the fork rationale; the GO/NO-GO probe that decided it is [software-canvas-phase0-plan.md](software-canvas-phase0-plan.md).
 
-> **Genre: design exploration → PROPOSAL, not built.** This is the design pass the
+> **Genre: design exploration → the PROPOSAL that became the renderer.** (It was written before
+> the build; §Phase 0 result records the GO.) This is the design pass the
 > [engine-optimization fleet survey](../guides/engine-optimization.md#fleet-survey--where-the-engine-spends-time-across-carts-2026-06)
 > asked for before any code: its #1 fleet-wide cost is the per-pixel GPU submission path
 > (`pset`/`DrawPixel` → one `rlVertex3f` per pixel), and the fix is an architecture change,

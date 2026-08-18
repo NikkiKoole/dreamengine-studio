@@ -1,6 +1,6 @@
 # Synth Secrets — the build plan
 
-STATUS: BUILDING — **Phase 0 DONE · Phase 1 DONE 7/7 · Phase 2 is 3.5 of 4 · Phases 3-4 untouched.**
+STATUS: BUILDING — **Phase 0 DONE · Phase 1 DONE 7/7 · Phase 2 is 3.5 of 4 · Phase 3 is 3 of 44 resolved (3.26 shipped, 3.30 dropped, 3.44 shipped) · Phase 4 is 1 of 5 answered (4.2). The remainder of 3-4 is untouched.**
 The ordered work ledger derived from [`synth-secrets-audit.md`](synth-secrets-audit.md) (98 findings). The
 audit is the *findings*; this is the *doing*.
 

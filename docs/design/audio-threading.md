@@ -80,7 +80,8 @@ before it sees the advanced index, and vice-versa:
 - Producer: write the entry, then `atomic_store_explicit(&head, next, memory_order_release)`.
 - Consumer: `atomic_load_explicit(&head, memory_order_acquire)`, then read the entry.
 
-Today the indices are `volatile` (`sound.h:455-456`), which is **not** a memory barrier.
+~~Today the indices are `volatile`, which is **not** a memory barrier.~~ **DONE:** they are
+`atomic_int req_head` / `req_tail` in `runtime/sound_ctx.h`. The reasoning below is why.
 It works on native largely by luck (strong-ordered x86/ARM + the access pattern). The
 payoff of fixing it: **the same hardened queue is what iOS and Switch need too.** Doing it
 once, correctly, serves every parallel-audio platform — so it's a down-payment on the

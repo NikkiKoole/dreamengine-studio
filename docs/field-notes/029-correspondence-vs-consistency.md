@@ -62,7 +62,7 @@ and took the harmony record with it. `STATUS.md:12` documents this exact failure
 victims. Those three were fixed. The mechanism was not, so it happened again to a fourth and nobody
 noticed for four weeks.
 
-**The ledger denied a capability that 24 carts use.** `blend()` shipped 2026-07-10 under ADR-0031;
+**The ledger denied a capability that 21 carts call.** `blend()` shipped 2026-07-10 under ADR-0031;
 open item 18 still read "This is a real *capability* dreamengine lacks. Next step: ADR, after the
 palette decision." `lint-capability-claims` exists precisely to catch that shape and was green,
 for two compounding reasons: `STATUS.md` is carved out of both linters, **and** `blend` was absent

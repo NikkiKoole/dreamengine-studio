@@ -26,7 +26,7 @@
 
 const CAPS = [
   // blend was ABSENT until 2026-08-18, which is why STATUS.md could carry "a real capability
-  // dreamengine lacks" about a shipped, 24-cart-deep draw primitive and lint-capability-claims
+  // dreamengine lacks" about a shipped draw primitive that 21 carts call, and lint-capability-claims
   // stayed green. A capability missing from this roster is invisible to the linter.
   { cap: "blend",      proof: "blend",            words: ["blend table", "blend tables"],
     wire: ["blend", "blend_reset"] },

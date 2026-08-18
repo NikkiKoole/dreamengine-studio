@@ -933,6 +933,41 @@ void update(void) {
     for (int i = 0; i < chain_n; i++) if (keyp('1' + i) && (chain[i].on || !pedal_locked(chain[i].cat))) { chain[i].on = !chain[i].on; dirty = 1; }
     if (keyp(KEY_SPACE)) { strum_down(); autoplay = AP_OFF; }
 
+    // ── HOST KEYBED → THE GUITAR ────────────────────────────────────────────────────────────────
+    // Play a note on the DAW's keyboard and this rack sounds THAT note, through the pedal chain.
+    // `aumf` is the type for an effect that ALSO wants notes (auv3-plugin-types.md §1), so the rack
+    // is both things at once: an insert on someone else's track, and a playable instrument in its
+    // own right. The engine has always delivered these events (the AU render block walks the host's
+    // event list into de_midi_event, and midi_get drains that same ring) — the cart simply never
+    // asked for them, which is the whole reason it was effect-only.
+    //
+    // CHROMATIC AND LITERAL, deliberately. The note you press is the note you get: not a chord-row
+    // root, not a fretted voicing. The chord grammar stays where it is played by hand, on the panel.
+    // A keybed that silently re-harmonised what you pressed would be a different instrument, and a
+    // surprising one — the player already told us the pitch they wanted.
+    //
+    // NOTE-OFF IS IGNORED, and that is a guitar being a guitar rather than a limitation worked
+    // around: a plucked string rings for its own length and no player mutes it by lifting a finger
+    // off a key. So hit()'s fixed gate IS the model here.
+    {
+        int n, v, t;
+        while ((t = midi_get(&n, &v)) != 0) {
+            if (t <= 0) continue;                    // note-off: the string is already ringing out
+            int vol = 1 + (v * 6) / 127;             // 1..7 — never 0, which would be a silent key
+            hit(n, I_GTR, vol, gate_ms());
+            fmt_on_attack();                         // VOWEL pedal advances its vowel on each attack
+            // Light whichever string this pitch is NEAREST, so the panel shows the note landing.
+            // Purely cosmetic: the sound above is the real note at its real pitch, whatever it lit.
+            int best = -1, bd = 9999;
+            for (int s = 0; s < NSTR; s++) {
+                if (str_midi[s] < 0) continue;       // damped by the fretting hand — nothing to ring
+                int d = n - str_midi[s]; if (d < 0) d = -d;
+                if (d < bd) { bd = d; best = s; }
+            }
+            if (best >= 0) { amp[best] = 1.0f; vib_ph[best] = 0.0f; }
+        }
+    }
+
     if (tapp(saX + 4, saY + 2, 56, 11))   { palette_open = !palette_open; if (palette_open) rig_open = false; }
     if (tapp(saX + 64, saY + 2, 46, 11))  { rig_open = !rig_open; if (rig_open) palette_open = false; }
     if (tapp(saX + 114, saY + 2, 54, 11)) { guitar_in = !guitar_in; if (guitar_in) mic_start(); else mic_stop(); }

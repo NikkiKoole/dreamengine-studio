@@ -277,9 +277,9 @@ in-house against the App Store Connect API, not Fastlane; only its `metadata/<lo
 folder layout is kept**
 ([ADR-0026](../decisions/0026-store-pipeline-in-house-not-fastlane.md); assets/copy
 derive from the cart via `play.js`/`make-gif.js`/`de:meta`, plus a `store-status.js`
-drift oracle) — + a "⬆ TestFlight" button in the panel. Gated on channel B's open
-product decisions (which app, price, original palette —
-[`sharing-channels.md`](sharing-channels.md) §Channel B). The *judgment* layer above this
+drift oracle) — + a "⬆ TestFlight" button in the panel. (Channel B's product decisions are all
+answered as of 2026-08-17, and the palette rule is void, so nothing gates this any more:
+[`sharing-channels.md`](sharing-channels.md) §Channel B.) The *judgment* layer above this
 plumbing (hero-frame selection, copy transcreation, guidelines pre-flight, a whole-page
 stranger-legibility audit) is brainstormed in [`store-agents.md`](store-agents.md) —
 each split at the script/agent boundary.

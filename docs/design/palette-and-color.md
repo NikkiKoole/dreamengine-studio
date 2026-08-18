@@ -1,16 +1,30 @@
 # Palette & color — own the palette before blending bakes it in
 
-STATUS: EXPLORING — one decision wearing two questions; sequenced before blend tables bake the borrowed palette in.
+STATUS: DECIDED (2026-08-18). The release gate is VOID: the palette changes when the maker wants it to, not as a condition of shipping. Layers 1 and 2 below remain the plan for whenever that happens. Layer 3 (blend tables) shipped ahead of them and is decoupled ([ADR-0031](../decisions/0031-blend-tables-before-palette.md)).
 
 > **Genre: design exploration.** Two questions that turn out to be one decision:
 > (1) dreamengine's 32-color palette is **lifted verbatim from PICO-8** — fine
 > for a learning project, borrowed clothes for anything released into the world;
-> (2) blend tables ([STATUS #18](../STATUS.md), [`blend-tables.md`](blend-tables.md))
-> are *computed from* the palette's RGB values, so building them against the
-> borrowed palette bakes it one layer deeper. This doc records how Picotron
-> handles both, and a three-layer plan where each layer ships independently.
-> Nothing here is committed; #18's ADR should follow at least Layer 1's decision.
+> (2) blend tables ([`blend-tables.md`](blend-tables.md)) are *computed from* the
+> palette's RGB values, so building them against the borrowed palette risked baking
+> it one layer deeper. This doc records how Picotron handles both, and a three-layer
+> plan where each layer ships independently.
+> **Both halves are now answered:** ADR-0031 built the tables from the *live* `palette[]`
+> rather than baking them, which decoupled (2) from (1) entirely; and (1) is no longer a
+> gate on anything (see the decision below).
 
+> **▶ THE RELEASE GATE IS VOID (maker's call, 2026-08-18).** The palette is a thing to change when
+> he wants to, not a condition of shipping, and **nothing is blocked on it**. Two paid apps shipped
+> on PICO-8 before this was written down (Tiny Pedalboard live 2026-08-17, Tiny Acid Jam submitted
+> the same day); the decision is that this is fine.
+>
+> **What he reaches for instead**, and the reason the gate stopped mattering: the **hex/RGB path**
+> (`pset_rgb` / `rectfill_rgb` / `blend()`) buys accurate detail where a fixed 32-index set cannot,
+> which is the thing a *different* 32 colours would not have bought either. The standing caveat is
+> dose, not permission: use it where the detail is the point, not as the house style, or the lo-fi
+> surface stops being one.
+>
+> ▼ superseded, kept for the trail:
 > **Release gate (added 2026-06-29):** this is now a *prerequisite*, not just exploration —
 > **no paid App Store app ships on the borrowed PICO-8 palette.** Same principle as the Tinyjam
 > trademark rule ([`tinyjam-marketing.md`](../marketing/tinyjam/tinyjam-marketing.md) §2): a commercial product wears its

@@ -63,6 +63,52 @@ _Last updated: 2026-08-17 — **Tiny Pedalboard is LIVE on the App Store** (1.1 
   [`design/auv3-plugin-types.md`](design/auv3-plugin-types.md) §6. Still ungated: **nothing runs an
   actual archive**, so the next break in signing or the Xcode spec surfaces only when you ship.
 
+- **HOST PARAMETERS — the parameter IS the knob, so a DAW can automate the rack** (2026-08-16).
+  `param_bind(addr, &slot, name, lo, hi)` + `param_count()` (`runtime/param.h`, per-instance via
+  `param_ctx.h`): a cart declares its knobs, the AU publishes an `AUParameterTree`, and an automation
+  lane writes straight into the float the DSP reads. Gated twice, in and out of process:
+  `tools/param-check/run.sh` (9 assertions, two negative controls — two untouched renders must be
+  byte-identical, and a write to an unbound address must change nothing) and `./au-transport-check
+  --params` in `ios/mac.sh`. `play.js --param <addr>@<frame>=<value>` injects automation headlessly.
+  The read-back bug (a host reading the pre-write value out of process) was found and FIXED the same
+  day with a `want` shadow. ⚠ Still no `factoryPresets` — that is the surviving half of the AUv3
+  open list, item 3. Design: [`design/host-parameters.md`](design/host-parameters.md).
+
+- **THE HOST'S KEYBED PLAYS THE RACK — host MIDI notes, mod wheel, pitch bend** (2026-08-14/15).
+  A note names a **SOUND** (transpose the acid lines, or play the kit through the GM map the rack
+  already sends on) or a **PITCH** (play the line, or one drum chromatically), switched per machine by
+  the `PTCH` lens; the mod wheel moves the whole rack and the bend bends the acid. `play.js
+  --midi-note` pushes into the same ring an AUv3 host feeds, so the gate needs no DAW, no cable and no
+  keyboard: `tools/midi-note-check/run.sh`, 27 assertions, mutation-tested twice, with three negative
+  controls that each stop a different way of passing for the wrong reason. Direction is measured on the
+  303 **stem**, never the mix — a whole-rack centroid sits at the hats and drifts the wrong way.
+  Design: [`design/host-midi-notes.md`](design/host-midi-notes.md).
+
+- **THE ENGINE RUNS N INDEPENDENT INSTANCES IN ONE PROCESS** (2026-08-13/14). Two AUv3 instances land
+  in one extension process and engine state was ~200 process-global statics, so two DAW tracks fought
+  over one rack. `de_instance_create` now allocates: per-instance contexts for `sound.h`, `studio.c`,
+  `sync.h`, `midi`/`param`, and the 8 cart-land headers that hold state (`runtime/cart_ctx.h`), with
+  `acidcandy` (198 statics) and `pedalboard` (43) moved too. The move is PURE — the default instance is
+  a `static` with designated initialisers, so values are still set at link time and there is no init
+  order to get wrong. Five tools were built to do it safely and stayed: `ctx-gen.js` (the mechanical
+  edit + `--verify`, the class check), `engine-statics.js` (the progress meter, asks clang's AST not a
+  grep), `refactor-guard.js` (three fingerprinted streams per probe, so a red says *where*),
+  `lint-engine-seam.js`, and `tools/instance-check/run.sh` (the acceptance gate, with the negative
+  control `refactor-guard` structurally cannot provide: two fresh instances driven the same must be
+  byte-identical). **Two GarageBand tracks sound correct** (the maker, 2026-08-14). The measured
+  alternative, K pre-signed dylib copies (`tools/engine-dylib-spike/`, PASSED 2026-08-13, 9 MB for two
+  engines, hard cap), was rejected in its favour. Design:
+  [`design/engine-context.md`](design/engine-context.md), [`design/ios-plan.md`](design/ios-plan.md).
+
+- **MIDI OUT — the engine SPEAKS, and CC comes IN** (2026-08-13). `runtime/midi_output.h` +
+  `midi_send_note` / `_cc` / `_bend` / `_clock` / `_start` / `_stop` through a CoreMIDI virtual source,
+  the same call on macOS and iOS; channel-aware CC **in** landed the same day. `acidcandy` drives it
+  (four channels, clock, and CC1 on the master filter); `midiout` is the demo. `tools/midi-check/run.sh`
+  asserts real bytes from a **second process** in both directions plus cart-to-cart, and carries a
+  negative control, which is the only way to tell "correctly gated" from "not gated at all". Its header
+  documents six traps that each made a healthy engine look broken. ⚠ A plug-in's MIDI still has no seam
+  (`MIDIOutputEventBlock`). Design: [`design/midi-out.md`](design/midi-out.md).
+
 - **ISO ROOMS — a rotating isometric view at 2D-only cost, and the verdict is FOUR rotations** (2026-08-12).
   The renderer probe gating whether a Sims-style life sim is buildable here. The question was never "can we
   draw isometric" — it was whether ONE model can supply every view rotation *without* paying triangles at
@@ -351,6 +397,32 @@ _Last updated: 2026-08-17 — **Tiny Pedalboard is LIVE on the App Store** (1.1 
     Ledger: [`design/audio-notes.md`](design/audio-notes.md) §17 #34 + #35; settings in
     [`guides/effects-recipes.md`](guides/effects-recipes.md).
 
+- **BOX2D v3 RIGID BODIES, opt-in** (2026-07-23, vendored 07-14). Box2D v3.1.1 (pure C) vendored at
+  `runtime/box2d/` with `tools/build-box2d.sh` building it per platform (`--mac/--win/--wasm/--ios`,
+  `--check` smoke test), plus the shelf header `runtime/boxrig.h`: sprite alpha to `b2Hull`, tritex the
+  polygon from its own verts so paint covers the hull exactly, and verlet-to-rigid coupling with
+  `physics.h`. Nine carts use it (`puppet`, `boxlab`, `boxjelly`, `boxskin`, `boxhuman`, `buggy`,
+  `silverball`, `tombola`, `tumble`). NOT in the default cart build, and the cart still owns
+  body/joint/density policy. Sibling: `runtime/physics.h`, the shared Verlet toolkit (2026-07-13).
+  Design: [`design/box2d-integration.md`](design/box2d-integration.md).
+
+- **THE HARMONY BRAIN** (2026-07-20). `runtime/harmony.h`: a 13-function roman-numeral vocab plus
+  per-style Markov tables, extracted from `bossa` + `cocktail` **byte-identically**, and bidirectional —
+  `hb_pick` generates, `hb_suggest` ranks the next chords with a reason, `hb_analyze` reads a
+  progression back as numerals in key and returns an honest `-1` when it cannot. Voicing stays
+  `rad_lead_to`. Cart: `chordwise` (24-assertion `spec()`, all-12-keys round trip). Design:
+  [`design/harmony-brain.md`](design/harmony-brain.md).
+
+- **DEVICE-ADAPTIVE LAYOUT (phases 1-2) + THE DEVICE-FACE GRAMMAR** (2026-07-20, phases 1-2 from 07-04). Carts are
+  resizable, the framebuffer grows, and a cart lays out against `screen_w()`/`screen_h()` + `safe_rect()`
+  with `device_class()` and `finger_px()` telling it what it is running on (verified on an iPhone SE).
+  **Reflow only, never a scale camera** — `ui.h` hit-tests in raw canvas coords, so zooming the render
+  silently desyncs every button. Three shelf headers came out of it: `lay.h` (the immediate-mode layout
+  box), `disclose.h` (a priority + finger-footprint budget that decides which panels get expanded), and
+  `face.h` (the zone grammar that owns the chunky resize and enforces the rules). This is what made the
+  phone apps possible. Design: [`design/device-adaptive-layout.md`](design/device-adaptive-layout.md),
+  [`design/responsive-first-device-face.md`](design/responsive-first-device-face.md).
+
 - **`walkbox` — a walking-bass step-sequencer, BUILT and PARKED** (2026-07-18). A TB-303 workflow driving
   the upright's real `INSTR_BOWED` pizzicato voice: draw a line on scale-locked note bars, sculpt a tabbed
   VEL/LEN lane (velocity → pluck attack, length → staccato gate, top = TIE), flip SLD/OCT rows, dial SWING.
@@ -373,6 +445,16 @@ _Last updated: 2026-08-17 — **Tiny Pedalboard is LIVE on the App Store** (1.1 
   (live-mic-through is live-only; capture-then-freeze stays deterministic). Design:
   [`design/mic-and-sampling.md`](design/mic-and-sampling.md) + [`design/vocoder.md`](design/vocoder.md)
   (vocoder v2 open: sibilance band, mic-rate resample, on-device latency). Desktop + web live-verified.
+
+- **BLEND TABLES — index-only translucency, glow, fog and carve** (2026-07-10). `blend(BLEND_AVG /
+  ADD / MUL / SUB)` + `blend_reset()` on **both** renderers: the software canvas reads the live dst, the
+  GPU desktop path uses a shader plus a per-scope snapshot. The thing carts faked with `fillp` dither is
+  now one call, and 24 carts use it. [ADR-0031](decisions/0031-blend-tables-before-palette.md) is the
+  reason it could ship ahead of the palette question that had been sequenced in front of it: the tables
+  are built at startup **from the live `palette[]`**, not baked, so they cost the palette decision
+  nothing. (That decision has since landed anyway: the release gate is void, 2026-08-18.) Still open
+  from the original sketch: stencil clipping and a `blend_table()` escape hatch. Design:
+  [`design/blend-tables.md`](design/blend-tables.md).
 
 - **LOCKSTEP NETPLAY RUNG 5b — browser WebRTC P2P, SHIPPED + PUBLISHED** (2026-07-10). `pong` plays
   peer-to-peer between two browsers over a DataChannel at ~12 ms on wifi, with the relay reduced to
@@ -402,6 +484,25 @@ _Last updated: 2026-08-17 — **Tiny Pedalboard is LIVE on the App Store** (1.1 
   [leads-marketeer.md](design/leads-marketeer.md#open-questions-resume-at).
 
 **Tooling & environment**
+- **The cart-land shelf** — 32 headers under `runtime/` that carts reach for instead of hand-rolling
+  ([ADR-0006](decisions/0006-library-carts-not-engine.md); the contract lives in each header and
+  in `CLAUDE.md`, gated by `lint-docs`). Beyond the ones with their own entries above: `lay.h` /
+  `disclose.h` / `face.h` (layout + disclosure + the device-face grammar), `ui.h`, `keybed.h`, `mono.h`,
+  `solo.h`, `radio.h`, `improv.h`, `harmony.h`, `drumkit.h`, `tr808.h` / `tr909.h` / `acid303.h` /
+  `morphdrum.h`, `ampcab.h` / `fxicons.h` (the tone and look halves of the pedal vocabulary),
+  `physics.h` / `boxrig.h`, `worldnet.h` / `citygen.h` / `roadkit.h`, `cards.h`, `cursor.h`,
+  `endcard.h`, `gestures.h`, `pointer.h`, `shadermath.h`, `demath.h`, `json.h`, `cart_ctx.h`.
+  A header is on the shelf or it is not, per `tools/cart-land-headers.js` — that split is owned in one
+  place so the discoverability gate and the call-site scan cannot drift apart.
+- **The audio gates, grown past the five in item 42** — `stereo-check.js` is the one to know: it is the
+  **only** gate that reads L and R apart, because every other audio tool downmixes at the door and a
+  mono fold is actively blind to antiphase panning. Also `click-check` (splice/discontinuity),
+  `psola-check` (the pitch-engine artifact trio), `formant-check` (pitch moved, formants held),
+  `inharm-spec` (where the partials sit, and per-partial decay), `ab-render` (A/B a cart against itself,
+  and shout when the flag never reached the DSP), `voice-trace` (why a voice stopped).
+- **The meta-checks** — `repo-doctor` is one health strip over all of them; `status-check` (this file),
+  `handoff`, `orient`, `gate-controls` (which of our gates can prove they go RED), and the `lint-*`
+  family. Reverse index, task → gate: [`guides/checks-and-oracles.md`](guides/checks-and-oracles.md).
 - Code editor (CodeMirror 6, C syntax, autocomplete + hover + Cmd-click-to-help +
   cmd-click an `#include "x.h"` filename → opens the read-only engine source in the
   docs tab's "engine source" group), sprite editor, map editor — all in one
@@ -409,8 +510,8 @@ _Last updated: 2026-08-17 — **Tiny Pedalboard is LIVE on the App Store** (1.1 
 - ▶ run (clang → native Raylib window), inline clang error markers.
 - Cart format — `.cart.png` with source/sprites/map in zTXt chunks; save, load,
   drag-drop. Carts carry their own settings (screen/scale/cell/map).
-- Tutorials gallery — **545** registered carts (tutorials, games, toys, instruments, probes;
-  572 sources in `tools/carts/`, the difference being unregistered work-in-progress);
+- Tutorials gallery — **555** registered carts (tutorials, games, toys, instruments, probes;
+  582 sources in `tools/carts/`, the difference being unregistered work-in-progress);
   all of them also playable on the web gallery (<https://nikkikoole.github.io/dreamengine/>,
   sortable by date-added/title/mobile-readiness, day/night, description toggle).
 - **The RB-338 homage rack + `FILTER_DIODE`, the acid filter** (2026-07-02) — design → shipped in one
@@ -445,8 +546,9 @@ _Last updated: 2026-08-17 — **Tiny Pedalboard is LIVE on the App Store** (1.1 
   machine-readable home. Design + rationale: [`design/store-agents.md`](design/store-agents.md),
   [`design/share-panel.md`](design/share-panel.md), [`design/press-kit.md`](design/press-kit.md);
   Tiny Jam's listing: [`marketing/tinyjam/app-store-listing.md`](marketing/tinyjam/app-store-listing.md).
-  Still open (before a real submission): per-locale copy, the ASC upload/TestFlight step
-  (ADR-0026), and the Search-Term-Rank popularity column (Apple beta).
+  *Update 2026-08-17:* the ASC upload/TestFlight step (ADR-0026) is BUILT and has carried two apps to
+  Apple, one of them to sale — `tools/asc-push.js` + `ios/testflight.sh`, see the Tiny Pedalboard entry.
+  Still open: per-locale copy (untested) and the Search-Term-Rank popularity column (Apple beta).
 - **`youtube-push.js` — video distribution, lever #2's last mile** (2026-07-20) — the in-house
   YouTube uploader (twin of `asc-push`, [ADR-0033](decisions/0033-youtube-first-video-distribution.md)):
   a committed recipe → bake an mp4 (`make-gif`) → composite a crisp 9:16 **Short** (integer-
@@ -528,7 +630,7 @@ _Last updated: 2026-08-17 — **Tiny Pedalboard is LIVE on the App Store** (1.1 
 - **Lockstep netplay, rung 2.5 — in-game lobby** (2026-07-02) — an engine-owned **Host / Join / Solo boot menu** (`net_lobby_menu()` in `runtime/studio.c`, gated by `--net-lobby` or the compile-time `DE_NET_LOBBY_DEFAULT`) so a **standalone build with no editor** can start netplay with no CLI flags — the "send a friend an .exe" case. Reorders the net startup: the lobby draws after fonts load but before the cart's `init()` (the host's rnd() seed must reach the joiner first), so the handshake now runs with the window open, drawing a `HOSTING at <ip>` / `connecting…` status frame (this also fixes rung 2's "host waits with no window" rough edge). Join screen has an in-window IP text-entry. The direct `--net-host`/`--net-join` path (editor 🌐 button / CLI / netdemo) is unchanged. This is the design doc's "the shell owns host/join" — except for a standalone the *engine* is the shell. **Also (same day):** a **`MULTIPLAYER` item in the pause menu** that **self-restarts** the binary into the lobby (`net_restart_into_lobby()`, reusing the RESTART item's `execv(restart_argv)`) — so a player double-clicks the exe, plays solo, then pauses → MULTIPLAYER → lands in Host/Join/Solo; two launches on one Mac each do this to play locally. **And `net.h` is ported to Winsock** (winsock2-before-windows.h via `NOGDI`/`NOUSER`/`NOMINMAX`; `getifaddrs`→UDP-connect trick; `de_mkdir`/`SIGBUS` gaps fixed; `-lws2_32`), so netplay carts now **cross-compile to a real Windows `.exe`** — compile-verified on the dev box; Windows *runtime* test pending a real machine. Next: an "export exe" button, then rung 3 (multicast auto-discovery). Design: [`design/multiplayer-research.md`](design/multiplayer-research.md).
 - **Lockstep netplay, rung 2 — LAN by IP** (2026-07-02) — the shipped path from "CLI-flag capability" to "playable from the editor". A **🌐 multiplayer button** next to ▶ opens a host / join-by-IP popover (`editor/src/shell.js`); `editor/electron/main.cjs` adds the `--net-*` flags to the run spawn and shows the host's LAN IPv4 (via `os.networkInterfaces()`), while the native binary resolves + prints it too (`net_local_ipv4()` in `runtime/net.h`, `getifaddrs()`, prefers a 192.168/10 private address). Host on one Mac, read the shown IP, type it into Join on the other — the wished-for "click host → get an address" UX for the home/classroom case, no NAT, no servers. **Deviation from the plan:** the address surfaces in the editor UI + console, not an in-window overlay — `net_handshake()` blocks *before* `InitWindow`, so there's no window to draw on during the host's wait; the shell (where the button is) is the better surface anyway. Known rough edge: a host with no joiner waits with no window until someone connects (or the editor quits). Next: rung 3 (UDP-multicast "Open to LAN" auto-discovery). Design: [`design/multiplayer-research.md`](design/multiplayer-research.md).
 
-**API surface** — **373 functions** + ~90 constants in `runtime/studio.h` (count from
+**API surface** — **396 functions** + ~235 constants in `runtime/studio.h` (count from
 `node tools/api-usage.js`, which also cross-checks studio.h against studioDocs.js and shell.js).
 *Was written as "~125" and stood while the surface tripled — re-run the tool, don't trust the prose.*
 For the full grouped inventory see [`design/api-notes.md` → "What dreamengine has today"](design/api-notes.md).
@@ -641,8 +743,11 @@ Detail lives in the linked design doc in every case; that is where it was always
 | **4** | **Pause overlay v1** — P/ENTER opens, ESC resumes, freezes `update()`, mutes sound, Continue/Restart, `paused()`; plus the 06-05 hardening (key claiming so a full-keyboard cart keeps P, `-DPAUSE_KEY` actually honored, ENTER no longer self-cancelling) | 2026-06-05 | [api-notes.md](design/api-notes.md) §16 · **tail → item 4** |
 | **5** | **The whole sound build-out** — instrument bank (ADSR/duty/LFO/filter), held notes (`note_on`/`note_off` + live setters + slew), modulation envelopes, and all **14 modeled engines** PLUCK → BRASS | 2026-06-05 → 06-10 | [instrument-engines.md](design/instrument-engines.md) §8 · **tail → item 5** |
 | **10** | **Browser URL-sharing** — the whole catalog | 2026-06-05 | [sharing.md](guides/sharing.md) |
+| **11** | **iPad runtime** — the build path (`ios/build.sh` / `device.sh` / `testflight.sh`) and an app that went `READY_FOR_SALE` through it. The item's "waits for evidence" gate is moot: the evidence is a sale. *If "iPad runtime" ever means the editor on iPad, that is a new item, not this one.* | 2026-08-17 | [ios-plan.md](design/ios-plan.md) · [sharing-channels.md](design/sharing-channels.md) |
 | **14** | **Rasterization consistency** — every filled primitive on one pixel-centre coverage path (outline == boundary of fill), plus the off-screen **bbox clamp** that turned a 46.7 ms worst case into 2.7 ms | 2026-06-01/02 | [rasterization-consistency.md](design/rasterization-consistency.md) · **tail → item 14** |
 | **15** | **Tiny fonts** — `font(FONT_SMALL)` / `font(FONT_TINY)` | 2026-06-01 | [font-rendering.md](design/font-rendering.md) |
+| **16** | **Packaging & public distribution** — not "landed" but **decided**: ADR-0023 ruled we ship finished apps, never the editor, and the packaging that was actually wanted shipped instead (`mac-app.sh`, `build-app.js --ios`, the wasm gallery, an App Store app). Recorded under Decided-against. | 2026-06-29 | [decision 0023](decisions/0023-ship-carts-as-apps-not-the-editor.md) |
+| **18** | **Blend tables** — `blend(BLEND_AVG/ADD/MUL/SUB)` + `blend_reset()` on both renderers, built from the live `palette[]` so they never baked the borrowed palette in; 24 carts use it. Remainder: stencil clipping + a `blend_table()` escape hatch (not filed, low value). | 2026-07-10 | [decision 0031](decisions/0031-blend-tables-before-palette.md) · [blend-tables.md](design/blend-tables.md) |
 | **20** | **TB-303 bassline cart** — non-refiring `note_glide` slides, accent, staccato gate, live CUT/RES on the ringing voice, piano roll with OCT/ACC/SLD rows | 2026-06-05 | the `tb303` cart · [rebirth-classic.md](design/rebirth-classic.md) |
 | **23** | **Sprite round-trip (option D)** — `tools/lib/sprite-patch.js`, the slot-level overlay: fingerprint the generator OUTPUT not its source, per-slot stale-drop, `make-cart.js` composites a sibling `.sprites.patch.json` on every bake and mirrors it into the `.cart.png` as `de:spritepatch`; the editor's save-to-source writes only the changed slots, plus a hand-owned-slots bar and a "discard hand-edits" button | 2026-07-10 | [editor-cart-workflow.md](design/editor-cart-workflow.md) §Gap 2 · **tail → item 23** |
 | **24** | **Web phantom touch point** — own the touch truth on web (a JS mirror rebuilt from `event.touches`), plus the same-day **tap-as-mouse death** sequel (synthesize the mouse from the touch mirror once a real touch is seen) | 2026-06-06 | [touch-notes.md](design/touch-notes.md) §7–8 |
@@ -711,7 +816,8 @@ Detail lives in the linked design doc in every case; that is where it was always
 > **2. `fullStateForDocument` is unverified.** GarageBand round-tripping a project is real evidence,
 > but which of the two it used is unknown, and other hosts may use the document variant. One assertion
 > in the `--state` gate settles it.
-> **3. No `factoryPresets` / `parameterTree`.** The preset dropdown is empty, and whether saving a
+> **3. No `factoryPresets`.** (The `parameterTree` half of this SHIPPED 2026-08-16 — see the host-parameters
+> entry above.) The preset dropdown is empty, and whether saving a
 > GarageBand *patch* (as opposed to a project) carries the rack is untested — patches are how people
 > reuse an instrument, so worth a look.
 > **4. N racks still share one `cart.blob` on disk.** Project state is per-instance and correct now,
@@ -862,20 +968,13 @@ their `kind[]` tags.
 9. **Per-game polish pass** — title/game-over screens, hi-scores, sound on every event,
    juice, difficulty curves, readable HUDs. (Reframed as a reference idea bank, not an
    active backlog — see [`POLISH_TODO.md`](POLISH_TODO.md).)
-11. **iPad runtime** — touch is wired in the runtime; needs a build path. [`VISION.md`](VISION.md).
-    *Product lens (2026-06-07):* if the tinyjam racks become a paid product, this item is
-    the cash register — iOS is where music-app buyers live. Deliberately **waits for
-    evidence** (a rack holding people's attention on the free web gallery) per the
-    sketch-first decision in [`design/product-notes.md`](design/product-notes.md).
-    *Update 2026-07-03:* the build path largely exists (8/9 [`design/ios-plan.md`](design/ios-plan.md)
-    spikes ✅); the live map of what's still missing to the store is
-    [`design/sharing-channels.md`](design/sharing-channels.md) §Channel B (product decision,
-    palette, submission pipeline — the latter decided in-house, not Fastlane:
-    [ADR-0026](decisions/0026-store-pipeline-in-house-not-fastlane.md)).
 12. **Sound tracker UI** — open question; depends on whether code-first sound proves
     sufficient. *Direction 2026-06-04: leaning PICO-8-style, prototyped as a CART with
     zero new engine API (see #5 + audio-notes §5.6) — the cheap way to find out if the
     editor earns a place before any engine-side bank API exists.*
+    *Result 2026-07-02: **the cheap experiment RAN.*** `tools/carts/tracker.c` shipped v1 as designed
+    ([`design/tracker-cart.md`](design/tracker-cart.md)). What stays open is only the second half of the
+    question — whether it earns an **editor** tab — which the cart itself cannot answer.
     [`VISION.md`](VISION.md), [`design/audio-notes.md`](design/audio-notes.md) §5.6, §9.
 
 13. **Baked rotation atlas** *(exploratory — full design note, not yet started)* — an
@@ -902,15 +1001,6 @@ their `kind[]` tags.
     [`design/rasterization-consistency.md`](design/rasterization-consistency.md); the regression
     commands are in [`guides/checks-and-oracles.md`](guides/checks-and-oracles.md).
 
-16. **Packaging & public distribution** *(not started)* — dreamengine only runs as a dev
-    build today. A dev-only icon + app name stopgap landed this session (the running app was
-    a generic "Electron"); real packaging (bundler, `.icns`, code-signing/notarization, load
-    the built renderer instead of `localhost:5173`) is unaddressed. The actual blocker isn't
-    Electron — it's that the ▶ run model shells out to a developer's `clang` + Homebrew raylib,
-    which a consumer machine doesn't have; web/wasm is the likely public path. Full breakdown:
-    [`design/packaging-distribution.md`](design/packaging-distribution.md). Related: browser
-    URL-sharing (item 10), iPad runtime (item 11).
-
 17. **Frame-spanning sequence scripts** *(idea — from the Picotron API comparison; needs design)* —
     the *useful half* of Lua's `yield`/coroutines: write time-based logic (cutscenes, scripted
     AI, juice sequences, dialog) as **linear top-to-bottom code** — `walk_to(100); wait(30);
@@ -922,29 +1012,6 @@ their `kind[]` tags.
     for sequencing, not a new way to structure carts. Open question is whether a macro trick fits
     dreamengine's "readable C" ethos, or whether it's better shipped as a documented example cart
     than as core API. Worth prototyping one `sequence`/`wait` helper to feel the ergonomics.
-
-18. **Blend tables** *(idea — from the Picotron manual; the substantive capability gap)* —
-    index-only translucency/fog/tinting/additive via a precomputed lookup `result = blend[src][dst]`,
-    staying entirely in the 32-color palette (**no RGB, no real alpha** — just a table that says
-    "drawing color `a` over existing color `b` resolves to `c`"). Unlocks the things carts fake
-    with `fillp` dither today: translucent water/glass, fog, additive glows, drop shadows. This is
-    a real *capability* dreamengine lacks — `pal()` swaps and `fillp` are the closest, neither
-    blends with what's already on screen. Deliberately framed as a lookup table so it does **not**
-    trip the "splits the color model" concern flagged on the `lerp_color`/`rgb` parked thought
-    (item 2) — the output is always a palette index. Picotron pairs this with stencil clipping;
-    that's a separate, lower-value follow-on. **Design note now exists →
-    [`design/blend-tables.md`](design/blend-tables.md)**, and the concept is **validated in
-    cart-space**: the `blend lab` tech-demo (`tools/carts/blendlab.c`, 2026-06-04) builds
-    AVG/ADD/MUL tables and blends per-pixel against a cart-owned scene fn, zero engine API.
-    Verdict: the look works (additive glow / glass / fog all read correctly, in-palette), and
-    the engine crux is identified — dst must be read from the *in-progress* frame (a `pget`
-    last-frame read feeds back and blooms; demonstrated by the cart's `P` mode). Candidate
-    implementation: shader + per-scope canvas snapshot, the decision-0007 lane. Next step: ADR —
-    **after the palette decision**: blend tables are computed *from* the palette, and the default
-    palette (lifted verbatim from PICO-8) should become our own / settable first, or #18 bakes the
-    borrowed palette one layer deeper. See [`design/palette-and-color.md`](design/palette-and-color.md)
-    (Picotron findings + three-layer plan: new default → `palette_set` + `de:palette` chunk →
-    tables-from-active-palette).
 
 19. **Per-cell parameter locks in the cr-78 cart** *(cart-space idea, zero engine API — parked
     2026-06-05)* — Elektron-style p-locks for `tools/carts/cr78.c`: each lit step optionally
@@ -1435,6 +1502,14 @@ These were considered and **cut** — kept here so the decision isn't relitigate
 Rationale lives in [`design/api-notes.md`](design/api-notes.md)'s "What to defer or skip" and its
 [**External brainstorm review** (2026-05-30)](design/api-notes.md#external-brainstorm-review--divmmfsim-ideas-weighed-against-the-carts-2026-05-30)
 — which is where the entries dated `2026-05-30` below were decided.
+
+- **Packaging the EDITOR for end users** (was open item 16). Decided 2026-06-29 by
+  [ADR-0023](decisions/0023-ship-carts-as-apps-not-the-editor.md): *we ship finished apps, not the
+  editor.* The old item's premise ("web/wasm is the likely public path") was retired by that ADR and
+  then falsified twice over, because the packaging that IS wanted shipped instead: `tools/mac-app.sh`
+  (signed + notarized + stapled `.app`), `build-app.js --ios`, and public distribution now exists in
+  both forms, the GH Pages wasm gallery and a paid App Store app. The editor stays a dev build on
+  purpose. Background: [`design/packaging-distribution.md`](design/packaging-distribution.md).
 
 - **`pedalboard`: on-screen text labels** — nut string names, fret numbers, a chord-name readout.
   Cut 2026-07-30 ("i dont like that"): two of the three were already answered by the interface, and

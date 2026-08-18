@@ -545,6 +545,13 @@ thing the post promised, on a heavy page; that bleeds conversions.
 
 When a cart demonstrably holds attention, *then*:
 
+> **▶ NOT A BLOCKER (maker's call, 2026-08-18): the original-palette prerequisite is VOID.** Two paid
+> apps shipped on PICO-8 (Tiny Pedalboard live 2026-08-17) and that is fine. The palette changes when
+> he wants it to, not before a submission; where accurate detail is needed he reaches for the hex/RGB
+> path (`pset_rgb` / `blend()`) rather than a different fixed 32. Sparingly, is the standing caveat.
+> Detail: [`palette-and-color.md`](../../design/palette-and-color.md).
+>
+> ▼ superseded, kept for the trail:
 > **Release prerequisite (blocker): an original palette.** No paid App Store build ships on the
 > borrowed PICO-8 32-colour palette — a commercial product wears its *own* visual identity, not a
 > recognizable borrowed one (same principle as the trademark rule, §2). Deferred, *not* a now-task, but

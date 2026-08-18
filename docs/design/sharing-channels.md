@@ -63,22 +63,24 @@ showcase.** (The history page consumes clips; the gallery doesn't.)
 [`software-canvas`](software-canvas.md) render, CoreAudio, saves, StoreKit 2 (local),
 App Groups, signed device deploy
 (`ios/device.sh` — that's guides/exporting.md #3, the *dev* flow), AUv3 hosting the real
-engine with host MIDI, and a real cart (omnichord) pixel-correct on iOS. Only CloudKit
-sync (spike 6) and a real-host AUv3 check remain open.
+engine with host MIDI, and a real cart (omnichord) pixel-correct on iOS. **Real-host AUv3 CONFIRMED** in GarageBand on macOS (the maker, 2026-08-12/13), so only
+CloudKit sync (spike 6) remains open.
 
-**Missing between "proven" and "in the store":**
-1. **The submission pipeline** — Apple Distribution cert + App Store Connect + TestFlight
-   → review; **decided** ([ADR-0026](../decisions/0026-store-pipeline-in-house-not-fastlane.md)):
-   an in-house App Store Connect API tool, not Fastlane — only its metadata folder layout
-   is kept; store assets/copy derive from the cart, drift-checked. (The
-   paid developer account now exists — 2026-07-03, it powers the signed Mac exports.)
-2. **The palette rule** — [`palette-and-color.md`](palette-and-color.md): **no paid app
-   ships on the borrowed PICO-8 palette**; an original palette before the first paid
-   submission.
-3. **The product decision** — *which app first?* (a rack? a game? free or paid?) — the
-   un-park trigger for most of product-notes' parked items.
-4. Store assets (screenshots, description, privacy labels) — unstarted, cheap once 3 is
-   decided.
+**▶ CLOSED 2026-08-17 — the gap between "proven" and "in the store" no longer exists.**
+`apps/pedalboard` (Tiny Pedalboard) is **`READY_FOR_SALE` at $1.99**, and `tinyacidjam` was
+submitted the same day. All four things this section listed as missing are done:
+1. **The submission pipeline** — BUILT ([ADR-0026](../decisions/0026-store-pipeline-in-house-not-fastlane.md)):
+   `tools/asc-push.js` (metadata, screenshots, IAP, `--new-version`) + `ios/testflight.sh`,
+   in-house rather than Fastlane, keeping only its metadata folder layout. It has carried two
+   apps to Apple, one of them to sale.
+2. **The palette rule** — **VOID** (maker's call, 2026-08-18): the palette is not a release
+   condition, see [`palette-and-color.md`](palette-and-color.md). Both apps shipped on PICO-8.
+3. **The product decision** — ANSWERED: a single-cart paid rack, Tiny Pedalboard, $1.99.
+4. **Store assets** — done and committed (`apps/pedalboard/store-shots/`, listing copy,
+   privacy URL); a `READY_FOR_SALE` listing cannot exist without them.
+
+What is genuinely open is the *next* rung, not this one: see [`store-agents.md`](store-agents.md)
+for the update runbook and [`ios-plan.md`](ios-plan.md) for the remaining AUv3 work.
 
 ## Channel C — friends & family (a file)
 

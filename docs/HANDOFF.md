@@ -25,7 +25,9 @@ thing `orient` prints — the front door); `node tools/handoff.js --check` flags
 broken doc link, or a **broken `#section` anchor** (surfaced by `cart-status.js` — the back door).
 So a forgotten stale lane *surfaces* instead of rotting.
 
-_Last updated: 2026-07-30._ **The lane list is NOT maintained here — run `node tools/handoff.js`.**
+_Last updated: 2026-08-18._ **The lane list is NOT maintained here — run `node tools/handoff.js`.**
+*(This date covers the file itself. Per-lane freshness is `handoff.js --check`, which is the only
+thing that can see a lane whose body was edited after its header date.)*
 It prints every lane with its line number and age, read straight from this file, so it cannot drift.
 
 ---
@@ -188,7 +190,7 @@ a broken doc link or `#section`).
 > and its §8 open questions (mic-ring latency · per-instance audio input · whether the MIDI ring
 > replaces or joins the virtual source · one extension target per type or several).
 
-> **▶ ACTIVE THREAD (2026-08-15) — ENGINE SIMPLIFICATION ROUND 2: the instruments were under-reporting, and three ports/paths were quietly broken behind them.**
+> **▶ ACTIVE THREAD (2026-08-18) — ENGINE SIMPLIFICATION ROUND 2: the instruments were under-reporting, and three ports/paths were quietly broken behind them.**
 >
 > Four read-only sweeps (sound.h · studio.c + the host seam · ios/ · the ctx refactor) after the
 > per-instance work. **The finding that reframes the rest: the code was CLEANER than expected** —
@@ -328,8 +330,7 @@ a broken doc link or `#section`).
 > **Resume-at: [the round-2 open list](design/engine-simplification.md#round-2--after-the-per-instance-refactor-2026-08-14)** — every open item names its gate, and the
 > re-verified WON'T-DO list is there too (round 1's three calls still hold; I checked rather than
 > assumed). Biggest remaining: **`TinyjamAU.uiTick()` is orphaned**, so a stopped host freezes the
-> panel and swallows every tap · no Swift caller invokes `de_instance_destroy` at all, so that fix
-> is only half-spent until `TinyjamAU` can deinit · the shared-`static let` canvas channel · and
+> panel and swallows every tap · the shared-`static let` canvas channel · and
 > `ctx-gen --verify`, which would close the half-moved-group CLASS rather than its instances. The
 > Swift items need a real host to confirm; everything self-gateable in `studio.c`/`sound.h` that was
 > open this morning is now landed or documented as reverted.
@@ -520,7 +521,7 @@ a broken doc link or `#section`).
 > **Resume-at:** [`design/tenement.md` → The building does not contend, and the four reasons are stacked](design/tenement.md#12-the-building-does-not-contend-and-the-four-reasons-are-stacked),
 > plus the cart's own punch list, `node tools/cart-todos.js tenement` (the rim first).
 
-> **▶ ACTIVE THREAD (2026-08-15) — EXTERNAL CLOCK + the AUv3 on macOS: a cart can be slaved, and acidcandy is a GarageBand plug-in.**
+> **▶ ACTIVE THREAD (2026-08-18) — EXTERNAL CLOCK + the AUv3 on macOS: a cart can be slaved, and acidcandy is a GarageBand plug-in.**
 > **▶▶ START HERE IN A FRESH SESSION (rewritten 2026-08-13 end-of-day). GOAL: a well-behaved macOS
 > AUv3.** No iPad — macOS IS the target. Everything you need to act is in THIS block; the shipped history
 > follows it, and inside that history the block headed `▼ superseded` is factually WRONG and kept only so
@@ -648,10 +649,10 @@ a broken doc link or `#section`).
 > bind in `init()` BEFORE the autosave restore or the host is told last session's values are the
 > factory defaults. **Addresses are FOREVER** — append, never renumber.
 > Gated by `bash tools/param-check/run.sh` (engine half) and `./au-transport-check --params` (the real
-> out-of-process plug-in). **▶ ONE OPEN DEFECT: host READ-BACK** returns the pre-write value out of
-> process. Measured down to two ruled-out causes; the remaining suspect is out-of-process parameter
-> mirroring. Automation WORKS, it may just not display where it starts. Full record:
-> [`design/host-parameters.md`](design/host-parameters.md).
+> out-of-process plug-in). **▶ THAT DEFECT IS FIXED (2026-08-16):** host read-back returned the
+> pre-write value because `de_param_set` only QUEUED, and the host reads back inside the same call;
+> a `want` shadow in `param_ctx.h` closed it. Full record, including how it was actually found:
+> [`design/host-parameters.md`](design/host-parameters.md) §The read-back bug.
 >
 > **▶ NEXT: the BEND is ungated** (both 303 lines are muted at boot, so a default render has nothing to
 > bend — it needs the lines unmuted plus a pitch oracle, and an ear check; ⚠ `--midi-note` plus the
@@ -1759,7 +1760,7 @@ a broken doc link or `#section`).
 > `docs/design/bossa-rack.md`, `docs/design/genre-box-rosters.md`. Related: `bossaface.c` (the candy
 > vibe mockup) + the superseded `bossabloom.c`.
 
-> **▶ ACTIVE THREAD (2026-07-16) — Android as a Google-Play build target.**
+> **▶ ACTIVE THREAD (2026-08-18) — Android as a Google-Play build target.**
 > The engine already runs frameworkless behind `platform.h` (`DE_NO_RAYLIB`), so Android is a **host
 > shell + Gradle packaging**, not engine work. SHIPPED this session: the toolchain (NDK/SDK/emulator,
 > sudo-free via Homebrew) + **spikes 0–3** — the real engine cross-compiles with the NDK and RENDERS
@@ -1778,12 +1779,13 @@ a broken doc link or `#section`).
 > The Android twin of iOS's edge-gesture deferral. JNI is exception-guarded (can't crash); verify the
 > nav bar truly stays hidden on a real phone — see the immersive gotcha in `design/android-plan.md`.
 > **Resume-at: [`design/android-plan.md` → the spike ladder](design/android-plan.md#the-spike-ladder)** —
-> NEXT = spike 4 (save → internal storage) → 5 (signed `.aab` for Play) → 6 (Play Billing via the
+> NEXT = spike 5 (signed `.aab` for Play) → 6 (Play Billing via the
 > existing `Store_*` gate; needs a Play Console account) → 7 (`build-app.js --android` multi-cart app).
+> (Spike 4, save → internal storage, **DONE 2026-07-16** via the new `de_set_save_dir(dir)` seam.)
 > Hot files: `android/app/src/main/cpp/main.c` (the NativeActivity shell), `android/build.sh`,
 > `docs/design/android-plan.md`.
 
-> **▶ ACTIVE THREAD (2026-07-18) — the audio-input frontier (the engine HEARS *and SPEAKS*).**
+> **▶ ACTIVE THREAD (2026-08-18) — the audio-input frontier (the engine HEARS *and SPEAKS*).**
 > The reddit-gaps drip kept surfacing the SAME blocked wishes (hum→MIDI, pedals, live looping) — all
 > one missing capability: the engine had no ear. Now it does, on every platform, and it vocodes. The
 > arc, spike → ship → instruments → vocoder:
@@ -1828,7 +1830,7 @@ a broken doc link or `#section`).
 > **Resume-at: [`design/audio-input-frontier.md` → the frontier, ranked](design/audio-input-frontier.md#what-it-opens-next--the-frontier-ranked-by-juice-per-effort).** Auto-tune
 > arc is COMPLETE for the offline feature; the LIVE path is feasible-and-parked (warble). Open frontier, ranked:
 > (1) the **live looper** — the *pedal tier* half of this SHIPPED 2026-07-22 (`input_monitor(gain)`, and
->     `pedalboard` became its own app, in review); the looper is the part still open;
+>     `pedalboard` became its own app, **on sale since 2026-08-17**); the looper is the part still open;
 > (2) **vocoder v2 tail** — mic-rate resample (non-44.1k device mics drift the ring) + on-device latency tuning;
 > (3) **beatbox→live drum trigger**; (4) **live-autotune warble** if revisited (real-time YIN / phase vocoder).
 > `voxroll` decouples formant/pitch but only on synth `INSTR_VOICE`, not a real-mic corrector.
@@ -1943,7 +1945,7 @@ a broken doc link or `#section`).
 > + `finger_px()`) is still open and now rides the faces lane above. Scoreboard:
 > [`device-adaptive-layout.md` → Where this stands](design/device-adaptive-layout.md#where-this-stands).
 
-> **▶ ACTIVE THREAD (2026-07-19) — store / ASO + the app-trailer builder.**
+> **▶ ACTIVE THREAD (2026-08-18) — store / ASO + the app-trailer builder.**
 > **LATEST (2026-07-19) — Tiny Acid Jam is LIVE ON ASC as a draft (the FIRST standalone single).**
 > Per [`design/launch-sequence.md`](design/launch-sequence.md)'s single-first plan, `acidcandy` ships
 > as its own app **Tiny Acid Jam** *before* the Tiny Jam umbrella. Renamed this session from "Acid
@@ -1959,12 +1961,12 @@ a broken doc link or `#section`).
 > **Price DECIDED = $1.99** (cheap-paid, one-time; .99 charm point, low friction for a no-reviews first
 > launch) — recorded as `"price"` in `app.json`, BUT the base price is settable via `node tools/asc-push.js <app> --price` (was a manual ASC step) (Pricing &
 > Availability tab — `asc-push` pushes IAP prices only, and this app has no IAPs).
-> OPEN before it can SUBMIT (all deferred by the maker for now): (1) a **description** — `app.json` has no
-> `listing.description`; draft against `seo-brief.md` then `asc-push --metadata`; (2) **screenshots** — 0
-> today; `store-shots.js` from a `play.js --dump` frame → `asc-push --screenshots`; (3) a **standalone iOS
-> build** (`.ipa`) — needs wiring like Tiny Jam's `ios/testflight.sh APP=tinyacidjam`; (4) in ASC: set the
-> **$1.99 tier**, age rating, privacy-policy URL. **Resume-at:** `apps/tinyacidjam/app.json` +
-> [`design/launch-sequence.md`](design/launch-sequence.md) "For Tiny Acid Jam specifically".
+> **▶ SUBMITTED 2026-08-17 — all four of the blockers this lane listed are closed.** v1.0 is
+> `WAITING_FOR_REVIEW` with build `202608162137`. For the trail: (1) the description landed
+> 2026-07-22, (2) five device screenshots the same day, (3) `ios/testflight.sh` archives it with the
+> AU inside, (4) price/age-rating/privacy URL all set. **Resume-at:** nothing until Apple answers;
+> then `apps/tinyacidjam/app.json` + [`design/launch-sequence.md`](design/launch-sequence.md)
+> "For Tiny Acid Jam specifically".
 >
 > **Buy-screen crash FIXED (2026-07-06, commit `07690c9b`):** the "instant, random" abort on the
 > Tiny Jam menu/purchase screen was a **data race** — `Store.unlockedIDs` (a Swift `Set`) read by the

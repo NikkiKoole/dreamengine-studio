@@ -1,6 +1,6 @@
 # Blend tables — index-only translucency, glow, and shadow
 
-STATUS: BUILT — [ADR-0031](../decisions/0031-blend-tables-before-palette.md) built the engine feature BEFORE the palette decision (safe because tables build from the live `palette[]`, not baked). `blend()` / `blend_reset()` + `BLEND_AVG/ADD/MUL/SUB` ship on BOTH renderers — software canvas (live dst) and the GPU desktop path (shader + per-scope snapshot). Verified on the `blendfx` demo. Cart prototype `blendlab.c` recorded the original findings below; the palette question (STATUS #18, [palette-and-color.md](palette-and-color.md)) stays open and is deliberately decoupled.
+STATUS: BUILT — [ADR-0031](../decisions/0031-blend-tables-before-palette.md) built the engine feature BEFORE the palette decision (safe because tables build from the live `palette[]`, not baked). `blend()` / `blend_reset()` + `BLEND_AVG/ADD/MUL/SUB` ship on BOTH renderers — software canvas (live dst) and the GPU desktop path (shader + per-scope snapshot). Verified on the `blendfx` demo. Cart prototype `blendlab.c` recorded the original findings below. The palette question ([palette-and-color.md](palette-and-color.md)) was deliberately decoupled, and is itself now decided: the release gate on it is VOID (2026-08-18).
 
 > **Genre: design exploration.** The design behind [STATUS open item 18](../STATUS.md)
 > ("blend tables — the substantive capability gap", from the 2026-06-03 Picotron

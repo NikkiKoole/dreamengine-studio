@@ -247,9 +247,12 @@ runtime/   studio.h (public API: constants + declarations), studio.c (Raylib imp
                        runs several instances in ONE process and a cart is ONE translation unit, so two
                        racks share whatever its headers declare `static`. A header declares its state
                        ONCE as an X-list, then forks: DE_CTX_STATICS(LIST) by DEFAULT (exactly the
-                       statics that were there, so all 553 carts pay nothing) or DE_CTX_BLOCK(...) when
+                       statics that were there, so every cart pays nothing) or DE_CTX_BLOCK(...) when
                        a cart defines DE_CART_CTX (a per-instance slice via de_state_for, keyed by an
-                       ADDRESS so headers cannot collide). Done: all 8 headers that hold state.
+                       ADDRESS so headers cannot collide). Done: the 8 headers measured in 2026-08-14's
+                       sweep. ⚠ NOT a closed class — the shelf is 32 now (cart-land-headers.js) and
+                       worldnet.h + citygen.h hold mutable file-scope state with no macro and no
+                       recorded exception; two instances of a cart driving them share one world cache.
                        Recipe + the compile-order trap: docs/design/engine-context.md
            lockup/    NOT shelf — ONE cart's private modules (the `lockup` prison sim), on the
                       include path only because -I runtime already is. model.h is a FROZEN CONTRACT
@@ -259,7 +262,8 @@ runtime/   studio.h (public API: constants + declarations), studio.c (Raylib imp
                       translation unit. Written by 8 parallel agents; the pattern is ADR-0034.
                       Don't #include these from another cart — copy what you need.
            tenement/  same pattern, NOT shelf: the frozen contract for the `tenement` sim (several
-                      households in one building), specced + compile-checked, cart not written yet.
+                      households in one building), specced + compile-checked, and DRIVEN by tools/carts/tenement.c
+                      (12 modules wired, spec() 249/249).
                       Its ONE rule: nothing enumerates instances, everything matches on TAGS —
                       no place owns a recipe, nothing switches on an object kind. docs/design/tenement.md
            isoroom/   generated (tools/voxel-bake.js --emit-c), not hand-edited: the baked rotation
@@ -491,7 +495,7 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
                              `--launches` (who SHIPPED into our lane, date-windowed — a build from this week
                              has no ask and no time to trend, so the other two CANNOT see it; runs in the drip
                              log too, since supply news rots in days). `THIN` (◐) = covered on paper but
-                             demand ≥3× our carts — on a 255-cart shelf `GAP` is nearly extinct and THIN is
+                             demand ≥3× our carts — on a shelf this size `GAP` is nearly extinct and THIN is
                              where the next candidate comes from. Design: docs/design/demand-discovery.md
              reddit-gaps-drip.sh  the scheduled-drip RUNNER for reddit-gaps (loaded by the macOS LaunchAgent
                              com.dreamengine.reddit-gaps-drip): resolves node under launchd's bare env + fires
@@ -610,8 +614,11 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
                              tritex every frame is the one thing measured too slow on device (ADR-0024).
                              So author once, bake all rotations at BUILD time, runtime is sspr() + a
                              painter's sort. LIGHT IS FIXED IN SCREEN SPACE (shade by world normal and it
-                             appears to rotate with the room). Reports TOTAL ATLAS PIXELS, because
-                             make-cart.js caps a cart sheet at 128×128/64 slots. `--check` = 32 known
+                             appears to rotate with the room). Reports TOTAL ATLAS PIXELS, which is a
+                             BUDGET not a wall: make-cart.js DEFAULTS a sheet to 128×128/64 slots and a
+                             .cart.js may declare a bigger one (`sheet: {w,h}` / `sheet: 256`) since
+                             2026-08-12 — generator carts only, the sprite editor still assumes the 8×8
+                             grid. `--check` = 34 known
                              answers. docs/design/iso-rooms.md
              font-bake.js    bake real-TTF text into sprite-draw canvases at build time
              gen-rom-font.js bake the "extra" bitmap fonts (ROM dumps + EPX) into the shared atlas
@@ -632,7 +639,9 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
                              --counts / --json): "show me the road stuff / the radio stations", each with its doc
              backfill-slug.js  add the canonical `slug` (=filename stem) to every cart's de:meta + re-embed
                              de:source — the .cart.png→.c provenance anchor (design/editor-cart-workflow.md
-                             Gap 1b); dry-run by default, `--write` to apply (449 carts pending)
+                             Gap 1b); dry-run by default, `--write` to apply (BACKFILL COMPLETE 2026-07-10 — 0 pending;
+                             lint-carts now ENFORCES the slug↔filename match, so this is kept as the
+                             re-embed helper, not an open chore)
              spec.js         run each cart's spec() — the gameplay-logic gate (twin of tune-check)
              squishy-features.js  feature×brush COVERAGE oracle for the squishy cart (renders its matrix
                              grid, pixel-diffs each cell vs baseline → flags silently-no-op features).
@@ -707,7 +716,7 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
              instance-check/run-uictx.sh  the CART-LAND half: does a cart-land header's state become
                              PER-INSTANCE when a cart opts in (`-DDE_CART_CTX`)? Builds the probe TWICE and
                              asserts OPPOSITE things — the DEFAULT path must stay shared (that is what all
-                             553 carts compile, and it must not change), the opted-in path must not. A seam
+                             every cart compiles, and it must not change), the opted-in path must not. A seam
                              checked only in its enabled state is half a seam. Pattern + how to do the next
                              header: docs/design/engine-context.md → "Cart-land"
              state-check/    THE ACCEPTANCE TEST for SESSION STATE — does a saved rack come back?
@@ -769,7 +778,15 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
                              STOP → hand back) through synccheck's trace, so the REAL CoreMIDI path has a
                              gate too — the synthetic --midi-clock one can't cover it, since a deterministic
                              run ignores real MIDI by design. Needs IAC online; macOS only
-             mic-spike/      SPIKE (audio-input frontier): can the engine HEAR? miniaudio mic capture → live mic_level()/mic_pitch() (Tier-1, docs/design/mic-and-sampling.md). run.sh fetches miniaudio.h + builds; CONFIRMED LIVE on Mac (webcam mic, peak −17 dBFS — level clean, zero-crossing pitch is octave-noisy)
+             mic-spike/      THE MIC SHIPPED — this is the original probe, kept for the trail. The engine
+                             HEARS and SPEAKS through studio.h: mic_start/_stop/_active/_level/_pitch +
+                             mic_record* (capture), and vocoder_mic / autotune_mic / harmonize_mic /
+                             input_monitor / sample_autotune on top. mic_pitch is a YIN detector and is
+                             octave-SAFE; the spike's own note below predates it by two detectors.
+                             docs/design/mic-and-sampling.md. ▼ the probe, as run: miniaudio mic capture →
+                             live mic_level()/mic_pitch(); run.sh fetches miniaudio.h + builds; CONFIRMED
+                             LIVE on Mac (webcam mic, peak −17 dBFS — level clean, zero-crossing pitch is
+                             octave-noisy)
              build-app.js    build a MULTI-CART app from apps/<name>/app.json: per-TU renames + generated dispatcher + per-cart sound/video/sheet contexts (de_switch_cart umbrella) — adding a rack = one manifest line. Bare = a native binary; --mac wraps it signed+notarized via mac-app.sh; --ios stages the set for the Xcode build (ios/device.sh|build.sh APP=<name>).
                              **`--check` = THE STORE-PATH GATE** (repo-doctor row): every apps/*/app.json through the real front half (`--dry` = validate+generate, stop before clang), one child each so a broken app reports and the sweep continues. WHY: nothing here ran build-app.js except a human about to ship, so when SOUND_CART_CTX moved into the generated sound_ctx.h and the parser still grepped sound.h, EVERY app build was dead for weeks behind a green board, behind an error that named the symbol and blamed the wrong file. ⚠ It stops before the first clang, so a cart that no longer COMPILES still breaks an archive and this stays green — that half is build-all.js; this covers what build-all cannot see (manifest, roster, ctx cap, icon path, the engine constants the builder reads). `--selfcheck` = known-answer fixture, 20 assertions over a temp tree of apps each broken a different way plus a control, mutation-tested (blind the fan-out to child exit status → 11 red)
              profile-fleet.js batch CPU-profile a set of carts → which engine primitive is hottest
@@ -790,7 +807,7 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
                              --list` + the exceptions from `ctx-classification.json`, emits runtime/
                              sound_ctx.h (struct + macro block) and rewrites sound.h. `--primitive` =
                              batch 1 (no type-hoist needed) · `--probe` compiles it on a COPY in four
-                             build configs · `--write` applies · `--check` = 26 known answers ·
+                             build configs · `--write` applies · `--check` = 28 known answers ·
                              **`--verify` = the CLASS check**: every engine static must be moved OR written
                              down in ctx-classification.json with a reason (`--quiet` gates, repo-doctor row).
                              It asserts BOOKKEEPING, not correctness — but it is what catches a group moved
@@ -827,9 +844,10 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
                              statics · NON-ZERO initialisers (the only hand work — zero/NULL come free from a
                              calloc) · function-local statics (a `#define` cannot fix those, the declaration
                              must move) · and the `#define name (ctx->name)` COLLISIONS, the one thing that
-                             would make the technique miserable (measured: 2). Asks CLANG'S AST, not a grep —
+                             would make the technique miserable (measured: 0 today, 2 when the technique was
+                             chosen). Asks CLANG'S AST, not a grep —
                              the figure it replaces missed every declaration with a trailing comment and
-                             undercounted 2.7×. `--quiet`/`--json`; `--check` = 13 known answers
+                             undercounted 2.7×. `--quiet`/`--json`; `--check` = 18 known answers
              lint-aux-params.js  the per-engine AUX PARAM channel (`instrument_mode`/`eng_p[]`) writes its
                              width in FIVE places that must agree (both `eng_p[]` decls, BOTH `idx >= N`
                              bounds — the setter AND the SR_ENG_TUNE handler — the note-on copy, and every
@@ -837,7 +855,7 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
                              SILENTLY does nothing: the setter accepts it, queues it, the handler drops it.
                              Has bitten twice (piano decay/knock dead for months; MODE_PIANO_STRETCH read
                              as 0). `--quiet` = CI, `--json`. Run after touching instrument_mode or adding a
-                             MODE_*. `--selfcheck` = known-answer fixture (14 assertions): every check here is
+                             MODE_*. `--selfcheck` = known-answer fixture (17 assertions): every check here is
                              a regex over C, and THREE of the five pass VACUOUSLY on zero matches (no bounds
                              found → "all bounds equal the width"), so a rotted pattern prints the same green
                              ✓ as a healthy engine — the fixture pins those guards. Gated in repo-doctor
@@ -872,7 +890,7 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
                              surfaced as a crash with `in = 0xa7` (167 = the canvas width it asked
                              for). If a cart needs an extern, THE SEAM IS MISSING AN API (that is how
                              `canvas_resize` was born). Arity is read FROM the header, so it cannot
-                             drift. `--selfcheck` = 14 known answers, both directions per check
+                             drift. `--selfcheck` = 22 known answers, both directions per check
              lint-saved-state.js  nothing in a SAVED session-state slice (`de_state_for_saved` /
                              `DE_CTX_BLOCK_SAVED`) may be meaningful only to the instance that wrote it —
                              the blob is restored into ANOTHER process. Two tiers, honest about their own

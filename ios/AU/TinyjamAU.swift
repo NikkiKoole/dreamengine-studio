@@ -622,8 +622,15 @@ public final class TinyjamAU: AUAudioUnit {
             // not sending audio through this instance at all, and no other line here can say so.
             // Same mistake as every other one this probe exists to catch: absence is not evidence.
             if v.pulls == 0 {
+                // ⚠ READ THIS PER PROCESS, NOT PER PLUG-IN. An AUv3 panel can live in its OWN
+                // process, and that copy of the audio unit never renders BY DESIGN — see
+                // TinyjamAUViewController's "which is the orphan" verdict, which was already in
+                // the repo. So IDLE alone does not mean the plug-in is dead: it means THIS pid is
+                // not the one rendering. Check for a second pid before concluding anything, which
+                // is exactly the step I skipped on 2026-08-18 and it cost an hour of the maker's
+                // morning chasing a plug-in that was working.
                 deDiag(String(format:
-                    "[tinyjam] INDIAG · inst %llu · IDLE — allocated but the render block has NEVER been called. The host is not passing audio through this instance.", id))
+                    "[tinyjam] INDIAG · inst %llu · IDLE — this PROCESS has never rendered. NOT a verdict on the plug-in: a panel-only process is idle by design (the orphan). Look for a second pid with rising pulls before concluding.", id))
                 return
             }
             let db = v.peak > 0 ? 20 * log10(Double(v.peak)) : -999.0

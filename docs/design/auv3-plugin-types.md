@@ -359,6 +359,25 @@ on the type), or the panel marks them as guitar-only in an insert. That is the m
 is the first thing that has ever depended on `aumf` vs `aumu` at the CART level rather than the host
 level.
 
+#### ⚠ READ THE PROBE PER PROCESS. An idle pid is not a dead plug-in.
+
+Cost the maker an hour on 2026-08-18, entirely on my side of the keyboard. An AUv3 **panel can live
+in its own process**, and that process's copy of the audio unit never renders by design.
+`TinyjamAUViewController` has said so since before this lane existed — *"this panel is in a different
+process from the DSP, which is the orphan"* — and I read my own `IDLE` line from the panel pid as a
+verdict on the whole plug-in, concluding the host was not passing audio when it was.
+
+The tell is in the log and I walked past it: **two pids**. One prints `AU CREATE` and then `IDLE`
+forever; the other has `pulls` climbing. Filter by pid before reading anything:
+
+```
+/usr/bin/log show --last 2m --predicate 'composedMessage CONTAINS "tinyjam"' --style compact | awk '{print $4}' | sort -u
+```
+
+Neighbouring traps in the same logs, both noise: `com.tinyjam.mac.AU` teardown chatter belongs to a
+DIFFERENT app's plug-in (Tiny Jam, not Tiny Pedalboard), and the giant `runningboardd`
+`RBSStateCapture` block lists every process on the machine, ours among hundreds.
+
 #### Two things found while wiring the probe, neither of them the defect
 
 1. **`pedalboard` exposes NO parameters.** `au-transport-check --params` reports `parameterTree is

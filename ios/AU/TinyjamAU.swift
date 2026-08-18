@@ -122,6 +122,13 @@ public final class TinyjamAU: AUAudioUnit {
         var lastN = Int32(0)        // the last frameCount the host asked for
         var lastABL = Int32(0)      // buffers the host actually filled — suspect 5 reads this
         var lastErr = Int32(0)      // the last non-noErr OSStatus, verbatim
+        // ⚠ THE AMBIGUITY THAT MADE `peak 0` USELESS ON ITS OWN. Fresh pages from the kernel are
+        // ZERO-FILLED, so "the host wrote digital silence" and "the host returned noErr and wrote
+        // NOTHING" both read as peak 0.00000 — and they are different faults with different fixes
+        // (theirs vs OURS). So poison the buffer with a value no audio path produces and see if it
+        // survives the pull. Without this the probe points confidently at the wrong half.
+        var unwritten = UInt64(0)   // pull said noErr and left our sentinel in place
+        var nonfinite = UInt64(0)   // a pull delivered inf/NaN (auval does; a DAW should not)
     }
     private let inDiag = UnsafeMutablePointer<InDiag>.allocate(capacity: 1)
     private var inDiagTimer: DispatchSourceTimer?
@@ -583,6 +590,18 @@ public final class TinyjamAU: AUAudioUnit {
 
     public override func deallocateRenderResources() {
         inDiagTimer?.cancel(); inDiagTimer = nil
+        // ONE FINAL LINE, or the probe cannot see a short-lived host. auval instantiates, renders a
+        // burst and tears down inside a second, so the 1 Hz timer never fired for it and it reported
+        // NOTHING — which made the one control that matters (a host known to feed real input)
+        // unreadable, and looked exactly like "auval does not render". Summarise on the way out.
+        if isEffect, inDiag.pointee.pulls > 0 {
+            let v = inDiag.pointee
+            let db = v.peak > 0 ? 20 * log10(Double(v.peak)) : -999.0
+            deDiag(String(format:
+                "[tinyjam] INDIAG · FINAL inst %llu · pulls %llu · FAIL %llu · UNWRITTEN %llu · oversize %llu · nonfinite %llu · pushed %llu smp · peak %.5f (%.1f dBFS) · lastN %d · ablCount %d · lastErr %d",
+                instanceID, v.pulls, v.fails, v.unwritten, v.oversize, v.nonfinite, v.pushed, Double(v.peak), db,
+                v.lastN, v.lastABL, v.lastErr))
+        }
         super.deallocateRenderResources()
     }
 
@@ -599,8 +618,8 @@ public final class TinyjamAU: AUAudioUnit {
             if v.pulls == 0 { return }       // not rendering: stay quiet rather than fill the log
             let db = v.peak > 0 ? 20 * log10(Double(v.peak)) : -999.0
             deDiag(String(format:
-                "[tinyjam] INDIAG · inst %llu · pulls %llu · FAIL %llu · oversize %llu · pushed %llu smp · peak %.5f (%.1f dBFS) · lastN %d · ablCount %d · lastErr %d",
-                id, v.pulls, v.fails, v.oversize, v.pushed, Double(v.peak), db,
+                "[tinyjam] INDIAG · inst %llu · pulls %llu · FAIL %llu · UNWRITTEN %llu · oversize %llu · nonfinite %llu · pushed %llu smp · peak %.5f (%.1f dBFS) · lastN %d · ablCount %d · lastErr %d",
+                id, v.pulls, v.fails, v.unwritten, v.oversize, v.nonfinite, v.pushed, Double(v.peak), db,
                 v.lastN, v.lastABL, v.lastErr))
         }
         t.resume()
@@ -705,23 +724,72 @@ public final class TinyjamAU: AUAudioUnit {
                 var st = OSStatus(noErr)
                 if n > half { inDiag.pointee.oversize &+= 1; st = -1 }
                 else {
+                    // POISON, then pull. -777 is not a value any audio path produces, so if it is
+                    // still there afterwards the host did not write our buffers — which noErr does
+                    // not tell us. Four stores per block; the ends of both channels are enough,
+                    // since a host writes a whole buffer or none of it.
+                    let SENT = Float(-777)
+                    inScratch[0] = SENT; inScratch[n - 1] = SENT
+                    inScratch[half] = SENT; inScratch[half + n - 1] = SENT
                     st = pull(&flags, timestamp, frameCount, 0, inABL.unsafeMutablePointer)
                     if st != noErr { inDiag.pointee.fails &+= 1; inDiag.pointee.lastErr = st }
+                    // NOTE: the scratch keeping its poison is NOT a fault by itself — it just means
+                    // the host rendered into its own buffer, which is legal and normal. UNWRITTEN is
+                    // counted below, per channel, on the pointers the host actually returned.
                 }
                 if st == noErr {
+                    // ⚠ READ THE POINTERS THE HOST LEFT IN THE ABL, NEVER `inScratch`. This was the
+                    // whole defect. An upstream is ENTITLED to ignore the buffers you offer and
+                    // point mData at its own instead — that is how no-copy rendering works, and it
+                    // returns noErr while your scratch is never touched. We set mData to inScratch
+                    // and then read inScratch, so we fed the engine whatever was already there:
+                    // kernel-zeroed pages, i.e. perfect silence, with every counter green. Proven
+                    // by the sentinel above coming back intact on 100% of pulls under auval.
                     // MONO, because that is what the ring takes (mic_input_push is one channel — it
                     // was built for a microphone). Averaging L+R is the honest downmix for a pedal
                     // chain whose effects are mono-in anyway; a stereo insert path is a later job.
-                    let L = inScratch, R = inScratch + half
                     inDiag.pointee.lastABL = Int32(inABL.count)
-                    if inABL.count >= 2 { for i in 0..<n { inMono[i] = (L[i] + R[i]) * 0.5 } }
-                    else                { for i in 0..<n { inMono[i] = L[i] } }
+                    let b0 = inABL[0]
+                    let p0 = b0.mData?.assumingMemoryBound(to: Float.self)
+                    let p1 = inABL.count >= 2 ? inABL[1].mData?.assumingMemoryBound(to: Float.self) : nil
+                    // PER CHANNEL, because the two can disagree: one run came back with buffer 0
+                    // still ours (poison intact) and buffer 1 the host's, and averaging them fed
+                    // the engine 388.5 — half the sentinel. A channel still carrying the poison was
+                    // never written, so it contributes NOTHING rather than a huge DC step. The
+                    // poison must never reach the engine; that would be a worse bug than silence.
+                    let SENT = Float(-777)
+                    func live(_ p: UnsafeMutablePointer<Float>?) -> Bool {
+                        guard let p = p else { return false }
+                        return !(p[0] == SENT && p[n - 1] == SENT)
+                    }
+                    let l0 = live(p0), l1 = live(p1)
+                    // Take the layout from what came BACK, not from what we asked for — the honest
+                    // answer to suspect 5, since a host handing us a shape we did not expect is now
+                    // downmixed correctly instead of misread.
+                    if b0.mNumberChannels == 2, let L = p0, l0 {
+                        for i in 0..<n { inMono[i] = (L[2 * i] + L[2 * i + 1]) * 0.5 }  // interleaved
+                    } else if let L = p0, let R = p1, l0, l1 {
+                        for i in 0..<n { inMono[i] = (L[i] + R[i]) * 0.5 }              // deinterleaved
+                    } else if let L = p0, l0 {
+                        for i in 0..<n { inMono[i] = L[i] }                             // left only
+                    } else if let R = p1, l1 {
+                        for i in 0..<n { inMono[i] = R[i] }                             // right only
+                    } else {
+                        for i in 0..<n { inMono[i] = 0 }                                // nothing written
+                        inDiag.pointee.unwritten &+= 1
+                    }
                     // THE LEVEL PROBE, read AFTER the downmix and BEFORE the engine: this is the one
                     // number that says whether the host handed us sound at all. A successful pull
                     // carrying digital silence looks identical to a failed pull from the outside,
                     // and the two mean opposite things.
                     var pk = Float(0)
-                    for i in 0..<n { let a = abs(inMono[i]); if a > pk { pk = a } }
+                    var bad = false
+                    for i in 0..<n {
+                        let a = abs(inMono[i])
+                        if !a.isFinite { bad = true; continue }   // one inf must not eat the reading
+                        if a > pk { pk = a }
+                    }
+                    if bad { inDiag.pointee.nonfinite &+= 1 }
                     if pk > inDiag.pointee.peak { inDiag.pointee.peak = pk }
                     inDiag.pointee.pushed &+= UInt64(n)
                     // No engine handle: de_audio_input is the process-global seam (see the ⚠ on

@@ -180,9 +180,12 @@ Plug-ins list under the E-Piano, the panel draws at a sensible size, `GTR: IN` i
 
 - `aumf` is visible to GarageBand and instantiable by it (the risk we thought was likeliest — dead).
 - The view/panel path works in a real host, which no gate here could prove.
-- The audio path itself is sound: `auval -v aumf tpdl Mpla` SUCCEEDS including effect render tests at
-  512/64/4096 frames and 11025–192000 Hz. **auval feeds real input**, so pull → ring → output demonstrably
-  works *somewhere*.
+- ~~The audio path itself is sound: `auval` SUCCEEDS … **auval feeds real input**, so pull → ring →
+  output demonstrably works *somewhere*.~~ **WRONG, measured 2026-08-18.** auval passes, but the
+  INDIAG probe shows it hands us buffers of genuine SILENCE (`UNWRITTEN 0 · peak 0.00000`). So auval
+  was never a positive control for the input path, and the sentence above was the load-bearing reason
+  to look outside our own code. It is not. A passing `auval` says the AU does not crash, misreport or
+  produce NaNs at any block size; it says nothing about audio arriving.
 
 **Why the symptom is clean rather than muddy:** with `AUTO: off` the cart generates nothing of its own,
 so the monitored input is the ONLY possible sound. Silence means the input is not arriving at the
@@ -262,6 +265,45 @@ before this you could not tell it from the row above it.
 ⚠ The counters are written on the AUDIO THREAD and read on a timer with no synchronisation. That is
 deliberate and must stay a benign race: they are counters for a human, never control flow. A lock
 here would be a real audio-thread defect traded for a cosmetic one.
+
+#### ✅ ROOT CAUSE FOUND (2026-08-18): we read our own buffer, not the host's
+
+The probe answered it in two runs, and the answer was **ours, not GarageBand's routing**.
+
+`AudioBufferList.mData` is an IN-OUT field. You offer buffers; the upstream is **entitled to ignore
+them and point `mData` at its own memory instead**, which is how no-copy rendering works, and it
+returns `noErr` having never touched what you offered. The render block did this:
+
+```swift
+inABL[0].mData = UnsafeMutableRawPointer(inScratch)      // offer our scratch
+pull(&flags, timestamp, frameCount, 0, inABL.unsafeMutablePointer)
+let L = inScratch, R = inScratch + half                  // ← read our scratch back. WRONG.
+```
+
+So we fed the engine whatever was already in `inScratch`. A fresh allocation is **kernel
+zero-filled**, so that is perfect digital silence, with every counter green: `FAIL 0`, `ablCount 2`,
+the negotiated format exactly what we expected, and `pushed` climbing at real-time rate.
+
+**How the probe proved it, rather than suggesting it.** `peak 0.00000` is ambiguous by itself: the
+host writing silence and the host writing nothing look identical against zeroed pages. So the probe
+poisons the offered buffer with `-777` and checks whether it survives. It survived **100% of pulls
+under auval** — a host that definitely renders. That is not a routing problem; that is us reading the
+wrong pointer.
+
+The fix reads `inABL[i].mData` after the pull, takes the channel layout from what came BACK rather
+than what we asked for (which is also the honest answer to suspect 5), and judges liveness **per
+channel** — one run returned buffer 0 still ours and buffer 1 the host's, and averaging them fed the
+engine `388.5`, half the sentinel. A channel still carrying poison now contributes nothing. **The
+poison must never reach the engine; a DC step of 777 is a worse bug than silence.**
+
+After the fix, under auval: `UNWRITTEN 0 · nonfinite 0 · peak 0.00000` — we now read where the host
+actually wrote, and what it wrote is silence.
+
+⚠ **NOT YET CONFIRMED IN GARAGEBAND.** What is proven is that a real defect existed on this exact
+path and is gone. Whether it was the *whole* of the silence needs the maker's retest, because auval
+turned out to feed nothing (see the struck-through claim above), so no test here can produce audio.
+If GarageBand is still silent, the probe now cleanly separates the remaining cases and suspect 2
+(the monitor gain) is next.
 
 #### Two things found while wiring the probe, neither of them the defect
 

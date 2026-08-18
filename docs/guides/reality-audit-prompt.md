@@ -143,6 +143,12 @@ hard discriminators, and both are documented in `CLAUDE.md`. Read them before pr
 
 ## Notes for whoever runs this
 
+- **What the first full run found**, and the two lessons worth keeping:
+  [`field-notes/029-correspondence-vs-consistency.md`](../field-notes/029-correspondence-vs-consistency.md)
+  (68 verified findings, every mechanical check green throughout; and the discovery that a
+  correspondence check is the first check here a STALE CLONE can invert, so it must assert the
+  clone matches origin before it judges anything).
+
 - **It pairs with `orient.js`.** Run the audit against a repo whose mechanical checks are already
   green, or you will spend the budget rediscovering what `repo-doctor` prints in three seconds.
 - **The findings belong in different homes.** A wrong sentence gets fixed in place. A missing ledger

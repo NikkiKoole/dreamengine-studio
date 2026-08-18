@@ -35,7 +35,8 @@
  *       --plain    no guides, just mask + cut tint
  *   node tools/icon-mask.js mask [--size 1024] [--out f.png]
  *       The bare mask: white inside / black outside, 8-bit grey. For compositing yourself.
- *   node tools/icon-mask.js check <icon.png> [--out proof.png] [--tol 24] [--quiet]
+ *   node tools/icon-mask.js check <icon.png> [--out proof.png] [--no-proof] [--tol 24] [--quiet]
+ *       --no-proof skips writing the 3-up PNG — what build-app.js's advisory staging check passes
  *       Report what the mask cuts off THIS icon, per corner: is the cut region flat background
  *       (safe) or does it carry detail (loss)? Writes a 3-up proof PNG (as drawn / as shown /
  *       what got cut). --quiet exits nonzero if any corner loses detail — release gate.

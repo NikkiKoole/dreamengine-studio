@@ -2,6 +2,10 @@
 
 STATUS: LIVING (snapshot 2026-08-16, re-runnable) — `node tools/api-usage.js`; drift tracked by the de:driftable marker.
 
+> Sibling snapshot: [`teaching-gaps.md`](teaching-gaps.md) freezes the same `api-usage.js` counts
+> from the teaching angle. Both carry a `de:driftable` marker — see
+> [`driftable-docs.md`](driftable-docs.md).
+
 <!-- de:driftable cmd="node tools/api-usage.js" as-of="2026-08-16" inputs="runtime/studio.h,tools/carts" -->
 
 *Snapshot: 2026-08-16 — 396 `studio.h` functions × 581 carts (2026-06-04: 182 × 233;

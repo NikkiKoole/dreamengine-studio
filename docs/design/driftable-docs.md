@@ -6,7 +6,7 @@ cart-status advisory. This note is the "why" and the how-to.
 ## The problem
 
 Some docs are hand-authored **analysis** wrapped around a **snapshot of a tool's output** —
-`teaching-gaps.md` freezes `api-usage.js` counts, `api-usage-audit.md` freezes a
+`teaching-gaps.md` freezes `api-usage.js` counts, [`api-usage-audit.md`](api-usage-audit.md) freezes a
 functions×carts table, the profiling docs quote `profile-fleet.js` hotspots. The prose is real
 hand work; the *numbers* are derived, and they rot the instant a cart lands. A dated caveat
 ("snapshot 2026-06-22, re-run before acting") does **not** save them — a specific,

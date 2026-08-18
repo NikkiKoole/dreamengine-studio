@@ -621,6 +621,16 @@ public final class TinyjamAU: AUAudioUnit {
                 "[tinyjam] INDIAG · inst %llu · pulls %llu · FAIL %llu · UNWRITTEN %llu · oversize %llu · nonfinite %llu · pushed %llu smp · peak %.5f (%.1f dBFS) · lastN %d · ablCount %d · lastErr %d",
                 id, v.pulls, v.fails, v.unwritten, v.oversize, v.nonfinite, v.pushed, Double(v.peak), db,
                 v.lastN, v.lastABL, v.lastErr))
+            // §4.1c: what the ENGINE holds on the master bus, printed beside the input reading. The
+            // cart pushed its chain once in init() and, being set-and-hold, will not push again
+            // until a control moves — so if this reads 0 at boot and jumps the moment the maker
+            // touches a pedal, the engine lost the chain after init and the hypothesis is proved.
+            // Logged from the TIMER, never the audio thread: this walks engine state.
+            var kinds = [Int32](repeating: 0, count: 16)
+            let cn = kinds.withUnsafeMutableBufferPointer { de_fx_chain_probe(0, $0.baseAddress, 16) }
+            var list = ""
+            if cn > 0 { for i in 0..<Int(min(cn, 16)) { list += (i == 0 ? "" : ",") + String(kinds[i]) } }
+            deDiag("[tinyjam] FXCHAIN · bus 0 holds \(cn) insert(s)" + (cn > 0 ? " · kinds \(list)" : " · EMPTY"))
         }
         t.resume()
         inDiagTimer = t

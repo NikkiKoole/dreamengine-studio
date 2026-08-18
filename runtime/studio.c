@@ -2919,6 +2919,12 @@ float mic_level(void)  { return mic_g_rms; }                 // 0..1 RMS loudnes
 float mic_pitch(void)  { return mic_g_pitch; }               // Hz, 0 = no clear pitch
 // platform seam — hosts (studio.c raylib loop, iOS/web) call these:
 DE_WEB_EXPORT void de_audio_input(const float *mono, int n, int sr) { mic_input_push(mono, n, sr); }   // push captured frames
+// DIAGNOSTIC seam for §4.1c: how many inserts does the engine hold on `bus`, and which kinds?
+// seam-lint-ignore: reads the ACTIVE sound context, and the effect build is single-instance today
+// (the extin ring is still process-global — auv3-plugin-types.md §8 Q2). Takes no DeInstance on
+// purpose rather than taking one and ignoring it, which is the exact shape the seam lint exists to
+// catch. Delete this with the diagnosis; it is not part of the host contract.
+DE_WEB_EXPORT int de_fx_chain_probe(int bus, int *kinds, int max) { return sound_fx_chain_probe(bus, kinds, max); }
 DE_WEB_EXPORT int  de_mic_wanted(void) { return mic_g_wanted; }            // engine → host: is the mic wanted?
 DE_WEB_EXPORT int  de_midi_wanted(void) { return midi_g_wanted; }          // engine → host: has the cart read MIDI? (web asks for the MIDI permission only when so — mirrors de_mic_wanted)
 DE_WEB_EXPORT void de_mic_set_active(int on) {                            // host → engine: capture is live

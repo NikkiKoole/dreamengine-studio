@@ -7737,6 +7737,18 @@ void vocoder_unvoiced(float amount) {   // v2: fill the top bands with noise for
 void input_monitor(float gain) {   // route the LIVE mic through the master fx chain (needs mic_start + permission)
     sound_push_ctrl(SR_INPUT_MONITOR, (int)(gain * 1000.0f), 0, 0, 0, 0, 0);
 }
+// DIAGNOSTIC, not a cart-land API (auv3-plugin-types.md §4.1c). What does the ENGINE actually hold
+// on a bus RIGHT NOW? A cart keeps its own idea of its chain in its own array and pushes it with
+// fx_order(); effects are SET-AND-HOLD, so if anything clears the engine's inserts after the cart
+// pushed, the two disagree silently and forever — the cart has no reason to push again. Nothing
+// could see that disagreement, which is why it is being measured instead of argued about.
+// Read-only, no queue, no side effects. Returns the count, fills up to `max` kinds.
+int sound_fx_chain_probe(int bus, int *kinds, int max) {
+    if (bus < 0 || bus >= SOUND_FX_BUSES) return -1;
+    int n = insert_order_n[bus];
+    for (int i = 0; i < n && i < max; i++) kinds[i] = insert_order[bus][i];
+    return n;
+}
 void autotune_mic(int root, int scale, float amount) {   // LIVE streaming auto-tune of the mic (needs mic_start)
     sound_push_ctrl(SR_AUTOTUNE_MIC, (int)(amount * 1000.0f), root, scale, 0, 0, 0);
 }

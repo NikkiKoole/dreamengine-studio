@@ -99,6 +99,19 @@ if (process.argv.slice(2).includes('--selfcheck')) {
     (lane('edited after its date')?.age ?? 99) <= g.staleDays)
   t('body edited BEFORE its date → clean  [negative control]', clean(lane('edited before its date')))
 
+  // The BEHIND banner, both ways. This is the one judgement here that is not about the file at all,
+  // and its failure mode is SILENCE on a stale clone — so a fixture that only proves it can fire is
+  // half a fixture. Run the whole tool twice more with the count injected.
+  const runWith = (behind) => {
+    try {
+      return require('child_process').execFileSync(process.execPath, [__filename, '--json'],
+        { env: { ...process.env, DE_HANDOFF_FILE: tmp, DE_HANDOFF_EDITED: edited, DE_HANDOFF_BEHIND: String(behind) },
+          encoding: 'utf8', maxBuffer: 1 << 26 })
+    } catch (e) { return e.stdout }
+  }
+  t('behind count is reported when the clone is behind', JSON.parse(runWith(9)).behind === 9)
+  t('…and is 0 when it is current  [negative control]', JSON.parse(runWith(0)).behind === 0)
+
   const bad = T.filter(x => !x.ok)
   for (const x of T) console.log(`  ${x.ok ? '\x1b[32m✓\x1b[0m' : '\x1b[31m✗\x1b[0m'} ${x.n}`)
   console.log(bad.length
@@ -161,6 +174,30 @@ function blameDates () {
   } catch { return null }
 }
 const BLAME = blameDates()
+
+// ── IS THIS CLONE EVEN CURRENT? ──────────────────────────────────────────────
+// The one thing internal consistency cannot protect, and it cost this session two confidently
+// wrong answers in one morning: every judgement below is about the tree ON DISK. A clone nine
+// commits behind has lanes whose dates and bodies agree perfectly with each other and disagree
+// with reality, so the back door goes QUIET at exactly the moment it is most wrong — and an agent
+// reads a stale lane as current and reports from it. That is not a false positive, it is a false
+// SILENCE, which is worse because nothing prompts you to look.
+// Banner, not a refusal: refusing to report would trade a stale answer for no answer, and the real
+// findings below are still real. ⚠ Reads the LAST FETCHED remote ref — it does not fetch (a check
+// must not touch the network as a side effect), so "0 behind" means "0 as of your last fetch".
+// DE_HANDOFF_BEHIND overrides it for --selfcheck.
+function behindBy () {
+  if (process.env.DE_HANDOFF_BEHIND) return parseInt(process.env.DE_HANDOFF_BEHIND, 10)
+  try {
+    const out = require('child_process').execFileSync('git', ['rev-list', '--count', 'HEAD..@{upstream}'],
+      { cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] })
+    return parseInt(out.trim(), 10) || 0
+  } catch { return null }          // no upstream / not a repo → unanswerable, so say nothing
+}
+const BEHIND = behindBy()
+const behindBanner = () => BEHIND > 0
+  ? `⚠ THIS CLONE IS ${BEHIND} COMMIT(S) BEHIND ORIGIN (as of your last fetch) — every lane below may already be answered upstream. Run: git pull --rebase`
+  : null
 
 // the newest edit anywhere in [from,to) — 0-based, `to` exclusive
 function editedIn (from, to, title) {
@@ -230,7 +267,7 @@ for (let i = 0; i < lines.length; i++) {
   i = j
 }
 
-if (asJson) { console.log(JSON.stringify({ lanes, staleDays: STALE_DAYS }, null, 2)); process.exit(0) }
+if (asJson) { console.log(JSON.stringify({ lanes, staleDays: STALE_DAYS, behind: BEHIND }, null, 2)); process.exit(0) }
 
 const tty = process.stdout.isTTY
 const b = s => tty ? `\x1b[1m${s}\x1b[0m` : s
@@ -244,8 +281,13 @@ if (!lanes.length) {
 }
 
 if (check) {
+  const banner = behindBanner()
+  if (banner) console.log(warn(banner))
   const bad = lanes.filter(isStale)
-  if (!bad.length) { console.log(`handoff: ${lanes.length} active lane(s), all fresh (≤${STALE_DAYS}d, links resolve)`); process.exit(0) }
+  if (!bad.length) {
+    console.log(`handoff: ${lanes.length} active lane(s), all fresh (≤${STALE_DAYS}d, links resolve)`)
+    process.exit(banner ? 1 : 0)   // "all fresh" on a stale clone is the false silence — do not pass it
+  }
   console.log(b(`HANDOFF LANES (advisory) — refresh the date, or prune if shipped (→ STATUS.md):`))
   for (const l of bad) {
     const why = [
@@ -262,6 +304,7 @@ if (check) {
 }
 
 // front door — list active lanes + age
+{ const w = behindBanner(); if (w) console.log(warn(w)) }
 console.log(b('ACTIVE LANES') + dim('  (docs/HANDOFF.md — resume complex work here)'))
 for (const l of lanes) {
   const age = l.age == null ? '?' : l.age === 0 ? 'today' : `${l.age}d`

@@ -101,6 +101,31 @@ public final class TinyjamAU: AUAudioUnit {
     private let inMono    = UnsafeMutablePointer<Float>.allocate(capacity: 16384)      // downmix the ring actually takes
     private let inABL     = AudioBufferList.allocate(maximumBuffers: 2)
 
+    // ── EFFECT-INPUT DIAGNOSTICS (auv3-plugin-types.md §4.1b, suspects 1 and 5) ───────────────
+    // The defect this exists for: `pedalboard` loads in GarageBand, the panel works, and the
+    // host's track is SILENT. The render block below skips the whole input path when the pull
+    // fails, and says nothing, so "the host never gave us audio" and "we got audio and lost it
+    // downstream" produce an identical symptom. These counters split those two, and they have
+    // disjoint fixes.
+    //
+    // ⚠ WRITTEN ON THE AUDIO THREAD, read on a timer, with no synchronisation. That is a benign
+    // race BY CONSTRUCTION and must stay one: these are counters for a human to read, never
+    // control flow. A torn UInt64 on the one report that catches it changes nothing. Do not
+    // branch on any of them, and do not "fix" this with a lock — a lock here would be a real
+    // audio-thread defect in exchange for a cosmetic one.
+    struct InDiag {
+        var pulls = UInt64(0)       // pull attempts
+        var fails = UInt64(0)       // pull returned something other than noErr
+        var oversize = UInt64(0)    // frameCount exceeded our scratch, so we never even tried
+        var pushed = UInt64(0)      // samples handed to de_audio_input
+        var peak = Float(0)         // loudest |sample| SINCE THE LAST REPORT, not since boot
+        var lastN = Int32(0)        // the last frameCount the host asked for
+        var lastABL = Int32(0)      // buffers the host actually filled — suspect 5 reads this
+        var lastErr = Int32(0)      // the last non-noErr OSStatus, verbatim
+    }
+    private let inDiag = UnsafeMutablePointer<InDiag>.allocate(capacity: 1)
+    private var inDiagTimer: DispatchSourceTimer?
+
     private static let ENGINE_RATE = 44100.0        // what sound.h is COMPILED for. Not negotiable.
     private static let SAMPLES_PER_FRAME = 735      // 44100 / 60
     // stable interleaved L,R scratch — allocated once so the render block never allocates on the
@@ -142,6 +167,7 @@ public final class TinyjamAU: AUAudioUnit {
         // Apple's own instrument template declares none.
         let inBusses = isEffect ? [try AUAudioUnitBus(format: format)] : []
         _inputBusArray  = AUAudioUnitBusArray(audioUnit: self, busType: .input,  busses: inBusses)
+        inDiag.initialize(to: InDiag())
         if isEffect { deDiag("[tinyjam] AU is an EFFECT (\(fourCCString(ct))) — input bus declared") }
         acc.pointee = 0
         rate.initialize(to: RateState())
@@ -535,6 +561,50 @@ public final class TinyjamAU: AUAudioUnit {
         s.rc.configure(engineRate: TinyjamAU.ENGINE_RATE, hostRate: host)
         rate.pointee = s
         acc.pointee = 0                      // the fast path's sample clock; stale after a rate change
+
+        // SUSPECT 5, answered once per allocation rather than guessed. auval warned that we accept
+        // layouts we cannot handle ("InputChan:4, OutputChan:5") because the AU declares no channel
+        // capabilities, while the pull target below is two mono buffers. This prints what the host
+        // ACTUALLY negotiated, which is the only way to tell a mishandled layout from a dead pull.
+        if isEffect {
+            inDiag.pointee = InDiag()        // counters are per allocation, not per process
+            let o = _outputBusArray[0].format
+            let inDesc: String
+            if _inputBusArray.count > 0 {
+                let f = _inputBusArray[0].format
+                inDesc = "\(f.channelCount)ch @\(Int(f.sampleRate)) \(f.isInterleaved ? "interleaved" : "deinterleaved")"
+            } else {
+                inDesc = "NO INPUT BUS"      // would explain everything, in one word
+            }
+            deDiag("[tinyjam] INDIAG · negotiated: in \(inDesc) · out \(o.channelCount)ch @\(Int(o.sampleRate)) \(o.isInterleaved ? "interleaved" : "deinterleaved") · maxFrames \(maximumFramesToRender)")
+            startInDiag()
+        }
+    }
+
+    public override func deallocateRenderResources() {
+        inDiagTimer?.cancel(); inDiagTimer = nil
+        super.deallocateRenderResources()
+    }
+
+    // One line a second while the effect renders. It captures the POINTER and the id, never `self`:
+    // a timer holding the AU would keep it alive past deinit and break the teardown ledger.
+    private func startInDiag() {
+        guard isEffect, inDiagTimer == nil else { return }
+        let t = DispatchSource.makeTimerSource(queue: DispatchQueue.global(qos: .utility))
+        t.schedule(deadline: .now() + 1.0, repeating: 1.0)
+        let d = inDiag, id = instanceID
+        t.setEventHandler {
+            let v = d.pointee
+            d.pointee.peak = 0               // per-report, so a second of silence reads 0.00000
+            if v.pulls == 0 { return }       // not rendering: stay quiet rather than fill the log
+            let db = v.peak > 0 ? 20 * log10(Double(v.peak)) : -999.0
+            deDiag(String(format:
+                "[tinyjam] INDIAG · inst %llu · pulls %llu · FAIL %llu · oversize %llu · pushed %llu smp · peak %.5f (%.1f dBFS) · lastN %d · ablCount %d · lastErr %d",
+                id, v.pulls, v.fails, v.oversize, v.pushed, Double(v.peak), db,
+                v.lastN, v.lastABL, v.lastErr))
+        }
+        t.resume()
+        inDiagTimer = t
     }
 
     public override var internalRenderBlock: AUInternalRenderBlock {
@@ -545,6 +615,7 @@ public final class TinyjamAU: AUAudioUnit {
         // HOST RATE is read here rather than in the block because that is where it is knowable: the
         // render block is re-fetched after allocateRenderResources, which is what negotiates it.
         let isEffect = self.isEffect, inScratch = self.inScratch, inMono = self.inMono, inABL = self.inABL
+        let inDiag = self.inDiag
         let hostRate = Int32(_outputBusArray[0].format.sampleRate.rounded())
         // Capture SELF unretained, not the two host blocks themselves. The host assigns
         // musicalContextBlock / transportStateBlock AFTER it fetches this render block, so reading
@@ -625,13 +696,34 @@ public final class TinyjamAU: AUAudioUnit {
                 inABL[1].mDataByteSize = UInt32(n * 4)
                 inABL[0].mData = UnsafeMutableRawPointer(inScratch)
                 inABL[1].mData = UnsafeMutableRawPointer(inScratch + half)
-                if n <= half, pull(&flags, timestamp, frameCount, 0, inABL.unsafeMutablePointer) == noErr {
+                // Split into three named outcomes rather than one silent `if`. Each records which
+                // of §4.1b's suspects is alive: an oversize block, a refused pull (with the host's
+                // own OSStatus, which usually names the cause), or audio that arrived and can be
+                // measured. Counting costs a few adds per block on a path that already loops n.
+                inDiag.pointee.pulls &+= 1
+                inDiag.pointee.lastN = Int32(n)
+                var st = OSStatus(noErr)
+                if n > half { inDiag.pointee.oversize &+= 1; st = -1 }
+                else {
+                    st = pull(&flags, timestamp, frameCount, 0, inABL.unsafeMutablePointer)
+                    if st != noErr { inDiag.pointee.fails &+= 1; inDiag.pointee.lastErr = st }
+                }
+                if st == noErr {
                     // MONO, because that is what the ring takes (mic_input_push is one channel — it
                     // was built for a microphone). Averaging L+R is the honest downmix for a pedal
                     // chain whose effects are mono-in anyway; a stereo insert path is a later job.
                     let L = inScratch, R = inScratch + half
+                    inDiag.pointee.lastABL = Int32(inABL.count)
                     if inABL.count >= 2 { for i in 0..<n { inMono[i] = (L[i] + R[i]) * 0.5 } }
                     else                { for i in 0..<n { inMono[i] = L[i] } }
+                    // THE LEVEL PROBE, read AFTER the downmix and BEFORE the engine: this is the one
+                    // number that says whether the host handed us sound at all. A successful pull
+                    // carrying digital silence looks identical to a failed pull from the outside,
+                    // and the two mean opposite things.
+                    var pk = Float(0)
+                    for i in 0..<n { let a = abs(inMono[i]); if a > pk { pk = a } }
+                    if pk > inDiag.pointee.peak { inDiag.pointee.peak = pk }
+                    inDiag.pointee.pushed &+= UInt64(n)
                     // No engine handle: de_audio_input is the process-global seam (see the ⚠ on
                     // isEffect). hostRate, not ENGINE_RATE — mic_input_push resamples when they
                     // differ, and lying here would pitch the host's track by the rate ratio.
@@ -713,7 +805,9 @@ public final class TinyjamAU: AUAudioUnit {
         // while this runs. The other reader is the panel's blitter, and the view controller cuts it
         // loose in its own deinit, which runs first.
         de_instance_destroy(engine)
+        inDiagTimer?.cancel(); inDiagTimer = nil
         scratch.deallocate(); acc.deallocate(); echunk.deallocate(); rate.deallocate()
+        inDiag.deallocate()
     }
 }
 

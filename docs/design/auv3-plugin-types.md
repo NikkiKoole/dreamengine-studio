@@ -218,6 +218,65 @@ output — it is not masking or mixing confusion.
    mishandle, rather than widening the buffer and hoping. Log `inABL.count` and the negotiated input
    bus format alongside suspect 1's counter and this either falls out immediately or is eliminated.
 
+#### The probe is IN (2026-08-18) — how to run it and how to read it
+
+Suspect 1 and suspect 5 are now instrumented together, in `ios/AU/TinyjamAU.swift`. Build with
+`APP=pedalboard zsh ios/mac.sh --no-auval`, load it in GarageBand, play the piano for a few seconds,
+then read it back:
+
+```
+/usr/bin/log show --last 2m --predicate 'eventMessage CONTAINS "INDIAG"' --info
+```
+
+⚠ `/usr/bin/log`, with the path. zsh shadows `log` with a builtin that prints "too many arguments"
+on **stderr** and nothing on stdout, which is indistinguishable from "nothing was logged" and has
+already caused two wrong conclusions in this repo (CLAUDE.md).
+
+Two kinds of line come out. One at every `allocateRenderResources`, which answers **suspect 5**
+outright by printing what the host negotiated rather than what we assumed:
+
+```
+[tinyjam] INDIAG · negotiated: in 2ch @48000 deinterleaved · out 2ch @48000 deinterleaved · maxFrames 512
+```
+
+Then one a second while it renders:
+
+```
+[tinyjam] INDIAG · inst 1 · pulls 1723 · FAIL 0 · oversize 0 · pushed 882176 smp · peak 0.31427 (-10.1 dBFS) · lastN 512 · ablCount 2 · lastErr 0
+```
+
+**Read it in this order. Each row is a different fix, and they do not overlap.**
+
+| what you see | what it means | where the fault is |
+|---|---|---|
+| no INDIAG lines at all | the render block never runs as an effect | `isEffect` is false, or the host never rendered |
+| `pulls` climbing, `FAIL` climbing with it | GarageBand refuses to give us its audio | suspect 1. `lastErr` names the reason |
+| `FAIL 0`, `ablCount` not 2 | the host negotiated a layout the pull target does not match | suspect 5, confirmed |
+| `oversize` non-zero | the host's block exceeds our 16384-sample scratch | widen the scratch |
+| `FAIL 0`, **`peak 0.00000`** | the pull SUCCEEDS and carries digital silence | not our input path at all: the host is sending nothing. Check the track routing before touching code |
+| `FAIL 0`, `peak` non-zero, still no sound | **audio arrives and is lost after `de_audio_input`** | suspect 2. The monitor gain, not the pull |
+
+That last row is the one the probe exists for. It is the split the whole diagnosis hangs on, and
+before this you could not tell it from the row above it.
+
+⚠ The counters are written on the AUDIO THREAD and read on a timer with no synchronisation. That is
+deliberate and must stay a benign race: they are counters for a human, never control flow. A lock
+here would be a real audio-thread defect traded for a cosmetic one.
+
+#### Two things found while wiring the probe, neither of them the defect
+
+1. **`pedalboard` exposes NO parameters.** `au-transport-check --params` reports `parameterTree is
+   nil`, and the cart calls `param_bind` **zero** times (`acidcandy` calls it 15). So no knob on this
+   pedalboard is automatable or recordable in a DAW. That is a real gap and a separate job; it is not
+   related to the silence.
+2. **Three gates were failing vacuously on an effect**, which would have put 8 false red checks in
+   front of anyone running this diagnosis. `--panel` and the transport gate already skipped for
+   `aumf`/`aufx`; `--state`, `--wheel` and half of `--params` did not. They do now, and each says what
+   its skip COSTS rather than reading as a pass. ⚠ `--wheel`'s no-op control was the sharpest case: it
+   compared two silences, which agree perfectly, so **the control passed at 0.000 vs 0.000 while both
+   real checks failed.** A control that a dead rig satisfies is not a control. The proper fix for all
+   of them is the one named at `--panel`: give `Rig` an input source when the unit is an effect.
+
 ⚠ **Do not conclude anything from `au-transport-check`** here: its rig gives an effect no input, so it
 renders silence by construction. Both it and `--panel` now SKIP for effect types for that reason.
 

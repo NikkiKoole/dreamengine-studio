@@ -447,6 +447,22 @@ if argv.contains("--view") {
 // leaves a plug-in that still plays.
 if argv.contains("--state") {
     print("▸ session state: does fullState carry the rack, and survive what a DAW does with it?")
+    // SAME REASON AS --panel AND THE TRANSPORT GATE, which already skip here: this rig gives an
+    // effect no input, so it renders silence BY CONSTRUCTION. Every assertion below is downstream
+    // of a booted rack, so on an effect they went red together (6 of them) while saying nothing
+    // about session state at all. That is worse than no coverage: it is 6 false alarms sitting in
+    // front of whoever is diagnosing a REAL silence, and it trains you to ignore this gate.
+    // ⚠ WHAT THIS SKIP COSTS, said out loud so it is not mistaken for coverage: an EFFECT's
+    // fullState is now gated ONLY by tools/state-check/run.sh, which is the engine half and cannot
+    // see the plist round trip. The proper fix is the same ~10 lines named at --panel (give Rig an
+    // input source for an effect), and it fixes all three gates at once.
+    if AU_TYPE == "aumf" || AU_TYPE == "aufx" {
+        print("  SKIPPED — \(AU_TYPE) is an EFFECT and this rig gives it no input, so it never renders.")
+        print("  Every check here needs a booted rack, so they would fail together and mean nothing.")
+        print("  ⚠ An effect's session state is therefore covered ONLY by tools/state-check/run.sh")
+        print("    (the engine half) — the plist round trip is UNGATED for this type. See --panel.")
+        exit(0)
+    }
     let KEY = "dreamengineRack"
 
     // Frames have to have RUN first: a cart's saved slices register on first access, so reading
@@ -596,6 +612,15 @@ if argv.contains("--state") {
 // worthless if two untouched renders of a self-running rack already differ by as much.
 if argv.contains("--wheel") {
     print("▸ mod wheel: does CC1 reach the rack and move the master filter?")
+    // Effects render silence in this rig (see --panel), and this gate's ENTIRE subject is whether
+    // the mix changes. Worse than useless on an effect: its no-op CONTROL compares two silences,
+    // which agree perfectly, so the control PASSED at 0.000 vs 0.000 while the two real checks
+    // failed. A control that a dead rig satisfies is not a control.
+    if AU_TYPE == "aumf" || AU_TYPE == "aufx" {
+        print("  SKIPPED — \(AU_TYPE) is an EFFECT and this rig gives it no input, so it never renders.")
+        print("  ⚠ CC1 is therefore UNGATED for this type. Fix is the input source named at --panel.")
+        exit(0)
+    }
     let rig = try! Rig(au: avAU, sr: ENGINE_SR)
     let sched = avAU.auAudioUnit.scheduleMIDIEventBlock
     check("the AU exposes a MIDI input path", sched != nil,
@@ -661,6 +686,15 @@ if argv.contains("--params") {
     guard let flt = tree?.parameter(withAddress: 1) else {
         check("parameter 1 (the master filter) is in the tree", false, "not found — the rest cannot run")
         print("\n\(failures) check(s) FAILED"); exit(1)
+    }
+    // The tree checks above are type-agnostic and have run. Everything below asks whether a write
+    // MOVES THE MIX, which an effect fed no input cannot answer (see --panel). Stopping here keeps
+    // the half that means something instead of failing the whole gate.
+    if AU_TYPE == "aumf" || AU_TYPE == "aufx" {
+        print("  ⋯ the render half SKIPPED — \(AU_TYPE) is an EFFECT and this rig gives it no input.")
+        print("  ⚠ So the tree is gated for this type and REACHING THE DSP is not.")
+        print("\n\(failures) check(s) FAILED"); if failures == 0 { print("PASS (tree only)") }
+        exit(failures == 0 ? 0 : 1)
     }
     let rig = try! Rig(au: avAU, sr: ENGINE_SR)
     _ = rig.render(beats: 4)                          // settle

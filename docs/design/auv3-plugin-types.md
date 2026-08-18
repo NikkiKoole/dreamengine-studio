@@ -317,25 +317,59 @@ Immediately after the silence closed, the next report was *"I hear the piano, bu
 Line 624 is inside `apply_rig()`, not `init()`. The cart boots **five pedals** (BITCRUSH, EQ, CHORUS,
 TREMOLO, REVERB) with **TREMOLO ON** at `DEP 0.60`, and `init()` calls `apply_fx()`. So the engine
 should have been applying an audible 5.7 Hz tremolo to the host's track from the first block, and it
-was not. **Why it was dry at boot is OPEN**, and it is not "there was nothing in the chain".
+was not. ~~**Why it was dry at boot is OPEN**~~ — **CLOSED 2026-08-18, see the measurement below: the
+chain is there from the first block.** The dryness had a different cause, and it is the one in
+§4.1d: with `GTR: IN` off the host's audio never enters the mix at all, so there was nothing for the
+tremolo to be audible *on*.
 
 ⚠ Worth keeping as a method note: that claim came from a grep hit read without opening the enclosing
 function, which is precisely what [`checks-and-oracles.md`](../guides/checks-and-oracles.md) warns
 about — a grep finds candidates, and you must READ them. It was stated confidently, it was committed,
 and the maker caught it.
 
-**The maker's own hypothesis is the right shape and is the thing to test.** `apply_fx()` is
-set-and-hold behind a `dirty` flag: it runs once in `init()` and then only when a control changes. So
-anything that clears the engine's inserts *after* `init()` leaves the cart believing it has pushed a
-chain that the engine no longer holds, and nothing re-pushes until you touch a pedal or load a rig
-(`apply_rig` sets `dirty = 1`). That matches every observation, including that it started working
-once controls were touched.
+#### ✅ MEASURED 2026-08-18: the chain is NOT dry at boot. The hypothesis is disproved.
 
-`sound_reset_state()` (sound.h:8137) does exactly that clearing, and it wipes `insert_inst` and the
-insert order. One of its two callers, `sound_ctx_activate`, **replays the config log afterwards**, so
-that path is defended by construction. Whether an AU boot reaches an undefended one is the open
-question. The cheap next probe is the one that just worked: log the insert order the ENGINE holds
-against the chain the CART believes it pushed, at boot and after the first touch.
+The hypothesis was the right shape and it is now tested. It was: `apply_fx()` is set-and-hold behind
+a `dirty` flag — it runs once in `init()` and then only when a control changes — so anything clearing
+the engine's inserts *after* `init()` leaves the cart believing it pushed a chain the engine no longer
+holds, with nothing re-pushing until you touch a pedal or load a rig (`apply_rig` sets `dirty = 1`).
+(`sound_reset_state()`, sound.h:8137, does exactly that clearing. Its caller `sound_ctx_activate`
+replays the config log afterwards, so that path was defended by construction; the question was whether
+an AU boot reaches an undefended one. **It does not.**)
+
+The boot sequence of the RENDERING process, in GarageBand on macOS, maker touching nothing:
+
+```
+15:29:53.249  AU CREATE · instance 1
+15:29:53.268  negotiated: in 2ch @44100 · out 2ch @44100 · maxFrames 1024
+15:29:54.269  FXCHAIN · holds 12 · kinds 0,1,2,3,4,5,6,7,9,10,11,12 · pulls 0   ← ENGINE DEFAULT
+15:29:55.269  FXCHAIN · holds 12 · …                                 · pulls 0
+15:29:56.269  FXCHAIN · holds  5 · kinds 7,6,2,0,8                   · pulls 289 ← FIRST RENDER
+15:29:57 →    FXCHAIN · holds  5 · kinds 7,6,2,0,8 · dropped 0       · pulls 8212 … unchanged
+```
+
+`7,6,2,0,8` is CRUSH, EQ, CHORUS, TREM, REVERB — the cart's five from `pedalboard.c:774-778`, in the
+cart's own order. `apply_fx()` lands **before the first block of audio is rendered**, and nothing ever
+clears it. `dropped 0` throughout on the rendering process, so the other silent failure mode (a config
+request lost to a full queue) did not happen either.
+
+⚠ **The 12 is the reading's own liveness control, and that is why the probe belongs ABOVE the
+`pulls == 0` early return.** While it printed only after the first render it could only ever say `5`,
+which is equally consistent with a probe that always says `5`. Watching it say `12` (the engine's
+default chain — every kind studio.h marks "in every bus's default chain", with `8`/FX_REVERB correctly
+absent since it is send-bus only) and then `5` in the same process is what makes this evidence rather
+than a coincidence. A reading that cannot be seen to change is not a measurement.
+
+⚠ **A NON-RENDERING process leaks dropped config requests.** The orphan panel copy (pid 34511, `pulls
+0` forever) held the engine default 12 and its `dropped` counter climbed steadily — ~6 every 4 s, past
+108. Nothing drains the sound-config queue in a process that never renders, so requests pile up and are
+discarded. Harmless today (that copy makes no sound), but a future reader diagnosing something else
+will find a climbing `dropped` and reasonably panic. It is a property of the orphan, not a defect.
+
+⚠ **Trap #2 caught the diagnosis a second time, in the same session.** The orphan's `holds 12 · dropped
+climbing` was read as the verdict before the pid with rising `pulls` was found. The `· pulls N` now on
+every FXCHAIN line exists for that reason: it makes a reading self-identifying as before/after the host
+rendered, so nobody has to reconstruct that from timestamps.
 
 **The real finding is underneath it.** `sound.h:6536` mixes the monitored input into `mixL/mixR`
 *before* the master insert chain, so **bus-0 inserts process host audio and per-voice settings cannot**.
@@ -396,6 +430,47 @@ DIFFERENT app's plug-in (Tiny Jam, not Tiny Pedalboard), and the giant `runningb
 
 ⚠ **Do not conclude anything from `au-transport-check`** here: its rig gives an effect no input, so it
 renders silence by construction. Both it and `--panel` now SKIP for effect types for that reason.
+
+### §4.1d The effect does not PASS ITS INPUT THROUGH — and that is the real blocker
+
+Raised by the maker 2026-08-18, immediately after §4.1c closed, as two plain expectations of anyone
+who has ever inserted a plug-in on a track. Both are correct, both are currently violated, and the
+first is a bigger problem than §4.1c's design call.
+
+**1. With `GTR: IN` off, the host's piano should pass through UNAFFECTED. It vanishes instead.**
+
+```c
+sound.h:6536   if (extin_mon_on) { float in = sound_extin_read() * extin_mon_gain; mixL += in; mixR += in; }
+```
+
+That is the ONLY path by which host audio reaches the output, and it is gated on `extin_mon_on`, which
+boots **off** (`sound.h:8352` — `extin_mon_on = 0; extin_mon_gain = 0.0f;`). So with the monitor off the
+plug-in does not process the track, it **REPLACES** it: output is the cart's own guitar and nothing else.
+Insert it on a piano track and the piano is gone.
+
+This is the correct default for an *instrument* and exactly backwards for an *effect*. **An audio effect
+that does not pass its input through is broken as an effect** — unity passthrough is the contract of an
+insert slot, and every DAW user relies on it before they touch a single control. It also explains the
+original *"I hear the piano, but unaffected"* report better than anything in §4.1c: the piano heard was
+the DRY track, because at that moment the plug-in was contributing nothing to it.
+
+⚠ This **reframes §4.1c's design call.** That question was "should amp EQ/TIMBRE and FUZZ reach an
+insert?". The prior question is "does the insert pass audio at all?", and until it does, the routing
+question is premature.
+
+**2. Turning the plug-in OFF in the host should restore the dry signal. We never see the off switch.**
+
+`shouldBypassEffect` — the AUv3 property a host sets when the user clicks a plug-in's power button — is
+**not implemented**: zero hits in `ios/AU/TinyjamAU.swift`. An effect AU is expected to honour it by
+passing input to output unchanged. We do not read it, so the render block keeps running and keeps
+replacing the signal. Fixing 1 and 2 together is natural: both are "the input must reach the output".
+
+**3. The cart is silent while the host transport is STOPPED.** Also raised, and this one is host policy,
+not a defect: GarageBand does not pull a stopped track, so `pulls` stays 0 and nothing renders — measured
+directly in §4.1c's boot trace (two full seconds of `pulls 0` before playback started). A cart with its own
+voice, which a pedalboard has, therefore cannot be noodled on until the transport rolls. Worth testing
+whether **record-arming / input-monitoring the track** makes the host pull continuously; if it does, the
+answer is a line in the runbook rather than code.
 
 ### §4.2 The `aumi` sequencer, the sleeper
 

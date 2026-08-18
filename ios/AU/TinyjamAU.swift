@@ -615,6 +615,25 @@ public final class TinyjamAU: AUAudioUnit {
         t.setEventHandler {
             let v = d.pointee
             d.pointee.peak = 0               // per-report, so a second of silence reads 0.00000
+            // §4.1c: what the ENGINE holds on the master bus. ⚠ THIS READ MUST STAY ABOVE THE
+            // pulls == 0 RETURN BELOW, and that is the whole point of it being here rather than
+            // beside the input reading where it started. The question it answers is "did the chain
+            // the cart pushed in init() survive?" — which is about BOOT, and a host does not render
+            // until the transport rolls. Behind the early return it could not print until the first
+            // block, so the earliest obtainable reading was already seconds into a session in which
+            // the maker may have touched a control — and one touch sets `dirty`, re-runs apply_fx()
+            // and re-pushes the chain, which makes a healthy reading and a recovered-from-broken
+            // reading identical. It cost a whole DAW pass on 2026-08-18 to learn that the probe
+            // could not see the only moment that mattered. `pulls` is printed on the line for the
+            // same reason: it labels each reading as BEFORE (pulls 0) or after the host rendered,
+            // so no one has to reconstruct that from timestamps again.
+            // Logged from the TIMER, never the audio thread: this walks engine state.
+            var kinds = [Int32](repeating: 0, count: 16)
+            let cn = kinds.withUnsafeMutableBufferPointer { de_fx_chain_probe(0, $0.baseAddress, 16) }
+            var list = ""
+            if cn > 0 { for i in 0..<Int(min(cn, 16)) { list += (i == 0 ? "" : ",") + String(kinds[i]) } }
+            deDiag("[tinyjam] FXCHAIN · bus 0 holds \(cn) insert(s)" + (cn > 0 ? " · kinds \(list)" : " · EMPTY")
+                   + " · dropped \(de_sound_dropped()) · pulls \(v.pulls)")
             // ⚠ THIS USED TO `return` WHEN pulls == 0, "to avoid filling the log". That silence WAS
             // the most important state in the whole diagnosis and I hid it: a plug-in that loads,
             // allocates, draws its panel and is NEVER RENDERED prints exactly nothing, which reads
@@ -638,17 +657,6 @@ public final class TinyjamAU: AUAudioUnit {
                 "[tinyjam] INDIAG · inst %llu · pulls %llu · FAIL %llu · UNWRITTEN %llu · oversize %llu · nonfinite %llu · pushed %llu smp · peak %.5f (%.1f dBFS) · lastN %d · ablCount %d · lastErr %d",
                 id, v.pulls, v.fails, v.unwritten, v.oversize, v.nonfinite, v.pushed, Double(v.peak), db,
                 v.lastN, v.lastABL, v.lastErr))
-            // §4.1c: what the ENGINE holds on the master bus, printed beside the input reading. The
-            // cart pushed its chain once in init() and, being set-and-hold, will not push again
-            // until a control moves — so if this reads 0 at boot and jumps the moment the maker
-            // touches a pedal, the engine lost the chain after init and the hypothesis is proved.
-            // Logged from the TIMER, never the audio thread: this walks engine state.
-            var kinds = [Int32](repeating: 0, count: 16)
-            let cn = kinds.withUnsafeMutableBufferPointer { de_fx_chain_probe(0, $0.baseAddress, 16) }
-            var list = ""
-            if cn > 0 { for i in 0..<Int(min(cn, 16)) { list += (i == 0 ? "" : ",") + String(kinds[i]) } }
-            deDiag("[tinyjam] FXCHAIN · bus 0 holds \(cn) insert(s)" + (cn > 0 ? " · kinds \(list)" : " · EMPTY")
-                   + " · dropped \(de_sound_dropped())")
         }
         t.resume()
         inDiagTimer = t

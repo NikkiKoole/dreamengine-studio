@@ -44,18 +44,25 @@ a broken doc link or `#section`).
 > What a reader needs to *choose* a lane is in the front-door output; what they need to *resume*
 > one is in the lane itself. A summary in between is a third copy, and it is the copy nobody
 > updates. If you find yourself writing one again, teach `handoff.js` to print it instead.
-> **▶ ACTIVE THREAD (2026-08-18) — `pedalboard` AS AN AUDIO EFFECT (`aumf`): IT WORKS IN GARAGEBAND. Five open items, listed first because this lane is long.**
+> **▶ ACTIVE THREAD (2026-08-18) — `pedalboard` AS AN AUDIO EFFECT (`aumf`): IT WORKS IN GARAGEBAND, but it REPLACES the track instead of processing it. The boot-chain question is closed; passthrough is the new top blocker. Items listed first because this lane is long.**
 >
 > **▶▶ PICK UP HERE. Verified working by the maker 2026-08-18:** the cart plays its own guitar AND
 > the host's piano runs through the pedal chain, in GarageBand on macOS. What is left, ranked:
 >
 > | # | Open item | Kind | Where |
 > |---|---|---|---|
-> | 1 | **Was the chain DRY at boot?** Never measured cleanly — every attempt mixed "before touching" with "after touching". `apply_fx()` is set-and-hold behind a `dirty` flag, so if anything clears the engine's inserts after `init()` nothing re-pushes. The probes for it are installed. | measurement, 2 min | §4.1c |
-> | 2 | **An insert cannot reach the amp EQ/TIMBRE or the FUZZ** — they are per-voice (`instrument_*(I_GTR,…)`) and the monitored input joins the mix after them. The pedals, amp DRIVE, amp GLUE and Leslie DO reach it. Both will read as broken controls on a track. | **DESIGN CALL, the maker's** | §4.1c |
+> | ~~1~~ | ~~**Was the chain DRY at boot?**~~ **✅ CLOSED 2026-08-18 — NO. Measured in GarageBand, maker touching nothing: the engine holds the default 12 at `pulls 0`, then the cart's own `5 · kinds 7,6,2,0,8` from the FIRST rendered block, unchanged thereafter, `dropped 0`.** The hypothesis (something clears the inserts after `init()`) is disproved. Seeing `12` before `5` is the reading's own liveness control — which is why the probe now sits ABOVE the `pulls == 0` return. | done | §4.1c |
+> | **1b** | **THE EFFECT DOES NOT PASS ITS INPUT THROUGH.** `sound.h:6536` gates host audio on `extin_mon_on`, which boots OFF — so with `GTR: IN` off the plug-in REPLACES the track instead of processing it (insert it on a piano track and the piano is GONE). Unity passthrough is the contract of an insert slot. Also `shouldBypassEffect` is unimplemented (0 hits), so the host's off switch does nothing. **This is now the top blocker** and it reframes item 2. | **DEFECT, and the real one** | §4.1d |
+> | 2 | **An insert cannot reach the amp EQ/TIMBRE or the FUZZ** — they are per-voice (`instrument_*(I_GTR,…)`) and the monitored input joins the mix after them. The pedals, amp DRIVE, amp GLUE and Leslie DO reach it. Both will read as broken controls on a track. ⚠ **Premature until 1b lands** — "which stages reach the insert" cannot be answered while the insert passes no audio. | **DESIGN CALL, the maker's** | §4.1c |
 > | 3 | **`apps/pedalboard/app.json` sets no `auCart`**, so the shipping app contains no plug-in. Correct to hold until 1 and 2 close: a component triple is FOREVER and `aumf tpdl Mpla` is still free. | sequencing | §6.3 |
 > | 4 | **`param_bind` is called ZERO times** (acidcandy: 15), so `parameterTree` is nil and a DAW can automate no knob on this rack. | separate job | — |
-> | 5 | **Both probes are still in the code** (`de_fx_chain_probe`, `de_sound_dropped`, the INDIAG block). Marked to delete with the diagnosis, i.e. when 1 closes. | cleanup | §4.1c |
+> | 5 | **Both probes are still in the code** (`de_fx_chain_probe`, `de_sound_dropped`, the INDIAG block). ⚠ **Unblocked by 1 closing — but do NOT delete yet:** they are the only instrument that can show 1b landing (the FXCHAIN + peak pair is exactly how you prove the input reaches the output). Delete after 1b. | cleanup, after 1b | §4.1c |
+>
+> ⚠ **A THIRD trap, learned today: do not let the maker insert the plug-in while a build is in flight.**
+> The binary was replaced under a loaded plug-in at 15:17:37, 28 s after it was inserted — trap #1 by
+> accident — and the instance ran the OLD code, printing `IDLE` with no `FXCHAIN` beside it. Confirm the
+> install landed (hash the appex against `build-mac/.../TinyjamMacAU`) BEFORE saying "go". Also: `strings`
+> cannot tell the builds apart — Swift packs short literals inline, so `· pulls ` is invisible to it. Hash, don't grep.
 >
 > ⚠ **THREE TRAPS THAT COST THE MORNING, all of them mine, none of them the engine:**
 > 1. **NEVER rebuild while the DAW has the plug-in loaded.** It leaves GarageBand holding a plug-in
@@ -135,7 +142,7 @@ a broken doc link or `#section`).
 >
 > **Hot files:** `ios/AU/TinyjamAU.swift`, `ios/au-identity.sh`, `ios/mac.sh`, `ios/au-transport-check.swift`.
 > **Runbook for all of this:** [`guides/cart-as-plugin.md`](guides/cart-as-plugin.md).
-> **Resume-at:** [`design/auv3-plugin-types.md` → §4.1b OPEN DEFECT](design/auv3-plugin-types.md#41b-open-defect-it-loads-the-panel-works-and-no-audio-comes-through)
+> **Resume-at:** [`design/auv3-plugin-types.md` → §4.1d the effect does not pass its input through](design/auv3-plugin-types.md#41d-the-effect-does-not-pass-its-input-through--and-that-is-the-real-blocker)
 
 > **▶ ACTIVE THREAD (2026-08-17) — THE OTHER FOUR PLUG-IN SHAPES: we ship `aumu` and the ecosystem has five.**
 >

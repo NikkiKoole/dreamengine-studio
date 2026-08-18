@@ -299,11 +299,41 @@ poison must never reach the engine; a DC step of 777 is a worse bug than silence
 After the fix, under auval: `UNWRITTEN 0 · nonfinite 0 · peak 0.00000` — we now read where the host
 actually wrote, and what it wrote is silence.
 
-⚠ **NOT YET CONFIRMED IN GARAGEBAND.** What is proven is that a real defect existed on this exact
-path and is gone. Whether it was the *whole* of the silence needs the maker's retest, because auval
-turned out to feed nothing (see the struck-through claim above), so no test here can produce audio.
-If GarageBand is still silent, the probe now cleanly separates the remaining cases and suspect 2
-(the monitor gain) is next.
+✅ **CONFIRMED IN GARAGEBAND (maker, 2026-08-18).** The piano is audible through the plug-in and the
+probe reads `FAIL 0 · UNWRITTEN 0 · nonfinite 0 · peak 0.26050 (-11.7 dBFS)`, tracking the playing.
+**The §4.1b silence is CLOSED.** ⚠ You must switch `GTR: IN` on: `input_monitor()` is the tap, and
+it is off at boot.
+
+### §4.1c What an effect build can and cannot process — the AMP is half wired for it
+
+Immediately after the silence closed, the next report was *"I hear the piano, but unaffected"*. That
+one is **not a defect**: `pedalboard.c:624` boots `chain_n = 0`, and the cart draws its own hint for
+the state (*"open PEDALS, drag effects in →"*). No pedals in the rack means no master inserts, so a
+clean pass-through is correct. Drag a chip in and it processes.
+
+**The real finding is underneath it.** `sound.h:6536` mixes the monitored input into `mixL/mixR`
+*before* the master insert chain, so **bus-0 inserts process host audio and per-voice settings cannot**.
+`pedalboard` straddles that line, and until now nothing needed to care which side a control sat on:
+
+| control | call | reaches the host's track? |
+|---|---|---|
+| the 9 pedals | `crush`/`eq`/`chorus`/`phaser`/`flanger`/`tape`/`tremolo`/`wah`/`reverb_insert` on bus 0 | ✅ yes |
+| amp DRIVE | `drive_insert(...)` — FX_DRIVE at the chain end | ✅ yes |
+| amp GLUE | `glue(0, …)` | ✅ yes |
+| Leslie cabinet | `leslie(…)` master | ✅ yes |
+| **amp EQ + TIMBRE** | `instrument_eq(I_GTR, …)`, `instrument_timbre(I_GTR, …)` | ❌ **no — guitar voice only** |
+| **FUZZ** | `instrument_drive(I_GTR, …)` | ❌ **no — guitar voice only** |
+
+So on an insert, an amp gives you its drive and glue but **not its voicing**, and the fuzz pedal does
+nothing at all. Both will read as broken controls to anyone who inserts this on a track, and neither
+is broken: they are per-voice stages on a cart that has just acquired a second signal source it was
+never designed for.
+
+**Not a bug to patch blind.** The choice is a design one: either the cart routes those two stages to
+the bus when it is running as an effect (which changes the guitar's own sound unless it is switched
+on the type), or the panel marks them as guitar-only in an insert. That is the maker's call, and it
+is the first thing that has ever depended on `aumf` vs `aumu` at the CART level rather than the host
+level.
 
 #### Two things found while wiring the probe, neither of them the defect
 

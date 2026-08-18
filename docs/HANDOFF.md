@@ -44,10 +44,25 @@ a broken doc link or `#section`).
 > What a reader needs to *choose* a lane is in the front-door output; what they need to *resume*
 > one is in the lane itself. A summary in between is a third copy, and it is the copy nobody
 > updates. If you find yourself writing one again, teach `handoff.js` to print it instead.
-> **▶ ACTIVE THREAD (2026-08-17) — `pedalboard` AS AN AUDIO EFFECT (`aumf`): it loads in GarageBand, the panel works, and NO SOUND COMES THROUGH.**
+> **▶ ACTIVE THREAD (2026-08-18) — `pedalboard` AS AN AUDIO EFFECT (`aumf`): the host's track REACHES THE PEDALS. Open = which controls an insert can reach.**
 >
-> The §4.1 spike, built and half-landed in one session. **Pick up at the defect, not the design** —
-> the design question is settled and the build is done; what is left is one diagnosis.
+> **✅ THE SILENCE IS CLOSED (2026-08-18), and it was OURS.** `mData` is an IN-OUT field: we offered
+> the host our scratch buffer, the host pointed `mData` at its own memory (legal, and how no-copy
+> rendering works), and we read our scratch back. Fresh pages are kernel-zeroed, so we fed the engine
+> perfect silence with every counter green. Confirmed in GarageBand: `peak 0.26050`, tracking the
+> playing. ⚠ `GTR: IN` must be ON — `input_monitor()` is the tap and it boots off.
+>
+> ⚠ **The probe is the reusable part.** `peak 0` alone could not tell "the host wrote silence" from
+> "the host wrote nothing" (zeroed pages read the same), and would have sent us to check GarageBand's
+> routing. Poisoning the offered buffer and seeing the poison survive 100% of pulls is what named the
+> culprit. It also killed §4.1b's load-bearing claim that **auval feeds real input** — it does not,
+> so a green `auval` never covered this path at all.
+>
+> **▶ NEXT, and it is a DESIGN call not a fix:** an insert reaches the 9 pedals, the amp's DRIVE and
+> GLUE and the Leslie, but **not** the amp's EQ/TIMBRE nor the FUZZ, because those are per-voice
+> (`instrument_*(I_GTR, …)`) and the monitored input joins the mix after them. Both will read as
+> broken controls on a track. Table + the two options:
+> [`design/auv3-plugin-types.md` → §4.1c](design/auv3-plugin-types.md#41c-what-an-effect-build-can-and-cannot-process--the-amp-is-half-wired-for-it)
 >
 > **✅ SHIPPED (5 commits, `f62d4e64`..`8ef2c99e`).**
 > 1. **Per-app CARRIER + identity** — auditioning pedalboard on macOS silently DEREGISTERED the Tiny

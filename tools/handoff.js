@@ -219,7 +219,11 @@ for (let i = 0; i < lines.length; i++) {
   // Compare STRINGS, not parsed dates: both sides are ISO 'YYYY-MM-DD', which sorts correctly as
   // text, and this way a lane dated the same day as its last edit is equal (not "one is 3 hours
   // newer") — the check is about the DAY somebody wrote, not about clock skew inside it.
-  const edited = editedIn(i, j, title)
+  // ⚠ i + 1, NOT i: the header line holds the DATE, so including it means bumping the date is
+  // itself an edit that makes the body look newer than the date you just set. The check then
+  // re-reports the lane you just fixed, forever. Same reason a rebase (which re-authors every line
+  // it touches) must not be able to flag a lane through its header alone. The BODY is i+1..j.
+  const edited = editedIn(i + 1, j, title)
   const editedAfter = edited && edited > m[1] ? edited : null
   lanes.push({ date: m[1], title, age: ageOf(m[1]), links: targets, broken, brokenAnchors,
                noResume, unanchored, edited, editedAfter, line: i + 1 })

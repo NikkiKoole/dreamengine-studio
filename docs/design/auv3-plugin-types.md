@@ -167,8 +167,8 @@ If we do the input bus at all, declare `aumf`. Same wiring cost, strictly more u
 host's audio *and* its notes, which is what makes "the visuals know what the track is playing"
 possible rather than only "the visuals react to loudness". `pedalboard` becomes an insert effect,
 which matters because it is already **on sale** (`READY_FOR_SALE` since 2026-08-17), so the audience
-exists before the plug-in does. ⚠ Two prerequisites in front of it, both §6: the plug-in TYPE is not
-derivable per app yet (§6.2), and this app ships no AU target at all (§6.3).
+exists before the plug-in does. Both prerequisites this paragraph once listed have since landed: the
+type is derived per app (§6.2) and the spike is built (§4.1b holds the one remaining defect).
 
 ### §4.1b OPEN DEFECT: it loads, the panel works, and no audio comes through
 
@@ -379,7 +379,13 @@ paragraph proposed the work that the rest of §6.1 records as shipped on 2026-08
 edit that shipped it. Struck rather than deleted because a proposal left standing next to its own
 completion is the exact drift this doc keeps getting caught by, and it is worth being able to see one.
 
-### §6.2 The TYPE is still hardcoded, which is what blocks an effect build — OPEN
+### §6.2 The TYPE was hardcoded, and that blocked an effect build — SOLVED 2026-08-17
+
+✅ **Fixed the same day this was written, by `f62d4e64`**, in the shape proposed at the foot of
+this section: `apps/<app>/app.json` carries an `auType` key, derived and asserted like the other
+four, defaulting to `aumu` so every app shipped before it is a no-op. `apps/pedalboard/app.json`
+now reads `"auType": "aumf"`. The record of the defect follows, because it is the sixth instance
+of one shape and that shape is the point.
 
 Verified 2026-08-17 by reading the specs, not assumed. The identity work of §6.1 derived the
 *subtype*, *manufacturer* and *names* per app. It did **not** touch `componentType`, which is
@@ -410,11 +416,18 @@ on 2026-08-17 as a standalone app with no AUv3 in it**, which is the same ship-b
 Acid Jam on 08-15, in the same week, on the app nobody re-checked because it was already through
 review.
 
-Ordering matters here and it is not the obvious one. Setting `auCart` today would ship a pedalboard
-**instrument**, because of §6.2 — an `aumu` with no input bus, which is the one shape this cart has no
-use for. And a shipped triple is FOREVER. So the sequence is: `auType` first (§6.2), then the input
-bus (§3.1), and only then `auCart` plus a subtype for this app, so its first published component is
-the one it should have had.
+**Still true as of 2026-08-17, and now on purpose rather than by oversight.** The manifest carries
+`auType: aumf`, `auSubtype: tpdl`, `auManufacturer: Mpla` and `auName`, and no `auCart`. So the
+plug-in is fully specified and deliberately unshipped.
+
+That hold is worth keeping until §4.1b closes. A component triple is FOREVER: a DAW stores it to
+re-instantiate the plug-in from a saved project. Nothing has shipped `aumf tpdl Mpla` yet, so it is
+still free to change. Turn `auCart` on and the first version a buyer installs is silent on an insert,
+which is the one thing this plug-in exists to do.
+
+⚠ **A local macOS build does not need `auCart`.** `ios/mac.sh` registers the AU on this machine
+directly, which is how the plug-in can be loaded in GarageBand today while the App Store version
+contains no extension at all. Those two facts look contradictory and are not.
 
 ## §7 Traps
 

@@ -1504,7 +1504,7 @@ a broken doc link or `#section`).
 > for the AU arc (incl. the three signing/entitlement gates and their symptoms), and
 > [external-clock-sync.md](design/external-clock-sync.md) for the clock seam itself.
 
-> **▶ ACTIVE THREAD (2026-08-17) — `pedalboard`: the guitar rig, and the first app LIVE ON THE APP STORE.**
+> **▶ ACTIVE THREAD (2026-08-18) — `pedalboard`: the guitar rig, and the first app LIVE ON THE APP STORE.**
 > **This lane did not exist until 2026-07-30, and it should have.** A handoff audit found `pedalboard` was
 > the single most active thread in the repo — 18 commits since 07-28 (fret wires warmed into the board, the
 > mute check tracking the hand, TRAVIS picking as a second autoplay style, autoplay keeping YOUR chord

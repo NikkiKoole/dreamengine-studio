@@ -615,7 +615,17 @@ public final class TinyjamAU: AUAudioUnit {
         t.setEventHandler {
             let v = d.pointee
             d.pointee.peak = 0               // per-report, so a second of silence reads 0.00000
-            if v.pulls == 0 { return }       // not rendering: stay quiet rather than fill the log
+            // ⚠ THIS USED TO `return` WHEN pulls == 0, "to avoid filling the log". That silence WAS
+            // the most important state in the whole diagnosis and I hid it: a plug-in that loads,
+            // allocates, draws its panel and is NEVER RENDERED prints exactly nothing, which reads
+            // as "the probe is broken" or "nothing to report". It is neither. It means the host is
+            // not sending audio through this instance at all, and no other line here can say so.
+            // Same mistake as every other one this probe exists to catch: absence is not evidence.
+            if v.pulls == 0 {
+                deDiag(String(format:
+                    "[tinyjam] INDIAG · inst %llu · IDLE — allocated but the render block has NEVER been called. The host is not passing audio through this instance.", id))
+                return
+            }
             let db = v.peak > 0 ? 20 * log10(Double(v.peak)) : -999.0
             deDiag(String(format:
                 "[tinyjam] INDIAG · inst %llu · pulls %llu · FAIL %llu · UNWRITTEN %llu · oversize %llu · nonfinite %llu · pushed %llu smp · peak %.5f (%.1f dBFS) · lastN %d · ablCount %d · lastErr %d",

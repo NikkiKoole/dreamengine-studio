@@ -306,10 +306,31 @@ it is off at boot.
 
 ### §4.1c What an effect build can and cannot process — the AMP is half wired for it
 
-Immediately after the silence closed, the next report was *"I hear the piano, but unaffected"*. That
-one is **not a defect**: `pedalboard.c:624` boots `chain_n = 0`, and the cart draws its own hint for
-the state (*"open PEDALS, drag effects in →"*). No pedals in the rack means no master inserts, so a
-clean pass-through is correct. Drag a chip in and it processes.
+Immediately after the silence closed, the next report was *"I hear the piano, but unaffected"*.
+
+~~Not a defect: `pedalboard.c:624` boots `chain_n = 0`.~~ **WRONG, and corrected within the hour.**
+Line 624 is inside `apply_rig()`, not `init()`. The cart boots **five pedals** (BITCRUSH, EQ, CHORUS,
+TREMOLO, REVERB) with **TREMOLO ON** at `DEP 0.60`, and `init()` calls `apply_fx()`. So the engine
+should have been applying an audible 5.7 Hz tremolo to the host's track from the first block, and it
+was not. **Why it was dry at boot is OPEN**, and it is not "there was nothing in the chain".
+
+⚠ Worth keeping as a method note: that claim came from a grep hit read without opening the enclosing
+function, which is precisely what [`checks-and-oracles.md`](../guides/checks-and-oracles.md) warns
+about — a grep finds candidates, and you must READ them. It was stated confidently, it was committed,
+and the maker caught it.
+
+**The maker's own hypothesis is the right shape and is the thing to test.** `apply_fx()` is
+set-and-hold behind a `dirty` flag: it runs once in `init()` and then only when a control changes. So
+anything that clears the engine's inserts *after* `init()` leaves the cart believing it has pushed a
+chain that the engine no longer holds, and nothing re-pushes until you touch a pedal or load a rig
+(`apply_rig` sets `dirty = 1`). That matches every observation, including that it started working
+once controls were touched.
+
+`sound_reset_state()` (sound.h:8137) does exactly that clearing, and it wipes `insert_inst` and the
+insert order. One of its two callers, `sound_ctx_activate`, **replays the config log afterwards**, so
+that path is defended by construction. Whether an AU boot reaches an undefended one is the open
+question. The cheap next probe is the one that just worked: log the insert order the ENGINE holds
+against the chain the CART believes it pushed, at boot and after the first touch.
 
 **The real finding is underneath it.** `sound.h:6536` mixes the monitored input into `mixL/mixR`
 *before* the master insert chain, so **bus-0 inserts process host audio and per-voice settings cannot**.

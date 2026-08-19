@@ -203,6 +203,14 @@ set only to bound the axis. So "fizzles out a bit more" meant *dies away sooner*
 longer*. Twice now the ear has preferred the shorter, simpler gesture over the one with the better
 numbers.
 
+**Round four was offered and declined, which is also an answer.** The one lever never swept was how
+present the tonal SHELL is, the difference between "noise with a tail" and "a drum being brushed": a
+sweep from 41% to 91% of the voice being drum pitch rather than noise, with groove loudness held
+inside 0.04 dB so level could not do the persuading. The owner kept the shipped voice. **So the brush
+is DONE and the shell axis is settled at its shipped value**, and the variants stay in `smprobe`
+behind keys 2 to 4 only as the record of what was asked and answered. Do not reopen it as if it were
+untried.
+
 Two engine facts fell out of shipping it, and the first one is not specific to this cart:
 
 - **`instrument()` does not clear what else is attached to a slot.** It replaces the wave and the

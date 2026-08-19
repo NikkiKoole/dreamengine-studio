@@ -137,7 +137,7 @@ a broken doc link or `#section`).
 > **Runbook for all of this:** [`guides/cart-as-plugin.md`](guides/cart-as-plugin.md).
 > **Resume-at:** [`design/auv3-plugin-types.md` → §4.1b OPEN DEFECT](design/auv3-plugin-types.md#41b-open-defect-it-loads-the-panel-works-and-no-audio-comes-through)
 
-> **▶ ACTIVE THREAD (2026-08-17) — THE OTHER FOUR PLUG-IN SHAPES: we ship `aumu` and the ecosystem has five.**
+> **▶ ACTIVE THREAD (2026-08-19) — THE OTHER FOUR PLUG-IN SHAPES: we ship `aumu` and the ecosystem has five.**
 >
 > A survey, not built work. The AUv3 lane below got `acidcandy` behaving as an INSTRUMENT
 > (`aumu`), which was the right first goal and is also the only shape anyone has looked at.
@@ -188,7 +188,15 @@ a broken doc link or `#section`).
 > the seven answers now live in `apps/tinyacidjam/app.json` → `review.notes` (pushed by
 > `asc-push --review-contact`, which now REFUSES a notes body containing a placeholder — the previous
 > app's reply went out with a literal `[FILL IN …]` where the tested-devices answer belonged).
-> **▶ NEXT: nothing until Apple answers.**
+> **▶ NEXT: nothing until Apple answers.** Then, before anything else, the PRICING MODEL CHANGE:
+> [ADR-0035](decisions/0035-free-with-one-pro-unlock.md) takes this app **free with one ~$9.99 "Pro"
+> unlock** (WAV export + MIDI in/out + AUv3). Deliberately NOT by cancelling this submission (that
+> costs a review round trip and the price needs no review at all): let v1.0 land at $1.99 with zero
+> sales, then flip the price (`"price": "0"` + `node tools/asc-push.js tinyacidjam --price`) and ship
+> Pro in 1.1. ⚠ **Two things in `apps/tinyacidjam/app.json` become WRONG the moment Pro exists**:
+> `review.notes` answer 4 tells Apple *"It is a one-time paid app with no in-app purchases"*, and the
+> notes must then also tell a reviewer how to exercise the paid feature. `pedalboard` goes first, so it
+> pays for the StoreKit + App Group entitlement work (see its lane).
 >
 > ⚠ **Three traps from getting there, each worth an hour to the next app.** (1) **ITMS-90473** after
 > the upload: the AU shipped `CFBundleVersion: 1` inside an app stamped with the build number, because
@@ -1547,7 +1555,7 @@ a broken doc link or `#section`).
 > for the AU arc (incl. the three signing/entitlement gates and their symptoms), and
 > [external-clock-sync.md](design/external-clock-sync.md) for the clock seam itself.
 
-> **▶ ACTIVE THREAD (2026-08-18) — `pedalboard`: the guitar rig, and the first app LIVE ON THE APP STORE.**
+> **▶ ACTIVE THREAD (2026-08-19) — `pedalboard`: the guitar rig, and the first app LIVE ON THE APP STORE.**
 > **This lane did not exist until 2026-07-30, and it should have.** A handoff audit found `pedalboard` was
 > the single most active thread in the repo — 18 commits since 07-28 (fret wires warmed into the board, the
 > mute check tracking the hand, TRAVIS picking as a second autoplay style, autoplay keeping YOUR chord
@@ -1561,6 +1569,21 @@ a broken doc link or `#section`).
 > ⚠ **A live version is FROZEN**: nothing in the listing is editable until `--new-version` creates the
 > next one, so a copy fix now costs a version bump. The engine seam it rides is the `input_monitor(gain)`
 > pedal tier that shipped 07-22, so real GUITAR IN → amp → pedals works on desktop.
+> 💰 **PRICING MODEL CHANGE PENDING (decided 2026-08-18, [ADR-0035](decisions/0035-free-with-one-pro-unlock.md)):
+> this app goes FREE with one ~$9.99 "Pro" unlock** (WAV export + MIDI in/out + AUv3), and it goes FIRST
+> because it is live with **zero sales** and nobody is watching. Two halves, and only the second needs a
+> build: (a) the price flip is `"price": "0"` in `apps/pedalboard/app.json` then
+> `node tools/asc-push.js pedalboard --price` (the tool documents `0 = Free`), **no binary, no review**;
+> (b) Pro itself is a StoreKit 2 non-consumable plus an **App Group entitlement the appex can read**,
+> because a host loads the plug-in without the container app ever launching (see
+> [`product-notes-followup.md`](design/product-notes-followup.md) §3). ⚠ Do the flip **while sales are
+> still zero**: a single sale means writing receipt-based grandfathering
+> (`AppTransaction.originalAppVersion`) so buyers keep Pro for free. And do NOT remove the app from sale
+> to do any of this: the listing, URL and bundle ID are worth keeping, and a re-submission is
+> guideline-4.3 bait. ⚠ **This lane now has a dependency on the `aumf` lane at the top of this file:**
+> its open item 3 (`apps/pedalboard/app.json` sets no `auCart`, so the *shipping* app contains no
+> plug-in) is the Pro story's blocker, because AUv3 cannot be the headline paid feature of an app that
+> does not contain one. Pro can still ship on WAV export + MIDI alone; AUv3 joins when that item closes.
 > **Resume-at:** the cart's own punch list — `node tools/cart-todos.js pedalboard` — plus
 > [`design/effects-bus-architecture.md` → Increment E, the output stage](design/effects-bus-architecture.md#increment-e--the-output-stage-4th-zone-cabinets--ampcab--leslie)
 > for the amp/cabinet model

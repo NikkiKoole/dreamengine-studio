@@ -152,8 +152,13 @@ enforces the rule this doc wrote down.
 
 ## Open questions
 
-- Pricing shape: one app with rack IAPs (Pocket-Operator-catalog feel) vs an app
-  per rack (Korg feel)? Decide at app stage, not before.
+- ~~Pricing shape~~ **DECIDED 2026-08-18 → [ADR-0035](../decisions/0035-free-with-one-pro-unlock.md)**:
+  apps ship **FREE with one "Pro" unlock** (WAV export + MIDI in/out + AUv3, ~$9.99); the wall is
+  "it leaves the app". Both axes coexist only in the umbrella: content (which racks you own, the
+  per-rack IAP of [`product-notes-followup.md`](product-notes-followup.md) §4) sits *below* features.
+  The two $1.99 live listings flip to free while sales are zero, which is what removes the
+  receipt-based grandfathering work. Note the §🚩 rule below **does not relax** for a free app: the
+  Pro unlock is still a paywall, over a much larger install base.
 - Does "paid web" exist at all (itch.io / Gumroad unlock codes), or is web
   strictly the free funnel? The latency numbers + pilot reception feed this.
 - Where does feedback from gallery players actually arrive? (There's no channel

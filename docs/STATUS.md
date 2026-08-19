@@ -7,7 +7,7 @@
 > **here**, then fix the prose in the relevant design doc. If a design doc and this file
 > disagree, this file wins.
 
-_Last updated: 2026-08-18 — **Tiny Pedalboard is LIVE on the App Store** (1.1 and 1.0 both `READY_FOR_SALE`), the first thing built here that a stranger can buy; and the same cart now loads in GarageBand as an audio EFFECT (`aumf`), with one open defect. See the top two Shipped entries below, and [`HANDOFF.md`](HANDOFF.md) for what is in flight._
+_Last updated: 2026-08-19 — **Tiny Pedalboard is LIVE on the App Store** (1.1 and 1.0 both `READY_FOR_SALE`), the first thing built here that a stranger can buy; and the same cart now loads in GarageBand as an audio EFFECT (`aumf`), with one open defect. See the top two Shipped entries below, the first Open entry (both apps go **free with one Pro unlock**, [ADR-0035](decisions/0035-free-with-one-pro-unlock.md)), and [`HANDOFF.md`](HANDOFF.md) for what is in flight._
 
 > **This line is a headline, not an entry.** It reached **9,064 characters** and was the only place in the file that recorded `FILTER_DIODE`, `filter-spec.js` and `rebirth-classic.md` — three shipped things, invisible because nobody reads a shipped feature out of a `_Last updated:_` line. They have a real entry now (2026-07-02, above `sprite-draw.js`). Keep this to one date, one sentence, one link; `status-check --check` fails past 900 chars.
 
@@ -776,6 +776,28 @@ Detail lives in the linked design doc in every case; that is where it was always
 
 
 ## Open — prioritized
+
+> ### 💰 The two live apps go FREE with one ~$9.99 "Pro" unlock, and the window closes on first sale
+>
+> Decided 2026-08-18, [ADR-0035](decisions/0035-free-with-one-pro-unlock.md). *Tiny Pedalboard* (live,
+> $1.99) and *Tiny Acid Jam* (submitted, $1.99) become **free downloads with one non-consumable Pro
+> unlock** carrying **WAV export + MIDI in/out + AUv3**. The wall is "it leaves the app": the free
+> instrument is complete, including background audio, Ableton Link and saving your own patterns.
+> **Listed first because it expires.** At **zero sales** (true as of 2026-08-18) the migration needs no
+> grandfathering code at all; the first purchase means writing a receipt check
+> (`AppTransaction.originalAppVersion`) so buyers keep Pro for nothing.
+> **The store half is nearly free**: `"price": "0"` in the manifest plus
+> `node tools/asc-push.js <app> --price` (the tool documents `0 = Free`), **no binary, no review**. So
+> do NOT pull the apps and re-release them; that costs the listing, the URL and a review round trip for
+> nothing, and a re-submission under a fresh bundle ID is guideline-4.3 bait.
+> **The build half** is StoreKit 2 (in-house, no RevenueCat) plus an **App Group entitlement the AUv3
+> extension can read**, because a host loads the plug-in without the container app ever launching
+> ([`design/product-notes-followup.md`](design/product-notes-followup.md) §3). Order: `pedalboard`
+> first (live, unwatched), then `tinyacidjam` after its current review lands, then `tinyjam` inherits it.
+> **Three follow-ons**: `apps/tinyjam/app.json` sells `masterpass` at $4.99, i.e. *below* Pro while
+> sounding bigger (the two axes need one story); `apps/tinyacidjam/app.json`'s review notes still tell
+> Apple *"no in-app purchases"*; and the §🚩 trademark rule does not relax for a free app, since the Pro
+> unlock is still a paywall over a bigger install base.
 
 > ### The AUv3 panel's LAYOUT TOGGLE has never worked in GarageBand (pre-dates the context work)
 >

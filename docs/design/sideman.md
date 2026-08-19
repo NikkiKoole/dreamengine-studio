@@ -218,6 +218,28 @@ Two engine facts fell out of shipping it, and the first one is not specific to t
   voices *are* byte-identical, and with the note count held equal the whole render is bit-exact, so
   the check still works: it just has to hold notes constant to mean anything.
 
+## 6c. Accepted limits
+
+Written down as ACCEPTED rather than left on an open list, because the owner has listened to all ten
+voices and passed nine of them, and the tenth was fixed by ear (§6b). A measured imperfection that
+survives a listen is a limit, not a defect:
+
+- **The maracas leak 22% and the cymbal 33% of their energy above the machine's 6 kHz ceiling.** Both
+  are `FILTER_BAND`, which is 2-pole, and the only lever that would tighten them turns noise into a
+  whistle (at resonance 15 the maracas measures 72% of its energy inside ±150 cents, which is a pitch,
+  not a shaker). A steeper per-slot filter or a cascaded second band would fix it properly. Note this
+  is already the SECOND pass on these two: as first written they were highpassed and sat at 96% and
+  97% above 6 kHz, peaking at 19 and 21 kHz, which was a real defect and is gone.
+- **There is no upward headroom left in the bank.** It sits at the top of the per-slot gain range
+  (vol 7 x level 1.0 x trim 1.0) because nothing upstream of the tube shaper can add level: sweeping
+  the wooden family's band resonance 9 to 13 moved the output 0.4 dB, since the shaper normalises
+  full-scale to full-scale. `SIDEMAN_TRIM` is therefore a **down-only** lever, and a cart stacking more
+  than four voices on one step should pull it down (ten fired together measure -0.6 dBFS).
+- **The tube is velocity-invariant.** Drive runs pre-VCA, so the harmonic ladder is identical at every
+  velocity and `boost` is a down-only trim. For THIS machine that is faithful: a contact disc closes
+  the same way every time and the Side Man has no accent anywhere. It is recorded as the first thing
+  to fix for a keybed cart borrowing the bank, and deliberately not fixed here.
+
 ## 7. Gates
 
 | after touching | run |

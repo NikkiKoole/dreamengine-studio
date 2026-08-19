@@ -653,10 +653,15 @@ correct behaviour and a bad sentence.
       repo-doctor row set, mutation-tested. It went on to find the three things §4 now records (the
       `eq_inst` algebraic null, the drive stage's DC-blocker memory, and that OUT and IN are different
       questions) and to correct two claims this doc had made.
-- [ ] a `dr <= 0.001f` early-out that also **parks the DC blocker** (§4b, IRON's IN row), so a
-      re-engaging saturation stage does not discharge a frozen capacitor into the mix. Not obviously a
-      bug ‑ a real pedal's coupling cap does exactly this ‑ so it is a decision for whoever owns
-      `sound.h`, not a defect to fix quietly. Whatever is decided, the oracle's IRON IN row records it.
+- [x] **DECIDED 2026-08-19: leave it** ‑ a `dr <= 0.001f` early-out that also **parks the DC blocker**
+      (§4b, IRON's IN row), so a re-engaging saturation stage does not discharge a frozen capacitor into
+      the mix. Three reasons not to change it, in order of weight: a real pedal's coupling cap does
+      exactly this, so the behaviour is defensible as **physics** rather than tolerated as a quirk;
+      changing it would move the output of every cart that switches a drive stage, for no reported
+      complaint; and the behaviour is now MEASURED and GATED in both directions on two racks
+      (300.8 ms and 267.8/301.0 ms), so it is a documented property with a number rather than a
+      surprise. Reversible: flip the early-out, re-run `bypass-check.js`, and the IRON IN row records
+      the new figure. Reopen this if someone hears it, which nobody has.
 - [x] **DONE 2026-08-19** ‑ extend `bypass-check.js` to `sideman` so the second consumer of this table
       is gated, not measured once by hand: `--rack sideman`, 4 rows, exit 0. It agrees with the
       outboard rack on the stage that has memory (EQ+IRON back in: **267.8 ms** there against 300.8 ms

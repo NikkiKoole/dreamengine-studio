@@ -15,6 +15,30 @@ _Last updated: 2026-08-19 — **Tiny Pedalboard shipped to the App Store and is 
 
 ## Shipped ✓
 
+- **THE FIRST DRUM MACHINE EVER SOLD, AND THE FIRST CART WHOSE SEQUENCER IS A MECHANISM**
+  (2026-08-19). The `sideman` cart plus `runtime/sideman.h`, the Wurlitzer Side Man (1959): ten
+  vacuum-tube percussion circuits, the oldest drum sound in this studio by two decades. FOUR of its
+  ten voices are struck wood (wood block, two temple blocks, claves) against three membranes, which is
+  why the era reads as a plock rather than a beat. Every other drum cart here is a left-to-right grid,
+  and that is the wrong shape for this machine: the wiper is bolted at twelve o'clock and the DISC
+  turns underneath it, so one revolution is one bar, the ten tracks are concentric rings, a comb of ten
+  contact fingers lights as each closes, and the tempo slider is the motor speed. A stamped disc also
+  gives a different track layout per rhythm for free, so WALTZ carries 12 slots in three beats and
+  SHUFFLE is four beats of REAL triplets where `cr78` needed a swing knob the CR-78 never had.
+  `spec()` asserts the one thing it rests on, that the slot which fires is the slot standing under the
+  arm, on pure functions because `beat()` is frozen under `-DDE_SPEC` (1647 assertions). Its cabinet is
+  the [outboard chain](design/analog-outboard-chain.md) used as a **SUBSET**, the first consumer to do
+  so: WARM EQ into IRON, no bus comp because a 1959 organ amp had none, and a SPRING tank instead of
+  the send stage's studio plate, because a plate in 1959 was a wardrobe-sized EMT. That made it the
+  second rack `bypass-check.js` gates, which is what turned the IRON DC blocker's reconvergence into a
+  property of the STAGE (267.8/301.0 ms against 300.8) rather than of one cart.
+  **Two findings worth more than the cart**, both in [sideman.md](design/sideman.md) §6b: `instrument()`
+  does NOT clear a slot's envelopes/LFOs/filter/sends, so reusing a slot silently inherits the last
+  voice's modulation (now on the function itself, `node tools/api.js instrument`); and the ear
+  disagreed with the measurements TWICE on one voice, both times preferring the shorter, simpler
+  gesture, which is why "three candidates measuring a clean 2x-4x grain separation" were
+  indistinguishable: they shared one 375 ms gesture, and gesture dominates parameter.
+
 - **THE PRO ENTITLEMENT SEAM, AND THE FIRST THING IT GATES: AUDIO EXPORT** (2026-08-19). The
   engineering half of [ADR-0035](decisions/0035-free-with-one-pro-unlock.md); full picture in
   [pro-unlock.md](design/pro-unlock.md). `runtime/pro.h` is the cart-land face — `pro_unlocked()`

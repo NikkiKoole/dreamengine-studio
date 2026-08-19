@@ -276,10 +276,13 @@ void update(void) {
     // Meter the REAL post-FX mix, and meter it THREE ways, because no one of them is the answer.
     // RMS is what MOVES for every stage here. PEAK mostly does not, which is the trap: a peak meter
     // shows the comp doing nothing. CREST (peak minus RMS) is the number that exposes what glue()
-    // actually is: at the ALL ratio it takes ~4 dB of RMS with the peak pinned, so the crest RISES.
-    // A compressor is supposed to do the opposite. glue is a fast-attack slow-release DUCKER with no
-    // threshold (you drive it with INPUT, which is the whole FET front panel), and that is a
-    // character, not level control.
+    // actually IS -- and that answer CHANGED on 2026-08-19, so this comment deliberately carries no
+    // figure: glue gained automatic makeup gain and a program-dependent second release stage that
+    // day, and it went from raising the crest (a ducker: it took RMS while the peak sat still) to
+    // lowering it by several dB (a compressor: it holds the peak down and gives the level back).
+    // Both measurements, dated, live in docs/design/analog-outboard-chain.md 2b and 2d -- read them
+    // there rather than trusting a number frozen in a comment. What does NOT change: it has no
+    // THRESHOLD, so you drive it with INPUT, which is the whole FET front panel.
     scope_read(scope, SCOPE_N);
     float pk = 0.0f, sq = 0.0f;
     for (int i = 0; i < SCOPE_N; i++) {

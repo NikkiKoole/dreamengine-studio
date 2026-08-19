@@ -45,23 +45,32 @@ _Last updated: 2026-08-19 — **Tiny Pedalboard shipped to the App Store and is 
   effects we already ship, per [0015](decisions/0015-effects-are-recipes-not-primitives.md), so no new
   DSP. The bench is the `outboard` cart: a drum machine and a bassline loop themselves while you
   switch each stage in and out. **Three findings the build produced, all in
-  [analog-outboard-chain.md](design/analog-outboard-chain.md):** (a) `glue()` is a fast-attack
-  slow-release **DUCKER, not a limiter** — at the hardest ratio it takes ~3.8 dB of RMS while the PEAK
-  does not move and the crest factor *rises*, so a UI on it must meter RMS or the stage reads as
-  inert; (b) **the bypass is measured, not asserted** — and the measurement is now the committed oracle
-  `tools/bypass-check.js` (30-answer `--selfcheck`, in repo-doctor), which promptly corrected this
-  entry: switching a stage OUT is bit-exact on the switching sample for EQ and IRON, within one LSB
-  for COMP (a nulled `eq_inst` is an ALGEBRAIC null, not a float-exact one) and 3.4 s later for PLATE
-  because a reverb tail is real; switching one back **IN** is a different question nobody had asked,
-  and there the "memoryless" saturation stage is the slow one (300 ms, its wet-path DC blocker) while
-  the EQ is exact. It also found a real bug on its first run (a chain assembled from only the enabled
-  stages left the null inexact for ~2 s; `fx_order` must be set unconditionally, which also means
-  `outboard_apply()` OWNS the master insert order); (c) of the classic "we modeled a FET comp, a British EQ and a German
-  plate" pitch, **odd-and-even harmonic coloration is the one claim fully backed**, and the words to
-  cut are *modeled*, *transistor*, *transformer* and *limiter*. **Open:** a **stereo plate** is the one
-  place new DSP is justified (the tank is mono, which is where "lush" dies; `reverb_spring()` is the
-  precedent and `tools/stereo-check.js` the only gate that can see it), plus makeup gain on `glue()`
-  so the comp A/B can be level-matched.
+  [analog-outboard-chain.md](design/analog-outboard-chain.md):** (a) a UI on the comp must **meter RMS,
+  not peak** — measured, at the hardest ratio `glue` takes **6.3 dB off the crest factor** and hands
+  **+2.3 dB of RMS** back. ⚠ That is the engine as of the SAME DAY's later `glue` change (automatic
+  makeup + a program-dependent second release stage); before it, the stage took 3.8 dB of RMS while the
+  peak did not move and the crest *rose*, so it was a ducker rather than a compressor. The doc keeps
+  both measurements, because the before/after IS the evidence the change worked; (b) **the bypass is
+  bit-exact, verified by sample-diffing two renders** rather than asserted: EQ/IRON/COMP reconverge on
+  the switch, PLATE 3.75 s later because a reverb tail is real. That test found a real bug on its first
+  run (a chain assembled from only the enabled stages left the null inexact for ~2 s; `fx_order` must be
+  set unconditionally, which also means `outboard_apply()` OWNS the master insert order), and it has
+  since been promoted to an oracle, `tools/bypass-check.js`; (c) of the classic "we modeled a FET comp,
+  a British EQ and a German plate" pitch, **odd-and-even harmonic coloration is the closest to backed** —
+  `DRIVE_ASYM` puts h2 60 dB above what a symmetric shaper does, though the *third* harmonic still leads
+  it by 25–29 dB at usable drive — and the words to cut are *modeled*, *transistor*, *transformer* and
+  *limiter*. **Follow-up research (2026-08-19, same doc §6/§6b):** a **stereo reverb tank is NOT worth
+  building** (priced at +103 KB and +0.010% of one core, but a chorus placed after a reverb on a
+  send-bus already recovers 97% of the stereo width the mono tank destroys — measured with the
+  `rvbwidth` probe, and `reverb_plate`'s two-pickup approach then landed the static-width half at
+  4.3 KB/tank); **transformer saturation IS worth adding** as a `DRIVE_VOICE_XFMR` voice (~10 lines in
+  an existing extensible slot, no new state; prototyped offline, it saturates 80 Hz as hard as a
+  soft-clip while leaving 2 kHz **49 dB** cleaner, which no existing mode does); and **FET program
+  dependence is reachable from cart-land with no engine change** by riding `FXMOD_DRIVE` (wire verified,
+  perceptual claim still a LISTEN item). **Open:** the transformer voice, the EQ's fixed bands, and B-H hysteresis
+  (never claim "modelled"). ⚠ An "IRON bypass regressed" finding reported here on 2026-08-19 was
+  **withdrawn**: it was a harness fault (two renders that did not share their prelude), and
+  `bypass-check.js` passes all 8 stage-by-direction checks.
 
 - **A CART CAN BE AN AUDIO EFFECT: `pedalboard` is an `aumf` a DAW inserts on a track** (2026-08-17).
   The host's audio is pulled in the AU render block and pushed through `de_audio_input` into the ring

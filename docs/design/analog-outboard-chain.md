@@ -5,8 +5,22 @@
 > RMS/PEAK/CREST metering, with a 53-assertion `spec()`) · and
 > [`tools/bypass-check.js`](../../tools/bypass-check.js), the reconvergence oracle §9's last item asked
 > for, which then corrected two of this doc's own claims (§2c-bis, §4b). A second consumer,
-> `sideman`, pins EQ+IRON as an organ cabinet. The **stereo plate** is the one piece that needs new
-> DSP and is still open (§6).
+> `sideman`, pins EQ+IRON as an organ cabinet.
+>
+> **§6 and §6b are the follow-up research, and §6 REVERSED this doc's original verdict:** a stereo
+> reverb tank is **not** worth building (a chorus after a reverb already recovers 97% of the width a
+> mono send destroys), and `reverb_plate()`'s two-pickup approach has since landed the static-width
+> half for 4.3 KB/tank. What IS worth adding is a **transformer** drive voice (§6b). Every table here
+> is a measurement of a live engine: see the drift warning below.
+
+<!-- de:driftable watch="numbers,decisions" -->
+
+> **⚠ Every table in this doc is a MEASUREMENT of a live engine, not a spec.** They have already
+> drifted once inside a single day: §2b was true in the morning and §2d re-measures it after `glue`
+> gained makeup gain that afternoon. Re-run before quoting a number, and prefer the reproducer named
+> beside each table. Two claims that were once here have been **withdrawn** rather than quietly
+> edited, because how they failed is the useful part: an "EQ moved RMS by 0.01 dB" figure (§2c-bis)
+> and an "IRON bypass regressed" finding (§2d), both harness faults, not engine behaviour.
 
 The target, taken from the marketing copy of a commercial plug-in bundle, because it is a good
 statement of what players expect a "mix bus" to be:
@@ -30,11 +44,11 @@ carts and apps cannot drift.
 
 | the claim | the shipped primitive | honest? |
 |---|---|---|
-| **snappy FET compressor** | `glue(bus, amount, atk_ms, rel_ms)` (`runtime/sound.h`, `sc_apply`) | **partly, and not in the way the word "compressor" implies: see §2 and the measurement in §2b.** A peak follower, `gain = 1 - amount*env`, real attack/release in ms, self-keyed. It DUCKS (takes ~4 dB of RMS at the hardest setting) but does **not** control peaks: measured, the crest factor goes UP. No threshold, no ratio, no knee, no makeup, no program-dependent release. |
+| **snappy FET compressor** | `glue(bus, amount, atk_ms, rel_ms)` (`runtime/sound.h`, `sc_apply`) | **yes now, and this row changed inside one day — read §2b then §2d.** A self-keyed peak follower with real attack/release in ms. It USED to only duck (RMS down, peak unmoved, crest *rising*), which is a character rather than level control; since it gained **automatic makeup** and a **program-dependent second release stage** it takes 6.3 dB off the crest and hands +2.3 dB of RMS back, which is a compressor. Still missing: threshold (correctly — a FET unit has none, §2) and a knee. |
 | **warm British equalizer** | `eq(lo, mid, hi)` ±12 dB, plus `eq_inst(1, …)` + `FX_INST(FX_EQ,1)` for a second EQ in the same chain | **partly.** Bands are FIXED (<80 Hz / 80 Hz‑6 kHz / >6 kHz). No frequency select, no Q, no proportional-Q, no Pultec-style overlapping boost+cut on one band. |
-| **lush German plate reverb** | Schroeder core (4 comb + 2 allpass + predelay): `reverb(size, damp)`, `reverb_bus(tank, size, damp)`, `reverb_bus_fx()` to shape the tail | **partly, and this is the weak stage.** The tank is **MONO**. A plate's whole signature is a wide, dense, bright tail with no room geometry; mono removes the "lush". |
+| **lush German plate reverb** | Schroeder core (4 comb + 2 allpass + predelay): `reverb(size, damp)`, `reverb_bus(tank, …)`, `reverb_bus_fx()` to shape the tail — plus `reverb_plate(amount)` + `reverb_plate_width(x)` since 2026-08-19 | **was the weak stage; largely answered (§6).** The bare tank is **MONO**, and a mono send does not just fail to widen a stereo mix, it **halves** it (0.9999 → 0.5569). Two fixes now exist: `reverb_plate` gives dense/bright/low-cut plus **static** width from two pickups (0.7400), and a chorus after a reverb send-bus gives **0.9710**. So "lush" is reachable; "German" and any named device still are not. |
 | **field-effect transistor distortion** | `drive_insert(amount, DRIVE_*, mix)` | **as a waveshaper, yes. As a device model, no.** No bias point, no hysteresis, no frequency-dependent saturation. |
-| **odd and even harmonic coloration** | `DRIVE_SOFT`/`DRIVE_HARD` are symmetric (odd only); `DRIVE_ASYM` is documented in `sound.h` as the "even-harmonic tube" | **yes. This one is fully backed**, and it is the single most defensible sentence in the copy. |
+| **odd and even harmonic coloration** | `DRIVE_SOFT`/`DRIVE_HARD` are symmetric (odd only); `DRIVE_ASYM` is documented in `sound.h` as the "even-harmonic tube" | **yes, and still the most defensible sentence in the copy — but read "even-harmonic" carefully.** Measured (§6b): a symmetric shaper puts h2 at about **-100 dB**, i.e. nothing, while `DRIVE_ASYM` puts it at about **-37 dB**, so the even content is real and 60 dB above the symmetric baseline. It is **not dominant**: at drive 0.35–0.9 the *third* harmonic leads it by 25–29 dB (within 9 dB only at low drive). Curiously `DRIVE_VOICE_TS` is more even-dominant at 80 Hz than the "even-harmonic tube" is, because it only clips what survives its bass split. |
 | **transformer saturation** | nothing today. But §6b prototypes a `DRIVE_VOICE_XFMR` that fits an existing extensible slot for ~10 lines and no new state | **no today, cheaply yes tomorrow.** The physics (low frequencies saturate first, the inverse of a Tube Screamer) measured a 49 dB frequency dependence no existing mode has. Still a voicing, never a model: no B-H hysteresis. |
 | **non-linearities that glue a mix** | `glue` + the always-on master soft-clip | **yes, as behaviour.** |
 | **"meticulously modeled"** | | **no.** Every stage here is a voicing over shared DSP. That is the house rule (ADR-0015), not a defect, but it is not modelling and must not be sold as modelling. |
@@ -70,6 +84,8 @@ one exponential coefficient) and the **knee**.
 The above is the encouraging half. Here is the number, rendered off the `outboard` cart's own loop
 (`play.js --wav`, `wav-analyze.js`), all other stages out:
 
+<!-- de:driftable cmd="node tools/play.js outboard ... --wav && node tools/wav-analyze.js" as-of="2026-08-19" inputs="runtime/sound.h,runtime/outboard.h,tools/carts/outboard.c" -->
+
 | | peak | RMS | crest |
 |---|---|---|---|
 | dry (rack out) | -0.06 dBFS | **-15.39 dBFS** | 15.34 dB |
@@ -95,36 +111,6 @@ ABSOLUTE level**, so a quiet mix compresses less. At the default 8:1 with a mode
 input gain dominates and RMS goes *up* ~3.4 dB while the peaks duck; at the ALL ratio the ducking
 dominates and RMS goes *down* ~3.8 dB. Both are the same stage behaving correctly. The INPUT control
 is not a convenience, it is how the stage is played.
-
-## 2d. ⚠ The engine moved under this measurement (2026-08-19, same day)
-
-§2b and §2c were measured in the morning. By the afternoon a parallel change had given `glue` **two
-things this doc had listed as missing**: automatic makeup gain (a slow running average of the gain the
-stage applied, `gavg`, ~1.5 s) and a **program-dependent second release stage** (`env2`/`atk2`/`rel2`,
-the deeper of the two recoveries winning). Re-measured on the same loop, same scripts:
-
-| | peak | RMS | crest |
-|---|---|---|---|
-| rack out | -0.20 dBFS | -21.02 dBFS | 20.82 dB |
-| COMP in, 8:1 (default) | | -20.63 dBFS | 20.43 dB |
-| COMP in, ALL | -4.20 dBFS | **-18.70 dBFS** | **14.50 dB** |
-
-**That is a compressor.** At the ALL ratio it now takes **6.3 dB off the crest factor** and hands
-**+2.3 dB of RMS** back, where the morning's measurement had crest *rising* by 3.9 dB and RMS falling
-3.8 dB. So §2b's headline (a ducker, not a limiter) and §5's gap 2 (no makeup) both describe the
-engine **before** that change. They are kept above because the before/after IS the evidence that the
-change did what it set out to do, and because a UI on this stage should still meter RMS.
-
-**One open regression, found by re-running §4's test and reproducible (with the determinism control
-clean: the same script twice is byte-identical).** On the current engine the **IRON** stage no longer
-returns to bit-exact when switched out. It reconverges about **3 seconds later** (last differing
-sample 4.076 s for a switch at 1.067 s), where in the morning it was exact at the switch. Isolated
-with identical plate timing in both renders, so it is not the reverb tail. **Mechanism not pinned
-down**, and it is not the obvious suspect: `glue(bus, 0, …)` still returns exactly 1.0 (`g = 1 - 0*e`,
-and `gavg` is initialised to 1.0 at `sound.h:6107`, so the makeup is exactly unity), which the COMP
-row confirms by still reconverging at the switch. Whoever owns the `glue`/plate change should run
-`tools/bypass-check.js` (the oracle built for exactly this, from §9's open item) before calling it
-done.
 
 ## 2c. Give the rack headroom, or none of it works
 
@@ -174,6 +160,45 @@ reproduced** and should not be quoted. What is true, and is enough: the EQ's con
 the three-stage chain loses **2.8 dB** of its lift, and the crest it leaves collapses from 14.7 dB to
 7.7 dB. The peak is pinned *before the rack starts*, so what you hear at HOT is mostly the soft-clip
 and not the rack. The practical rule is unchanged; only the number was wrong.
+
+---
+
+
+---
+
+## 2d. ⚠ The engine moved under this measurement (2026-08-19, same day)
+
+§2b and §2c were measured in the morning. By the afternoon a parallel change had given `glue` **two
+things this doc had listed as missing**: automatic makeup gain (a slow running average of the gain the
+stage applied, `gavg`, ~1.5 s) and a **program-dependent second release stage** (`env2`/`atk2`/`rel2`,
+the deeper of the two recoveries winning). Re-measured on the same loop, same scripts:
+
+| | peak | RMS | crest |
+|---|---|---|---|
+| rack out | -0.20 dBFS | -21.02 dBFS | 20.82 dB |
+| COMP in, 8:1 (default) | | -20.63 dBFS | 20.43 dB |
+| COMP in, ALL | -4.20 dBFS | **-18.70 dBFS** | **14.50 dB** |
+
+**That is a compressor.** At the ALL ratio it now takes **6.3 dB off the crest factor** and hands
+**+2.3 dB of RMS** back, where the morning's measurement had crest *rising* by 3.9 dB and RMS falling
+3.8 dB. So §2b's headline (a ducker, not a limiter) and §5's gap 2 (no makeup) both describe the
+engine **before** that change. They are kept above because the before/after IS the evidence that the
+change did what it set out to do, and because a UI on this stage should still meter RMS.
+
+**A regression I reported here was my own harness, not the engine.** This section originally claimed
+the IRON stage had stopped returning bit-exact when switched out (reconverging ~3 s late), reproducible
+with the determinism control clean. `tools/bypass-check.js` says otherwise: **IRON OUT is bit-exact
+0.0 ms after the switch**, and all 8 direction-by-stage checks pass. The fault was in my scripts, and
+it is exactly the flaw §4b/§4c build the tool to prevent: my reference and variant runs **did not share
+their prelude** (the reference switched IRON out at frame 22, the variant at frame 60), so the two runs
+had already accumulated different state before the window I was measuring. A "reproducible" result and
+a clean determinism control prove only that the harness is deterministic, not that it is measuring the
+right thing. Use the oracle, not hand-rolled scripts.
+
+For the record, the one row in that oracle that is *not* bit-exact is **COMP IN**, which reconverges by
+residual (below -60 dBFS within 3.5 s) rather than exactly — and that is `glue`'s new makeup gain doing
+what it should: `gavg` is a ~1.5 s running average, so a re-engaged comp carries its learned makeup for
+a few seconds. Expected, and the tool records it rather than hiding it.
 
 ---
 
@@ -381,6 +406,8 @@ reversed that.** The recipe already exists and nobody had written it down.
 Probe cart `rvbwidth` (two plucks panned hard L/R, one key raising the shared send), read with
 `tools/stereo-check.js`, which is the only gate in the repo that does not average L and R at the door:
 
+<!-- de:driftable cmd="node tools/stereo-check.js" as-of="2026-08-19" inputs="runtime/sound.h,tools/carts/rvbwidth.c" -->
+
 | routing | width (side/mid) | correlation |
 |---|---|---|
 | dry, no reverb | **0.9999** | 0.0001 (fully decorrelated) |
@@ -480,6 +507,9 @@ level the flux is inversely proportional to frequency: **low frequencies saturat
 exact inverse of the Tube Screamer voice, which keeps the bass clean. Prototyped **offline** (a
 standalone harness carrying the verbatim `drive_shape` body, so the shared engine was never patched)
 and measured with `harmonic-spec.js`, 0.7-amplitude sine, third harmonic relative to the fundamental:
+
+<!-- de:driftable watch="numbers" as-of="2026-08-19" inputs="runtime/sound.h" -->
+<!-- (no cmd: these come from an offline prototype harness, not a committed tool — see the prose above) -->
 
 | voice | at 80 Hz | at 2000 Hz | frequency dependence |
 |---|---|---|---|

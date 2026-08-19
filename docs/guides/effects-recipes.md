@@ -195,6 +195,7 @@ call order; `crush`/`chorus` `mix 0` = bypass. Call `reverb_bus(tank,…)` first
 | crushed lo-fi tail | `reverb_bus_fx(2, FX_CRUSH, 5, 8, 1.0f)` | the plate decays into grainy, aliased 5-bit dust — shoegaze/vaporwave space | `reverbspace` (CRUSH toggle) |
 | dark-tail EQ | `reverb_bus_fx(1, FX_EQ, 0, 0, -8.0f)` | roll the highs off the wet only — a warm tail without dulling the dry source | — |
 | tape-worn reverb | `reverb_bus_fx(2, FX_TAPE, 0.4f, 0.2f, 0.5f)` | the tail wows + saturates like a reverb printed to tape | — |
+| **WIDE tail (stereo reverb, without stereo reverb)** | `reverb_bus_fx(1, FX_CHORUS, 0.45f, 0.55f, 1.0f)` | **the fix for the reverb tank being MONO.** A mono wet is common-mode signal, so a plain send does not just fail to widen a stereo mix, it **halves** it (measured: width 0.9999 → 0.5569). `chorus_process` reads its bus mono but writes **antiphase** taps to L and R, so a chorus after the reverb hands the width back: **0.9710**, and even a chorus subtle enough to be inaudible as an effect gets 0.8356. Costs one tank + one aux bus, and the tail moves slightly (a chorused plate, which is its own famous sound). For static width instead, `reverb_plate()` gives 0.74 on the plain master send. Probe + numbers: [analog-outboard-chain.md §6](../design/analog-outboard-chain.md) | `rvbwidth` (the probe) |
 
 #### reverb as an in-line pedal — `reverb_insert(size, damp, mix)`
 
@@ -401,6 +402,16 @@ glue/cohesion, NOT as a substitute for per-voice tone-shaping (which keeps the p
 | recipe | call | character | used by |
 |---|---|---|---|
 | tube glue | `drive_insert(0.25f, DRIVE_ASYM, 0.5f)` | gentle even-harmonic warmth that fuses a busy mix — the "everything through one amp" cohesion | `modrack` (SAT module) |
+
+> **⚠ "even-harmonic" is true but not dominant.** Measured (`harmonic-spec.js`, 0.7-amplitude sine):
+> a symmetric shaper (`DRIVE_SOFT`/`HARD`) puts h2 at about **-100 dB**, i.e. nothing, while
+> `DRIVE_ASYM` puts it at about **-37 dB** — so the even content is real and 60 dB above the symmetric
+> baseline. But the **third** harmonic still leads it by **25–29 dB** at drive 0.35–0.9 (they are within
+> 9 dB only at low drive). So reach for `DRIVE_ASYM` when you want *some* even-harmonic tilt, not when
+> you want an even-dominant sound. Curiously `DRIVE_VOICE_TS` is more even-dominant at 80 Hz than the
+> "even-harmonic tube" is, because it only clips what survives its bass split. All four `DRIVE_*` curves
+> are **memoryless**, so none of them distorts differently at different frequencies — see
+> [analog-outboard-chain.md §6b](../design/analog-outboard-chain.md) for the transformer voice that would.
 | lo-fi wall | `drive_insert(0.7f+, DRIVE_HARD, 0.85f)` | cranked square-edged crush on the whole bus, drums and all — noise-rock / breakbeat grit | `modrack` (SAT, "Sat bus" preset) |
 | two bus drives (×2) | `drive_insert(...)` (inst 0) + `drive_insert_inst(1, ...)`; chain `{FX_INST(FX_DRIVE,1), …, FX_DRIVE}` | two INDEPENDENT bus drives at different chain spots (Increment F) — an overdrive pedal feeding the amp's own drive (boost → amp stack) | `pedalboard` (the OD pedal + the AMP cabinet) |
 | **Tube Screamer** | `drive_insert(0.6f, DRIVE_ASYM, 1.0f)` + `drive_voice(DRIVE_VOICE_TS, tone)` | the Ibanez TS: bass stays clean/tight, mids soft-clip, the famous MID HUMP cuts through a band — the most-copied overdrive. `tone` 0..1 = dark→bright (the TONE knob), ride it live. `DRIVE_VOICE_NONE` = the plain clip (byte-identical) | `tubescreamer` (OVERDRIVE/TONE/LEVEL + B = A/B the hump) |
@@ -548,6 +559,13 @@ laps the ~2 s buffer → a click). Master output stage; pitch is exact (A4→A3 
 > writeup: [`../design/audio-notes.md`](../design/audio-notes.md) §24.
 
 ## modulating effects — `fx_mod(bus, target, value)` · `instrument_fx_mod(slot, …)` · `fx_lfo(bus, target, rate, depth, center, shape)`
+
+> **⚠ `fx_mod` OVERWRITES the param, it does not offset it.** `FXMOD_DRIVE` writes
+> `drvins_amt[bus][0]` outright (instance 0 only), so a cart that rides it must supply the **whole**
+> value each frame, base included — the amount passed to `drive_insert()` is gone the moment you
+> start riding. This is also the zero-engine-change route to **program-dependent** saturation (dirt
+> that arrives when the mix works hard, the FET-compressor character): ride it from a level you
+> measure with `scope_read()`. See [analog-outboard-chain.md §6b](../design/analog-outboard-chain.md).
 
 Not an effect — the **modulation layer over** effects (ADR 0018). Effects keep their own set-and-hold
 knobs; this RIDES a curated, *sweep-safe* one under a control signal, the way `LFO_TIMBRE` rides an

@@ -266,12 +266,14 @@ runtime/   studio.h (public API: constants + declarations), studio.c (Raylib imp
                          by its input · PLATE = reverb() + per-slot sends). Reach for it when a cart or app wants
                          "the analog output chain" instead of hand-tuning eq/drive/glue per cart. TWO measured facts
                          it carries so nobody re-derives them: the comp is PINNED after the inserts (so the only
-                         achievable order is EQ→IRON→COMP, never comp-first), and glue() is a fast-attack
-                         slow-release DUCKER, not a limiter — at the hardest ratio it takes ~3.8 dB of RMS while the
-                         PEAK does not move and the crest factor RISES, so METER RMS or you will conclude the stage
-                         is inert. Every stage bypasses BIT-EXACT (verified by diffing two renders; the plate
-                         reconverges 3.5s later, because a reverb tail is real). ⚠ outboard_apply() OWNS the master
-                         insert order. outboard cart; design/analog-outboard-chain.md
+                         achievable order is EQ→IRON→COMP, never comp-first), and METER RMS on the comp, not
+                         peak — RMS is what moves (measured: at the hardest ratio glue takes 6.3 dB off the CREST
+                         and hands +2.3 dB of RMS back; before it gained makeup + a program-dependent release on
+                         2026-08-19 it did the OPPOSITE, so any older prose calling it "a ducker, not a limiter" is
+                         describing the old engine). Every stage bypasses BIT-EXACT (verified by diffing two
+                         renders, not asserted; the plate reconverges ~3.5s later because a reverb tail is real).
+                         ⚠ outboard_apply() OWNS the master insert order. outboard cart + tools/bypass-check.js;
+                         design/analog-outboard-chain.md
              harmony.h   the shared HARMONY BRAIN (bidirectional): 13-function roman-numeral vocab + per-style
                          Markov tables (HB_BOSSA/HB_COCKTAIL, byte-exact) — hb_pick (generate) + hb_suggest
                          (ranked next chords + reason) + hb_analyze (key-in numerals, -1 = honest ?). Voicing
@@ -1277,6 +1279,9 @@ profiler JSON has `workMsAvg/Max`, `calls[]`, `work[]`. Both work in any native 
   whole string as ONE argument (e.g. `profile-fleet.js $SET` → one bogus "cart"; a multi-file `clang
   $FLAGS` → "no such file"). Fix: inline the words, build an **array** `args=(a b c)` + `"${args[@]}"`,
   or force-split with `${=VAR}`. (A recurring agent trip-up — it bit this repo's profiling loops.)
+  **zsh arrays are 1-INDEXED too** (`a=(x y z)` → `$a[1]` is `x`, `$a[0]` is EMPTY), so a bash-style
+  `${a[$i]}` loop from 0 silently reads one slot early and an empty first element — it produced a
+  confidently wrong measurement in this repo rather than an error.
   **zsh also SHADOWS some commands as builtins:** `log show …` hits zsh's `log` builtin, which prints
   "too many arguments" on *stderr* and nothing on stdout — indistinguishable from "nothing was logged",
   which is how it cost two wrong conclusions in one afternoon. Use `/usr/bin/log`.

@@ -1,4 +1,5 @@
 import Foundation
+import os
 
 // The shared store an AUv3 extension reads to learn what's unlocked. Extensions run in a separate
 // sandboxed process and cannot query StoreKit, so the main app writes entitlements into the App
@@ -76,6 +77,32 @@ enum AppGroup {
     // automatic provisioning (docs/design/pro-unlock.md §8).
     static var containerAvailable: Bool {
         FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: id) != nil
+    }
+
+    // ── the one line that says whether any of this actually works ────────────────────────────────
+    // Everything above can be exercised, pass its tests and still be a no-op, because
+    // UserDefaults(suiteName:) hands back a usable suite with NO entitlement: reads and writes
+    // succeed, and nothing crosses to the other process. So the entitlement is not observable from
+    // the code that depends on it. This is. Call it from BOTH sides — the app and the extension are
+    // separate processes with separate entitlements, and one of them being fine proves nothing
+    // about the other, which is exactly the failure being hunted.
+    //
+    // os_log with %{public}, not NSLog: os_log REDACTS dynamic values by default, so a plain NSLog
+    // arrives on device as the word <private> and reads like a broken logger. Same subsystem and
+    // category as the AU's deDiag, so one `/usr/bin/log show --predicate 'subsystem == "com.tinyjam"'`
+    // shows both sides together. (⚠ /usr/bin/log, spelled out: zsh shadows `log` with a builtin that
+    // prints "too many arguments" to stderr and nothing to stdout, which looks exactly like an empty
+    // log — CLAUDE.md records that costing two wrong conclusions in one afternoon.)
+    private static let diag = OSLog(subsystem: "com.tinyjam", category: "diag")
+
+    @discardableResult
+    static func report(_ who: String) -> Bool {
+        let live = containerAvailable
+        let msg = live
+            ? "[appgroup] \(who): \(id) container OK — entitlement signed, a purchase can cross"
+            : "[appgroup] \(who): \(id) container MISSING — a Pro purchase CANNOT reach the plug-in"
+        os_log("%{public}@", log: diag, type: .default, msg as NSString)
+        return live
     }
 }
 

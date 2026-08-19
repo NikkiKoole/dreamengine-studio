@@ -189,10 +189,37 @@ OUTPUT generated from a `properties:` block, so editing those files directly is 
 next build; the declaration has to live in the spec. And every `*.entitlements` is gitignored for
 that reason, so a check pointed at them would pass or fail on build residue rather than on the
 repo — `pro-check` reads the specs.
-**Still unproven**: nothing has been signed with it yet. `AppGroup.containerAvailable` non-nil on a
-signed build of each target is the only real proof, and it is expected to come free, since every
-build script already passes `-allowProvisioningUpdates` with automatic signing and the group now
-exists for Xcode to attach.
+**✅ PROVEN ON A SIGNED BUILD, 2026-08-19** (`APP=tinyacidjam zsh ios/mac.sh`, Mac Catalyst):
+
+```
+09:31:38  TinyAcidJamMac[46140]  [appgroup] app:  group.com.mipolai.shared container OK
+09:34:18  TinyjamMacAU[54361]    [appgroup] auv3: group.com.mipolai.shared container OK
+```
+
+Two different PIDs, so that is the app and the plug-in each confirming the shared container in its
+OWN process, which is the only form of this claim worth anything. `codesign -d --entitlements`
+shows the group on both the `.app` and the `.appex`, and `auval` still SUCCEEDS, which the `MacAU`
+block's history (an added entitlement once killed the extension at launch) made worth checking.
+
+**No portal work beyond registering the group.** `-allowProvisioningUpdates` attached the capability
+to the App IDs itself. ⚠ **The first build after the capability change FAILS** while it mints the new
+profile (`ProcessProductPackaging … .provisionprofile`); the retry succeeds. Expect that once per
+target and do not go debugging it.
+
+**How to see it again** — note `/usr/bin/log` spelled out, because zsh shadows `log` with a builtin
+that prints nothing to stdout and is indistinguishable from an empty log:
+
+```bash
+/usr/bin/log show --last 5m --predicate 'subsystem == "com.tinyjam"' --style compact | grep appgroup
+```
+
+`AppGroup.report(who:)` is what emits it, called from `Store_Init` (app) and the AU's `init`
+(extension) **separately on purpose**: they are separate processes with separate entitlements, and
+one being fine says nothing about the other. It goes through `os_log` with `%{public}` rather than
+`NSLog`, which redacts every dynamic value on device and arrives as the word `<private>`.
+
+⚠ **iOS is still unproven.** This was the Mac Catalyst pair. The iOS app and its extension carry the
+same declaration but have not been signed since it landed.
 ⚠ `ios/TinyjamHello.entitlements` is a dead orphan (gitignored, referenced by nothing). Delete it.
 
 ▼ The state this replaced, kept because the reasoning is the reusable part:

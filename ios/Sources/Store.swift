@@ -140,6 +140,7 @@ extension Store {
 // Store_* symbol anywhere.
 @_cdecl("Store_Init")
 public func Store_Init() {
+    AppGroup.report("app")   // is the shared container real on THIS side? (the extension reports too)
 #if targetEnvironment(simulator)
     Store.startTesting()   // activate the local .storekit before products load
 #endif

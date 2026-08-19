@@ -2771,8 +2771,17 @@ static void loop_step(void) {
 #endif
     if (shake_amt > 0) { shake_amt *= 0.85f; if (shake_amt < 0.2f) shake_amt = 0; }
 
-    export_poll();                         // export_audio(): write + hand to the host. EVERY build —
-                                           // the harness poll below is #ifndef DE_RELEASE (see its note)
+#ifndef PLATFORM_WEB
+    export_poll();                         // export_audio(): write + hand to the host. Every NATIVE
+                                           // build — the harness poll below is #ifndef DE_RELEASE
+                                           // (see its note). ⚠ THE GUARD IS NOT OPTIONAL: export_poll
+                                           // is DEFINED inside this file's #ifndef PLATFORM_WEB block
+                                           // (a browser has no host to hand a file to), so calling it
+                                           // unconditionally is an undeclared function on wasm and
+                                           // EVERY cart's web build dies. build-all.js compiles the
+                                           // NATIVE path only, so nothing catches it: it shipped
+                                           // green and took the whole gallery down for a day.
+#endif
 #ifndef PLATFORM_WEB
     harness_trace(fno);                    // structured state for this frame (before aging)
     uiaudit_flush(fno);                    // --uiaudit: this frame's draw bounding boxes

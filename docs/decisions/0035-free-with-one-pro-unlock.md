@@ -174,11 +174,30 @@ place.** The first stranger to see the app sees the finished model.
 
 - **`pedalboard` is REMOVED FROM SALE in all 175 territories** (maker, 2026-08-19). Still $1.99 in
   ASC, still zero sales, listing and bundle ID intact. Nothing else about it changed.
-- **`tinyacidjam` is approved for distribution** (maker, 2026-08-19), which spends the sequencing
-  note above: "let Tiny Acid Jam finish its current review at $1.99" is done. It is the one still
-  exposed, because it is the only one a stranger can buy, and the grandfathering window is open for
-  exactly as long as that is true. **Recommend pulling it the same way, for the same reason**: not
-  to enable anything, but so that the first version of it anyone pays for is the freemium one.
+- **`tinyacidjam` is APPROVED and READY FOR DISTRIBUTION, but has NOT been released** (maker,
+  2026-08-19): it is sitting on an approved version awaiting developer release, so **nobody can buy
+  it and it has never been on sale.** That spends the sequencing note above ("let Tiny Acid Jam
+  finish its current review at $1.99" is done) and it needs no pulling, because there is nothing to
+  pull. **The action is the opposite one: do not press release.**
+- **So as of 2026-08-19 NEITHER app is purchasable, and that closes the grandfathering window for
+  good** as long as it holds. `pedalboard` is off sale, `tinyacidjam` is unreleased, both at zero
+  sales. The receipt check (`AppTransaction.originalAppVersion`) will never need to be written. This
+  is the cleanest possible state to change a business model from, and the only way to lose it is to
+  release or re-list something at $1.99 before Pro exists.
+- **`tinyacidjam` gets a better option than `pedalboard` had, because it has no history to protect.**
+  Two shapes, and the choice turns on one ASC mechanic worth confirming rather than trusting this
+  line:
+  - **Hold the approved version** until Pro is built, then flip the price to 0 and release. ⚠ The
+    thing to check: an approved-but-unreleased version may have to be **released or developer-
+    rejected before a 1.1 can be created**, in which case "hold" cannot reach a Pro build without
+    passing through a public free-with-no-wall release first, which is the takeaway shape again (on
+    a listing with zero downloads, so a small one).
+  - **Developer-reject the approved version** and resubmit once Pro is real, as 1.0. Costs one
+    review round trip, which the Pro build has to pay anyway, and buys the thing `pedalboard` cannot
+    have: **the first public version of the app already has the wall in it.** Nothing is lost,
+    because there is no listing, URL history, ranking or review to reset on an app that never
+    shipped.
+  Preferred: developer-reject, if ASC offers it on an approved-pending-release version.
 - **The manifests now carry the model** (`apps/pedalboard/app.json`, `apps/tinyacidjam/app.json`):
   `"price": "0"` plus one non-consumable, `com.mipolai.<app>.pro` at **$4.99**, name *"Tiny
   Pedalboard Pro"* / *"Tiny Acid Jam Pro"*, desc *"WAV export, MIDI in/out, AUv3 plug-in."* Both

@@ -7,7 +7,7 @@
 > **here**, then fix the prose in the relevant design doc. If a design doc and this file
 > disagree, this file wins.
 
-_Last updated: 2026-08-19 — **Tiny Pedalboard is LIVE on the App Store** (1.1 and 1.0 both `READY_FOR_SALE`), the first thing built here that a stranger can buy; and the same cart now loads in GarageBand as an audio EFFECT (`aumf`), with one open defect. See the top two Shipped entries below, the first Open entry (both apps go **free with one Pro unlock**, [ADR-0035](decisions/0035-free-with-one-pro-unlock.md)), and [`HANDOFF.md`](HANDOFF.md) for what is in flight._
+_Last updated: 2026-08-19 — **Tiny Pedalboard shipped to the App Store and is now deliberately OFF SALE**, and *Tiny Acid Jam* is approved but unreleased, while both switch to **free with one $4.99 Pro unlock** ([ADR-0035](decisions/0035-free-with-one-pro-unlock.md)); the same cart also loads in GarageBand as an audio EFFECT (`aumf`), with one open defect. See the top two Shipped entries, the first Open entry, and [`HANDOFF.md`](HANDOFF.md)._
 
 > **This line is a headline, not an entry.** It reached **9,064 characters** and was the only place in the file that recorded `FILTER_DIODE`, `filter-spec.js` and `rebirth-classic.md` — three shipped things, invisible because nobody reads a shipped feature out of a `_Last updated:_` line. They have a real entry now (2026-07-02, above `sprite-draw.js`). Keep this to one date, one sentence, one link; `status-check --check` fails past 900 chars.
 
@@ -789,9 +789,14 @@ Detail lives in the linked design doc in every case; that is where it was always
 > **Listed first because it expires.** At **zero sales** the migration needs no grandfathering code at
 > all; the first purchase means writing a receipt check (`AppTransaction.originalAppVersion`) so
 > buyers keep Pro for nothing.
-> **`pedalboard` was REMOVED FROM SALE in all 175 territories (2026-08-19)**, and *Tiny Acid Jam*,
-> approved for distribution the same day, is now the only one a stranger can buy, so it is the only
-> place that window is still open. **Two corrections to the original ADR live in the Update.**
+> **As of 2026-08-19 NEITHER app is purchasable, which closes that window for good** as long as it
+> holds: `pedalboard` was **removed from sale in all 175 territories**, and *Tiny Acid Jam* is
+> **approved and ready for distribution but never released**, so it has no price exposure at all and
+> needs no pulling. The action there is the opposite one: **do not press release**, and preferably
+> **developer-reject** the approved version so the first public 1.0 already has the wall in it (it
+> has no listing, URL history or ranking to protect, unlike `pedalboard`). ⚠ Confirm in ASC whether
+> an approved-pending-release version has to be released or rejected before a 1.1 can be created.
+> **Two corrections to the original ADR live in the Update.**
 > (a) "Never pull" was about the wrong thing: removing from sale keeps the record, bundle ID, URL,
 > reviews and the approved binary, and coming back needs no review; only *deleting the record or
 > resubmitting under a fresh bundle ID* is guideline-4.3 bait. (b) The reason to stay dark rather than

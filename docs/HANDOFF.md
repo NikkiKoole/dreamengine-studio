@@ -188,20 +188,28 @@ a broken doc link or `#section`).
 > the seven answers now live in `apps/tinyacidjam/app.json` → `review.notes` (pushed by
 > `asc-push --review-contact`, which now REFUSES a notes body containing a placeholder — the previous
 > app's reply went out with a literal `[FILL IN …]` where the tested-devices answer belonged).
-> **✅ APPROVED FOR DISTRIBUTION (maker, 2026-08-19)**, which spends the "let it land at $1.99" plan
-> below. **▶ NEXT: the PRICING MODEL CHANGE, and this app is now the EXPOSED one.**
-> [ADR-0035](decisions/0035-free-with-one-pro-unlock.md) + its **2026-08-19 Update** take it **free
-> with one $4.99 "Pro" unlock** (WAV export + MIDI in/out + AUv3). `apps/tinyacidjam/app.json`
-> already carries that: `"price": "0"` plus `com.mipolai.tinyacidjam.pro` at $4.99.
+> **✅ APPROVED AND READY FOR DISTRIBUTION, NOT RELEASED (maker, 2026-08-19)**, which spends the "let
+> it land at $1.99" plan below. **It has never been on sale, so nobody can buy it and there is no
+> price exposure at all.**
+> **▶ NEXT: DO NOT PRESS RELEASE.** [ADR-0035](decisions/0035-free-with-one-pro-unlock.md) + its
+> **2026-08-19 Update** take this app **free with one $4.99 "Pro" unlock** (WAV export + MIDI in/out
+> + AUv3), and `apps/tinyacidjam/app.json` already carries that (`"price": "0"` plus
+> `com.mipolai.tinyacidjam.pro` at $4.99). Releasing now would ship a version with no wall in it, and
+> the version that adds Pro would then be **taking features away** from whoever downloaded it.
 > ⚠ **The store is UNCHANGED until somebody runs `node tools/asc-push.js tinyacidjam --price`, and
-> that is not a tidy-up job.** It belongs to the re-release, with the Pro build: flipping to Free
-> while the entitlement does not exist hands every downloader export + MIDI + AUv3 and makes the next
-> version a **feature takeaway**, which is the 1-star shape.
-> ⚠ **This is the only app a stranger can still buy**, so it is the only place the grandfathering
-> window is still open (one sale = writing `AppTransaction.originalAppVersion`). `pedalboard` was
-> removed from sale in all 175 territories on 2026-08-19 for exactly this reason; the recommendation
-> is to do the same here. Removing from sale keeps the record, bundle ID, URL and reviews, and coming
-> back needs no review (ADR-0035's decision 5 was corrected: only *delete-and-resubmit* is forbidden).
+> that is not a tidy-up job.** It belongs to the release that carries the Pro build.
+> **▶▶ This app has the option `pedalboard` does not, because it has NO history to protect**, and the
+> choice turns on one ASC mechanic to confirm rather than assume:
+> - **Hold** the approved version until Pro is built, then flip the price and release. ⚠ Check
+>   whether an approved-pending-release version must be **released or developer-rejected before a 1.1
+>   can be created** — if so, "hold" cannot reach a Pro build without a public no-wall release first.
+> - **Developer-reject it** and resubmit as 1.0 once Pro is real. Costs one review round trip that
+>   the Pro build pays anyway, and buys the thing the other app cannot have: **the first public
+>   version already has the wall in it.** Nothing is lost; there is no listing, URL history, ranking
+>   or review to reset on an app that never shipped. **Preferred, if ASC offers it.**
+> ✅ **With `pedalboard` off sale and this one unreleased, NEITHER app is purchasable, so the
+> grandfathering window (`AppTransaction.originalAppVersion`) is closed for good** unless something
+> gets released or re-listed at $1.99 before Pro exists.
 > ⚠ **`review.notes` answer 4 still tells Apple *"It is a one-time paid app with no in-app
 > purchases"***. Left wrong ON PURPOSE (notes describe the build being submitted, and Pro does not
 > exist yet); the replacement paragraph is drafted in ADR-0035's Update, ready to paste.
@@ -1564,7 +1572,7 @@ a broken doc link or `#section`).
 > for the AU arc (incl. the three signing/entitlement gates and their symptoms), and
 > [external-clock-sync.md](design/external-clock-sync.md) for the clock seam itself.
 
-> **▶ ACTIVE THREAD (2026-08-19) — `pedalboard`: the guitar rig, and the first app LIVE ON THE APP STORE.**
+> **▶ ACTIVE THREAD (2026-08-19) — `pedalboard`: the guitar rig, the first app that SHIPPED to the App Store, and now deliberately OFF SALE until it returns free with a $4.99 Pro unlock.**
 > **This lane did not exist until 2026-07-30, and it should have.** A handoff audit found `pedalboard` was
 > the single most active thread in the repo — 18 commits since 07-28 (fret wires warmed into the board, the
 > mute check tracking the hand, TRAVIS picking as a second autoplay style, autoplay keeping YOUR chord

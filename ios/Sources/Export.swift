@@ -21,19 +21,19 @@ enum Export {
     static let FORMAT_WAV = 0
     static let FORMAT_M4A = 1
 
+    // ⚠ MAY BE CALLED FROM ANY THREAD, and there are TWO of them: de_frame runs on the audio
+    // thread inside an AUv3, and the transcode completion below lands on an arbitrary queue. Neither
+    // this function nor transcodeToM4A touches UIKit — the main-thread hop lives in share(), at the
+    // one place UI actually starts, so no caller can forget it.
     static func ready(path: String, format: Int) {
-        // ⚠ de_frame can run on the AUDIO thread (the AUv3 render block), so never touch UIKit on
-        // whatever called us. Even in the app, hopping to main costs nothing.
-        DispatchQueue.main.async {
-            guard FileManager.default.fileExists(atPath: path) else {
-                NSLog("[export] engine reported %@ but it is not on disk", path); return
-            }
-            let url = URL(fileURLWithPath: path)
-            if format == FORMAT_M4A {
-                transcodeToM4A(url) { out in share(out ?? url) }   // fall back to the WAV rather than nothing
-            } else {
-                share(url)
-            }
+        guard FileManager.default.fileExists(atPath: path) else {
+            NSLog("[export] engine reported %@ but it is not on disk", path); return
+        }
+        let url = URL(fileURLWithPath: path)
+        if format == FORMAT_M4A {
+            transcodeToM4A(url) { out in share(out ?? url) }   // fall back to the WAV rather than nothing
+        } else {
+            share(url)
         }
     }
 
@@ -58,7 +58,15 @@ enum Export {
         }
     }
 
+    // THE ONE PLACE THE MAIN-THREAD RULE LIVES. It is enforced here rather than at the call sites
+    // because the first version hopped to main in ready() and then hopped straight back OFF it:
+    // AVAssetExportSession.exportAsynchronously calls back on an ARBITRARY queue, so the sheet was
+    // presented from a background thread and UIKit killed the app outright —
+    // NSInternalInconsistencyException, "Modifications to the layout engine must not be performed
+    // from a background thread". Not a warning, a termination, on the happy path. Guaranteeing it
+    // at the UI boundary means a future caller cannot reintroduce it.
     private static func share(_ url: URL) {
+        guard Thread.isMainThread else { DispatchQueue.main.async { share(url) }; return }
         guard let top = topViewController() else {
             NSLog("[export] nothing to present from — the file is at %@", url.path); return
         }

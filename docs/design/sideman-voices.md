@@ -1,9 +1,10 @@
 # The Side Man's ten voices: what each one measures
 
 > **STATUS: SHIPPED (2026-08-19)** ‑ [`runtime/sideman.h`](../../runtime/sideman.h) is the voice
-> bank; [`tools/carts/smprobe.c`](../../tools/carts/smprobe.c) is the bench that produces every
-> number below. The header comment is the design brief and the reasoning; this file is the
-> measurement log, the method, and the three things the first cut got wrong.
+> bank; [`tools/carts/smprobe.c`](../../tools/carts/smprobe.c) is the bench that produces the
+> per-voice numbers and [`tools/carts/sideman.c`](../../tools/carts/sideman.c) the ones that decide
+> headroom. The header comment is the design brief and the reasoning; this file is the measurement
+> log, the method, and the things the first two cuts got wrong.
 
 The acceptance criterion for this bank came from the repo owner in one sentence: *"these old drum
 machines in organs from the 50s, 60s, 70s have these wooden plocking sounds, the drums sound kinda
@@ -46,20 +47,20 @@ are dB relative to the fundamental.
 
 | voice | note | peak Hz | peak dB | atk | -20 | -40 | in-band | band pk | cntrd | h2 | h3 | h4 | h5 | >6 kHz |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| BASS DRUM | F#2 | 92.5 | -20.6 | 6 | 150 | 177 | 89% | 95 | 113 | -37 | -11 | -45 | -18 | 0% |
-| TOM TOM I | F#3 | 185.0 | -21.7 | 3 | 132 | 150 | 91% | 180 | 227 | -38 | -11 | -44 | -18 | 0% |
-| TOM TOM II | C#3 | 138.6 | -21.6 | 4 | 147 | 169 | 91% | 135 | 170 | -38 | -11 | -44 | -18 | 0% |
-| WOOD BLOCK | F#6 | 1480.0 | -19.7 | 0 | 41 | 45 | 92% | 1438 | 1756 | -39 | -12 | -48 | -19 | 1% |
-| TEMPLE BLOCK I | B5 | 987.8 | -19.6 | 1 | 63 | 70 | 91% | 960 | 1198 | -38 | -11 | -46 | -19 | 0% |
-| TEMPLE BLOCK II | F#5 | 740.0 | -19.7 | 2 | 82 | 89 | 91% | 719 | 918 | -38 | -11 | -44 | -18 | 0% |
-| CLAVES | C#7 | 2217.5 | -19.7 | 0 | 25 | 28 | 97% | 2155 | 2348 | -47 | -16 | -48 | -29 | 3% |
-| BRUSH | — | noise | -23.7 | 27 | 137 | 170 | 22% | 1812 | 2927 | — | — | — | — | 11% |
-| MARACAS | — | noise | -23.8 | 3 | 22 | 24 | 31% | 4310 | 5154 | — | — | — | — | 22% |
-| CYMBAL | — | noise | -23.4 | 1 | 431 | 494 | — | 4838 | 5888 | — | — | — | — | 33% |
+| BASS DRUM | F#2 | 92.5 | -16.3 | 6 | 150 | 177 | 89% | 95 | 113 | -37 | -11 | -45 | -18 | 0% |
+| TOM TOM I | F#3 | 185.0 | -17.5 | 3 | 132 | 150 | 91% | 180 | 227 | -38 | -11 | -44 | -18 | 0% |
+| TOM TOM II | C#3 | 138.6 | -17.4 | 4 | 147 | 169 | 91% | 135 | 170 | -38 | -11 | -44 | -18 | 0% |
+| WOOD BLOCK | F#6 | 1480.0 | -15.4 | 0 | 41 | 45 | 92% | 1438 | 1757 | -39 | -12 | -48 | -19 | 1% |
+| TEMPLE BLOCK I | B5 | 987.8 | -15.4 | 1 | 63 | 70 | 91% | 960 | 1198 | -38 | -11 | -46 | -19 | 0% |
+| TEMPLE BLOCK II | F#5 | 740.0 | -15.5 | 2 | 82 | 89 | 91% | 719 | 918 | -38 | -11 | -44 | -18 | 0% |
+| CLAVES | C#7 | 2217.5 | -15.3 | 0 | 25 | 28 | 97% | 2155 | 2348 | -47 | -16 | -48 | -29 | 3% |
+| BRUSH | — | noise | -18.5 | 27 | 134 | 178 | 12% | 906 | 2731 | — | — | — | — | 10% |
+| MARACAS | — | noise | -22.1 | 0 | 22 | 24 | 16% | 4068 | 5172 | — | — | — | — | 22% |
+| CYMBAL | — | noise | -18.2 | 14 | 259 | 296 | — | 4838 | 5945 | — | — | — | — | 33% |
 
-Whole bank: **all ten at once -4.51 dBFS peak, a four-bar groove -6.96 dBFS peak**, 0 clipped
-samples, DC 0.0001. Every voice's band peak and centroid sit inside the machine's 60 Hz .. 6 kHz
-window, and nothing measures any energy below 60 Hz.
+Every voice's band peak and centroid sit inside the machine's 60 Hz .. 6 kHz window, and nothing
+measures any energy below 60 Hz. DC 0.0002, 0 clipped samples. See **Levels** below for the numbers
+that actually decide headroom, which come from the cart and not from this bench.
 
 ### The plock, as four numbers
 
@@ -69,10 +70,10 @@ are a clean fourth apart:
 
 | | Hz | -40 dB | in-band | front over ring |
 |---|---|---|---|---|
-| TEMPLE BLOCK II | 740.0 | 89 ms | 91% | +2.1 dB |
-| TEMPLE BLOCK I | 987.8 | 70 ms | 91% | +2.3 dB |
-| WOOD BLOCK | 1480.0 | 45 ms | 92% | +3.1 dB |
-| CLAVES | 2217.5 | 28 ms | 97% | +4.4 dB |
+| TEMPLE BLOCK II | 740.0 | 89 ms | 91% | +2.4 dB |
+| TEMPLE BLOCK I | 987.8 | 70 ms | 91% | +2.7 dB |
+| WOOD BLOCK | 1480.0 | 45 ms | 92% | +3.4 dB |
+| CLAVES | 2217.5 | 28 ms | 97% | +4.7 dB |
 
 "Front over ring" is the peak of the first 2.5 ms against the peak of 5..18 ms: the hard front the
 ear reads as a struck block. With the shared contact click removed the same column reads
@@ -138,9 +139,13 @@ divides by almost nothing. Two things make that verdict useful anyway.
 schedule. So every one is an onset, and the gate is reporting the false positive it warns about.
 
 **Re-running its metric with the onsets masked out gives an edge-free PASS.** Same measure (first
-difference against the local step-rms over a 10 ms window) on the same full render, skipping 15 ms
-after each scheduled hit: **worst 3.8x over 342478 judged samples**, under the 4x threshold, so
-there is no mid-note or note-off discontinuity anywhere in the bank. Cutting the tails to separate
+difference against the local step-rms over a 10 ms window) on the same full render, skipping 30 ms
+after each scheduled hit: **worst 3.8x over 257270 judged samples**, under the 4x threshold, so
+there is no mid-note or note-off discontinuity anywhere in the bank. The guard has to cover the
+slowest AMP ATTACK in the bank, not just the onset instant: at 15 ms one event reads 4.3x, and it
+sits exactly 26 ms after a hit, which is the brush's attack time — its amplitude peak against a
+baseline measured while it was still ramping. (Confirmed not to be the new cutoff corner: zeroing
+`SIDEMAN_BRUSH_ENGAGE` leaves a 4.1x of the same kind elsewhere.) Cutting the tails to separate
 WAVs instead does NOT work and cost a round: the cut edge is itself a discontinuity, and a 1 ms
 raised-cosine fade over a loud signal is still a 6-8x step against a silent baseline, so four voices
 reported a splice at exactly t=0.000s of their own cut. Mask, don't cut. The negative control is the
@@ -149,25 +154,134 @@ same run with the mask removed, which must go red and does (351.6x).
 And the comparison the gate is actually for: the worst onset event went from **19757x on the first
 cut to 352x**, a 35x improvement, from softer fronts and bandpassed noise.
 
-## Levels
+## Levels: measure the CART, not the bench
 
-`SmVoice.level` is the relative balance and `SIDEMAN_TRIM` is one bank-wide gain, so headroom is a
-single number to A/B and the balance stays readable. The wooden family sits ~2 dB forward of the
-membranes (it is the melody of this machine) and the bass drum is a dB under the blocks rather than
-over them, which is what "soft and round, not a punch" means in a mix. Gain is linear in both knobs,
-so a target peak is one multiplication away: every value in the table above was hit on the first
-attempt from the previous render's numbers.
+The first pass balanced the ten voices against each other on the bench and set the headroom from a
+synthetic ten-voice stack. That was the wrong reference and it shipped a bank **8.1 dB quieter than
+its nearest sibling**: rendered through the cart with its organ cabinet, the default rhythm peaked
+**-10.97 dBFS** against `cr78`'s **-2.87 dBFS** on the same 7-second headless render. A cart 8 dB
+down reads as broken next to the shelf, whatever its spectra say.
+
+The number to tune is the cart with the cabinet IN. Now, all twelve rhythms, `--frames 900`, measured
+over 3..15 s (the default row also carries the 7-second boot render, which is the A/B command):
+
+| rhythm | peak dBFS | rms dBFS | crest | clipped |
+|---|---|---|---|---|
+| BEGUINE | -7.86 | -23.40 | 15.5 | 0 |
+| BOLERO | -6.28 | -24.74 | 18.5 | 0 |
+| CHA CHA | -5.16 | -23.62 | 18.5 | 0 |
+| FOXTROT 2 BEAT | -10.42 | -25.53 | 15.1 | 0 |
+| **FOXTROT 4 BEAT** (default) | **-6.55** (-6.75 over 7 s) | -21.92 | 15.4 | 0 |
+| MARCH | **-4.27** | -23.63 | 19.4 | 0 |
+| RHUMBA | -5.18 | -23.02 | 17.8 | 0 |
+| SAMBA | -6.41 | **-19.58** | 13.2 | 0 |
+| SHUFFLE | -7.51 | -23.97 | 16.5 | 0 |
+| TANGO | -7.13 | -20.41 | 13.3 | 0 |
+| WALTZ | -7.88 | -23.86 | 16.0 | 0 |
+| WESTERN | -9.95 | -24.08 | 14.1 | 0 |
+
+Default at **-6.75 dBFS**, 3.9 dB under `cr78`; loudest rhythm **-4.27 dBFS**, so the outboard chain
+keeps 4.3 dB; nothing clips anywhere.
+
+Three findings from getting there, each of which changes how you would do it again:
+
+**The cabinet is not what costs the headroom.** Switching EQ+IRON out (the cart's `C` key) moves the
+RMS by **2.22 dB** and the peak by **0.12 dB**. So the WARM low boost is not eating the top: it adds
+body under a peak that does not move, which is the same shape [`analog-outboard-chain.md`](analog-outboard-chain.md) measured for
+the comp. Every dB of the 8 dB gap was the bank's.
+
+**SAMBA is the densest rhythm but MARCH is the loudest.** SAMBA carries maracas on all sixteen and
+has 1.8 dB more RMS than anything else, and its crest is the lowest in the table at 13.2 dB — a
+continuous rattle bed, not a spiky one. MARCH peaks **2.1 dB higher** at crest 19.4 dB, because its
+step 0 lands bass + wood block + cymbal together. A peak comes from coincidence, not from density,
+so "the densest rhythm" is the wrong thing to headroom-check. Check the highest-crest one too.
+
+**Nothing upstream of the drive can add level.** Worth knowing before anyone sweeps for it: the tube
+shaper normalises full-scale to full-scale, so raising the wooden family's `FILTER_BAND` resonance
+from 9 to 13 — which multiplies the filter's peak gain several times over — moves the output by
+**0.4 dB**, while in-band energy falls from 94% to 87% and out-of-band doubles. Level lives strictly
+after the drive: `vol`, `instrument_level`, `SIDEMAN_TRIM`.
+
+Which is why the bank now runs at the **top** of the per-slot gain range: `vol` 7 × `level` 1.0 ×
+`SIDEMAN_TRIM` 1.0 is the ceiling, the first cut sat 4.2 dB under it, and the cart needed all 4.2.
+`SIDEMAN_TRIM` is a down-only lever now, and so is `boost` (see the next section). The gap between
+the default and SAMBA also had to close a little, which is why the maracas took +2.7 dB where
+everything else took +4.2: it is the voice that only shows up in the dense rhythms.
+
+## No velocity, and what that costs
+
+Recorded here because it is a limit, not a defect. A spinning disc closes a contact the same way
+every revolution: there is no accent, no velocity, and no dynamics anywhere in the Side Man, and the
+cart calls `sideman_fire(..., boost = 0)` always. So the bank is voiced at full level and:
+
+- **`boost` is a down-only trim.** A positive boost clamps to 7 and does nothing.
+- **Velocity would not change the TONE even if it changed the level.** The engine applies drive
+  post-filter but PRE-VCA, so the tube sees a constant-amplitude signal and the harmonic ladder is
+  identical at every volume. Measured: the h2/h3/h5 ladder is the same at vol 3 and vol 7.
+
+Both are faithful for this machine (a tube fed by a fixed contact pulse does not sag differently),
+but a cart playing this bank from a **keybed** inherits both, and the second one is the real ceiling
+on expressiveness. Fixing it means a per-voice drive that tracks velocity, which is an engine change,
+not a voicing change.
+
+## The brush: a band that travels
+
+The first pass gave the brush the right envelope and the wrong motion. It is the only soft-front
+voice in the box and five of the twelve rhythms lean on it for the backbeat (FOXTROT, MARCH, SHUFFLE,
+WALTZ, WESTERN), so it earns more than one contour.
+
+A swirl is a brush **travelling** across a head, and a single `ENV_CUTOFF` cannot travel: it rises
+and returns to where it started. Two things fixed it, both cheap:
+
+- **Two cutoff envelopes on the body slot**, which SUM (`sound.h` adds each env's contribution into
+  the same `cutoff`). Env 0 opens the band as the wires engage; env 1 arrives later, is NEGATIVE, and
+  pulls the band down **past** its resting point as the brush leaves.
+- **A second slot for the wire tips**: a narrower band at 3.1 kHz, fired 12 ms behind the body, with
+  its own contour running the other way (bright, then losing speed). The same two-layer trick as
+  `cr78`'s snare.
+
+Measured on the band peak per 12 ms window across one stroke:
+
+| | 0 | 24 | 48 | 72 | 84 | 120 | 144 ms |
+|---|---|---|---|---|---|---|---|
+| single contour (before) | 1812 | 2283 | 1812 | 1711 | 1711 | 2034 | 1920 |
+| two layers (after) | 1812 | **2283** | 1812 | 1078 | **855** | 960 | 1210 |
+
+The before row spans 900 cents with **no time order** — that is noise-bin jitter, not travel. The
+after row is an arc: up to 2283 Hz at 24 ms, down to 855 Hz at 84 ms, creeping back to 1210 by
+144 ms. **1700 cents of travel**, monotone in each half. The centroid follows (2720 → 4173 → 1878 →
+2225 Hz), and `wav-envelope`'s brightness ratio over the stroke went from 1.5x with no trend to 2.8x
+ordered in time.
+
+Two knobs and why they sit where they do. `SIDEMAN_BRUSH_LEAVE` at -450 Hz bottoms the band at
+855 Hz; -800 measures more travel (2600 cents) but bottoms at 509 Hz, which reads as a soft tom
+rather than a brush tail. `SIDEMAN_BRUSH_TOP_VOL` at 4 lifts the mid-stroke centroid by ~950 Hz over
+having no tips at all (1895 → 2840 Hz at 72 ms) without flattening the arc, which volume 5 starts to
+do. The attack stays soft: 27 ms to peak, still the only voice in the bank that does not start at
+once.
+
+## The cymbal: 494 ms was a modern crash
+
+Shortened to **296 ms** to -40 dB (amp decay 500 → 300 ms, release 150 → 95, metal layer 320 → 210).
+The Side Man's cymbal is described everywhere as thin, splashy and the weakest voice on the machine,
+and half a second of decay is a 1970s ride. Nothing in the measurements argued for keeping it long.
+
+The metal layer's balance was re-trimmed to hold the place it was in before the decay changed, since
+shortening the noise more than the squares would have promoted the metal by proportion alone: it now
+adds **0.27 dB to the cymbal's RMS** (about 6% of its energy) while its partials stand **9..21 dB**
+above the local noise floor. Same two numbers as before the change, one for "not dominant" and one
+for "plainly audible".
 
 ## What is still open
 
-- **The tube is a static shaper, not a tube.** A real single-ended stage sags: the harmonic content
-  should depend on how hard it is hit. The engine applies drive post-filter and PRE-VCA, so the
-  shaper sees a constant-amplitude signal and the ladder is identical at every velocity. That is
-  why `boost` changes only loudness here. Fixing it needs a per-voice drive that tracks velocity.
-- **The brush is the least convincing voice.** It has the right envelope (27 ms to peak, the only
-  soft front in the bank) but a swirl is a moving band, and one `ENV_CUTOFF` contour is a crude
-  stand-in for a brush travelling across a head.
-- **The cymbal's decay is 494 ms to -40 dB, which is long for 1959.** It measures as intended but
-  the era is worth a second opinion from an ear.
+- **The bank has no upward headroom left.** It sits at the top of the per-slot gain range to reach
+  the cart's target, so `SIDEMAN_TRIM` and `boost` are both down-only. A cart that wants it louder
+  needs its own gain, and a cart that stacks more than four voices on a step should trim down: ten
+  voices fired together measure -0.6 dBFS.
+- **The velocity ceiling above.** The ladder is level-independent because drive runs pre-VCA. Right
+  for this machine, wrong for any keybed cart that borrows the bank.
+- **The maracas is the least in-band voice** at 22% of its energy over 6 kHz, and the cymbal at 33%.
+  A 2-pole bandpass cannot do better without turning noise into a whistle; a steeper per-slot filter
+  or a second cascaded band would.
 - **Nothing here has been heard.** Every number is a proxy. The two-part bar
   ([ADR-0022](../decisions/0022-collaboration-is-the-north-star.md)) needs the second half.

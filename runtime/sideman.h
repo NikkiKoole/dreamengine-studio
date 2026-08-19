@@ -41,7 +41,7 @@
 //     the front. MEASURED: each block's resonant peak lands on its note to within
 //     0.1%, 91..97% of its energy sits within ±150 cents of that one resonance, the
 //     -40 dB decays run 28 / 45 / 70 / 89 ms, and the tick puts the first 2.5 ms
-//     2.1..4.4 dB ABOVE the ring that follows it, which is the hard front.
+//     2.4..4.7 dB ABOVE the ring that follows it, which is the hard front.
 //     The whole wooden family is tuned as a SET so the four read as one section, and
 //     the set is a consonant F# stack rather than four arbitrary sizes:
 //       TEMPLE BLOCK II  F#5  740 Hz   89 ms   hollowest, longest
@@ -102,9 +102,15 @@
 //
 //   the noise voices (brush, maracas, cymbal)
 //     Bandpassed noise under an RC contour. The brush has a SOFT front (a swirl, not
-//     a hit: 24 ms to peak, the only voice in the box that does not start at once),
-//     the maracas is the shortest burst in the box (-40 dB in 24 ms, under even the
-//     claves), and the cymbal is thin and splashy rather than metallic. A 1959 cymbal
+//     a hit: 27 ms to peak, the only voice in the box that does not start at once) and
+//     is the only TWO-LAYER voice here, because a swirl is a brush TRAVELLING and one
+//     cutoff contour cannot travel. MEASURED, its band walks 1812 -> 2283 -> 855 ->
+//     1210 Hz across one stroke, 1700 cents of travel, where the single-contour version
+//     wandered inside 900 cents with no time order at all (see the build notes).
+//     The maracas is the shortest burst in the box (-40 dB in 24 ms, under even the
+//     claves), and the cymbal is thin and splashy rather than metallic - 296 ms to
+//     -40 dB, deliberately SHORT: at 494 ms it was a modern crash, and this cymbal is
+//     described everywhere as the weakest voice on the machine. A 1959 cymbal
 //     is not an 808 metal bank: two squares a TRITONE apart (so their partials
 //     interleave instead of stacking) ride under the noise for just enough clang.
 //     "Just enough" is two measurements, because one of them alone is misleading:
@@ -121,9 +127,23 @@
 // cabinet is a rack the player can switch out rather than something baked in here.
 // Keep this header's output HONEST and dry; let the cart put it in a box.
 //
-// The bank leaves the master room to work: MEASURED, all ten voices firing at once
-// peak at -4.5 dBFS and a four-bar pattern at -7.0 dBFS peak, 0 clipped samples,
-// DC 0.0001. That is
+// The bank leaves the master room to work, and the number that decides that is the CART
+// with the cabinet IN, not the bank on a bench. MEASURED through tools/carts/sideman.c
+// (the organ cabinet pinned from outboard.h), all twelve rhythms, 0 clipped samples in
+// any of them:
+//   the default rhythm (FOXTROT 4 BEAT)  -6.8 dBFS peak     the A/B number
+//   the loudest PEAK  (MARCH)            -4.3 dBFS          4.3 dB of room left
+//   the loudest RMS   (SAMBA)           -19.6 dBFS rms      the densest, crest 13.2 dB
+//   the quietest      (FOXTROT 2 BEAT)  -10.4 dBFS peak
+// For scale, cr78 on the same 7-second render peaks at -2.9 dBFS, so this machine sits
+// 4 dB under its 1978 sibling on purpose. Two things worth knowing. SAMBA is the DENSEST
+// rhythm (maracas on all sixteen, 1.8 dB more RMS than anything else) but MARCH PEAKS
+// 2.1 dB higher, because a peak comes from COINCIDENCE and not from density. And the
+// CABINET is not what costs the headroom: switching EQ+IRON out moves the RMS by 2.2 dB
+// and the peak by 0.1, so every dB of level here is the bank's and none of it the box's.
+// The bank's own ceiling, for a cart denser than this disc: ten voices fired on the SAME
+// step measure -0.6 dBFS. No rhythm on the disc does that (four is the most it stacks),
+// but a cart that stacks more should pull SIDEMAN_TRIM down. That is
 // deliberate — analog-outboard-chain.md §2c is the measured finding that a chain
 // demonstrated on an already-clipped mix demonstrates nothing.
 //
@@ -155,15 +175,27 @@ static const char *SIDEMAN_SHORT[SM_NV] = {
 enum { SMS_BASS, SMS_TOM1, SMS_TOM2, SMS_WOOD, SMS_TEMP1, SMS_TEMP2,
        SMS_CLAVES, SMS_BRUSH, SMS_MARACAS, SMS_CYMBAL,
        SMS_CLICK,      // the shared contact-pulse click: the front of a struck block
-       SMS_CYMT };     // the cymbal's thin metallic layer (detuned squares)
-#define SIDEMAN_NSLOT 12
+       SMS_CYMT,       // the cymbal's thin metallic layer (detuned squares)
+       SMS_BRUSHT };   // the brush's WIRE-TIP layer, a brighter band arriving late
+#define SIDEMAN_NSLOT 13
 #define SIDEMAN_BASE   9
 
 // ── the voice table ───────────────────────────────────────────────────────────
 // midi = the resonant network's pitch, dur = how long the gate holds (the ring is
-// governed by the slot's own decay, so dur only needs to outlast it), vol 0..7 is
-// the coarse step and `level` the fine trim that balances the ten against each
-// other (measured solo peaks, see the doc). `tube` scales SIDEMAN_TUBE per voice:
+// governed by the slot's own decay, so dur only needs to outlast it), and `level` is
+// where ALL the balance lives (measured solo peaks, see the doc).
+// vol is 7 for every voice, which is the note velocity pinned at the top, and that is
+// not laziness: a spinning disc closes a contact the SAME WAY every time, so there is
+// no accent and no velocity anywhere in this machine. Two consequences, both real:
+//   - `boost` in sideman_fire is a DOWN-ONLY trim. A positive boost clamps to 7 and
+//     does nothing. The cart passes 0 always, which is correct for the Side Man; a cart
+//     playing this bank from a KEYBED wants negative boosts, or its own `level` ride.
+//   - velocity would not change the TONE even if it changed the level. The engine
+//     applies drive post-filter but PRE-VCA, so the tube sees a constant-amplitude
+//     signal and the harmonic ladder is identical at every volume - MEASURED, and again
+//     faithful here (a tube fed by a fixed contact pulse does not sag differently), but
+//     it is the first thing to fix for anyone who wants this bank to be expressive.
+// `tube` scales SIDEMAN_TUBE per voice:
 // the tube is the same everywhere, but how hard each circuit DRIVES it is not, and
 // a high voice's drive harmonics leave the 6 kHz band while a low voice's do not.
 // Kept as one table so the whole bank can be read, and re-voiced, in one place.
@@ -177,16 +209,16 @@ typedef struct {
 } SmVoice;
 
 static const SmVoice SIDEMAN_V[SM_NV] = {
-    /* BASS    */ { 42, 5, 200, 0.77f, 1.00f, 0 },   // F#2  92 Hz, soft and round, no front
-    /* TOM I   */ { 54, 5, 180, 0.72f, 1.00f, 1 },   // F#3 185 Hz, a fourth over its twin
-    /* TOM II  */ { 49, 5, 200, 0.71f, 1.00f, 1 },   // C#3 139 Hz
-    /* WOOD    */ { 90, 6,  70, 0.88f, 0.85f, 4 },   // F#6 1480 Hz, the plock
-    /* TEMP I  */ { 83, 6,  95, 0.86f, 0.90f, 3 },   // B5   988 Hz, hollow
-    /* TEMP II */ { 78, 6, 120, 0.85f, 0.95f, 3 },   // F#5  740 Hz, hollowest, a fourth down
-    /* CLAVES  */ { 97, 6,  45, 0.92f, 0.60f, 5 },   // C#7 2217 Hz, hardest and driest
-    /* BRUSH   */ { 72, 6, 190, 0.89f, 0.50f, 0 },   // soft swirl, no front
-    /* MARACAS */ { 84, 6,  40, 0.77f, 0.50f, 0 },   // shortest burst in the box
-    /* CYMBAL  */ { 90, 6, 560, 0.75f, 0.40f, 0 },   // thin and splashy
+    /* BASS    */ { 42, 7, 200, 0.70f, 1.00f, 0 },   // F#2  92 Hz, soft and round, no front
+    /* TOM I   */ { 54, 7, 180, 0.65f, 1.00f, 2 },   // F#3 185 Hz, a fourth over its twin
+    /* TOM II  */ { 49, 7, 200, 0.64f, 1.00f, 2 },   // C#3 139 Hz
+    /* WOOD    */ { 90, 7,  70, 0.95f, 0.85f, 5 },   // F#6 1480 Hz, the plock
+    /* TEMP I  */ { 83, 7,  95, 0.93f, 0.90f, 4 },   // B5   988 Hz, hollow
+    /* TEMP II */ { 78, 7, 120, 0.92f, 0.95f, 4 },   // F#5  740 Hz, hollowest, a fourth down
+    /* CLAVES  */ { 97, 7,  45, 1.00f, 0.60f, 6 },   // C#7 2217 Hz, hardest and driest
+    /* BRUSH   */ { 72, 7, 190, 0.96f, 0.50f, 0 },   // soft swirl, no front
+    /* MARACAS */ { 84, 7,  40, 0.70f, 0.50f, 0 },   // shortest burst in the box
+    /* CYMBAL  */ { 90, 7, 380, 0.89f, 0.40f, 0 },   // thin and splashy
 };
 
 // ── the tube stage ────────────────────────────────────────────────────────────
@@ -211,10 +243,17 @@ static const SmVoice SIDEMAN_V[SM_NV] = {
 
 // ── the bank's output trim ────────────────────────────────────────────────────
 // ONE bank-wide gain, so SmVoice.level stays a readable RELATIVE balance and the
-// HEADROOM is a single number you can A/B. 0.78 is measured: it puts a four-bar
-// pattern at -7.0 dBFS peak and all ten voices at once at -4.5, which is the room the
-// master chain needs (analog-outboard-chain.md §2c).
-#define SIDEMAN_TRIM 0.78f
+// HEADROOM is a single number you can A/B or ride.
+// It sits at 1.00 because the bank is at the TOP of the per-slot gain range and had to
+// be: vol 7 x level 1.0 x trim 1.0 is the ceiling, the first cut sat 4.2 dB under it,
+// and the cart needed all 4.2 to reach the target above (analog-outboard-chain.md §2c).
+// So this is a DOWN-only lever. If you go looking for level elsewhere, save yourself the
+// sweep: NOTHING upstream of the drive can provide any. The tube shaper normalises
+// full-scale to full-scale, so raising the wooden family's band resonance from 9 to 13 -
+// which multiplies the filter's peak gain several times over - moves the output by
+// 0.4 dB while costing 7 points of in-band energy. Level lives AFTER the drive: vol,
+// instrument_level, and this.
+#define SIDEMAN_TRIM 1.00f
 
 // ── the layer slots ───────────────────────────────────────────────────────────
 // The contact click sits in the 3.4 kHz band where a struck block's front lives —
@@ -229,6 +268,8 @@ static const SmVoice SIDEMAN_V[SM_NV] = {
 // only the centre frequency differs per voice. This is also the number that decides how
 // much of a noise voice lands ABOVE the machine's 6 kHz limit.
 #define SIDEMAN_NOISE_RES 13
+// The wooden family's resonance. All four share it, so only tuning and damping differ.
+#define SIDEMAN_WOOD_RES 10
 // The strike TUCK, in semitones: how far above its resting pitch a membrane starts.
 // A bridged-T ringing network does not sweep, so these are small on purpose (see the
 // header note on the 624-cent chirp the first draft had). The bass needs the larger
@@ -237,6 +278,14 @@ static const SmVoice SIDEMAN_V[SM_NV] = {
 // measures ~200.
 #define SIDEMAN_BASS_TUCK 5.0f
 #define SIDEMAN_TOM_TUCK  3.5f
+// The brush's WIRE-TIP layer: how loud, and how far behind the body it arrives.
+// A swirl is a brush TRAVELLING, so the top of it is late and dies first.
+#define SIDEMAN_BRUSH_TOP_VOL 4
+#define SIDEMAN_BRUSH_TOP_MS  12
+// How far the body's band travels: ENGAGE opens it as the wires bite, LEAVE pulls it
+// back DOWN PAST its resting point as the brush goes. Both in Hz, LEAVE negative.
+#define SIDEMAN_BRUSH_ENGAGE 1650.0f
+#define SIDEMAN_BRUSH_LEAVE  -450.0f
 
 static void sideman_build(int base) {
     // BASS DRUM — a low damped sine with a SMALL tuck (measured 119 cents, settled in
@@ -263,13 +312,13 @@ static void sideman_build(int base) {
     // harmonic content above the ring. Resonance 10 across the family so all four
     // are the same KIND of resonance and only the tuning and damping differ.
     instrument(base + SMS_WOOD, INSTR_TRI, 0, 45, 0, 14);
-    instrument_filter(base + SMS_WOOD, FILTER_BAND, 1480, 10);
+    instrument_filter(base + SMS_WOOD, FILTER_BAND, 1480, SIDEMAN_WOOD_RES);
     instrument(base + SMS_TEMP1, INSTR_TRI, 0, 70, 0, 20);
-    instrument_filter(base + SMS_TEMP1, FILTER_BAND, 988, 10);
+    instrument_filter(base + SMS_TEMP1, FILTER_BAND, 988, SIDEMAN_WOOD_RES);
     instrument(base + SMS_TEMP2, INSTR_TRI, 0, 90, 0, 24);
-    instrument_filter(base + SMS_TEMP2, FILTER_BAND, 740, 10);
+    instrument_filter(base + SMS_TEMP2, FILTER_BAND, 740, SIDEMAN_WOOD_RES);
     instrument(base + SMS_CLAVES, INSTR_TRI, 0, 28, 0, 10);
-    instrument_filter(base + SMS_CLAVES, FILTER_BAND, 2217, 10);
+    instrument_filter(base + SMS_CLAVES, FILTER_BAND, 2217, SIDEMAN_WOOD_RES);
 
     // the contact CLICK — the front of a struck block is the pulse itself leaking
     // through before the network settles. One shared very short noise slot, mixed
@@ -278,11 +327,26 @@ static void sideman_build(int base) {
     instrument_filter(base + SMS_CLICK, FILTER_BAND, SIDEMAN_CLICK_HZ, 2);
 
     // BRUSH — a swirl, not a hit: the one voice in the box with a SOFT front, so it
-    // gets the only slow amp attack in the bank. The cutoff contour is the sweep of
-    // the brush across the head, small enough that the front stays soft.
-    instrument(base + SMS_BRUSH, INSTR_NOISE, 24, 150, 0, 55);
-    instrument_filter(base + SMS_BRUSH, FILTER_BAND, 1500, SIDEMAN_NOISE_RES - 2);
-    instrument_env(base + SMS_BRUSH, 0, ENV_CUTOFF, 24, 140, 500.0f);
+    // gets the only slow amp attack in the bank. It is also the only voice built from
+    // TWO layers, because a swirl is a brush TRAVELLING across a head and one cutoff
+    // contour cannot travel: a single rising-then-falling envelope can only return to
+    // where it started. Judge this voice on a centroid TRACE, never on one number.
+    //
+    // The body: a low band with TWO cutoff envelopes, which SUM (sound.h adds each
+    // env's contribution into the same cutoff). Env 0 opens it as the wires engage,
+    // env 1 arrives later and pulls it DOWN PAST its resting point as the brush
+    // leaves. That last part is the bit one contour cannot do.
+    instrument(base + SMS_BRUSH, INSTR_NOISE, 26, 155, 0, 60);
+    instrument_filter(base + SMS_BRUSH, FILTER_BAND, 1150, SIDEMAN_NOISE_RES - 2);
+    instrument_env(base + SMS_BRUSH, 0, ENV_CUTOFF, 30,  70, SIDEMAN_BRUSH_ENGAGE);
+    instrument_env(base + SMS_BRUSH, 1, ENV_CUTOFF, 85, 140, SIDEMAN_BRUSH_LEAVE);
+
+    // The wire TIPS: a brighter, narrower band that arrives SIDEMAN_BRUSH_TOP_MS after
+    // the body and dies first, with its own contour running the other way (the tips
+    // start bright and lose speed). Same trick as cr78's two-layer snare.
+    instrument(base + SMS_BRUSHT, INSTR_NOISE, 16, 95, 0, 40);
+    instrument_filter(base + SMS_BRUSHT, FILTER_BAND, 3100, SIDEMAN_NOISE_RES - 1);
+    instrument_env(base + SMS_BRUSHT, 0, ENV_CUTOFF, 18, 90, -1250.0f);
 
     // MARACAS — the shortest burst in the box, in a narrow band up top. A BAND and
     // not a highpass: highpassed white noise is a digital hiss reaching 19 kHz, and
@@ -293,9 +357,9 @@ static void sideman_build(int base) {
     // CYMBAL — thin and splashy. Bandpassed noise carries it; two squares a tritone
     // apart ride underneath (so their partials interleave instead of stacking) for
     // just enough clang to read as metal, nothing like an 808.
-    instrument(base + SMS_CYMBAL, INSTR_NOISE, 0, 500, 0, 150);
+    instrument(base + SMS_CYMBAL, INSTR_NOISE, 0, 300, 0, 95);
     instrument_filter(base + SMS_CYMBAL, FILTER_BAND, 4200, SIDEMAN_NOISE_RES - 1);
-    instrument(base + SMS_CYMT, INSTR_SQUARE, 0, 320, 0, 100);
+    instrument(base + SMS_CYMT, INSTR_SQUARE, 0, 210, 0, 70);
     instrument_filter(base + SMS_CYMT, FILTER_BAND, 4200, SIDEMAN_NOISE_RES - 2);
 
     // the shared tube stage on every slot: the ladder that turns a beep into a body.
@@ -305,10 +369,12 @@ static void sideman_build(int base) {
         instrument_drive(base + SMS_BASS + v, SIDEMAN_TUBE * SIDEMAN_V[v].tube);
         instrument_level(base + SMS_BASS + v, SIDEMAN_TRIM * SIDEMAN_V[v].level);
     }
-    instrument_drive(base + SMS_CLICK, SIDEMAN_TUBE * 0.40f);   // noise + saturation = mush
-    instrument_drive(base + SMS_CYMT,  SIDEMAN_TUBE * 0.70f);
-    instrument_level(base + SMS_CLICK, SIDEMAN_TRIM * 0.85f * SIDEMAN_CLICK_GAIN);
-    instrument_level(base + SMS_CYMT,  SIDEMAN_TRIM * 0.55f);
+    instrument_drive(base + SMS_CLICK,  SIDEMAN_TUBE * 0.40f);  // noise + saturation = mush
+    instrument_drive(base + SMS_CYMT,   SIDEMAN_TUBE * 0.70f);
+    instrument_drive(base + SMS_BRUSHT, SIDEMAN_TUBE * 0.45f);
+    instrument_level(base + SMS_CLICK,  SIDEMAN_TRIM * 1.00f * SIDEMAN_CLICK_GAIN);
+    instrument_level(base + SMS_CYMT,   SIDEMAN_TRIM * 0.54f);
+    instrument_level(base + SMS_BRUSHT, SIDEMAN_TRIM * 0.78f);
 }
 
 static int sideman__vv(int base, int boost) {
@@ -324,9 +390,12 @@ static void sideman_fire(int base, int v, int boost, int delay) {
     schedule_hit(delay, s->midi, slot, sideman__vv(s->vol, boost), s->dur);
     if (s->click > 0)                        // the contact pulse on the front of a block
         schedule_hit(delay, 96, base + SMS_CLICK, sideman__vv(s->click, boost), 8);
+    if (v == SM_BRUSH)                       // the wire tips, arriving late
+        schedule_hit(delay + SIDEMAN_BRUSH_TOP_MS, 72, base + SMS_BRUSHT,
+                     sideman__vv(SIDEMAN_BRUSH_TOP_VOL, boost), 130);
     if (v == SM_CYMBAL) {                    // the thin metallic layer, a tritone apart
-        schedule_hit(delay, 91, base + SMS_CYMT, sideman__vv(SIDEMAN_CYMT_VOL, boost), 320);
-        schedule_hit(delay, 97, base + SMS_CYMT, sideman__vv(SIDEMAN_CYMT_VOL, boost), 320);
+        schedule_hit(delay, 91, base + SMS_CYMT, sideman__vv(SIDEMAN_CYMT_VOL, boost), 220);
+        schedule_hit(delay, 97, base + SMS_CYMT, sideman__vv(SIDEMAN_CYMT_VOL, boost), 220);
     }
 }
 

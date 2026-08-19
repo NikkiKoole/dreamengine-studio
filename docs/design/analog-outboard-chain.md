@@ -279,13 +279,15 @@ instead of a groove with a bassline, and sits at `plate_amt` 0.34 rather than 0.
 |---|---|---|---|
 | EQ+IRON out | 0.0 ms (each) | **0.0 ms** | |
 | EQ+IRON back in | 300.8 ms (IRON) | **297.5 ms** | 304 ms |
-| plate out | 3389.6 ms | 2850.8 ms | |
-| plate back in | 3891.8 ms | 3920.8 ms | |
+| tank out | 3879.1 ms | 2636.9 ms | |
+| tank back in | 3999.1 ms | 2482.9 ms | |
 
 Three independent measurements of the same DC blocker, on two carts with different material, inside
-7 ms of each other. The plate rows differ, and *should*: a shorter send is a shorter tail. So the
-per-stage tolerances in the table are transferable, and a third consumer gets them for one table
-entry rather than an afternoon.
+36 ms of each other. The tank rows differ, and *should*, twice over: `sideman` sends less
+(`plate_amt` 0.34 against 0.55) and its tank is a **spring**, not the plate, because an organ console
+in 1959 had a spring and a plate was a wardrobe-sized studio device. So the per-stage tolerances in
+the table are transferable, and a third consumer gets them for one table entry rather than an
+afternoon.
 
 **COMP's OUT row has a caveat, and its IN row cannot be bit-exact by construction.**
 On the first programme this was measured on, COMP OUT was **not** bit-exact: 2 samples differing by
@@ -580,13 +582,42 @@ correct behaviour and a bad sentence.
 
 ## 9. Open
 
-- [ ] `reverb_plate(amount)`: the stereo/decorrelated plate voicing (§6). The one new-DSP item.
-- [ ] makeup gain on `glue` (§5.2), so the comp A/B can be level-matched.
+- [x] **DONE 2026-08-19** ‑ `reverb_plate(amount)` + `reverb_plate_width(x)`: the stereo/decorrelated
+      plate voicing (§6), the one new-DSP item on this list. Measured with `stereo-check.js` (the only
+      gate that reads L and R apart): correlation **0.71** on the master send and **0.43** as an
+      `FX_REVERB` insert, against **1.0000** for the mono tank it replaced, both passing
+      `--expect decorrelated` and `--expect wide` while the mono control correctly fails both. Tail
+      centroid 887 → 1171 Hz. `reverb_plate(0)` is byte-identical to never calling it, on both engine
+      call sites, so the stage's bypass claim is untouched. The bright top comes from scaling the
+      **in-loop** comb damping, because an output shelf only brightens the first pass. No
+      `reverb_plate_tone`: `reverb()`'s `damp` already is the plate's tone control, and width was the
+      thing nothing else could reach. **Now wired into the PLATE stage** (`OB_PLATE_WIDTH` 0.65), with
+      a `tank_plain` escape hatch for a cart whose cabinet is not a studio (`sideman` uses it for a
+      spring tank). ⚠ That wiring silently did NOT take on the first try: `Outboard`'s new field was
+      implicitly 0 in every positionally-initialised preset row, and the only reason it was caught is
+      that the oracle reported the plate's reconvergence **unchanged to 0.1 ms** after a change that
+      should have moved it. With the polarity inverted so zero is the stage's own name, it moved 3389.6
+      → 3879.1 ms. Any future field on that struct must be safe at zero; the header says so.
+- [x] **DONE 2026-08-19** ‑ makeup gain on `glue` (§5.2), so the comp A/B can be level-matched, and it
+      is: within **0.05 dB of dry at every amount** (dry RMS -20.55 dBFS; amount 0.44 goes -21.29 →
+      -20.57, amount 0.84 goes -22.03 → -20.59) while the crest factor still **rises**, so §2b's
+      characterisation of the stage as a ducker survives being level-matched. Automatic and internal,
+      so the 4-argument signature is unchanged and this table needed no edit. It averages the **energy
+      ratio, not the gain**: averaging the gain undershoots by 0.86 dB, because the gain sits near 1
+      through every gap and the gaps are most of the samples while the RMS lives in the loud parts.
+      `glue(…, 0, …)` is still byte-identical to no call. Note for the peak item below: makeup pushes
+      peaks about 0.7 dB **up**.
 - [ ] a second `IRON` instance (`drive_insert_inst(1, …)`) for input-transformer AND output-transformer
       placement around the EQ, which is the real console topology.
-- [ ] program-dependent release on `glue` (§2), the last honest piece of "snappy".
+- [x] **DONE 2026-08-19** ‑ program-dependent release on `glue` (§2), the last honest piece of
+      "snappy". A dual-slope recovery: measured as dB still ducked after a burst, one exponential gives
+      -0.65 / -0.20 / -0.05 dB at 200 / 500 / 900 ms, the dual slope gives -0.88 / -0.49 / -0.21. Twice
+      the hold, twice the time to let go. Two dead ends are written into `sound.h` so nobody rebuilds
+      them: a second slow-attack follower (the textbook two-stage design) measures **inert**, 0.01 dB
+      over 23 s, and the mid±side form does not centre a plate's image by itself.
 - [ ] a real peak/crest control somewhere in the chain (§2b). `glue` ducks but does not limit, and
-      `multiband()` is the only thing here that touches peaks, at the cost of the OTT character.
+      `multiband()` is the only thing here that touches peaks, at the cost of the OTT character. This
+      got slightly **more** attractive, not less: the new makeup leg pushes peaks about 0.7 dB up.
 - [x] **DONE 2026-08-19** ‑ promote the §4 bypass-reconvergence test into a committed oracle:
       [`tools/bypass-check.js`](../../tools/bypass-check.js), 30-answer `--selfcheck` in the
       repo-doctor row set, mutation-tested. It went on to find the three things §4 now records (the
@@ -596,8 +627,14 @@ correct behaviour and a bad sentence.
       re-engaging saturation stage does not discharge a frozen capacitor into the mix. Not obviously a
       bug ‑ a real pedal's coupling cap does exactly this ‑ so it is a decision for whoever owns
       `sound.h`, not a defect to fix quietly. Whatever is decided, the oracle's IRON IN row records it.
-- [ ] extend `bypass-check.js` to `sideman` (its cabinet toggle is `C`, its plate `V`) so the second
-      consumer of this table is gated too, not just measured once by hand.
+- [x] **DONE 2026-08-19** ‑ extend `bypass-check.js` to `sideman` so the second consumer of this table
+      is gated, not measured once by hand: `--rack sideman`, 4 rows, exit 0. It agrees with the
+      outboard rack on the stage that has memory (EQ+IRON back in: **267.8 ms** there against 300.8 ms
+      here, and 304 ms by the original hand measurement), which is what makes the DC blocker's
+      reconvergence a property of the **stage** rather than of one cart's material. See §4b's table.
+- [ ] `refactor-guard` wants a re-bless after the `glue` legs landed: 1 of 6 probes moved
+      (`acidcandy`, the only one running `glue` live at a non-zero amount). The other five are
+      byte-identical, which independently re-confirms the amount-0 bypass. Needs a settled tree.
 
 ## See also
 

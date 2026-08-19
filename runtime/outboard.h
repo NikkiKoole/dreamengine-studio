@@ -10,7 +10,7 @@
 //   EQ     the console EQ        eq_inst(0,…)   + FX_EQ                three fixed bands, ±12 dB
 //   IRON   the saturation stage  drive_insert() + FX_DRIVE             DRIVE_ASYM = odd AND even harmonics
 //   COMP   the FET bus comp      eq_inst(1,…) input gain + glue()      ratio = a bundle, see below
-//   PLATE  the plate send        reverb() + instrument_reverb(slot,…)  parallel, not in the chain
+//   PLATE  the plate send        reverb() + reverb_plate() + instrument_reverb(slot,…)  parallel, not in the chain
 //
 // TWO things about this that are easy to get wrong, both recorded in the doc:
 //
@@ -78,11 +78,16 @@ static const ObCurve OB_CURVE[OB_CURVE_N] = {
 
 // ── the plate voicing ─────────────────────────────────────────────────────────
 // A plate is dense, bright and has no room geometry, so it wants LOW damping (a bright tail) and a
-// mid-to-long size. NOTE: the tank is MONO today, which is the one place this chain cannot deliver
-// the "lush" of a real plate — see the doc §6 for the reverb_plate() sibling that would.
+// mid-to-long size. The tank was MONO when this header shipped, which was the one place the chain
+// could not deliver the "lush" of a real plate; reverb_plate() closed that (doc §6) and the stage
+// now asks for it, so the tail comes back WIDE because a plate has two pickups in different places.
+// MEASURED at OB_PLATE_WIDTH: correlation 0.71 on the send, 0.43 as an insert, against 1.0000 for a
+// mono tank — and reverb_plate(0) is byte-identical to never calling it, so the stage's bypass is
+// unaffected.
 #define OB_PLATE_DAMP 0.30f
 #define OB_PLATE_SIZE_MIN 0.45f
 #define OB_PLATE_SIZE_RANGE 0.40f
+#define OB_PLATE_WIDTH 0.65f
 
 // which slots feed the plate, and how hard. Reverb is a SEND bus, so the caller names its own
 // voices; a drum machine typically sends the snare/clap a lot and the kick none at all.
@@ -95,8 +100,17 @@ typedef struct {
     int   eq_on;      float eq_amt;    int curve;   // 0..OB_CURVE_N-1
     int   iron_on;    float iron_amt;
     int   comp_on;    float comp_in;   int ratio;   // comp_in 0..1 → up to +12 dB into the comp
-    int   plate_on;   float plate_amt;
+    int   plate_on;   float plate_amt;   float tank_plain;   // tank_plain 0 = the PLATE this stage is named after, 1 = a plain tank the cart voices itself
 } Outboard;
+
+// ⚠ ANY FIELD ADDED TO Outboard MUST BE SAFE AT ZERO, and `tank_plain`'s polarity is the scar from
+// learning that. Carts build preset tables with POSITIONAL initializers (`{ 1, 0.80f, 0, … }`), so a
+// field appended to this struct is implicitly 0 in every existing preset row and no compiler says a
+// word. The first version of this field was `plate_voice`, where 0 meant "no plate", so wiring the
+// new stereo plate into the stage left all five of the bench cart's presets silently WITHOUT it. It
+// was caught only because the reconvergence oracle reported the plate's timing unchanged to 0.1 ms
+// after a change that should have moved it. Inverted, so zero means the stage does what its name
+// says and a cart has to ASK for anything else.
 
 // sensible defaults: everything OFF, so a fresh rack is bit-identical to no rack at all.
 static Outboard outboard_default(void) {
@@ -104,7 +118,7 @@ static Outboard outboard_default(void) {
     o.eq_on = 0;    o.eq_amt    = 0.80f;  o.curve = 0;
     o.iron_on = 0;  o.iron_amt  = 0.42f;
     o.comp_on = 0;  o.comp_in   = 0.40f;  o.ratio = 1;
-    o.plate_on = 0; o.plate_amt = 0.55f;
+    o.plate_on = 0; o.plate_amt = 0.55f;  o.tank_plain = 0.0f;   // a PLATE by default: that is the stage's name
     return o;
 }
 
@@ -145,6 +159,12 @@ static void outboard_apply(const Outboard *o, const ObSend *sends, int n_sends) 
     fx_order(0, chain, 3);
 
     // PLATE — a parallel send, so the stage is the per-slot send amounts, not a chain slot.
+    // `tank_plain` exists because not every cabinet is a plate: a cart voicing an ORGAN or an amp
+    // wants its own tank character (reverb_spring(), say) and would otherwise get a studio plate
+    // stacked on top of it. 1 leaves the tank plain, which is byte-identical to never asking.
+    float plate_voice = 1.0f - (o->tank_plain < 0.0f ? 0.0f : (o->tank_plain > 1.0f ? 1.0f : o->tank_plain));
+    reverb_plate(o->plate_on ? plate_voice : 0.0f);
+    reverb_plate_width(OB_PLATE_WIDTH);
     if (o->plate_on) reverb(OB_PLATE_SIZE_MIN + OB_PLATE_SIZE_RANGE * o->plate_amt, OB_PLATE_DAMP);
     for (int i = 0; i < n_sends; i++)
         instrument_reverb(sends[i].slot, o->plate_on ? sends[i].send * o->plate_amt : 0.0f);

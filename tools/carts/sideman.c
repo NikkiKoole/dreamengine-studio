@@ -18,7 +18,7 @@
   "description": {
     "summary": "The first drum machine ever sold, rebuilt: ten vacuum-tube voices on a rotating contact disc, four of them struck wood.",
     "detail": "In 1959 Wurlitzer put a motor, a disc of metal contacts and ten tube circuits in a walnut box and sold it to organ players. It is the oldest drum sound in this studio by two decades, and it does not sound like a drum machine: four of its ten voices are struck WOOD (wood block, two temple blocks, claves) and only two are membranes, which is why the era is remembered as a plock rather than as a beat. The sequencer here is the real mechanism instead of a grid: one disc revolution is one bar, the contacts turn clockwise into a fixed wiper arm at twelve o'clock, and the tempo slider is the motor speed. Click any slot on the disc to stamp or lift a contact. The voices come from the shared sideman.h bank, where the fullness is not reverb but a single-ended tube stage on every voice (asymmetric saturation brings even harmonics) plus the machine's own band limit. The Side Man had no speaker of its own: it fed the organ's amplifier and cabinet, so that stage is a rack you can switch out, pinned from outboard.h, and it returns bit-exact when you switch it off. Two knobs the original never had, both labelled as ours: CONTACT WEAR (every contact sits a hair early or late, the same hair every revolution, which is what a stamped disc actually does) and the cabinet A/B.",
-    "controls": "SPACE motor on/off. LEFT/RIGHT rhythm (twelve, as on the dial). UP/DOWN tempo. 1-9 and 0 play the ten voices by hand, like the panel buttons. Click a slot on the disc to stamp or lift a contact, drag to paint. C cabinet, V tank, B contact wear."
+    "controls": "SPACE motor on/off. LEFT/RIGHT rhythm (twelve, as on the dial). UP/DOWN tempo. 1-9 and 0 play the ten voices by hand, like the panel buttons. Click a slot on the disc to stamp or lift a contact, drag to paint. C cabinet, V spring reverb, B contact wear."
   }
 }
 de:meta */
@@ -60,7 +60,8 @@ de:meta */
 //     and came out of a wooden cabinet, and that stage is a real part of the
 //     remembered sound: mid-forward, top rolled off, gently saturated. So it
 //     is a rack here (runtime/outboard.h: the console EQ on its WARM curve
-//     plus the asymmetric IRON stage) rather than something baked into the
+//     plus the asymmetric IRON stage, and a SPRING tank rather than the send
+//     stage's studio plate) rather than something baked into the
 //     voices. MEASURED: switching the cabinet out and back in reconverges to
 //     bit-exact 0.304 s later (two renders, plate parked out, sample-diffed).
 //     The stages null exactly; re-engaging one waits for the chain's own memory,
@@ -96,6 +97,11 @@ de:meta */
 #define PH 192
 
 #define MAXSTEPS 16
+
+// the organ's spring tank. Not a plate: see init(). Modest, because a rhythm unit fed the same
+// amplifier as the organ and nobody drowned the drums in it.
+#define SM_SPRING      0.62f
+#define SM_SPRING_TONE 0.55f
 
 // ── the twelve rhythms, in dial order ─────────────────────────────────────
 // beats = per bar, div = subdivisions per beat (4 = sixteenths, 3 = triplets),
@@ -293,6 +299,14 @@ void init(void) {
     rack.iron_on = 1;  rack.iron_amt = 0.38f;
     rack.comp_on = 0;
     rack.plate_on = 1; rack.plate_amt = 0.34f;
+    // …but NOT a plate. outboard.h's send stage is voiced as a studio plate, and a plate in 1959 was
+    // an EMT the size of a wardrobe, in a broadcast studio. An organ console's reverb was a SPRING
+    // TANK, which is the era's technology and which the engine ships as its own voicing. So the rack
+    // keeps the send structure (per-slot sends, the bit-exact switch) and hands the tank's CHARACTER
+    // back to us: tank_plain leaves the tank plain, and reverb_spring() makes it the right one.
+    rack.tank_plain = 1.0f;
+    reverb_spring(SM_SPRING);
+    reverb_spring_tone(SM_SPRING_TONE);
     apply_rack();
 
     load_rhythm();
@@ -509,7 +523,7 @@ static void draw_panel(void) {
         rack.eq_on = rack.iron_on = !rack.eq_on;
         apply_rack();
     }
-    if (ui_button(PX + 62, PY + 86, 44, 15, "TANK")) {
+    if (ui_button(PX + 62, PY + 86, 44, 15, "SPRING")) {
         rack.plate_on = !rack.plate_on;
         apply_rack();
     }

@@ -93,7 +93,7 @@ that stage is a real part of the remembered sound: mid-forward, top rolled off, 
 
 So it is not baked into the voices. The cart pins it as a rack from
 [`runtime/outboard.h`](../../runtime/outboard.h): the console EQ on its **WARM** curve into the
-asymmetric **IRON** stage, plus a modest **PLATE** send with the bass drum sending nothing. One key
+asymmetric **IRON** stage, plus a modest reverb send with the bass drum sending nothing. One key
 switches the whole cabinet out, and because every outboard stage bypasses to a byte-identical null
 ([analog-outboard-chain.md](analog-outboard-chain.md) §4), that switch is a **true A/B** rather than
 an approximate one.
@@ -122,6 +122,23 @@ identified rather than inferred: the residual decays 0.6433 per 10 ms, and the b
 `R = 0.999` gives `0.999^441 = 0.6433` to four figures. Arguably correct behaviour, since a real
 pedal's coupling cap holds charge too. The only thing that was wrong was calling the stage
 memoryless.
+
+**A spring, not a plate.** The outboard send stage is voiced as a studio plate, and since 2026-08-19
+a real one: `reverb_plate()` gives it two pickups, so the tail comes back wide (correlation 0.71 on
+the send, against 1.0000 for a mono tank). That is the right sound for a mix bus and the wrong sound
+for this box. A plate in 1959 was an EMT the size of a wardrobe, in a broadcast studio; an organ
+console's reverb was a **spring tank**. So the cart sets `tank_plain` and calls `reverb_spring()`
+itself, keeping the rack's send structure (per-slot sends, the bit-exact switch) while owning the
+tank's character. Measured: this cart's render is **byte-identical L and R**, correlation 1.0000,
+which is exactly right for one speaker in a wooden cabinet, and it is also the proof that the studio
+plate does not leak in.
+
+That field's polarity is a scar worth reading before adding another one. It first went in as
+`plate_voice`, where 0 meant "no plate" — and because carts build preset tables with **positional
+initializers**, appending it left all five of the bench cart's presets silently without the plate,
+with no compiler warning. It was caught only because the reconvergence oracle reported the plate's
+timing **unchanged to 0.1 ms** after a change that should have moved it (it moved 490 ms once the
+wiring actually landed). Inverted, so zero means the stage does what its name says.
 
 The rack's **COMP stage is deliberately left out**: a 1959 organ amplifier had no bus compressor.
 Using three quarters of a shared table honestly beats using all of it dishonestly, and this is the

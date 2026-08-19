@@ -596,7 +596,7 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
                              comparison is measuring nondeterminism. Also fingerprints runtime/ before and after
                              and reports THE ENGINE MOVED rather than a finding, since a parallel agent landing
                              in sound.h mid-run compares two different builds (that happened). `--quiet` gates,
-                             `--selfcheck` = 24 known answers on constructed WAV pairs (no cart, no engine),
+                             `--selfcheck` = 30 known answers on constructed WAV pairs (no cart, no engine),
                              mutation-tested. docs/design/analog-outboard-chain.md §4
              voice-trace.js  read a --trace run's voice-allocation events (on/off/reuse/steal/choke, naming the
                              victim) → why a voice stopped; twin of play.js --solo-slot (stem render). For "a solo got

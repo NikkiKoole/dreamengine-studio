@@ -27,7 +27,7 @@ _Last updated: 2026-08-19 — **Tiny Pedalboard shipped to the App Store and is 
   slow-release **DUCKER, not a limiter** — at the hardest ratio it takes ~3.8 dB of RMS while the PEAK
   does not move and the crest factor *rises*, so a UI on it must meter RMS or the stage reads as
   inert; (b) **the bypass is measured, not asserted** — and the measurement is now the committed oracle
-  `tools/bypass-check.js` (24-answer `--selfcheck`, in repo-doctor), which promptly corrected this
+  `tools/bypass-check.js` (30-answer `--selfcheck`, in repo-doctor), which promptly corrected this
   entry: switching a stage OUT is bit-exact on the switching sample for EQ and IRON, within one LSB
   for COMP (a nulled `eq_inst` is an ALGEBRAIC null, not a float-exact one) and 3.4 s later for PLATE
   because a reverb tail is real; switching one back **IN** is a different question nobody had asked,

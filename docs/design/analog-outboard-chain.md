@@ -571,7 +571,7 @@ correct behaviour and a bad sentence.
 - [ ] a real peak/crest control somewhere in the chain (§2b). `glue` ducks but does not limit, and
       `multiband()` is the only thing here that touches peaks, at the cost of the OTT character.
 - [x] **DONE 2026-08-19** ‑ promote the §4 bypass-reconvergence test into a committed oracle:
-      [`tools/bypass-check.js`](../../tools/bypass-check.js), 24-answer `--selfcheck` in the
+      [`tools/bypass-check.js`](../../tools/bypass-check.js), 30-answer `--selfcheck` in the
       repo-doctor row set, mutation-tested. It went on to find the three things §4 now records (the
       `eq_inst` algebraic null, the drive stage's DC-blocker memory, and that OUT and IN are different
       questions) and to correct two claims this doc had made.

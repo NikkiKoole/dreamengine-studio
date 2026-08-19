@@ -777,27 +777,42 @@ Detail lives in the linked design doc in every case; that is where it was always
 
 ## Open — prioritized
 
-> ### 💰 The two live apps go FREE with one ~$9.99 "Pro" unlock, and the window closes on first sale
+> ### 💰 Both apps go FREE with one **$4.99** "Pro" unlock; `pedalboard` is OFF SALE until it can come back with the wall in place
 >
-> Decided 2026-08-18, [ADR-0035](decisions/0035-free-with-one-pro-unlock.md). *Tiny Pedalboard* (live,
-> $1.99) and *Tiny Acid Jam* (submitted, $1.99) become **free downloads with one non-consumable Pro
-> unlock** carrying **WAV export + MIDI in/out + AUv3**. The wall is "it leaves the app": the free
-> instrument is complete, including background audio, Ableton Link and saving your own patterns.
-> **Listed first because it expires.** At **zero sales** (true as of 2026-08-18) the migration needs no
-> grandfathering code at all; the first purchase means writing a receipt check
-> (`AppTransaction.originalAppVersion`) so buyers keep Pro for nothing.
-> **The store half is nearly free**: `"price": "0"` in the manifest plus
-> `node tools/asc-push.js <app> --price` (the tool documents `0 = Free`), **no binary, no review**. So
-> do NOT pull the apps and re-release them; that costs the listing, the URL and a review round trip for
-> nothing, and a re-submission under a fresh bundle ID is guideline-4.3 bait.
+> Decided 2026-08-18, amended 2026-08-19: [ADR-0035](decisions/0035-free-with-one-pro-unlock.md) and
+> its Update. *Tiny Pedalboard* and *Tiny Acid Jam* become **free downloads with one non-consumable
+> Pro unlock at $4.99** carrying **WAV export + MIDI in/out + AUv3**. The wall is "it leaves the app":
+> the free instrument is complete, including background audio, Ableton Link and saving your own
+> patterns. Both manifests already carry it (`"price": "0"` + `com.mipolai.<app>.pro`); **the store is
+> unchanged until somebody runs `node tools/asc-push.js <app> --price`**, and that belongs to the
+> re-release, not to a tidy-up.
+> **Listed first because it expires.** At **zero sales** the migration needs no grandfathering code at
+> all; the first purchase means writing a receipt check (`AppTransaction.originalAppVersion`) so
+> buyers keep Pro for nothing.
+> **`pedalboard` was REMOVED FROM SALE in all 175 territories (2026-08-19)**, and *Tiny Acid Jam*,
+> approved for distribution the same day, is now the only one a stranger can buy, so it is the only
+> place that window is still open. **Two corrections to the original ADR live in the Update.**
+> (a) "Never pull" was about the wrong thing: removing from sale keeps the record, bundle ID, URL,
+> reviews and the approved binary, and coming back needs no review; only *deleting the record or
+> resubmitting under a fresh bundle ID* is guideline-4.3 bait. (b) The reason to stay dark rather than
+> just flip the price now: going Free **before** Pro exists hands every downloader export + MIDI +
+> AUv3, so the version that introduces Pro **takes features away from people who have them**, which is
+> worse than a wall that was always there. Order: **stay dark → build Pro → return Free.**
 > **The build half** is StoreKit 2 (in-house, no RevenueCat) plus an **App Group entitlement the AUv3
 > extension can read**, because a host loads the plug-in without the container app ever launching
 > ([`design/product-notes-followup.md`](design/product-notes-followup.md) §3). Order: `pedalboard`
-> first (live, unwatched), then `tinyacidjam` after its current review lands, then `tinyjam` inherits it.
-> **Three follow-ons**: `apps/tinyjam/app.json` sells `masterpass` at $4.99, i.e. *below* Pro while
-> sounding bigger (the two axes need one story); `apps/tinyacidjam/app.json`'s review notes still tell
-> Apple *"no in-app purchases"*; and the §🚩 trademark rule does not relax for a free app, since the Pro
-> unlock is still a paywall over a bigger install base.
+> first (off sale, unwatched), then `tinyacidjam`, then `tinyjam` inherits it.
+> **Two live follow-ons**: `apps/tinyacidjam/app.json`'s review notes still tell Apple *"no in-app
+> purchases"* (left wrong on purpose, since notes must describe the build being submitted; the
+> replacement paragraph is drafted in the ADR's Update, ready to paste); and the §🚩 trademark rule does not relax for a free app, since the Pro unlock is still a
+> paywall over a bigger install base.
+> **⏸ And one PARKED, on the maker's call (2026-08-18):** Tiny Jam's `masterpass` sits at $4.99, now
+> exactly *level* with a $4.99 per-app Pro while sounding bigger, so content and features do not yet have one story. That whole
+> two-axis reconciliation waits for a **trigger, not a date: about five music apps on the App Store**,
+> then the pricing gets fixed in one pass with the real catalog visible (standing at 2). Nothing is
+> blocked by it: Tiny Jam is v0.1, never submitted, so nothing was ever purchasable. The three IAPs
+> DO exist in ASC (created + priced + `READY_TO_SUBMIT` on 2026-07-07), so it is a later
+> `asc-push --iap --reprice`, not a blank slate. **Leave the $4.99 alone until then.**
 
 > ### The AUv3 panel's LAYOUT TOGGLE has never worked in GarageBand (pre-dates the context work)
 >

@@ -2,7 +2,7 @@
   "name":     "Tiny Acid Jam",
   "bundleId": "com.mipolai.tinyacidjam",
   "version":  "1.0",
-  "price":    "1.99",
+  "price":    "0",
   "orientation": "landscape",
   "icon":     "apps/tinyacidjam/icon.png",
   "carts":    ["acidcandy"],
@@ -23,5 +23,11 @@
     "marketingUrl":     "https://mipolai.com",
     "privacyPolicyUrl": "https://mipolai.com/makes/privacy.html",
     "copyright":        "2026 Nikki Koole"
+  },
+  "iap": {
+    "//": "ADR-0035: the app is FREE; one non-consumable Pro unlock buys the paths that carry audio OUT of the app (WAV export, MIDI in/out, the AUv3 extension). `unlocks` is EMPTY on purpose: it names CART slugs and Pro gates no rack, so build-app.js leaves the (only) rack free and finds no master pass.",
+    "products": [
+      { "id": "com.mipolai.tinyacidjam.pro", "price": "4.99", "name": "Tiny Acid Jam Pro", "desc": "WAV export, MIDI in/out, AUv3 plug-in.", "unlocks": [], "features": ["export", "midi", "auv3"] }
+    ]
   }
 }

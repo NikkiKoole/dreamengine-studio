@@ -188,15 +188,24 @@ a broken doc link or `#section`).
 > the seven answers now live in `apps/tinyacidjam/app.json` → `review.notes` (pushed by
 > `asc-push --review-contact`, which now REFUSES a notes body containing a placeholder — the previous
 > app's reply went out with a literal `[FILL IN …]` where the tested-devices answer belonged).
-> **▶ NEXT: nothing until Apple answers.** Then, before anything else, the PRICING MODEL CHANGE:
-> [ADR-0035](decisions/0035-free-with-one-pro-unlock.md) takes this app **free with one ~$9.99 "Pro"
-> unlock** (WAV export + MIDI in/out + AUv3). Deliberately NOT by cancelling this submission (that
-> costs a review round trip and the price needs no review at all): let v1.0 land at $1.99 with zero
-> sales, then flip the price (`"price": "0"` + `node tools/asc-push.js tinyacidjam --price`) and ship
-> Pro in 1.1. ⚠ **Two things in `apps/tinyacidjam/app.json` become WRONG the moment Pro exists**:
-> `review.notes` answer 4 tells Apple *"It is a one-time paid app with no in-app purchases"*, and the
-> notes must then also tell a reviewer how to exercise the paid feature. `pedalboard` goes first, so it
-> pays for the StoreKit + App Group entitlement work (see its lane).
+> **✅ APPROVED FOR DISTRIBUTION (maker, 2026-08-19)**, which spends the "let it land at $1.99" plan
+> below. **▶ NEXT: the PRICING MODEL CHANGE, and this app is now the EXPOSED one.**
+> [ADR-0035](decisions/0035-free-with-one-pro-unlock.md) + its **2026-08-19 Update** take it **free
+> with one $4.99 "Pro" unlock** (WAV export + MIDI in/out + AUv3). `apps/tinyacidjam/app.json`
+> already carries that: `"price": "0"` plus `com.mipolai.tinyacidjam.pro` at $4.99.
+> ⚠ **The store is UNCHANGED until somebody runs `node tools/asc-push.js tinyacidjam --price`, and
+> that is not a tidy-up job.** It belongs to the re-release, with the Pro build: flipping to Free
+> while the entitlement does not exist hands every downloader export + MIDI + AUv3 and makes the next
+> version a **feature takeaway**, which is the 1-star shape.
+> ⚠ **This is the only app a stranger can still buy**, so it is the only place the grandfathering
+> window is still open (one sale = writing `AppTransaction.originalAppVersion`). `pedalboard` was
+> removed from sale in all 175 territories on 2026-08-19 for exactly this reason; the recommendation
+> is to do the same here. Removing from sale keeps the record, bundle ID, URL and reviews, and coming
+> back needs no review (ADR-0035's decision 5 was corrected: only *delete-and-resubmit* is forbidden).
+> ⚠ **`review.notes` answer 4 still tells Apple *"It is a one-time paid app with no in-app
+> purchases"***. Left wrong ON PURPOSE (notes describe the build being submitted, and Pro does not
+> exist yet); the replacement paragraph is drafted in ADR-0035's Update, ready to paste.
+> `pedalboard` goes first, so it pays for the StoreKit + App Group entitlement work (see its lane).
 >
 > ⚠ **Three traps from getting there, each worth an hour to the next app.** (1) **ITMS-90473** after
 > the upload: the AU shipped `CFBundleVersion: 1` inside an app stamped with the build number, because
@@ -1569,18 +1578,27 @@ a broken doc link or `#section`).
 > ⚠ **A live version is FROZEN**: nothing in the listing is editable until `--new-version` creates the
 > next one, so a copy fix now costs a version bump. The engine seam it rides is the `input_monitor(gain)`
 > pedal tier that shipped 07-22, so real GUITAR IN → amp → pedals works on desktop.
-> 💰 **PRICING MODEL CHANGE PENDING (decided 2026-08-18, [ADR-0035](decisions/0035-free-with-one-pro-unlock.md)):
-> this app goes FREE with one ~$9.99 "Pro" unlock** (WAV export + MIDI in/out + AUv3), and it goes FIRST
-> because it is live with **zero sales** and nobody is watching. Two halves, and only the second needs a
-> build: (a) the price flip is `"price": "0"` in `apps/pedalboard/app.json` then
-> `node tools/asc-push.js pedalboard --price` (the tool documents `0 = Free`), **no binary, no review**;
-> (b) Pro itself is a StoreKit 2 non-consumable plus an **App Group entitlement the appex can read**,
-> because a host loads the plug-in without the container app ever launching (see
-> [`product-notes-followup.md`](design/product-notes-followup.md) §3). ⚠ Do the flip **while sales are
-> still zero**: a single sale means writing receipt-based grandfathering
-> (`AppTransaction.originalAppVersion`) so buyers keep Pro for free. And do NOT remove the app from sale
-> to do any of this: the listing, URL and bundle ID are worth keeping, and a re-submission is
-> guideline-4.3 bait. ⚠ **This lane now has a dependency on the `aumf` lane at the top of this file:**
+> 💰 **THE APP IS OFF SALE, AND COMES BACK FREE WITH A $4.99 "Pro" UNLOCK** (WAV export + MIDI in/out
+> + AUv3). Decided 2026-08-18, amended 2026-08-19:
+> [ADR-0035](decisions/0035-free-with-one-pro-unlock.md) + its Update.
+> **✅ REMOVED FROM SALE in all 175 territories (maker, 2026-08-19)** at $1.99 with zero sales. The
+> record, bundle ID, product page, URL, ratings and the approved binary all survive, and coming back
+> is re-selecting territories with **no review**. (ADR-0035's decision 5 said "never pull". That was
+> wrong, and the Update corrects it: only *deleting the record or resubmitting under a fresh bundle
+> ID* is 4.3 bait.)
+> **▶▶ WHY IT IS DARK RATHER THAN ALREADY FREE, and this is the thing not to undo:** flipping the
+> price to 0 before the entitlement exists hands every downloader export + MIDI + AUv3 with no wall,
+> so the version introducing Pro **takes three features away from people who have them**. That is
+> worse than a wall that was always there, and it is the 1-star shape. Off sale for the length of one
+> build costs nothing at zero installs. **Order: stay dark → build Pro → return Free with the wall
+> already in place.**
+> **What is left, and only (b) needs a build:** (a) the price flip is already staged in the manifest
+> (`"price": "0"` plus `com.mipolai.tinypedalboard.pro` at $4.99); running
+> `node tools/asc-push.js pedalboard --price` is **no binary and no review**, but do it **as part of
+> the re-release**, not before. (b) Pro itself is a StoreKit 2 non-consumable plus an **App Group
+> entitlement the appex can read**, because a host loads the plug-in without the container app ever
+> launching (see [`product-notes-followup.md`](design/product-notes-followup.md) §3).
+> ⚠ **This lane now has a dependency on the `aumf` lane at the top of this file:**
 > its open item 3 (`apps/pedalboard/app.json` sets no `auCart`, so the *shipping* app contains no
 > plug-in) is the Pro story's blocker, because AUv3 cannot be the headline paid feature of an app that
 > does not contain one. Pro can still ship on WAV export + MIDI alone; AUv3 joins when that item closes.
@@ -2010,7 +2028,7 @@ a broken doc link or `#section`).
 > + `finger_px()`) is still open and now rides the faces lane above. Scoreboard:
 > [`device-adaptive-layout.md` → Where this stands](design/device-adaptive-layout.md#where-this-stands).
 
-> **▶ ACTIVE THREAD (2026-08-18) — store / ASO + the app-trailer builder.**
+> **▶ ACTIVE THREAD (2026-08-19) — store / ASO + the app-trailer builder.**
 > **LATEST (2026-07-19) — Tiny Acid Jam is LIVE ON ASC as a draft (the FIRST standalone single).**
 > Per [`design/launch-sequence.md`](design/launch-sequence.md)'s single-first plan, `acidcandy` ships
 > as its own app **Tiny Acid Jam** *before* the Tiny Jam umbrella. Renamed this session from "Acid
@@ -2090,7 +2108,14 @@ a broken doc link or `#section`).
 > bundle-nested scheme **`com.mipolai.tinyjam.{acidrack,epiano,masterpass}`** (was `com.tinyjam.*`;
 > rebirth→acidrack) across `app.json` + `Store.swift`/`canvas.c`/`Tinyjam.storekit` + the two iOS
 > tests, and the `.storekit` was resynced to the manifest (dropped a phantom "funk", fixed the master
-> pass $19.99→$5.00) — **purchase flow re-verified on the iPhone 16 (18.4) sim**. **Resume at:** the
+> pass $19.99→$5.00) — **purchase flow re-verified on the iPhone 16 (18.4) sim**.
+> ⏸ **PRICES HERE ARE PARKED, do not tune them (maker's call, 2026-08-18,
+> [ADR-0035](decisions/0035-free-with-one-pro-unlock.md)).** The rack prices and the $4.99 master
+> pass now sit LEVEL with a **$4.99** per-app **Pro** unlock (export + MIDI + AUv3) that sounds
+> smaller than it is (ADR-0035's 2026-08-19 Update settled Pro at $4.99, not the $9.99 first assumed), and reconciling the two axes waits for a **trigger, not a date: about five music apps on the
+> App Store**, then all of it gets priced in one pass with the real catalog visible (standing at 2).
+> Safe to leave: the app was never submitted, so nothing was ever purchasable, and the products
+> already in ASC are repriceable later with `asc-push --iap --reprice`. **Resume at:** the
 > credentials are set up (Key `Z5DTR9TFW2`); next store moves are per-locale `metadata/<locale>/`
 > folders + an editor button for `asc-push`, then the maker-gated submission. Snapshot in
 > [`store-agents.md` → Pick-up point](design/store-agents.md#pick-up-point-next-session).

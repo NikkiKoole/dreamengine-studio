@@ -179,6 +179,45 @@ if (process.argv.includes('--selfcheck')) {
   const m = auditYml(mutated).filter(t => t.missing.length)
   ok(m.length >= 1, 'negative control: removing Entitlements.swift from an AU target FAILS the check')
 
+  // ── the CROSS-PLATFORM chain: does a purchase on one device reach the plug-in on another? ──
+  // docs/design/pro-unlock.md section 8. Two links are code and are asserted; the third is a
+  // developer-portal action nobody can check from here, so it is REPORTED rather than gated.
+  if (!quiet) console.log('\nthe cross-platform chain (buy on iPhone → plug-in on Mac)')
+  const ident = fs.readFileSync(path.join(ROOT, 'ios/au-identity.sh'), 'utf8')
+  // Universal Purchase keys on the bundle id being IDENTICAL across platforms. The dev carrier is
+  // deliberately suffixed; the STORE identity must be the manifest's bundleId untouched.
+  ok(/CARRIER_STORE_APP_ID="\$base"/.test(ident),
+     'the Mac STORE identity is the iOS bundle id unchanged (Universal Purchase needs that)')
+  ok(/CARRIER_APP_ID="\$base\.mac"/.test(ident),
+     'the local dev carrier stays suffixed, so it cannot be mistaken for the store app')
+  // NEGATIVE CONTROL for the pair above: if au-identity.sh stopped defining either, both regexes
+  // would simply not match and this section would go quiet rather than red.
+  ok(/CARRIER_APPEX_ID=/.test(ident), 'negative control: au-identity.sh still defines the carrier block at all')
+
+  // The App Group is the ONLY way an entitlement reaches an extension, and a missing declaration is
+  // silent: UserDefaults(suiteName:) hands back a usable suite with no entitlement, so everything
+  // works inside one process and nothing crosses the app/appex boundary. Report, do not gate: it is
+  // deliberately absent until the group is registered for automatic provisioning (re-adding it
+  // early blocks plain device signing), and pro-unlock.md section 8 owns the sequence.
+  const groupId = (/static let id = "([^"]+)"/.exec(
+    fs.readFileSync(path.join(ROOT, 'ios/Sources/AppGroup.swift'), 'utf8')) || [])[1]
+  // ⚠ match the DECLARATION, never the name: ios/project.yml mentions the group in a COMMENT
+  // recording why it was removed, and counting that as a declaration turns this into a check that
+  // reports "1 of 4 present" while the true answer is none.
+  const carriers = ['ios/project.yml', 'ios/project-mac.yml', 'ios/Mac.entitlements', 'ios/MacAU.entitlements']
+  const declares = f => {
+    try { return new RegExp('<string>\\s*' + groupId + '\\s*</string>|application-groups:').test(fs.readFileSync(path.join(ROOT, f), 'utf8')) }
+    catch { return false }
+  }
+  const withGroup = carriers.filter(declares)
+  ok(!!groupId, 'AppGroup.swift names a group id', String(groupId))
+  if (withGroup.length === 0 && !quiet) {
+    console.log(`  ⚠ ${groupId} is declared by NO built target (${carriers.length}/${carriers.length} missing).`)
+    console.log('    Not a failure yet — see docs/design/pro-unlock.md section 8: it waits on the group')
+    console.log('    being registered for automatic provisioning, and re-adding it early blocks device signing.')
+    console.log('    ⚠ Until then a purchase CANNOT reach the AUv3 on a signed build, on either platform.')
+  }
+
   // and the generator seam: a single-cart app must still get its app_pro.h (it used to be written
   // only inside `if (launcher)`, so pedalboard and tinyacidjam generated nothing at all)
   if (!quiet) console.log('\nthe generator seam (tools/build-app.js)')

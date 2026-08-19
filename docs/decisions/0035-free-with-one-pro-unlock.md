@@ -214,6 +214,29 @@ place.** The first stranger to see the app sees the finished model.
   it. Note it now sits *level* with a per-app Pro instead of below it, which is a different flavour
   of the same unresolved collision, and still not a reason to touch it early.
 
+### The AUv3 stays FULLY behind Pro (maker, 2026-08-19), and the try-before-buy argument is narrower than this ADR wrote it
+
+An outside review proposed the common freemium compromise: let the AUv3 load and make sound for
+free, and gate only saving its state in the host project, on the grounds that a locked plug-in makes
+the value invisible. It reads as a direct hit on this ADR's own headline reason for going free
+("AUv3 structurally needs try-before-buy"), and this ADR did contain that inconsistency.
+
+**Resolved the maker's way: the whole AUv3 is Pro.** The reasoning is that *the free standalone app
+already demonstrates the product*. You can play the instrument, hear every voice, ride every knob.
+What Pro sells is not the sound, it is **getting the sound into your rig**, and the AUv3 is the
+purest example of that: it is a workflow feature, not a demo of anything you have not already heard.
+Nobody buys Tiny Acid Jam's plug-in to find out what a 303 sounds like.
+
+So the try-before-buy argument still stands, just narrower than the Context above states it: **the
+free download is the demo, and the plug-in is the purchase.**
+
+⚠ **The exception is named in advance, because it will arrive.** This holds only for an app whose
+standalone form is a complete instrument. A future cart that is *only* meaningful inside a host
+rack — an effect with nothing to process on its own, a utility with no voice — has no standalone
+demo, and for that one the plug-in IS the product. Do not extend this ruling to it by default;
+re-decide when the first such app exists. (Today's `pedalboard` is not that case: it plays its own
+guitar and monitors live input, so the free app demonstrates the tone fully.)
+
 ### The review-notes sentence, drafted but NOT applied
 
 `apps/tinyacidjam/app.json`'s `review.notes` answer 4 still says *"It is a one-time paid app with no

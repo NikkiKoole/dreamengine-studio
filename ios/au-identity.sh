@@ -86,8 +86,30 @@ au_carrier_load() {
   # and (via PRODUCT_NAME) the app target's module name, so anything but alphanumerics has to go.
   CARRIER_SLUG="$(node -p "(require('$m').name||'$app').replace(/[^A-Za-z0-9]/g,'')")Mac"
   case "$CARRIER_SLUG" in [0-9]*|Mac) echo "✗ app name '$app' yields an unusable carrier name '$CARRIER_SLUG'"; return 1 ;; esac
+  # ⚠ TWO IDENTITIES, and picking the wrong one is permanent.
+  #
+  #   CARRIER_APP_ID (".mac")   = the LOCAL DEV CARRIER. On macOS the system only learns about an
+  #                               AUv3 when the app containing it is launched once, so mac.sh builds
+  #                               a throwaway app into ~/Applications purely to register the
+  #                               extension. It must NOT collide with the shipping app, hence .mac.
+  #
+  #   CARRIER_STORE_APP_ID      = the SHIPPING Mac app, and it is the iOS bundle id UNCHANGED.
+  #                               Apple's Universal Purchase is what makes one non-consumable cover
+  #                               iPhone, iPad and Mac, and it keys on the bundle id being THE SAME
+  #                               across platforms. Ship the Mac app as "$base.mac" and it is a
+  #                               separate App Store record needing a SECOND purchase — forever,
+  #                               because a shipped bundle id cannot be changed. That is the whole
+  #                               "buy Pro on my phone, use the plug-in in Live" story, and it turns
+  #                               on this one string. See docs/design/pro-unlock.md section 8.
+  #
+  # Nothing uses CARRIER_STORE_APP_ID yet: there is no Mac STORE pipeline (mac.sh is the dev loop,
+  # testflight.sh is iOS-only, and tools/mac-app.sh is the Developer ID route, which cannot do
+  # Universal Purchase or App Store IAP at all). It is defined here so the Mac store build is
+  # written against it instead of reaching for the dev carrier that happens to be sitting there.
   CARRIER_APP_ID="$base.mac"
   CARRIER_APPEX_ID="$base.mac.AU"
+  CARRIER_STORE_APP_ID="$base"
+  CARRIER_STORE_APPEX_ID="$base.AU"
   CARRIER_APP_PATH="$HOME/Applications/$CARRIER_SLUG.app"
   echo "▸ carrier: $CARRIER_SLUG.app  ·  $CARRIER_APP_ID  (extension $CARRIER_APPEX_ID)"
 }

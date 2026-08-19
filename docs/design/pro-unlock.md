@@ -155,6 +155,65 @@ it does not crash, it does not warn, it just gives the product away. So the rule
 > `tools/pro-check.js` is the only thing that can see whether it does. Run it after touching
 > `ios/project*.yml`, `runtime/pro.h`, `Store.swift`, or `build-app.js`'s IAP block.
 
+## 8. "I bought Pro on my iPhone — why is it not in Ableton Live?"
+
+The whole point of one purchase is that it travels. It does not travel by itself. Four links, and
+as of 2026-08-19 **three of them are broken**, each silently.
+
+| # | Link | State |
+|---|---|---|
+| 1 | **Universal Purchase**: one App Store record covering iOS + macOS, so one non-consumable is one purchase everywhere | ❌ the Mac carrier is a DIFFERENT bundle id |
+| 2 | **The App Group entitlement** actually present, on the app AND the extension, on BOTH platforms | ❌ declared by NO built target, on either platform |
+| 3 | **The group registered** for the team so automatic provisioning can sign it | ❌ never done (that is why link 2 was removed) |
+| 4 | **The host can load it**: Live has supported AUv3 since 11.3, Apple Silicon only, instruments and audio effects but NOT MIDI effects | ✅ nothing to do, but it bounds who can be sold to |
+
+**Link 1 — Universal Purchase needs the SAME bundle id.** `ios/au-identity.sh`'s `au_carrier_load`
+derives the Mac carrier as `CARRIER_APP_ID="$base.mac"`, so *Tiny Pedalboard* would ship as
+`com.mipolai.tinypedalboard.mac`: **a separate App Store record and a separate purchase**, forever,
+because a bundle id cannot be changed after it ships. That `.mac` suffix is right for what it was
+built for (a local dev carrier that exists only to register the extension with the system) and
+wrong for a store build. The two roles now have two constants, and `CARRIER_STORE_APP_ID` is the
+manifest's `bundleId` unchanged.
+⚠ **This also forces a distribution decision.** `tools/mac-app.sh` produces a Developer ID
+notarized `.app` outside the store, and that route **cannot do Universal Purchase or App Store IAP
+at all** — it would need its own licensing and its own entitlement bridge. "Buy on iPhone, works in
+Live" requires the **Mac App Store**.
+
+**Link 2 — the App Group is declared nowhere, so the entitlement cannot reach the plug-in.**
+`ios/project.yml` carries a comment recording that it was deliberately removed:
+
+> *the app-group entitlement is re-added once the group is registered for automatic provisioning.
+> It blocks plain device signing until then, and the AppGroup UserDefaults suite works without it.*
+
+That last clause is the trap. `UserDefaults(suiteName:)` returns a usable suite with no entitlement,
+so everything looks fine **inside one process** — which is exactly what a simulator spike tests. It
+is not a shared container, so it does not cross the app/appex boundary, which is the only thing an
+App Group is for. `ios/Mac.entitlements` and `ios/MacAU.entitlements` declare only the sandbox, and
+`ios/TinyjamHello.entitlements` (which does declare the group) is an **orphan referenced by no
+target and no spec**. `AppGroup.containerAvailable` was written to detect precisely this and is
+presumably nil everywhere; nothing calls it.
+
+The failure this produces is at least the safe direction: `AppGroup.isUnlocked` fails **closed**, so
+a Mac buyer is locked out rather than everyone being let in. But locked out is still the bug.
+
+**What only the maker can do**: register `group.com.tinyjam` for the team in the developer portal
+(and confirm the macOS naming rule — the `$(TeamIdentifierPrefix)` form is a known "works on iOS,
+nil on macOS" trap), then the entitlement goes back on four targets: iOS app, iOS appex, Mac app,
+Mac appex. It is deliberately NOT re-added here, because re-adding it before the portal step blocks
+plain device signing and would break the working dev loop.
+
+**Sequence, once the portal step is done**: entitlement back on all four targets → confirm
+`AppGroup.containerAvailable` is non-nil on a signed build of each → Mac carrier switched to
+`CARRIER_STORE_APP_ID` for the store build → Universal Purchase on the app record → buy on one
+device, restore on the other, and check the plug-in in Live rather than only in GarageBand.
+
+**One nuance on MIDI out in Live.** The known limitation is that an AU plug-in cannot route MIDI
+out in Live (that needs the VST version), and AUv3 MIDI effects are unsupported there. It may not
+apply to us: `runtime/midi_output.h` publishes a **CoreMIDI virtual source**, which a DAW sees as an
+ordinary MIDI input device rather than as a plug-in port. Unverified, and the open question is
+whether a sandboxed appex may create a virtual source at all. `tools/midi-check/` is
+macOS-desktop-only, so nothing covers it.
+
 ## See also
 [ADR-0035](../decisions/0035-free-with-one-pro-unlock.md) (the model) ·
 [`product-notes-followup.md`](product-notes-followup.md) §3, §7 ·

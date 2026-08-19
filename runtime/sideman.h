@@ -101,12 +101,9 @@
 //       BASS DRUM  F#2   92 Hz   TOM TOM II  C#3 139 Hz   TOM TOM I  F#3 185 Hz
 //
 //   the noise voices (brush, maracas, cymbal)
-//     Bandpassed noise under an RC contour. The brush has a SOFT front (a swirl, not
-//     a hit: 27 ms to peak, the only voice in the box that does not start at once) and
-//     is the only TWO-LAYER voice here, because a swirl is a brush TRAVELLING and one
-//     cutoff contour cannot travel. MEASURED, its band walks 1812 -> 2283 -> 855 ->
-//     1210 Hz across one stroke, 1700 cents of travel, where the single-contour version
-//     wandered inside 900 cents with no time order at all (see the build notes).
+//     Bandpassed noise under an RC contour, except for the brush, which is a drum:
+//     see the note below, because it took three listens and it is the only voice here
+//     whose shape was chosen by ear rather than derived.
 //     The maracas is the shortest burst in the box (-40 dB in 24 ms, under even the
 //     claves), and the cymbal is thin and splashy rather than metallic - 296 ms to
 //     -40 dB, deliberately SHORT: at 494 ms it was a modern crash, and this cymbal is
@@ -118,6 +115,36 @@
 //     so it is not dominant) while its partials stand 14..25 dB above the local noise
 //     floor (so it is plainly audible). Raising it to volume 3 buys 4 dB more
 //     prominence and turns the cymbal into a gong.
+//
+// ── the BRUSH is the snare, and it was chosen by ear ──────────────────────────
+// The other nine voices were derived from their circuits and passed a listen first
+// time. The brush took three rounds, and what it cost is worth more than the voice:
+//
+//   ROUND 1, a filtered-noise swirl: "sounds like a woosh." The numbers agreed and
+//     said why — its mid band sat 11.8 dB ABOVE both its ends, so it lived in the
+//     nasal region that reads as filtered noise. FIX, confirmed by ear and kept: split
+//     the spectrum, a low head body and a high wire fizz, middle scooped.
+//   ROUND 2, three granular textures: "the other 3 sound very similar." A NULL on a
+//     measured 2x spread of envelope modulation, with a sharp response knee and a
+//     30 dB shape discriminator. Every number was right and none of it reached his
+//     ear, because all three shared one 375 ms gesture with a 63..89 ms attack and
+//     gesture dominated. The grain is FROZEN at what he heard and is not an axis.
+//   ROUND 3, four body-to-tail structures: he picked the SHORTEST and simplest one.
+//     "fizzles out a bit more" meant dies away SOONER, not sizzles on longer.
+//
+// Twice now the measurement's favourite and the ear's favourite were different, and
+// BOTH times the ear preferred the shorter, simpler gesture. That is the pattern to
+// carry into the next voice: measure to make candidates DIFFERENT and level-matched,
+// and let the ear choose between them.
+//
+// So the brush is a JAZZ SNARE PLAYED WITH BRUSHES in three layers — a quiet tonal
+// SHELL at two pitches, a short noise HEAD with a definite 8 ms front, and the WIRES
+// sizzling under it on their own longer decay. It is the machine's only snare, which
+// is why the rattle is central. MEASURED: 5 ms to peak, -40 dB at 275 ms, and a decay
+// that BENDS at 1.99 (the late slope over the early one, which is 1.0 for a single
+// exponential — a snare is two decays, a drag is not).
+// The numbers are the approved ones and the promotion out of tools/carts/smprobe.c is
+// asserted BYTE-IDENTICAL against the probe's own copy. Re-tune only after a listen.
 //
 // ── what this header deliberately does NOT own: the box ───────────────────────
 // The Side Man had no speaker. It fed the ORGAN's amplifier and came out of a wooden
@@ -131,7 +158,7 @@
 // with the cabinet IN, not the bank on a bench. MEASURED through tools/carts/sideman.c
 // (the organ cabinet pinned from outboard.h), all twelve rhythms, 0 clipped samples in
 // any of them:
-//   the default rhythm (FOXTROT 4 BEAT)  -6.8 dBFS peak     the A/B number
+//   the default rhythm (FOXTROT 4 BEAT)  -6.4 dBFS peak     the A/B number
 //   the loudest PEAK  (MARCH)            -4.3 dBFS          4.3 dB of room left
 //   the loudest RMS   (SAMBA)           -19.6 dBFS rms      the densest, crest 13.2 dB
 //   the quietest      (FOXTROT 2 BEAT)  -10.4 dBFS peak
@@ -176,17 +203,19 @@ enum { SMS_BASS, SMS_TOM1, SMS_TOM2, SMS_WOOD, SMS_TEMP1, SMS_TEMP2,
        SMS_CLAVES, SMS_BRUSH, SMS_MARACAS, SMS_CYMBAL,
        SMS_CLICK,      // the shared contact-pulse click: the front of a struck block
        SMS_CYMT,       // the cymbal's thin metallic layer (detuned squares)
-       SMS_BRUSHT };   // the brush's WIRE-TIP layer, a brighter band arriving late
-#define SIDEMAN_NSLOT 13
+       SMS_BRUSHT,     // the brush's WIRE layer: the snare-wire sizzle under the head
+       SMS_SHELL };    // the brush's tonal SHELL: the drum the wires are strung under
+#define SIDEMAN_NSLOT 14
 #define SIDEMAN_BASE   9
 
 // ── the voice table ───────────────────────────────────────────────────────────
 // midi = the resonant network's pitch, dur = how long the gate holds (the ring is
 // governed by the slot's own decay, so dur only needs to outlast it), and `level` is
 // where ALL the balance lives (measured solo peaks, see the doc).
-// vol is 7 for every voice, which is the note velocity pinned at the top, and that is
-// not laziness: a spinning disc closes a contact the SAME WAY every time, so there is
-// no accent and no velocity anywhere in this machine. Two consequences, both real:
+// vol is 7 for every voice except the brush (6, which is the level the owner approved),
+// which is the note velocity pinned at or near the top, and that is not laziness: a
+// spinning disc closes a contact the SAME WAY every time, so there is no accent and no
+// velocity anywhere in this machine. Two consequences, both real:
 //   - `boost` in sideman_fire is a DOWN-ONLY trim. A positive boost clamps to 7 and
 //     does nothing. The cart passes 0 always, which is correct for the Side Man; a cart
 //     playing this bank from a KEYBED wants negative boosts, or its own `level` ride.
@@ -216,7 +245,7 @@ static const SmVoice SIDEMAN_V[SM_NV] = {
     /* TEMP I  */ { 83, 7,  95, 0.93f, 0.90f, 4 },   // B5   988 Hz, hollow
     /* TEMP II */ { 78, 7, 120, 0.92f, 0.95f, 4 },   // F#5  740 Hz, hollowest, a fourth down
     /* CLAVES  */ { 97, 7,  45, 1.00f, 0.60f, 6 },   // C#7 2217 Hz, hardest and driest
-    /* BRUSH   */ { 72, 7, 190, 0.96f, 0.50f, 0 },   // soft swirl, no front
+    /* BRUSH   */ { 72, 6, 110, 0.80f, 0.50f, 0 },   // the brushed snare: head body
     /* MARACAS */ { 84, 7,  40, 0.70f, 0.50f, 0 },   // shortest burst in the box
     /* CYMBAL  */ { 90, 7, 380, 0.89f, 0.40f, 0 },   // thin and splashy
 };
@@ -278,14 +307,19 @@ static const SmVoice SIDEMAN_V[SM_NV] = {
 // measures ~200.
 #define SIDEMAN_BASS_TUCK 5.0f
 #define SIDEMAN_TOM_TUCK  3.5f
-// The brush's WIRE-TIP layer: how loud, and how far behind the body it arrives.
-// A swirl is a brush TRAVELLING, so the top of it is late and dies first.
-#define SIDEMAN_BRUSH_TOP_VOL 4
-#define SIDEMAN_BRUSH_TOP_MS  12
-// How far the body's band travels: ENGAGE opens it as the wires bite, LEAVE pulls it
-// back DOWN PAST its resting point as the brush goes. Both in Hz, LEAVE negative.
-#define SIDEMAN_BRUSH_ENGAGE 1650.0f
-#define SIDEMAN_BRUSH_LEAVE  -450.0f
+// ── the BRUSH's three layers ─────────────────────────────────────────────────
+// Chosen by ear out of a four-way A/B (see the brush note above). These numbers are
+// the ones the owner approved, and they are a MOVE from tools/carts/smprobe.c rather
+// than an edit: the probe still carries the same recipe and the promotion is asserted
+// byte-identical against it. Do not re-tune them without another listen.
+#define SIDEMAN_SHELL_LO   54    // F#3, the toms' own tuning
+#define SIDEMAN_SHELL_HI   61    // C#4, a fourth up: the house two-pitch shell
+#define SIDEMAN_SHELL_VOL   3    // deliberately quiet: it says "drum", it is not the sound
+#define SIDEMAN_SHELL_GATE 110
+#define SIDEMAN_WIRE_GATE  320   // the wires outlast the head, which is the whole point
+#define SIDEMAN_WIRE_MS      2   // the wires arrive 2 ms behind the stick
+#define SIDEMAN_WIRE_RATE  260.0f  // the grain: FROZEN at the value he heard
+#define SIDEMAN_WIRE_DEPTH   0.75f
 
 static void sideman_build(int base) {
     // BASS DRUM — a low damped sine with a SMALL tuck (measured 119 cents, settled in
@@ -326,27 +360,35 @@ static void sideman_build(int base) {
     instrument(base + SMS_CLICK, INSTR_NOISE, 0, 5, 0, 3);
     instrument_filter(base + SMS_CLICK, FILTER_BAND, SIDEMAN_CLICK_HZ, 2);
 
-    // BRUSH — a swirl, not a hit: the one voice in the box with a SOFT front, so it
-    // gets the only slow amp attack in the bank. It is also the only voice built from
-    // TWO layers, because a swirl is a brush TRAVELLING across a head and one cutoff
-    // contour cannot travel: a single rising-then-falling envelope can only return to
-    // where it started. Judge this voice on a centroid TRACE, never on one number.
+    // BRUSH — a JAZZ SNARE PLAYED WITH BRUSHES, in three layers. This machine has no
+    // snare voice at all and the brush carries the backbeat in five of the twelve
+    // rhythms, so the wire rattle is central rather than decorative.
     //
-    // The body: a low band with TWO cutoff envelopes, which SUM (sound.h adds each
-    // env's contribution into the same cutoff). Env 0 opens it as the wires engage,
-    // env 1 arrives later and pulls it DOWN PAST its resting point as the brush
-    // leaves. That last part is the bit one contour cannot do.
-    instrument(base + SMS_BRUSH, INSTR_NOISE, 26, 155, 0, 60);
-    instrument_filter(base + SMS_BRUSH, FILTER_BAND, 1150, SIDEMAN_NOISE_RES - 2);
-    instrument_env(base + SMS_BRUSH, 0, ENV_CUTOFF, 30,  70, SIDEMAN_BRUSH_ENGAGE);
-    instrument_env(base + SMS_BRUSH, 1, ENV_CUTOFF, 85, 140, SIDEMAN_BRUSH_LEAVE);
+    // The HEAD: a short noise body with a soft but DEFINITE 8 ms front. Not a drag —
+    // an 80 ms attack was tried and rejected by ear (see the brush note above).
+    instrument(base + SMS_BRUSH, INSTR_NOISE, 8, 85, 0, 30);
+    instrument_filter(base + SMS_BRUSH, FILTER_BAND, 1400, 7);
+    // ⚠ this slot used to carry two cutoff envelopes and instrument() does NOT clear
+    // them, so they are switched off by amount (0 = off, and identical to never set).
+    instrument_env(base + SMS_BRUSH, 0, ENV_CUTOFF, 0, 0, 0.0f);
+    instrument_env(base + SMS_BRUSH, 1, ENV_CUTOFF, 0, 0, 0.0f);
 
-    // The wire TIPS: a brighter, narrower band that arrives SIDEMAN_BRUSH_TOP_MS after
-    // the body and dies first, with its own contour running the other way (the tips
-    // start bright and lose speed). Same trick as cr78's two-layer snare.
-    instrument(base + SMS_BRUSHT, INSTR_NOISE, 16, 95, 0, 40);
-    instrument_filter(base + SMS_BRUSHT, FILTER_BAND, 3100, SIDEMAN_NOISE_RES - 1);
-    instrument_env(base + SMS_BRUSHT, 0, ENV_CUTOFF, 18, 90, -1250.0f);
+    // The WIRES: the snare wires sizzling under the head, on their OWN longer decay
+    // (280 ms against the head's 85) at a much lower level. Two different decays is
+    // what makes a snare rather than one noise burst. The grain is the granular wire
+    // texture, frozen at the setting the owner heard.
+    instrument(base + SMS_BRUSHT, INSTR_NOISE, 4, 280, 0, 100);
+    instrument_filter(base + SMS_BRUSHT, FILTER_BAND, 4600, 12);
+    instrument_env(base + SMS_BRUSHT, 0, ENV_CUTOFF, 0, 0, 0.0f);   // same stale-env guard
+    instrument_lfo(base + SMS_BRUSHT, 0, LFO_VOLUME, SIDEMAN_WIRE_RATE, SIDEMAN_WIRE_DEPTH);
+    lfo_shape(base + SMS_BRUSHT, 0, LFO_SHAPE_SH);
+
+    // The SHELL: a quiet tonal head at two pitches, in the bank's own F#. This is what
+    // makes an ear hear a DRUM rather than a burst of noise, and it is the house
+    // recipe's tonal half (cr78 / tr808.h / tr909.h all pair a shell with a rattle).
+    instrument(base + SMS_SHELL, INSTR_SINE, 2, 95, 0, 30);
+    instrument_filter(base + SMS_SHELL, FILTER_LOW, 1100, 1);
+    instrument_env(base + SMS_SHELL, 0, ENV_PITCH, 0, 18, 3.0f);
 
     // MARACAS — the shortest burst in the box, in a narrow band up top. A BAND and
     // not a highpass: highpassed white noise is a digital hiss reaching 19 kHz, and
@@ -371,10 +413,12 @@ static void sideman_build(int base) {
     }
     instrument_drive(base + SMS_CLICK,  SIDEMAN_TUBE * 0.40f);  // noise + saturation = mush
     instrument_drive(base + SMS_CYMT,   SIDEMAN_TUBE * 0.70f);
-    instrument_drive(base + SMS_BRUSHT, SIDEMAN_TUBE * 0.45f);
+    instrument_drive(base + SMS_BRUSHT, SIDEMAN_TUBE * 0.50f);   // the brush's own tube amount
+    instrument_drive(base + SMS_SHELL,  SIDEMAN_TUBE * 0.50f);
     instrument_level(base + SMS_CLICK,  SIDEMAN_TRIM * 1.00f * SIDEMAN_CLICK_GAIN);
     instrument_level(base + SMS_CYMT,   SIDEMAN_TRIM * 0.54f);
-    instrument_level(base + SMS_BRUSHT, SIDEMAN_TRIM * 0.78f);
+    instrument_level(base + SMS_BRUSHT, SIDEMAN_TRIM * 0.34f);
+    instrument_level(base + SMS_SHELL,  SIDEMAN_TRIM * 0.55f);
 }
 
 static int sideman__vv(int base, int boost) {
@@ -387,12 +431,22 @@ static void sideman_fire(int base, int v, int boost, int delay) {
     if (v < 0 || v >= SM_NV) return;
     const SmVoice *s = &SIDEMAN_V[v];
     int slot = base + SMS_BASS + v;          // roles 0..9 map 1:1 onto SMS_BASS..SMS_CYMBAL
+    if (v == SM_BRUSH) {
+        // ⚠ THE ORDER OF THESE FOUR IS PART OF THE SOUND. The engine seeds each note's
+        // sample-and-hold generator from a global counter, so shuffling the layers
+        // re-rolls the wire grain and the voice stops being the one that was approved.
+        schedule_hit(delay, SIDEMAN_SHELL_LO, base + SMS_SHELL,
+                     sideman__vv(SIDEMAN_SHELL_VOL, boost), SIDEMAN_SHELL_GATE);
+        schedule_hit(delay, SIDEMAN_SHELL_HI, base + SMS_SHELL,
+                     sideman__vv(SIDEMAN_SHELL_VOL - 1, boost), SIDEMAN_SHELL_GATE);
+        schedule_hit(delay, s->midi, slot, sideman__vv(s->vol, boost), s->dur);
+        schedule_hit(delay + SIDEMAN_WIRE_MS, s->midi, base + SMS_BRUSHT,
+                     sideman__vv(s->vol, boost), SIDEMAN_WIRE_GATE);
+        return;
+    }
     schedule_hit(delay, s->midi, slot, sideman__vv(s->vol, boost), s->dur);
     if (s->click > 0)                        // the contact pulse on the front of a block
         schedule_hit(delay, 96, base + SMS_CLICK, sideman__vv(s->click, boost), 8);
-    if (v == SM_BRUSH)                       // the wire tips, arriving late
-        schedule_hit(delay + SIDEMAN_BRUSH_TOP_MS, 72, base + SMS_BRUSHT,
-                     sideman__vv(SIDEMAN_BRUSH_TOP_VOL, boost), 130);
     if (v == SM_CYMBAL) {                    // the thin metallic layer, a tritone apart
         schedule_hit(delay, 91, base + SMS_CYMT, sideman__vv(SIDEMAN_CYMT_VOL, boost), 220);
         schedule_hit(delay, 97, base + SMS_CYMT, sideman__vv(SIDEMAN_CYMT_VOL, boost), 220);

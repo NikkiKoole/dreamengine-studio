@@ -171,17 +171,20 @@ over 3..15 s (the default row also carries the 7-second boot render, which is th
 | BOLERO | -6.28 | -24.74 | 18.5 | 0 |
 | CHA CHA | -5.16 | -23.62 | 18.5 | 0 |
 | FOXTROT 2 BEAT | -10.42 | -25.53 | 15.1 | 0 |
-| **FOXTROT 4 BEAT** (default) | **-6.55** (-6.75 over 7 s) | -21.92 | 15.4 | 0 |
-| MARCH | **-4.27** | -23.63 | 19.4 | 0 |
-| RHUMBA | -5.18 | -23.02 | 17.8 | 0 |
-| SAMBA | -6.41 | **-19.58** | 13.2 | 0 |
-| SHUFFLE | -7.51 | -23.97 | 16.5 | 0 |
-| TANGO | -7.13 | -20.41 | 13.3 | 0 |
-| WALTZ | -7.88 | -23.86 | 16.0 | 0 |
-| WESTERN | -9.95 | -24.08 | 14.1 | 0 |
+| **FOXTROT 4 BEAT** (default) | **-6.42** (-6.42 over 7 s) | -22.00 | 15.6 | 0 |
+| MARCH | **-4.25** | -24.20 | 20.0 | 0 |
+| RHUMBA | -5.21 | -23.03 | 17.8 | 0 |
+| SAMBA | -6.33 | **-19.61** | 13.3 | 0 |
+| SHUFFLE | -7.45 | -24.70 | 17.3 | 0 |
+| TANGO | -7.13 | -20.42 | 13.3 | 0 |
+| WALTZ | -8.33 | -24.22 | 15.9 | 0 |
+| WESTERN | -9.63 | -24.32 | 14.7 | 0 |
 
-Default at **-6.75 dBFS**, 3.9 dB under `cr78`; loudest rhythm **-4.27 dBFS**, so the outboard chain
-keeps 4.3 dB; nothing clips anywhere.
+Default at **-6.42 dBFS**, 3.6 dB under `cr78`; loudest rhythm **-4.25 dBFS**, so the outboard chain
+keeps 4.3 dB; **0 clipped samples across all twelve**. Re-verified after the brush promotion, which
+moves more of the dial than any other change here: the brush carries the backbeat in six of the twelve
+(FOXTROT 2 and 4, MARCH, SHUFFLE, WALTZ, WESTERN). Those six all came down slightly in RMS, as a
+285 ms voice replacing a 380 ms one should.
 
 Three findings from getting there, each of which changes how you would do it again:
 
@@ -259,7 +262,82 @@ and is not an axis. Do not sweep it again.
 The general lesson, which is cheap to state and expensive to learn: when a listener says two things
 sound the same, the differing parameter is not the problem, and the shared structure is where to look.
 
-### Round 3 (the current probe): a brushed jazz snare
+### Round 3: a brushed jazz snare, and he picked the shortest one
+
+**Verbatim: "i think i like 2."** Candidate 2 wins: the tight one, 285 ms, body-dominant,
+bend 1.99. It is the candidate this doc predicted would lose, put in the set only to bound the axis,
+and it paid for itself: **"fizzles out a bit more" meant dies away SOONER, not sizzles on longer.**
+
+That is the second time on this voice that the measurement's favourite and the ear's favourite were
+different, and **both times the ear preferred the shorter, simpler gesture** (round two's null was
+three variants of one long drag; round three's winner is the shortest of four). It is a pattern worth
+carrying into the next voice: use measurement to make candidates *different* and *level-matched*, and
+let the ear choose between them.
+
+### The promotion, asserted rather than intended
+
+The winner moved into `runtime/sideman.h` as a **move, not an edit**: nothing re-tuned, re-balanced or
+"fixed" on the way in. That is checked rather than promised. `tools/carts/smprobe.c` keeps a verbatim
+copy of the recipe behind a `BRUSH_VERIFY` switch, and `ab-render.js` flipping it renders the shipped
+voice against the probe's copy:
+
+```
+  BRUSH_VERIFY      sha           peak dBFS  bright   centroid
+  0                 9ee951f14e85  -0.3       0.152    6980 Hz
+  1                 9ee951f14e85  -0.3       0.152    6980 Hz
+  ⚠  ALL variants rendered BYTE-IDENTICAL audio.
+```
+
+**Byte-identical over the whole 25-second render.** `ab-render`'s warning exists to catch a flag that
+never reached the DSP; here it *is* the assertion passing, which is the one case where that shout is
+the good outcome.
+
+Two things promotion legitimately required. `SIDEMAN_NSLOT` grew 13 → 14 (appended `SMS_SHELL`; the
+head reuses `SMS_BRUSH` and the wires `SMS_BRUSHT`, so `sideman_slot()` still names the head for the
+cart's plate send, and `sideman`'s own `spec()` passes 1647/1647). And **`instrument()` does not clear
+a slot's mod-envelopes**, so reusing `SMS_BRUSH`/`SMS_BRUSHT` meant explicitly switching the old
+cutoff envelopes off by amount — without that the promotion would not have been byte-identical, and
+the header carries a `⚠` at that line.
+
+Two ordering hazards that are now written into the code. The four layer hits must fire in the order
+shell-lo, shell-hi, head, wires, because the engine seeds each note's sample-and-hold generator from a
+**global counter**, so shuffling the layers re-rolls the wire grain and the voice stops being the one
+that was approved.
+
+### The other nine voices: what byte-identity can and cannot mean here
+
+The seven **tonal** voices (bass, both toms, all four wooden) render **byte-identical** to commit
+`a117ff56`, every column of every measurement matching to the last decimal.
+
+The two **noise** voices do not, and the reason is an engine fact worth knowing:
+
+```c
+for (int i = 0; i < SOUND_VOICES; i++) { voices[i].noise_state = 12345 + i; ... }
+```
+
+`noise_state` lives **per voice-pool slot** and is never reset at note-on, so a noise voice's exact
+waveform is a function of which pool slot it lands on and how many samples that slot has already
+generated. The promoted brush allocates 3 slots / 4 notes where the old one used 2 / 2, so every
+noise note after it lands differently and gets a **different realisation of the same noise process**.
+That is why the seven voices *before* the brush in the bench are bit-exact and everything after it
+(maracas, cymbal, and the wooden family's noise click layer) is not.
+
+So byte-identity is not an achievable standard downstream of any change in note count, and it was
+never protecting anything real for those voices: their noise realisation was already arbitrary. What
+is checkable, and checks out:
+
+| | peak | -20 dB | -40 dB | band peak | centroid | in band |
+|---|---|---|---|---|---|---|
+| MARACAS before | -22.1 | 22 | 24 | 4068 | 5172 | 78% |
+| MARACAS after | -21.3 | 22 | 24 | 4068 | 5261 | 74% |
+| CYMBAL before | -18.2 | 259 | 296 | 4838 | 5945 | 67% |
+| CYMBAL after | -17.6 | 256 | 295 | 4567 | 6033 | 64% |
+
+Decays within 3 ms, band peak within 6%, centroid within 1.5%, peak within 0.8 dB. And the isolating
+control is the promotion A/B above: with the note count held equal, the **entire** render including
+those voices is bit-exact, which pins the difference on the RNG stream and nothing else.
+
+### Round 3 detail: the four candidates as measured
 
 *"i am more looking like a noise snare thing that fizzles out a bit more a jazzy snare?"* That kills
 the "brushing means a sustained drag" inference behind round two and gives three structural
@@ -305,7 +383,12 @@ filtered random walk: just as irregular, but continuous) both because it halved 
 contribution and because it is the right physics for many wires settling. If a grainy candidate wins
 and crackles, that is the one-line fix for the others.
 
-## The brush's first fix: a band that travels
+## Historical: the brush's first fix, a band that travels
+
+Kept because the reasoning is sound and the result was rejected: this is the round-one repair that
+produced the voice round two then failed to improve. It is also the clearest example in this document
+of a measurement being right and irrelevant.
+
 
 The first pass gave the brush the right envelope and the wrong motion. It is the only soft-front
 voice in the box and five of the twelve rhythms lean on it for the backbeat (FOXTROT, MARCH, SHUFFLE,
@@ -353,6 +436,30 @@ adds **0.27 dB to the cymbal's RMS** (about 6% of its energy) while its partials
 above the local noise floor. Same two numbers as before the change, one for "not dominant" and one
 for "plainly audible".
 
+## The shell axis: the lever never swept
+
+With the winner shipped, the probe's keys 2-4 now carry the one thing never varied: **how present the
+tonal shell is**, which is the difference between "noise with a tail" and "a drum being brushed". Key 1
+is the shipped voice, so a future listen is one keystroke away and this is optional polish rather than
+another search.
+
+The axis is the shell-to-**noise** ratio, not the shell's level, and that distinction is what makes the
+A/B fair. Raising the shell alone made the variants 3.3 to 9.4 dB louder, and round two's lesson says
+loudness is what would get heard instead of the shell. So each variant gets its own head and wires
+scaled DOWN, plus a measured makeup gain, and all four end up the same loudness:
+
+| | shell vs noise | solo peak | solo rms | 185 Hz prom | 277 Hz prom | 150-350 Hz share | groove rms |
+|---|---|---|---|---|---|---|---|
+| **1 SHIPPED** | as it ships | -16.0 | -34.0 | 31 | 27 | **41%** | -24.08 |
+| **2 SHELL+** | +4 dB | -16.6 | -34.1 | 31 | 30 | **63%** | -24.08 |
+| **3 SHELL++** | +8 dB | -17.0 | -34.0 | 33 | 33 | **79%** | -24.12 |
+| **4 RING** | +8 dB, shell decay 95 → 190 ms | -20.3 | -35.3 | 37 | 36 | **91%** | -24.12 |
+
+Solo RMS within 1.3 dB, groove RMS within **0.04 dB** and groove peak within 0.34 dB, so loudness is
+held and the low-band share is the variable: 41% → 63% → 79% → 91% of the voice being the drum pitch
+rather than the noise. Candidate 4's solo peak sits 4.3 dB low because more of its energy is in the
+sustained shell than in the noise transient; inside the groove that difference is 0.34 dB.
+
 ## What is still open
 
 - **The bank has no upward headroom left.** It sits at the top of the per-slot gain range to reach
@@ -364,9 +471,11 @@ for "plainly audible".
 - **The maracas is the least in-band voice** at 22% of its energy over 6 kHz, and the cymbal at 33%.
   A 2-pole bandpass cannot do better without turning noise into a whistle; a steeper per-slot filter
   or a second cascaded band would.
-- **The brush is waiting on a third listen.** Four candidates are baked into `smprobe`, spanning the
-  body-to-tail axis; the shipped recipe stays in place until one is picked. `LFO_SHAPE_RANDOM` on the
-  wire layers is the one-line fix if a grainy one wins and crackles.
+- **The brush is CHOSEN and shipped**, and the open question is only whether its tonal shell should be
+  more present (the table above). If the shipped one wins that listen, the voice is done.
+- **`LFO_SHAPE_RANDOM` on the wire layer** is the one-line fix if anyone reports crackle: the
+  sample-and-hold grain measures 4 samples over 6x and none over 8x on the splice oracle with onsets
+  masked, against a grain-off control of exactly zero.
 - **We have no measurement that predicts this voice.** Round two's grain numbers were correct and
   perceptually dead, so for the brush specifically the numbers are now used to make the candidates
   DIFFERENT and level-matched, and the choice between them is entirely the ear's. Weight bets toward

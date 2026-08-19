@@ -119,8 +119,8 @@ de:meta */
 #define GROOVE_N  64
 #define GROOVE_STEP 6
 
-// the brush A/B sections. Candidate 4's tail runs ~950 ms, so the solo spacing is
-// 1.5s and the measurement windows below are that far apart.
+// the brush A/B sections. The winner's tail runs ~285 ms, the RING variant's shell
+// ~260 ms, so 1.5s of solo spacing leaves every tail room to finish.
 #define CAND_F0    1380
 #define CAND_STEP  90
 #define CGROOVE_F  1800
@@ -130,87 +130,64 @@ de:meta */
 
 // ── candidate slots, all above the bank ───────────────────────────────────
 #define CB (SIDEMAN_BASE + SIDEMAN_NSLOT)
-enum { SP_CLO, SP_CHI,          // 1  round two's C, the control
-       SP_SHELL,                // shared: the quiet tonal head under 2/3/4
-       SP_2BOD, SP_2WIR,        // 2  TAP     body-dominant, tight tail
-       SP_3BOD, SP_3WIR,        // 3  SIZZLE  short body, long bright tail
-       SP_4BOD, SP_4WIR, SP_4SIZ,   // 4  TRAIL  two-stage tail that bends
+enum { SP_V2SHELL, SP_V2BOD, SP_V2WIR,     // the PROMOTION PROOF: round three's
+                                           // candidate 2 verbatim, in the probe's own
+                                           // slots, so it can be diffed against the
+                                           // shipped voice under identical conditions
+       // the shell variants each get their OWN body and wires, not the bank's, so the
+       // whole voice can be brought back down as the shell comes up. Otherwise the
+       // shell just makes it LOUDER, and round two proved that is what gets heard.
+       SP_S2SH, SP_S2BOD, SP_S2WIR,
+       SP_S3SH, SP_S3BOD, SP_S3WIR,
+       SP_S4SH, SP_S4BOD, SP_S4WIR,
        SP_NSLOT };
 
-// ── candidate 1: round two's C, kept verbatim as the control ──────────────
-#define BR_LO_HZ    330          // the head's low body
-#define BR_HI_HZ   4600          // the wire tips scraping
-#define BR_LO_RES     5          // LOW on the body: noise, not a tone
-#define BR_HI_RES    12          // more on the fizz, for the 6 kHz BAND LIMIT
-#define BR_LO_A      70
-#define BR_LO_D      90
-#define BR_LO_S       4
-#define BR_LO_R     170
-#define BR_HI_A      45
-#define BR_HI_D     110
-#define BR_HI_S       3
-#define BR_HI_R     130
-#define BR_LO_GATE  220
-#define BR_HI_GATE  140
-#define BR_HI_DRIFT -1400.0f
+// ── the winner, verbatim, for the byte-identity proof ─────────────────────
+// These are the numbers as the owner heard them. sideman.h now carries the same set;
+// BRUSH_VERIFY swaps which of the two the timeline plays, and ab-render.js flipping it
+// must produce a BYTE-IDENTICAL window or the promotion changed something.
+#define BRUSH_VERIFY 0
+#define V2_BOD_A     8
+#define V2_BOD_D    85
+#define V2_BOD_R    30
+#define V2_BOD_HZ 1400
+#define V2_BOD_RES   7
+#define V2_WIR_A     4
+#define V2_WIR_D   280
+#define V2_WIR_R   100
+#define V2_WIR_HZ 4600
+#define V2_WIR_RES  12
+#define V2_GR_RATE 260.0f        // the grain, FROZEN (round two: a null on three settings)
+#define V2_GR_DEP    0.75f
+#define V2_SHELL_LO  54
+#define V2_SHELL_HI  61
+#define V2_SHELL_VOL  3
 
-// ── the GRAIN, now FIXED (round two: three settings, indistinguishable) ───
-// A master multiplier so ab-render.js can still render any candidate with its
-// modulator off, which is the only honest grain measurement: band-limited noise
-// has its own envelope roughness, so candidates cannot be compared to each other.
-#define BR_GRAIN_ON 1.0f
-#define BR_GR_LO_RATE 156.0f
-#define BR_GR_HI_RATE 260.0f
-#define BR_GR_LO_DEP    0.45f
-#define BR_GR_HI_DEP    0.75f
+// ── the one lever never swept: how present the tonal SHELL is ─────────────
+// The shell is the difference between "noise with a tail" and "a drum being brushed".
+// The shipped voice keeps it deliberately quiet (vol 3, level 0.55). These three are
+// structural steps up from that, not nudges, because round two proved nudges are
+// inaudible on this voice. The body and the wires come from the SHIPPED bank slots in
+// all three, so the shell is genuinely the only variable.
+// The axis is the shell-to-NOISE ratio, expressed by holding the shell where it ships
+// and pulling the noise DOWN, then a per-variant makeup so all four end up the same
+// loudness. MAKEUP is measured, not guessed (see the doc's table).
+#define SH_LEVEL    0.55f        // the shipped shell level, unchanged in all three
+#define SH2_NOISE   0.63f        // -4 dB of noise  = the shell +4 dB relative
+#define SH2_MAKEUP  1.24f
+#define SH3_NOISE   0.40f        // -8 dB of noise
+#define SH3_MAKEUP  1.41f
+#define SH4_NOISE   0.40f
+#define SH4_MAKEUP  0.93f
+#define SH4_DECAY 190            // 4 also RINGS: the drum pitch carries under the tail
+#define SH4_REL    70
 
-// ── the SHELL: the quiet tonal head that makes an ear say "snare" ─────────
-// Two pitches like the house recipe (cr78 / tr808.h / tr909.h all do this), in the
-// bank's own key so it belongs to this machine: F#3 and C#4, the toms' tuning.
-#define BR_SHELL_LO   54
-#define BR_SHELL_HI   61
-#define BR_SHELL_VOL   3
-
-// ── the BODY-to-TAIL axis: three structural points, not three parameter sets ──
-// 2 TAP: a defined front and a tail barely longer than the body
-#define T2_BOD_A     8
-#define T2_BOD_D    85
-#define T2_BOD_R    30
-#define T2_BOD_HZ 1400
-#define T2_WIR_A     4
-#define T2_WIR_D   280
-#define T2_WIR_R   100
-#define T2_WIR_HZ 4600
-// 3 SIZZLE: the same short body under a long BRIGHT tail at nearly its level
-#define T3_BOD_A     6
-#define T3_BOD_D    70
-#define T3_BOD_R    25
-#define T3_BOD_HZ 1400
-#define T3_WIR_A    10
-#define T3_WIR_D   440
-#define T3_WIR_R   120
-#define T3_WIR_HZ 4800
-// 4 TRAIL: a medium rattle PLUS a very quiet very long very high sizzle, so the
-// decay bends (two summed exponentials) instead of running straight down
-#define T4_BOD_A     6
-#define T4_BOD_D    65
-#define T4_BOD_R    25
-#define T4_BOD_HZ 1400
-#define T4_WIR_A     8
-#define T4_WIR_D   200
-#define T4_WIR_R    90
-#define T4_WIR_HZ 4600
-#define T4_SIZ_A    30
-#define T4_SIZ_D   900
-#define T4_SIZ_R   420
-#define T4_SIZ_HZ 5600
-
-static const char *CAND_NAME[4] = { "1 ROUND2 C", "2 TAP", "3 SIZZLE", "4 TRAIL" };
+static const char *CAND_NAME[4] = { "1 SHIPPED", "2 SHELL+", "3 SHELL++", "4 RING" };
 static const char *CAND_NOTE[4] = {
-    "drag 375ms  the control",
-    "snare, tight tail  260ms",
-    "snare, LOUD sizzle, stops",
-    "snare, quiet, goes on",
+    "the one you picked",
+    "shell +4dB vs the noise",
+    "shell +8dB vs the noise",
+    "shell +8dB, and rings",
 };
 
 static int frames = 0;
@@ -245,102 +222,77 @@ static const char *FOX4_BRUSH  = "....x.......x...";
 static const char *FOX4_WOOD   = "..x...x...x...x.";
 static const char *FOX4_CYMBAL = "x...............";
 
-// ── candidate 1: round two's C, verbatim ──────────────────────────────────
-static void build_drag(void) {
-    int lo = CB + SP_CLO, hi = CB + SP_CHI;
-    instrument(lo, INSTR_NOISE, BR_LO_A, BR_LO_D, BR_LO_S, BR_LO_R);
-    instrument_filter(lo, FILTER_BAND, BR_LO_HZ, BR_LO_RES);
-    instrument_lfo(lo, 0, LFO_VOLUME, BR_GR_LO_RATE, BR_GR_LO_DEP * BR_GRAIN_ON);
-    lfo_shape(lo, 0, LFO_SHAPE_SH);
-    instrument(hi, INSTR_NOISE, BR_HI_A, BR_HI_D, BR_HI_S, BR_HI_R);
-    instrument_filter(hi, FILTER_BAND, BR_HI_HZ, BR_HI_RES);
-    instrument_lfo(hi, 0, LFO_VOLUME, BR_GR_HI_RATE, BR_GR_HI_DEP * BR_GRAIN_ON);
-    lfo_shape(hi, 0, LFO_SHAPE_SH);
-    instrument_env(hi, 0, ENV_CUTOFF, BR_HI_A, 260, BR_HI_DRIFT);
+// the PROMOTION PROOF copy: round three's candidate 2, exactly as it was heard
+static void build_verify(void) {
+    instrument(CB + SP_V2BOD, INSTR_NOISE, V2_BOD_A, V2_BOD_D, 0, V2_BOD_R);
+    instrument_filter(CB + SP_V2BOD, FILTER_BAND, V2_BOD_HZ, V2_BOD_RES);
+    instrument(CB + SP_V2WIR, INSTR_NOISE, V2_WIR_A, V2_WIR_D, 0, V2_WIR_R);
+    instrument_filter(CB + SP_V2WIR, FILTER_BAND, V2_WIR_HZ, V2_WIR_RES);
+    instrument_lfo(CB + SP_V2WIR, 0, LFO_VOLUME, V2_GR_RATE, V2_GR_DEP);
+    lfo_shape(CB + SP_V2WIR, 0, LFO_SHAPE_SH);
+    instrument(CB + SP_V2SHELL, INSTR_SINE, 2, 95, 0, 30);
+    instrument_filter(CB + SP_V2SHELL, FILTER_LOW, 1100, 1);
+    instrument_env(CB + SP_V2SHELL, 0, ENV_PITCH, 0, 18, 3.0f);
+    instrument_level(CB + SP_V2BOD, 0.80f);
+    instrument_level(CB + SP_V2WIR, 0.34f);
+    instrument_level(CB + SP_V2SHELL, 0.55f);
 }
 
-// ── the brushed-snare BODY: a struck head. Soft but DEFINITE front (round two's
-// 63..89 ms attacks are why its three candidates were one gesture), and a low
-// resonance band so it stays noise rather than becoming a tone.
-static void build_body(int slot, int a, int d, int r, int hz) {
-    instrument(slot, INSTR_NOISE, a, d, 0, r);
-    instrument_filter(slot, FILTER_BAND, hz, 7);
-}
+// a shell VARIANT: its own shell + body + wires, identical to the shipped recipe except
+// that the noise is scaled DOWN (that is the axis) and the whole thing is scaled by a
+// makeup gain (so loudness is not the axis).
+static void build_variant(int sh, int bod, int wir, float noise, float makeup, int decay, int rel) {
+    instrument(sh, INSTR_SINE, 2, decay, 0, rel);
+    instrument_filter(sh, FILTER_LOW, 1100, 1);
+    instrument_env(sh, 0, ENV_PITCH, 0, 18, 3.0f);
+    instrument_level(sh, SH_LEVEL * makeup);
 
-// ── the WIRES: the sizzle that carries on after the body. Same fixed grain as
-// candidate 1, and enough resonance to keep it inside the machine's 6 kHz channel.
-static void build_wires(int slot, int a, int d, int r, int hz, int res, float rate, float dep, int shape) {
-    instrument(slot, INSTR_NOISE, a, d, 0, r);
-    instrument_filter(slot, FILTER_BAND, hz, res);
-    instrument_lfo(slot, 0, LFO_VOLUME, rate, dep * BR_GRAIN_ON);
-    lfo_shape(slot, 0, shape);
+    instrument(bod, INSTR_NOISE, V2_BOD_A, V2_BOD_D, 0, V2_BOD_R);
+    instrument_filter(bod, FILTER_BAND, V2_BOD_HZ, V2_BOD_RES);
+    instrument_level(bod, 0.80f * noise * makeup);
+
+    instrument(wir, INSTR_NOISE, V2_WIR_A, V2_WIR_D, 0, V2_WIR_R);
+    instrument_filter(wir, FILTER_BAND, V2_WIR_HZ, V2_WIR_RES);
+    instrument_lfo(wir, 0, LFO_VOLUME, V2_GR_RATE, V2_GR_DEP);
+    lfo_shape(wir, 0, LFO_SHAPE_SH);
+    instrument_level(wir, 0.34f * noise * makeup);
 }
 
 static void build_candidates(void) {
-    build_drag();
-
-    // the quiet tonal shell under 2/3/4 — the house snare's tonal half, which is
-    // what makes an ear hear a drum rather than a burst of noise
-    instrument(CB + SP_SHELL, INSTR_SINE, 2, 95, 0, 30);
-    instrument_filter(CB + SP_SHELL, FILTER_LOW, 1100, 1);
-    instrument_env(CB + SP_SHELL, 0, ENV_PITCH, 0, 18, 3.0f);
-
-    build_body (CB + SP_2BOD, T2_BOD_A, T2_BOD_D, T2_BOD_R, T2_BOD_HZ);
-    build_wires(CB + SP_2WIR, T2_WIR_A, T2_WIR_D, T2_WIR_R, T2_WIR_HZ, BR_HI_RES,     BR_GR_HI_RATE, BR_GR_HI_DEP, LFO_SHAPE_SH);
-    build_body (CB + SP_3BOD, T3_BOD_A, T3_BOD_D, T3_BOD_R, T3_BOD_HZ);
-    build_wires(CB + SP_3WIR, T3_WIR_A, T3_WIR_D, T3_WIR_R, T3_WIR_HZ, BR_HI_RES + 1, BR_GR_HI_RATE, BR_GR_HI_DEP, LFO_SHAPE_SH);
-    build_body (CB + SP_4BOD, T4_BOD_A, T4_BOD_D, T4_BOD_R, T4_BOD_HZ);
-    build_wires(CB + SP_4WIR, T4_WIR_A, T4_WIR_D, T4_WIR_R, T4_WIR_HZ, BR_HI_RES,     BR_GR_HI_RATE, BR_GR_HI_DEP, LFO_SHAPE_SH);
-    // The long quiet trail gets LFO_SHAPE_RANDOM, not sample-and-hold: a smooth
-    // filtered random walk is just as irregular but CONTINUOUS, and S&H's instant gain
-    // steps measured 6.6x on the splice oracle here (three grainy layers overlapping in
-    // the groove), at the bottom of the audible-click band. It is also the right physics
-    // for this layer: many wires settling, not a rattle.
-    build_wires(CB + SP_4SIZ, T4_SIZ_A, T4_SIZ_D, T4_SIZ_R, T4_SIZ_HZ, BR_HI_RES + 2, BR_GR_HI_RATE * 1.3f, BR_GR_HI_DEP, LFO_SHAPE_RANDOM);
-
-    // the same tube stage the bank runs, so the A/B is about the RECIPE and not
-    // about one candidate being the only clean one
+    build_verify();
+    build_variant(CB + SP_S2SH, CB + SP_S2BOD, CB + SP_S2WIR, SH2_NOISE, SH2_MAKEUP, 95, 30);
+    build_variant(CB + SP_S3SH, CB + SP_S3BOD, CB + SP_S3WIR, SH3_NOISE, SH3_MAKEUP, 95, 30);
+    build_variant(CB + SP_S4SH, CB + SP_S4BOD, CB + SP_S4WIR, SH4_NOISE, SH4_MAKEUP, SH4_DECAY, SH4_REL);
+    // the same tube stage the bank runs on the brush, so a variant is not the only
+    // clean one
     for (int i = 0; i < SP_NSLOT; i++) {
         instrument_drive_mode(CB + i, DRIVE_ASYM);
         instrument_drive(CB + i, SIDEMAN_TUBE * 0.50f);
     }
-    // Levels: the four are trimmed to land on the SAME body loudness, measured, so
-    // the listen is about structure and not about volume. Inside a candidate the
-    // body:tail ratio is the POINT and is deliberately different in each.
-    instrument_level(CB + SP_CLO,  0.85f);  instrument_level(CB + SP_CHI, 0.76f);
-    instrument_level(CB + SP_SHELL, 0.55f);
-    instrument_level(CB + SP_2BOD, 0.80f);  instrument_level(CB + SP_2WIR, 0.34f);
-    instrument_level(CB + SP_3BOD, 0.74f);  instrument_level(CB + SP_3WIR, 0.50f);
-    instrument_level(CB + SP_4BOD, 0.86f);  instrument_level(CB + SP_4WIR, 0.30f);
-    instrument_level(CB + SP_4SIZ, 0.24f);
 }
 
-// fire brush candidate `c` (0 = round two's C .. 3 = TRAIL), `delay` ms from now
+// fire brush candidate `c`: 0 = the SHIPPED voice, 1..3 = the shell variants, which
+// reuse the shipped BODY and WIRES and swap only the shell. The call order matches
+// sideman_fire exactly, because the engine seeds each note's sample-and-hold from a
+// global counter and re-ordering the layers re-rolls the wire grain.
 static void fire_cand(int c, int delay) {
     cand_flash = frames;
     if (c == 0) {
-        schedule_hit(delay,     72, CB + SP_CLO, 6, BR_LO_GATE);
-        schedule_hit(delay + 4, 72, CB + SP_CHI, 6, BR_HI_GATE);
+#if BRUSH_VERIFY
+        schedule_hit(delay, V2_SHELL_LO, CB + SP_V2SHELL, V2_SHELL_VOL, 110);
+        schedule_hit(delay, V2_SHELL_HI, CB + SP_V2SHELL, V2_SHELL_VOL - 1, 110);
+        schedule_hit(delay,     72, CB + SP_V2BOD, 6, 110);
+        schedule_hit(delay + 2, 72, CB + SP_V2WIR, 6, 320);
+#else
+        sideman_fire(SIDEMAN_BASE, SM_BRUSH, 0, delay);
+#endif
         return;
     }
-    // the shared tonal shell, two pitches, quiet
-    schedule_hit(delay, BR_SHELL_LO, CB + SP_SHELL, BR_SHELL_VOL, 110);
-    schedule_hit(delay, BR_SHELL_HI, CB + SP_SHELL, BR_SHELL_VOL - 1, 110);
-    switch (c) {
-        case 1:
-            schedule_hit(delay,     72, CB + SP_2BOD, 6, 110);
-            schedule_hit(delay + 2, 72, CB + SP_2WIR, 6, 320);
-            break;
-        case 2:
-            schedule_hit(delay,     72, CB + SP_3BOD, 6,  95);
-            schedule_hit(delay + 3, 72, CB + SP_3WIR, 6, 470);
-            break;
-        default:
-            schedule_hit(delay,      72, CB + SP_4BOD, 6,  90);
-            schedule_hit(delay + 2,  72, CB + SP_4WIR, 6, 300);
-            schedule_hit(delay + 10, 72, CB + SP_4SIZ, 6, 950);
-            break;
-    }
+    int base3 = CB + SP_S2SH + (c - 1) * 3;
+    schedule_hit(delay, SIDEMAN_SHELL_LO, base3, SIDEMAN_SHELL_VOL, SIDEMAN_SHELL_GATE);
+    schedule_hit(delay, SIDEMAN_SHELL_HI, base3, SIDEMAN_SHELL_VOL - 1, SIDEMAN_SHELL_GATE);
+    schedule_hit(delay,     72, base3 + 1, 6, 110);
+    schedule_hit(delay + SIDEMAN_WIRE_MS, 72, base3 + 2, 6, SIDEMAN_WIRE_GATE);
 }
 
 void init(void) {
@@ -420,7 +372,7 @@ void draw(void) {
     print(buf, 232, 6, CLR_DARK_GREY);
 
     // ── the brush A/B, the point of this cart right now ───────────────────
-    print("BRUSH A/B - the body-to-tail axis", 8, 22, CLR_LIGHT_PEACH);
+    print("BRUSH A/B - how present is the shell", 8, 22, CLR_LIGHT_PEACH);
     for (int c = 0; c < 4; c++) {
         int y = 34 + c * 13;
         int sel = (c == cand);

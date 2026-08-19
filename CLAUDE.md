@@ -241,10 +241,32 @@ runtime/   studio.h (public API: constants + declarations), studio.c (Raylib imp
                          voicing; the rest are absolute controls reaching PAST both machines. morph_build/_ride/
                          _fire, params 0..1 by MD_*, MD_PANEL[] = the knobs to lay out. NOT tr808/tr909.h (two
                          FIXED faithful recipes) and NOT drumkit.h (a pad MAP): this is the SPACE between. morphbox
+             sideman.h   the shared WURLITZER SIDE MAN (1959) VOICE BANK: ten vacuum-tube circuits, the FIRST
+                         drum machine ever sold and the oldest drum sound here by two decades. sideman_build/_fire
+                         + the SIDEMAN_V voice table; SM_* 10-voice roster (BASS/TOM I+II/WOOD/TEMPLE I+II/CLAVES/
+                         BRUSH/MARACAS/CYMBAL). FOUR of the ten voices are struck WOOD, which is why the era reads
+                         as a "plock" and not as a beat: one damped ring through a resonant band, no noise, no
+                         layers, hard front, fast clean decay. The FULLNESS is not reverb, it is (1) every voice
+                         through DRIVE_ASYM, because a single-ended TUBE stage saturates asymmetrically and brings
+                         even harmonics, and (2) the machine's ~60Hz-6kHz band limit. Deliberately does NOT own the
+                         BOX: the real unit had no speaker, it fed the organ's amp and cabinet, so that stage is the
+                         cart's, via outboard.h. sideman cart; design/sideman.md
              ampcab.h    the shared guitar AMP/CABINET voicing table: five amps as preset BUNDLES of effects we
                          already ship (instrument_drive + a DRIVE_* shaper + eq + glue), pinned like leslie, NOT
                          new DSP. ONE truth so the standalone amp + pinned cabinet agree. combo/pedalboard/
                          afrobeat/mixbooth/wba; design/effects-bus-architecture.md §E. Sibling of fxicons.h (LOOK)
+             outboard.h  the ampcab.h move for the MASTER bus: the four-stage ANALOG OUTBOARD CHAIN as one
+                         voicing table (EQ = eq_inst(0) · IRON = drive_insert(DRIVE_ASYM), the odd+even shaper ·
+                         COMP = an eq_inst(1) INPUT boost + glue(), since a FET unit has no threshold and is driven
+                         by its input · PLATE = reverb() + per-slot sends). Reach for it when a cart or app wants
+                         "the analog output chain" instead of hand-tuning eq/drive/glue per cart. TWO measured facts
+                         it carries so nobody re-derives them: the comp is PINNED after the inserts (so the only
+                         achievable order is EQ→IRON→COMP, never comp-first), and glue() is a fast-attack
+                         slow-release DUCKER, not a limiter — at the hardest ratio it takes ~3.8 dB of RMS while the
+                         PEAK does not move and the crest factor RISES, so METER RMS or you will conclude the stage
+                         is inert. Every stage bypasses BIT-EXACT (verified by diffing two renders; the plate
+                         reconverges 3.5s later, because a reverb tail is real). ⚠ outboard_apply() OWNS the master
+                         insert order. outboard cart; design/analog-outboard-chain.md
              harmony.h   the shared HARMONY BRAIN (bidirectional): 13-function roman-numeral vocab + per-style
                          Markov tables (HB_BOSSA/HB_COCKTAIL, byte-exact) — hb_pick (generate) + hb_suggest
                          (ranked next chords + reason) + hb_analyze (key-in numerals, -1 = honest ?). Voicing

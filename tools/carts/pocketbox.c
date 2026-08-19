@@ -17,7 +17,7 @@
   "todo": [
     "ROLL seed codes display but cannot be typed in yet (the share-a-groove half of the tinyjam arc)",
     "spec() for the sequencer brain: trigger conditions, chord-degree resolution, pattern link, song parts",
-    "WAV export button (arm .bake/wav_request like acidrack)",
+    "WAV export button. \u26a0 DO NOT arm .bake/wav_request (what this said until 2026-08-19, and what acidrack does): that is the DEBUG harness path and it writes into the sandbox on iOS where nobody can reach the file. Use export_audio(name, seconds, EXPORT_WAV) - it captures in STEREO and hands the file to the share sheet on a phone. Reference cart `exportdemo`; docs/design/pro-unlock.md",
     "mixer page with per-track level meters (the combo VU proxy)",
     "per-track arpeggiator page (NM_ARP note mode exists; no rate/direction control yet)",
     "extend the FX-copy idiom to steps and tracks (patterns only today)",

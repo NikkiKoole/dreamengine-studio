@@ -143,6 +143,18 @@ runtime/   studio.h (public API: constants + declarations), studio.c (Raylib imp
              cursor.h    pixel MOUSE CURSOR in the canvas — cursor_draw(CUR_HAND/GRAB/ARROW/CROSS/MOVE)
                          + _tint; auto-hides the OS arrow ONLY when a real mouse is seen (no-op on touch),
                          call LAST in draw(); shows in screenshots/GIFs (the OS cursor never does)
+             pro.h       the IN-APP-PURCHASE gate a cart asks: pro_unlocked() / pro_for_sale() /
+                         pro_can_purchase() + pro_buy/_restore + a SHARED Pro sheet (ProSheet is the
+                         CART's struct, so the header stays stateless). A cart never names a product id:
+                         which product at what price comes from the app manifest via a GENERATED
+                         app_pro.h, so the same cart runs inside a paid app, in the free web gallery and
+                         in the editor. Owns the ONE copy of the weak Store_* bridge (tinyjam-menu.c used
+                         to declare its own) + pro_module_* for Tiny Jam's per-rack CONTENT axis.
+                         ⚠ FAILS OPEN by design (a build with no store links weak stubs answering
+                         "unlocked" — that IS the editor/web case), so a target with a paywall that
+                         forgets to link the real answer gives Pro away SILENTLY: exactly what every
+                         AUv3 target did until 2026-08-19. tools/pro-check.js is the gate that catches
+                         it. ADR-0035 · docs/design/pro-unlock.md
              fxicons.h   the shared VISUAL LANGUAGE for the engine effects: one icon + body/accent
                          colour per FX_* kind, so every cart's "pedals" read the same. Drawing an
                          effect toggle/stompbox/mode chip? Reuse the glyph, don't redraw it.
@@ -719,6 +731,18 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
                              every cart compiles, and it must not change), the opted-in path must not. A seam
                              checked only in its enabled state is half a seam. Pattern + how to do the next
                              header: docs/design/engine-context.md → "Cart-land"
+             pro-check.js    THE GATE for the Pro entitlement seam (runtime/pro.h + ios/Sources/
+                             Entitlements.swift): compiles pro.h four ways and asserts BOTH DIRECTIONS
+                             (a strongly-linked "no" must LOCK, a strongly-linked "yes" must UNLOCK —
+                             without the second, a probe that always says locked scores full marks),
+                             then the STRUCTURAL half: every AU_EXT target in the git-TRACKED
+                             ios/project*.yml must link Entitlements.swift + AppGroup.swift. That half is
+                             the one that matters, because pro.h fails OPEN: an extension with no
+                             entitlement source linked compiles, runs, looks perfect and hands Pro to
+                             everyone. Four negative controls (no store must read unlocked · a strong
+                             "yes" must unlock · the bridge must be REACHED carrying the manifest's own
+                             product id · a mutated yml must go red). --quiet gates, --selfcheck = 5
+                             known answers for the yml parser in both directions
              state-check/    THE ACCEPTANCE TEST for SESSION STATE — does a saved rack come back?
                              (`bash tools/state-check/run.sh`, 20 assertions.) Backs the AU's `fullState`:
                              `de_save_state`/`de_load_state` serialise INTENT — the sound config log +

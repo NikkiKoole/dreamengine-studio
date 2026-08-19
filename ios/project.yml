@@ -99,6 +99,12 @@ targets:
       - path: AU
       # the plug-in's VIEW is the SAME CanvasView the standalone app uses (hosted: true = blit-only)
       - Sources/CanvasView.swift
+      # THE ENTITLEMENT SOURCE. An appex links neither Store.swift nor StoreKit; without these two
+      # a cart's Store_IsModuleUnlocked resolves to pro.h's WEAK STUB, which answers TRUE, and the
+      # plug-in gives Pro away to everyone. Entitlements.swift + AppGroup.swift are the strong,
+      # fail-closed answer read out of the shared container. See Entitlements.swift's header.
+      - Sources/Entitlements.swift
+      - Sources/AppGroup.swift
       - ../runtime/studio.c
       - ../runtime/raylib_compat.c
       - gen/au/cart.c

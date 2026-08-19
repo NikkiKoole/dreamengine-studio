@@ -33,6 +33,7 @@ de:meta */
 
 #include "studio.h"
 #include "ui.h"
+#include "pro.h"    // the Store bridge lives HERE now (one copy) — see its header
 #include <stdio.h>
 #include <stdbool.h>
 
@@ -62,19 +63,13 @@ static int  app_current(void) { return demo_current; }     // bundle: rack we ca
 
 static int sel = 0;
 
-// IAP gate — the Store bridge from Store.swift (@_cdecl, StoreKit 2). Declared here as WEAK
-// DEFINITIONS (stub bodies) so a standalone/Mac build LINKS (every rack free, no testing UI);
-// inside an iOS bundle Store.swift's strong symbols override them. (A weak undefined
-// *reference* / weak_import does NOT link on the current Darwin ld — a weak definition does.)
-// Store_TestingAvailable is DEBUG-iOS-only → it gates the reset button so it can never ship
-// in a release build.
-__attribute__((weak)) bool Store_IsModuleUnlocked(const char *id) { (void)id; return true; }
-__attribute__((weak)) void Store_Purchase(const char *id)         { (void)id; }
-__attribute__((weak)) void Store_ResetPurchases(void)             { }
-__attribute__((weak)) bool Store_TestingAvailable(void)           { return false; }
-
+// IAP gate. The weak Store_* bridge used to be DECLARED HERE; it moved to runtime/pro.h so
+// there is exactly one copy for every cart that gates anything (that header explains the
+// weak-DEFINITION trick and the fail-open trap). This cart drives the CONTENT axis — which
+// racks you own — via pro_module_*; pro.h's pro_unlocked() is the other axis, the feature
+// unlock, which an umbrella does not sell per rack.
 static int rack_owned(const AppRosterEntry *e) {
-    return !e->product[0] || Store_IsModuleUnlocked(e->product);   // free, or entitled
+    return pro_module_unlocked(e->product);   // free ("" product), or entitled
 }
 
 // purchase-in-flight feedback: StoreKit takes 0.5–5s to come back (worst on the first
@@ -96,7 +91,7 @@ static void pick(int i) {                           // owned/free → open; lock
     if (!rack_owned(e)) {
         if (buy_pending(buy_since[i])) return;      // round-trip already in flight — don't re-fire
         buy_since[i] = now();
-        Store_Purchase(e->product);
+        pro_module_buy(e->product);
         return;
     }
     app_launch(i);
@@ -161,7 +156,7 @@ void draw(void) {
 
     // "unlock all" master-pass offer row sits between the list and the footer (bundle only,
     // hidden once owned). Reserve its height so the rack list doesn't run under it.
-    int mp_on = APP_MASTERPASS_ID[0] && !Store_IsModuleUnlocked(APP_MASTERPASS_ID);
+    int mp_on = APP_MASTERPASS_ID[0] && !pro_module_unlocked(APP_MASTERPASS_ID);
     if (!mp_on) mp_buy_since = 0;                       // owned (or no store) → clear the in-flight stamp
     int foot_top = sy + sh - FOOT_H;
     int list_bot = foot_top - (mp_on ? (ROW_H + ROW_GAP) : 0);
@@ -206,7 +201,7 @@ void draw(void) {
             ui_button(lx, my, w, ROW_H, buying_label());
         } else {
             char lbl[40]; snprintf(lbl, sizeof lbl, "unlock all - $%s", APP_MASTERPASS_PRICE);
-            if (ui_button(lx, my, w, ROW_H, lbl)) { mp_buy_since = now(); Store_Purchase(APP_MASTERPASS_ID); }
+            if (ui_button(lx, my, w, ROW_H, lbl)) { mp_buy_since = now(); pro_module_buy(APP_MASTERPASS_ID); }
         }
     }
 

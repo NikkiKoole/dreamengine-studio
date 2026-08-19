@@ -165,7 +165,7 @@ as of 2026-08-19 **three of them are broken**, each silently.
 | 1 | **Universal Purchase**: one App Store record covering iOS + macOS, so one non-consumable is one purchase everywhere | ✅ **DECIDED 2026-08-19: "Designed for iPad"** (§10). No Mac binary, so no bundle-id problem to have |
 | 2 | **The App Group entitlement** actually present, on the app AND the extension, on BOTH platforms | ✅ **DONE 2026-08-19** — all four targets, gated (§9 renamed it first, while that was free) |
 | 3 | **The group registered** for the team so automatic provisioning can sign it | ✅ **DONE 2026-08-19** by the maker — `group.com.mipolai.shared`, "Mipolai shared entitlements" |
-| 4 | **The host can load it**: Live has supported AUv3 since 11.3, Apple Silicon only, instruments and audio effects but NOT MIDI effects | ✅ nothing to do, but it bounds who can be sold to |
+| 4 | **The host can load it**: Live has supported AUv3 since 11.3, Apple Silicon only, instruments and audio effects but NOT MIDI effects | ✅ nothing to do, but it bounds who can be sold to — ⚠ **the maker's own copy is Live 10 Lite and cannot host AUv3 at all**, so testing here means GarageBand (free, hosts AUv3 on macOS) or a Live upgrade |
 
 **Link 1 — RESOLVED by §10's route, but the trap is kept written down because it returns the moment
 a real Mac binary is built.** Universal Purchase needs the SAME bundle id. `ios/au-identity.sh`'s `au_carrier_load`

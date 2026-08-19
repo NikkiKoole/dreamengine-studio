@@ -44,6 +44,51 @@ a broken doc link or `#section`).
 > What a reader needs to *choose* a lane is in the front-door output; what they need to *resume*
 > one is in the lane itself. A summary in between is a third copy, and it is the copy nobody
 > updates. If you find yourself writing one again, teach `handoff.js` to print it instead.
+> **▶ ACTIVE THREAD (2026-08-19) — PRO + EXPORT: the seam is built and PROVEN ON A PHONE, and no shipping cart uses it yet.**
+>
+> The engineering behind [ADR-0035](decisions/0035-free-with-one-pro-unlock.md) (free apps, one
+> $4.99 Pro unlock). **Everything below is measured on hardware, not asserted** — the share sheet
+> appeared on an iPhone SE, and the App Group reads `container OK` in both the app and the plug-in
+> process on Mac and in the app on iOS.
+>
+> **✅ SHIPPED:** `runtime/pro.h` (the gate + one shared Pro sheet; stateless, the cart owns the
+> struct) · `ios/Sources/Entitlements.swift` (fail-closed, on all four targets) · the App Group
+> registered and signed in · `export_audio()` writing a **stereo** WAV · `ios/Sources/Export.swift`
+> (M4A transcode + share sheet) · `tools/pro-check.js` (25 + 9, four negative controls, repo-doctor).
+> Reference cart: `exportdemo`. Detail, and every finding, in
+> [`design/pro-unlock.md`](design/pro-unlock.md).
+>
+> **▶▶ PICK UP HERE — the one thing that matters next: NO SHIPPING CART CALLS EXPORT.** `exportdemo`
+> is the only caller, so Pro currently gates **nothing** in `acidcandy` or `pedalboard`, and the
+> whole model is a mechanism with no product attached. It is a DESIGN question per rack, not
+> plumbing: where does the button live on a face already full of knobs, and what does it export (the
+> live loop? a fixed number of bars? the song)? `acidcandy`'s own de:meta has wanted "WAV export"
+> since 2026-07-18.
+>
+> **The rest, ranked, each with its own note in `pro-unlock.md`:**
+>
+> | # | Open item | Kind |
+> |---|---|---|
+> | 1 | **No shipping cart calls `export_audio`** — see above | design |
+> | 2 | **`apps/pedalboard/app.json` sets no `auCart`**, so the shipping app contains NO plug-in at all, and AUv3 is a headline Pro feature | one manifest line + the `aumf` lane's open items |
+> | 3 | **Cart `save()` still no-ops INSIDE the AUv3** — the extension has its own container and does not compile `Save.swift`. Smaller (an AU's state travels via `fullState`) but open | bug |
+> | 4 | **No Restore Purchases button.** `Store_Restore` exists and nothing calls it; App Review expects a restore path | wiring |
+> | 5 | **MIDI in does not exist on iOS** — `midi_input.h`'s CoreMIDI scan is `#if !defined(DE_NO_RAYLIB)`. Recommend DROPPING it from the Pro headline rather than listing a feature the app lacks | decision |
+> | 6 | **MIDI out unverified** on iOS and inside a sandboxed appex. It may sidestep Live's AU MIDI-out limitation entirely, since we publish a CoreMIDI virtual SOURCE, but nothing covers it | measurement |
+> | 7 | **`tinyacidjam`'s review notes** still say "no in-app purchases" — left wrong on purpose (notes describe the build being submitted); replacement drafted in ADR-0035's Update | copy |
+> | 8 | **The popover anchor** in `Export.swift` is untested — a share sheet is a popover on iPad/Mac and a missing anchor is a CRASH, not a glitch | measurement |
+> | 9 | `apps/tinyacidjam/icon.png` loses 6.6% of the bottom-right corner to the iOS 26 mask (one drip tip). Cosmetic; `node tools/icon-mask.js check` shows it | polish |
+> | 10 | `ios/TinyjamHello.entitlements` is a dead orphan (gitignored, referenced by nothing) | tidy |
+>
+> ⚠ **The maker's own Ableton is Live 10 Lite, which cannot host AUv3 at all** (11.3+, Apple Silicon
+> only). So "works in Live" is untestable here without a Live upgrade; **GarageBand on macOS hosts
+> AUv3 and is free**, and is the way to test the Designed-for-iPad route (§10) before spending money.
+>
+> ⚠ **Do not release either app** until Pro exists: going free first, then adding the wall, is a
+> feature takeaway. `pedalboard` is off sale, `tinyacidjam` is approved-but-unreleased.
+>
+> **Resume-at:** [`design/pro-unlock.md` → §11 what is still unproven](design/pro-unlock.md#11-export-and-the-two-bugs-the-phone-found-2026-08-19)
+
 > **▶ ACTIVE THREAD (2026-08-18) — `pedalboard` AS AN AUDIO EFFECT (`aumf`): IT WORKS IN GARAGEBAND. Five open items, listed first because this lane is long.**
 >
 > **▶▶ PICK UP HERE. Verified working by the maker 2026-08-18:** the cart plays its own guitar AND

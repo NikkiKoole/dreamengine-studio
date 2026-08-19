@@ -15,6 +15,28 @@ _Last updated: 2026-08-19 — **Tiny Pedalboard shipped to the App Store and is 
 
 ## Shipped ✓
 
+- **THE PRO ENTITLEMENT SEAM, AND THE FIRST THING IT GATES: AUDIO EXPORT** (2026-08-19). The
+  engineering half of [ADR-0035](decisions/0035-free-with-one-pro-unlock.md); full picture in
+  [pro-unlock.md](design/pro-unlock.md). `runtime/pro.h` is the cart-land face — `pro_unlocked()`
+  plus a SHARED Pro sheet, stateless (the `ProSheet` belongs to the cart), and a cart never names a
+  product id: which product at what price comes from the app manifest via a generated `app_pro.h`,
+  so the same cart runs in a paid app, in the free web gallery and in the editor.
+  `ios/Sources/Entitlements.swift` is the strong, fail-closed answer, because the app links StoreKit
+  and an extension links only the App Group. `export_audio()` records the final mix to a **stereo**
+  file, and on iOS transcodes to M4A and offers the share sheet — **confirmed end to end on an
+  iPhone SE**. `tools/pro-check.js` gates it (25 + 9, four negative controls, in repo-doctor).
+  **Three bugs found by building it, each silent, one of them shipped.** (a) No AU target compiled
+  `Store.swift` OR `AppGroup.swift`, so a gated cart in the plug-in would have resolved to `pro.h`'s
+  weak stub — which answers TRUE, i.e. **Pro given away free in every host**. (b) The IAP block sat
+  inside `if (launcher)`, so a single-cart app generated no `.storekit` and **no purchase could ever
+  have been made** in either shipping app. (c) **Every `save()` in every cart was a no-op on iOS** —
+  `save_dir` defaults to the sandboxed cwd and no iOS host had ever called `de_set_save_dir`, a seam
+  function with zero callers, which hit the shipping *Tiny Acid Jam*'s pattern banks. Export found
+  that one because **a failed save is invisible and a failed export is a missing file**; reach for
+  that asymmetry when a silent path needs proving. Open work is listed in
+  [pro-unlock.md §11](design/pro-unlock.md#11-export-and-the-two-bugs-the-phone-found-2026-08-19) —
+  chiefly that **no shipping cart calls export yet**, so Pro still gates nothing.
+
 - **THE ANALOG OUTBOARD CHAIN IS A SHARED BASELINE, and the pitch it answers is now measured**
   (2026-08-19). `runtime/outboard.h` is the `ampcab.h` move applied to the MASTER bus: the four-stage
   output rack as one voicing table (EQ = `eq_inst(0)` · IRON = `drive_insert(DRIVE_ASYM)`, the
@@ -807,7 +829,9 @@ Detail lives in the linked design doc in every case; that is where it was always
 >
 > Decided 2026-08-18, amended 2026-08-19: [ADR-0035](decisions/0035-free-with-one-pro-unlock.md) and
 > its Update. *Tiny Pedalboard* and *Tiny Acid Jam* become **free downloads with one non-consumable
-> Pro unlock at $4.99** carrying **WAV export + MIDI in/out + AUv3**. The wall is "it leaves the app":
+> Pro unlock at $4.99** carrying **WAV export + MIDI in/out + AUv3**. ⚠ Of those three, only WAV
+> export exists as of 2026-08-19: `pedalboard` ships no AUv3 at all and MIDI IN is compiled out of
+> every iOS build. See [pro-unlock.md §3](design/pro-unlock.md#3-the-finding-pro-currently-sells-almost-nothing). The wall is "it leaves the app":
 > the free instrument is complete, including background audio, Ableton Link and saving your own
 > patterns. Both manifests already carry it (`"price": "0"` + `com.mipolai.<app>.pro`); **the store is
 > unchanged until somebody runs `node tools/asc-push.js <app> --price`**, and that belongs to the

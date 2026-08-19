@@ -237,6 +237,10 @@ subscriptions), so it is a judgement call rather than a defect. A description ed
 version anyway, so it costs nothing to decide with the Pro submission.
 
 ## See also
+- **[`pro-unlock.md`](../design/pro-unlock.md) — HOW this gets built** (the entitlement seam, the
+  four gaps in it, and the audit that found the paid FEATURES largely do not exist yet: no AUv3 in
+  `pedalboard`, no user-facing WAV export in either app, MIDI in compiled out of every iOS build).
+  Read it before starting the engineering this ADR describes. ·
 - [`product-notes.md`](../design/product-notes.md) §🚩 (the trademark rule this must not break) ·
   [`product-notes-followup.md`](../design/product-notes-followup.md) §3–§4, §7 (App Group
   entitlements, the content-axis model this refines, in-house StoreKit) ·

@@ -224,7 +224,88 @@ but a cart playing this bank from a **keybed** inherits both, and the second one
 on expressiveness. Fixing it means a per-voice drive that tracks velocity, which is an engine change,
 not a voicing change.
 
-## The brush: a band that travels
+## The brush failed the ear test, and the A/B that answers it
+
+The owner listened to the bank. Verbatim: *"sounds pretty good except the brush that doesn't sound
+like a brush."* Nine voices passed and are now a thing to protect, not to improve. Asked what he
+expected, he said: *"yeah im expecting a kind of brushing sound indeed."*
+
+BRUSHING is the word that decides the design. It rules out the snare reading (a brush-shaped tap on
+the backbeat, which is what this machine's missing snare voice would suggest) and it names what is
+actually absent: **grain**. A brush is dozens of individual wire strands each making its own tiny
+scrape, and smooth filtered noise under a smooth envelope physically cannot produce that. The section
+below documents a voice that travels its band beautifully and still does not sound like a brush,
+which is a good reminder that a measurement can be right and irrelevant at the same time.
+
+So [`tools/carts/smprobe.c`](../../tools/carts/smprobe.c) now carries **four candidates on keys 1-4**,
+switchable live inside the cart's real default rhythm (a brush alone and a brush inside a pattern are
+different judgements, and the pattern one is what matters). `runtime/sideman.h` is untouched: the
+shipped brush keeps playing until the owner picks, and the bank bench render is **byte-identical over
+all 21 seconds** to the render taken at commit `a117ff56`, which is the proof that nothing else moved.
+
+Grain is the AXIS the candidates sweep, not a feature one of them has. All three challengers share one
+body and one envelope so the modulation is the only variable:
+
+- **the spectrum is split.** A brush on a head is spectrally extreme: a low body where the head is
+  displaced and a high fizz where the tips scrape, with the middle comparatively scooped. Measured,
+  the shipped voice is the opposite shape: its mid band sits **11.8 dB ABOVE** the quieter of its two
+  ends, so its whole 1700-cent arc travels inside the nasal region that reads as "filtered noise".
+  The challengers measure **+7.0 to +8.1 dB** the other way, a real scoop. Resonance is LOW on the
+  body (5, against the bank's 11-13) because high resonance makes noise tonal and a brush is close to
+  pitchless.
+- **the envelope is a DRAG.** 26 ms into a 155 ms body is percussion shape with the corners filed
+  off. The challengers sustain: a rise, a plateau that lasts while the stroke is happening, and a
+  fall, ~375 ms end to end, with the fizz layer released before the body so the sound darkens
+  progressively as the brush lifts (centroid 6331 → 5500 plateau → 974 Hz).
+
+| | shape / rate | body rms | atk | len | scoop | centroid | in band | grain off → on | mod peak |
+|---|---|---|---|---|---|---|---|---|---|
+| **A SHIPPED** | none (the control) | -31.6 | 27 | 182 | **-11.8** | 2092 | 93% | 0.489 → 0.489 (**1.00x**) | 31 Hz, 15 dB |
+| **B RUSTLE** | S&H 72/120 Hz | -31.4 | 63 | 379 | +8.1 | 5666 | 64% | 0.208 → 0.428 (**2.06x**) | 55 Hz, 21 dB |
+| **C GRAIN** | S&H 156/260 Hz | -31.7 | 77 | 375 | +7.7 | 5757 | 63% | 0.178 → 0.660 (**3.71x**) | 39 Hz, 23 dB |
+| **D SINE** | SINE 156/260 Hz | -31.6 | 89 | 373 | +7.0 | 5602 | 67% | 0.188 → 0.748 (**3.98x**) | **258 Hz, 30 dB** |
+
+All four land within 0.3 dB of each other on body RMS and within 0.16 dB inside the groove, so the
+listen is about the recipe and not about one being louder. B and C sit on opposite sides of the
+texture-becomes-buzz boundary; D is C's exact rate and depth with a sine, and its **30 dB spike at
+258 Hz** against C's broadband 23 dB is the shape difference as a number: a sine modulator is tonal,
+a sample-and-hold one is not.
+
+Four measurement findings worth keeping, three of them about the tools:
+
+**The grain metric has to be frequency-selective, or it measures the envelope.** A time-domain
+coefficient of variation scored candidate A — which has no modulator at all — at 0.33, level with the
+genuinely granular ones, because a decaying stroke's own slope is variation. Detrending does not fix
+it robustly: A's slope is -161 dB/s and any moving average slow enough to preserve 34 Hz grain is too
+slow to track it. Taking the spectrum OF the envelope and reading only 25-900 Hz does fix it, and the
+control that proves it is a steeply-decaying unmodulated noise burst, which must read the same as flat
+noise (0.103 vs 0.091) and far below a granular one (0.502).
+
+**Compare a candidate to itself, never to another candidate.** Band-limited noise has its own envelope
+roughness proportional to its bandwidth, so the absolute depth numbers above are not comparable across
+rows: A reads 0.489 with no modulator while C reads 0.178 with its modulator off. The ratio is the
+measurement, which is why the table has a `grain off → on` column produced by `ab-render.js` flipping
+one master multiplier.
+
+**`wav-modrate.js` cannot read audio-rate grain.** It is built for single-digit-Hz LFOs, and on a
+synthetic 440 Hz sine tremolo'd at 170 Hz it reports **15.5 Hz**. On the brush candidates, whose
+carrier is noise, it returns `Infinity` / `NaN` — honest, but it means the repo has no tool for
+amplitude texture at these rates, hence the envelope-spectrum metric above.
+
+**The rate matters more than the depth, and there is a knee.** Sweeping the S&H rate at fixed depth,
+the measured texture goes 0.227 / 0.354 / 0.368 / 0.500 at 90 / 130 / 170 / 240 Hz, while raising the
+depth from 0.45 to 0.65 at 90 Hz moved it 2%. The step between 90 and 130 Hz is where B and C were
+placed on either side.
+
+One honest cost: **the S&H stepping is visible to the click oracle.** With the onsets masked at a
+95 ms guard (the drag's attack runs to 89 ms), grain OFF passes at 3.7x and grain ON reads **4.8x**,
+just over the 4x threshold. That is below the 6-20x band `click-check.js` documents for an audible
+click, and a gain step on noise is spectrally indistinguishable from the noise, so it may well be
+inaudible. If the owner picks a grainy candidate and hears crackle, the fix is already named:
+`LFO_SHAPE_RANDOM` is a smooth filtered random walk, irregular like S&H but continuous, and it should
+keep the rustle without the step.
+
+## The brush's first fix: a band that travels
 
 The first pass gave the brush the right envelope and the wrong motion. It is the only soft-front
 voice in the box and five of the twelve rhythms lean on it for the backbeat (FOXTROT, MARCH, SHUFFLE,
@@ -283,5 +364,9 @@ for "plainly audible".
 - **The maracas is the least in-band voice** at 22% of its energy over 6 kHz, and the cymbal at 33%.
   A 2-pole bandpass cannot do better without turning noise into a whistle; a steeper per-slot filter
   or a second cascaded band would.
-- **Nothing here has been heard.** Every number is a proxy. The two-part bar
-  ([ADR-0022](../decisions/0022-collaboration-is-the-north-star.md)) needs the second half.
+- **The brush is waiting on a listen.** Four candidates are baked into `smprobe`; the shipped recipe
+  stays in place until one is picked. `LFO_SHAPE_RANDOM` is the obvious fifth if a grainy one wins but
+  steps audibly.
+- **The rest of the bank has been heard and passed.** Which makes it a regression surface: any future
+  edit to `sideman.h` should re-render `smprobe` and diff the first 21 seconds against the committed
+  bench, the way this round did.

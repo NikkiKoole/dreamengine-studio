@@ -232,8 +232,18 @@ that prints nothing to stdout and is indistinguishable from an empty log:
 one being fine says nothing about the other. It goes through `os_log` with `%{public}` rather than
 `NSLog`, which redacts every dynamic value on device and arrives as the word `<private>`.
 
-⚠ **iOS is still unproven, and BLOCKED on the portal step above** (measured 2026-08-19 on a
-connected iPhone SE, iOS 15.4.1). The declaration is there; the App IDs are not configured.
+**iOS: SIGNED and confirmed, runtime not yet observed** (2026-08-19, iPhone SE 2nd gen, iOS 15.4.1).
+Once the five App IDs had the capability, `APP=tinyacidjam bash ios/device.sh` built, signed and
+installed, and `codesign -d --entitlements` shows `group.com.mipolai.shared` on **both** the `.app`
+and `PlugIns/TinyjamAU.appex`. That is the portal change taking effect and is the half that was
+failing.
+⚠ The runtime line (`[appgroup] … container OK`) has NOT been read off the phone, only off the Mac.
+Getting device logs here is the awkward part and unrelated to the feature: `ios-deploy` cannot
+stream them on Xcode 26 (it predates the DeviceSupport/Symbols layout, see `ios/device.sh`'s header)
+and this macOS `log stream` has neither `--device` nor `--device-udid`. Two ways when it matters:
+`brew install libimobiledevice` then `idevicesyslog | grep appgroup`, or Console.app with the phone
+selected in the sidebar. **Do not generalise Mac → iOS on this** — that is precisely the reasoning
+that got the provisioning story wrong one paragraph up.
 ⚠ `ios/TinyjamHello.entitlements` is a dead orphan (gitignored, referenced by nothing). Delete it.
 
 ▼ The state this replaced, kept because the reasoning is the reusable part:

@@ -219,6 +219,29 @@ rides the "boing" character live (0 looser → 1 tighter/twangier). Global — c
 | surf drip | `reverb(0.6f, 0.35f)` + `reverb_spring(1.0f)` on a clean twangy guitar | wet, metallic Dick-Dale surf | `springtank` (SURF) |
 | dub spring | long `reverb(0.88f, …)` + `reverb_spring(0.9f)` on off-beat organ stabs | deep, boingy dub skank tail | `springtank` (DUB) |
 
+#### plate-tank voice — `reverb_plate(amount)` · `reverb_plate_width(x)`
+
+The spring's opposite number on the same tank, and the **studio** reverb: a steel sheet, so the tail is
+DENSE, bright, has no sub and no room echoes at all, and it comes back **WIDE**, because a plate has two
+pickups in different places. That width is the whole point; before this, every wet tail arrived dead
+centre. `reverb_plate(amount)` 0 = clean digital (byte-identical), 1 = full plate; `reverb_plate_width(x)`
+rides the pickup spread live (0 = folds to mono, 1 = fully spread, default 0.55). Global — call once;
+affects every tank. Only the DIFFERENCE of the two pickups is spread, so a mono speaker loses nothing.
+There is no `reverb_plate_tone`: `reverb()`'s own `damp` already IS the plate's tone control (low damp =
+the bright ringing tail), and width is the thing nothing else could reach.
+
+| recipe | call | character | used by |
+|---|---|---|---|
+| the vocal plate | `reverb(0.75f, 0.30f)` + `reverb_plate(1.0f)`, send 0.35 | the classic bright wide sheen behind a lead — sits in a mix where a room fights it | `obplate` |
+| mix-bus plate send | `reverb(0.65f, 0.30f)` + `reverb_plate(0.8f)` + `reverb_plate_width(0.7f)` | `outboard.h`'s PLATE stage, widened: fills the gaps between hits without pushing anything back | `outboard` |
+| plate on the bench | `reverb_insert(0.8f, 0.25f, 0.85f)` + `FX_REVERB` in `fx_order(0,…)` | mostly-wet, so you hear/see the tank itself — a dry hit is 20-30 dB louder than the tail it leaves behind | `obplate` (route 2) |
+
+> **Measuring a stereo reverb:** `tools/stereo-check.js` is the ONLY gate in the repo that reads L and R
+> apart (every other one averages them at the door, so a stereo tank built without it is untested by
+> construction). `--expect decorrelated` is the check; run `--check` first, because a broken analyser and
+> a mono file print the same thing. `obplate` draws the same thing as a goniometer: mono = a vertical
+> line, the plate = a cloud.
+
 ### shimmer — `shimmer(size, damp, shimmer_amt, mix)` · `instrument_shimmer(slot, …)`
 
 A **shimmer reverb**: a reverb with an **octave-up pitch-shifter inside its feedback loop**. Each pass,
@@ -775,6 +798,20 @@ ducks a victim bus every time a TRIGGER fires; route the trigger (the kick) into
 level. amount 0 = dormant (byte-identical). **One comp per bus** (sidechain OR glue on a given bus,
 not both). **Showcase: `groovebox`** (PUMP + GLUE share the master comp). Effects-bus Increment D.
 
+**`glue` does two things for you automatically** (2026-08-19), neither of which needs an extra call and
+neither of which touches `sidechain`:
+
+- **makeup** — it measures the level it is taking and puts exactly that back, so switching the comp in no
+  longer makes the mix smaller and an A/B is level-matched (measured: within 0.05 dB of dry at every
+  amount). It learns over ~1.5 s, so it is a steady gain and never expands the pumping back out.
+- **program-dependent release** — the recovery is dual-slope. A single hit recovers in your `rel_ms`; a
+  sustained loud wall takes about 4x as long to let go, and a quiet event lets go faster than a loud one.
+
+What `glue` still is NOT, and no makeup changes this: a **limiter**. It lets the transient through and
+squashes the body behind it, so the crest factor goes **UP**. **Meter RMS, not peak** — a peak meter shows
+this stage doing nothing, which is how you conclude a working comp is inert (`obglue` meters RMS with a
+peak-hold tick for exactly that reason).
+
 | recipe | call | character | used by |
 |---|---|---|---|
 | the house pump | `sidechain_key(SL_KICK, 0, 1.0f); sidechain(0, 0, 0.6f, 1, 140)` | the whole mix breathes against the four-floor kick — bass/pad duck and bloom across the beat | `groovebox` (PUMP) |
@@ -807,7 +844,14 @@ these as a macro pedal / preset, not a new `FX_*` kind.
 | **LO-FI / cassette** | `crush` + `tape` (wow/flutter/sat) + `filter` (lowpass roll-off) | the lo-fi-hip-hop / vinyl / bedroom sound: one AMT knob crunches bits + downsamples + saturates, WOW warbles the tape, TON darkens | `pedalboard` (the LO-FI macro pedal) |
 | **amp / cab** | `drive` + `eq` (cab voicing) + `glue` (power-amp sag) | a guitar amp's voice — the Increment E output stage; one VOICING knob swaps the bundle (clean→chime→crunch→hi-gain→lo-fi). The 5 voicings live in `runtime/ampcab.h` (shared table) | `combo` (the playable combo amp), `pedalboard` (the pinned CABINET slot: none/amp/Leslie) |
 | **Dyno Rhodes** | `chorus` + `eq` presence | the bright stereo Rhodes sheen | `epiano` (DYNO) |
+| **the outboard rack** (mix bus) | `eq_inst(0)` + `drive_insert(DRIVE_ASYM)` + an `eq_inst(1)` flat INPUT boost + `glue` + a `reverb` send | the "analog console output chain": console EQ, an odd-AND-even saturation stage, a FET-style bus comp driven by its input (a real FET unit has no threshold), and a plate send. Four bundles in one shared table, `runtime/outboard.h`. ⚠ the comp is **pinned after the inserts**, so only EQ→IRON→COMP is achievable, and `glue` is a **ducker, not a limiter** (measured: ~3.8 dB of RMS at the hardest ratio, peak unmoved, crest *rises*, though it now puts that level back itself) | `outboard` |
+| **FET comp front panel** | `eq_inst(1, g,g,g)` as INPUT + `glue(0, amount, atk, rel)` from a ratio table | the 1176 move: no threshold knob anywhere, you compress harder by driving the input. `OB_RATIO[]` in `outboard.h` is the button bank (4:1 / 8:1 / 12:1 / all-buttons) as `(amount, attack, release, dirt)` tuples | `outboard` |
 
+> **A whole output CHAIN as a bundle** is the same idea one level up: the four stages in
+> `runtime/outboard.h`, with the honesty ledger (what of the classic-outboard promise we can and
+> cannot back, and the measurements behind it) in
+> [analog-outboard-chain.md](../design/analog-outboard-chain.md).
+>
 > **The `pedalboard` LO-FI macro** drives three master-bus inserts (crush + tape + filter) at once.
 > Since [Increment F](../design/effects-bus-architecture.md) (2026-06-14) it runs them on **instance 1**
 > (`crush_inst(1,…)`/`tape_inst(1,…)`/`filter_inst(1,…)` + `FX_INST(FX_*,1)` in the chain), while the

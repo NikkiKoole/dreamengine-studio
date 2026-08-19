@@ -633,6 +633,8 @@ void reverb_bus_fx(int tank, int fx, float a, float b, float c);  // add an effe
 void reverb_insert(float size, float damp, float mix);            // reverb as a dry/wet INSERT on the master bus — a REAL reorderable pedal (put FX_REVERB in fx_order(0,…) to place it). size/damp 0..1, mix 0..1 (0 = bypass). Unlike reverb() (a send), its chain position is audible
 void reverb_spring(float amount);                                 // give the reverb a SPRING-TANK voice: transients smear into a metallic "boing" (dispersion — highs chirp ahead) and the tone narrows to a mid band, like a Fender/surf/dub spring tank. amount 0 = clean digital reverb (default), 1 = full spring. Affects every reverb tank (reverb()/reverb_bus()/reverb_insert())
 void reverb_spring_tone(float x);                                 // the spring's "boing" CHARACTER — the dispersion amount. 0 = looser/duller, 1 = tighter/twangier/more metallic. Ride it live. Default ~0.6
+void reverb_plate(float amount);                                  // give the reverb a PLATE voice: a sheet of steel, so the tail is DENSE, bright, has no sub and no room echoes at all — and it comes back WIDE, because a plate has two pickups in different places. The lush studio reverb. amount 0 = clean digital reverb (default), 1 = full plate. Affects every reverb tank (reverb()/reverb_bus()/reverb_insert())
+void reverb_plate_width(float x);                                 // how far apart the plate's two pickups sit — 0 = both in the middle (mono), 1 = fully spread. Ride it live. Default 0.55. Only does anything while reverb_plate() is up
 
 // chorus — THE master chorus (there is exactly one), applied to the whole mix: a BBD/Juno-style
 // modulated delay that thickens + widens everything into a lush shimmer. Master-wide (not per-slot).
@@ -787,7 +789,7 @@ void filter_inst(int instance, int mode, float cutoff_hz, float resonance);  // 
 // trigger — a bus compressor reading its OWN level, so the whole mix moves as one lump.
 void sidechain(int victim_bus, int key, float amount, int attack_ms, int release_ms);  // duck victim_bus (0 = master) by up to amount 0..1 on every hit in trigger `key` (0..3). amount 0 = off. attack ~1ms, release ~80–250ms = the pump
 void sidechain_key(int slot, int key, float send);   // route a slot into trigger key 0..3 — its level drives any sidechain() keyed there (kick → key 0). send 0..1 (0 = not a trigger)
-void glue(int victim_bus, float amount, int attack_ms, int release_ms);  // bus COMPRESSOR: duck victim_bus (0 = master) by up to amount 0..1 from its own level (no trigger) — the mix glued together. amount 0 = off
+void glue(int victim_bus, float amount, int attack_ms, int release_ms);  // bus COMPRESSOR: duck victim_bus (0 = master) by up to amount 0..1 from its own level (no trigger) — the mix glued together. amount 0 = off. Two things it does for you, both automatic: it puts the level it took back (MAKEUP, so switching it in no longer makes the mix smaller and an A/B is level-matched), and its recovery is PROGRAM-DEPENDENT (a single hit recovers in release_ms; a sustained loud wall takes ~4× that to let go)
 // multiband — MULTIBAND dynamics (the "OTT" sound): three bands, each pulled DOWN from above and pushed
 // UP from below, so loud parts sit flat while quiet detail comes forward and the mix reads permanently
 // "on" (modern pop/hyperpop/trap masters). glue() is the single-band, down-only version of this.

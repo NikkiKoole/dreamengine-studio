@@ -176,6 +176,48 @@ The house rule from `cr78`'s swing knob: an addition is fine, saying it is perio
 Everything else is faithful, including the omissions: no accent, no per-voice knob, no pattern
 memory beyond the disc in front of you.
 
+## 6b. What the ear said, twice, against the numbers
+
+The brush is the only voice that failed the owner's listen, and getting it right took three probe
+rounds. Both times the measurements and the ear disagreed, and both times the ear was right in the
+same direction, which makes it a usable prior rather than an anecdote.
+
+**Round one: a perfectly measured arc, in the wrong place.** The voice was rebuilt so its band
+travelled 1700 cents in a time-ordered arc, up from 900 cents of unordered jitter. Verdict: "sounds
+like a woosh". The arc was real and it was travelling entirely inside the nasal mid, where the
+shipped voice's mid band sat 11.8 dB above the quieter of its two ends. A brush is spectrally
+extreme, a low body and a high fizz with the middle scooped, and no amount of movement inside the
+hump fixes the hump.
+
+**Round two: a clean 4x measured separation that was perceptually null.** Three candidates swept
+grain (envelope texture 2.06x / 3.71x / 3.98x against 1.00x for the control, with a hard threshold
+between 90 and 130 Hz). Verdict: "the other 3 sound very similar". The reason was in a column nobody
+was reading: all three shared a **375 ms stroke with a 63 to 89 ms attack**, so they were one
+gesture at three grain settings, and the gesture dominated everything the modulation did. The
+transferable form: **when a listener says two things sound the same, the differing parameter is not
+the problem, the shared structure is.**
+
+**Round three: the ear picked the candidate the numbers bet against.** Given a body-to-tail axis, the
+agent's bet was the loud 455 ms sizzle; the owner picked the **285 ms tight tail**, which was in the
+set only to bound the axis. So "fizzles out a bit more" meant *dies away sooner*, not *sizzles on
+longer*. Twice now the ear has preferred the shorter, simpler gesture over the one with the better
+numbers.
+
+Two engine facts fell out of shipping it, and the first one is not specific to this cart:
+
+- **`instrument()` does not clear what else is attached to a slot.** It replaces the wave and the
+  ADSR; `instrument_env` / `_lfo` / `_filter` / `_drive` / `_level` / `_pan`, the sends and the duty
+  all survive. Redefining a slot for a different voice silently inherits the old one's modulation,
+  which left two stale `ENV_CUTOFF` sweeps on the promoted brush. Now documented on the function
+  itself (`node tools/api.js instrument`).
+- **Byte-identity is unachievable downstream of a note-count change.** `noise_state` lives per
+  voice-pool slot and is never reset at note-on, so a noise voice's waveform depends on which slot it
+  lands on and how many samples that slot has already produced. The promoted brush takes 3 slots and
+  4 notes where the old one took 2 and 2, so every noise note after it is a different realisation of
+  the same process (decays within 3 ms, band peak within 6%, centroid within 1.5%). The seven tonal
+  voices *are* byte-identical, and with the note count held equal the whole render is bit-exact, so
+  the check still works: it just has to hold notes constant to mean anything.
+
 ## 7. Gates
 
 | after touching | run |

@@ -108,7 +108,17 @@ function buildAndPublish(names, { force, reason }) {
   const msg = `site: publish-all — ${built.length} cart(s) (${reason}${failed.length ? `, ${failed.length} skipped` : ''})`
   console.log(`\npublishing ${built.length} cart(s)…`)
   const pub = spawnSync(path.join(__dirname, 'publish-cart.sh'), ['--no-build', '-m', msg, ...built], { stdio: 'inherit' })
-  process.exit(pub.status || 0)
+  // EXIT NONZERO IF ANYTHING FAILED TO BUILD, even though the deploy itself succeeded. The warning
+  // above is printed, but a run that publishes 80 of 181 and exits 0 reads as a clean deploy to
+  // anything that only checks the status — a CI step, a `&&` chain, or a human who piped the run
+  // through `tail` and lost the warning. That happened: every cart's web build was broken and the
+  // publish still looked green. The deploy's own failure still wins, so a push error is not masked.
+  if (pub.status) process.exit(pub.status)
+  if (failed.length) {
+    console.error(`\npublish-all: deploy OK, but ${failed.length} of ${names.length} cart(s) never built — exiting 1`)
+    process.exit(1)
+  }
+  process.exit(0)
 }
 
 function runGate() {

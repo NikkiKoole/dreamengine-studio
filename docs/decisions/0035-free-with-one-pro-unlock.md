@@ -236,6 +236,54 @@ paid app. It still reads correctly against a one-time unlock (and pointedly so, 
 subscriptions), so it is a judgement call rather than a defect. A description edit needs a new
 version anyway, so it costs nothing to decide with the Pro submission.
 
+## Evidence (2026-08-19): the closest comparable ships this exact model, and prices it at $9.99 for strictly LESS
+
+The maker found a Reddit self-post from the developer of **Vaporwave Beats** (Rarefy Audio, an
+808-style drum machine, iPad only, iPadOS 26+). It is the first real comparable this decision has
+had, and it was arrived at independently:
+
+> free to download, the core instrument "essentially fully unlocked. No trial, nag screens,
+> subscription or ads." **Pro is a one-time $9.99 unlock and adds MIDI controller support, MIDI
+> export + lossless WAV export.** … "Standalone for now, no AUv3."
+
+**1. The wall converges exactly, which is the strongest confirmation available.** Another developer
+in this niche, reasoning separately, drew the line in the same place: the instrument is free, and
+the paths that carry the music OUT (MIDI in, MIDI out, lossless export) are Pro. The
+wall-placement bullet in Why is no longer just an argument, it is the observed market line.
+
+**2. The price points AGAINST $4.99, and the comparison is not close.** They charge **$9.99 for
+MIDI + export with no plug-in at all.** Our Pro is that same bundle **plus the AUv3**, which
+`product-notes.md` rates as the thing the serious iOS crowd asks for first. So $4.99 prices our
+larger bundle at half of what the market's nearest neighbour gets for the smaller one. The Update's
+$4.99 reasoning is not refuted (the impulse tier is real, and raising later is still the free
+direction) but its premise that "at zero installs neither number is informed" is now weaker: one
+number is informed, and it is $9.99. **Left as the maker's call, deliberately not flipped here.**
+
+**3. A finer wall than ours, and worth copying: their FREE tier still SHARES.** Free users save and
+share beats as **M4A**; Pro is the **lossless** WAV. So the social loop stays open to people who
+never pay, which is the loop that produces downloads, while a professional workflow still needs the
+unlock. Our current Pro spec gates export entirely, which closes that loop. Recommended refinement:
+**free gets a shareable lossy export (or the seed-code/share-panel link we already have), Pro gets
+lossless WAV plus MIDI.** That also softens the takeaway problem the Update raised, since a free
+downloader keeps a way to get their beat out.
+
+**4. Two copy moves worth stealing verbatim** (they belong to
+[`store-agents.md`](../design/store-agents.md)'s voice notes, not to this decision):
+the objection is killed in the *second sentence* ("No trial, nag screens, subscription or ads"),
+before any commenter can voice the freemium reflex; and the gift is framed as a bonus rather than
+the pitch ("you don't need Pro Mode to enjoy the app").
+
+**5. The promo-code plan now has a measured datapoint.** They offered **6 codes to the first people
+who asked in-thread, DM'd rather than posted, all claimed in about 30 minutes**, with a stated
+cadence of "another giveaway in a week or so". That is close enough to the planned ten-per-
+communication weekly pass to treat as calibration. Recorded under lever #3 in
+[`demand-generation.md`](../design/demand-generation.md).
+
+**6. And a third confirmation of the §🚩 trademark reading.** Their effects are described as a
+"1073-style EQ, EMT-140-style plate reverb, 1176-style compressor" in the **body copy**, under an
+original app name. Same pattern as Troublemaker: the marks describe the sound in the description,
+never in the fields that carry the product's identity, and here each one wears "-style".
+
 ## See also
 - **[`pro-unlock.md`](../design/pro-unlock.md) — HOW this gets built** (the entitlement seam, the
   four gaps in it, and the audit that found the paid FEATURES largely do not exist yet: no AUv3 in

@@ -88,6 +88,18 @@ switches the whole cabinet out, and because every outboard stage bypasses to a b
 ([analog-outboard-chain.md](analog-outboard-chain.md) §4), that switch is a **true A/B** rather than
 an approximate one.
 
+**Measured here, and it is not instantaneous.** Method: two renders of this cart with the plate
+parked out (the plate's tail carries a difference for over a second on its own, §4's corollary), one
+holding the cabinet in throughout, one switching it out at 4.000 s and back in at 5.000 s. They are
+**bit-identical up to sample 4.0000 s**, differ across the gap, and **reconverge 0.304 s after the
+switch back**. So the stages themselves null exactly, but a *stage switch* reconverges only once the
+chain's own memory has decayed. The likeliest cause is the console EQ's low band: its corner is at
+80 Hz, one period of which is 12.5 ms, so a settling time in the hundreds of ms is what that filter
+should have. Worth flagging because the ledger's §4 table records EQ as bit-exact *at* the switch,
+which is the OUT direction measured against a never-on run; re-engaging a stage is a different
+question and this is the number for it. A bypass oracle needs a per-stage tolerance in TIME, not a
+boolean.
+
 The rack's **COMP stage is deliberately left out**: a 1959 organ amplifier had no bus compressor.
 Using three quarters of a shared table honestly beats using all of it dishonestly, and this is the
 first cart to exercise `outboard.h` as a *subset*, which is the test of whether that table is a real

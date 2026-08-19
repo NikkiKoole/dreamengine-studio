@@ -1,0 +1,29 @@
+# sideman — the organ cabinet A/B, as an honest one.
+#
+# The Side Man had no speaker: it fed the organ's amplifier and cabinet, so the
+# cart pins that stage from outboard.h (the WARM console EQ into the asymmetric
+# IRON stage) and C switches the whole thing out.
+#
+# TWO things this script exists to get right, both of which quietly ruin the
+# comparison:
+#
+#  1. PARK THE PLATE FIRST (V). With a reverb send in circuit, every stage's A/B
+#     reconverges only after the tail carries the difference away, over a second
+#     at the default size (analog-outboard-chain.md §4's corollary). So the plate
+#     goes out at frame 60, well before the first switch.
+#  2. LEAVE A WHOLE BAR EACH WAY. At the default 124 BPM in 4/4 a bar is ~116
+#     frames, so the switches sit 120 frames apart: one full bar with the
+#     cabinet, one without, one with it back.
+#
+# Measured off exactly this shape (two renders, sample-diffed): bit-identical up
+# to the first switch, and reconvergence to bit-exact 0.304s after the switch
+# back in. The stages null exactly; re-engaging one waits for the chain's own
+# memory, most likely the EQ's 80 Hz band.
+down 60  V
+up   62  V
+down 240 C
+up   242 C
+down 360 C
+up   362 C
+down 480 C
+up   482 C

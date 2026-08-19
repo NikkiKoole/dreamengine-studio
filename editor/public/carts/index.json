@@ -4755,6 +4755,32 @@
     "homage": "Joe Meek & the Blue Men — I Hear a New World (1959-60)"
   },
   {
+    "title": "glue probe",
+    "description": "A drum loop that plays four bars sparse and four bars as a wall, with the bus compressor switchable in and out. The meter reads RMS, because RMS is the number that moves: a peak meter shows this stage doing nothing at all. Two facts about a self-keyed bus compressor that a peak meter hides. First, it is not a limiter: the transient outruns even a 1 ms attack and passes through, and the follower then squashes the BODY behind it, so the peak stays where it was and the crest factor goes UP. That is the mix breathing as one lump, which is what a bus comp is for, and it is why the meter here is RMS with a peak-hold tick. Second, its recovery is program-dependent, which needs two kinds of program to see: the sparse half is single hits with air between them and recovers at the release time you set, while the wall half builds a second, slower follower and takes about four times as long to let go. The makeup is automatic: the stage averages the gain it is applying over about a second and a half and puts exactly that back, so switching it in no longer costs you level and the A/B is a fair one. The rack runs at about -7 dBFS peak on purpose. Feed a mastering stage a mix that already peaks at 0 dBFS and the master soft-clip absorbs everything it does, which is how you conclude a working stage is inert. SPACE switches the comp in and out, LEFT/RIGHT step the ratio (which sets amount, attack and release together), W forces the wall half on; it plays itself otherwise",
+    "file": "obglue.cart.png",
+    "created": "2026-08-19",
+    "kind": [
+      "probe"
+    ],
+    "teaches": [
+      "drum-synthesis"
+    ],
+    "lineage": "docs/design/analog-outboard-chain.md §2b measured glue() as a fast-attack slow-release DUCKER: at the hardest ratio it takes 3.8 dB of RMS while the peak does not move, so the crest factor RISES. §5.2 called the missing makeup the cheapest honesty win on the list, because without it switching the comp in makes the mix smaller and a level-matched A/B is impossible; §2 called program-dependent release the last honest piece of 'snappy'. This is the bench both were built and measured on: a loop with a SPARSE half and a WALL half, so the program dependence has something to depend on."
+  },
+  {
+    "title": "plate probe",
+    "description": "One mallet hit every two seconds, straight into a plate reverb, drawn on a vectorscope. A mono tank draws a vertical line down the middle of the screen. Switch the plate in and that line opens into a cloud, which is the whole point of a plate. The scope is a goniometer, the display a mastering engineer uses to look at stereo: mid (L+R) runs up the screen, side (L-R) runs across it. One signal in the middle of the mix has no side content at all, so it draws a vertical line, and that is exactly what the engine's reverb tank drew before reverb_plate() existed: the tank is mono, so the wet copy of every voice came back dead centre. With the plate in, the tank's two pickups read the same steel sheet at different distances and their DIFFERENCE becomes the side channel, so the cloud opens sideways as the WIDTH knob comes up. Only the difference is spread, so the mono fold is unchanged and nothing cancels on a phone speaker. The other three parts of the plate voicing are audible rather than visible here: a low cut (a steel sheet has no sub), a bright top (steel rings on), and dense diffusion in front of the tank so the hit arrives already smeared instead of as a discrete early echo, which is what makes a plate sit in a mix where a room fights it. Levels are deliberately low: the master soft-clip absorbs everything a mastering stage does if you feed it a mix that already peaks at 0 dBFS. SPACE switches the plate in and out, LEFT/RIGHT set the pickup spread, 1 fires a hit by hand; it plays itself otherwise",
+    "file": "obplate.cart.png",
+    "created": "2026-08-19",
+    "kind": [
+      "probe"
+    ],
+    "teaches": [
+      "positional-audio"
+    ],
+    "lineage": "docs/design/analog-outboard-chain.md §6 named the stereo plate as the ONE place in the analog output chain where new DSP is justified, because width is the product and 'lush' is not reachable from a mono tank. This probe is the bench that reverb_plate() was voiced on: a single mallet hit every two seconds into a hard reverb send, so the file is almost all TAIL, plus a real goniometer so the width is something you SEE and not only something a gate reports."
+  },
+  {
     "title": "Oersoep",
     "description": "The cell stage of Spore, in a drop of pond water (\"oersoep\" is Dutch for primordial soup). Swim a microbe toward the cursor and eat to earn DNA, then EVOLVE: at each DNA cap you find a mate and drop into a cell editor to bolt on a part - flagellum (speed), spike (rammers recoil), jaw (eat anything), poison sac - that changes how you play. The pond is a boid flock judged against YOUR size every frame: smaller cells flee and are food, bigger ones HUNT you and bite, and a bite drains health - so the cell that chased you at tier 1 is lunch at tier 3. Climb the food chain across four tiers, then crawl ashore. Unlike rollswarm you can be eaten. MOUSE/touch swims toward the pointer, Z chooses herbivore (X carnivore) on the title, in the editor Left/Right pick a part and Z confirms.",
     "file": "oersoep.cart.png",
@@ -4975,6 +5001,20 @@
     ],
     "lineage": "Classic Reversi; the CPU uses a corner-weighted heuristic board (WEIGHT[N][N]) — greedy positional evaluation, not minimax — making it a clean example of table-driven finite-state AI over a turn-based rule engine.",
     "genre": "tabletop"
+  },
+  {
+    "title": "outboard rack",
+    "description": "A mastering rack you can hear working. Three programs play themselves so both hands stay on the four stages: console EQ, asymmetric IRON saturation, a FET-style bus compressor and a plate send. The meter reads RMS, PEAK and CREST side by side, because the compressor moves the first and RAISES the third, and a peak meter alone says the stage is inert. A HEADROOM switch lets you take the room away and watch the whole rack stop working. Four stages, all bundles of effects the engine already ships (decision 0015), owned by the shared runtime/outboard.h table: EQ is eq_inst(0) with three fixed bands and a curve preset, IRON is drive_insert(DRIVE_ASYM) which is the even-harmonic shaper (the one line in the classic outboard pitch that is fully true here), COMP is a flat eq_inst(1) INPUT boost feeding glue() with the ratio button selecting an (amount, attack, release, dirt) tuple, and PLATE is reverb() plus per-slot instrument_reverb sends. Four things it makes measurable rather than claimed. (1) HEADROOM: at HOT the loop peaks near 0 dBFS, the always-on master soft-clip absorbs everything the rack does, and every stage measures nearly inert; the switch makes that visible instead of quietly avoiding it. (2) The meter shows RMS, PEAK and CREST plus a live 'vs dry' delta, because COMP at the ALL ratio drops RMS about 4 dB while the peak stays at the ceiling and the crest factor RISES: glue() is a fast-attack slow-release DUCKER, not a peak limiter. (3) Three programs, each voiced to expose one stage: a steady groove, a loud-bar/quiet-bar PUMP that makes the comp's recovery audible, and a SPARSE pattern whose gaps the plate tail fills. (4) The bit-exact bypass, now a committed oracle (tools/bypass-check.js): EQ and IRON return on the same sample the switch flips, COMP within one LSB inside 17 ms, PLATE about 3.1 s later once its tail has decayed. With the PLATE in circuit every A/B smears for about a second, so the cart says so on the panel rather than letting you draw the wrong conclusion. Order note: the comp is PINNED after the whole insert chain, so the achievable path is EQ then IRON then COMP, never comp-first. Every outboard_apply() is SET-AND-HOLD, fired only by the control that actually changed. SPACE runs the loop; keys 1 2 3 4 switch EQ / IRON / COMP / PLATE in and out (or tap a name bar); drag a knob; C cycles the EQ curve, V the compression ratio; N cycles the presets (DRY / GLUE / SQUASH / AIR / FULL); P cycles the program; H flips HEADROOM between ROOM and HOT; B bypasses the whole rack; F auto-flips the rack in and out every two bars, hands-free",
+    "file": "outboard.cart.png",
+    "created": "2026-08-19",
+    "kind": [
+      "instrument",
+      "tech-demo"
+    ],
+    "teaches": [
+      "analog-voice-modeling"
+    ],
+    "lineage": "docs/design/analog-outboard-chain.md -- the honesty ledger for the classic 'we modeled a FET compressor, a British EQ and a German plate' output-chain promise. ampcab.h did this for a guitar cabinet (effects-bus-architecture.md 'E'); runtime/outboard.h does it for the MASTER bus, and this cart is the bench that plays it. Sibling of mixbooth (the per-instrument family) and groovebox (the summed-bus family): this one is the OUTPUT-STAGE family, four pinned stages you A/B against a loop."
   },
   {
     "title": "outrun",
@@ -6205,6 +6245,19 @@
     "genre": "puzzle"
   },
   {
+    "title": "reverb width probe",
+    "description": "A measurement probe, not a toy: two plucks panned hard left and hard right, and one key that raises the shared reverb send. Renders it so stereo-check.js can price what the engine's MONO reverb tank costs a stereo image. Slot 5 is panned hard left, slot 6 hard right, and they alternate on the beat, which gives a wide dry image (measurable as side/mid RMS). Press 1 to raise the reverb send on both. Because there is exactly one shared MONO tank, the wet copy of a hard-left voice arrives dead centre, so raising the send does not widen the tail, it narrows the whole mix: the wet is common-mode signal added to both channels. Two headless renders (send 0 vs send up) diffed with stereo-check.js turn 'the tank is mono' into a width number. The probe also prices the CPU: at send 0 the tank is dormant and costs literally nothing (the `used` flag skips it), so timing the two renders isolates reverb_process(). 1 raises the reverb send, 2 drops it back to dry; the voices play themselves",
+    "file": "rvbwidth.cart.png",
+    "created": "2026-08-19",
+    "kind": [
+      "probe"
+    ],
+    "teaches": [
+      "positional-audio"
+    ],
+    "lineage": "docs/design/analog-outboard-chain.md asks whether a STEREO reverb tank is worth new DSP. The claim 'the tank is mono' is easy to state and hard to price, because nothing in the repo measures what a mono send COSTS a stereo mix. This probe makes that a number: two voices panned hard apart, one key that raises the reverb send, and tools/stereo-check.js reads the width before and after."
+  },
+  {
     "title": "sampler",
     "description": "Record what you play, chop it, and build a SONG out of the chops. Hit REC and play a synth (SAW/FM/PLUCK/EPIANO/FLUTE/REED/BRASS) or a DRUM KIT (ELECTRO/ACOUSTIC) — the ENGINE button picks the source. STOP auto-slices the recording at the moments you triggered notes. Audition the chops, +ADD the ones you like to a 16-pad bank, then ARRANGE them on a 16-step grid that loops — record more takes (a flute part, an epiano part, drums) and they all pool into one song. The source is the console's own sound, no mic. A full loop: sample → chop → arrange. REC captures the master output into a ring (record_arm) AND logs every note-on time as you play — so STOP slices EXACTLY where you triggered notes (no fragile transient-guessing; a signal detector is only the fallback for audio we didn't play in, e.g. a future loaded WAV). Synth sources play the chromatic keybed; a DRUM KIT source (drumkit.h — a shared kit of KICK/SNARE/HAT/OPEN/CLAP/TOM/CRASH voices) swaps the keybed for a PAD GRID, so you play a beat on the pads and each hit becomes a chop — the engine has no drum instrument, so this is how you sample drums. The grab is peak-normalized + silence-trimmed. Drag a marker to move it, onto a neighbour to delete, SPLIT halves the selected slice, AUTO re-slices; click a slice to select AND hear it. Two play modes: KEYS pitches the SELECTED slice across the keybed (the melodic sampler); KIT is a pad per slice at original pitch (the SP-404 break-chopper). MODE (or V) cycles NORMAL/REVERSE/LOOP/PINGPONG. ARRANGE opens the SONG: +ADD banks the selected chop into a fixed 16-pad bank; each take grabs into its OWN sample buffer (up to 8) so chops from different takes coexist; a 16-step grid loops them off the tempo clock with a sweeping playhead. A seconds-used readout shows the sample budget (shown, not yet capped — SP-404 style). A GRIT button crushes the whole song lo-fi — CLEAN/12BIT/8BIT/CRUSH (SP-1200 bit+rate reduction applied to every chop voice; the capture stays clean, so you re-grit on playback). The whole arrangement PERSISTS — the chops' PCM + grid + tempo + grit are auto-saved and restored on the next launch (a SONG button on the record screen jumps straight to your saved song). REC/STOP (or R) — record a take. ENGINE (or [ / ]) picks the source: a synth (keybed) or a DRUM KIT (pads). Drum source: A S D F.. hit the pads (or touch). EDIT: click a slice to select+hear it; drag markers to move, onto a neighbour to delete; KEYS|KIT (M), AUTO (re-slice), SPLIT, MODE (fwd/rev/loop/pingpong), +ADD (bank the selected chop), ARRANGE (open the song), RE-REC. EDIT/KEYS: A S D.. play the selected slice pitched; EDIT/KIT: the letters fire the chops. SONG: tap grid cells to program the loop; PLAY/STOP, -/+ tempo, + TAKE (record another), GRIT (CLEAN/12BIT/8BIT/CRUSH lo-fi), EDIT (back to the take), CLEAR.",
     "file": "sampler.cart.png",
@@ -6422,6 +6475,23 @@
     "lineage": "Showcase cart for the shimmer() reverb effect (pitch-shifted feedback loop, the Strymon BlueSky / Brian Eno sound); rising-spark particle system visualises the octave-up tail."
   },
   {
+    "title": "wurlitzer side man",
+    "description": "The first drum machine ever sold, rebuilt: ten vacuum-tube voices on a rotating contact disc, four of them struck wood. In 1959 Wurlitzer put a motor, a disc of metal contacts and ten tube circuits in a walnut box and sold it to organ players. It is the oldest drum sound in this studio by two decades, and it does not sound like a drum machine: four of its ten voices are struck WOOD (wood block, two temple blocks, claves) and only two are membranes, which is why the era is remembered as a plock rather than as a beat. The sequencer here is the real mechanism instead of a grid: one disc revolution is one bar, the contacts turn clockwise into a fixed wiper arm at twelve o'clock, and the tempo slider is the motor speed. Click any slot on the disc to stamp or lift a contact. The voices come from the shared sideman.h bank, where the fullness is not reverb but a single-ended tube stage on every voice (asymmetric saturation brings even harmonics) plus the machine's own band limit. The Side Man had no speaker of its own: it fed the organ's amplifier and cabinet, so that stage is a rack you can switch out, pinned from outboard.h, and it returns bit-exact when you switch it off. Two knobs the original never had, both labelled as ours: CONTACT WEAR (every contact sits a hair early or late, the same hair every revolution, which is what a stamped disc actually does) and the cabinet A/B. SPACE motor on/off. LEFT/RIGHT rhythm (twelve, as on the dial). UP/DOWN tempo. 1-9 and 0 play the ten voices by hand, like the panel buttons. Click a slot on the disc to stamp or lift a contact, drag to paint. C cabinet, V tank, B contact wear.",
+    "file": "sideman.cart.png",
+    "created": "2026-08-19",
+    "kind": [
+      "instrument"
+    ],
+    "teaches": [
+      "step-sequencer",
+      "drum-synthesis",
+      "analog-voice-modeling",
+      "subtractive-synth"
+    ],
+    "lineage": "Wurlitzer Side Man (1959) homage, the first drum machine ever sold. Where cr78 rebuilt a 1978 solid-state box as a left-to-right grid, this one is twenty years earlier and electro-mechanical, so the sequencer IS a rotating contact disc read by a fixed wiper: the pattern turns, the playhead does not move.",
+    "homage": "Wurlitzer Side Man, Rudolph Wurlitzer Company, 1959"
+  },
+  {
     "title": "sightlines",
     "description": "PROBE (probe-carts.md): is a tilemap line-of-sight / FOV primitive worth owning in the engine? Two candidates on the same occluder grid. SINGLE-RAY LOS — one Bresenham walk answers 'can A see B?' (enemy vision / stealth / aim / audio occlusion); each guard draws a ray to the eye, red when it has line of sight. FIELD OF VIEW — recursive shadowcasting reveals everything the eye can see, walls casting shadows (lighting / fog-of-war). ARROWS move the eye, L/R-drag paint & erase walls, TAB toggles LOS<->FOV, wheel sets FOV radius, C clears, R randomizes. Generalizes the acoustics-probe raycast beyond audio.",
     "file": "sightlines.cart.png",
@@ -6576,6 +6646,20 @@
     ],
     "lineage": "Guitar Hero / rhythm-game genre — four-lane fall-down chart driven by the engine beat clock; the pal()-recolor crowd trick and a hand-authored chart editor are the novel parts.",
     "genre": "arcade"
+  },
+  {
+    "title": "side man probe bench",
+    "description": "A deterministic bench that fires all ten Wurlitzer Side Man voices in turn, then stacks them, then rolls them, so the audio oracles can measure the bank. Not a musical cart: it is the render rig behind runtime/sideman.h. The timeline is pinned to frame numbers so a headless render puts every voice at a known second: ten solo hits 0.75s apart, one whole-bank stack (the headroom test), a wooden roll of the four struck-wood voices, then a full-bank groove. Render it with play.js --wav and read the regions with harmonic-spec / inharm-spec / wav-envelope / click-check. Deliberately DRY, with no cabinet and no outboard chain, because the header's claim is that the fullness comes from the tube stage and the band limit rather than from a box. Keys 1-9 and 0 fire the ten voices by hand; SPACE stacks the whole bank; R runs the wooden roll. It plays its fixed timeline on its own with no input at all.",
+    "file": "smprobe.cart.png",
+    "created": "2026-08-19",
+    "kind": [
+      "probe"
+    ],
+    "teaches": [
+      "drum-synthesis",
+      "analog-voice-modeling"
+    ],
+    "lineage": "The measurement bench for runtime/sideman.h (Wurlitzer Side Man, 1959). Fires each of the ten voices in isolation on a fixed frame grid so the spectral tools can read one hit at a time, then a whole-bank stack for headroom and two rolls for click hunting."
   },
   {
     "title": "snake",

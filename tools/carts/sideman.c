@@ -61,7 +61,10 @@ de:meta */
 //     remembered sound: mid-forward, top rolled off, gently saturated. So it
 //     is a rack here (runtime/outboard.h: the console EQ on its WARM curve
 //     plus the asymmetric IRON stage) rather than something baked into the
-//     voices, and switching it out returns bit-exact. The rack's COMP stage is
+//     voices. MEASURED: switching the cabinet out and back in reconverges to
+//     bit-exact 0.304 s later (two renders, plate parked out, sample-diffed) —
+//     the stages null exactly, but re-engaging one has to wait for the chain's
+//     own memory, most likely the EQ's 80 Hz band. The rack's COMP stage is
 //     deliberately left OUT: a 1959 organ amplifier had no bus compressor, and
 //     using three quarters of a shared table honestly beats using all of it
 //     dishonestly.
@@ -440,9 +443,15 @@ static void draw_disc(void) {
     rectfill(DISC_CX,     top, 1, len, arm);
     circfill(DISC_CX, top + 2, 4, CLR_DARK_GREY);                 // the pivot post
     circ(DISC_CX, top + 2, 4, CLR_MEDIUM_GREY);
-    int shoe = DISC_CY - track_r(SM_NV - 1) - 1;                  // rides the outer track
-    rectfill(DISC_CX - 3, shoe, 7, 4, arm);
-    if (lit) circ(DISC_CX, shoe + 2, 5, CLR_YELLOW);
+    // and the COMB: one contact finger per track, because the real machine reads
+    // all ten at once. A finger lights in its own voice's colour the moment its
+    // contact closes, which is the whole mechanism visible in one glance.
+    for (int v = 0; v < SM_NV; v++) {
+        int fy = DISC_CY - track_r(v) - 1;
+        bool closed = motor && flash[v] > 0 && disc[v][playhead];
+        rectfill(DISC_CX - 3, fy, 7, 3, closed ? VCLR[v] : arm);
+        if (closed) rectfill(DISC_CX - 5, fy - 1, 11, 5, VCLR[v]);
+    }
 }
 
 static void draw_panel(void) {

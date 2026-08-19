@@ -201,10 +201,24 @@ OWN process, which is the only form of this claim worth anything. `codesign -d -
 shows the group on both the `.app` and the `.appex`, and `auval` still SUCCEEDS, which the `MacAU`
 block's history (an added entitlement once killed the extension at launch) made worth checking.
 
-**No portal work beyond registering the group.** `-allowProvisioningUpdates` attached the capability
-to the App IDs itself. ⚠ **The first build after the capability change FAILS** while it mints the new
-profile (`ProcessProductPackaging … .provisionprofile`); the retry succeeds. Expect that once per
-target and do not go debugging it.
+**⚠ THE PORTAL STEP IS NOT OPTIONAL, and registering the group is only half of it.** Each App ID
+must ALSO have the App Groups capability enabled and this group selected. On **Mac Catalyst**
+`-allowProvisioningUpdates` did that itself (first build fails while it mints the profile —
+`ProcessProductPackaging … .provisionprofile` — retry succeeds, expect it once per target). On
+**iOS it does NOT**: it re-mints the same profile without the group, indefinitely, and fails with
+
+```
+Provisioning profile "iOS Team Provisioning Profile: com.tinyjam.hello" doesn't match
+the entitlements file's value for the com.apple.security.application-groups entitlement.
+```
+
+Deleting the cached profiles does not help — Xcode mints them again, still without the group,
+because the **App ID** lacks the capability. Fix it in the portal, per App ID: Identifiers → the
+App ID → tick **App Groups** → Configure → select `group.com.mipolai.shared`.
+
+⚠ **This includes the throwaway DEV-LOOP ids**, or `ios/device.sh` stays broken now that the
+entitlement is unconditional in `project.yml`: `com.tinyjam.hello` and `com.tinyjam.hello.TinyjamAU`.
+Plus every shipping pair: `com.mipolai.<app>` and `com.mipolai.<app>.TinyjamAU`.
 
 **How to see it again** — note `/usr/bin/log` spelled out, because zsh shadows `log` with a builtin
 that prints nothing to stdout and is indistinguishable from an empty log:
@@ -218,8 +232,8 @@ that prints nothing to stdout and is indistinguishable from an empty log:
 one being fine says nothing about the other. It goes through `os_log` with `%{public}` rather than
 `NSLog`, which redacts every dynamic value on device and arrives as the word `<private>`.
 
-⚠ **iOS is still unproven.** This was the Mac Catalyst pair. The iOS app and its extension carry the
-same declaration but have not been signed since it landed.
+⚠ **iOS is still unproven, and BLOCKED on the portal step above** (measured 2026-08-19 on a
+connected iPhone SE, iOS 15.4.1). The declaration is there; the App IDs are not configured.
 ⚠ `ios/TinyjamHello.entitlements` is a dead orphan (gitignored, referenced by nothing). Delete it.
 
 ▼ The state this replaced, kept because the reasoning is the reusable part:

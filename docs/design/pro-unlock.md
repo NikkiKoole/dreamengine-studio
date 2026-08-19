@@ -162,12 +162,13 @@ as of 2026-08-19 **three of them are broken**, each silently.
 
 | # | Link | State |
 |---|---|---|
-| 1 | **Universal Purchase**: one App Store record covering iOS + macOS, so one non-consumable is one purchase everywhere | ❌ the Mac carrier is a DIFFERENT bundle id |
-| 2 | **The App Group entitlement** actually present, on the app AND the extension, on BOTH platforms | ❌ declared by NO built target, on either platform (§9 renamed it while that is still free) |
-| 3 | **The group registered** for the team so automatic provisioning can sign it | ❌ never done (that is why link 2 was removed) |
+| 1 | **Universal Purchase**: one App Store record covering iOS + macOS, so one non-consumable is one purchase everywhere | ✅ **DECIDED 2026-08-19: "Designed for iPad"** (§10). No Mac binary, so no bundle-id problem to have |
+| 2 | **The App Group entitlement** actually present, on the app AND the extension, on BOTH platforms | ✅ **DONE 2026-08-19** — all four targets, gated (§9 renamed it first, while that was free) |
+| 3 | **The group registered** for the team so automatic provisioning can sign it | ✅ **DONE 2026-08-19** by the maker — `group.com.mipolai.shared`, "Mipolai shared entitlements" |
 | 4 | **The host can load it**: Live has supported AUv3 since 11.3, Apple Silicon only, instruments and audio effects but NOT MIDI effects | ✅ nothing to do, but it bounds who can be sold to |
 
-**Link 1 — Universal Purchase needs the SAME bundle id.** `ios/au-identity.sh`'s `au_carrier_load`
+**Link 1 — RESOLVED by §10's route, but the trap is kept written down because it returns the moment
+a real Mac binary is built.** Universal Purchase needs the SAME bundle id. `ios/au-identity.sh`'s `au_carrier_load`
 derives the Mac carrier as `CARRIER_APP_ID="$base.mac"`, so *Tiny Pedalboard* would ship as
 `com.mipolai.tinypedalboard.mac`: **a separate App Store record and a separate purchase**, forever,
 because a bundle id cannot be changed after it ships. That `.mac` suffix is right for what it was
@@ -179,7 +180,23 @@ notarized `.app` outside the store, and that route **cannot do Universal Purchas
 at all** — it would need its own licensing and its own entitlement bridge. "Buy on iPhone, works in
 Live" requires the **Mac App Store**.
 
-**Link 2 — the App Group is declared nowhere, so the entitlement cannot reach the plug-in.**
+**Link 2 — RESOLVED 2026-08-19.** The group is registered in the portal and declared on all four
+targets: the iOS app and its `TinyjamAU` extension (`ios/project.yml`), and the Mac Catalyst pair
+(`ios/project-mac.yml`). `pro-check` asserts it appears **twice per spec**, because each spec carries
+a PAIR and one half alone is not a shared container, with a mutation control.
+**Two traps met on the way, both silent.** `Mac.entitlements`/`MacAU.entitlements` are xcodegen
+OUTPUT generated from a `properties:` block, so editing those files directly is overwritten by the
+next build; the declaration has to live in the spec. And every `*.entitlements` is gitignored for
+that reason, so a check pointed at them would pass or fail on build residue rather than on the
+repo — `pro-check` reads the specs.
+**Still unproven**: nothing has been signed with it yet. `AppGroup.containerAvailable` non-nil on a
+signed build of each target is the only real proof, and it is expected to come free, since every
+build script already passes `-allowProvisioningUpdates` with automatic signing and the group now
+exists for Xcode to attach.
+⚠ `ios/TinyjamHello.entitlements` is a dead orphan (gitignored, referenced by nothing). Delete it.
+
+▼ The state this replaced, kept because the reasoning is the reusable part:
+**The App Group was declared nowhere, so the entitlement could not reach the plug-in.**
 `ios/project.yml` carries a comment recording that it was deliberately removed:
 
 > *the app-group entitlement is re-added once the group is registered for automatic provisioning.
@@ -248,6 +265,37 @@ made on what each forecloses:
 
 ⚠ A studio pass is NOT built and is not implied by the shared group; the group only keeps the door
 open. Pricing a catalog is parked behind ADR-0035's five-app trigger.
+
+## 10. How the Mac version ships: "Designed for iPad", not a Mac binary (2026-08-19)
+
+**Decided by the maker.** Each app ticks **Mac compatibility ("Designed for iPad")** in App Store
+Connect. The **iOS binary** then runs on Apple Silicon Macs, downloaded from the Mac App Store, and
+its AUv3 becomes available to Mac hosts.
+
+**The fork this settles is not "store or not".** A Designed-for-iPad app IS on the Mac App Store;
+the question was only ever **one binary or two**. Three routes were on the table:
+
+| | Route | Per-app cost | Pro on Mac |
+|---|---|---|---|
+| A | **Catalyst binary on the Mac App Store** | a Mac listing, Mac screenshots, a second review, **per app, forever** | Universal Purchase, needs the SAME bundle id (the trap in §8 link 1) |
+| B | **Developer ID `.app`** from our own site (`tools/mac-app.sh`) | no review at all | ❌ **cannot use App Store IAP**: own licence keys, own payment processor, own bridge from the iOS purchase |
+| C | **"Designed for iPad"** ✅ | **one checkbox** | automatic — it is the same app record and the same purchase |
+
+**Why C.** The plan is many small apps (ADR-0035), so a cost paid *per app forever* is the one to
+avoid. C is a checkbox; A is a second storefront to maintain for every app we ever ship. And C needs
+no bundle-id surgery at all, because there is no second binary to give an id to.
+
+**What we give up**, and it is real: the app runs in iPad compatibility mode, so it is a fixed
+window with touch-emulated input rather than a Mac app. For something sold as a serious instrument
+that may read as cheap. **The Catalyst target is not deleted** — it stays as the local dev carrier
+(`ios/mac.sh`, how the plug-in is tested in GarageBand today) and as the upgrade for any app that
+earns a proper Mac build. C → A on the same record is an ordinary upgrade, not a redo.
+
+**⚠ NOT YET VERIFIED, and nobody should treat this as settled until it is.** Ableton's own wording
+is "**certain** AUv3-compatible iPad and iPhone apps", and it is **Apple Silicon only** (an Intel Mac
+cannot host AUv3 in Live at all). The test is cheap and specific: tick the box on `tinyacidjam`
+(it already ships an AUv3; `pedalboard` does not), install it on an Apple Silicon Mac, and load it in
+Live. If it does not appear, route A is the fallback and §8 link 1's bundle-id trap comes back.
 
 ## See also
 [ADR-0035](../decisions/0035-free-with-one-pro-unlock.md) (the model) ·

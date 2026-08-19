@@ -222,21 +222,31 @@ if (process.argv.includes('--selfcheck')) {
   // early blocks plain device signing), and pro-unlock.md section 8 owns the sequence.
   const groupId = (/static let id = "([^"]+)"/.exec(
     fs.readFileSync(path.join(ROOT, 'ios/Sources/AppGroup.swift'), 'utf8')) || [])[1]
-  // ⚠ match the DECLARATION, never the name: ios/project.yml mentions the group in a COMMENT
-  // recording why it was removed, and counting that as a declaration turns this into a check that
-  // reports "1 of 4 present" while the true answer is none.
-  const carriers = ['ios/project.yml', 'ios/project-mac.yml', 'ios/Mac.entitlements', 'ios/MacAU.entitlements']
-  const declares = f => {
-    try { return declaresGroup(fs.readFileSync(path.join(ROOT, f), 'utf8'), groupId) } catch { return false }
-  }
-  const withGroup = carriers.filter(declares)
   ok(!!groupId, 'AppGroup.swift names a group id', String(groupId))
-  if (withGroup.length === 0 && !quiet) {
-    console.log(`  ⚠ ${groupId} is declared by NO built target (${carriers.length}/${carriers.length} missing).`)
-    console.log('    Not a failure yet — see docs/design/pro-unlock.md section 8: it waits on the group')
-    console.log('    being registered for automatic provisioning, and re-adding it early blocks device signing.')
-    console.log('    ⚠ Until then a purchase CANNOT reach the AUv3 on a signed build, on either platform.')
+
+  // The App Group is the ONLY way an entitlement reaches an extension, and a missing declaration is
+  // SILENT: UserDefaults(suiteName:) hands back a usable suite with no entitlement, so everything
+  // works inside one process and nothing ever crosses the app/appex boundary.
+  //
+  // Read the SPECS, not the .entitlements files: those are xcodegen OUTPUT and gitignored, so a
+  // fresh clone has none of them and a check pointed at them would pass or fail on build residue.
+  //
+  // ⚠ Require it TWICE per spec, because each carries a PAIR (app + AU extension) and one half
+  // alone is not a shared container. A "does this file mention it" test is green on half a wiring.
+  for (const spec of ['ios/project.yml', 'ios/project-mac.yml']) {
+    const n = fs.readFileSync(path.join(ROOT, spec), 'utf8').split('\n')
+      .filter(l => !/^\s*#/.test(l))
+      .filter(l => l.includes('application-groups') && l.includes(groupId)).length
+    ok(n >= 2, `${spec} declares ${groupId} on BOTH the app and its extension`, `found ${n}, need 2`)
   }
+  // NEGATIVE CONTROL: strip the declarations and the assertion above must go red. Without this,
+  // a counter that had stopped matching anything at all would report the same green.
+  // (The comment-vs-declaration distinction is pinned separately, with known answers, in
+  // --selfcheck: it belongs there because it must not depend on prose that happens to exist.)
+  const stripped = fs.readFileSync(path.join(ROOT, 'ios/project.yml'), 'utf8').split('\n')
+    .filter(l => !(l.includes('application-groups') && l.includes(groupId)))
+  ok(stripped.filter(l => !/^\s*#/.test(l) && l.includes(groupId) && l.includes('application-groups')).length < 2,
+     'negative control: removing the app-group declarations FAILS the check above')
 
   // and the generator seam: a single-cart app must still get its app_pro.h (it used to be written
   // only inside `if (launcher)`, so pedalboard and tinyacidjam generated nothing at all)

@@ -34,17 +34,18 @@ targets:
       - target: TinyjamAU       # embed the AUv3 extension into the app's PlugIns
         embed: true
     # de:au-end
-    # ⚠ NO APP-GROUP ENTITLEMENT HERE, AND THAT IS THE ONE THING BLOCKING PAID FEATURES IN THE
-    # PLUG-IN. It was removed because it blocks plain device signing until the group is registered
-    # for automatic provisioning, with the note that "the AppGroup UserDefaults suite works without
-    # it". That is TRUE and MISLEADING: a suite exists with no entitlement, so it works inside ONE
-    # process (which is all a simulator spike tests) and never crosses to the extension, which is
-    # the only thing an App Group is for. So a Pro purchase CANNOT reach the AUv3 on a signed
-    # build. Re-add `com.apple.security.application-groups: [group.com.mipolai.shared]` here AND on
-    # TinyjamAU, Mac.entitlements and MacAU.entitlements once the group is registered; then confirm
-    # AppGroup.containerAvailable is non-nil on a signed build of each, which is the only proof it
-    # took. Sequence: docs/design/pro-unlock.md §8. (Was named group.com.tinyjam, renamed 2026-08-19
-    # to the studio rather than the umbrella app — see ios/Sources/AppGroup.swift.)
+    # THE APP GROUP. Registered in the portal 2026-08-19 as "Mipolai shared entitlements". It is the
+    # ONLY channel a Pro purchase has to the AUv3: the extension is a separate sandboxed process that
+    # a host can load without this app ever launching, so it cannot ask StoreKit and reads what this
+    # app wrote here instead (ios/Sources/AppGroup.swift, docs/design/pro-unlock.md §8–§9).
+    # ⚠ It must be on BOTH halves of a pair. One side alone is not a shared container, and the
+    # failure is silent: UserDefaults(suiteName:) still hands back a working suite, so everything
+    # looks fine inside one process and nothing crosses. AppGroup.containerAvailable is the only
+    # honest test, and it reads nil until this is here AND signed.
+    entitlements:
+      path: Tinyjam.entitlements
+      properties:
+        com.apple.security.application-groups: [group.com.mipolai.shared]
     settings:
       base:
         GENERATE_INFOPLIST_FILE: YES
@@ -116,6 +117,12 @@ targets:
       - ../runtime/studio.c
       - ../runtime/raylib_compat.c
       - gen/au/cart.c
+    # The READ side of the pair above — see that comment. Without this the plug-in has no shared
+    # container and answers "not entitled" to a customer who paid.
+    entitlements:
+      path: TinyjamAU.entitlements
+      properties:
+        com.apple.security.application-groups: [group.com.mipolai.shared]
     settings:
       base:
         GENERATE_INFOPLIST_FILE: NO

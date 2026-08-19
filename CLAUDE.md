@@ -247,8 +247,13 @@ runtime/   studio.h (public API: constants + declarations), studio.c (Raylib imp
                          BRUSH/MARACAS/CYMBAL). FOUR of the ten voices are struck WOOD, which is why the era reads
                          as a "plock" and not as a beat: one damped ring through a resonant band, no noise, no
                          layers, hard front, fast clean decay. The FULLNESS is not reverb, it is (1) every voice
-                         through DRIVE_ASYM, because a single-ended TUBE stage saturates asymmetrically and brings
-                         even harmonics, and (2) the machine's ~60Hz-6kHz band limit. Deliberately does NOT own the
+                         through DRIVE_ASYM at 0.45 and (2) the machine's ~60Hz-6kHz band limit (which IS the
+                         circuit, not the box: the coupling cap and the tube's bandwidth). ⚠ MEASURED, correcting
+                         what this line first claimed: DRIVE_ASYM is a tanh with an asymmetric PRE-GAIN, so the ODD
+                         partials lead the evens by 25-30 dB at every amount on every voice. The evens merely EXIST
+                         where they otherwise would not (h2 -94 dB bypassed → -39 dB driven), which is what
+                         separates it from DRIVE_SOFT. The fullness is the whole LADDER, not its even half.
+                         Deliberately does NOT own the
                          BOX: the real unit had no speaker, it fed the organ's amp and cabinet, so that stage is the
                          cart's, via outboard.h. sideman cart; design/sideman.md
              ampcab.h    the shared guitar AMP/CABINET voicing table: five amps as preset BUNDLES of effects we
@@ -575,6 +580,24 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
                              same MEAN pan). `--expect mono|wide|decorrelated|autopan [--rate hz]` = PASS/FAIL
                              gate, `--check` = self-test vs synthetic signals (RUN IT FIRST — a broken analyser
                              and a mono file print the same thing). Run after any pan/width/stereo edit
+             bypass-check.js the RECONVERGENCE oracle: switch an effect OUT and does the mix come back
+                             BIT-EXACT, and how long does it take? Nothing else asserts that. Renders the
+                             SAME run twice (a stage IN then switched out at frame N, vs never in) and locates
+                             the LAST DIFFERING SAMPLE, because a whole-file sha only ever says "differs" (every
+                             stage differs while it is IN, that is its job) and the question is whether the two
+                             RECONVERGE, and when. Tolerance is a TIME + a residual CEILING per stage, not a
+                             boolean: EQ and IRON return on the switching sample, COMP within 1 LSB inside 17 ms
+                             (a nulled `eq_inst` is an ALGEBRAIC null, not a float-exact one), PLATE 3.1 s later
+                             because a reverb tail is real. FOUR ways it refuses to pass vacuously — a
+                             byte-identical pair reads INCONCLUSIVE not PASS (the toggle never reached the DSP) ·
+                             a difference still going when the render ENDS is the render length, not a
+                             reconvergence · a sub-audible or 0.2%-of-samples difference means the stage was
+                             inert · and the baseline is rendered TWICE and must be byte-identical, or the whole
+                             comparison is measuring nondeterminism. Also fingerprints runtime/ before and after
+                             and reports THE ENGINE MOVED rather than a finding, since a parallel agent landing
+                             in sound.h mid-run compares two different builds (that happened). `--quiet` gates,
+                             `--selfcheck` = 24 known answers on constructed WAV pairs (no cart, no engine),
+                             mutation-tested. docs/design/analog-outboard-chain.md §4
              voice-trace.js  read a --trace run's voice-allocation events (on/off/reuse/steal/choke, naming the
                              victim) → why a voice stopped; twin of play.js --solo-slot (stem render). For "a solo got
                              cut off by another instrument". Design: docs/design/audio-voice-debugging.md

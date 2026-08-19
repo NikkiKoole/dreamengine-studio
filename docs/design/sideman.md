@@ -72,9 +72,19 @@ the voicing. The two claims it rests on:
   the contact pulse leaking through before the network settles, and a fast clean decay (roughly
   25 ms for claves up to 90 ms for the hollowest temple block). The four wooden voices are tuned as
   a **set** so they read as one section.
-- **the fullness is not reverb.** It is (1) every voice through `DRIVE_ASYM`, because a
-  single-ended tube stage saturates asymmetrically and brings **even** harmonics, which is what
+- **the fullness is not reverb.** It is (1) every voice through `DRIVE_ASYM` at amount 0.45, which
   turns a damped sine into something with a body, and (2) the machine's own band limit.
+
+  **The first half of that was originally written wrong, and measuring it is what corrected it.**
+  The claim was that the fullness is the EVEN harmonics, on the reasoning that a single-ended tube
+  stage saturates asymmetrically. Measured across five drive amounts and every tonal voice, the
+  **odd partials lead the evens by 25 to 30 dB without exception**, because `DRIVE_ASYM` is a tanh
+  (an odd function) with an asymmetric pre-gain. What survives is the weaker and more useful
+  statement: the evens *exist* where they otherwise would not (h2 goes from -94 dB bypassed to
+  -39 dB driven, a 55 dB rise), and that is what separates `DRIVE_ASYM` from `DRIVE_SOFT`. **The
+  fullness is the whole harmonic ladder, not its even half.** 0.45 is where the ladder arrives:
+  0.30 is 20 dB thinner at h5, and past 0.45 the ladder gains 2 dB while the claves' energy above
+  6 kHz doubles (a 2.2 kHz voice's third harmonic is already at 6.7 kHz).
 
 ## 4. The cabinet, and why it is not baked in
 
@@ -142,7 +152,7 @@ memory beyond the disc in front of you.
 |---|---|
 | the cart's logic | `node tools/spec.js sideman` |
 | the cart's layout | `node tools/ui-audit.js sideman`, `node tools/mobile-lint.js sideman` |
-| the voicing (`sideman.h`) | `harmonic-spec` (even harmonics = the fullness), `inharm-spec --decay` (per-partial decay: does the fundamental or the top die first), `wav-envelope`, `click-check --quiet`, `level-check`, `dc-check`, and `ab-render` to A/B the tube amount (it exits 2 if the value never reached the DSP) |
+| the voicing (`sideman.h`) | `harmonic-spec` (the harmonic ladder, and mind that it starts its window 35% into the file, so on a 45 ms voice in a 200 ms cut it measures the tail's quantisation noise), `inharm-spec --decay` (per-partial decay: does the fundamental or the top die first), `wav-envelope`, `click-check --quiet`, `level-check`, `dc-check`, and `ab-render` to A/B the tube amount (it exits 2 if the value never reached the DSP) |
 | the cabinet | `fx-check`, `level-check`, and the byte-identical-bypass method in [analog-outboard-chain.md](analog-outboard-chain.md) §4 (the LAST DIFFERING SAMPLE, not a sha) |
 | anything | `node tools/lint-carts.js`, `node tools/lint-fx-frame.js --strict` |
 

@@ -118,6 +118,16 @@ if (!process.argv.includes('--selfcheck')) {
 // audio-unit extension: it runs a cart, it cannot reach StoreKit, and its ONLY entitlement source
 // is Entitlements.swift + AppGroup.swift over the App Group. Miss them and it fails open.
 const NEEDED = ['Sources/Entitlements.swift', 'Sources/AppGroup.swift']
+
+// ⚠ Match a DECLARATION, on a line that is not a COMMENT. Both ymls discuss the group in prose
+// (project.yml's whole note is about why it is absent), and an earlier version of this matched that
+// prose — so the check reported the group as present precisely because the file was explaining that
+// it is not. Strip comment lines first; a plist `<string>` line is never a comment, a yml `#` is.
+function declaresGroup(text, groupId) {
+  return text.split('\n')
+    .filter(l => !/^\s*#/.test(l))
+    .some(l => l.includes('application-groups') || new RegExp('<string>\\s*' + groupId + '\\s*</string>').test(l))
+}
 function auditYml(text) {
   // Targets are 2-space keys under `targets:`; we only need "which target block is this line in".
   const out = []
@@ -152,6 +162,17 @@ if (process.argv.includes('--selfcheck')) {
   const real = auditYml(fs.readFileSync(path.join(ROOT, 'ios/project.yml'), 'utf8'))
   ok(real.length >= 1, 'selfcheck: the real ios/project.yml still parses to at least one AU target',
      JSON.stringify(real))
+  // the app-group declaration test, both directions. The false-positive half is not hypothetical:
+  // it shipped for one run, and it reported the group PRESENT because a comment explained it is not.
+  const G = 'group.com.mipolai.shared'
+  ok(declaresGroup(`        com.apple.security.application-groups: [${G}]\n`, G),
+     'selfcheck: a real yml declaration counts')
+  ok(declaresGroup(`\t<key>com.apple.security.application-groups</key>\n\t<array>\n\t\t<string>${G}</string>\n`, G),
+     'selfcheck: a real plist declaration counts')
+  ok(!declaresGroup(`    # NOTE: re-add com.apple.security.application-groups: [${G}] once registered\n`, G),
+     'selfcheck: a COMMENT mentioning it does NOT count (the false positive this shipped with)')
+  ok(!declaresGroup('        com.apple.security.app-sandbox: true\n', G),
+     'selfcheck: an unrelated entitlement does not count')
 } else {
   if (!quiet) console.log('\nthe structural half (every AU_EXT target links a real answer)')
   // Only the TRACKED specs. ios/project-{dev,store}.yml and project-mac-dev.yml are cp/sed copies
@@ -206,8 +227,7 @@ if (process.argv.includes('--selfcheck')) {
   // reports "1 of 4 present" while the true answer is none.
   const carriers = ['ios/project.yml', 'ios/project-mac.yml', 'ios/Mac.entitlements', 'ios/MacAU.entitlements']
   const declares = f => {
-    try { return new RegExp('<string>\\s*' + groupId + '\\s*</string>|application-groups:').test(fs.readFileSync(path.join(ROOT, f), 'utf8')) }
-    catch { return false }
+    try { return declaresGroup(fs.readFileSync(path.join(ROOT, f), 'utf8'), groupId) } catch { return false }
   }
   const withGroup = carriers.filter(declares)
   ok(!!groupId, 'AppGroup.swift names a group id', String(groupId))

@@ -78,11 +78,11 @@ final class Store {
         unlockedLock.lock()
         let ids = _unlockedIDs        // COW snapshot under the lock — the contains() below is race-free
         unlockedLock.unlock()
-        // The "unlock everything" pass is matched by its LAST COMPONENT, not a hardcoded id: this
-        // line used to read `ids.contains("com.mipolai.tinyjam.masterpass")`, which is Tiny Jam's
-        // bundle prefix, so any OTHER app's pass silently unlocked nothing. Keep any catch-all
-        // product id ending `.masterpass` (build-app.js warns if a "*"-unlocks product is not).
-        return ids.contains(id) || ids.contains(where: { $0.hasSuffix(".masterpass") })
+        // ONE rule, defined in AppGroup.grants and shared so the app and the extension cannot
+        // drift: an id ending `.masterpass` is the catch-all, SCOPED BY PREFIX. This line used to
+        // be `ids.contains("com.mipolai.tinyjam.masterpass")` — Tiny Jam's own bundle prefix, so
+        // any other app's pass unlocked nothing at all.
+        return AppGroup.grants(ids, id)
     }
 
     private func listen() -> Task<Void, Never> {

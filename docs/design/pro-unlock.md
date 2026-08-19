@@ -163,7 +163,7 @@ as of 2026-08-19 **three of them are broken**, each silently.
 | # | Link | State |
 |---|---|---|
 | 1 | **Universal Purchase**: one App Store record covering iOS + macOS, so one non-consumable is one purchase everywhere | ❌ the Mac carrier is a DIFFERENT bundle id |
-| 2 | **The App Group entitlement** actually present, on the app AND the extension, on BOTH platforms | ❌ declared by NO built target, on either platform |
+| 2 | **The App Group entitlement** actually present, on the app AND the extension, on BOTH platforms | ❌ declared by NO built target, on either platform (§9 renamed it while that is still free) |
 | 3 | **The group registered** for the team so automatic provisioning can sign it | ❌ never done (that is why link 2 was removed) |
 | 4 | **The host can load it**: Live has supported AUv3 since 11.3, Apple Silicon only, instruments and audio effects but NOT MIDI effects | ✅ nothing to do, but it bounds who can be sold to |
 
@@ -213,6 +213,41 @@ apply to us: `runtime/midi_output.h` publishes a **CoreMIDI virtual source**, wh
 ordinary MIDI input device rather than as a plug-in port. Unverified, and the open question is
 whether a sandboxed appex may create a virtual source at all. `tools/midi-check/` is
 macOS-desktop-only, so nothing covers it.
+
+## 9. One App Group for the whole studio (2026-08-19)
+
+The plan is many small apps, each free with its own one-time Pro unlock. The group was
+`group.com.tinyjam`, which named the **umbrella app** rather than the studio and matched none of the
+shipping bundle ids (`com.mipolai.*`). It is now **`group.com.mipolai.shared`**, renamed while it
+costs nothing: nothing has shipped with it and no built target declares it (§8 link 2).
+
+**One shared group, not one per app.** Both shapes do today's job equally well, so the choice was
+made on what each forecloses:
+
+- **StoreKit is per-app.** `Transaction.currentEntitlements` in Tiny Pedalboard cannot see a
+  purchase made in Tiny Acid Jam, ever. A shared App Group is the **only on-device way** one app
+  learns what another owns.
+- So a studio-wide pass ("own three, get the rest"), a cross-app upgrade discount, or a "you already
+  own X" cross-promo stays possible with one group and needs a server with N. One portal
+  registration instead of one per app, too.
+- Nothing is given up: an app still only asks about **its own** product id.
+
+**Two consequences, both handled, because sharing a container is not free:**
+
+1. **Two apps could clobber each other.** Each app now writes only its own slot
+   (`unlockedIDs.<its bundle id>`) and readers take the **union**. A single flat key meant whichever
+   app refreshed last erased the others. The union is also what lets an extension read without
+   knowing its container's bundle id.
+2. **The catch-all had to be SCOPED, and this one is a real bug the rename would otherwise have
+   introduced.** The rule was "a product id ending `.masterpass` unlocks everything". With one
+   shared container that means Tiny Jam's **rack** pass would unlock **Tiny Pedalboard's Pro**, free,
+   for anyone who owned it. It is now suffix **plus prefix**: a pass covers only ids beginning with
+   its own prefix. Defined once in `AppGroup.grants` and used by both `Store.swift` and the
+   extension path, so the app and the plug-in cannot drift. A deliberate studio-wide pass would be a
+   **new rule there**, never an accident of naming.
+
+⚠ A studio pass is NOT built and is not implied by the shared group; the group only keeps the door
+open. Pricing a catalog is parked behind ADR-0035's five-app trigger.
 
 ## See also
 [ADR-0035](../decisions/0035-free-with-one-pro-unlock.md) (the model) ·

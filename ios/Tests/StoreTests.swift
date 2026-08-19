@@ -37,15 +37,37 @@ final class StoreTests: XCTestCase {
         XCTAssertTrue(Store.isUnlocked("com.mipolai.tinyjam.acidrack"), "master pass unlocks all")
     }
 
-    // The catch-all used to be the literal id "com.mipolai.tinyjam.masterpass", i.e. Tiny Jam's own
-    // bundle prefix, so ANY other app's pass unlocked nothing at all and nobody would have found
-    // out until a customer did. The rule is the SUFFIX now; this pins it with a foreign prefix.
-    func testCatchAllIsMatchedBySuffixNotBundlePrefix() async throws {
-        await cleanSlate()
-        AppGroup.setUnlocked(["com.example.somethingelse.masterpass"])
-        XCTAssertTrue(AppGroup.isUnlocked("com.mipolai.tinypedalboard.pro"),
-                      "a pass from any bundle id must still be the catch-all")
-        AppGroup.setUnlocked([])
+    // ── the catch-all rule, and the bug the SHARED app group would otherwise have created ──────
+    // It used to be the literal id "com.mipolai.tinyjam.masterpass" (Tiny Jam's own bundle prefix),
+    // so any other app's pass unlocked nothing. The rule is now "ends .masterpass, SCOPED BY
+    // PREFIX", and the scope is load-bearing: every app shares one container, so a plain suffix
+    // test would let Tiny Jam's rack pass unlock Tiny Pedalboard's Pro for free.
+    func testMasterPassUnlocksItsOwnAppOnly() throws {
+        let owned: Set<String> = ["com.mipolai.tinyjam.masterpass"]
+        XCTAssertTrue(AppGroup.grants(owned, "com.mipolai.tinyjam.acidrack"),
+                      "the pass covers its own app's products")
+        XCTAssertFalse(AppGroup.grants(owned, "com.mipolai.tinypedalboard.pro"),
+                       "…and NOT another app's Pro, or one shared container gives the studio away")
+        XCTAssertTrue(AppGroup.grants(["com.example.other.masterpass"], "com.example.other.thing"),
+                      "the rule is the suffix + prefix, never a hardcoded bundle id")
+        XCTAssertTrue(AppGroup.grants([], ""), "an app declaring no product has nothing to gate")
+        XCTAssertFalse(AppGroup.grants([], "com.mipolai.tinypedalboard.pro"), "empty must fail CLOSED")
+    }
+
+    // Two apps share one container, so each writes its OWN slot and readers take the union. A flat
+    // single key would mean whichever app refreshed last erased the other's entitlement.
+    func testTwoAppsInOneGroupDoNotClobberEachOther() throws {
+        let d = AppGroup.defaults
+        d.removeObject(forKey: "unlockedIDs.com.mipolai.tinyacidjam")
+        AppGroup.setUnlocked(["com.mipolai.tinypedalboard.pro"])          // this app's slot
+        d.set(["com.mipolai.tinyacidjam.pro"], forKey: "unlockedIDs.com.mipolai.tinyacidjam")
+        XCTAssertTrue(AppGroup.unlocked().isSuperset(of:
+            ["com.mipolai.tinypedalboard.pro", "com.mipolai.tinyacidjam.pro"]),
+            "the union must hold both apps' purchases")
+        AppGroup.setUnlocked([])                                          // clearing ours…
+        XCTAssertTrue(AppGroup.unlocked().contains("com.mipolai.tinyacidjam.pro"),
+                      "…must not clear the other app's")
+        d.removeObject(forKey: "unlockedIDs.com.mipolai.tinyacidjam")
     }
 
     // ── the Pro (feature-axis) unlock, and the App Group an extension reads ──────────────────

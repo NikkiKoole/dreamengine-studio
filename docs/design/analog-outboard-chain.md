@@ -270,6 +270,23 @@ Identified, not inferred: the residual decays by a factor of **0.6433 per 10 ms*
 attributed to the EQ. Arguably correct behaviour (a real pedal's coupling capacitor holds charge too);
 the only thing that was wrong was the *claim* that the stage has no memory.
 
+**Confirmed across two consumers, which is what makes it a property of the STAGE.** The oracle now
+carries a `sideman` rack (`--rack sideman`), and that cart is a genuinely different test: it pins EQ
+and IRON together as ONE cabinet switch, leaves COMP out entirely, runs a percussion programme
+instead of a groove with a bassline, and sits at `plate_amt` 0.34 rather than 0.55. Measured there:
+
+| | outboard rack | sideman rack | by hand, before the oracle |
+|---|---|---|---|
+| EQ+IRON out | 0.0 ms (each) | **0.0 ms** | |
+| EQ+IRON back in | 300.8 ms (IRON) | **297.5 ms** | 304 ms |
+| plate out | 3389.6 ms | 2850.8 ms | |
+| plate back in | 3891.8 ms | 3920.8 ms | |
+
+Three independent measurements of the same DC blocker, on two carts with different material, inside
+7 ms of each other. The plate rows differ, and *should*: a shorter send is a shorter tail. So the
+per-stage tolerances in the table are transferable, and a third consumer gets them for one table
+entry rather than an afternoon.
+
 **COMP's OUT row has a caveat, and its IN row cannot be bit-exact by construction.**
 On the first programme this was measured on, COMP OUT was **not** bit-exact: 2 samples differing by
 exactly 1 LSB (-90.31 dBFS), 17.0 ms after the switch. `glue` itself is exact ‑ amount 0 clears

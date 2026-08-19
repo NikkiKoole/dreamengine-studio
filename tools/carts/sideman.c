@@ -62,9 +62,13 @@ de:meta */
 //     is a rack here (runtime/outboard.h: the console EQ on its WARM curve
 //     plus the asymmetric IRON stage) rather than something baked into the
 //     voices. MEASURED: switching the cabinet out and back in reconverges to
-//     bit-exact 0.304 s later (two renders, plate parked out, sample-diffed) —
-//     the stages null exactly, but re-engaging one has to wait for the chain's
-//     own memory, most likely the EQ's 80 Hz band. The rack's COMP stage is
+//     bit-exact 0.304 s later (two renders, plate parked out, sample-diffed).
+//     The stages null exactly; re-engaging one waits for the chain's own memory,
+//     and that memory is NOT the EQ (measured 0.0 ms both ways: its state is
+//     driven by its input, which never differed) but IRON's wet-path DC blocker,
+//     which freezes while the stage is out because drive_insert's early-out
+//     returns before it. tools/bypass-check.js --rack sideman gates this. The
+//     rack's COMP stage is
 //     deliberately left OUT: a 1959 organ amplifier had no bus compressor, and
 //     using three quarters of a shared table honestly beats using all of it
 //     dishonestly.

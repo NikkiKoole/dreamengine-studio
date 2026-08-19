@@ -166,6 +166,32 @@ const RACKS = {
                why: "the tank starved during the gap and refills at the tail's own rate" } },
     ],
   },
+
+  // The SECOND consumer of outboard.h, and the reason it is worth gating rather than measuring by
+  // hand once: `sideman` (the Wurlitzer Side Man's organ cabinet) uses the same table as a SUBSET.
+  // It pins EQ and IRON together as one CABINET switch and leaves COMP out entirely, because a 1959
+  // organ amplifier had no bus compressor, and its programme is percussion rather than a groove with
+  // a bassline. Same table, different material, different subset: if a stage's reconvergence is a
+  // property of the STAGE, these rows must agree with the outboard rows above. It was this cart's
+  // hand-measured 0.304 s that surfaced the IN direction in the first place.
+  sideman: {
+    cart: 'sideman',
+    allOff: ['C', 'V'],          // the cart boots with both in circuit, so one press each parks them
+    stages: [
+      // EQ and IRON arrive together here, so this row is the SUM of the outboard EQ and IRON rows:
+      // 0 ms out (both null exactly) and IRON's frozen DC blocker on the way back in.
+      { name: 'CABINET', key: 'C',
+        out: { tolMs: 0, residDb: -Infinity,
+               why: 'eq_inst(0) nulled to 0/0/0 and drive_insert(0) returns before touching the sample' },
+        in:  { tolMs: 500, residDb: 0,
+               why: "IRON's wet-path 7 Hz DC blocker froze while the stage was out and discharges over ~300 ms" } },
+      { name: 'TANK', key: 'V',
+        out: { tolMs: 6000, residDb: 0,
+               why: 'the sends go to 0 but the tank keeps ringing what it already holds' },
+        in:  { tolMs: 6000, residDb: 0,
+               why: "the tank starved during the gap and refills at the tail's own rate" } },
+    ],
+  },
 }
 
 // ── the engine fingerprint ───────────────────────────────────────────────────

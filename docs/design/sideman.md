@@ -103,12 +103,25 @@ parked out (the plate's tail carries a difference for over a second on its own, 
 holding the cabinet in throughout, one switching it out at 4.000 s and back in at 5.000 s. They are
 **bit-identical up to sample 4.0000 s**, differ across the gap, and **reconverge 0.304 s after the
 switch back**. So the stages themselves null exactly, but a *stage switch* reconverges only once the
-chain's own memory has decayed. The likeliest cause is the console EQ's low band: its corner is at
-80 Hz, one period of which is 12.5 ms, so a settling time in the hundreds of ms is what that filter
-should have. Worth flagging because the ledger's §4 table records EQ as bit-exact *at* the switch,
-which is the OUT direction measured against a never-on run; re-engaging a stage is a different
-question and this is the number for it. A bypass oracle needs a per-stage tolerance in TIME, not a
-boolean.
+chain's own memory has decayed. Switching a stage **out** and switching it back **in** are therefore
+two different questions, and the ledger's §4 table had only ever asked the first.
+
+**And the cause is not what this doc first guessed.** The obvious hypothesis was the console EQ's low
+band: its corner is 80 Hz, one period is 12.5 ms, so hundreds of ms of settling is what that filter
+should have. [`bypass-check.js`](../../tools/bypass-check.js), built to answer exactly this, measured
+the EQ at **0.0 ms in both directions** and refuted it. `eq_process`'s state is driven by its
+*input*, and its gains only scale bands it has already split; `eq_inst(0)` is first in the chain, so
+its input never differed between the two runs. **A filter's settling time only appears when
+something upstream of it changed.**
+
+The 0.304 s is **IRON**, the stage everything (this doc included) had called a memoryless
+waveshaper. `drive_process` runs a DC blocker on the wet path, because asymmetric clipping is
+one-sided and has to, and its `amount <= 0.001` early-out returns *before* that filter. So the
+blocker's state **freezes** while the stage is out and discharges when it comes back. That is
+identified rather than inferred: the residual decays 0.6433 per 10 ms, and the blocker's
+`R = 0.999` gives `0.999^441 = 0.6433` to four figures. Arguably correct behaviour, since a real
+pedal's coupling cap holds charge too. The only thing that was wrong was calling the stage
+memoryless.
 
 The rack's **COMP stage is deliberately left out**: a 1959 organ amplifier had no bus compressor.
 Using three quarters of a shared table honestly beats using all of it dishonestly, and this is the
@@ -153,7 +166,7 @@ memory beyond the disc in front of you.
 | the cart's logic | `node tools/spec.js sideman` |
 | the cart's layout | `node tools/ui-audit.js sideman`, `node tools/mobile-lint.js sideman` |
 | the voicing (`sideman.h`) | `harmonic-spec` (the harmonic ladder, and mind that it starts its window 35% into the file, so on a 45 ms voice in a 200 ms cut it measures the tail's quantisation noise), `inharm-spec --decay` (per-partial decay: does the fundamental or the top die first), `wav-envelope`, `click-check --quiet`, `level-check`, `dc-check`, and `ab-render` to A/B the tube amount (it exits 2 if the value never reached the DSP) |
-| the cabinet | `fx-check`, `level-check`, and the byte-identical-bypass method in [analog-outboard-chain.md](analog-outboard-chain.md) §4 (the LAST DIFFERING SAMPLE, not a sha) |
+| the cabinet | `node tools/bypass-check.js --rack sideman` (the committed oracle: both directions, per-stage tolerance in TIME plus a residual ceiling, and it refuses to pass vacuously on a byte-identical pair). Plus `fx-check`, `level-check` |
 | anything | `node tools/lint-carts.js`, `node tools/lint-fx-frame.js --strict` |
 
 ## 8. Sources

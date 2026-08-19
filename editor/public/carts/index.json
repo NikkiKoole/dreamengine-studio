@@ -2569,6 +2569,18 @@
     "homage": "Martin Denny / Les Baxter (exotica)"
   },
   {
+    "title": "export demo",
+    "description": "The reference wiring for export_audio(): record what you are hearing to a real stereo file, with the free/Pro split that ADR-0035 puts on it. A four-bar loop you can hear, and two buttons that carry it OUT of the app. SHARE writes a compressed take anyone can post; WAV writes the lossless one, and that button is the paid unlock. The wall is deliberately on the FORMAT, not on the feature: a free player can still share what they made, which keeps the social loop open, and only a workflow that needs lossless audio has to pay. Watch the REC bar fill while the audio thread captures, then the path appear. The export is STEREO, so the autopan on the pad survives into the file, which a mono capture would have thrown away. SPACE toggles the loop. Tap SHARE for a compressed take, WAV for the lossless one (Pro). ESC closes the Pro sheet.",
+    "file": "exportdemo.cart.png",
+    "created": "2026-08-19",
+    "kind": [
+      "tech-demo"
+    ],
+    "teaches": [
+      "save-load-persistence"
+    ]
+  },
+  {
     "title": "extrude text",
     "description": "A Hotline-Miami block-letter title lab: the same word drawn N times, each copy stepped along an offset vector so the hard-edged copies fill in and the type reads as a solid extruded block. One toggle switches the face between the bitmap font (print_scaled, zero assets) and a baked TTF display face (Bungee, sspr) — the extrude, the orbiting spin, and the per-layer colour STEP work in both. The whole trick is one loop: draw the word N times back-to-front, each copy at (x+i*dx, y+i*dy), then the bright face last on top. Solid hard-edged copies fill the gaps, so the letters gain physical thickness — the between-level GET READY / PUSH START look. Two renderers behind one set of knobs: BITMAP mode loops print_scaled() (no assets, any string); TTF mode sspr()s a flat single-ink silhouette baked from Bungee (extrudetext.cart.js, tools/font-bake.js) and pal()-recolours it. Shared experiments: SPIN — a timer orbits the offset vector so the light source appears to move and the extrude sweeps around; COLOURSTEP — each layer takes the next colour down a curated ramp (pink->purple->black etc) so the block reads lit-to-shadow instead of one flat dark. Everything is a live knob. M toggle bitmap/TTF face · UP/DOWN depth · LEFT/RIGHT offset length · Z spin on/off · hold [ ] spin speed (past 0 = reverse) · X cycle word · C cycle colour ramp",
     "file": "extrudetext.cart.png",
@@ -6649,7 +6661,7 @@
   },
   {
     "title": "side man probe bench",
-    "description": "A deterministic bench that fires all ten Wurlitzer Side Man voices in turn, then stacks them, then rolls them, so the audio oracles can measure the bank. Not a musical cart: it is the render rig behind runtime/sideman.h. The timeline is pinned to frame numbers so a headless render puts every voice at a known second: ten solo hits 0.75s apart, one whole-bank stack (the headroom test), a wooden roll of the four struck-wood voices, then a full-bank groove. Render it with play.js --wav and read the regions with harmonic-spec / inharm-spec / wav-envelope / click-check. Deliberately DRY, with no cabinet and no outboard chain, because the header's claim is that the fullness comes from the tube stage and the band limit rather than from a box. Keys 1-9 and 0 fire the ten voices by hand; SPACE stacks the whole bank; R runs the wooden roll. It plays its fixed timeline on its own with no input at all.",
+    "description": "A deterministic bench for the ten Wurlitzer Side Man voices, and an A/B rig for four competing BRUSH recipes that sweep grain from a light rustle to a buzz, audible solo and inside a real pattern. Not a musical cart: it is the render rig behind runtime/sideman.h. Two jobs. First the bank bench, whose timeline is pinned to frame numbers so a headless render puts every voice at a known second, then a whole-bank stack for headroom, a wooden roll, and a full-bank groove. Second the BRUSH A/B: nine voices passed a listen and the brush did not, and the word the owner reached for was BRUSHING, so what is missing is the texture of many wire strands dragged across a head. That texture is GRAIN, and no amount of smooth filtered noise under a smooth envelope can make it, so grain is the axis the candidates sweep rather than a feature one of them has. A is the shipped recipe, kept as the control so different stays distinguishable from better. B, C and D share one body (a low head thump and a high tip fizz with the nasal middle scooped, at low resonance because a brush is close to pitchless) and one envelope (a long sustained drag with a plateau rather than a softened hit), and differ only in the modulation: B is a light slow rustle, C is heavy and fast up near the boundary where texture becomes buzz, and D is C's exact rate and depth with a sine instead of sample-and-hold, so the shape question gets its own answer. Deliberately DRY, with no cabinet and no outboard chain. SPACE starts and stops the groove. 1 2 3 4 pick the brush candidate and swap it live inside the groove, which is the judgement that matters; 0 fires the selected one on its own. Q W E R T Y U I O P play the ten bank voices by hand. It also plays a fixed measurement timeline on its own with no input at all.",
     "file": "smprobe.cart.png",
     "created": "2026-08-19",
     "kind": [
@@ -6659,7 +6671,7 @@
       "drum-synthesis",
       "analog-voice-modeling"
     ],
-    "lineage": "The measurement bench for runtime/sideman.h (Wurlitzer Side Man, 1959). Fires each of the ten voices in isolation on a fixed frame grid so the spectral tools can read one hit at a time, then a whole-bank stack for headroom and two rolls for click hunting."
+    "lineage": "The measurement bench for runtime/sideman.h (Wurlitzer Side Man, 1959). Fires each of the ten voices in isolation on a fixed frame grid so the spectral tools can read one hit at a time, then a whole-bank stack for headroom and two rolls for click hunting. Now also the A/B bench for the BRUSH, the one voice that failed the ear test: four candidates sweeping the granular axis, solo and inside the real default rhythm."
   },
   {
     "title": "snake",

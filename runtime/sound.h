@@ -103,6 +103,7 @@ static int           wavcap_total = 0;           // samples wanted
 static volatile int  wavcap_pos   = 0;           // audio thread write cursor
 static volatile int  wavcap_state = 0;           // 0 idle · 1 recording · 2 done (ready to write)
 static char          wavcap_path[512];
+static int           wavcap_ch    = 1;           // 1 = mono downmix (the harness/gates), 2 = interleaved L/R (export_audio)
 
 // ── scope (oscilloscope tap — see docs/design/audio-notes.md §16) ────
 // The SAME tap as WAV capture: the final mono mix written into a power-of-2 ring
@@ -152,17 +153,22 @@ static int      sound_solo_active = 0;
 static uint64_t sound_solo_mask   = 0;
 #endif
 
-// write a 16-bit PCM mono 44.1kHz WAV
-static int sound_wav_write(const char *path, const float *buf, int n) {
+// write a 16-bit PCM 44.1kHz WAV. `n` is TOTAL SAMPLES (interleaved), so a stereo file of F
+// frames passes n = 2*F — the header maths below derives frames from n/ch, never the other way.
+// ⚠ ch defaulted to 1 for years and every audio gate reads mono; export_audio is the only caller
+// that passes 2, so a mono capture is byte-identical to what it always wrote.
+static int sound_wav_write(const char *path, const float *buf, int n, int ch) {
     FILE *w = fopen(path, "wb");
     if (!w) return -1;
+    if (ch < 1) ch = 1;
     int data_bytes = n * 2, riff = 36 + data_bytes;
-    int sr = SOUND_SAMPLE_RATE, byterate = sr * 2;
-    short block = 2, bits = 16, fmt = 1, ch = 1;
+    int sr = SOUND_SAMPLE_RATE, byterate = sr * ch * 2;
+    short block = (short)(ch * 2), bits = 16, fmt = 1;
     int fmtlen = 16;
     fwrite("RIFF", 1, 4, w); fwrite(&riff, 4, 1, w); fwrite("WAVE", 1, 4, w);
     fwrite("fmt ", 1, 4, w); fwrite(&fmtlen, 4, 1, w);
-    fwrite(&fmt, 2, 1, w); fwrite(&ch, 2, 1, w);
+    short chs = (short)ch;
+    fwrite(&fmt, 2, 1, w); fwrite(&chs, 2, 1, w);
     fwrite(&sr, 4, 1, w); fwrite(&byterate, 4, 1, w);
     fwrite(&block, 2, 1, w); fwrite(&bits, 2, 1, w);
     fwrite("data", 1, 4, w); fwrite(&data_bytes, 4, 1, w);
@@ -178,9 +184,10 @@ static int sound_wav_write(const char *path, const float *buf, int n) {
 }
 
 // main thread: arm a live capture (audio thread starts filling on its next callback)
-static void sound_wavcap_begin(const char *path, float seconds) {
+static void sound_wavcap_begin(const char *path, float seconds, int ch) {
     if (wavcap_state != 0) return;
-    int n = (int)(seconds * SOUND_SAMPLE_RATE);
+    if (ch != 2) ch = 1;
+    int n = (int)(seconds * SOUND_SAMPLE_RATE) * ch;   // TOTAL samples: stereo needs two per frame
     if (n <= 0) return;
     free(wavcap_buf);
     wavcap_buf = (float *)malloc((size_t)n * sizeof(float));
@@ -188,13 +195,14 @@ static void sound_wavcap_begin(const char *path, float seconds) {
     snprintf(wavcap_path, sizeof wavcap_path, "%s", path);
     wavcap_total = n;
     wavcap_pos   = 0;
+    wavcap_ch    = ch;
     wavcap_state = 1;
 }
 
 // main thread: if the audio thread finished, write the file and go idle
 static void sound_wavcap_poll(void) {
     if (wavcap_state != 2) return;
-    sound_wav_write(wavcap_path, wavcap_buf, wavcap_total);
+    sound_wav_write(wavcap_path, wavcap_buf, wavcap_total, wavcap_ch);
     free(wavcap_buf);
     wavcap_buf   = NULL;
     wavcap_state = 0;
@@ -6769,8 +6777,13 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
         out[2 * i]     = mixL;
         out[2 * i + 1] = mixR;
 #endif
-        if (wavcap_state == 1) {                       // WAV capture tap (wav_request) — MONO downmix
-            wavcap_buf[wavcap_pos++] = (mixL + mixR) * 0.5f;   // (L+R)/2 == the old mono mix when centered
+        if (wavcap_state == 1) {                       // WAV capture tap (wav_request + export_audio)
+            if (wavcap_ch == 2) {                      // export: keep the STEREO field
+                wavcap_buf[wavcap_pos++] = mixL;       // autopan / chorus width / the stereo clip are
+                wavcap_buf[wavcap_pos++] = mixR;       // all real here, and a mono export throws them away
+            } else {
+                wavcap_buf[wavcap_pos++] = (mixL + mixR) * 0.5f;   // (L+R)/2 == the old mono mix when centered
+            }
             if (wavcap_pos >= wavcap_total) wavcap_state = 2;
         }
         if (scope_ever) {                              // oscilloscope tap (scope_read) — MONO downmix

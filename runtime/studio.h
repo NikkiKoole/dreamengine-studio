@@ -430,6 +430,16 @@ void instrument_level(int slot, float gain);              // per-slot output LEV
 void instrument_glide(int slot, int ms);                   // PORTAMENTO for this patch — every note from this slot slides over `ms` (0 = snap, the default). the per-slot twin of note_glide
 void instrument_glide_scale(int slot, float amount);       // GLIDE SCALE for this patch: 0 = every interval takes the same time (default), GLIDE_ANALOG, 1 = `ms` per octave
 void instrument_trigger(int slot, int mode);               // TRIG_MULTI (default) = every note gets its attack transient; TRIG_SINGLE = only when no other key on this instrument is down (the real Hammond percussion rule)
+// ── EXPORT: save what you just played, so it can leave the app ─────────────────────────────
+// Records the next few seconds of everything you hear into an audio file, in STEREO. The file
+// lands in your cart's save folder; on a phone the app then offers it to the share sheet.
+#define EXPORT_WAV  0   // lossless, big — the one you'd drop into a DAW
+#define EXPORT_M4A  1   // compressed, small — the one you'd post. Falls back to WAV where the platform has no encoder
+int   export_audio(const char *name, float seconds, int format);  // start recording to a file (up to 60s). Returns 1 = started, 0 = busy or refused. e.g. export_audio("my-jam.wav", 8, EXPORT_WAV)
+int   export_busy(void);                                  // is an export still recording? Draw a REC light while this is 1
+float export_progress(void);                              // how far along, 0..1 — for a progress bar
+const char *export_last(void);                            // file path of the last finished export ("" = none yet)
+
 void record_arm(void);                                    // PCM SAMPLER: begin the always-on rolling capture of the master output (idempotent; off + byte-identical until called). Call once, then record_grab() any time to snapshot recent audio
 int  record_grab(int sample_slot, float seconds);         // snapshot the last `seconds` of captured audio into PCM sample slot 0..7; peak-normalized + leading/trailing SILENCE TRIMMED (starts at the first audible sample). Returns samples grabbed after trim (0 = not armed / nothing yet). Pair with instrument_sample() + INSTR_SAMPLE
 void instrument_sample(int slot, int sample_slot, int root_midi); // bind an INSTR_SAMPLE instrument slot to a recorded buffer; root_midi = the note that plays it at original speed (e.g. 60 = C4). Higher notes play faster/up in pitch

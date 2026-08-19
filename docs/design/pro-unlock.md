@@ -237,6 +237,10 @@ Once the five App IDs had the capability, `APP=tinyacidjam bash ios/device.sh` b
 installed, and `codesign -d --entitlements` shows `group.com.mipolai.shared` on **both** the `.app`
 and `PlugIns/TinyjamAU.appex`. That is the portal change taking effect and is the half that was
 failing.
+**✅ AND ON iOS TOO (2026-08-19)**: `TinyjamHello[16657] [appgroup] app: group.com.mipolai.shared
+container OK`, read off the phone with `idevicesyslog`. The Mac→iOS caveat below is closed for the
+APP; the iOS extension half is still unread.
+▼ how it was read, kept because the tooling is the awkward part:
 ⚠ The runtime line (`[appgroup] … container OK`) has NOT been read off the phone, only off the Mac.
 Getting device logs here is the awkward part and unrelated to the feature: `ios-deploy` cannot
 stream them on Xcode 26 (it predates the DeviceSupport/Symbols layout, see `ios/device.sh`'s header)
@@ -347,6 +351,58 @@ is "**certain** AUv3-compatible iPad and iPhone apps", and it is **Apple Silicon
 cannot host AUv3 in Live at all). The test is cheap and specific: tick the box on `tinyacidjam`
 (it already ships an AUv3; `pedalboard` does not), install it on an Apple Silicon Mac, and load it in
 Live. If it does not appear, route A is the fallback and §8 link 1's bundle-id trap comes back.
+
+## 11. Export, and the two bugs the phone found (2026-08-19)
+
+**WAV export ships, verified end to end on hardware.** `export_audio(name, seconds, format)` records
+the final mix to a file; on iOS `de_export_ready` transcodes to M4A when asked and hands it to the
+share sheet. Confirmed by the maker on an iPhone SE: **the share sheet appeared with the file.**
+
+**The engine half is measured, not asserted.** `stereo-check` on the first take: corr 0.47, width
+0.60, pan excursion 1.63 at ~0.88 Hz against the 0.8 the probe configures, and **mono fold −1.35 dB**.
+That last number is the argument for exporting in stereo at all — summing to mono destroys real
+content, and a mono file is the one artefact a customer keeps. The harness and every audio gate keep
+their mono downmix and stay byte-identical.
+
+**Product shape, per ADR-0035's 2026-08-19 ruling**: the wall is on the FORMAT, not the feature.
+SHARE (compressed) always works so a free player can still post what they made, which keeps the
+social loop open and means the paywall never takes away something somebody already had. Only
+lossless asks for Pro. `tools/carts/exportdemo.c` is the reference wiring.
+
+### The two bugs, and why export found them
+
+**1. Every `save()` in every cart was a no-op on iOS.** The engine's `save_dir` defaults to `"."`,
+the sandboxed cwd, and **no iOS host had ever called `de_set_save_dir`** — the seam function existed
+with zero callers, and `studio.c`'s own comment predicted it word for word. It hid because iOS grew
+a PARALLEL save API (`save.c` + `Save.swift`'s `de_documents_path`) that works fine, so the sandbox
+question looked answered; nothing connected it to the engine's own `save_dir`.
+⚠ **This hit the shipping app**: `acidcandy` persists its pattern banks with `save_bytes`
+(`acidcandy.c:2506`), and ADR-0035 lists "saving your own patterns" among the free features that
+work. Fixed with one line at the app's single engine-creation site.
+**Why export found it and years of saving did not: a failed save is invisible** (no error, no crash,
+the value is just gone next launch) while a failed export is a file that either exists or does not.
+Reach for that asymmetry deliberately when a silent path needs proving.
+⚠ **STILL BROKEN IN THE AUv3**: the extension has its own container and does not compile
+`Save.swift`, so cart saves still no-op inside the plug-in. Smaller (an AU's state travels through
+`fullState`, not `save()`) but open.
+
+**2. `AVAssetExportSession.exportAsynchronously` calls back on an ARBITRARY queue.** The first
+version hopped to main at the top of `ready()` and then hopped straight back OFF it through that
+completion, presenting `UIActivityViewController` from a background thread. UIKit does not warn:
+it **terminates the process**, on the happy path, with the file correctly transcoded and sitting
+there. Fixed by moving the guarantee into `share()` — the one place UI begins — rather than adding
+another hop, so a future caller cannot reintroduce it.
+
+### What is still unproven
+
+- **The popover anchor.** A share sheet is a popover on iPad and Mac, where a missing anchor raises
+  `NSGenericException`. It is set, and untested — an iPhone sheet needs no anchor.
+- **The AUv3 path**, deliberately: the AU targets do not compile `Export.swift`, so
+  `de_export_ready` stays the weak no-op there. Presenting a sheet from a view embedded in someone
+  else's DAW is unreliable, and a person exporting inside a DAW is asking the DAW to record.
+- **No shipping cart calls it yet.** `exportdemo` is the only caller, so Pro still gates nothing in
+  `acidcandy` or `pedalboard`. That is the next step, and it is a design question per rack (where
+  does the button live, and what does it export) rather than plumbing.
 
 ## See also
 [ADR-0035](../decisions/0035-free-with-one-pro-unlock.md) (the model) ·

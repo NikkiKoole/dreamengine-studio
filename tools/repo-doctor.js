@@ -90,6 +90,10 @@ const CHECKS = [
   { name: "selftest: fx", tool: "fx-check.js", args: ["--selfcheck"], gate: true },
   { name: "selftest: soak", tool: "soak-check.js", args: ["--selfcheck"], gate: true },
   { name: "selftest: psola", tool: "psola-check.js", args: ["--selfcheck"], gate: true },
+  // SELFCHECK ONLY, on purpose: the full bypass-check renders five WAVs (~35 s) and belongs in the
+  // effects-edit loop, not in a health strip. This row gates the analyser, whose three failure
+  // verdicts are the interesting half (a byte-identical pair must read INCONCLUSIVE, never PASS).
+  { name: "selftest: bypass", tool: "bypass-check.js", args: ["--selfcheck"], gate: true },
   // ANALYSER ONLY — deliberately toolchain-free so this row runs on any machine. The half it cannot
   // reach (does the comparison reach the DSP) is `web-audio-check.js --bypass`, which needs emcc.
   { name: "selftest: web parity", tool: "web-audio-check.js", args: ["--selfcheck"], gate: true },

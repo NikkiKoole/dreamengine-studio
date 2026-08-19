@@ -58,6 +58,24 @@ Two flags earned their place (both baked into `build-box2d.sh`):
 
 Reproduce: `tools/build-box2d.sh --check` (mac + smoke test), `--win`, `--wasm`, `--ios`.
 
+### ⚠ A Box2D cart cannot be WEB-PUBLISHED today
+
+The library builds for wasm (above), but **`tools/build-site.js` knows nothing about Box2D**: it has
+no `-I runtime/box2d`, no `libbox2d.a` on its link line, and no per-cart opt-in. So every Box2D cart
+fails its web build with `'box2d/box2d.h' file not found` and is skipped by `publish-all.js`.
+
+MEASURED 2026-08-19, on a full gallery deploy: **9 carts** are permanently in `cart-status.js`'s
+NOT PUBLISHED list for exactly this reason, and they are the whole Box2D family:
+`boxhuman`, `boxjelly`, `boxlab`, `boxskin`, `buggy`, `puppet`, `silverball`, `tombola`, `tumble`.
+That number is EXPECTED, not a backlog: do not go chasing it as though the carts were merely
+un-built. (The tenth entry, `exportdemo`, is a different cause: the export API is native-only.)
+
+Closing it is a real change to `build-site.js`, not a rebuild: a per-cart flag for "this one links
+Box2D", the wasm `libbox2d.a` built via `--wasm`, and the SIMD flags from the table above threaded
+into the emcc invocation. Worth doing when someone wants the physics carts playable in a browser;
+until then this is why they are desktop-only.
+
+
 ## Wiring a cart against it (not built yet)
 
 A cart would `#include "box2d/box2d.h"` after `studio.h`, and its build line adds

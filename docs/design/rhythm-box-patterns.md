@@ -308,6 +308,47 @@ in its TABLE 1, and **US3708604A** (Jasper Electronics, 1973) charts "the period
 tones and chords sound" as lanes over time, the same figure kind as §4d. A third, US4520707A, prints
 its microprocessor program as raw hex with no key: the content is there and unreadable.
 
+### 4f. Two smaller answers: the bass DEGREE vocabulary, and why adjacent marks cannot retrigger
+
+**The M108 single-chip organ prints a complete bass decoder** (databook printed p61, "BASS TRUTH
+TABLES", given twice, once in negative and once in positive logic: same content, inverted codes, not
+two different tables). A 3-bit code selects a degree:
+
+| code | Bass Arpeggio Output (automatic) | Alternate Bass Output (manual) |
+|---|---|---|
+| 000 | No change | No change |
+| 001 | **Root** | 1st on the left |
+| 010 | **3rd** | --- |
+| 011 | **4th** | --- |
+| 100 | **5th** | 1st on the right |
+| 101 | **6th** | --- |
+| 110 | **7th** | --- |
+| 111 | **8th** (octave) | --- |
+
+Two things worth having. Its vocabulary includes a **fourth**, which the M251's does not, so the
+degree set was not fixed across the family. And the manual mode defines the alternating bass
+concretely: the chip "gives at the bass output an alternating bass between the first on the left and
+the first on the right of the keys pressed in the ACC. section", i.e. leftmost held key against
+rightmost held key, with only two codes mattering (root to the left key, fifth to the right).
+
+It also confirms §4e's architecture independently: "the pitch switching timing is dependent on an
+external ROM (3 bits)". The chip decodes; the rhythm ROM holds the timing. Two different SGS parts,
+same division of labour.
+
+**The M258/M259 pair publishes no content, and says why the edge rule exists.** It is marked
+PRELIMINARY DATA: 16 rhythms, 16 outputs in two sections of 8, reset 24 or 32, two chip selects. No
+standard-content truth table is printed, so there is nothing to transcribe, and its one
+table-looking figure ("INSTRUMENT BEATS VERSUS RHYTHM PROGRAM", printed p165) is a **timing diagram**
+rather than a pattern: it traces two example columns through to instrument beats, sync and down beat.
+
+But that diagram is the mechanism behind §4b's edge rule. Its two example columns are labelled
+**"OUT 1 WITHOUT RETURN TO 1"** and **"OUT 5 WITH RETURN TO 1"**, and the datasheet lists as a
+feature "CHOICE BETWEEN RETURN TO '1' OR NOT ON 8 OUTPUTS SEPARATELY". So an output that does not
+return high between two set states cannot present a second rising edge, which is exactly why
+adjacent marks fire once on the M252; and by this later part the behaviour had become a **per-output
+mask option**. The rule this project inferred from a 1976 magazine article is a documented, and by
+1979 configurable, property of the silicon.
+
 ## 5. Elgam: the patterns cannot be sourced, and the reason is the interesting part
 
 Elgam (Castelfidardo, 1968-1982) is the machine that started this. Its **Carousel schematic** gives
@@ -1599,8 +1640,9 @@ OUTPUT 12   ..x...x...x...x...x...x...x...x.
   published chord/bass/arpeggio table for eight named rhythms, in a databook already on disk.
   Reading it needs the pinout page (printed p145) beside the truth table (pp150-151), because which
   column group is music and which is drums is decided by the pinout.
-- **M255** (6 rhythms, 16 states, OUT 4 = FIFTH, OUT 5 = CHORD TRIGGER) and **M258/M259** (16
-  rhythms) are also unread, as is the **M108** organ chip's bass table with its extra FOURTH.
+- ~~M255, M258/M259, M108.~~ **DONE (2026-08-20):** M255's 6 rhythms are in §8.6 with their pins
+  named; M258/M259 turned out to publish NO content but to explain the edge rule (§4f); the M108's
+  bass decoder is in §4f.
 - **US4292874** and **US3708604A** are the two patents worth pulling for accompaniment (§4e).
 - **Elgam's own masks** would need a ROM dump off a surviving `M252 D1 AE`/`AF`, or transcription
   from recordings.

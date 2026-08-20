@@ -48,7 +48,9 @@
 
 // rhythm flag. SGS only: the chip triggers on the RISING edge of a ROM bit, so two marks on
 // consecutive states do NOT sound twice — the line goes high and STAYS high, and the second
-// edge never happens (Elektor, April 1976, p420). 36 runs of adjacent marks exist in the SGS
+// edge never happens. Stated in Elektor April 1976 p420, and confirmed by the silicon: the
+// M258/M259 datasheet traces "OUT 1 WITHOUT RETURN TO 1" against "OUT 5 WITH RETURN TO 1"
+// and lists per-output choice of the two as a mask option. 36 runs of adjacent marks exist in the SGS
 // tables, the longest 6 states, so this is not a corner case: use rb_trigger(), not rb_hit().
 // The FR-2L and TR-77 are different machines (discrete pulse trains, a diode matrix) and the
 // rule is NOT transferable to them, so their rhythms do not carry this flag.

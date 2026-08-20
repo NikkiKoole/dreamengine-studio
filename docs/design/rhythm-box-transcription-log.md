@@ -181,10 +181,10 @@ neither survives being squashed into one bar.
 ### Swing
 Five lanes: M, Cy, an unlabelled-to-me third lane, Sd, Bd.
 ```
-M               ......x...x.......x...x..  ......x...x.......x...x..
+M               ......x...x.......x...x.  ......x...x.......x...x.
 Cy              x...........x...........  x...........x...........
 (lane3)         ........................  ................x.......
-Sd              ......x...x.......x...x..  ......x...x.......x...x..
+Sd              ......x...x.......x...x.  ......x...x.......x...x.
 Bd              x.....x.....x.....x.....  x.....x.....x.....x.....
 ```
 CONFIDENT on the dots.

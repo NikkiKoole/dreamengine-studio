@@ -256,6 +256,21 @@ runtime/   studio.h (public API: constants + declarations), studio.c (Raylib imp
                          Deliberately does NOT own the
                          BOX: the real unit had no speaker, it fed the organ's amp and cabinet, so that stage is the
                          cart's, via outboard.h. sideman cart; design/sideman.md
+             rhythmbox.h GENERATED (tools/gen-rhythmbox.js) from design/rhythm-box-patterns.md: 64 PRESET
+                         RHYTHMS read off three manufacturers' OWN documents, the sourced answer to what an
+                         organ-era rhythm box actually plays. RB_FR2L[16] (Ace Tone Rhythm Ace FR-2L, c.1969,
+                         the units Ace Tone sold Hammond to build INTO organs) · RB_TR77[18] (Roland TR-77,
+                         1972) · RB_SGS[30] (SGS M252 LSI, both published factory masks, the chip that put
+                         AUTO RHYTHM inside cheap Italian organs). A lane is a 48-bit MASK over counts, so the
+                         whole library is a few KB; read it with rb_hit/rb_used/rb_beat_of. THREE things a
+                         player must respect or it plays nonsense: per_beat and bars are PER RHYTHM (the FR-2L
+                         waltz divides its 24-count bar by THREE, its slow rock reads all 48 as one 12/8 bar),
+                         `unused` marks counts a rhythm SKIPS (the TR-77 hatches them), and RB_GATE lanes are
+                         HELD not struck (a brush swish, a guiro). ⚠ FR-2L lane LABELS are provisional (75 dpi
+                         scan, the letterforms are interpolation) — lane ORDER is reliable, the letters are
+                         not, so assign voices by order and never claim which voice plays which lane. Elgam's
+                         own patterns are NOT here and cannot be: custom mask ROMs, never published (doc §5).
+                         By contrast sideman's twelve rhythms are RECONSTRUCTIONS, now labelled as such
              ampcab.h    the shared guitar AMP/CABINET voicing table: five amps as preset BUNDLES of effects we
                          already ship (instrument_drive + a DRIVE_* shaper + eq + glue), pinned like leslie, NOT
                          new DSP. ONE truth so the standalone amp + pinned cabinet agree. combo/pedalboard/
@@ -681,6 +696,19 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
                              answers. docs/design/iso-rooms.md
              font-bake.js    bake real-TTF text into sprite-draw canvases at build time
              gen-rom-font.js bake the "extra" bitmap fonts (ROM dumps + EPX) into the shared atlas
+             gen-rhythmbox.js  GENERATE runtime/rhythmbox.h from docs/design/rhythm-box-patterns.md (the
+                             doc is the source of truth: it carries the provenance and the confidence markers,
+                             the header carries only the bits). Parses FIVE lane notations the doc actually uses
+                             and REFUSES to write a partial header: an unparsable lane line is reported and the
+                             run fails, because a silently dropped lane would be a lie about a sourced dataset.
+                             --check gates staleness · --dry parses and reports · --selfcheck = 14 known
+                             answers taken from findings the doc states in PROSE, so a wrong regex cannot ship
+                             (two are whole-corpus structural invariants: no FR-2L mark may fall on an UNRULED
+                             count, no TR-77 mark on a HATCHED column). It has already earned its keep twice:
+                             it caught two 25-character rows in a 24-count bar in the committed doc, and a v1
+                             that stamped every FR-2L rhythm with a 6-count beat, which would have played the
+                             waltz wrong. Per-rhythm subdivisions live in a SUBDIV table, each entry citing the
+                             doc section that states it; a rhythm the doc does not pin keeps its machine default
              build-cart-index.js  GENERATE editor/public/carts/index.json from each cart's de:meta block
                              (cart owns its metadata; index.json is a derived view); --check gates staleness
              lint-carts.js   validate each cart's de:meta (tags/status/created/description) + assert

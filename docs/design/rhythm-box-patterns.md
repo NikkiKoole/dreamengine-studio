@@ -223,10 +223,10 @@ Bd      code  3   x.....x.....x.....x.....  x.....x.....x.....x.....
 
 **Swing**
 ```
-M               ......x...x.......x...x..  ......x...x.......x...x..
+M               ......x...x.......x...x.  ......x...x.......x...x.
 Cy              x...........x...........  x...........x...........
 (lane3)         ........................  ................x.......
-Sd              ......x...x.......x...x..  ......x...x.......x...x..
+Sd              ......x...x.......x...x.  ......x...x.......x...x.
 Bd              x.....x.....x.....x.....  x.....x.....x.....x.....
 ```
 
@@ -271,7 +271,7 @@ Lc    .........x..x...........  .........x..x...........
 Bd    x.......................  x.......................
 ```
 
-**RHUMBA, assembled**
+**RHUMBA**
 ```
 L1  M     x..xx.x..x..x..x..x..x..  x..x..x..x..x..x..x..x..
 L2  C     x........x........x.....  ......x.....x...........
@@ -858,10 +858,14 @@ OUT 8    ........................
   pick a fill, one tempo knob, no grid editor. Findings 1, 3 and 6 are the honest core, and none of
   the existing carts can express any of them. See [`instrument-carts.md`](../guides/instrument-carts.md)
   for the chassis shelf before starting.
-- **A generated header.** This data wants to be `runtime/`-shelf data in the `sideman.h` row format,
-  extended with per-rhythm beats-per-bar, pattern length, gate lanes and odd-state support. Not
-  written yet; it needs the CLAUDE.md + [`cart-authoring.md`](../guides/cart-authoring.md) index
-  entries a new shelf header requires.
+- ~~A generated header.~~ **DONE (2026-08-20):** [`runtime/rhythmbox.h`](../../runtime/rhythmbox.h),
+  generated from THIS DOC by `node tools/gen-rhythmbox.js`, so the doc stays the single source of
+  truth and the header carries only the bits. A lane is a 48-bit mask over counts; per-rhythm
+  subdivision, skipped counts and gate lanes are all modelled (§3.1, §3.5). The generator refuses to
+  write a partial header, carries 14 known answers taken from the findings stated in this doc's
+  prose, and is gated by `repo-doctor`. It caught two errors on its first run: two 25-character rows
+  in a 24-count bar (fixed here), and a first version of itself that stamped every FR-2L rhythm with
+  a 6-count beat, which would have played the waltz wrong.
 - **`sideman`'s twelve rhythms are reconstructions** and should be labelled as such in
   [`sideman.md`](sideman.md), since ten of their twelve names now have sourced data here.
 - **M253 tables** (databook pp134-136) are characterised but not transcribed. See §6.4 first.

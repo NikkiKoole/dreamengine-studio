@@ -63,6 +63,7 @@ const CHECKS = [
   { name: "reflections",  tool: "build-reflections.js",  args: ["--check"],     gate: true },
   { name: "cart index",   tool: "build-cart-index.js",   args: ["--check"],     gate: true },
   { name: "history",      tool: "build-history.js",      args: ["--check"],     gate: true },
+  { name: "rhythmbox",    tool: "gen-rhythmbox.js",      args: ["--check"],     gate: true },  // runtime/rhythmbox.h is derived from design/rhythm-box-patterns.md; edit the doc, regenerate
   // GATED, unlike the ledger row below it: this asserts the CHECKER against a known-answer fixture,
   // so it is deterministic and must always pass. A red ledger row is a backlog; a red selftest row
   // means the tool's findings cannot be believed at all. See checks-and-oracles.md "self-test the

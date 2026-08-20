@@ -256,6 +256,18 @@ runtime/   studio.h (public API: constants + declarations), studio.c (Raylib imp
                          Deliberately does NOT own the
                          BOX: the real unit had no speaker, it fed the organ's amp and cabinet, so that stage is the
                          cart's, via outboard.h. sideman cart; design/sideman.md
+             drumpat.h   GENERATED (tools/gen-drumpat.js) from tools/drum-patterns.json: 565 MODERN
+                         16-STEP patterns in 92 named groups (CR78, the classic-genre set, then rock/funk/
+                         disco/reggae/house/hiphop/dnb/dubstep/EDM/breaks…), bit-packed one uint16 per role
+                         per pattern, so the library is 36 KB of rodata; read with dp_hit/dp_flam/dp_accent.
+                         DP_AC is a VELOCITY lane, not a drum, and some steps are FLAMS (a hit that wants a
+                         doubled stroke). ⚠ NOT the same thing as rhythmbox.h: this is 16 sixteenths, a
+                         step-sequencer grid, which structurally cannot express what the organ-era boxes did
+                         (24 counts a bar, six per beat, held gates, skipped states, two-bar claves) — so use
+                         rhythmbox.h for period hardware and this for a big modern vocabulary. Provenance is
+                         UNEVEN and the header says so: converted from the maker's own drum-patterns.lua,
+                         which cites "Drum Machine - 260 Patterns" for its core set and nothing for the later
+                         groups. --import re-parses that Lua file; --selfcheck round-trips every row
              rhythmbox.h GENERATED (tools/gen-rhythmbox.js) from design/rhythm-box-patterns.md: 76 PRESET
                          RHYTHMS read off three manufacturers' OWN documents, the sourced answer to what an
                          organ-era rhythm box actually plays. RB_FR2L[16] (Ace Tone Rhythm Ace FR-2L, c.1969,
@@ -700,6 +712,12 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
                              answers. docs/design/iso-rooms.md
              font-bake.js    bake real-TTF text into sprite-draw canvases at build time
              gen-rom-font.js bake the "extra" bitmap fonts (ROM dumps + EPX) into the shared atlas
+             gen-drumpat.js  GENERATE runtime/drumpat.h from tools/drum-patterns.json (the committed parse
+                             of the maker's own drum-patterns.lua, which lives outside this repo; --import
+                             <file.lua> refreshes it). --check gates staleness · --selfcheck rebuilds every row
+                             string FROM THE EMITTED TEXT and diffs it against the JSON (565 patterns, 7345
+                             role slots) so it tests what ships rather than what is in memory, plus two
+                             liveness answers (a bass drum lands on step 0 somewhere; flams survive)
              gen-rhythmbox.js  GENERATE runtime/rhythmbox.h from docs/design/rhythm-box-patterns.md (the
                              doc is the source of truth: it carries the provenance and the confidence markers,
                              the header carries only the bits). Parses FIVE lane notations the doc actually uses

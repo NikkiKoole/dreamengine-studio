@@ -37,6 +37,12 @@ organs**, the TR-77 is its direct successor (and the CR-78's predecessor, whose 
 already has from a pattern book), and the SGS M252 is **the chip that put auto-rhythm inside cheap
 Italian organs**, which is the class of machine the whole enquiry started from.
 
+**A companion, deliberately kept separate.** [`runtime/drumpat.h`](../../runtime/drumpat.h) holds 565
+MODERN 16-step patterns (the maker's own library, converted). It is a step-sequencer grid and cannot
+express any of §3's findings, which is exactly why the two are different files rather than one
+merged library: squashing a 24-count bar with held gates and a two-bar clave into 16 sixteenths
+would quietly destroy the thing this document exists to record.
+
 ## 2. How to read the tables
 
 **FR-2L.** A 48-count clock spanning **two bars**: 24 counts per bar, 6 counts per beat. Rows are

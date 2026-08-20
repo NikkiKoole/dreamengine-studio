@@ -1,0 +1,12 @@
+# groovebook: Afro-Cuban 2 / Measure B, kept because its MT (mid tom) lane was INAUDIBLE on the
+# first build. Three A presses walk to the group, RIGHT selects Measure B.
+#
+# The bug was a mix balance, not a missing trigger: a blanket instrument_level(0.45) hit the SINE
+# toms as hard as the NOISE hats, leaving the tom stem 20.5 dB under the mix peak. Per-role levels
+# plus a velocity bump for the toms closed it to 9.4 dB. Render with
+#   --solo-slot 25    (DK_TOM_LO, where LT and MT both land)
+# to check the tom alone if this ever regresses.
+tap 15 A
+tap 25 A
+tap 35 A
+tap 50 RIGHT

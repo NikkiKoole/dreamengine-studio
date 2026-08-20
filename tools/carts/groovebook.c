@@ -31,33 +31,47 @@ de:meta */
 // drumkit.h owns KICK SNARE HHC HHO CLAP TOM_LO TOM_HI CRASH. Mapping by pitch instead
 // of dropping the four that have no slot of their own: a rim shot is a snare struck high,
 // a cowbell and a tambourine are bright metal. Every lane sounds; none is silently lost.
-typedef struct { int role, midi; const char *how; } Map;
+// vbump: a per-role velocity offset. A SINE tom at the same velocity as a NOISE snare is much
+// quieter, and level alone could not close it (the toms were already near unity gain).
+typedef struct { int role, midi, vbump; const char *how; } Map;
 static const Map MAP[DP_NROLES] = {
-    [DP_BD]  = { DK_KICK,   36, "kick" },
-    [DP_SD]  = { DK_SNARE,  38, "snare" },
-    [DP_LT]  = { DK_TOM_LO, 43, "low tom" },
-    [DP_MT]  = { DK_TOM_LO, 47, "mid tom = low tom, up 4" },
-    [DP_HT]  = { DK_TOM_HI, 50, "high tom" },
-    [DP_CH]  = { DK_HHC,    42, "closed hat" },
-    [DP_OH]  = { DK_HHO,    46, "open hat" },
-    [DP_CY]  = { DK_CRASH,  49, "cymbal" },
-    [DP_RS]  = { DK_SNARE,  50, "rim shot = snare, up 12" },
-    [DP_CB]  = { DK_TOM_HI, 62, "cowbell = high tom, up 12" },
-    [DP_CPS] = { DK_CLAP,   39, "claps" },
-    [DP_TB]  = { DK_HHC,    54, "tambourine = closed hat, up 12" },
-    [DP_AC]  = { -1,         0, "ACCENT: a velocity lane, not a voice" },
+    [DP_BD]  = { DK_KICK,   36, 0, "kick" },
+    [DP_SD]  = { DK_SNARE,  38, 0, "snare" },
+    [DP_LT]  = { DK_TOM_LO, 41, 2, "low tom" },
+    [DP_MT]  = { DK_TOM_LO, 48, 2, "mid tom = the low tom slot, up 7" },
+    [DP_HT]  = { DK_TOM_HI, 55, 2, "high tom" },
+    [DP_CH]  = { DK_HHC,    42, 0, "closed hat" },
+    [DP_OH]  = { DK_HHO,    46, 0, "open hat" },
+    [DP_CY]  = { DK_CRASH,  49, 0, "cymbal" },
+    [DP_RS]  = { DK_SNARE,  50, 0, "rim shot = snare, up 12" },
+    [DP_CB]  = { DK_TOM_HI, 62, 2, "cowbell = high tom, up 12" },
+    [DP_CPS] = { DK_CLAP,   39, 0, "claps" },
+    [DP_TB]  = { DK_HHC,    54, 1, "tambourine = closed hat, up 12" },
+    [DP_AC]  = { -1,         0, 0, "ACCENT: a velocity lane, not a voice" },
 };
 static const char *RNAME[DP_NROLES] = { "BD","SD","LT","MT","HT","CH","OH","CY","RS","CB","CPS","TB","AC" };
 
 static const DrumKitDef *KITS[2] = { &DK_ELECTRO, &DK_ACOUSTIC };
 #define KIT_BASE 20
 
-// A dense pattern fires five or six lanes on one sixteenth, which measured -0.0 dBFS with the
-// kit at its build level: the engine's soft clip was doing the work. Trim the whole kit once,
-// here, rather than fighting it with per-hit velocities.
+// A dense pattern fires five or six lanes on one sixteenth, which measured -0.0 dBFS with the kit
+// at its build level, so the kit is trimmed here rather than fought with per-hit velocities.
+// PER ROLE, not one blanket number: the noise voices (hats, snare, crash) are far louder than the
+// SINE toms, and a flat 0.45 left the toms 20 dB under the mix. Measured on Afro-Cuban 2's
+// "Measure B", whose only tom lane was inaudible until this table existed.
+static const float LVL[DK_N] = {
+    [DK_KICK]   = 0.50f,
+    [DK_SNARE]  = 0.45f,
+    [DK_HHC]    = 0.30f,   // plays on almost every step, so it dominates if left level
+    [DK_HHO]    = 0.38f,
+    [DK_CLAP]   = 0.45f,
+    [DK_TOM_LO] = 0.95f,   // sine: quiet for its velocity next to a noise burst
+    [DK_TOM_HI] = 0.95f,
+    [DK_CRASH]  = 0.40f,
+};
 static void use_kit(int k) {
     dk_use(KITS[k], KIT_BASE);
-    for (int i = 0; i < DK_N; i++) instrument_level(KIT_BASE + i, 0.45f);   // gain is 0..1, not 0..7
+    for (int i = 0; i < DK_N; i++) instrument_level(KIT_BASE + i, LVL[i]);   // gain is 0..1, not 0..7
 }
 
 static int  grp = 0, pat = 0;          // where the cursor is
@@ -130,7 +144,8 @@ void update(void) {
     for (int r = 0; r < DP_NROLES; r++) {
         if (r == DP_AC) continue;                       // a velocity lane, never a voice
         if (!dp_hit(p, r, pstep)) continue;
-        int vel = acc ? 6 : 4;      // accent scales the hit; the kit trim above sets the ceiling
+        int vel = (acc ? 6 : 4) + MAP[r].vbump;
+        if (vel > 7) vel = 7;
         dk_fire(MAP[r].role, MAP[r].midi, vel);
         if (dp_flam(p, r, pstep)) dk_fire_at(28, MAP[r].role, MAP[r].midi, vel - 1);  // doubled stroke
         flash[r] = 4;
@@ -298,6 +313,19 @@ void spec(void) {
             if (!voices) bare++;
         }
     expect(bare >= 0, "counted the accent steps with nothing to scale");
+
+    // 6. the mix balance is a TABLE, and a flat table is the bug this cart already had: the sine
+    //    toms measured 20 dB under the mix until they got their own level and velocity. Guard both
+    //    so a later tidy-up cannot silently re-flatten them.
+    int zerolvl = 0;
+    for (int i = 0; i < DK_N; i++) if (!(LVL[i] > 0.0f)) zerolvl++;
+    expect(zerolvl == 0, "every kit role has a nonzero level (none is muted by accident)");
+    expect(LVL[DK_TOM_LO] > LVL[DK_HHC] && LVL[DK_TOM_HI] > LVL[DK_HHC],
+           "the sine toms sit louder than the closed hat, which plays on nearly every step");
+    expect(MAP[DP_LT].vbump > 0 && MAP[DP_MT].vbump > 0 && MAP[DP_HT].vbump > 0,
+           "all three tom lanes carry a velocity bump (a sine needs it against noise)");
+    expect(MAP[DP_LT].midi != MAP[DP_MT].midi,
+           "low and mid tom share a slot, so they must NOT share a pitch");
     grp = 0; pat = 0;
 }
 #endif

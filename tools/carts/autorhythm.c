@@ -27,15 +27,22 @@ de:meta */
 #include <string.h>
 
 // ── the four machines, in date order ──────────────────────────────────────
-typedef struct { const char *name, *era; const RbRhythm *set; int n; } Machine;
+typedef struct { const char *name, *era, *note; const RbRhythm *set; int n; } Machine;
 static const Machine MACH[] = {
-    { "ACE TONE FR-2L", "c.1969  discrete logic",  RB_FR2L, RB_FR2L_N },
-    { "ROLAND TR-77",   "1972  diode matrix",      RB_TR77, RB_TR77_N },
-    { "SGS M252",       "1970s  mask ROM",         RB_SGS,  RB_SGS_N  },
-    { "SGS M253",       "1970s  mask ROM",         RB_M253, RB_M253_N },
-    { "HAMMOND patent",  "1969  US 3,567,838",     RB_HAM,  RB_HAM_N  },
-    { "SGS M255",        "1970s  pins NAMED",      RB_M255, RB_M255_N },
-    { "SGS M254",        "1970s  accompaniment",   RB_M254, RB_M254_N },
+    { "ACE TONE FR-2L", "c.1969  discrete logic", 0, RB_FR2L, RB_FR2L_N },
+    { "ROLAND TR-77",   "1972  diode matrix",     0, RB_TR77, RB_TR77_N },
+    { "SGS M252",       "1970s  mask ROM",        "lanes are chip PINS, not named instruments",
+      RB_SGS,  RB_SGS_N  },
+    { "SGS M253",       "1970s  mask ROM",        "lanes are chip PINS, not named instruments",
+      RB_M253, RB_M253_N },
+    { "HAMMOND patent", "1969  US 3,567,838",     "CHORD and BASS lanes GATE the held chord",
+      RB_HAM,  RB_HAM_N  },
+    { "SGS M255",       "1970s  pins NAMED",      "the only chip whose pins the datasheet names",
+      RB_M255, RB_M255_N },
+    // the M254 pinout sends 8 of its 12 outputs to the M251 chord/bass chip, so most of what this
+    // cart plays as a drum here is really accompaniment. Say so rather than let it mislead.
+    { "SGS M254",       "1970s  accompaniment",   "8 of 12 pins fed the CHORD/BASS chip: not drums",
+      RB_M254, RB_M254_N },
 };
 #define NMACH ((int)(sizeof MACH / sizeof MACH[0]))
 
@@ -224,23 +231,29 @@ void update(void) {
 #define GX 76   // wide enough for a 7-char printed label AND a 6-char voice name before it
 #define GY 62
 #define CW 5
-#define RH 11
+#define RH 11   // nominal; draw_grid() shrinks it so every lane fits (the M254 has 12)
 
 static void draw_grid(void) {
     const RbRhythm *r = cur();
     int cw = (r->counts <= 16) ? 14 : (r->counts <= 32) ? 7 : CW;
     int playc = order[sidx];
+    int rh = (r->nlanes > 10) ? 9 : RH;          // 12 lanes still fit above the footer
 
-    for (int l = 0; l < r->nlanes && l < SM_NV; l++) {
-        int y = GY + l * RH;
+    for (int l = 0; l < r->nlanes; l++) {
+        int y = GY + l * rh;
         bool resetcol = (r->lane[l].flags & RB_RESETCOL) != 0;
 
         // the printed label DIM (provisional, see de:meta) then the voice BRIGHT. The label is
         // TRUNCATED to the 6 characters the column holds: the Hammond chart's labels run to 20
         // ("CHORD & SNARE DRUM") and used to overprint the voice name.
         char lb[8];
-        for (int i = 0; i < 7; i++) { char c = r->lane[l].label[i]; lb[i] = c ? c : 0; if (!c) break; }
-        lb[7] = 0;
+        if (r->lane[l].label[0] == 'O' && r->lane[l].label[1] == 'U') {
+            // "OUTPUT 11" truncates to "OUTPUT " on every lane, which tells you nothing: keep the pin
+            snprintf(lb, sizeof lb, "OUT %s", r->lane[l].label + 7);
+        } else {
+            for (int i = 0; i < 7; i++) { char c = r->lane[l].label[i]; lb[i] = c ? c : 0; if (!c) break; }
+            lb[7] = 0;
+        }
         print(lb, 2, y + 2, CLR_DARKER_GREY);
         bool met = is_metro(r->lane[l].label);
         if (resetcol) {
@@ -276,7 +289,7 @@ static void draw_grid(void) {
     }
     // the playhead
     int px = GX + playc * cw;
-    int gh = (r->nlanes < SM_NV ? r->nlanes : SM_NV) * RH;
+    int gh = r->nlanes * rh;
     rectfill(px, GY - 3, cw, 2, (running || keyheld) ? CLR_RED : CLR_DARK_GREY);
     line(px + cw / 2, GY - 1, px + cw / 2, GY + gh, CLR_DARK_RED);
 }
@@ -287,7 +300,8 @@ static void draw_panel(void) {
     print(MACH[mach].era, 2, 12, CLR_DARK_GREY);
     print(r->name, 2, 24, CLR_LIME_GREEN);
     // the provenance line, but only when it says more than the name already does
-    if (strcmp(r->source, r->name) != 0) print(r->source, 2, 54, CLR_DARKER_GREY);
+    if (strcmp(r->source, r->name) != 0 && !MACH[mach].note)
+        print(r->source, 2, 54, CLR_DARKER_GREY);
 
     // what the machine's clock MEANS for this rhythm, all read off the data
     char buf[96];
@@ -302,6 +316,7 @@ static void draw_panel(void) {
         print(buf, 150, 44, CLR_ORANGE);
     }
     if (r->flags & RB_EDGE_ONLY) print("edge-trig", 150, 34, CLR_DARK_GREY);
+    if (MACH[mach].note) print(MACH[mach].note, 2, 54, CLR_DARK_ORANGE);
     {   // the chord the accompaniment lanes gate, when this machine has any
         bool acc = false;
         for (int l = 0; l < r->nlanes; l++)

@@ -3603,3 +3603,1511 @@ identical to M252 AA lanes one output up), not block-level. Every M253 AA block 
 OUT 1 that its nearest M252 relative does not have (1 to 5 marks).
 **Conclusion:** M253 AA's twelve rhythms are genuine new data; M253 AC's twelve are duplicates.
 
+
+---
+
+# Second wave (2026-08-20): the chip family, the patents, and two rejections
+
+The files below cover everything found after the first three machines: the rest of the SGS rhythm
+line, the accompaniment question, and the patent route. Two of them record work that was thrown
+away, which is why they are here:
+
+- `patents2.md` holds the reading of US 4,292,874 FIG. 14 that was **rejected**. It failed the
+  patent's own damp-one-step-before-trigger relation, and the figure turned out to be hand-drawn
+  waveforms plus a staff rather than a dot grid. The numbers in that file are NOT in the curated doc
+  or the header. Kept because the next person should see what was tried.
+- `organs.md` is a hunt that stalled early. Its value is the patent shortlist it left behind, one of
+  which (US 3,567,838) became the only source in the project with chord and bass lanes.
+
+
+
+# ===== source file: sgs_m255_m254.md =====
+
+# SGS M255 / M254 rhythm-ROM truth tables — transcription
+
+## Provenance
+
+- Source: `<scratch>/sgs_1979_databook.pdf` — "1979 SGS MOS and Special COS/MOS", 1st edition.
+  Already on disk; not re-downloaded.
+- Masks transcribed here are **SGS FACTORY standard contents** only. Both target tables are
+  captioned "standard content". No Elgam / customer masks are involved, and none are published
+  in this databook.
+- M255: PDF page 150 (printed page 158), caption "TRUTH TABLE of M 255 B1-AB (standard content)".
+  Pre-rendered at 600 dpi as `<scratch>/m255_p150-150.png` by a previous agent, which also
+  verified the embedded scan is genuinely 600 dpi and fully populated.
+- M254: pages to be located via the PDF text layer (`pdftotext -layout` + grep), tables 1 and 2 =
+  M254 AD and M254 AM standard contents.
+- Method: read by eye from 600 dpi crops that include BOTH the counter-state row numbers and the
+  OUTPUT column header digits, cross-checked with a per-cell ink-fraction measurement over
+  located cell rectangles. No blob/circle detection (over-detects badly on this material).
+- Notation below: one line per output, one character per elementary time 1..length,
+  `x` = a cross (X) in the cell, `.` = empty cell.
+- OUTPUT n are chip PINS. RHYTHM n is only ever "RHYTHM n" in the grid; any pairing with the
+  pinout's named rhythm-select inputs is asserted only if visibly printed.
+- Hard rule followed: nothing written here was not read off the page. UNREAD is recorded as UNREAD.
+
+## Status log
+
+- (start) file created, nothing transcribed yet.
+- M255 B1-AB done: 6 rhythms x 5 outputs, lengths verified, option rows quoted.
+- M254 AD done: 8 rhythms x 12 outputs + counting control (lengths 24 for rhythms 1 and 8).
+- M254 AM done: 8 rhythms x 12 outputs + counting control (lengths 24 for rhythms 1, 6 and 7).
+- M255 pinout pairing READ (page 146, two side-by-side connection diagrams). FINISHED.
+
+---
+
+# M255 B1-AB — TRUTH TABLE (standard content)
+
+PDF page 150 / printed page 158. Caption read verbatim:
+**"TRUTH TABLE of M 255 B1-AB (standard content)"**
+
+Body text on the same page, verbatim:
+> "The ROM truth table has been organized in 16 rows which represent the elementary times and 30
+> columns (6 groups of 5). The timing for the beats required for each instrument is programmed by
+> crossing the appropriate box. The options for outputs and down beat must also be filled in as
+> explained. Table 1 shows the content and the options programmed in the M 255 B1-AB standard
+> content."
+
+Grid shape confirmed by eye at 600 dpi: 16 numbered rows under the header "Counter state",
+6 groups ("RHYTHM 1" .. "RHYTHM 6") of 5 vertically-lettered columns "OUTPUT 1".."OUTPUT 5".
+
+## RHYTHM 1 — length 12 (rows 13-16 greyed, uniformly across all 5 of its columns)
+
+```
+elementary time:  1 2 3 4 5 6 7 8 9 10 11 12
+OUTPUT 1          x . . . . . x . . .  .  .
+OUTPUT 2          . . x . x . . . x .  x  .
+OUTPUT 3          x . . . . . x . . .  .  .
+OUTPUT 4          . . . . . . x . . .  .  .
+OUTPUT 5          . . x . x . . . x .  x  .
+```
+Notes: OUTPUT 2 and OUTPUT 5 are byte-identical lanes. OUTPUT 1 and OUTPUT 3 are also
+byte-identical to each other. Even-numbered elementary times are all empty in this rhythm.
+
+## RHYTHM 2 — length 16 (no greying anywhere in its 5 columns)
+
+```
+elementary time:  1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16
+OUTPUT 1          x . . x x . . . x x  .  x  x  .  x  x
+OUTPUT 2          . . x . . . x . . .  x  .  .  x  .  x
+OUTPUT 3          x x x x x x x x x x  x  x  x  x  x  x
+OUTPUT 4          . . . . . . . . . .  .  .  .  .  .  x
+OUTPUT 5          x . x . . x . . x .  .  x  .  .  .  .
+```
+Notes: OUTPUT 3 is marked on EVERY elementary time (a continuous 16-time lane).
+OUTPUT 4 carries a single mark, at time 16 only.
+
+## RHYTHM 3 — length 12 (rows 13-16 greyed, uniformly across all 5 of its columns)
+
+```
+elementary time:  1 2 3 4 5 6 7 8 9 10 11 12
+OUTPUT 1          x . . x . . x . . x  .  .
+OUTPUT 2          . . . x . . . . . x  .  .
+OUTPUT 3          x . . x . x x . . x  .  x
+OUTPUT 4          . . . . . . x . . x  .  .
+OUTPUT 5          . . . x . . . . . x  .  .
+```
+Notes: OUTPUT 2 and OUTPUT 5 are byte-identical lanes again (marks at 4 and 10 only).
+
+## RHYTHM 4 — length 12 (rows 13-16 greyed, uniformly across all 5 of its columns)
+
+```
+elementary time:  1 2 3 4 5 6 7 8 9 10 11 12
+OUTPUT 1          x . . . . x x . . .  .  x
+OUTPUT 2          . . . x . . . . . x  .  .
+OUTPUT 3          x x x x x x x x x x  x  x
+OUTPUT 4          . . . . . . x . . .  .  x
+OUTPUT 5          . . . x . . . . . x  .  .
+```
+Notes: OUTPUT 3 is marked on every one of its 12 elementary times.
+(RHYTHM 4 OUTPUT 5 read from the r456 crop: marks at 4 and 10 only, so OUTPUT 2 and OUTPUT 5
+are byte-identical in RHYTHM 4 as well.)
+
+## RHYTHM 5 — length 16 (no greying in its 5 columns)
+
+```
+elementary time:  1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16
+OUTPUT 1          x . x x . . x . x .  .  .  .  .  x  x
+OUTPUT 2          x . . x . . x . . .  x  .  .  x  .  .
+OUTPUT 3          x x x x x x x x x x  x  x  x  x  x  x
+OUTPUT 4          . . . . . . x . . .  .  .  .  .  x  x
+OUTPUT 5          . x . x . x x . x .  x  .  x  x  .  x
+```
+Notes: OUTPUT 3 marked on every one of the 16 elementary times.
+
+## RHYTHM 6 — length 16 (no greying in its 5 columns)
+
+```
+elementary time:  1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16
+OUTPUT 1          x . . . x . . . x .  .  .  x  .  x  .
+OUTPUT 2          x . . . x . . . x .  .  .  x  .  x  .
+OUTPUT 3          . . . . . . . . . .  .  .  .  .  x  .
+OUTPUT 4          . . . . . . . . . .  .  .  .  .  x  .
+OUTPUT 5          x . . . x . . . x .  .  .  x  .  x  .
+```
+Notes: the sparsest rhythm on the mask. Marks occur only at elementary times 1, 5, 9, 13 and 15.
+OUTPUT 1, OUTPUT 2 and OUTPUT 5 are three byte-identical lanes; OUTPUT 3 and OUTPUT 4 carry a
+single mark each, both at time 15 (where all five outputs fire together).
+
+## M255 option rows — verbatim
+
+The four rows printed below the grid, left-hand labels exactly as set:
+
+```
+| Option on the Outputs             | O1 | O2 | O3 | O4 | O5 |            | 16 (12) | 8 (6) |
+| Continuous or Trigger Output      | T  | T  | T  | T  | T  | Down beat  |    X    |       |
+| Open drain or push-pull           | O  | O  | O  | O  | O  |            |         |       |
+| Positive or Negative Trigger Edge | +  | +  | +  | +  | +  |            |         |       |
+```
+
+So the M255 B1-AB standard content specifies, for all five outputs alike:
+TRIGGER output (T, not continuous) · OPEN DRAIN (O, not push-pull) · POSITIVE trigger edge (+).
+The down-beat option is crossed in the "16 (12)" cell and left blank in the "8 (6)" cell.
+(The parenthesised numbers pair with the two rhythm lengths present on this mask: 16 for the
+full-length rhythms, 12 for the shortened ones.)
+
+## M255 verification (ink-fraction cross-check)
+
+Grid rectangles were located by projection (32 vertical rules at x = 709,809,904,1000,1091,1176,
+1273,1370,1459,1550,1639,1740,1833,1922,2013,2103,2199,2291,2382,2476,2566,2660,2755,2850,2940,
+3031,3128,3218,3309,3395,3486 px; 16 row bands from y=3363 to y=4426), then the black-ink fraction
+of each cell was measured with a 9 px inset.
+
+- cells holding a cross: **0.09 - 0.19** (mean ~0.145)
+- empty cells: **0.00** (one cell read 0.01, a speck visible in the crop at RHYTHM 4 / OUTPUT 1 /
+  time 5, treated as dirt, not a mark)
+- greyed cells: **0.13 - 0.18**, i.e. indistinguishable from a cross by ink alone. Greying was
+  therefore identified the prescribed way: a uniform fill across ALL FIVE columns of one rhythm
+  simultaneously, for rows 13-16.
+
+Every mark in the transcription above was confirmed by this measurement; the by-eye reading and
+the measured grid agree cell-for-cell with no exceptions.
+
+## M255 lengths (VERIFIED, not assumed)
+
+| rhythm | greyed rows | length |
+|---|---|---|
+| RHYTHM 1 | 13,14,15,16 | 12 |
+| RHYTHM 2 | none | 16 |
+| RHYTHM 3 | 13,14,15,16 | 12 |
+| RHYTHM 4 | 13,14,15,16 | 12 |
+| RHYTHM 5 | none | 16 |
+| RHYTHM 6 | none | 16 |
+
+The greyed block under RHYTHM 3 and RHYTHM 4 is one continuous rectangle spanning all ten of
+their columns, which is why it reads as a single band on the page. This confirms the prediction
+in the earlier survey: three 12-time rhythms (1, 3, 4) and three 16-time rhythms (2, 5, 6).
+
+M255 B1-AB: **COMPLETE.**
+
+---
+
+# M254 — where the tables are, and how lengths are defined
+
+Located via the PDF text layer (`pdftotext -layout` + grep), not by rendering pages.
+
+- PDF page 141 (printed 149) — "COMPLETING THE TRUTH TABLE" prose.
+- PDF page 142 (printed 150) — heading **"M 254 AD (standard)"**; two stacked blocks:
+  RHYTHM 1 (WALTZ) / RHYTHM 2 (TANGO) / RHYTHM 3 (SWING), then
+  RHYTHM 4 (BEAT) / RHYTHM 5 (BOSSA NOVA) / RHYTHM 6 (SAMBA).
+- PDF page 143 (printed 151) — third AD block: RHYTHM 7 (RUMBA) / RHYTHM 8 (SLOW ROCK) /
+  **COUNTING CONTROL**; then heading **"M 254 AM (standard)"** with its first block:
+  RHYTHM 1 (WALTZ) / RHYTHM 2 (POLKA) / RHYTHM 3 (TANGO).
+- Both scans are 600 dpi (`pdfimages -list`: 3893x5102 jbig2 gray, x-ppi 600, y-ppi 600), rendered
+  with `pdftoppm -r 600`.
+
+Rhythm names are PRINTED in the group headers and were read there (they are also legible in the
+text layer). AD names confirmed on page 142/143: 1 WALTZ, 2 TANGO, 3 SWING, 4 BEAT, 5 BOSSA NOVA,
+6 SAMBA, 7 RUMBA, 8 SLOW ROCK.
+
+Prose from PDF page 141, verbatim (the length convention):
+> "The ROM truth table has been organized in 32 rows which represent the elementary times and 104
+> columns. The first 8 groups of 12 columns represent the rhythms which have 12 programmable
+> outputs. The timing for the beats required for each instrument is programmed by crossing the
+> appropriate box. The 9th group of 8 columns represents the COUNTING control information which
+> specifies the number of elementary times in a given rhythm.
+> If count N is crossed for rhythm X this rhythm will have N elementary times. If the counting
+> control column for a particular rhythm does not contain a cross that rhythm will have 32
+> elementary times.
+> Table 1 and 2 show the truth tables of the M 254 AD and M 254 AM, standard contents,
+> respectively. It can be seen that in the table 1 the rhythms 1 and 8 and in the table 2 the
+> rhythms 1, 6 and 7, have 24 elementary times."
+
+Note: the printed COUNTING CONTROL group on page 143 is headed with TWELVE vertical labels
+"RHYTHM 1" .. "RHYTHM 12", not the eight the prose describes; only columns 1-8 can carry meaning
+for an 8-rhythm part. Read as printed, not corrected.
+
+## Method used for the M254 grids
+
+Per block: vertical rules and row rules located by ink projection, then the black-ink fraction of
+every cell measured with a 9 px inset (600 dpi). Separation is clean and quoted per block below.
+Greying is again indistinguishable by ink alone (0.16-0.21, same as a cross) and was identified by
+being uniform across ALL TWELVE columns of a rhythm at once. Marks are only ever asserted where
+BOTH the measurement and a by-eye read of a 600 dpi crop agree.
+
+## M254 AD — block 1 (PDF page 142)
+
+Cell statistics for this block: RHYTHM 1 min-mark 0.138 / max-blank 0.000;
+RHYTHM 2 min-mark 0.120 / max-blank 0.001; RHYTHM 3 min-mark 0.113 / max-blank 0.000.
+By-eye verification: the whole of RHYTHM 1 (all 12 outputs x 24 live rows) was re-read from a
+1.5x-enlarged 600 dpi crop and agrees with the measurement cell-for-cell.
+
+### AD RHYTHM 1 (WALTZ) — 24 elementary times (rows 25-32 greyed across all 12 columns)
+```
+time:             123456789012345678901234
+OUTPUT 1          x...........x...........
+OUTPUT 2          ....x...x......xx...x...
+OUTPUT 3          x...........x...........
+OUTPUT 4          ........................
+OUTPUT 5          ............x...........
+OUTPUT 6          ....x...x...x...x...x...
+OUTPUT 7          x.......x.......x.......
+OUTPUT 8          ....x...x.......x...x...
+OUTPUT 9          x.x.x.x.x.......x.x.x.x.
+OUTPUT 10         x.x.......x.x.x.......x.
+OUTPUT 11         x...x.x...x.x.x...x.x...
+OUTPUT 12         ..x.x...x.x...x.x...x.x.
+```
+OUTPUT 4 is WHOLLY EMPTY in this rhythm (recorded, not an omission).
+OUTPUT 1 and OUTPUT 3 are byte-identical lanes.
+
+### AD RHYTHM 2 (TANGO) — 32 elementary times (no greying)
+```
+time:             12345678901234567890123456789012
+OUTPUT 1          x.......x.......x.......x.......
+OUTPUT 2          x.......x.......x.......x...xxxx
+OUTPUT 3          ............................x...
+OUTPUT 4          ................................
+OUTPUT 5          ................................
+OUTPUT 6          ........x.......x.......x...x...
+OUTPUT 7          x...............x...........x...
+OUTPUT 8          x.......x.......x.......x...x...
+OUTPUT 9          x.x.x.x.x...x.x.x...x.x...x.x.x.
+OUTPUT 10         x...x.x.......x.........x.......
+OUTPUT 11         x.x...x.x...x...x...x.x.x...x.x.
+OUTPUT 12         ..x.x...x...x.x.......x.x.x...x.
+```
+OUTPUT 4 and OUTPUT 5 are both WHOLLY EMPTY. OUTPUT 2's tail (29,30,31,32) is a fill.
+
+### AD RHYTHM 3 (SWING) — 32 elementary times (no greying)
+```
+time:             12345678901234567890123456789012
+OUTPUT 1          x.......x.......x.......x.......
+OUTPUT 2          ....x.......x.......x......xx..x
+OUTPUT 3          x...x..xx...x..xx...x..xx..xx..x
+OUTPUT 4          ................................
+OUTPUT 5          ............x...x...x...........
+OUTPUT 6          ....x...x.......x.......x...x...
+OUTPUT 7          x.......x...............x.......
+OUTPUT 8          ....x.......x.......x.......x...
+OUTPUT 9          x.x.x.x.x.x.x.x.x...x.x...x.x...
+OUTPUT 10         x...x.x...x.x.....x.....x.....x.
+OUTPUT 11         x.x...x.x.x...x.x.x...x.x.x...x.
+OUTPUT 12         ..x.x...x...x.x...x.x...x...x.x.
+```
+OUTPUT 4 is WHOLLY EMPTY here too.
+
+## M254 AD — block 2 (PDF page 142, lower half)
+
+No greying anywhere in this block, so rhythms 4, 5 and 6 all run 32 elementary times
+(cross-checked against the counting control group below).
+Cell statistics: RHYTHM 4 min-mark 0.147 / max-blank 0.039; RHYTHM 5 min-mark 0.141 /
+max-blank 0.007; RHYTHM 6 min-mark 0.140 / max-blank 0.044.
+(The larger max-blank figures come from a dotted interior rule clipping the cell rectangle in
+RHYTHM 6 column 7 and one cell of RHYTHM 4; the mark/blank gap is still better than 3x.)
+By-eye verification: RHYTHM 4 rows 1-15, all 12 outputs, re-read from a 1.55x crop — agrees
+cell-for-cell with the measurement.
+
+### AD RHYTHM 4 (BEAT) — 32 elementary times
+```
+time:             12345678901234567890123456789012
+OUTPUT 1          x.....x.x.......x.x...x.x.....x.
+OUTPUT 2          ....x.......x.......x.....x...x.
+OUTPUT 3          x.x.x.x.x.x.x.x.x.x.x.x.x.x.x.x.
+OUTPUT 4          ................................
+OUTPUT 5          x...x..x........x...x..x........
+OUTPUT 6          x...x..x....x.x.x...x..x....x.x.
+OUTPUT 7          ........x.x...x.........x.x...x.
+OUTPUT 8          x...x.....x.....x.....x.........
+OUTPUT 9          x.x.x.x.x.x...x.x.x.x.xxx.x.x.x.
+OUTPUT 10         x.x.x.......x..........x..x.x.x.
+OUTPUT 11         x.x...x.x...x...x...x.x.x...x...
+OUTPUT 12         x...x.x...x.x.x...x...xxx.x...x.
+```
+OUTPUT 3 fires on every odd elementary time (all 16 of them). OUTPUT 4 WHOLLY EMPTY.
+
+### AD RHYTHM 5 (BOSSA NOVA) — 32 elementary times
+```
+time:             12345678901234567890123456789012
+OUTPUT 1          x.....x.x.....x.x.......x...x.x.
+OUTPUT 2          x.....x.....x.......x.....x.....
+OUTPUT 3          x.x.x.x.x.x.x.x.x.x.x.x.x.x.x.x.
+OUTPUT 4          ....x.......x.......x.......x...
+OUTPUT 5          x...........x...x...............
+OUTPUT 6          x.....x...x.x.x.x.x...x...x.x...
+OUTPUT 7          ..x.......x...x...x.......x...x.
+OUTPUT 8          x...x...x.x...x...x...x...x.x...
+OUTPUT 9          x...x.x.x.x.x.....x...x...x.x.x.
+OUTPUT 10         x.....x.......x...............x.
+OUTPUT 11         x...x...x.x...x...........x.x...
+OUTPUT 12         ....x.x...x.x.x...x...x.....x.x.
+```
+No empty lane in this rhythm; OUTPUT 3 again every odd time.
+
+### AD RHYTHM 6 (SAMBA) — 32 elementary times
+```
+time:             12345678901234567890123456789012
+OUTPUT 1          x...x...x.....x.x.x...x.x.......
+OUTPUT 2          ..x...x...xx..x...x...x...xx..x.
+OUTPUT 3          x.x.x.x.x.x.x.x.x.x.x.x.x.x.x.x.
+OUTPUT 4          x...x...x.....x.x.x...x.x...x...
+OUTPUT 5          ................x.....x.........
+OUTPUT 6          ......x.x...x...x...x.x...x...x.
+OUTPUT 7          x.......x...........x.........x.
+OUTPUT 8          x...x...x...x...x.x...x.x...x.x.
+OUTPUT 9          x.x.x.x.x.x.x.xx..x.x.x...x.x.x.
+OUTPUT 10         x.x...x.........x.............x.
+OUTPUT 11         x...x...x.x.x.x.x...x.....x.x...
+OUTPUT 12         ..x.x.x.x...x..xx.x...x.....x.x.
+```
+OUTPUT 1 and OUTPUT 4 are ALMOST identical (OUTPUT 4 adds a mark at time 29); worth noting
+because near-duplicate lanes recur on these masks.
+
+## M254 AD — block 3 (PDF page 143, upper half): rhythms 7-8 + COUNTING CONTROL
+
+Cell statistics: RHYTHM 7 min-mark 0.122 / max-blank 0.013; RHYTHM 8 min-mark 0.137 /
+max-blank 0.017; COUNTING CONTROL min-mark 0.167 / max-blank 0.017.
+
+### AD RHYTHM 7 (RUMBA) — 32 elementary times
+```
+time:             12345678901234567890123456789012
+OUTPUT 1          x.....x.....x...x.....x.....x...
+OUTPUT 2          x.....x.....x.......x...x.......
+OUTPUT 3          x.x.x.x.x.x.x.x.x.x.x.x.x.x.x.x.
+OUTPUT 4          ....x...x.x...x.x.....x...x.x.x.
+OUTPUT 5          ................x...........x...
+OUTPUT 6          ......x.....x...x.....x.....x...
+OUTPUT 7          x...........x.........x.........
+OUTPUT 8          ....x...x.x.....x.....x...x.....
+OUTPUT 9          x..xx.x...x.x.x...x.x.x.x.x.x.x.
+OUTPUT 10         x...x...........x...........x.x.
+OUTPUT 11         x..x..x...x...x.x...x...x.x...x.
+OUTPUT 12         x..xx.....x.x...x.x...x...x.x...
+```
+
+### AD RHYTHM 8 (SLOW ROCK) — 24 elementary times (rows 25-32 greyed across all 12 columns)
+```
+time:             123456789012345678901234
+OUTPUT 1          x.........x.x.........x.
+OUTPUT 2          ......x...........x.....
+OUTPUT 3          x.x.x...x.x.x.x.x...x.x.
+OUTPUT 4          ........................
+OUTPUT 5          ............x...........
+OUTPUT 6          ......x...x.x.....x...x.
+OUTPUT 7          x.........x...........x.
+OUTPUT 8          ......x...........x.....
+OUTPUT 9          x.x.x.x.x.x...x.x.x.x.x.
+OUTPUT 10         x.x.x.......x.......x.x.
+OUTPUT 11         x.x...x.x...x...x.x...x.
+OUTPUT 12         x...x.x...x.x.x...x.x...
+```
+OUTPUT 4 WHOLLY EMPTY. OUTPUT 2 and OUTPUT 8 are byte-identical lanes (marks at 7 and 18).
+
+### AD COUNTING CONTROL — the length group, read as printed
+
+The group's twelve columns are labelled vertically "RHYTHM 1" .. "RHYTHM 12" (read by eye from
+the header, confirmed on a 1:1 600 dpi crop). The whole 32x12 group contains EXACTLY TWO crosses,
+both on count row 24:
+
+```
+count 24:  RHYTHM 1 = X      RHYTHM 8 = X      (all other cells in the group empty)
+```
+
+Applying the databook's own rule ("If count N is crossed for rhythm X this rhythm will have N
+elementary times. If the counting control column for a particular rhythm does not contain a cross
+that rhythm will have 32 elementary times"):
+
+| AD rhythm | counting-control cross | length | greyed rows agree? |
+|---|---|---|---|
+| 1 WALTZ | count 24 | 24 | yes, 25-32 greyed |
+| 2 TANGO | none | 32 | yes, none greyed |
+| 3 SWING | none | 32 | yes |
+| 4 BEAT | none | 32 | yes |
+| 5 BOSSA NOVA | none | 32 | yes |
+| 6 SAMBA | none | 32 | yes |
+| 7 RUMBA | none | 32 | yes |
+| 8 SLOW ROCK | count 24 | 24 | yes, 25-32 greyed |
+
+Determined from the counting-control group itself, and independently corroborated twice: by the
+greying, and by the databook sentence "in the table 1 the rhythms 1 and 8 ... have 24 elementary
+times".
+
+**M254 AD: COMPLETE** (8 rhythms x 12 outputs, plus the counting-control group).
+
+---
+
+# M254 AM (standard content)
+
+Heading read verbatim on PDF page 143: **"M 254 AM (standard)"**. Group headers give the names,
+read on the pages: 1 WALTZ, 2 POLKA, 3 TANGO (page 143); 4 BOSSA NOVA, 5 SAMBA, 6 SLOW ROCK and
+7 BOOGIE, 8 DISCO + COUNTING CONTROL (page 144, printed 152). This matches the name list in the
+task brief exactly.
+
+Unlike the AD table, the AM table carries NO grey shading at all: a short rhythm simply has empty
+rows past its length, so here the counting-control group is the ONLY evidence of length.
+
+## M254 AM — block 1 (PDF page 143, lower half)
+
+Cell statistics: RHYTHM 1 min-mark 0.144 / max-blank 0.036; RHYTHM 2 min-mark 0.130 /
+max-blank 0.000; RHYTHM 3 min-mark 0.133 / max-blank 0.018.
+By-eye verification: RHYTHM 1 rows 1-15, all 12 outputs, re-read from a 1.6x crop of the 600 dpi
+render — agrees with the measurement cell-for-cell, including the four empty lanes.
+
+### AM RHYTHM 1 (WALTZ) — 24 elementary times (times 25-32 empty; see counting control)
+```
+time:             123456789012345678901234
+OUTPUT 1          x.....x.....x.....x.....
+OUTPUT 2          ........................
+OUTPUT 3          ........................
+OUTPUT 4          ........................
+OUTPUT 5          ..x.x...x.x...x.x...x.x.
+OUTPUT 6          x.....x.....x.....x.....
+OUTPUT 7          ..x.x...x.x...x.x...x.x.
+OUTPUT 8          x.....x.....x.....x.....
+OUTPUT 9          ......x...........x.....
+OUTPUT 10         ........................
+OUTPUT 11         x...........x...........
+OUTPUT 12         ..x.x...x.x...x.x...x.x.
+```
+FOUR WHOLLY EMPTY LANES: OUTPUT 2, 3, 4 and 10. THREE byte-identical lanes: OUTPUT 5 = OUTPUT 7 =
+OUTPUT 12. OUTPUT 1 = OUTPUT 6 = OUTPUT 8 as well, so this rhythm uses only 5 distinct patterns
+across 12 pins. The period is 6 elementary times (4 bars of 3/4 at 2 subdivisions per beat).
+
+### AM RHYTHM 2 (POLKA) — 32 elementary times
+```
+time:             12345678901234567890123456789012
+OUTPUT 1          x...x...x...x...x...x...x...x...
+OUTPUT 2          ................................
+OUTPUT 3          ................................
+OUTPUT 4          ................................
+OUTPUT 5          ..x...x...x...xx..x...x...xxx.x.
+OUTPUT 6          x...x...x...x...x...x...x.......
+OUTPUT 7          ..x...x...x...x...x...x...x...x.
+OUTPUT 8          x...x...x...x...x...x...x...x...
+OUTPUT 9          ....x.......x.......x.......x...
+OUTPUT 10         ................................
+OUTPUT 11         x.......x.......x.......x.......
+OUTPUT 12         ..x...x...x...x...x...x...x...x.
+```
+Same four empty lanes (2, 3, 4, 10). OUTPUT 1 = OUTPUT 8 exactly. OUTPUT 7 = OUTPUT 12 exactly.
+
+### AM RHYTHM 3 (TANGO) — 32 elementary times
+```
+time:             12345678901234567890123456789012
+OUTPUT 1          x...x...x...x...x...x...x...x...
+OUTPUT 2          ................................
+OUTPUT 3          ................................
+OUTPUT 4          ................................
+OUTPUT 5          x...x...x...x.xxx...x...x...x.x.
+OUTPUT 6          ..............x...............x.
+OUTPUT 7          x...x...x...x.x.x...x...x...x.x.
+OUTPUT 8          x...............x...............
+OUTPUT 9          ........x...x...........x...x...
+OUTPUT 10         ....x.......x.......x.......x...
+OUTPUT 11         x...........x...x...........x...
+OUTPUT 12         x...x...x...x.x.x...x...x...x.x.
+```
+Same three empty lanes 2, 3, 4 (OUTPUT 10 is used here). OUTPUT 7 = OUTPUT 12 exactly.
+
+## M254 AM — block 2 (PDF page 144, printed 152, upper half)
+
+Cell statistics: RHYTHM 4 min-mark 0.140 / max-blank 0.000; RHYTHM 5 min-mark 0.136 /
+max-blank 0.001; RHYTHM 6 min-mark 0.143 / max-blank 0.020.
+By-eye verification: the whole of RHYTHM 6 (12 outputs x 32 rows) was re-read from a 1:1 600 dpi
+crop and agrees cell-for-cell, including that rows 25-32 are entirely empty.
+
+### AM RHYTHM 4 (BOSSA NOVA) — 32 elementary times
+```
+time:             12345678901234567890123456789012
+OUTPUT 1          x.......x.....x.x.......x.....x.
+OUTPUT 2          x.....x.....x.......x.....x.....
+OUTPUT 3          ......x.x.............x...x.....
+OUTPUT 4          x.............x.x.............x.
+OUTPUT 5          ................................
+OUTPUT 6          ................................
+OUTPUT 7          x.x.x.x.x.x.x.x.x.x.x.x.x.x.x.x.
+OUTPUT 8          x...............x...............
+OUTPUT 9          ........x...............x.......
+OUTPUT 10         ................................
+OUTPUT 11         x...............x...............
+OUTPUT 12         x.....x.....x.......x.....x.....
+```
+THREE WHOLLY EMPTY LANES: OUTPUT 5, 6 and 10. OUTPUT 2 = OUTPUT 12 exactly.
+OUTPUT 8 = OUTPUT 11 exactly. OUTPUT 7 = every odd elementary time.
+
+### AM RHYTHM 5 (SAMBA) — 32 elementary times
+```
+time:             12345678901234567890123456789012
+OUTPUT 1          x...x...x...x...x...x...x...x...
+OUTPUT 2          x...x..x........x...x..x....x...
+OUTPUT 3          ...xx.......x......xx.......x...
+OUTPUT 4          x......xxx.....xx......xxx.....x
+OUTPUT 5          x.x.x..x.x.xx...x.x.x..x.x.xx...
+OUTPUT 6          ..x...x...x...x...x...x...x...x.
+OUTPUT 7          xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+OUTPUT 8          x...............x...............
+OUTPUT 9          ....x.......x.......x.......x...
+OUTPUT 10         ................................
+OUTPUT 11         x.......x.......x.......x.......
+OUTPUT 12         ..x...x...x...x...x...x...x...x.
+```
+OUTPUT 7 is marked on ALL 32 elementary times. OUTPUT 10 WHOLLY EMPTY.
+OUTPUT 6 = OUTPUT 12 exactly. The busiest rhythm on either mask (103 marks).
+
+### AM RHYTHM 6 (SLOW ROCK) — 24 elementary times (times 25-32 empty; see counting control)
+```
+time:             123456789012345678901234
+OUTPUT 1          x.........x.x.........x.
+OUTPUT 2          ........................
+OUTPUT 3          ........................
+OUTPUT 4          ........................
+OUTPUT 5          ......x...........x.....
+OUTPUT 6          x.....x.....x.....x.....
+OUTPUT 7          x.x.x.x.x.x.x.x.x.x.x.x.
+OUTPUT 8          x...........x...........
+OUTPUT 9          ............x.........x.
+OUTPUT 10         ..........x.......x.....
+OUTPUT 11         x.......................
+OUTPUT 12         x.x.x.x.x.x.x.x.x.x.x.x.
+```
+THREE WHOLLY EMPTY LANES: OUTPUT 2, 3, 4. OUTPUT 7 = OUTPUT 12 exactly (every odd time).
+
+## M254 AM — block 3 (PDF page 144, lower half): rhythms 7-8 + COUNTING CONTROL
+
+Cell statistics: RHYTHM 7 min-mark 0.148 / max-blank 0.009; RHYTHM 8 min-mark 0.140 /
+max-blank 0.010; COUNTING CONTROL min-mark 0.200 / max-blank 0.040.
+By-eye verification: RHYTHM 8 rows 1-16, all 12 outputs, re-read from a 1.6x crop — agrees
+cell-for-cell.
+
+### AM RHYTHM 7 (BOOGIE) — 24 elementary times (times 25-32 empty; see counting control)
+```
+time:             123456789012345678901234
+OUTPUT 1          x.....x.....x.....x.....
+OUTPUT 2          ........................
+OUTPUT 3          ........................
+OUTPUT 4          ........................
+OUTPUT 5          ...x.....x.....x....xx..
+OUTPUT 6          x..x..x..x..x..x..x..x..
+OUTPUT 7          ..x..x..x..x..x..x..x..x
+OUTPUT 8          x...........x...........
+OUTPUT 9          ......x..x..x..x..x.....
+OUTPUT 10         ...x........x........x..
+OUTPUT 11         x........x.....x........
+OUTPUT 12         ..x..x..x..x..x..x..x..x
+```
+THREE WHOLLY EMPTY LANES: OUTPUT 2, 3, 4. OUTPUT 7 = OUTPUT 12 exactly.
+The whole rhythm is built on a period of 3 elementary times (24 = 8 beats of triplets), which is
+what makes it a shuffle rather than a straight beat.
+
+### AM RHYTHM 8 (DISCO) — 32 elementary times
+```
+time:             12345678901234567890123456789012
+OUTPUT 1          x...x...x...x...x...x...x...x...
+OUTPUT 2          ................................
+OUTPUT 3          ...x.......xx......x.......xx...
+OUTPUT 4          x.....x.......x.x.....x.......x.
+OUTPUT 5          ....x.......x.......x.......x...
+OUTPUT 6          ..x...x...x...x...x...x...x...x.
+OUTPUT 7          xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+OUTPUT 8          x...............x...............
+OUTPUT 9          ....x.x.....x.x.....x.x.....x.x.
+OUTPUT 10         ......x.......x.......x.......x.
+OUTPUT 11         x.....x.x.....x.x.....x.x.....x.
+OUTPUT 12         ..x...x...x...x...x...x...x...x.
+```
+OUTPUT 7 marked on ALL 32 elementary times. OUTPUT 2 WHOLLY EMPTY.
+OUTPUT 6 = OUTPUT 12 exactly.
+
+### AM COUNTING CONTROL — the length group
+
+On THIS page the group's twelve columns are headed vertically "OUTPUT 1" .. "OUTPUT 12", whereas
+the AD counting-control group on page 143 heads the same group "RHYTHM 1" .. "RHYTHM 12". That is
+a printing inconsistency in the databook; recorded as printed, not corrected. By the prose it is
+the rhythm index that is meant.
+
+Exactly THREE crosses in the whole 32x12 group, all on count row 24:
+```
+count 24:  column 1 = X      column 6 = X      column 7 = X     (all other cells empty)
+```
+
+| AM rhythm | counting-control cross | length | corroborating evidence |
+|---|---|---|---|
+| 1 WALTZ | count 24 | 24 | times 25-32 empty in all 12 lanes |
+| 2 POLKA | none | 32 | marks present at time 32 |
+| 3 TANGO | none | 32 | marks present at time 32 |
+| 4 BOSSA NOVA | none | 32 | marks present at time 32 |
+| 5 SAMBA | none | 32 | marks present at time 32 |
+| 6 SLOW ROCK | count 24 | 24 | times 25-32 empty in all 12 lanes |
+| 7 BOOGIE | count 24 | 24 | times 25-32 empty in all 12 lanes |
+| 8 DISCO | none | 32 | marks present at time 32 |
+
+Determined from the counting-control group, corroborated by the emptiness of times 25-32 in
+exactly those three rhythms, and by the databook sentence "in the table 2 the rhythms 1, 6 and 7,
+have 24 elementary times".
+
+**M254 AM: COMPLETE** (8 rhythms x 12 outputs, plus the counting-control group).
+
+---
+
+# M255: is the RHYTHM-name / OUTPUT-name pairing readable? YES — and here it is
+
+The earlier survey warned not to guess this. It does not have to be guessed: PDF page 146 (printed
+154) prints TWO connection diagrams SIDE BY SIDE for exactly this purpose — the generic pinout and
+one headed "Standard content configuration / M 255 B1 - AB". Same 16 pins, same order, generic
+names on the left diagram and the standard content's names on the right. Read off a 600 dpi render:
+
+| pin | generic pinout | standard content M255B1-AB |
+|---|---|---|
+| 1 | RESET (overlined) | RESET |
+| 2 | TEMPO CONTROL | TEMPO CONTROL |
+| 3 | DOWN BEAT | DOWN BEAT |
+| 4 | VGG | VGG |
+| 5 | VSS | VSS |
+| 6 | **RHYTHM 1** | **WALTZ** |
+| 7 | **RHYTHM 2** | **BEAT** |
+| 8 | **RHYTHM 3** | **SWING** |
+| 9 | **OUT 1** | **BASS DRUM / FUNDAMENTAL** (a marker dot precedes FUNDAMENTAL; no footnote text found on the page) |
+| 10 | **OUT 2** | **SNARE DRUM** |
+| 11 | **OUT 3** | **SHORT CYMBALS** |
+| 12 | **OUT 4** | **FIFTH** |
+| 13 | **OUT 5** | **CHORD TRIGGER** |
+| 14 | **RHYTHM 6** | **TANGO** |
+| 15 | **RHYTHM 5** | **LATIN** |
+| 16 | **RHYTHM 4** | **COUNTRY WESTERN** |
+
+So, for the M255 B1-AB standard content:
+
+- RHYTHM 1 = WALTZ, RHYTHM 2 = BEAT, RHYTHM 3 = SWING,
+  RHYTHM 4 = COUNTRY WESTERN, RHYTHM 5 = LATIN, RHYTHM 6 = TANGO.
+- OUTPUT 1 = BASS DRUM (FUNDAMENTAL), OUTPUT 2 = SNARE DRUM, OUTPUT 3 = SHORT CYMBALS,
+  OUTPUT 4 = FIFTH, OUTPUT 5 = CHORD TRIGGER.
+
+The one step NOT printed anywhere is the identity of pinout "RHYTHM n" with truth-table column
+group "RHYTHM n". Nothing else labels the truth-table groups, and the datasheet uses the one
+numbering throughout, but it is an inference rather than a printed statement, so it is flagged as
+such. It is strongly corroborated: PDF page 147 (printed 155) says
+> "The internal counter has a 16 state (i.e. 16 elementary times) cycle and an internal reset
+> signal is generated when the sixteenth state is decoded. Rhythms with a 3/4 time originate the
+> internal reset when the 12th state is decoded."
+
+and the three 12-elementary-time rhythms measured in the truth table are exactly 1, 3 and 4 =
+WALTZ, SWING (jazz waltz) and COUNTRY WESTERN (country waltz) — the three plausible 3/4 rhythms of
+the six, with BEAT / LATIN / TANGO running the full 16. The block diagram on page 146 is even
+labelled "SELECTION BETWEEN 3/4 AND 4/4 RHYTHMS".
+
+Also from page 147, on the outputs themselves:
+> "The trigger outputs are pulse shaped and their width equals 1/32 of one elementary time. Pulse
+> width is proportional to clock period but always remains 1/32 of a beat time."
+> "T: Trigger: The output is in the form of a pulse whose width equals 1/32 of one elementary time.
+> The pulse can be either positive or negative going according to the option chosen in line 3."
+
+## CAUTION: page 147 carries a DIFFERENT option table, and it is NOT the standard content
+
+Page 147's "PROGRAMMING THE OPTIONS" section introduces its table with "The five outputs of the
+M 255 may have different options which must be specified together with the ROM truth table. This
+can be done as shown in the table below", and that illustrative table reads:
+
+```
+line 1  Continuous or Trigger Output      OUT.1 T   OUT.2 T   OUT.3 C   OUT.4 T   OUT.5 T
+line 2  Open drain or Push Pull                 O         O         O         O         O
+line 3  Posit. or Negat. Trigger Edge           +         +         +         -         -
+```
+
+That is an EXAMPLE of how to fill the form in (note OUT.3 = C and two negative edges), and it
+DISAGREES with the standard content on page 150, which is all T / all O / all +. The authoritative
+statement of what the M255 B1-AB actually does is the one printed under its own truth table
+(page 150, transcribed at the top of this file). Recorded because mistaking the page-147 example
+for the shipped mask is precisely the "blank ordering form" trap.
+
+---
+
+# What the M255 mask says once the pin names are applied
+
+Reading the transcription above through the page-146 pin names (OUTPUT 1 = BASS DRUM,
+2 = SNARE DRUM, 3 = SHORT CYMBALS, 4 = FIFTH, 5 = CHORD TRIGGER):
+
+- **WALTZ (12)**: BASS DRUM on 1 and 7; FIFTH on 7 only — i.e. the bass alternates root then
+  fifth on the two bar-ones. SNARE DRUM and CHORD TRIGGER together on 3, 5, 9, 11: the two
+  "pah"s of each bar. That is a literal oom-pah-pah, and it is an independent check on the
+  pairing being right.
+- **BEAT (16)**: SHORT CYMBALS on all 16 (a continuous hat), BASS DRUM on 1,4,5,9,10,12,13,15,16,
+  SNARE on 3,7,11,14,16.
+- **SWING (12)**: BASS DRUM 1,4,7,10; SNARE and CHORD TRIGGER both on 4 and 10 (identical lanes).
+- **COUNTRY WESTERN (12)**: SHORT CYMBALS on all 12; BASS DRUM 1,6,7,12; SNARE + CHORD TRIGGER
+  on 4 and 10.
+- **LATIN (16)**: SHORT CYMBALS on all 16, and the only rhythm where all five outputs are busy.
+- **TANGO (16)**: the sparsest, marks only at 1, 5, 9, 13 and 15, with BASS DRUM + SNARE + CHORD
+  TRIGGER moving together and the whole kit hitting on 15.
+
+# Status / what is done
+
+- **M255 B1-AB: COMPLETE.** 6 rhythms x 5 outputs x 16 rows, lengths verified from the greying,
+  the four option rows quoted verbatim, and the pin-name pairing read off the connection diagrams.
+- **M254 AD: COMPLETE.** 8 rhythms x 12 outputs x 32 rows + the counting-control group; lengths
+  read from the counting control (24 for rhythms 1 and 8, 32 for the rest).
+- **M254 AM: COMPLETE.** 8 rhythms x 12 outputs x 32 rows + the counting-control group; lengths
+  read from the counting control (24 for rhythms 1, 6 and 7, 32 for the rest).
+- Nothing is left UNREAD on the three tables. The only item flagged as an inference rather than a
+  reading is the identification of pinout "RHYTHM n" with truth-table group "RHYTHM n" on the M255.
+
+# Recurring structural features (recorded because the brief asked for them)
+
+Byte-identical lanes are common and real, and so are wholly empty ones:
+
+- M255: OUTPUT 2 == OUTPUT 5 in rhythms 1, 3 AND 4; OUTPUT 1 == OUTPUT 3 in rhythm 1; three
+  identical lanes (1, 2, 5) in rhythm 6.
+- M254 AD: OUTPUT 4 wholly empty in rhythms 1, 2, 3, 4, 8; OUTPUT 5 wholly empty in rhythm 2;
+  OUTPUT 2 == OUTPUT 8 in rhythm 8; OUTPUT 1 == OUTPUT 3 in rhythm 1.
+- M254 AM: OUTPUTS 2, 3, 4 are empty in FIVE of the eight rhythms, and OUTPUT 10 in three;
+  OUTPUT 7 == OUTPUT 12 in rhythms 6 and 7; OUTPUT 6 == OUTPUT 12 in rhythms 5 and 8;
+  OUTPUT 1 == OUTPUT 8 in rhythm 2; OUTPUT 2 == OUTPUT 12 and OUTPUT 8 == OUTPUT 11 in rhythm 4.
+- A "continuous" lane (marked on EVERY elementary time of the rhythm) appears on both parts:
+  M255 OUTPUT 3 is marked on every elementary time in rhythms 2, 4 and 5; M254 AD OUTPUT 3 is
+  marked on every ODD elementary time in rhythms 4, 5, 6 and 7 (all 16 of them); M254 AM OUTPUT 7
+  on every odd time in rhythms 4 and 6, and on ALL 32 in rhythms 5 and 8.
+
+
+# ===== source file: chips.md =====
+
+# Rhythm-generator LSI pattern tables: search log
+
+Task: find PRINTED ROM/pattern truth tables for 1970s rhythm-generator LSIs
+beyond SGS M252/M253 (already transcribed: masks AA/AD and AA/AC, 76 rhythms).
+
+Verdict vocabulary: CHART READABLE / CHART EXISTS BUT MARGINAL / NO CHART / NOT FOUND
+
+## Log (append after every search)
+
+(nothing yet — starting)
+
+### 2026-08-20 — SGS 1979 databook (LOCAL: sgs_1979_databook.pdf) text-layer sweep
+Index p.33-39 lists SEVEN parts in the family, not two:
+  M251 P-MOS  Arpeggio chord and bass accompaniment generator   (databook p.113)
+  M252 P-MOS  Rhythm generator   (done)
+  M253 P-MOS  Rhythm generator   (done)
+  M254 P-MOS  Rhythm generator   (databook p.14x)
+  M255 P-MOS  Rhythm generator   (databook p.153)
+  M258 N-MOS  Rhythm generator   (databook p.1s1 ~ 15x)
+  M259 N-MOS  Rhythm generator   (databook p.159)
+
+**M254 — CHART READABLE (candidate #1).** Two masks, both with FULL printed truth tables:
+  - ORDERING: M254 B1 AD and M254 B1 AM, "for standard music content".
+  - Databook text: "The ROM truth table has been organized in 32 rows which represent
+    the elementary times and 104 co[lumns]" ... "The first 8 groups of 12 columns
+    represent the rhythms which have 12 programmable outputs." => 8 rhythms x 12
+    outputs = 96, + a COUNTING CONTROL group.
+  - Reset convention (quoted): "If count N is crossed for rhythm X this rhythm will
+    have N elementary times. If the counting control column for a particular rhythm
+    does not contain a cross that rhythm will have 32 elementary times."
+  - "Table 1 and 2 show the truth tables of the M 254 AD and M 254 AM, standard
+    contents". Text also notes: in table 1 rhythms 1 and 8, and in table 2 rhythms
+    1, 6 and 7, "have ..." (truncated in OCR — need the page).
+  - RHYTHM NAMES ARE PRINTED as sub-captions:
+    AD: 1 WALTZ, 2 TANGO, 3 SWING, 4 BEAT, 5 BOSSA NOVA, 6 SAMBA, 7 RUMBA, 8 SLOW ROCK
+    AM: 1 WALTZ, 2 POLKA, 3 TANGO, 4 BOSSA NOVA, 5 SAMBA, 6 SLOW ROCK, 7 BOOGIE, 8 DISCO
+  - Pin note: one output "must be connected so as to drive the 'snare drum' when the
+    rhythms corresponding to pins 9,10,11,12 and 16 are generated, and the 'claves'
+    when the rhythms corresponding to pins 13,..." => instruments ARE named per pin.
+  => 16 rhythms of NEW data, names printed. Needs page render to judge legibility.
+
+**M255 — CHART READABLE (candidate #2), and SMALL.** One mask:
+  - ORDERING: M255 B1-AB "for standard music content". 6 PROGRAMMABLE RHYTHMS.
+  - "The ROM truth table has been organized in 16 rows which represent the elementary
+    times and 30 co[lumns]" ; caption "TRUTH TABLE of M 255 B1-AB (standard content)"
+    with printed sub-headers RHYTHM 1..RHYTHM 6.
+  - 16-state counter; "Rhythms with 8 or 6 elementary times are also programmable, in
+    which case they are written twice in [the ROM]". Also mentions "some 1x16 or 1x12
+    rhythms".
+  - Pin names printed on the package diagram: COUNTRY, TANGO, WALTZ, BEAT, SWING
+    (rhythm inputs) and CYMBALS, SNARE DRUM, BASS DRUM (outputs) => instruments named
+    per pin. Only 30 columns/16 rows = the most transcribable table here.
+
+**M258 / M259 — CHART LIKELY, shared datasheet.** "16 PROGRAMMABLE RHYTHMS (CODED FOR
+  THE M258; ALSO AVAILABLE IN COMBI...)". N-channel MOS. Has a section headed
+  "INSTRUMENT BEATS VERSUS RHYTHM PROGRAM" with a table whose column headers are
+  "TRUTH TABLE | EXTERNAL DEVICE OUTPUT | INSTRUMENT | SYNC. | DOWN[BEAT]" — that is
+  a pin/instrument mapping table, need to check for a pattern grid too.
+
+**M251 — arpeggio/chord+bass, not a rhythm pattern ROM.** Ordering M251 B1 AC. Check
+  separately; different data kind (chord/bass accompaniment).
+
+### VERIFIED BY RENDER — M255 B1-AB truth table
+File: <scratch>/sgs_1979_databook.pdf, **PDF page 150** (printed page number "158").
+Rendered chip_m255_p150-150.png at 200dpi and READ it. Embedded scan: 3902x5109
+gray 1bpc JBIG2 at **600 dpi** — same quality as the M252/M253 pages.
+VERDICT: **CHART READABLE.** Fully populated, crisp, all 6 rhythms carry marks
+(so NOT the njohnson-style blank ordering form; caption + body text both say
+"standard content" / "the content and the options programmed in the M 255 B1-AB
+standard content").
+Grid: caption "TRUTH TABLE of M 255 B1-AB (standard content)".
+  - Rows: 16, header "Counter state", numbered 1..16 = elementary times.
+  - Columns: 6 groups of 5 = 30. Group headers printed "RHYTHM 1".."RHYTHM 6".
+    Within each group the 5 columns are labelled vertically OUTPUT 1..OUTPUT 5.
+  - A cell mark is an "X" (body text: "programmed by crossing the appropriate box").
+  - GREYED cells = past that rhythm's length, same convention as M252/M253.
+    Greyed rows 13-16 under RHYTHM 1, and under RHYTHM 3 + RHYTHM 4 => those are
+    the 12-elementary-time rhythms; rhythms 2, 5, 6 run all 16.
+  - FOUR OPTION ROWS below the grid (new vs M252/M253, worth capturing):
+      "Option on the Outputs"        : O1 O2 O3 O4 O5   | right end: 16 (12), 8 (6)
+      "Continuous or Trigger Output" : T  T  T  T  T    | right end: "Down beat" X
+      "Open drain or push-pull"      : O  O  O  O  O
+      "Positive or Negative Trigger Edge": + + + + +
+    => outputs are OPEN DRAIN, TRIGGER (not continuous), POSITIVE edge — the same
+    rising-edge convention already established for M252/M253, here printed explicitly.
+  - Instruments per pin come from the package pinout (page ~145/146): outputs named
+    CYMBALS, SNARE DRUM, BASS DRUM; rhythm-select inputs named COUNTRY, TANGO,
+    WALTZ, BEAT, SWING (+ a 6th). NOTE: only 5 outputs but 3 named instruments on
+    the pinout excerpt — must re-read the pinout page before asserting the full map.
+  - Rhythm NAMES for the 6 patterns: the grid itself says only "RHYTHM 1..6"; the
+    names must be taken from the pinout (COUNTRY/TANGO/WALTZ/BEAT/SWING/+1) and the
+    input-pin order confirmed on p.145-147. DO NOT guess the pairing.
+=> READY TO TRANSCRIBE, and small (16x30). Highest-value target.
+
+
+# ===== source file: chordbass.md =====
+
+# CHORD / BASS accompaniment data: is it published?
+
+Task: find printed TABLES of chord/bass/arpeggio accompaniment content (1970s organs),
+the way drum-rhythm truth tables were printed. New data KIND for this project.
+
+Status: IN PROGRESS (append-only log; assume agent may die at any moment)
+
+## Log
+
+### 2026-08-20 T1: SGS M251 FOUND, TRUTH TABLES EXIST
+Source on disk: `sgs_1979_databook.pdf` (SGS-ATES 1979 databook), text layer `sgs79.txt`.
+M251 section starts printed p.113 ("3/78" = March 1978 datasheet), runs to ~p.120.
+- p.113: features list + abs max ratings + ordering numbers (M 251 B1 AC = plastic DIP,
+  M 251 D1 AC = ceramic DIP). NOTE: unlike the rhythm chips there is NO "for standard music
+  content" suffix here, the two order codes differ only by PACKAGE. => the M251 is a
+  GENERIC accompaniment engine; the musical content lives in the EXTERNAL ROM (M252/3/4).
+- p.114: mechanical data, connection diagram, BLOCK DIAGRAM (context, not data).
+- p.115: **ARPEGGIO TRUTH TABLE (positive logic)** -- TABLE READABLE, 16 rows x
+  (SELECT 6th | SELECT 7th) x (ARP I, ARP II, ARP III). Rows addressed by external memory
+  code D5 D4 D3 D2 (4 bits = 16 states).
+- p.116: **BASS and CHORD TRUTH TABLES (positive logic)**, addressed by D8 D7 D6.
+VERDICT: TABLE READABLE.
+
+### T2: FOUR truth tables, two operating modes
+The M251 datasheet prints truth tables for BOTH its modes:
+- AUTOMATIC mode (chip works out the chord from the LOWEST key held):
+  ARPEGGIO truth table (p.115, D5..D2, 16 rows, x2 sub-tables 6th/7th, x3 arp outputs)
+  BASS + CHORD truth tables (p.116 top, D8 D7 D6 = 8 rows for bass; D1 = 2 rows for chord)
+- SEMIAUTOMATIC mode WITH memorization (chip uses the 4 lowest + top keys ACTUALLY held):
+  ARPEGGIO truth table (p.116, same 16-row shape but in KEYS: L, 2nd L, 3rd L, 4th L)
+  BASS + CHORD truth tables (p.117 top)
+- SEMIAUTOMATIC WITHOUT memorization: "same as the previous one except keys not memorized" (no extra table)
+- p.117: EXTERNAL MODE OUTPUTS table (pins 2-5 = 8x tonic / 8x 5th / 8x 3rd / 8x 6th-or-7th)
+Next: get clean column alignment with pdftotext -layout for the bit patterns.
+
+## TRANSCRIPTION 1 -- M251 ARPEGGIO TRUTH TABLE, AUTOMATIC mode (printed p.115)
+Verified by eye from a 600 dpi render of PDF page 109 (`cb_p115_arpbody*.png`), row +
+column headers included. Text layer and eye agree, including the three oddities noted below.
+
+Address = external memory code D5 D4 D3 D2 (16 states, from the M252/3/4 ROM).
+Three simultaneous outputs ARP.I / ARP.II / ARP.III. Two variants chosen by the panel
+"6th or 7th" switch. "-" = that output is silent on this step. TONIC = selected key / 16.
+
+D5 D4 D3 D2 | 6th: ARP.I    ARP.II     ARP.III   | 7th: ARP.I    ARP.II     ARP.III
+1 1 1 1     | TONIC         3rd        5th       | TONIC         3rd        5th
+1 1 1 0     | 3rd           5th        TONIC x2  | 3rd           5th        7th
+1 1 0 1     | 5th           TONIC x2   3rd x2    | 5th           7th        3rd x2
+1 1 0 0     | 6th           -          -         | 7th           -          -
+1 0 1 1     | TONIC x2      3rd x2     5th x2    | 7th   (*1)    3rd x2     5th x2
+1 0 1 0     | 3rd x2        5th x2     TONIC x4  | 3rd x2        5th x2     TONIC x4
+1 0 0 1     | 5th x2        TONIC x4   3rd x4    | 5th x2        TONIC x4   3rd x4
+1 0 0 0     | 6th x2        -          -         | 7th x2        -          -
+0 1 1 1     | TONIC x4      3rd x4     5th x4    | TONIC x4      3rd x4     5th x4
+0 1 1 0     | 3rd x4        5th x4     TONIC x8  | 3rd x4        5th x4     7th x4
+0 1 0 1     | 5th x4        TONIC x8   3rd x8    | 5th x4        7th x4     3rd x8
+0 1 0 0     | 6th x4        -          -         | 7th x4        -          -
+0 0 1 1     | TONIC x8      3rd x8     5th x8    | 7th x4 (*2)   3rd x8     5th x8
+0 0 1 0     | 3rd x8        5th x8     TONIC x8  | 3rd x8        5th x8     7th x8
+0 0 0 1     | 5th x8        TONIC x8   3rd x8    | 5th x8        6th x8(*3) 3rd x8
+0 0 0 0     | No Change     No Change  No Change | No Change     No Change  No Change
+
+Printed note: "TONIC is the input note, corresponding to the selected key, divided by 16.
+3rd is the correct third corresponding to this TONIC. And so on."
+(*1)(*2)(*3) = printed as shown but break the otherwise regular pattern (one would expect
+TONIC x2, TONIC x8 and 7th x8). Probable datasheet typos; recorded as PRINTED, verified twice
+against the 600 dpi crop. Do not "fix" silently.
+
+## TRANSCRIPTION 2 -- M251 BASS + CHORD, AUTOMATIC mode (printed p.116 top)
+AUTOMATIC BASS, address D8 D7 D6:
+ 1 1 1  2nd /2
+ 1 1 0  8ve /2
+ 1 0 1  9th /2
+ 1 0 0  6th or 7th /2
+ 0 1 1  5th /2
+ 0 1 0  3rd /2
+ 0 0 1  TONIC /2
+ 0 0 0  NO CHANGE
+ALTERNATE BASS, address D7 D6 (2 bits only):
+ 1 1  -            (silent)
+ 1 0  TONIC /2
+ 0 1  5th /2
+ 0 0  NO CHANGE
+CHORD, address D1 (ONE bit -- the chord is a strum GATE, not a note select):
+ 1  SELECT 6th: TONIC+3rd+5th   |  SELECT 7th: TONIC+3rd+5th+7th
+ 0  NO CHANGE                   |  NO CHANGE
+"NO CHANGE" = sustain the previous notes until new information is presented.
+
+## TRANSCRIPTION 3 -- M251 ARPEGGIO TRUTH TABLE, SEMIAUTOMATIC mode (printed p.116)
+Same 4-bit address, but the outputs name the KEYS THE PLAYER HOLDS, not chord degrees:
+L = lowest key held, 2nd L / 3rd L / 4th L = next ones up, Top = highest key held.
+"L in the first octave to the left represents corresponding input note divided by 16,
+while in the second octave it is divided by 8."
+Cols verified by eye (ARP.I, ARP.II) at 600 dpi, `cb_p116_semiarp.png`; ARP.III from the
+text layer, which matched the two verified columns cell-for-cell.
+
+D5 D4 D3 D2 | ARP.I      ARP.II     ARP.III
+1 1 1 1     | L          2nd L      3rd L
+1 1 1 0     | 2nd L      3rd L      L x2
+1 1 0 1     | 3rd L      L x2       2nd L x2
+1 1 0 0     | 4th L      -          -
+1 0 1 1     | L x2       2nd L x2   3rd L x2
+1 0 1 0     | 2nd L x2   3rd L x2   L x4
+1 0 0 1     | 3rd L x2   L x4       2nd L x4
+1 0 0 0     | 4th L x2   -          -
+0 1 1 1     | L x4       2nd L x4   3rd L x4
+0 1 1 0     | 2nd L x4   3rd L x4   L x8
+0 1 0 1     | 3rd L x4   L x8       2nd L x8
+0 1 0 0     | 4th L x4   -          -
+0 0 1 1     | L x8       2nd L x8   3rd L x8
+0 0 1 0     | 2nd L x8   3rd L x8   L x8
+0 0 0 1     | 3rd L x8   L x8       2nd L x8
+0 0 0 0     | NO CHANGE  NO CHANGE  NO CHANGE
+(the last three rows saturate at x8 -- the divider chain runs out, printed as shown)
+
+## TRANSCRIPTION 4 -- M251 BASS + CHORD, SEMIAUTOMATIC mode (printed p.117 top)
+AUTOMATIC BASS OUTPUT / ALTERNATE BASS OUTPUT, address D8 D7 D6:
+ 1 1 1  TWO 8ve BELOW TOP      | -
+ 1 1 0  L                      | -
+ 1 0 1  ONE 8ve BELOW TOP      | -
+ 1 0 0  ONE 8ve BELOW 4th L    | -
+ 0 1 1  ONE 8ve BELOW 3rd L    | -
+ 0 1 0  ONE 8ve BELOW 2nd L    | ONE 8ve BELOW L
+ 0 0 1  ONE 8ve BELOW L        | ONE 8ve BELOW TOP
+ 0 0 0  NO CHANGE              | NO CHANGE
+CHORD OUTPUT, address D1:
+ 1  L + 2nd L + 3rd L + 4th L   (i.e. the held keys themselves, no interval theory)
+ 0  NO CHANGE
+
+## EXTERNAL MODE (printed p.117) -- context, not accompaniment data
+Pins 2/3/4/5 expose raw top-octave frequencies so a designer can build accompaniments the
+M251 does not itself produce:
+ pin 2  8x TONIC                          | semiauto: 8x L
+ pin 3  8x FIFTH or DIMINISHED FIFTH      | semiauto: 8x 3rd L
+ pin 4  8x MAJOR THIRD or MINOR THIRD     | semiauto: 8x 2nd L
+ pin 5  8x SIXTH or SEVENTH               | semiauto: 8x 4th L
+
+## THE ARCHITECTURE ANSWER (M251 -- how it knows the key, and who clocks it)
+1. HOW IT KNOWS THE CHORD: from the KEYS THEMSELVES, not from a chord code.
+   - AUTOMATIC mode: "the lowest key is taken as a reference ... this note is memorized
+     internally" (p.115). That lowest key = TONIC; the chip's own interval logic derives
+     3rd/5th/6th/7th from it. Panel switches choose major/minor 3rd, fifth/dim fifth,
+     sixth/seventh. Two octaves of 12 keys are multiplexed in (p.115 "GENERAL CHARACTERISTICS"
+     item b: 12 keyboard inputs, two octaves multiplexed).
+   - SEMIAUTOMATIC mode (with or without memorization): "an internal recognition circuit
+     which selects the lowest four keys, the top key played" (p.116). Outputs are then those
+     literal keys (L, 2nd L, 3rd L, 4th L, Top) -- so the player supplies the voicing and the
+     chip supplies only the RHYTHM of the arpeggio. There is no key/chord code input pin.
+   - Reset: interrupt the "automatic" line for a moment with no keys down.
+2. WHO SUPPLIES THE PATTERN / THE CLOCK: an external self-scanning rhythm ROM.
+   p.115: "M 251 is normally used in conjunction with an external self-scanning ROM (such as
+   the M 252 - 3 or 4) which performs the selection of the various notes in the
+   arpeggio/chord/bass accompaniment."
+   The M251 has "4 multiplexed data inputs for addressing the internal selection circuits.
+   These inputs are normally coming from the outputs of an external memory" -- so D1..D8 are
+   carried on 4 pins in two multiplex phases, keyed off F24 (an anti-phase pair derived from
+   the top note of the upper octave, pin 32). Trigger pulse width TDA/TDB = one period of the
+   external memory clock line. So the M251 is SLAVED to the rhythm ROM's clock; it has no
+   tempo of its own.
+3. => THE MUSICAL CONTENT (which step plays which degree) IS NOT IN THE M251. The M251 is a
+   generic note/interval engine; the PATTERN lives in the rhythm ROM. Its two ordering codes
+   differ only by package -- there is no "standard music content" M251, consistent with this.
+4. THE ROM SIDE IS ALSO PRINTED, but only partially for accompaniment:
+   - M254 (p.145-152) prints Table 1 (M 254 AD standard content) and Table 2 (M 254 AM),
+     32 rows x 12 outputs per rhythm x 8 rhythms, as cross-mark grids -- printed p.150-152.
+   - Footnote p.146: "For this application a version of the M 254 with standard memory content
+     is available both for interfacing with the M 251 and for driving 4 instrument simulators
+     (8 rhythms). Ordering number is M 254 AD."
+   - p.146 footnote: "12 to 15 drive the corresponding inputs of the M 251."
+   - The M 254 AD connection diagram (p.145) labels one output "TRIGGER CHORDS" and others
+     BASS DRUM / BASS ALTERNATE / SNARE / CLAVES / CYMBALS / LOW BONGO / SHORT ...
+   => So SOME accompaniment columns (a chord trigger, bass switching) ARE in the printed
+   M254 AD table, but they are 4 lines, not the full 8-bit D1..D8 address. NEXT: nail down
+   exactly which M254 AD output columns go to the M251, and check the M251 typical-application
+   circuit (p.118-120) and the M105 reference ("bass switching inputs A, B, C of the M 105").
+
+### T3: DEFINITIVE -- where the M251's pattern data comes from (printed p.120, TYPICAL APPLICATION)
+Read by eye at 600 dpi (`cb_p120_mem.png`). The figure contains a block drawn as:
+  "M 252 / M 253 / M 254*  EXTERNAL MEMORY"
+with EIGHT outputs O1 O2 O3 O4 O5 O6 O7 O8 leaving it. O2..O8 are diode-OR'd in
+15k/150k pairs into M251 pins 2, 4, 6, 7 (the 4 multiplexed data pins); O1 goes straight
+across (the CHORD bit, which the truth table addresses with D1 alone). A LATCH / /LATCH
+switch sits on the same node.
+=> The M251's D1..D8 ARE eight output columns of an ordinary SGS rhythm ROM -- the SAME
+chip family whose 32-row drum truth tables this project already transcribed. The chord/bass
+CONTENT is therefore published exactly where the drum content is: in the rhythm ROM's
+truth table, in the columns that were wired to the M251 instead of to a drum.
+
+### T4: THE JACKPOT -- M254 B1AD pin-out (printed p.145, read by eye at 600 dpi, `cb_p145_ad.png`)
+"M 254 B1AD Standard content configuration" -- the version the p.146 footnote says exists
+"for interfacing with the M 251". Its 12 outputs are:
+  pin 3  BASS DRUM / BASS ALTERNATE      <- drum
+  pin 4  SNARE DRUM OR CLAVES (*)        <- drum
+  pin 5  SHORT CYMBALS                   <- drum
+  pin 6  LOW BONGO                       <- drum
+  pin 7  I 8      \
+  pin 8  I 7       |
+  pin 17 I 6       |  SEVEN lines straight into the M251's data inputs
+  pin 19 I 5       |  (footnote p.146: "I2 to I8 drive the corresponding inputs of the M 251")
+  pin 20 I 4       |
+  pin 21 I 3       |
+  pin 22 I 2      /
+  pin 18 TRIGGER CHORDS   <- this is I1 / D1, the CHORD gate of the M251 chord truth table
+Rhythm select pins: 9 WALTZ, 10 TANGO, 11 SWING, 12 BEAT, 13 BOSSA NOVA, 14 SAMBA,
+15 RUMBA, 16 SLOW ROCK.
+Footnote **: the drum outputs also "drive the bass switching inputs A, B, C of the M 108".
+
+**CONCLUSION: YES, the chord/bass/arpeggio content WAS published as a table.**
+`M 254 AD (standard)` Table 1, printed pp.150-152 of the SGS 1979 databook, is a 32-row x
+12-column cross-mark grid per rhythm for 8 rhythms -- and EIGHT of those twelve columns are
+the M251 address D1..D8. Decode a row's 8 bits through the M251 truth tables (Transcriptions
+1/2 above) and you have the literal arpeggio step, chord stab and bass note for that
+elementary time, for WALTZ / TANGO / SWING / BEAT / BOSSA NOVA / SAMBA / RUMBA / SLOW ROCK.
+(Rhythms 1 and 8 have 24 elementary times, not 32 -- stated p.149.)
+NEXT: confirm Table 1 is legible at 600 dpi and that the 8 accompaniment columns are labelled.
+
+### T5: OUTPUT-COLUMN -> M251 ADDRESS-BIT MAP (the key to reading Table 1 as music)
+Generic M254 pin/output map, read by eye at 600 dpi (`cb_p145_plain.png`):
+pins 3,4,5,6,7,8 = OUTPUT 1,2,3,4,5,6 ; pins 22,21,20,19,18,17 = OUTPUT 12,11,10,9,8,7.
+Overlaying the M254 B1AD labels (`cb_p145_ad.png`) gives, for the M 254 AD standard content:
+  OUTPUT 1  (pin 3)  = BASS DRUM / BASS ALTERNATE   (drum)
+  OUTPUT 2  (pin 4)  = SNARE DRUM or CLAVES         (drum; snare on rhythms 1-4+8, claves 5-7)
+  OUTPUT 3  (pin 5)  = SHORT CYMBALS                (drum)
+  OUTPUT 4  (pin 6)  = LOW BONGO                    (drum)
+  OUTPUT 5  (pin 7)  = I 8  -> M251 D8
+  OUTPUT 6  (pin 8)  = I 7  -> M251 D7
+  OUTPUT 7  (pin 17) = I 6  -> M251 D6
+  OUTPUT 8  (pin 18) = TRIGGER CHORDS -> M251 D1 (the chord gate)
+  OUTPUT 9  (pin 19) = I 5  -> M251 D5
+  OUTPUT 10 (pin 20) = I 4  -> M251 D4
+  OUTPUT 11 (pin 21) = I 3  -> M251 D3
+  OUTPUT 12 (pin 22) = I 2  -> M251 D2
+So in Table 1, per elementary time:
+  ARPEGGIO step  = (OUT5,OUT9,OUT10,OUT11,OUT12) ... precisely D5 D4 D3 D2 = OUT9,OUT10,OUT11,OUT12
+  BASS note      = D8 D7 D6 = OUT5, OUT6, OUT7
+  CHORD stab     = D1       = OUT8
+  Drums          = OUT1..OUT4
+(Note the crosses are drawn "positive logic" as in the drum tables the project already has;
+D-bit ordering above is taken straight from the pin labels, so it needs no interpretation.)
+
+### T6: LEGIBILITY of Table 1 / Table 2 -- CONFIRMED
+Rendered PDF page 143 = printed p.151 at 300 dpi (`cb_p150_small.png`): fully legible.
+It carries M254 AD RHYTHM 7 (RUMBA), RHYTHM 8 (SLOW ROCK), the COUNTING CONTROL block, and
+then the start of Table 2, M 254 AM (standard) RHYTHM 1 (WALTZ) / 2 (POLKA) / 3 (TANGO).
+Column headers are printed vertically as "OUTPUT 1".."OUTPUT 12"; rows numbered 1..32 with
+a "COUNT FOR 32" stub; the greyed block on rhythm 8 = "past this rhythm's length"
+(rhythms 1 and 8 have 24 elementary times, p.149).
+=> M254 AD rhythms 1-6 are on printed p.150 (PDF page 142); rhythms 7-8 + counting control on
+printed p.151 (PDF 143). VERDICT: TABLE READABLE. A full transcription is 8 rhythms x 32 rows
+x 8 accompaniment columns = ~2048 cells and is a separate job; the grid is clean enough for
+the ink-fraction method already used on the drum chips.
+
+## TRANSCRIPTION 5 -- DEMONSTRATION: M 254 AD Table 1, RHYTHM 1 (WALTZ), printed p.150
+Read by eye at 600 dpi from PDF page 142, in two overlapping crops that each carry the row
+numbers and the column headers (`cb_ad_r1b.png` = OUT1..OUT10, `cb_r1_last.png` = OUT9..OUT12
+with OUT9/OUT10 as the cross-check overlap; the overlap agreed on all 12 marked rows).
+Even-numbered elementary times are entirely blank in this rhythm; rows 25-32 are GREYED
+(past this rhythm's length -- WALTZ is 24 elementary times, p.149).
+
+RAW GRID (crosses only, odd rows; every even row and row 24 are empty):
+ t | OUT: 1  2  3  4  5  6  7  8  9 10 11 12
+  1 |      X  .  X  .  .  .  X  .  X  X  X  .
+  3 |      .  .  .  .  .  .  .  .  X  X  .  X
+  5 |      .  X  .  .  .  X  .  X  X  .  X  X
+  7 |      .  .  .  .  .  .  .  .  X  .  X  .
+  9 |      .  X  .  .  .  X  X  X  X  .  .  X
+ 11 |      .  .  .  .  .  .  .  .  .  X  X  X
+ 13 |      X  .  X  .  X  X  .  .  .  X  X  .
+ 15 |      .  .  .  .  .  .  .  .  .  X  X  X
+ 17 |      .  X  .  .  .  X  X  X  X  .  .  X
+ 19 |      .  .  .  .  .  .  .  .  X  .  X  .
+ 21 |      .  X  .  .  .  X  .  X  X  .  X  X
+ 23 |      .  .  .  .  .  .  .  .  X  X  .  X
+ 16 |      .  X  .  .  .  .  .  .  .  .  .  .   <- the ONE even-row mark (snare, t=16)
+
+DECODED through the M251 automatic-mode truth tables (D5D4D3D2 = OUT9,OUT10,OUT11,OUT12;
+D8D7D6 = OUT5,OUT6,OUT7; D1 = OUT8), "6th" variant, drums = OUT1..OUT4:
+ t  | arp code | ARP I / II / III            | bass code | BASS      | chord | drums
+  1 | 1110     | 3rd / 5th / TONICx2         | 001       | TONIC/2   | -     | bass drum + cymbals
+  3 | 1101     | 5th / TONICx2 / 3rdx2       | 000       | (hold)    | -     |
+  5 | 1011     | TONICx2 / 3rdx2 / 5thx2     | 010       | 3rd/2     | STAB  | snare
+  7 | 1010     | 3rdx2 / 5thx2 / TONICx4     | 000       | (hold)    | -     |
+  9 | 1001     | 5thx2 / TONICx4 / 3rdx4     | 011       | 5th/2     | STAB  | snare
+ 11 | 0111     | TONICx4 / 3rdx4 / 5thx4     | 000       | (hold)    | -     |
+ 13 | 0110     | 3rdx4 / 5thx4 / TONICx8     | 110       | 8ve/2     | -     | bass drum + cymbals
+ 15 | 0111     | TONICx4 / 3rdx4 / 5thx4     | 000       | (hold)    | -     |
+ 16 |  -       | (hold)                      | -         | (hold)    | -     | snare
+ 17 | 1001     | 5thx2 / TONICx4 / 3rdx4     | 011       | 5th/2     | STAB  | snare
+ 19 | 1010     | 3rdx2 / 5thx2 / TONICx4     | 000       | (hold)    | -     |
+ 21 | 1011     | TONICx2 / 3rdx2 / 5thx2     | 010       | 3rd/2     | STAB  | snare
+ 23 | 1101     | 5th / TONICx2 / 3rdx2       | 000       | (hold)    | -     |
+
+SANITY CHECK (this is why I believe the decode chain): 24 elementary times with events every
+4 = six quarter notes = two bars of 3/4, and what comes out is literally the oom-pah-pah:
+  bar 1: TONIC bass | chord stab | chord stab
+  bar 2: OCTAVE bass | chord stab | chord stab
+with an independent 12-step rising-then-falling arpeggio over the top. The chord stabs land on
+beats 2 and 3 of each bar and never on beat 1, and the bass alternates root/octave between
+bars. Nothing about that fell out of my assumptions -- it fell out of the crosses.
+
+## TARGET 2 -- other makers. Patent candidates (to be checked one by one)
+Search 1 (Google Patents, "automatic chord bass accompaniment electronic organ"):
+- US3918341A  Automatic chord and rhythm system for electronic organ (+ reissue USRE29144E)
+- US4065993A  three-finger chord / one-finger automatic chord mode selector
+- US4520707A  microprocessor controlled rhythmic note pattern generation
+- CA1143190A  Automatic control apparatus for chords and sequences
+- US5216188A / US4887503A  (1980s-90s, later than the window but may print tables)
+
+| document | maker / year | what its figures show | VERDICT |
+|---|---|---|---|
+| US3918341A (+ USRE29144E) "Automatic chord and rhythm system for electronic organ" | D. H. Baldwin Co., 1975 | 15 figures, all block diagrams / circuit schematics / timing waveforms (FIG.12a = decay rates). Describes a ROM-based rhythm+chord system and names its rhythms (Old Time Waltz, Rhumba, Pop Rock, Ragtime, Swing, Dixieland, Latin III, March) but prints NO row=time / column=output pattern chart. | NO DATA |
+| US4237764A "Electronic musical instruments" | Nippon Gakki (Yamaha), filed 1977, granted 1980 | 25 figures, all circuits/waveforms; subject is glissando/portamento, not accompaniment. No rhythm names, no ROM table. | NO DATA |
+| US4520707A "Electronic organ having microprocessor controlled rhythmic note pattern generation" | filed early 1980s | FIG.1-7 block diagrams/flowcharts. DOES print the microprocessor program at the end of the spec, but as a raw HEX listing ("0000=1A 77 56 20 3F 50 0B 7F 5E 8F FE 40 24 F8 25 1F...") with no key, no note names, no rhythm names. The content is physically present but not readable as music without the CPU and the data format. | FIGURE BUT UNREADABLE (hex dump, no decoder) |
+| US3706837A "Automatic Rhythmic Chording Unit" | Wurlitzer Co, filed 1971, granted 1972 | Inventors Arsem/Schwartz/Ippolito. FIG.4 = a diode matrix for chord switching (Bb F C G D A E, major/minor/7th). Rhythms named waltz/swing/Latin/march. Alternation of root and fifth described in PROSE ("first beat for 3/4; first and third for 4/4"), never charted. | NO DATA (prose only) |
+| CA1143190A = US4292874 "Automatic control apparatus for chords and sequences" | (US equivalent granted 1981) | STRONG LEAD. Enumerates SIXTEEN named automatic bass rhythm patterns: Bossa Nova, Tango, Swing, Teen Beat, Shuffle, Waltz, Pop Rock, March, Soul Rock, Rhumba Beguine, Fox Trot, Polka March, Bolero, Samba (+2). **TABLE 1 "Activity Next Bits"** = per-SIXTEENTH-beat trigger flags, i.e. WHEN a bass note fires, for the patterns -- that is the rhythm half of the content, printed. **FIG. 14** caption: "illustrates the data provided by the preferred embodiment of the present invention for the Soul Rock Rhythm Fancy pedal pattern when the G20 pedal (Normal Organ mode) or the G32 key (Easy Play mode) is played" -- a per-pattern DATA chart for one rhythm. The rest lives in ROM as TCMIY instructions, not printed. | FIGURE BUT UNREAD (text layer only; FIG.14 + TABLE 1 need the drawing sheets) |
+| US5085118A auto-accompaniment with auto-chord progression | 1990s | prose says rhythm/bass/chord patterns are read from an "accompaniment pattern ROM" but too late a period and no printed content seen | NOT CHECKED IN DETAIL |
+
+### T7: A SECOND SGS CHIP WITH PUBLISHED BASS CONTENT -- M108 (printed pp.55-72)
+"M108  N channel MOS  Single chip organ (solo + accompaniment)", printed p.55.
+p.61 prints **BASS TRUTH TABLES** in BOTH negative and positive logic. 3-bit external
+memory code C B A (from a rhythm ROM again) -> the bass degree:
+ CBA (POSITIVE LOGIC) | Bass Arpeggio Output (Automatic) | Alternate Bass Output (Manual)
+ 0 0 0                | No change                        | No change
+ 0 0 1                | Root                             | 1st on the left
+ 0 1 0                | 3rd                              | ---
+ 0 1 1                | 4th                              | ---
+ 1 0 0                | 5th                              | 1st on the right
+ 1 0 1                | 6th                              | ---
+ 1 1 0                | 7th                              | ---
+ 1 1 1                | 8th                              | ---
+(negative-logic version is the exact complement, also printed)
+Prose p.58: "The chip recognizes in the 'ACC.' section only the first on the left of the keys
+pressed and ... produces a major or minor chord with or without seventh only the 4' footage
+but with separated outputs for root, third, fifth and eighth (or seventh if the chord is with
+seventh). The bass section gives the bass arpeggio among root, third, fourth, fifth, sixth,
+seventh and eighth with pitch switching dependent on an external ROM (3 bits)."
+=> Same architecture as the M251: the chip owns the INTERVALS, the rhythm ROM owns the
+PATTERN. And the M254 footnote ** says its outputs "drive the bass switching inputs A, B, C
+of the M 108" -- so three more columns of the published M254 tables are bass content.
+NOTE the M108's bass arpeggio spans root/3rd/4th/5th/6th/7th/8th -- it includes a FOURTH,
+which the M251 does not. Two different degree vocabularies, both printed.
+
+### T8: A THIRD SGS TABLE WITH ACCOMPANIMENT COLUMNS -- M255 B1-AB (printed pp.153-158)
+"M 255 B1AB for standard music content". Connection diagram p.153, standard content
+configuration, five outputs:
+  OUT1 BASS DRUM (FUNDAMENTAL) | OUT2 SNARE DRUM | OUT3 SHORT CYMBALS
+  OUT4 **FIFTH**               | OUT5 **CHORD TRIGGER**
+Rhythms (6): WALTZ, BEAT, SWING, TANGO, LATIN, COUNTRY WESTERN.
+p.157-158: "TRUTH TABLE of M 255 B1-AB (standard content)" -- "16 rows which represent the
+elementary times and 30 columns (6 groups of 5)", plus the per-output option rows
+(continuous/trigger, open drain/push-pull, trigger edge) and the down-beat/reset count.
+=> OUT4 + OUT5 are an alternating-bass "FIFTH" line and a chord-stab gate, published for six
+rhythms. Coarser than the M254 AD (root/fifth alternation only, no arpeggio degrees) but it is
+accompaniment content, printed as a table, at 16 elementary times per rhythm.
+VERDICT: TABLE READABLE (text layer is messy; needs the 600 dpi eye pass, same as the others).
+| US3708604A "Electronic organ with rhythmic accompaniment and bass" | Jasper Electronics Manufacturing Corp (Hebeisen, Tevault), filed 1971, granted 1973 | **LEAD.** FIG.5 caption: "shows a typical operating condition ... by illustrating the control pulses in the system and the periods during which pedal tones and chords sound" -- lanes 200-218 over time, i.e. the same KIND of figure as Hammond's US3567838 FIG.2. FIG.4 = "a typical set of connections" for one F-major chord (F,A,C at two octaves) + pedal notes. No rhythm names, no ROM/diode content chart. | FIGURE BUT UNREAD (lanes are unnamed intervals; needs the drawing sheet to judge) |
+| US4187756A "Automatic arpeggiator" | (late 1970s) | FIG.1-4 block diagram + schematics. Mentions a "nineteen line by twelve bit read only memory (ROM) 28" holding chord definitions but prints none of it. | NO DATA |
+| US4018122A "Electronic musical instrument with automatic bass accompaniment" | | Table A = 32 chord signals (12 major, 12 minor, 4 augmented, 3 dim-7th, 1 zero) with 5-bit codes -- a chord RECOGNITION table, not pattern content. Table C = frequency-division ratios. Diode matrices in FIG.4a/5/6 explicitly drawn incomplete ("connections to the remaining outputs are omitted for the sake of clarity"). | NO DATA (chord vocabulary only, no time axis) |
+| US5085118A, US4887503A, US5216188A, US4619176, US4864907, US4292874(US), US3844192A, US3854366A, US3979989A, US4263828A, US4476764A, US4301704A, US5056401A, JPS5355018A, DE2542837A1 | various, mostly 1980s-90s Yamaha/Casio | surfaced by search, not opened | NOT CHECKED |
+| SGS M252 / M253 datasheets (printed pp.120-144) | SGS-ATES 1978-79 | drum-only output labels in the variants shown; the M251 typical application names them as candidate external memories but the databook does not print an M252/M253 standard content whose outputs are LABELLED as M251 inputs | NO ACCOMPANIMENT LABELS (their tables are the drum data this project already has) |
+| SGS M258 / M259 (printed pp.157-162) | SGS-ATES | 16 programmable rhythms; not examined for accompaniment-labelled outputs | NOT CHECKED |
+
+## ANSWER, IN ONE PARAGRAPH
+Yes. The chord/bass/arpeggio half of 1970s organ auto-accompaniment WAS published as tables,
+in exactly the same place and the same form as the drum half: the SGS-ATES databook. It takes
+TWO tables to read, because the design splits the job. (1) The M251 "Arpeggio chord and bass
+accompaniment generator" prints FOUR truth tables (pp.115-117) mapping an 8-bit external
+memory code to musical MEANING -- three simultaneous arpeggio voices, a bass note and a chord
+stab, expressed as chord DEGREES (tonic/3rd/5th/6th/7th/9th/octave) with octave multipliers.
+It has no pattern memory and no tempo of its own; it does not even have a chord input, it
+watches the LOWEST KEY the player holds and derives the intervals itself. (2) The pattern -- 
+which code arrives on which elementary time -- lives in the rhythm ROM, and the databook
+prints that too: M254 B1AD standard content (Table 1, pp.150-151) dedicates 8 of its 12
+output columns to the M251's D1..D8 and only 4 to drums, over 32 elementary times x 8 rhythms
+(WALTZ TANGO SWING BEAT BOSSA-NOVA SAMBA RUMBA SLOW-ROCK). M255 B1-AB (pp.157-158) does a
+coarser version (a FIFTH line + a CHORD TRIGGER) over 16 times x 6 rhythms. And the M108
+single-chip organ prints its own 3-bit BASS truth table (p.61) with a seven-degree bass
+arpeggio vocabulary that includes a FOURTH. Cross-referencing the two halves gives literal,
+readable accompaniment content -- I decoded WALTZ end to end as a check and it came out as an
+oom-pah-pah with an alternating root/octave bass and a 12-step arpeggio, which is not
+something I put in. So: STOP LOOKING for a separate "chord pattern book"; the data has been
+sitting in the same databook as the drum patterns the whole time, one column-group over.
+For OTHER makers the picture is the opposite: of the eight patents opened, none prints
+beat-by-beat note content. Patent figures in this field are block diagrams, schematics and
+timing waveforms; where the content exists it is an undocumented hex ROM dump (US4520707A).
+The two exceptions worth chasing are US4292874/CA1143190A (TABLE 1 "Activity Next Bits" =
+per-sixteenth trigger flags across sixteen NAMED bass rhythms, + FIG.14, the Soul Rock Fancy
+pedal pattern data) and US3708604A FIG.5 (lanes showing "the periods during which pedal tones
+and chords sound"), plus the US3567838 the main session already has.
+
+## WHERE I DID NOT LOOK
+- The M254 AD Table 1 accompaniment columns for rhythms 2-8 (TANGO SWING BEAT BOSSA NOVA SAMBA
+  RUMBA SLOW ROCK). Confirmed legible at 600 dpi on PDF pages 142-143; ~2048 cells; WALTZ is
+  transcribed above as the method demo. This is the single highest-value remaining job.
+- The M255 B1-AB truth table (OUT4 FIFTH + OUT5 CHORD TRIGGER, 16 times x 6 rhythms), printed
+  pp.157-158. Small: 192 cells. Not transcribed.
+- Table 2, M 254 AM standard content -- I did NOT verify whether the AM variant has any
+  accompaniment-labelled outputs (its connection diagram lists TRIGGER CHORDS too in the text
+  layer, so it probably does; unconfirmed).
+- SGS M258 / M259 (pp.157-162) and M252 / M253 standard-content variants: not checked for
+  accompaniment-labelled outputs. There may be more AD-style variants.
+- SGS "Technical Note No 131" (cited on the M252 page as holding the full information) -- not
+  on disk, not searched for.
+- The M251's ELECTRICAL/timing pages (pp.117-119) beyond the tables; the multiplex phasing
+  detail (how D1..D8 are split across the 4 pins in the two F24 phases) is described in prose
+  but I did not derive the exact bit-to-phase assignment, which a faithful emulation needs.
+- Any patent drawing SHEET. Everything above is from Google Patents text/description; I never
+  fetched a figure image, so every "FIGURE BUT UNREAD" verdict is provisional.
+- Non-patent, non-datasheet routes entirely: service manuals, Service Data sheets, Elektor /
+  Radio-Electronics / Funkschau construction articles, and the Japanese makers' own
+  service literature. Any of these could carry the same content for Yamaha / Ace / Farfisa.
+- Roland/Ace Tone specifically: no patent found under those names in the searches run.
+
+
+# ===== source file: patents2.md =====
+
+# patents2.md — bass/chord pattern content extraction
+Started 2026-08-19. Agent: patent drawing reader (task 2).
+Targets:
+ T1 (priority) US 4,292,874 "Automatic control apparatus for chords and sequences" (+ CA1143190A sibling)
+ T2 US 3,708,604 (Jasper Electronics, 1973), FIG. 5
+Rule: never write a pattern/note/spec not actually read. Log after every step.
+
+## LOG
+- [step 0] scratch file created.
+- [step 1] Got US4292874A google patents HTML (902KB) -> pt_874.txt (124119 chars description). PDF url: https://patentimages.storage.googleapis.com/eb/2d/ff/373d2b00c1ba99/US4292874.pdf
+- [step 2] Text has "TABLE 1" at byte 85463 and "TABLE 2" at 88495; many "Activity Next" mentions. Pattern names appear ~23535 (Soul Rock Fancy), 30945/31089 (Soul Rock/Bossa).
+- [step 3] TABLE 1 transcribed from text (no image needed). It is Activity Next bits for ONE sixteenth beat only (MN=1, CN=3), 28 bits = 14 fancy + 14 plain, per rhythm. TABLE 2 = plain data (4 bits) for that beat; TABLE 3 = fancy data (16 bits, damp+coded PD) for that beat.
+  Key quotes: "show which of the rhythms have activity (a trigger or a special damp) during the next sixteenth beat"
+  Fancy PD decode: "if the three bits are equal to six, there is no trigger and no value for PD; if the three bits are equal to three, PD is equal to zero; and otherwise PD is equal to the decimal equivalent of the three bits plus five." Fancy PD set {0,5,6,7,9,10,12}; plain PD set {0,7,12}.
+  "73 percent of the beats for the various rhythm patterns have no triggers or special damps"
+  FIG. 14 = "PT, DO and PD for a typical rhythm pattern (fancy Soul Rock rhythm) and the time relationships among these values and the CN count" -> a per-sixteenth timing chart for ONE pattern. WORTH READING.
+- [step 4] SIXTEEN rhythm switches named verbatim (switches 212-242): Swing, Teen Beat, Shuffle, 3/4 Waltz, Pop Rock, 6/8 March, Soul Rock, Rhumba Beguine, Tango, Fox Trot, Bossa Nova, Polka March, Bolero, Samba, Merengue, Cha-Cha.
+  FIG.14 caption (from BRIEF DESC): "illustrates the data provided by the preferred embodiment of the present invention for the Soul Rock Rhythm Fancy pedal pattern when the G20 pedal (Normal Organ mode) or the G32 key (Easy Play mode) is played."
+- [step 5] Drawing sheets = PDF pages 2..19 (Sheet 1..18 of 18), portrait, NOT rotated, 300dpi bitonal.
+  FIG. 14 = Sheet 11 of 18 = PDF PAGE 12. It contains: a MUSICAL STAFF (notes) labelled DOWNBEATS at the top, then lanes DO, PT, MN, CN with a 0..15 numbered ruler (twice = two measures), then PD output lanes (Xn, Xo, X1, X4). THIS IS REAL PATTERN CONTENT.
+  Other sheets: 1-6 = circuits, 7 = truth tables, 9 = pedal/keyboard, 10 = keyboard chart, 11(fig) = Easy Play chords table (sheet 7), 12(fig)= pedal signal generation table (sheet 9), 13 = block diagram (sheet 10), 15A-16B = flowcharts (sheets 12-18).
+- [step 6] FIG.14 overview read (pt_874_p12_ov.png). Content, top to bottom:
+  * musical staff, bass clef, TWO measures, notes; arrows marked DOWNBEATS at measure starts (3 arrows = start m1, start m2, start m3/end)
+  * DO  : damp output logic level (square lane)
+  * PT  : trigger pulses (10 ms), one per note attack
+  * MN  : measure number, low for measure 1, high for measure 2
+  * CN  : ruler 0..15 then 0..15 then 0,1 -> SIXTEENTH counts. STEP UNIT = sixteenth beat, 16 per measure.
+  * PD OUTPUT: staircase with y-axis labels 0,2,4,6,8,10,12 = frequency deviation in semitones
+  * A_N (ruler 0..15 x2), A_O, A_1, A_4 = internal clock/address bits, NOT pattern content
+  Next: measure grid + transcribe PT / DO / PD per sixteenth at 600dpi.
+- [step 7] FIG.14 geometry at 600dpi (pt_874_p12-12.png, 4640x6816):
+  staff lines y=2004,2098,2194,2292,2386 ; DOWNBEATS line y=2538
+  DO lane: high y=2691, low y=2796 ; PT lane: baseline y=2994, high ~2890
+  MN: low y=3090, high y=3182 ; CN axis line y=3371, digit labels y~3390-3420
+  CN RULER: 34 tick/label positions, x = 736 + 96.7*i  (i=0..33), verified: last label at x=3927.
+  34 = 0..15 (measure 1) + 0..15 (measure 2) + 0,1 (start of measure 3). Ticks confirmed at same spacing.
+- [step 8] TRANSCRIBED FIG.14 PT (trigger) and DO (damp) lanes, 33 sixteenth slots (2 measures + downbeat of 3rd).
+  PT pulses (40px wide, start on the tick) at slots: 0,2,4,7,8,9,10,12,15 | 16,18,20,23,24,25,26,28,29,30,31 | 32
+  DO HIGH at slots: 1,3,6,7,8,9,11,14,15 | 17,19,22,23,24,25,27,28,29,30,31
+  CROSS-CHECK PASSED: DO-high set == {n-1 for each PT trigger n} EXACTLY (matches the text's "a damp signal is
+  generated automatically ... one beat in advance of trigger"). This validates the 96.7px column grid (no halving trap).
+  Ink separation clean: DO per-slot ink either <=181 or >=461 on the winning line, nothing between.
+- [step 9] PD OUTPUT lane transcribed. Levels measured as px above that measure's own 0 baseline:
+    0, 274, 338, 430, 482, 574 px  -> /47.78 px-per-semitone = 0, 5.75, 7.07, 9.00, 10.1, 12.0
+  Fancy PD is restricted by the text to {0,5,6,7,9,10,12}; least-squares fit strongly prefers 6 over 5
+  (residual 0.27 vs 0.66 units), and axis labels (12 at y3575, 0 at y4135 -> 46.7 px/unit) give 5.87.
+  => level set = {0,6,7,9,10,12} semitones.
+  PD per slot 0..31:
+    0 0 0 0 12 12 12 7 10 10 9 9 7 7 7 7 | 0 0 0 0 12 12 12 7 10 7 9 9 7 9 6 7
+  slot 32: PD trace not drawn that far (report as absent).
+  CONSISTENCY CHECK PASSED: every PD change happens exactly on a PT trigger slot (4,7,8,10,12,16,20,23,24,25,26,28,29,30,31),
+  and triggers with no change (0,2,9,15,18) match the text "the frequency deviation does not have to be specified
+  in such cases since it remains constant between triggers".
+- [step 10] OVERLAY VERIFIED (pt_overlay.png): red grid lines land on every CN tick; a green ring sits on every
+  PT pulse with none unmarked; blue rings on every DO plateau; magenta dots track the PD staircase.
+  Residual uncertainty: exactly ONE cell, PD at slot 30. Measured 274px above baseline = 5.73-5.91 semitones.
+  Read as 6 because (a) the allowed fancy set is {0,5,6,7,9,10,12}, (b) this step from the adjacent 7-level is
+  64px while every measured 2-semitone step here is 92-104px and the one 1-semitone step is 52px.
+- [step 11] TABLE 4 = the TMS1000 microprocessor INSTRUCTION SET (mnemonic/description/hex). Not pattern content. NEGATIVE.
+  Only 4 tables in the whole patent. So the ROM data for the other 15 rhythms and the other 26 beat-branches
+  is NOT printed anywhere: Tables 1-3 are one sixteenth-beat example, FIG.14 is one full pattern (fancy Soul Rock).
+- [step 12] Root of FIG.14 = G, per the caption ("when the G20 pedal ... or the G32 key ... is played"); verified on the
+  staff: bass clef, first two noteheads on the BOTTOM line = G2. PD is therefore semitones above G2.
+- [step 13] FIG. 11 (sheet 7, PDF page 8) = "EASY PLAY CHORDS" table, fully legible, TRANSCRIBED.
+  Text anchor: "The table in FIG. 11 shows the chords generated by the present invention in response to the
+  depressing of a key within the Easy Play range ... keys C25 through C37".
+  Columns: KEY | ROOT | THIRD(MAJOR) | THIRD(MINOR) | FIFTH | SEVENTH | "7th AVAILABLE WITH * KEY SELECTORS"
+  subcolumns C-Gb, D-Ab, E-Bb, F-B, G-Db, A-Eb (tritone pairs; the G one is hand-lettered and reads "G-O b").
+  Values are KEYBOARD NOTE NUMBERS (all voiced inside notes 30..42):
+   KEY  ROOT   MAJ3   MIN3   5TH    7TH    | 7th-avail: C-Gb D-Ab E-Bb F-B G-Db A-Eb
+   C    C37    E41    D#40   G32    A#35   |  -    *    *    *    -    *
+   C#   C#38   F42    E41    G#33   B36    |  *    -    *    *    -    *
+   D    D39    F#31   F30    A34    C37    |  *    -    *    *    *    -
+   D#   D#40   G32    F#31   A#35   C#38   |  *    *    -    *    *    -
+   E    E41    G#33   G32    B36    D39    |  *    *    -    -    *    *
+   F    F42    A34    G#33   C37    D#40   |  -    *    *    -    *    *
+   F#   F#31   A#35   A34    C#38   E41    |  -    *    *    *    -    *
+   G    G32    B36    A#35   D39    F42    |  *    -    *    *    -    *
+   G#   G#33   C37    B36    D#40   F#31   |  *    -    *    *    *    -
+   A    A34    C#38   C37    E41    G32    |  *    *    -    *    *    -
+   A#   A#35   D39    C#38   F42    G#33   |  *    *    -    -    *    *
+   B    B36    D#40   D39    F#31   A34    |  -    *    *    -    *    *
+   C    C37    E41    D#40   G32    A#35   |  -    *    *    *    -    *
+  (13 rows = the 13 Easy Play keys C25..C37; last row repeats the first.)
+  Note: the MINOR third is notated as the enharmonic a semitone below the major third (C: maj E41, min D#40).
+=== TARGET 1 DONE ===
+
+=== TARGET 2: US 3,708,604 ===
+- [step 14] Title: "Electronic organ with rhythmic accompaniment and bass". Inventors: R Hebeisen, W Tevault.
+  PDF: https://patentimages.storage.googleapis.com/93/42/09/a0f057f8a9079d/US3708604.pdf ; desc text 50546 chars.
+- [step 15] FIG. 5 (sheet 1 of 4 = PDF page 2, bottom left) READ at 600dpi -> pt604_fig5.png. VERDICT: NEGATIVE.
+  It is a hand-drawn TIMING WAVEFORM, not a pattern grid. There is NO time ruler, NO beat/bar count axis, no
+  numbered columns - the only x-axis annotation is the word "TIME ---->". The pulse trains are freehand tick
+  marks at irregular spacing, and the text says outright: "It will be understood that any desired rhythm pattern
+  could be employed, and that the source of pulses could be derived from any sort of pulse generating devices."
+  So there is nothing here to transcribe as a pattern.
+  The ten lanes, as labelled on the figure: CHORD PLAYING KEY ACTUATION (200) / PULSE GENERATOR & PROGRAMMED
+  RHYTHM (202) / PEDAL RHYTHM PULSES (204, "ENABLING PULSES TO 107") / CHORD RHYTHM PULSES (206, "ENABLING
+  PULSES TO 105") / PEDAL GATE TRIGGER PULSES (208, "TRIGGER PULSES TO 92") / CHORD GATE (210, "CHORD SIGNAL
+  FROM G2") / MAJOR (MJ) GATE (212, "MAJOR PEDAL SIGNAL FROM G3") / MINOR (MN) GATE (214, "MINOR PEDAL SIGNAL
+  FROM G4") / PEDAL SOUND (216, pulses labelled MJ or MN) / CHORD (218, "CHORD SIGNALS FROM 105").
+  The one musical fact it does carry: the pedal (bass) ALTERNATES between the two pedal keyers, MJ then MN then
+  MJ, switched by the multivibrator 92's trigger pulses 208 - i.e. an alternating bass, not a stored pattern.
+  Quote: "line 214 ... will be seen to be the reverse of line 212 which comes about because the same monostable
+  multivibrator 92 supplies the signals to both of the gates G3 and G4."
+- [step 16] US 3,708,604 chord/bass VOCABULARY (quoted from the description):
+  chord = "all six tones making up the chord, namely, the tones F, A, and C of two octave ranges" (an F chord,
+  triad doubled at the octave = 6 tones).
+  bass = "Keying voltage is also applied from a further blade of the same key via diodes D1 and D2 to the keyers
+  for the F tone of the major pedal tones and to the C tone of the minor pedal tones" -> MJ = ROOT, MN = FIFTH.
+  "Each pedal tone may consist of 8 foot and 16 foot notes, if desired."
+  So the bass vocabulary is ROOT/FIFTH alternation (two gated keyers), NOT degrees or a stored step list.
+
+=== PROVENANCE ===
+T1 US 4,292,874 "Automatic control apparatus for chords and sequences"
+   Inventors: Edward M. Jones; Carlton J. Simmons, Jr.  Assignee (original): Baldwin Piano and Organ Co
+   Appl. US06/040,107, filed 1979-05-18, granted 1981-10-06.
+   PDF read: https://patentimages.storage.googleapis.com/eb/2d/ff/373d2b00c1ba99/US4292874.pdf
+   Data taken from: FIG. 14 (sheet 11 of 18 = PDF page 12), FIG. 11 (sheet 7 of 18 = PDF page 8),
+   and TABLE 1 / 2 / 3 in the description text. CA1143190A was NOT needed (US drawings were clean).
+T2 US 3,708,604 "Electronic organ with rhythmic accompaniment and bass"
+   Inventors: R. Hebeisen; W. Tevault.  Assignee: Jasper Electronics Manufacturing Corp.
+   Filed 1971-11-15, granted 1973-01-02.
+   PDF read: https://patentimages.storage.googleapis.com/93/42/09/a0f057f8a9079d/US3708604.pdf
+   Figure examined: FIG. 5 (sheet 1 of 4 = PDF page 2). NEGATIVE - timing waveform, no grid, nothing to transcribe.
+=== DONE ===
+
+
+# ===== source file: organs.md =====
+
+# Printed rhythm-pattern charts: organ + rhythm-box makers not yet covered
+
+Started 2026-08-19. Already done/closed: Ace Tone FR-2L, Roland TR-77, SGS M252/M253, ELGAM (closed).
+
+## Search log (append after EVERY search)
+
+### Patent lane, sweep 1 (Google Patents via websearch)
+Query: rhythm pattern generator organ diode matrix Hammond 1970. Candidates surfaced:
+- US3706837A Automatic rhythmic chording unit
+- US3358068A Automatic rhythm device
+- US3646242A Automatic rhythm instrument, cycle-end termination
+- US3918341A Automatic chord and rhythm system for electronic organ
+- US4244258A Rhythm system for electronic organ
+- US4135423 Automatic rhythm generator
+- LEAD: US3567838 (Tennes, Hammond Corp, 1971-03-02) cited as the canonical automatic rhythm generator
+Verdict: TO CHECK, none read yet.
+
+### *** STRONG HIT: US3567838 (Tennes / HAMMOND Corporation, filed 1969, granted 1971-03-02)
+https://patents.google.com/patent/US3567838A/en
+FIG. 2 = a real pattern chart. Rows = temple block, wood block, brush, snare, bass drum,
+cymbal, chord, high bass, low bass (9). Columns = 48 time intervals = TWO measures.
+Dots = hits. Three named rhythms charted: LATIN, ROCK, WALTZ.
+Caveat to verify: only 3 rhythms -> confirm from the text that these are real machine
+patterns and not "illustrative". Need the drawing PDF for resolution.
+Verdict so far: CHART READABLE (pending image check).
+
+
+# ===== source file: sources2.md =====
+
+# Primary sources for 1960s-70s organ rhythm-box preset patterns
+
+Started 2026-08-19. Append-only log; assume the agent may die at any moment.
+
+RULES IN FORCE
+- Primary source = service manual / service note / owner's manual / patent / schematic that PRINTS a
+  pattern chart (rows = instruments, cols = counts, marks = hits), prints patterns in notation, or
+  shows the diode matrix legibly enough to decode. Everything else = context, not data.
+- Never present a pattern not read off a primary document. Unreadable -> UNREAD.
+
+## Ranked table
+
+| # | Machine | Year | Document (printed title) | URL | Page/Fig | Embedded scan res | VERDICT |
+|---|---------|------|--------------------------|-----|----------|-------------------|---------|
+| 1 | ELGAM (Match 7c/15C, Carousel, Symphony, Talisman) | 1970s | -- | -- | -- | -- | PENDING |
+| 2 | Roland TR-66 | 1973 | -- | -- | -- | ~400 ppi (inherited lead) | PENDING |
+| 3 | Korg/Keio Mini Pops MP-120 | c.1974 | -- | -- | -- | ~72 ppi (inherited lead) | PENDING |
+| 4 | Ace Tone FR-1/FR-3/FR-6/FR-8L/FR-15 | 1967-72 | -- | -- | -- | -- | PENDING |
+| 5 | Hammond Auto-Vari 64 / Rhythm II / Piper | 1960s-70s | -- | -- | -- | -- | PENDING |
+| 6 | Farfisa / Yamaha / Lowrey / Gulbransen / Univox SR-95 / Maestro / Seeburg / Philips | -- | -- | -- | -- | -- | PENDING |
+
+## Already done elsewhere (do not redo)
+- Ace Tone Rhythm Ace FR-2L service note (c.1969), archive.org item `RhythmAceFR2LServiceManual`:
+  p14 Fig 10 = full 16-rhythm pattern chart; p13 Fig 9 = 35 numbered pulse trains. Being
+  transcribed by the main session.
+- Roland TR-77 service manual: another agent has it.
+
+## Log
+
+- (init) file created with skeleton.
+- ELGAM: archive.org fulltext search `q=elgam` -> numFound 3, all irrelevant (2 CIA docs, 1 user
+  favorites list). NO Elgam material on archive.org at all.
+- ROLAND TR-66: archive.org item `roland-tr-66-service-notes` = "Roland TR-66 Service Notes",
+  dated 1976. PDF: https://archive.org/download/roland-tr-66-service-notes/Roland%20TR-66%20Service%20Notes.pdf
+  Item page: https://archive.org/details/roland-tr-66-service-notes
+  OCR (djvu.txt) TOC confirms: SECTION 5 MATRIX CIRCUIT (incl. "5-2. Logic Output Timing Chart"),
+  SECTION 6/7 RHYTHM SWITCH ASSEMBLY (RS-9 / RS-6), **SECTION 9. RHYTHM ENSEMBLE PATTERN, page 12**.
+  OCR of that page shows rhythm labels WALTZ / JAZZ WALTZ / SLOW ROCK / BOSSANOVA / BEGUINE /
+  RHUMBA / PARADE / HABANERA / FOXTROT, a "BASS-SNARE" lane label, and a count ruler reading
+  "8 20 22 24 26 28 30 32" -> a 32-count grid numbered in evens. So a real pattern chart exists.
+  Also: other TR-66 items on archive.org = `synthmanual-roland-tr-66-owners-manual` (owner's manual),
+  `manualsonline-id-5d659ae5-...`, `manualsbase-id-576194`.
+- TR-66 **CONFIRMED CHART READABLE**. PDF page 13 (printed "- 12 -") = "SECTION 9. RHYTHM ENSEMBLE
+  PATTERN   Fig. 13". Embedded scan: 3304x4677, 1-bit CCITT bitonal, **400x400 ppi** (pdfimages -list),
+  27 pages total. Rendered at only 100 dpi it is already fully legible.
+  Chart form: rows = instrument abbreviations, columns = counts numbered 0,2,4,...,30 (even ticks,
+  so a 32-count grid), hits drawn as small OPEN CIRCLES on the lane, plus diagonal hatch marks in
+  some columns. Rightmost column = per-lane matrix/output numbers (e.g. 21', 15', 21', and "F.B.").
+  Rhythms on p13: WALTZ, JAZZ WALTZ, SLOW ROCK, BOSSANOVA, SAMBA, MAMBO, CHA-CHA, BEGUINE, RHUMBA.
+  Footnote: "M = HH".
+  Instrument abbrevs seen: CY (cymbal), SD (snare), BD (bass drum), HH (hi-hat), RS (rim shot),
+  M (=HH), CB (conga/bongo?), HB (high bongo), LB (low bongo), HC (high conga?), C (claves).
+- TR-66 page 14 (printed "- 13 -") holds **Fig. 14 + Fig. 15**, both ROTATED 90 deg (patterns run
+  vertically, count ruler up the right edge 0..31 in evens). Fig. 14 is split into two labelled
+  groups:
+    2 BEAT: BASS-SNARE (SD,BD) | FOXTROT 1 (HH, CY+SD, BD) | SWING 1 (HH, CY, BD) |
+            MARCH (CY, SD, BD) | PARADE (CY, SD, BD) | HABANERA (SD, BD)
+    4 BEAT: BASS-SNARE (SD,BD) | FOX TROT 2 (HH, CY+SD, BD) | SWING 2 (HH, CY, BD) |
+            SWING 3 (HH, CY, BD) | SHAFFLE [sic] (CY, SD, BD) | TANGO (HH, SD+CY, BD)
+  Fig. 15: ROCK 1..ROCK 6, each with lanes HH, CY, SD, BD.
+  => the FULL TR-66 preset roster is charted over printed pp.12-13 (PDF pp.13-14).

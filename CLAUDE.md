@@ -262,7 +262,9 @@ runtime/   studio.h (public API: constants + declarations), studio.c (Raylib imp
                          the units Ace Tone sold Hammond to build INTO organs) · RB_TR77[18] (Roland TR-77,
                          1972) · RB_SGS[30] (SGS M252 LSI, both published factory masks, the chip that put
                          AUTO RHYTHM inside cheap Italian organs). A lane is a 48-bit MASK over counts, so the
-                         whole library is a few KB; read it with rb_hit/rb_used/rb_beat_of. THREE things a
+                         whole library is a few KB; read it with rb_trigger (NOT rb_hit: on the SGS the chip
+                         fires on a ROM bit's RISING edge, so adjacent marks do not sound twice and 66 of its
+                         955 marks are already sounding) / rb_used / rb_beat_of. THREE things a
                          player must respect or it plays nonsense: per_beat and bars are PER RHYTHM (the FR-2L
                          waltz divides its 24-count bar by THREE, its slow rock reads all 48 as one 12/8 bar),
                          `unused` marks counts a rhythm SKIPS (the TR-77 hatches them), and RB_GATE lanes are

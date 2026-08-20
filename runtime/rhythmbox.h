@@ -35,6 +35,14 @@
 #define RB_PARTIAL  1   // lane flag: part of this lane was UNREAD in the source
 #define RB_RESETCOL 2   // lane flag: NOT an instrument — this column carries the RESET
 
+// rhythm flag. SGS only: the chip triggers on the RISING edge of a ROM bit, so two marks on
+// consecutive states do NOT sound twice — the line goes high and STAYS high, and the second
+// edge never happens (Elektor, April 1976, p420). 36 runs of adjacent marks exist in the SGS
+// tables, the longest 6 states, so this is not a corner case: use rb_trigger(), not rb_hit().
+// The FR-2L and TR-77 are different machines (discrete pulse trains, a diode matrix) and the
+// rule is NOT transferable to them, so their rhythms do not carry this flag.
+#define RB_EDGE_ONLY 1
+
 typedef struct {
     const char        *label;   // as printed (provisional on the FR-2L, see above)
     const char        *code;    // the machine's own pulse-train / trigger number, verbatim
@@ -52,6 +60,7 @@ typedef struct {
     unsigned char      per_beat;  // PER RHYTHM (see note 1 above)
     unsigned char      bars;
     unsigned char      nlanes;
+    unsigned char      flags;     // RB_EDGE_ONLY, or 0
     unsigned long long unused;    // counts this rhythm skips (see note 2 above)
     const RbLane      *lane;
 } RbRhythm;
@@ -160,22 +169,22 @@ static const RbLane RB_FR2L_L15[] = {
     { "Bd?", "", RB_HIT, 0, 0x201000201ULL, 0x0ULL },
 };
 static const RbRhythm RB_FR2L[] = {
-    { "BEGUINE", "FR2L", 48, 24, 6, 2, 6, 0x0ULL, RB_FR2L_L0 },
-    { "Bossanova", "FR2L", 48, 24, 6, 2, 4, 0x0ULL, RB_FR2L_L1 },
-    { "Waltz", "FR2L", 48, 24, 8, 2, 4, 0x0ULL, RB_FR2L_L2 },
-    { "Dixieland", "FR2L", 48, 24, 6, 2, 4, 0x0ULL, RB_FR2L_L3 },
-    { "Western", "FR2L", 48, 24, 6, 2, 3, 0x0ULL, RB_FR2L_L4 },
-    { "Rock'n Roll", "FR2L", 48, 24, 6, 2, 4, 0x0ULL, RB_FR2L_L5 },
-    { "Slow Rock", "FR2L", 48, 48, 12, 1, 3, 0x0ULL, RB_FR2L_L6 },
-    { "Fox Trot", "FR2L", 48, 24, 6, 2, 5, 0x0ULL, RB_FR2L_L7 },
-    { "Swing", "FR2L", 48, 24, 6, 2, 5, 0x0ULL, RB_FR2L_L8 },
-    { "Cha-Cha", "FR2L", 48, 24, 6, 2, 5, 0x0ULL, RB_FR2L_L9 },
-    { "March", "FR2L", 48, 24, 6, 2, 3, 0x0ULL, RB_FR2L_L10 },
-    { "Shuffle", "FR2L", 48, 24, 6, 2, 4, 0x0ULL, RB_FR2L_L11 },
-    { "Tango", "FR2L", 48, 24, 6, 2, 5, 0x0ULL, RB_FR2L_L12 },
-    { "SAMBA", "FR2L", 48, 24, 6, 2, 4, 0x0ULL, RB_FR2L_L13 },
-    { "RHUMBA", "FR2L", 48, 24, 6, 2, 6, 0x0ULL, RB_FR2L_L14 },
-    { "MAMBO", "FR2L", 48, 24, 6, 2, 5, 0x0ULL, RB_FR2L_L15 },
+    { "BEGUINE", "FR2L", 48, 24, 6, 2, 6, 0, 0x0ULL, RB_FR2L_L0 },
+    { "Bossanova", "FR2L", 48, 24, 6, 2, 4, 0, 0x0ULL, RB_FR2L_L1 },
+    { "Waltz", "FR2L", 48, 24, 8, 2, 4, 0, 0x0ULL, RB_FR2L_L2 },
+    { "Dixieland", "FR2L", 48, 24, 6, 2, 4, 0, 0x0ULL, RB_FR2L_L3 },
+    { "Western", "FR2L", 48, 24, 6, 2, 3, 0, 0x0ULL, RB_FR2L_L4 },
+    { "Rock'n Roll", "FR2L", 48, 24, 6, 2, 4, 0, 0x0ULL, RB_FR2L_L5 },
+    { "Slow Rock", "FR2L", 48, 48, 12, 1, 3, 0, 0x0ULL, RB_FR2L_L6 },
+    { "Fox Trot", "FR2L", 48, 24, 6, 2, 5, 0, 0x0ULL, RB_FR2L_L7 },
+    { "Swing", "FR2L", 48, 24, 6, 2, 5, 0, 0x0ULL, RB_FR2L_L8 },
+    { "Cha-Cha", "FR2L", 48, 24, 6, 2, 5, 0, 0x0ULL, RB_FR2L_L9 },
+    { "March", "FR2L", 48, 24, 6, 2, 3, 0, 0x0ULL, RB_FR2L_L10 },
+    { "Shuffle", "FR2L", 48, 24, 6, 2, 4, 0, 0x0ULL, RB_FR2L_L11 },
+    { "Tango", "FR2L", 48, 24, 6, 2, 5, 0, 0x0ULL, RB_FR2L_L12 },
+    { "SAMBA", "FR2L", 48, 24, 6, 2, 4, 0, 0x0ULL, RB_FR2L_L13 },
+    { "RHUMBA", "FR2L", 48, 24, 6, 2, 6, 0, 0x0ULL, RB_FR2L_L14 },
+    { "MAMBO", "FR2L", 48, 24, 6, 2, 5, 0, 0x0ULL, RB_FR2L_L15 },
 };
 #define RB_FR2L_N 16
 
@@ -293,24 +302,24 @@ static const RbLane RB_TR77_L17[] = {
     { "Me", "42 + 5", RB_HIT, 0, 0x5555ULL, 0x0ULL },
 };
 static const RbRhythm RB_TR77[] = {
-    { "ROCK'N ROLL 1", "TR77", 16, 16, 4, 1, 4, 0x0ULL, RB_TR77_L0 },
-    { "ROCK'N ROLL 2", "TR77", 16, 16, 4, 1, 4, 0x0ULL, RB_TR77_L1 },
-    { "SLOW ROCK", "TR77", 16, 16, 4, 1, 3, 0x8888ULL, RB_TR77_L2 },
-    { "BALLAD", "TR77", 16, 16, 4, 1, 3, 0x8888ULL, RB_TR77_L3 },
-    { "WESTERN", "TR77", 16, 16, 4, 1, 3, 0x0ULL, RB_TR77_L4 },
-    { "6/8 MARCH", "TR77", 16, 8, 4, 2, 4, 0x8888ULL, RB_TR77_L5 },
-    { "JAZZ WALTZ", "TR77", 16, 8, 4, 2, 3, 0x8888ULL, RB_TR77_L6 },
-    { "WALTZ", "TR77", 16, 8, 4, 2, 3, 0x8888ULL, RB_TR77_L7 },
-    { "RHUMBA", "TR77", 16, 16, 4, 1, 5, 0x0ULL, RB_TR77_L8 },
-    { "BEGUINE", "TR77", 16, 16, 4, 1, 6, 0x0ULL, RB_TR77_L9 },
-    { "CHA-CHA", "TR77", 16, 16, 4, 1, 5, 0x0ULL, RB_TR77_L10 },
-    { "MAMBO", "TR77", 16, 16, 4, 1, 6, 0x0ULL, RB_TR77_L11 },
-    { "SAMBA 1", "TR77", 16, 16, 4, 1, 5, 0x0ULL, RB_TR77_L12 },
-    { "SAMBA 2", "TR77", 16, 16, 4, 1, 5, 0x0ULL, RB_TR77_L13 },
-    { "BOSSANOVA", "TR77", 16, 16, 4, 1, 5, 0x0ULL, RB_TR77_L14 },
-    { "BAION", "TR77", 16, 16, 4, 1, 5, 0x0ULL, RB_TR77_L15 },
-    { "BOLERO", "TR77", 16, 16, 4, 1, 3, 0x0ULL, RB_TR77_L16 },
-    { "TANGO", "TR77", 16, 16, 4, 1, 4, 0x0ULL, RB_TR77_L17 },
+    { "ROCK'N ROLL 1", "TR77", 16, 16, 4, 1, 4, 0, 0x0ULL, RB_TR77_L0 },
+    { "ROCK'N ROLL 2", "TR77", 16, 16, 4, 1, 4, 0, 0x0ULL, RB_TR77_L1 },
+    { "SLOW ROCK", "TR77", 16, 16, 4, 1, 3, 0, 0x8888ULL, RB_TR77_L2 },
+    { "BALLAD", "TR77", 16, 16, 4, 1, 3, 0, 0x8888ULL, RB_TR77_L3 },
+    { "WESTERN", "TR77", 16, 16, 4, 1, 3, 0, 0x0ULL, RB_TR77_L4 },
+    { "6/8 MARCH", "TR77", 16, 8, 4, 2, 4, 0, 0x8888ULL, RB_TR77_L5 },
+    { "JAZZ WALTZ", "TR77", 16, 8, 4, 2, 3, 0, 0x8888ULL, RB_TR77_L6 },
+    { "WALTZ", "TR77", 16, 8, 4, 2, 3, 0, 0x8888ULL, RB_TR77_L7 },
+    { "RHUMBA", "TR77", 16, 16, 4, 1, 5, 0, 0x0ULL, RB_TR77_L8 },
+    { "BEGUINE", "TR77", 16, 16, 4, 1, 6, 0, 0x0ULL, RB_TR77_L9 },
+    { "CHA-CHA", "TR77", 16, 16, 4, 1, 5, 0, 0x0ULL, RB_TR77_L10 },
+    { "MAMBO", "TR77", 16, 16, 4, 1, 6, 0, 0x0ULL, RB_TR77_L11 },
+    { "SAMBA 1", "TR77", 16, 16, 4, 1, 5, 0, 0x0ULL, RB_TR77_L12 },
+    { "SAMBA 2", "TR77", 16, 16, 4, 1, 5, 0, 0x0ULL, RB_TR77_L13 },
+    { "BOSSANOVA", "TR77", 16, 16, 4, 1, 5, 0, 0x0ULL, RB_TR77_L14 },
+    { "BAION", "TR77", 16, 16, 4, 1, 5, 0, 0x0ULL, RB_TR77_L15 },
+    { "BOLERO", "TR77", 16, 16, 4, 1, 3, 0, 0x0ULL, RB_TR77_L16 },
+    { "TANGO", "TR77", 16, 16, 4, 1, 4, 0, 0x0ULL, RB_TR77_L17 },
 };
 #define RB_TR77_N 18
 
@@ -616,42 +625,50 @@ static const RbLane RB_SGS_L29[] = {
     { "OUT 8", "", RB_HIT, RB_RESETCOL, 0x0ULL, 0x0ULL },
 };
 static const RbRhythm RB_SGS[] = {
-    { "TABLE 1 (M252 AA) — RHYTHM 1", "SGS", 24, 24, 8, 1, 8, 0x0ULL, RB_SGS_L0 },
-    { "TABLE 1 (M252 AA) — RHYTHM 2", "SGS", 24, 24, 8, 1, 8, 0x0ULL, RB_SGS_L1 },
-    { "TABLE 1 (M252 AA) — RHYTHM 3", "SGS", 32, 32, 8, 1, 8, 0x0ULL, RB_SGS_L2 },
-    { "TABLE 1 (M252 AA) — RHYTHM 4", "SGS", 32, 32, 8, 1, 8, 0x0ULL, RB_SGS_L3 },
-    { "TABLE 1 (M252 AA) — RHYTHM 5", "SGS", 32, 32, 8, 1, 8, 0x0ULL, RB_SGS_L4 },
-    { "TABLE 1 (M252 AA) — RHYTHM 6", "SGS", 32, 32, 8, 1, 8, 0x0ULL, RB_SGS_L5 },
-    { "TABLE 1 (M252 AA) — RHYTHM 7", "SGS", 24, 24, 8, 1, 8, 0x0ULL, RB_SGS_L6 },
-    { "TABLE 1 (M252 AA) — RHYTHM 8", "SGS", 32, 32, 8, 1, 8, 0x0ULL, RB_SGS_L7 },
-    { "TABLE 1 (M252 AA) — RHYTHM 9", "SGS", 24, 24, 8, 1, 8, 0x0ULL, RB_SGS_L8 },
-    { "TABLE 1 (M252 AA) — RHYTHM 10", "SGS", 32, 32, 8, 1, 8, 0x0ULL, RB_SGS_L9 },
-    { "TABLE 1 (M252 AA) — RHYTHM 11", "SGS", 32, 32, 8, 1, 8, 0x0ULL, RB_SGS_L10 },
-    { "TABLE 1 (M252 AA) — RHYTHM 12", "SGS", 32, 32, 8, 1, 8, 0x0ULL, RB_SGS_L11 },
-    { "TABLE 1 (M252 AA) — RHYTHM 13", "SGS", 32, 32, 8, 1, 8, 0x0ULL, RB_SGS_L12 },
-    { "TABLE 1 (M252 AA) — RHYTHM 14", "SGS", 32, 32, 8, 1, 8, 0x0ULL, RB_SGS_L13 },
-    { "TABLE 1 (M252 AA) — RHYTHM 15", "SGS", 32, 32, 8, 1, 8, 0x0ULL, RB_SGS_L14 },
-    { "TABLE 2 (M252 AD) — RHYTHM 1 (WALTZ)", "SGS", 23, 23, 8, 1, 8, 0x0ULL, RB_SGS_L15 },
-    { "TABLE 2 (M252 AD) — RHYTHM 2 (TANGO)", "SGS", 32, 32, 8, 1, 8, 0x0ULL, RB_SGS_L16 },
-    { "TABLE 2 (M252 AD) — RHYTHM 3 (MARCH)", "SGS", 32, 32, 8, 1, 8, 0x0ULL, RB_SGS_L17 },
-    { "TABLE 2 (M252 AD) — RHYTHM 4 (SWING)", "SGS", 32, 32, 8, 1, 8, 0x0ULL, RB_SGS_L18 },
-    { "TABLE 2 (M252 AD) — RHYTHM 5 (MAMBO)", "SGS", 32, 32, 8, 1, 8, 0x0ULL, RB_SGS_L19 },
-    { "TABLE 2 (M252 AD) — RHYTHM 6 (SLOW ROCK)", "SGS", 24, 24, 8, 1, 8, 0x0ULL, RB_SGS_L20 },
-    { "TABLE 2 (M252 AD) — RHYTHM 7 (BEAT)", "SGS", 32, 32, 8, 1, 8, 0x0ULL, RB_SGS_L21 },
-    { "TABLE 2 (M252 AD) — RHYTHM 8 (SAMBA)", "SGS", 32, 32, 8, 1, 8, 0x0ULL, RB_SGS_L22 },
-    { "TABLE 2 (M252 AD) — RHYTHM 9 (BOSSA NOVA)", "SGS", 32, 32, 8, 1, 8, 0x0ULL, RB_SGS_L23 },
-    { "TABLE 2 (M252 AD) — RHYTHM 10 (CHA-CHA)", "SGS", 32, 32, 8, 1, 8, 0x0ULL, RB_SGS_L24 },
-    { "TABLE 2 (M252 AD) — RHYTHM 11 (RUMBA)", "SGS", 32, 32, 8, 1, 8, 0x0ULL, RB_SGS_L25 },
-    { "TABLE 2 (M252 AD) — RHYTHM 12 (BEGUINE)", "SGS", 32, 32, 8, 1, 8, 0x0ULL, RB_SGS_L26 },
-    { "TABLE 2 (M252 AD) — RHYTHM 13 (BAJON)", "SGS", 32, 32, 8, 1, 8, 0x0ULL, RB_SGS_L27 },
-    { "TABLE 2 (M252 AD) — RHYTHM 14 (FOX TROT)", "SGS", 32, 32, 8, 1, 8, 0x0ULL, RB_SGS_L28 },
-    { "TABLE 2 (M252 AD) — RHYTHM 15 (SHUFFLE)", "SGS", 24, 24, 8, 1, 8, 0x0ULL, RB_SGS_L29 },
+    { "TABLE 1 (M252 AA) — RHYTHM 1", "SGS", 24, 24, 8, 1, 8, RB_EDGE_ONLY, 0x0ULL, RB_SGS_L0 },
+    { "TABLE 1 (M252 AA) — RHYTHM 2", "SGS", 24, 24, 8, 1, 8, RB_EDGE_ONLY, 0x0ULL, RB_SGS_L1 },
+    { "TABLE 1 (M252 AA) — RHYTHM 3", "SGS", 32, 32, 8, 1, 8, RB_EDGE_ONLY, 0x0ULL, RB_SGS_L2 },
+    { "TABLE 1 (M252 AA) — RHYTHM 4", "SGS", 32, 32, 8, 1, 8, RB_EDGE_ONLY, 0x0ULL, RB_SGS_L3 },
+    { "TABLE 1 (M252 AA) — RHYTHM 5", "SGS", 32, 32, 8, 1, 8, RB_EDGE_ONLY, 0x0ULL, RB_SGS_L4 },
+    { "TABLE 1 (M252 AA) — RHYTHM 6", "SGS", 32, 32, 8, 1, 8, RB_EDGE_ONLY, 0x0ULL, RB_SGS_L5 },
+    { "TABLE 1 (M252 AA) — RHYTHM 7", "SGS", 24, 24, 8, 1, 8, RB_EDGE_ONLY, 0x0ULL, RB_SGS_L6 },
+    { "TABLE 1 (M252 AA) — RHYTHM 8", "SGS", 32, 32, 8, 1, 8, RB_EDGE_ONLY, 0x0ULL, RB_SGS_L7 },
+    { "TABLE 1 (M252 AA) — RHYTHM 9", "SGS", 24, 24, 8, 1, 8, RB_EDGE_ONLY, 0x0ULL, RB_SGS_L8 },
+    { "TABLE 1 (M252 AA) — RHYTHM 10", "SGS", 32, 32, 8, 1, 8, RB_EDGE_ONLY, 0x0ULL, RB_SGS_L9 },
+    { "TABLE 1 (M252 AA) — RHYTHM 11", "SGS", 32, 32, 8, 1, 8, RB_EDGE_ONLY, 0x0ULL, RB_SGS_L10 },
+    { "TABLE 1 (M252 AA) — RHYTHM 12", "SGS", 32, 32, 8, 1, 8, RB_EDGE_ONLY, 0x0ULL, RB_SGS_L11 },
+    { "TABLE 1 (M252 AA) — RHYTHM 13", "SGS", 32, 32, 8, 1, 8, RB_EDGE_ONLY, 0x0ULL, RB_SGS_L12 },
+    { "TABLE 1 (M252 AA) — RHYTHM 14", "SGS", 32, 32, 8, 1, 8, RB_EDGE_ONLY, 0x0ULL, RB_SGS_L13 },
+    { "TABLE 1 (M252 AA) — RHYTHM 15", "SGS", 32, 32, 8, 1, 8, RB_EDGE_ONLY, 0x0ULL, RB_SGS_L14 },
+    { "TABLE 2 (M252 AD) — RHYTHM 1 (WALTZ)", "SGS", 23, 23, 8, 1, 8, RB_EDGE_ONLY, 0x0ULL, RB_SGS_L15 },
+    { "TABLE 2 (M252 AD) — RHYTHM 2 (TANGO)", "SGS", 32, 32, 8, 1, 8, RB_EDGE_ONLY, 0x0ULL, RB_SGS_L16 },
+    { "TABLE 2 (M252 AD) — RHYTHM 3 (MARCH)", "SGS", 32, 32, 8, 1, 8, RB_EDGE_ONLY, 0x0ULL, RB_SGS_L17 },
+    { "TABLE 2 (M252 AD) — RHYTHM 4 (SWING)", "SGS", 32, 32, 8, 1, 8, RB_EDGE_ONLY, 0x0ULL, RB_SGS_L18 },
+    { "TABLE 2 (M252 AD) — RHYTHM 5 (MAMBO)", "SGS", 32, 32, 8, 1, 8, RB_EDGE_ONLY, 0x0ULL, RB_SGS_L19 },
+    { "TABLE 2 (M252 AD) — RHYTHM 6 (SLOW ROCK)", "SGS", 24, 24, 8, 1, 8, RB_EDGE_ONLY, 0x0ULL, RB_SGS_L20 },
+    { "TABLE 2 (M252 AD) — RHYTHM 7 (BEAT)", "SGS", 32, 32, 8, 1, 8, RB_EDGE_ONLY, 0x0ULL, RB_SGS_L21 },
+    { "TABLE 2 (M252 AD) — RHYTHM 8 (SAMBA)", "SGS", 32, 32, 8, 1, 8, RB_EDGE_ONLY, 0x0ULL, RB_SGS_L22 },
+    { "TABLE 2 (M252 AD) — RHYTHM 9 (BOSSA NOVA)", "SGS", 32, 32, 8, 1, 8, RB_EDGE_ONLY, 0x0ULL, RB_SGS_L23 },
+    { "TABLE 2 (M252 AD) — RHYTHM 10 (CHA-CHA)", "SGS", 32, 32, 8, 1, 8, RB_EDGE_ONLY, 0x0ULL, RB_SGS_L24 },
+    { "TABLE 2 (M252 AD) — RHYTHM 11 (RUMBA)", "SGS", 32, 32, 8, 1, 8, RB_EDGE_ONLY, 0x0ULL, RB_SGS_L25 },
+    { "TABLE 2 (M252 AD) — RHYTHM 12 (BEGUINE)", "SGS", 32, 32, 8, 1, 8, RB_EDGE_ONLY, 0x0ULL, RB_SGS_L26 },
+    { "TABLE 2 (M252 AD) — RHYTHM 13 (BAJON)", "SGS", 32, 32, 8, 1, 8, RB_EDGE_ONLY, 0x0ULL, RB_SGS_L27 },
+    { "TABLE 2 (M252 AD) — RHYTHM 14 (FOX TROT)", "SGS", 32, 32, 8, 1, 8, RB_EDGE_ONLY, 0x0ULL, RB_SGS_L28 },
+    { "TABLE 2 (M252 AD) — RHYTHM 15 (SHUFFLE)", "SGS", 24, 24, 8, 1, 8, RB_EDGE_ONLY, 0x0ULL, RB_SGS_L29 },
 };
 #define RB_SGS_N 30
 
 // ── reading a rhythm ──────────────────────────────────────────────────────
 static inline int rb_hit(const RbRhythm *r, int lane, int count) {
     return (int)((r->lane[lane].mask >> (count % r->counts)) & 1ULL);
+}
+// THE ONE YOU WANT IN A SEQUENCER: does this lane FIRE on this count?
+// Identical to rb_hit() except on an RB_EDGE_ONLY rhythm, where a mark whose predecessor is
+// also marked is already sounding and cannot retrigger.
+static inline int rb_trigger(const RbRhythm *r, int lane, int count) {
+    if (!rb_hit(r, lane, count)) return 0;
+    if (!(r->flags & RB_EDGE_ONLY)) return 1;
+    return !rb_hit(r, lane, (count + r->counts - 1) % r->counts);
 }
 static inline int rb_uncertain(const RbRhythm *r, int lane, int count) {
     return (int)((r->lane[lane].maybe >> (count % r->counts)) & 1ULL);

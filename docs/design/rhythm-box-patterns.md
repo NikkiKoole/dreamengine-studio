@@ -125,6 +125,51 @@ rhythm has **seven** instruments, not eight, and `runtime/rhythmbox.h` flags tho
 `RB_RESETCOL` so a cart cannot wire a drum to a counter. That is the datasheet prose and the dot
 data confirming each other, from two different documents by two different readers.
 
+### 4b. Elektor, April 1976: the article that stands in for Technical Note 131
+
+Source: *"ic rhythm generator"*, **Elektor no. 22, April 1976, pp420-425**, following a shorter
+description in the July/August 1975 Summer Circuits issue. It states its own purpose as dealing with
+"the applications of these IC's in greater detail, including their connection to simple instrument
+generator circuits suggested in the SGS application notes", which is precisely what TN131 was cited
+for. Obtained from the Internet Archive's `ElektorMagazine` item (1975-07_08 and 1976-04).
+
+Four facts from it change how this data must be played:
+
+1. **What 24 and 32 MEAN.** "in 4/4 time, with 8 [elements] per beat there would be 32 per bar; in
+   3/4 time there would be only 24". So the chip's mask-programmable reset is a TIME SIGNATURE, not
+   an arbitrary length. Caveat, and it is ours rather than the article's: 24 also serves 4/4 at six
+   elements per beat, which is a triplet feel, and that is plainly how mask AD's SLOW ROCK and
+   SHUFFLE use it, since neither is a waltz. So read 24 as "divided by three somewhere", and check
+   the rhythm's own marks to see where.
+2. **Adjacent marks do NOT retrigger.** The trigger is the positive-going edge of a ROM bit, so "if
+   two successive [addresses] were '1' … the output would initially go to '1' and [stay] for two
+   time elements, so the second triggering edge would not occur". This is not a corner case: the SGS
+   tables hold **36 runs of adjacent marks, the longest six states long**, and measured through the
+   generated header, **66 of 955 marks (7%) do not sound**. A naive player fires 7% too many hits.
+   `runtime/rhythmbox.h` therefore flags every SGS rhythm `RB_EDGE_ONLY` and provides `rb_trigger()`,
+   which is what a sequencer should call; `rb_hit()` reports the bit, not the sound. The FR-2L and
+   TR-77 are different machines (discrete pulse trains, a diode matrix), the rule is not transferable
+   to them, and their data contains almost no adjacent marks anyway (3 runs in 62 lanes), so they
+   carry no flag.
+3. **Two ICs can split one bar**, and this is probably what Elgam did. Figures 20 and 21 show a
+   circuit where "the first IC plays the first half of the bar, and the second IC the second half".
+   Elgam's Carousel carries TWO of these chips (`M252 D1 AE` and `AF`) while its dial offers only
+   **15** rhythms, not 30, so the second chip is not buying more rhythms. The half-bar trick explains
+   that exactly, and would mean Elgam's rhythms are twice as long as a single chip's. **This is an
+   inference, not a sourced fact**: the other candidate is 8 + 8 = up to 16 instrument outputs. Both
+   are consistent with the schematic; the Elektor circuit is precedent for one of them.
+4. **The panel, the lamp and the start.** Rhythm selection is a 4-bit code driven by a diode matrix
+   or a TTL/CMOS encoder from 15 switches (figures 8 to 11, with Table 2 giving the code per rhythm,
+   which is the same shape as the Carousel schematic's own "RHYTHMS CODE" table). Figure 12 is the
+   clock generator plus the downbeat indicator that the datasheet said needed stretching. Figure 22
+   starts and stops the rhythm automatically **from the organ keyboard or pedal**, which is worth
+   knowing for a cart: on these instruments the drums began when you played, not when you pressed a
+   button.
+
+The voice side is documented too, which closes the last gap TN131 left: figure 24 gives "the circuit
+of the noise generators, preamplifier and power supply of a complete percussion unit", and the
+article also covers interfacing the chip to Elektor's own *Minidrum* (Elektor nos. 2 and 3).
+
 ## 5. Elgam: the patterns cannot be sourced, and the reason is the interesting part
 
 Elgam (Castelfidardo, 1968-1982) is the machine that started this. Its **Carousel schematic** gives
@@ -904,7 +949,9 @@ OUT 8    ........................
   anyway, from the databook's own pages: see §4a. The remaining gap is the suggested instrument
   generator circuits, i.e. the voice side. The practical substitute is **Elektor**, which covered
   these chips twice (1975-07 and 1976-04) "including their connection to simple instrument generator
-  circuits suggested in the SGS application notes"; both issues are behind Elektor's membership wall
-  and were not obtained. That is the lead for anyone who wants the voice circuits.
+  circuits suggested in the SGS application notes". **Both issues were then obtained** from the
+  Internet Archive rather than Elektor's paywalled archive, and §4b records what they say. Between
+  §4a and §4b the note's cited content is effectively recovered; the note itself remains
+  un-digitised.
 - **Elgam's own masks** would need a ROM dump off a surviving `M252 D1 AE`/`AF`, or transcription
   from recordings.

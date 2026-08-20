@@ -240,6 +240,16 @@ function selfcheck(sets) {
     sgs.filter(r => r.counts === 32).some(r => r.lanes.some(l => l.resetcol)), false);
   T('SGS short-rhythm count is 7 (the datasheet claim has no exceptions)',
     sgs.filter(r => r.counts < 32).length, 7);
+  // the SGS edge rule: it must bite on SGS and be a no-op on the other two machines
+  const runs = set => set.rhythms.reduce((n, r) => n + r.lanes.reduce((m, l) => {
+    let c = 0, prev = 0;
+    for (let i = 0; i < r.counts; i++) { const b = Number((l.mask >> BigInt(i)) & 1n);
+      if (b && prev) c++; prev = b; }
+    return m + c; }, 0), 0);
+  T('SGS data really does contain adjacent marks (else the edge rule is untested)',
+    runs(sets.find(s => s.mach.id === 'RB_SGS')) > 20, true);
+  T('FR2L has almost none, so flagging it edge-only would be wrong',
+    runs(sets.find(s => s.mach.id === 'RB_FR2L')) < 6, true);
   console.log(`\n${pass}/${total} known answers`);
   return pass === total;
 }
@@ -292,6 +302,14 @@ L.push('#define RB_GATE    1   // held: the set bits are the counts the sound is
 L.push('#define RB_PARTIAL  1   // lane flag: part of this lane was UNREAD in the source');
 L.push('#define RB_RESETCOL 2   // lane flag: NOT an instrument — this column carries the RESET');
 L.push('');
+L.push('// rhythm flag. SGS only: the chip triggers on the RISING edge of a ROM bit, so two marks on');
+L.push('// consecutive states do NOT sound twice — the line goes high and STAYS high, and the second');
+L.push('// edge never happens (Elektor, April 1976, p420). 36 runs of adjacent marks exist in the SGS');
+L.push('// tables, the longest 6 states, so this is not a corner case: use rb_trigger(), not rb_hit().');
+L.push('// The FR-2L and TR-77 are different machines (discrete pulse trains, a diode matrix) and the');
+L.push('// rule is NOT transferable to them, so their rhythms do not carry this flag.');
+L.push('#define RB_EDGE_ONLY 1');
+L.push('');
 L.push('typedef struct {');
 L.push('    const char        *label;   // as printed (provisional on the FR-2L, see above)');
 L.push('    const char        *code;    // the machine\'s own pulse-train / trigger number, verbatim');
@@ -309,6 +327,7 @@ L.push('    unsigned char      per_bar;');
 L.push('    unsigned char      per_beat;  // PER RHYTHM (see note 1 above)');
 L.push('    unsigned char      bars;');
 L.push('    unsigned char      nlanes;');
+L.push('    unsigned char      flags;     // RB_EDGE_ONLY, or 0');
 L.push('    unsigned long long unused;    // counts this rhythm skips (see note 2 above)');
 L.push('    const RbLane      *lane;');
 L.push('} RbRhythm;');
@@ -330,8 +349,9 @@ for (const { mach, rhythms } of sets) {
     const perBar  = d.per_bar  ?? (mach.tag === 'FR2L' ? 24 : r.counts);
     const perBeat = d.per_beat ?? mach.per_beat;
     const bars    = d.bars     ?? (mach.tag === 'FR2L' ? 2 : 1);
+    const rflags = mach.tag === 'SGS' ? 'RB_EDGE_ONLY' : '0';
     L.push(`    { "${esc(r.name)}", "${mach.tag}", ${r.counts}, ${perBar}, ${perBeat}, ${bars}, ` +
-           `${r.lanes.length}, ${hex(r.unused)}, ${mach.id}_L${i} },`);
+           `${r.lanes.length}, ${rflags}, ${hex(r.unused)}, ${mach.id}_L${i} },`);
   });
   L.push('};');
   L.push(`#define ${mach.id}_N ${rhythms.length}`);
@@ -340,6 +360,14 @@ for (const { mach, rhythms } of sets) {
 L.push('// ── reading a rhythm ──────────────────────────────────────────────────────');
 L.push('static inline int rb_hit(const RbRhythm *r, int lane, int count) {');
 L.push('    return (int)((r->lane[lane].mask >> (count % r->counts)) & 1ULL);');
+L.push('}');
+L.push('// THE ONE YOU WANT IN A SEQUENCER: does this lane FIRE on this count?');
+L.push('// Identical to rb_hit() except on an RB_EDGE_ONLY rhythm, where a mark whose predecessor is');
+L.push('// also marked is already sounding and cannot retrigger.');
+L.push('static inline int rb_trigger(const RbRhythm *r, int lane, int count) {');
+L.push('    if (!rb_hit(r, lane, count)) return 0;');
+L.push('    if (!(r->flags & RB_EDGE_ONLY)) return 1;');
+L.push('    return !rb_hit(r, lane, (count + r->counts - 1) % r->counts);');
 L.push('}');
 L.push('static inline int rb_uncertain(const RbRhythm *r, int lane, int count) {');
 L.push('    return (int)((r->lane[lane].maybe >> (count % r->counts)) & 1ULL);');

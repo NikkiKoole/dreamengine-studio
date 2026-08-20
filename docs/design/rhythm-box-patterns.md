@@ -860,7 +860,8 @@ OUT 8    ........................
   for the chassis shelf before starting.
 - **A generated header.** This data wants to be `runtime/`-shelf data in the `sideman.h` row format,
   extended with per-rhythm beats-per-bar, pattern length, gate lanes and odd-state support. Not
-  written yet; it needs the CLAUDE.md + `cart-authoring.md` index entries a new shelf header requires.
+  written yet; it needs the CLAUDE.md + [`cart-authoring.md`](../guides/cart-authoring.md) index
+  entries a new shelf header requires.
 - **`sideman`'s twelve rhythms are reconstructions** and should be labelled as such in
   [`sideman.md`](sideman.md), since ten of their twelve names now have sourced data here.
 - **M253 tables** (databook pp134-136) are characterised but not transcribed. See §6.4 first.

@@ -36,6 +36,16 @@ honest thing a 1959 tube stage can do: kick a resonant network with a pulse and 
 The twelve rhythms, in dial order: Beguine, Bolero, Cha Cha, Foxtrot 2 Beat, Foxtrot 4 Beat, March,
 Rhumba, Samba, Shuffle, Tango, Waltz, Western.
 
+> **⚠ The cart's twelve patterns are RECONSTRUCTIONS, not sourced data.** The dial's rhythm NAMES
+> are sourced; the contact positions on each disc were written to sound right, because no Side Man
+> pattern chart was found (its service schematics hold circuits, not disc layouts). Ten of those
+> twelve names now have REAL, document-sourced patterns from the machines either side of it, in
+> [`rhythm-box-patterns.md`](rhythm-box-patterns.md): the Ace Tone Rhythm Ace FR-2L (c.1969) and the
+> Roland TR-77 (1972). Those are different machines with different clocks, so they are not a drop-in
+> replacement for this cart's discs, but they are what to compare against before calling any of these
+> twelve authentic, and the sourced findings (a fixed clock re-divided per rhythm, accent by
+> layering, gate lanes) would each change this cart if adopted.
+
 ## 2. Why the cart is a disc and not a grid
 
 Every other drum machine cart here (`cr78`, `tr808`, `tr909`, `drummachine`, `groovebox`) is a

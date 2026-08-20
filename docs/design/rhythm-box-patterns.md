@@ -97,6 +97,34 @@ a claim about pattern content. Checked against lanes already read blind: the out
 exactly {1,3,4,5,8,9,10,11,12,13,14} is OUT 7, which the pinout calls "long cymbals or claves"; the
 output used in every rhythm except Tango is OUT 2, "snare drum or conga drum". Both matched.
 
+### 4a. What the datasheet says about wiring the chip to sound, and one prediction it makes
+
+The M252 pages of the same databook print the electrical contract, which is what a cart would need
+if it ever modelled this chip rather than just playing its patterns. Quoted from printed page 120
+and the truth-table notes:
+
+- **"DRIVES 8 SOUND GENERATORS (INSTRUMENTS)"** with **"OPEN DRAIN OUTPUTS"**: the chip only pulls
+  trigger lines down. The sound was always somebody else's circuit.
+- **"15 PROGRAMMABLE RHYTHMS (NOT AVAILABLE IN COMBINATION)"**. Worth contrasting with the Ace Tone
+  FR-1, whose selling point was that you *could* hold two rhythm buttons at once for "more than a
+  hundred" combinations. The chip generation took that away.
+- **"MASK PROGRAMMABLE RESET COUNTS: 24 or 32"**, and a **"DOWN BEAT OUTPUT"** which "appears at the
+  beginning of each measure", is "only 2-3 µs long" and "must be stretched and buffered to enable it
+  to drive a lamp". So the blinking tempo light on these organs is a real hardware output, not
+  decoration derived from the pattern.
+- The ROM is **"32 rows which represent elementary times and 120 columns (15 groups of 8)"**.
+
+**And then a testable claim.** To shorten a rhythm you "put a cross in the N+1 position of the
+column which now represents the reset output, **rather than the 8th instrument**". That predicts
+something specific about the transcribed data: every rhythm with a reset below 32 should have an
+empty 8th lane, because that lane is a counter rather than a drum.
+
+Checked against all 30 transcribed rhythms: **7 have a reset below 32, and all 7 have an empty
+OUT 8 (7/7, no exceptions)**, while 14 of the 23 full-length rhythms do use OUT 8. So a short SGS
+rhythm has **seven** instruments, not eight, and `runtime/rhythmbox.h` flags those lanes
+`RB_RESETCOL` so a cart cannot wire a drum to a counter. That is the datasheet prose and the dot
+data confirming each other, from two different documents by two different readers.
+
 ## 5. Elgam: the patterns cannot be sourced, and the reason is the interesting part
 
 Elgam (Castelfidardo, 1968-1982) is the machine that started this. Its **Carousel schematic** gives
@@ -869,7 +897,14 @@ OUT 8    ........................
 - **`sideman`'s twelve rhythms are reconstructions** and should be labelled as such in
   [`sideman.md`](sideman.md), since ten of their twelve names now have sourced data here.
 - **M253 tables** (databook pp134-136) are characterised but not transcribed. See §6.4 first.
-- **SGS Technical Note no. 131**, cited twice in the M252 datasheet for full organ-application
-  information, never searched. Best remaining lead on how these chips were wired into organs.
+- ~~SGS Technical Note no. 131.~~ **CHASED (2026-08-20), not digitised.** The databook cites it four
+  times ("TECHNICAL NOTE NO 131 AVAILABLE FOR FULL INFORMATION", "available on request"), so it is a
+  separate document, and it is not on bitsavers (whose SGS tree holds exactly one application note,
+  a 1995 EEPROM part) nor findable on archive.org. Most of what it was cited FOR is now recovered
+  anyway, from the databook's own pages: see §4a. The remaining gap is the suggested instrument
+  generator circuits, i.e. the voice side. The practical substitute is **Elektor**, which covered
+  these chips twice (1975-07 and 1976-04) "including their connection to simple instrument generator
+  circuits suggested in the SGS application notes"; both issues are behind Elektor's membership wall
+  and were not obtained. That is the lead for anyone who wants the voice circuits.
 - **Elgam's own masks** would need a ROM dump off a surviving `M252 D1 AE`/`AF`, or transcription
   from recordings.

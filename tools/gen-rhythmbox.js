@@ -146,6 +146,12 @@ for (let i = 0; i < MACHINES.length; i++) {
     let unused = 0n; for (const l of lanes) unused |= (l.unused || 0n);
     const d = SUBDIV[`${mach.id}/${b.name}`] || {};
     const counts = lens[0] || mach.counts;
+    // SGS: a reset count below 32 is programmed by crossing the 8TH INSTRUMENT column, which then
+    // carries the reset (databook: "the column which now represents the reset output, rather than
+    // the 8th instrument"). So that lane is a counter, not a drum. Verified: 7 of 7 short rhythms
+    // have an empty OUT 8, and no rhythm marks it.
+    if (mach.tag === 'SGS' && counts < 32)
+      for (const l of lanes) if (l.label === 'OUT 8' && l.mask === 0n) l.resetcol = true;
     return { name: b.name, lanes, counts, unused,
              per_bar_out:  d.per_bar  ?? (mach.tag === 'FR2L' ? 24 : counts),
              per_beat_out: d.per_beat ?? mach.per_beat,
@@ -225,6 +231,15 @@ function selfcheck(sets) {
   T('FR2L Waltz divides its bar by THREE (8-count beats)', sub('RB_FR2L', /^Waltz$/), [24, 8, 2]);
   T('FR2L Slow Rock is ONE 12/8 bar of 48 counts', sub('RB_FR2L', /^Slow Rock$/), [48, 12, 1]);
   T('FR2L Cha-Cha keeps the 4/4 default', sub('RB_FR2L', /^Cha-Cha$/), [24, 6, 2]);
+  // the databook's reset rule, checked in BOTH directions
+  const sgs = sets.find(s => s.mach.id === 'RB_SGS').rhythms;
+  T('SGS every rhythm shorter than 32 states flags OUT 8 as the reset column',
+    sgs.filter(r => r.counts < 32).map(r => !!r.lanes.find(l => l.label === 'OUT 8' && l.resetcol)),
+    sgs.filter(r => r.counts < 32).map(() => true));
+  T('SGS no 32-state rhythm flags a reset column',
+    sgs.filter(r => r.counts === 32).some(r => r.lanes.some(l => l.resetcol)), false);
+  T('SGS short-rhythm count is 7 (the datasheet claim has no exceptions)',
+    sgs.filter(r => r.counts < 32).length, 7);
   console.log(`\n${pass}/${total} known answers`);
   return pass === total;
 }
@@ -259,6 +274,11 @@ L.push('//  2. `unused` marks counts a rhythm SKIPS (the TR-77 hatches them on t
 L.push('//     never fall there; stepping over them is what gives that rhythm its meter.');
 L.push('//  3. RB_GATE lanes are HELD, not struck (a brush swish, a guiro). Firing a one-shot for a');
 L.push('//     gate lane is wrong. Lanes flagged RB_PARTIAL have a region the source left UNREAD.');
+L.push('//  4. A lane flagged RB_RESETCOL is NOT AN INSTRUMENT: on the SGS chip a rhythm shorter than');
+L.push('//     32 states is made by crossing its 8th instrument column, which then carries the reset');
+L.push('//     instead. The datasheet says so and the data agrees in all 7 cases (0 exceptions), so');
+L.push('//     every short SGS rhythm has SEVEN instruments, not eight. Skip these lanes when you');
+L.push('//     lay out voices, or you will wire a drum to a counter.');
 L.push('//');
 L.push('// LANE LABELS ARE PROVISIONAL on the FR-2L: its scan is ~75 dpi and the letterforms are');
 L.push('// interpolation, so lane ORDER is reliable and the letters are not. Assign voices by order');
@@ -269,7 +289,8 @@ L.push('#define RHYTHMBOX_H');
 L.push('');
 L.push('#define RB_HIT     0   // struck: fire a one-shot on each set bit');
 L.push('#define RB_GATE    1   // held: the set bits are the counts the sound is SOUNDING');
-L.push('#define RB_PARTIAL 1   // lane flag: part of this lane was UNREAD in the source');
+L.push('#define RB_PARTIAL  1   // lane flag: part of this lane was UNREAD in the source');
+L.push('#define RB_RESETCOL 2   // lane flag: NOT an instrument — this column carries the RESET');
 L.push('');
 L.push('typedef struct {');
 L.push('    const char        *label;   // as printed (provisional on the FR-2L, see above)');
@@ -297,7 +318,8 @@ for (const { mach, rhythms } of sets) {
   rhythms.forEach((r, i) => {
     L.push(`static const RbLane ${mach.id}_L${i}[] = {`);
     for (const l of r.lanes) {
-      L.push(`    { "${esc(l.label)}", "${esc(l.code)}", ${l.kind}, ${l.partial ? 'RB_PARTIAL' : 0}, ` +
+      const fl = [l.partial ? 'RB_PARTIAL' : null, l.resetcol ? 'RB_RESETCOL' : null].filter(Boolean).join('|') || '0';
+      L.push(`    { "${esc(l.label)}", "${esc(l.code)}", ${l.kind}, ${fl}, ` +
              `${hex(l.mask)}, ${hex(l.maybe || 0n)} },`);
     }
     L.push('};');

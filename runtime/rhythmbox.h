@@ -17,6 +17,11 @@
 //     never fall there; stepping over them is what gives that rhythm its meter.
 //  3. RB_GATE lanes are HELD, not struck (a brush swish, a guiro). Firing a one-shot for a
 //     gate lane is wrong. Lanes flagged RB_PARTIAL have a region the source left UNREAD.
+//  4. A lane flagged RB_RESETCOL is NOT AN INSTRUMENT: on the SGS chip a rhythm shorter than
+//     32 states is made by crossing its 8th instrument column, which then carries the reset
+//     instead. The datasheet says so and the data agrees in all 7 cases (0 exceptions), so
+//     every short SGS rhythm has SEVEN instruments, not eight. Skip these lanes when you
+//     lay out voices, or you will wire a drum to a counter.
 //
 // LANE LABELS ARE PROVISIONAL on the FR-2L: its scan is ~75 dpi and the letterforms are
 // interpolation, so lane ORDER is reliable and the letters are not. Assign voices by order
@@ -27,7 +32,8 @@
 
 #define RB_HIT     0   // struck: fire a one-shot on each set bit
 #define RB_GATE    1   // held: the set bits are the counts the sound is SOUNDING
-#define RB_PARTIAL 1   // lane flag: part of this lane was UNREAD in the source
+#define RB_PARTIAL  1   // lane flag: part of this lane was UNREAD in the source
+#define RB_RESETCOL 2   // lane flag: NOT an instrument — this column carries the RESET
 
 typedef struct {
     const char        *label;   // as printed (provisional on the FR-2L, see above)
@@ -317,7 +323,7 @@ static const RbLane RB_SGS_L0[] = {
     { "OUT 5", "", RB_HIT, 0, 0x0ULL, 0x0ULL },
     { "OUT 6", "", RB_HIT, 0, 0x1001ULL, 0x0ULL },
     { "OUT 7", "", RB_HIT, 0, 0x0ULL, 0x0ULL },
-    { "OUT 8", "", RB_HIT, 0, 0x0ULL, 0x0ULL },
+    { "OUT 8", "", RB_HIT, RB_RESETCOL, 0x0ULL, 0x0ULL },
 };
 static const RbLane RB_SGS_L1[] = {
     { "OUT 1", "", RB_HIT, 0, 0x1001ULL, 0x0ULL },
@@ -327,7 +333,7 @@ static const RbLane RB_SGS_L1[] = {
     { "OUT 5", "", RB_HIT, 0, 0x0ULL, 0x0ULL },
     { "OUT 6", "", RB_HIT, 0, 0x100100ULL, 0x0ULL },
     { "OUT 7", "", RB_HIT, 0, 0x800000ULL, 0x0ULL },
-    { "OUT 8", "", RB_HIT, 0, 0x0ULL, 0x0ULL },
+    { "OUT 8", "", RB_HIT, RB_RESETCOL, 0x0ULL, 0x0ULL },
 };
 static const RbLane RB_SGS_L2[] = {
     { "OUT 1", "", RB_HIT, 0, 0x51115111ULL, 0x0ULL },
@@ -377,7 +383,7 @@ static const RbLane RB_SGS_L6[] = {
     { "OUT 5", "", RB_HIT, 0, 0x0ULL, 0x0ULL },
     { "OUT 6", "", RB_HIT, 0, 0x0ULL, 0x0ULL },
     { "OUT 7", "", RB_HIT, 0, 0x55d555ULL, 0x0ULL },
-    { "OUT 8", "", RB_HIT, 0, 0x0ULL, 0x0ULL },
+    { "OUT 8", "", RB_HIT, RB_RESETCOL, 0x0ULL, 0x0ULL },
 };
 static const RbLane RB_SGS_L7[] = {
     { "OUT 1", "", RB_HIT, 0, 0x45054505ULL, 0x0ULL },
@@ -397,7 +403,7 @@ static const RbLane RB_SGS_L8[] = {
     { "OUT 5", "", RB_HIT, 0, 0x0ULL, 0x0ULL },
     { "OUT 6", "", RB_HIT, 0, 0x0ULL, 0x0ULL },
     { "OUT 7", "", RB_HIT, 0, 0x249249ULL, 0x0ULL },
-    { "OUT 8", "", RB_HIT, 0, 0x0ULL, 0x0ULL },
+    { "OUT 8", "", RB_HIT, RB_RESETCOL, 0x0ULL, 0x0ULL },
 };
 static const RbLane RB_SGS_L9[] = {
     { "OUT 1", "", RB_HIT, 0, 0x10411041ULL, 0x0ULL },
@@ -467,7 +473,7 @@ static const RbLane RB_SGS_L15[] = {
     { "OUT 5", "", RB_HIT, 0, 0x0ULL, 0x0ULL },
     { "OUT 6", "", RB_HIT, 0, 0x0ULL, 0x0ULL },
     { "OUT 7", "", RB_HIT, 0, 0x1001ULL, 0x0ULL },
-    { "OUT 8", "", RB_HIT, 0, 0x0ULL, 0x0ULL },
+    { "OUT 8", "", RB_HIT, RB_RESETCOL, 0x0ULL, 0x0ULL },
 };
 static const RbLane RB_SGS_L16[] = {
     { "OUT 1", "", RB_HIT, 0, 0x1010101ULL, 0x0ULL },
@@ -517,7 +523,7 @@ static const RbLane RB_SGS_L20[] = {
     { "OUT 5", "", RB_HIT, 0, 0x555555ULL, 0x0ULL },
     { "OUT 6", "", RB_HIT, 0, 0x41041ULL, 0x0ULL },
     { "OUT 7", "", RB_HIT, 0, 0x0ULL, 0x0ULL },
-    { "OUT 8", "", RB_HIT, 0, 0x0ULL, 0x0ULL },
+    { "OUT 8", "", RB_HIT, RB_RESETCOL, 0x0ULL, 0x0ULL },
 };
 static const RbLane RB_SGS_L21[] = {
     { "OUT 1", "", RB_HIT, 0, 0x1410141ULL, 0x0ULL },
@@ -607,7 +613,7 @@ static const RbLane RB_SGS_L29[] = {
     { "OUT 5", "", RB_HIT, 0, 0x0ULL, 0x0ULL },
     { "OUT 6", "", RB_HIT, 0, 0x269269ULL, 0x0ULL },
     { "OUT 7", "", RB_HIT, 0, 0x0ULL, 0x0ULL },
-    { "OUT 8", "", RB_HIT, 0, 0x0ULL, 0x0ULL },
+    { "OUT 8", "", RB_HIT, RB_RESETCOL, 0x0ULL, 0x0ULL },
 };
 static const RbRhythm RB_SGS[] = {
     { "TABLE 1 (M252 AA) — RHYTHM 1", "SGS", 24, 24, 8, 1, 8, 0x0ULL, RB_SGS_L0 },

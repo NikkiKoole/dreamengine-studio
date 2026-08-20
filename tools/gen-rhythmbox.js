@@ -25,6 +25,9 @@ const MACHINES = [
   // it would pad the library with duplicates.
   { id: 'RB_M253',   sect: '### 8.4', counts: 32, per_bar: 32, per_beat: 8, bars: 1,
     tag: 'M253',  family: 'sgs', human: 'SGS M253 rhythm LSI, factory mask AA (mask AC omitted: duplicate)' },
+  // A PATENT, not a service manual, and the only source here with chord/bass lanes.
+  { id: 'RB_HAM',    sect: '### 8.5', counts: 48, per_bar: 24, per_beat: 6, bars: 2,
+    tag: 'HAM',   human: 'Hammond organ rhythm system, US patent 3,567,838 FIG. 2' },
 ];
 
 // ── per-rhythm subdivision overrides ─────────────────────────────────────
@@ -44,6 +47,8 @@ const SUBDIV = {
   // columns of which one is hatched (3 surviving triplets)
   'RB_TR77/SLOW ROCK':  { per_bar: 16, per_beat: 4, bars: 1 },
   'RB_TR77/BALLAD':     { per_bar: 16, per_beat: 4, bars: 1 },
+  // doc §4d: the Hammond waltz's measure divides by THREE (8 pulses per beat), same as the FR-2L's
+  'RB_HAM/WALTZ':       { per_bar: 24, per_beat: 8, bars: 2 },
   // BOLERO is hatched too but the doc says its marks are NOT on a triplet grid (a 3:1 shuffled
   // sixteenth grid), so it deliberately gets no override: read its `unused` mask instead.
 };
@@ -71,7 +76,12 @@ function blocks(text) {
 //   E  skip      rulers ("count:", "cols"), prose continuations
 // a label may be two tokens ("L1  M", "OUT 1", "(row 2)"), but the second token must not be a
 // bare pattern character, or "CY  x  ?  x" would read as a label of "CY x" and lose a cell.
-const LABEL = String.raw`([A-Za-z(\[][A-Za-z0-9'+?()\[\]\-]*(?:\s+(?![x.\/?:]\s)(?:[0-9][0-9)]*|[A-Za-z][A-Za-z0-9'+?)\-]*))?)`;
+// A label may run to several words ("LOW BASS & BASS DRUM" on the Hammond chart), but no token
+// may be a bare pattern character, or "CY  x  ?  x" would read as a label of "CY x" and lose a cell.
+// ...and no token may be the words that introduce the CODE column, or "Cy code 25" would parse
+// as a four-word label and the code would vanish into it.
+const LTOK  = String.raw`(?:&|[0-9]+\)?|(?!(?:code|trig|states)\b)(?![x.\/?:]\s)[A-Za-z][A-Za-z0-9'+?)\-]*)`;
+const LABEL = String.raw`([A-Za-z(\[][A-Za-z0-9'+?()\[\]\-]*(?:\s+(?![x.\/?:]\s)${LTOK}){0,4})`;
 const CODE  = String.raw`(?:(?:code|trig)\s+([0-9][0-9'+ ]*(?:\([^)]*\))?[0-9'+K ]*|[0-9]+\?|\?)\s+)?`;
 const RE_A  = new RegExp('^\\s*' + LABEL + '\\s+' + CODE + '([x.\\/?:]{12,32})(?:\\s\\s+([x.\\/?:]{12,32}))?\\s*(.*)$');
 const RE_B  = new RegExp('^\\s*' + LABEL + '\\s+((?:[x.\\/?:]\\s+){7,}[x.\\/?:])\\s*$');
@@ -89,6 +99,21 @@ function bits(spec, marks) {
   }
   return { mask, maybe, unused, off, len: spec.length };
 }
+// what a lane drives, read off its printed label
+function laneRole(label) {
+  const u = label.toUpperCase();
+  let r = 0;
+  if (/\bCHORD\b/.test(u))     r |= 2;
+  if (/\bLOW BASS\b/.test(u))  r |= 4;
+  if (/\bHIGH BASS\b/.test(u)) r |= 8;
+  // a drum unless the label is ONLY chord/bass
+  const stripped = u.replace(/CHORD|LOW BASS|HIGH BASS|[&+ ]/g, '');
+  if (!r || stripped.length) r |= 1;
+  return r;
+}
+const ROLEC = r => ['RB_ROLE_DRUM','RB_ROLE_CHORD','RB_ROLE_BASSLO','RB_ROLE_BASSHI']
+  .filter((_, i) => r & (1 << i)).join('|') || 'RB_ROLE_DRUM';
+
 function parseBlock(b, mach) {
   const lanes = [];
   for (const raw of b.body.split('\n')) {
@@ -157,9 +182,9 @@ for (let i = 0; i < MACHINES.length; i++) {
     if (mach.family === 'sgs' && counts < 32)
       for (const l of lanes) if (l.label === 'OUT 8' && l.mask === 0n) l.resetcol = true;
     return { name: b.name, lanes, counts, unused,
-             per_bar_out:  d.per_bar  ?? (mach.tag === 'FR2L' ? 24 : counts),
+             per_bar_out:  d.per_bar  ?? mach.per_bar ?? counts,
              per_beat_out: d.per_beat ?? mach.per_beat,
-             bars_out:     d.bars     ?? (mach.tag === 'FR2L' ? 2 : 1) };
+             bars_out:     d.bars     ?? mach.bars ?? 1 };
   });
   sets.push({ mach, rhythms });
 }
@@ -259,6 +284,22 @@ function selfcheck(sets) {
   T('M253 mask AC is NOT in the library (it duplicates M252 AD, doc §4c)',
     m253 ? m253.rhythms.some(r => /AC/.test(r.name)) : true, false);
   T('M253 rhythms inherit the SGS edge rule', m253 ? m253.mach.family : '', 'sgs');
+  const ham = sets.find(s => s.mach.id === 'RB_HAM');
+  T('Hammond patent set is present with 3 rhythms', ham ? ham.rhythms.length : 0, 3);
+  // the alternating root-fifth bass, which is the whole reason this source was chased
+  const bass = (re, lab) => on(lane(find('RB_HAM', re), lab));
+  T('Hammond LATIN low bass on beat 1 only',  bass(/LATIN/, 'LOW BASS'),  [0, 24]);
+  T('Hammond LATIN high bass on beat 3 only', bass(/LATIN/, 'HIGH BASS'), [12, 36]);
+  T('Hammond ROCK low bass on beat 1 only',   bass(/ROCK/,  'LOW BASS'),  [0, 24]);
+  T('Hammond ROCK high bass on beat 3 only',  bass(/ROCK/,  'HIGH BASS'), [12, 36]);
+  T('a chord lane is tagged as a chord gate, not a drum',
+    (() => { const r = find('RB_HAM', /LATIN/); const l = lane(r, 'CHORD & SNARE DRUM');
+             return [!!(laneRole(l.label) & 2), !!(laneRole(l.label) & 1)]; })(), [true, true]);
+  T('a pure bass lane is NOT tagged as a drum',
+    !!(laneRole('LOW BASS') & 1), false);
+  T('Hammond rhythms are TWO measures of 24', sub('RB_HAM', /LATIN/), [24, 6, 2]);
+  T('Hammond waltz divides its measure by THREE', sub('RB_HAM', /WALTZ/), [24, 8, 2]);
+  T('TR77 keeps a one-bar structure', sub('RB_TR77', /^RHUMBA$/), [16, 4, 1]);
   console.log(`\n${pass}/${total} known answers`);
   return pass === total;
 }
@@ -319,6 +360,17 @@ L.push('#define RB_GATE    1   // held: the set bits are the counts the sound is
 L.push('#define RB_PARTIAL  1   // lane flag: part of this lane was UNREAD in the source');
 L.push('#define RB_RESETCOL 2   // lane flag: NOT an instrument — this column carries the RESET');
 L.push('');
+L.push('// LANE ROLES. Most lanes are drums, but the Hammond patent charts three lanes that GATE the');
+L.push('// notes the player is already holding: the chord the left hand plays, and the root and fifth');
+L.push('// bass derived from it by frequency division. A pattern on one of those lanes decides WHEN');
+L.push('// the held chord or bass note sounds, so a cart plays them with a pitched voice it already');
+L.push('// has and needs no note data at all. A label joining two names ("CHORD & SNARE DRUM") is ONE');
+L.push('// programmer lead driving both, so both flags are set.');
+L.push('#define RB_ROLE_DRUM   1');
+L.push('#define RB_ROLE_CHORD  2   // gate the held chord');
+L.push('#define RB_ROLE_BASSLO 4   // gate the low (root) bass');
+L.push('#define RB_ROLE_BASSHI 8   // gate the high (fifth) bass');
+L.push('');
 L.push('// rhythm flag. SGS only: the chip triggers on the RISING edge of a ROM bit, so two marks on');
 L.push('// consecutive states do NOT sound twice — the line goes high and STAYS high, and the second');
 L.push('// edge never happens (Elektor, April 1976, p420). 36 runs of adjacent marks exist in the SGS');
@@ -331,6 +383,7 @@ L.push('typedef struct {');
 L.push('    const char        *label;   // as printed (provisional on the FR-2L, see above)');
 L.push('    const char        *code;    // the machine\'s own pulse-train / trigger number, verbatim');
 L.push('    unsigned char      kind;    // RB_HIT or RB_GATE');
+L.push('    unsigned char      role;    // RB_ROLE_* bits: what this lane drives');
 L.push('    unsigned char      flags;   // RB_PARTIAL, or 0');
 L.push('    unsigned long long mask;    // bit i set = a mark on count i');
 L.push('    unsigned long long maybe;   // bit i set = the source read this cell as UNCERTAIN');
@@ -356,7 +409,7 @@ for (const { mach, rhythms } of sets) {
     L.push(`static const RbLane ${mach.id}_L${i}[] = {`);
     for (const l of r.lanes) {
       const fl = [l.partial ? 'RB_PARTIAL' : null, l.resetcol ? 'RB_RESETCOL' : null].filter(Boolean).join('|') || '0';
-      L.push(`    { "${esc(ascii(l.label))}", "${esc(ascii(l.code))}", ${l.kind}, ${fl}, ` +
+      L.push(`    { "${esc(ascii(l.label))}", "${esc(ascii(l.code))}", ${l.kind}, ${ROLEC(laneRole(l.label))}, ${fl}, ` +
              `${hex(l.mask)}, ${hex(l.maybe || 0n)} },`);
     }
     L.push('};');
@@ -364,9 +417,9 @@ for (const { mach, rhythms } of sets) {
   L.push(`static const RbRhythm ${mach.id}[] = {`);
   rhythms.forEach((r, i) => {
     const d = SUBDIV[`${mach.id}/${r.name}`] || {};
-    const perBar  = d.per_bar  ?? (mach.tag === 'FR2L' ? 24 : r.counts);
+    const perBar  = d.per_bar  ?? mach.per_bar ?? r.counts;
     const perBeat = d.per_beat ?? mach.per_beat;
-    const bars    = d.bars     ?? (mach.tag === 'FR2L' ? 2 : 1);
+    const bars    = d.bars     ?? mach.bars ?? 1;
     const rflags = mach.family === 'sgs' ? 'RB_EDGE_ONLY' : '0';
     L.push(`    { "${esc(shortName(r.name))}", "${esc(ascii(r.name))}", "${mach.tag}", ${r.counts}, ${perBar}, ${perBeat}, ${bars}, ` +
            `${r.lanes.length}, ${rflags}, ${hex(r.unused)}, ${mach.id}_L${i} },`);

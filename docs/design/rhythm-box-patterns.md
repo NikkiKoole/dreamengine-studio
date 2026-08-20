@@ -25,6 +25,7 @@ reason, not documented at all for the Elgam itself (§5).
 | Roland Rhythm **TR-77** | 1972 | diode matrix | 18 of 18 | *Roland Rhythm Instrument* service manual, 7th ed. Nov 1976, p15 Fig 9 (Jazz) + Fig 10 (Latin) |
 | **SGS M252** rhythm LSI | databook 1979 | mask ROM, two published factory masks | 15 + 15 | *1979 SGS MOS and Special COS/MOS*, 1st ed., pp123-125, Tables 1 and 2 |
 | **SGS M253** rhythm LSI | databook 1979 | mask ROM, sibling part | 12 new (+12 duplicates) | same databook, pp134-136, Tables 1 and 2 |
+| **Hammond** organ rhythm system | filed 1969, granted 1971 | motor commutator or coincidence type | 3, and they carry CHORD + BASS | US patent **3,567,838** (Tennes & Kern, Hammond Corp), FIG. 2 |
 
 - FR-2L: <https://archive.org/details/RhythmAceFR2LServiceManual>
 - TR-77: <https://archive.org/download/roland_Roland_TR-77_Service_Manual/Roland_TR-77_Service_Manual.pdf>
@@ -209,6 +210,101 @@ So an empty OUT 8 is evidence of nothing by itself, and anyone inferring a reset
 lane would misread those three as short. Also, the databook conveys a short reset by **shading**
 counts 25-32 across all eight columns rather than by printing a cross in the OUT 8 lane, so the
 datasheet's "crossed column" language describes the mask programming, not the printed table.
+
+### 4d. A patent that carries CHORD and BASS lanes, which no service manual here does
+
+Source: **US patent 3,567,838**, "Musical instrument rhythm system having provision for introducing
+automatically selected chord components", Charles J. Tennes and Donald R. Kern, assigned to
+**Hammond Corporation**, filed 1969-11-12, granted 1971-03-02. FIG. 2 is a pattern chart.
+<https://patents.google.com/patent/US3567838A/en>
+
+Patents turn out to be the best source class for this material, and this one answers a question the
+service manuals could not: what did the **accompaniment** play? Every machine in §1 is percussion
+only. This one charts nine lanes including **CHORD**, **HIGH BASS** and **LOW BASS**.
+
+**The mechanism, quoted rather than inferred.** The rhythm programmer "cycles on a two measure
+basis with a capability of 24 equally spaced pulses per measure", so "any output lead can receive
+any desired number of pulses and at any time according to a preset program covering 48 equally time
+spaced intervals before repeating". That is the FR-2L's structure exactly (24 per bar, 48 over two
+bars), reached independently by a different company in a different year, and the patent calls such
+systems "current and common", which is the closest thing to a statement that this was the industry
+norm rather than one machine's quirk.
+
+**What makes the chord and bass lanes usable.** They are not note sequences. The programmer has
+"three extra output pulse leads" which, instead of driving percussion circuits, drive the **chord
+gate**, the **high bass gate** and the **low bass gate**. So the pattern decides WHEN the chord the
+player is already holding is let through, and when each bass note sounds; the notes themselves come
+from the keyboard, with the bass derived by frequency division ("the root and fifth bass notes are
+obtained by frequency division"). A cart can implement that directly: a gate lane over whatever the
+player holds, which needs no chord data at all.
+
+**And the pattern says what the gating is for.** In both LATIN and ROCK, LOW BASS fires on beat 1
+and HIGH BASS on beat 3, and nowhere else. That is the alternating root-fifth bass of every organ
+accompaniment, in the data. The CHORD lane is drawn combined with the snare (`CHORD & SNARE DRUM`),
+i.e. one programmer lead drives both, so the chord stabs land on the snare's rhythm; in WALTZ the
+combined lane is `LOW BASS & BASS DRUM`, so the bass note and the kick share a lead.
+
+**The waltz confirms the per-rhythm re-division again.** Its 24-pulse measure divides by THREE
+(8 pulses per beat): bass and kick on beat 1, chord and snare on beats 2 and 3. The FR-2L waltz
+divides its own 24-count bar the same way, and neither reading was made with the other in view.
+
+Read at 300 dpi from the patent's own drawing sheet, rotated, with a 49-position grid (one column
+per pulse; the printed labels sit on every second one, which cost me a first pass that sampled only
+the labelled columns and silently halved every lane). Cell ink separated cleanly: 678 cells at or
+below 0.229 and 90 at or above 0.46, nothing between, and an overlay of the accepted cells was
+checked against the figure by eye.
+
+**CAVEAT, and it is the one the source itself invites.** Only three rhythms are charted, and the
+patent explicitly disclaims novelty in the programmer ("no novelty is claimed in any particular
+rhythm programmer"), so these three are best read as **representative content of a real Hammond
+programmer** rather than as the full dial of a specific model. The percussion roster it assumes is
+stated in the text: temple block, wood block, brush, snare drum, bass drum, cymbal.
+
+The data itself is in §8.5, with the other machines.
+
+Bar 2 differs from bar 1 on exactly two lanes, both in LATIN: TEMPLE BLOCK drops its downbeat and
+WOOD BLOCK plays a different figure entirely. Every other lane repeats at +24. So this machine, like
+the FR-2L, spends its two-measure span on a small deliberate asymmetry rather than on a wholly
+different second bar.
+
+### 4e. The chord and bass content is IN the rhythm ROM, one column-group over
+
+This reframes §4d rather than adding to it, and it is the most useful thing found in this pass.
+
+The SGS accompaniment chip **M251** ("arpeggio chord and bass accompaniment generator", databook
+printed pp113-120) prints **four truth tables**: an arpeggio table addressed by a 4-bit code with
+three simultaneous outputs, and bass and chord tables in both automatic and semiautomatic modes.
+But those tables hold no music. They are a DECODER: given a code, which degree sounds. The
+vocabulary is degrees plus an octave multiplier (2nd, octave, 9th, 6th-or-7th, 5th, 3rd, TONIC,
+each with a divider), and the chip is not told the key: in automatic mode it takes the **lowest key
+held** as tonic and derives the rest internally, with major/minor and 6th-versus-7th as front-panel
+switches. It is also a clock slave, "normally used in conjunction with an external self-scanning ROM
+(such as the M 252 - 3 or 4)".
+
+**So where is the accompaniment PATTERN? In the rhythm chip's own table.** The **M254 B1AD** pinout
+(printed p145) labels eight of that chip's twelve outputs as `I2..I8` plus `TRIGGER CHORDS` feeding
+the M251, and only four as drums. Which means the M254 table (printed pp150-151, 32 elementary times
+by 8 named rhythms: Waltz, Tango, Swing, Beat, Bossa Nova, Samba, Rumba, Slow Rock) is a **published
+chord, bass and arpeggio content table**, not a drum table. A method check transcribed its WALTZ end
+to end and it decoded into an oom-pah-pah: root bass, two chord stabs, octave bass, two more stabs,
+under an independent 12-step arpeggio. That fell out of the crosses rather than out of anyone's
+expectations, which is the check that matters.
+
+Two more of these tables carry accompaniment: **M255 B1-AB** (OUT 4 = FIFTH, OUT 5 = CHORD TRIGGER)
+and the **M108** single-chip organ's own 3-bit bass table, whose degree vocabulary includes a
+**fourth** that the M251 lacks.
+
+The practical consequence for this project: there is no separate chord-pattern book to find. The
+accompaniment data sits in the same tables as the drums, distinguished only by which pin a column
+group drives, and reading it needs the PINOUT page as well as the truth table.
+
+**Patents, for comparison, mostly do not carry this.** Eight were opened; their figures are block
+diagrams, schematics and timing waveforms. Two exceptions worth pulling: **US4292874** names sixteen
+bass rhythm patterns (Bossa Nova, Tango, Swing, Teen Beat, Shuffle, Waltz, Pop Rock, March, Soul
+Rock, Rhumba Beguine, Fox Trot, Polka March, Bolero, Samba) and prints per-sixteenth trigger flags
+in its TABLE 1, and **US3708604A** (Jasper Electronics, 1973) charts "the periods during which pedal
+tones and chords sound" as lanes over time, the same figure kind as §4d. A third, US4520707A, prints
+its microprocessor program as raw hex with no key: the content is there and unreadable.
 
 ## 5. Elgam: the patterns cannot be sourced, and the reason is the interesting part
 
@@ -1114,6 +1210,40 @@ OUT 7    ....x.x.....x.x.....x.x.....x.x.
 OUT 8    x.x.x.x.x.x.x.x.x.x.x.x.x.x.x.x.
 ```
 
+### 8.5 Hammond organ rhythm system (US patent 3,567,838, FIG. 2), 3 rhythms
+48 pulses = TWO measures of 24. Rows are 24 characters for measure 1, two spaces, 24 for measure 2.
+`CHORD`, `HIGH BASS` and `LOW BASS` are **gate lanes over the notes the player is holding**, not
+drums and not note sequences (§4d). A lane whose label joins two names is ONE programmer lead
+driving both. Only three rhythms are charted and the patent disclaims novelty in the programmer,
+so read these as representative content rather than a model's full dial.
+
+**LATIN**
+```
+TEMPLE BLOCK           x.....x..x........x..x..  ......x..x........x..x..
+WOOD BLOCK             x........x........x.....  ......x.....x...........
+BRUSH                  x..x........x..x........  x..x........x..x........
+CHORD & SNARE DRUM     ....x.x..x.....x..x..x..  ....x.x..x.....x..x..x..
+BASS DRUM              x...........x.....x.....  x...........x.....x.....
+HIGH BASS              ............x...........  ............x...........
+LOW BASS               x.......................  x.......................
+```
+**ROCK**
+```
+CYMBAL                 x..x..x..x..x..x..x..x..  x..x..x..x..x..x..x..x..
+BRUSH                  ......x...........x.....  ......x...........x.....
+CHORD & SNARE DRUM     ......x...........x..x..  ......x...........x..x..
+BASS DRUM              x........x..x...........  x........x..x...........
+HIGH BASS              ............x...........  ............x...........
+LOW BASS               x.......................  x.......................
+```
+**WALTZ**
+```
+CYMBAL                 ......x.x...............  ......x.x...............
+CHORD & SNARE DRUM     ........x.......x.......  ........x.......x.......
+LOW BASS & BASS DRUM   x.......................  x.......................
+```
+
+
 ## 9. Open items
 
 - ~~A cart.~~ **DONE (2026-08-20):** `autorhythm` (tools/carts/autorhythm.c). A dial of machines, a
@@ -1146,5 +1276,12 @@ OUT 8    x.x.x.x.x.x.x.x.x.x.x.x.x.x.x.x.
   Internet Archive rather than Elektor's paywalled archive, and §4b records what they say. Between
   §4a and §4b the note's cited content is effectively recovered; the note itself remains
   un-digitised.
+- **The M254's accompaniment content** (§4e) is the best remaining target in the whole project: a
+  published chord/bass/arpeggio table for eight named rhythms, in a databook already on disk.
+  Reading it needs the pinout page (printed p145) beside the truth table (pp150-151), because which
+  column group is music and which is drums is decided by the pinout.
+- **M255** (6 rhythms, 16 states, OUT 4 = FIFTH, OUT 5 = CHORD TRIGGER) and **M258/M259** (16
+  rhythms) are also unread, as is the **M108** organ chip's bass table with its extra FOURTH.
+- **US4292874** and **US3708604A** are the two patents worth pulling for accompaniment (§4e).
 - **Elgam's own masks** would need a ROM dump off a surviving `M252 D1 AE`/`AF`, or transcription
   from recordings.

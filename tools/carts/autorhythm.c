@@ -33,6 +33,7 @@ static const Machine MACH[] = {
     { "ROLAND TR-77",   "1972  diode matrix",      RB_TR77, RB_TR77_N },
     { "SGS M252",       "1970s  mask ROM",         RB_SGS,  RB_SGS_N  },
     { "SGS M253",       "1970s  mask ROM",         RB_M253, RB_M253_N },
+    { "HAMMOND patent",  "1969  US 3,567,838",     RB_HAM,  RB_HAM_N  },
 };
 #define NMACH ((int)(sizeof MACH / sizeof MACH[0]))
 
@@ -89,6 +90,16 @@ static int voice_hint(const char *lab, int lane) {
 }
 
 #define MAXC 48
+
+// ── the accompaniment half ───────────────────────────────────────────────
+// The Hammond patent (doc §4d) charts CHORD, HIGH BASS and LOW BASS as GATE lanes: the pattern
+// decides WHEN the chord the player is holding sounds, and the bass root and fifth are derived
+// from it "by frequency division". So the cart holds a chord and the lanes gate it. That is the
+// mechanism, not a substitute for it: no note data is needed or invented.
+#define SL_ORGAN 12
+#define SL_BASS  13
+static int  root  = 45;        // A2, transposable
+static bool minor = true;
 
 static int   mach = 0, rhy = 0;
 static bool  running = false, keyheld = false;
@@ -148,6 +159,10 @@ static void audition(int lane) {
 
 void init(void) {
     sideman_build(SIDEMAN_BASE);
+    instrument(SL_ORGAN, INSTR_SQUARE, 4, 40, 5, 90);    // a thin drawbar-ish chord
+    instrument(SL_BASS,  INSTR_TRI,    2, 60, 4, 120);   // the divided bass
+    instrument_level(SL_ORGAN, 3);   // three notes at once, so keep each one modest
+    instrument_level(SL_BASS,  4);   // measured: 4 keeps the mix near -6 dBFS peak
     reverb(0.45f, 0.6f);
     load_rhythm();
 }
@@ -169,6 +184,9 @@ void update(void) {
     if (keyp(KEY_DOWN)) { clock_hz -= 0.5f; if (clock_hz <  1.0f) clock_hz =  1.0f; }
     if (keyp('V')) vrot = (vrot + 1) % SM_NV;
     if (keyp('M')) metro = !metro;
+    if (keyp('Z')) { root -= 1; if (root < 33) root = 33; }
+    if (keyp('X')) { root += 1; if (root > 57) root = 57; }
+    if (keyp('N')) minor = !minor;
     for (int i = 0; i < 8; i++) if (keyp('1' + i)) audition(i);
 
     if (!(running || keyheld)) return;
@@ -186,14 +204,22 @@ void update(void) {
             if (r->lane[l].flags & RB_RESETCOL) continue;
             if (is_metro(r->lane[l].label) && !metro) continue;
             if (!fires(r, l, c)) continue;
-            sideman_fire(SIDEMAN_BASE, lane_voice(l), 0, 0);
+            int ro = r->lane[l].role;
+            if (ro & RB_ROLE_CHORD) {                       // gate the held chord
+                hit(root + 12,                    SL_ORGAN, 3, 150);
+                hit(root + 12 + (minor ? 3 : 4),  SL_ORGAN, 3, 150);
+                hit(root + 12 + 7,                SL_ORGAN, 3, 150);
+            }
+            if (ro & RB_ROLE_BASSLO) hit(root,     SL_BASS, 5, 170);   // the root
+            if (ro & RB_ROLE_BASSHI) hit(root + 7, SL_BASS, 5, 170);   // the fifth, divided
+            if (ro & RB_ROLE_DRUM)   sideman_fire(SIDEMAN_BASE, lane_voice(l), 0, 0);
             flash[l] = 5; lastfire[l] = 5;
         }
     }
 }
 
 // ── drawing ──────────────────────────────────────────────────────────────
-#define GX 58
+#define GX 76   // wide enough for a 7-char printed label AND a 6-char voice name before it
 #define GY 62
 #define CW 5
 #define RH 11
@@ -207,16 +233,25 @@ static void draw_grid(void) {
         int y = GY + l * RH;
         bool resetcol = (r->lane[l].flags & RB_RESETCOL) != 0;
 
-        // the printed label DIM (provisional, see de:meta) then the voice BRIGHT
-        print(r->lane[l].label, 2, y + 2, CLR_DARKER_GREY);
+        // the printed label DIM (provisional, see de:meta) then the voice BRIGHT. The label is
+        // TRUNCATED to the 6 characters the column holds: the Hammond chart's labels run to 20
+        // ("CHORD & SNARE DRUM") and used to overprint the voice name.
+        char lb[8];
+        for (int i = 0; i < 7; i++) { char c = r->lane[l].label[i]; lb[i] = c ? c : 0; if (!c) break; }
+        lb[7] = 0;
+        print(lb, 2, y + 2, CLR_DARKER_GREY);
         bool met = is_metro(r->lane[l].label);
         if (resetcol) {
-            print("rst", 30, y + 2, CLR_DARK_GREY);
+            print("rst", 40, y + 2, CLR_DARK_GREY);
+        } else if (r->lane[l].role & (RB_ROLE_CHORD | RB_ROLE_BASSLO | RB_ROLE_BASSHI)) {
+            int ro = r->lane[l].role;
+            const char *w = (ro & RB_ROLE_CHORD) ? "CHORD" : (ro & RB_ROLE_BASSLO) ? "BASSlo" : "BASShi";
+            print(w, 40, y + 2, flash[l] ? CLR_WHITE : CLR_LIME_GREEN);
         } else if (met) {
-            print(metro ? "click" : "off", 30, y + 2, metro ? CLR_PEACH : CLR_DARKER_GREY);
+            print(metro ? "click" : "off", 40, y + 2, metro ? CLR_PEACH : CLR_DARKER_GREY);
         } else {
             int v = lane_voice(l);
-            print(SIDEMAN_SHORT[v], 30, y + 2, flash[l] ? CLR_WHITE : CLR_MEDIUM_GREY);
+            print(SIDEMAN_SHORT[v], 40, y + 2, flash[l] ? CLR_WHITE : CLR_MEDIUM_GREY);
         }
 
         for (int c = 0; c < r->counts; c++) {
@@ -265,10 +300,21 @@ static void draw_panel(void) {
         print(buf, 150, 44, CLR_ORANGE);
     }
     if (r->flags & RB_EDGE_ONLY) print("edge-trig", 150, 34, CLR_DARK_GREY);
+    {   // the chord the accompaniment lanes gate, when this machine has any
+        bool acc = false;
+        for (int l = 0; l < r->nlanes; l++)
+            if (r->lane[l].role & (RB_ROLE_CHORD | RB_ROLE_BASSLO | RB_ROLE_BASSHI)) acc = true;
+        if (acc) {
+            static const char *NOTE[12] = {"C","C#","D","D#","E","F","F#","G","G#","A","A#","B"};
+            char b2[48];
+            snprintf(b2, sizeof b2, "gating %s%s", NOTE[root % 12], minor ? "m" : "");
+            print(b2, 150, 24, CLR_LIME_GREEN);
+        }
+    }
 
     int y = 172;
     print((running || keyheld) ? "RUN" : "STOP", 2, y, (running || keyheld) ? CLR_RED : CLR_DARK_GREY);
-    print("space=run K=key []=mach <>=rhythm ^v=clock V=voice M=metro", 26, y, CLR_DARKER_GREY);
+    print("space=run K=key []=mach <>=rhy ^v=clk V=voice M=metro ZX=key", 26, y, CLR_DARKER_GREY);
     print("patterns from the service manuals; voicing is this cart's guess", 2, y + 10,
           CLR_DARKER_GREY);
 }

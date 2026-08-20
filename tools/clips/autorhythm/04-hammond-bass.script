@@ -1,0 +1,9 @@
+# autorhythm: the Hammond patent's LATIN, which is the only rhythm here with CHORD and BASS lanes.
+# Four presses of ] reach the HAMMOND machine (FR-2L -> TR-77 -> M252 -> M253 -> HAMMOND), then run.
+# What to listen for: LOW BASS on beat 1 and HIGH BASS on beat 3, the alternating root-fifth bass,
+# with the chord gated on the snare's rhythm. All three are gate lanes over a held Am.
+tap 15 ]
+tap 25 ]
+tap 35 ]
+tap 45 ]
+tap 60 SPACE

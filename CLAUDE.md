@@ -267,7 +267,9 @@ runtime/   studio.h (public API: constants + declarations), studio.c (Raylib imp
                          rhythmbox.h for period hardware and this for a big modern vocabulary. Provenance is
                          UNEVEN and the header says so: converted from the maker's own drum-patterns.lua,
                          which cites "Drum Machine - 260 Patterns" for its core set and nothing for the later
-                         groups. --import re-parses that Lua file; --selfcheck round-trips every row
+                         groups. --import re-parses that Lua file; --selfcheck round-trips every row.
+                         READER: the groovebook cart (92 groups, any LETTER jumps to the first group
+                         starting with it, plays while you scrub, thumbnails of a whole group at once)
              rhythmbox.h GENERATED (tools/gen-rhythmbox.js) from design/rhythm-box-patterns.md: 101 PRESET
                          RHYTHMS read off three manufacturers' OWN documents, the sourced answer to what an
                          organ-era rhythm box actually plays. RB_FR2L[16] (Ace Tone Rhythm Ace FR-2L, c.1969,

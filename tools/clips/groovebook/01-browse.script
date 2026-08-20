@@ -1,0 +1,10 @@
+# groovebook: the point of the cart is moving FAST through 92 groups without stopping the music.
+# This walks a few groups, jumps by letter to F (Funk), scrubs patterns inside it, then jumps to R.
+tap 20 DOWN
+tap 40 DOWN
+tap 60 F
+tap 90 RIGHT
+tap 110 RIGHT
+tap 130 RIGHT
+tap 160 D
+tap 200 RIGHT

@@ -3245,6 +3245,21 @@
     "lineage": "The consequence-side mirror of procplaces: procplaces paints R/C/I top-down from noise; gridcity DERIVES the data layers bottom-up from placed zones + feedback, the way SimCity 2000 runs its map. One smooth() diffusion primitive (pollution/density/water-value) plus one spread() distance-falloff primitive (service coverage), wired by cross-layer formulas into the crime↔land-value slum spiral. v1 carries a spec() proving the loop and the police-coverage reversal."
   },
   {
+    "title": "groove book",
+    "description": "565 drum patterns in 92 groups, browsable at speed: jump by letter, scrub groups and patterns while it keeps playing. A library is only worth having if you can find things in it, so this is a browser first and an instrument second. The group list is the primary axis (92 of them) and it never stops playing while you move: change group or pattern and the new one takes over on the next bar boundary, so you can scrub through dozens of grooves without breaking time. Press any LETTER to jump to the first group starting with it, which turns 92 groups into two keystrokes. Only the roles a pattern actually uses are drawn, so a four-lane groove looks like four lanes instead of nine empty rows. Two lanes are not drums and are drawn differently: ACCENT is a velocity lane (it scales the hit it lands on, it is not a thirteenth voice) and the 80 FLAM marks in the library are hits that want a doubled stroke. Voices come from the shared drumkit.h ELECTRO kit; the library's 12 voice roles are mapped onto its 8 with pitch offsets rather than by dropping lanes, and the mapping is on screen. Provenance is uneven and the cart says so: the core groups come from a cited pattern book, the later ones (EDM, dubstep, boombap) carry no citation. SPACE play/stop. UP/DOWN group, LEFT/RIGHT pattern, [ and ] jump ten groups. Any LETTER jumps to the first group starting with it. R random pattern. F cycles the kit (electro/acoustic). +/- tempo. TAB shows every role including the empty ones.",
+    "file": "groovebook.cart.png",
+    "created": "2026-08-20",
+    "kind": [
+      "instrument",
+      "tool"
+    ],
+    "teaches": [
+      "step-sequencer",
+      "drum-synthesis"
+    ],
+    "lineage": "The reader for runtime/drumpat.h, the maker's own 565-pattern library (converted from his love2d drum-patterns.lua). Where autorhythm plays 101 rhythms read off manufacturer service manuals on their own clocks, this one is the modern side: 16 steps of sixteenths, a big vocabulary, and a browser built for moving through it fast."
+  },
+  {
     "title": "groovebox",
     "description": "A tiny melodic / progressive-house box that plays itself so both your hands are free to ride the SUMMED-BUS effects - the half a pedalboard can't show (a chain runs ONE guitar; this sums six looping voices into one master, then sculpts the whole mix). A 6-row x 16-step grid (kick/clap/hats/bass/ARP) sweeps off the beat() clock; a lush sustained PAD on a slow minor progression breathes under a cascading arp lead. The headline is PUMP - a REAL summed-bus sidechain: the kick ducks the WHOLE mix every beat (the pad inhales and exhales; watch the PUMP meter). GLUE is the same engine compressor with no trigger - the mix squashed as one lump (PUMP and GLUE share the master comp, so raising one releases the other). The rest of the rack: CRUSH (summed bitcrush), a 3-band EQ (LO/MID/HI), TAPE, SPACE (reverb as a real master INSERT), a bipolar FILTER (the DJ filter - center open, ride it down to a muffle / up to thin, resonance rising as it closes), and an ORDER toggle that moves reverb before/after the crush - CRUSH>VERB is clean space on a gritty mix, VERB>CRUSH crushes the wet tail (grainy/vaporwave). TAP/DRAG cells to edit, WASD+Z cursor, arrows = tempo.",
     "file": "groovebox.cart.png",

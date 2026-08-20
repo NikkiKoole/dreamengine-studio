@@ -15,6 +15,31 @@ _Last updated: 2026-08-19 — **Tiny Pedalboard shipped to the App Store and is 
 
 ## Shipped ✓
 
+- **64 PRESET RHYTHMS, SOURCED OFF THE MANUFACTURERS' OWN DOCUMENTS** (2026-08-20). Every latin
+  pattern in this repo was a plausible reconstruction, `sideman`'s twelve rhythms included. This is
+  the real thing, traceable to a page and a figure:
+  [`design/rhythm-box-patterns.md`](design/rhythm-box-patterns.md) holds all 16 rhythms of the Ace
+  Tone Rhythm Ace FR-2L (c.1969, discrete logic, the units Ace Tone sold Hammond to build INTO
+  organs), all 18 of the Roland TR-77 (1972, diode matrix) and 30 from the SGS M252 rhythm LSI (both
+  published factory masks, the chip that put AUTO RHYTHM inside cheap Italian organs), with the
+  evidence trail kept verbatim in
+  [`design/rhythm-box-transcription-log.md`](design/rhythm-box-transcription-log.md). The findings
+  matter more than the data: ONE fixed clock **re-divided per rhythm** (the FR-2L's waltz splits the
+  same 24-count bar by three, its slow rock reads all 48 counts as one 12/8 bar), **accent by
+  LAYERING** two lanes of one voice because the machines have no velocity, two cheap ways to buy a
+  two-bar feel (a shared fill pulse late in bar 2, shared by three rhythms; or ONE asymmetric cell,
+  which is the whole of samba's two-bar identity), swing placement stated **explicitly and not
+  uniformly** (+4 of 6 in the shuffle, +2 in the western), GATE lanes as well as trigger lanes, and a
+  rhythm as an assignment of **35 shared pulse trains** rather than N independent grids. None of that
+  is expressible on the 16-step grid every drum cart here uses. Validation nobody designed in: four
+  NAMED CLAVES fell out of raw dot positions across two machines and four independent readers, and
+  both machines' waltz reads the same musically despite different clock structures. ELGAM, the
+  machine the enquiry started from, is answered but **not sourceable**: its patterns live in custom
+  SGS mask ROMs that were never published, established from chip designators on Elgam's own
+  schematic rather than from a failed search, so presenting the factory tables as Elgam's would be a
+  fabrication (§5 states the boundary). Open: a cart, a generated shelf header, and labelling
+  `sideman`'s rhythms as reconstructions.
+
 - **THE FIRST DRUM MACHINE EVER SOLD, AND THE FIRST CART WHOSE SEQUENCER IS A MECHANISM**
   (2026-08-19). The `sideman` cart plus `runtime/sideman.h`, the Wurlitzer Side Man (1959): ten
   vacuum-tube percussion circuits, the oldest drum sound in this studio by two decades. FOUR of its

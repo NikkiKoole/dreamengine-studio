@@ -256,12 +256,14 @@ runtime/   studio.h (public API: constants + declarations), studio.c (Raylib imp
                          Deliberately does NOT own the
                          BOX: the real unit had no speaker, it fed the organ's amp and cabinet, so that stage is the
                          cart's, via outboard.h. sideman cart; design/sideman.md
-             rhythmbox.h GENERATED (tools/gen-rhythmbox.js) from design/rhythm-box-patterns.md: 64 PRESET
+             rhythmbox.h GENERATED (tools/gen-rhythmbox.js) from design/rhythm-box-patterns.md: 76 PRESET
                          RHYTHMS read off three manufacturers' OWN documents, the sourced answer to what an
                          organ-era rhythm box actually plays. RB_FR2L[16] (Ace Tone Rhythm Ace FR-2L, c.1969,
                          the units Ace Tone sold Hammond to build INTO organs) · RB_TR77[18] (Roland TR-77,
                          1972) · RB_SGS[30] (SGS M252 LSI, both published factory masks, the chip that put
-                         AUTO RHYTHM inside cheap Italian organs). A lane is a 48-bit MASK over counts, so the
+                         AUTO RHYTHM inside cheap Italian organs) · RB_M253[12] (the sibling chip's mask AA; its OTHER
+                         mask is byte-identical to an M252 one and is deliberately NOT included, so the library
+                         holds no duplicates). A lane is a 48-bit MASK over counts, so the
                          whole library is a few KB; read it with rb_trigger (NOT rb_hit: on the SGS the chip
                          fires on a ROM bit's RISING edge, so adjacent marks do not sound twice and 66 of its
                          955 marks are already sounding) / rb_used / rb_beat_of. THREE things a

@@ -20,7 +20,11 @@ const MACHINES = [
   { id: 'RB_TR77',   sect: '### 8.2', counts: 16, per_bar: 16, per_beat: 4, bars: 1,
     tag: 'TR77',  human: 'Roland Rhythm TR-77 (1972), 16 ruled columns of a 32-state bar' },
   { id: 'RB_SGS',    sect: '### 8.3', counts: 32, per_bar: 32, per_beat: 8, bars: 1,
-    tag: 'SGS',   human: 'SGS M252 rhythm LSI, factory masks AA and AD' },
+    tag: 'SGS',   family: 'sgs', human: 'SGS M252 rhythm LSI, factory masks AA and AD' },
+  // M253 mask AA only: mask AC is byte-identical to M252 AD's first twelve (doc §4c), so including
+  // it would pad the library with duplicates.
+  { id: 'RB_M253',   sect: '### 8.4', counts: 32, per_bar: 32, per_beat: 8, bars: 1,
+    tag: 'M253',  family: 'sgs', human: 'SGS M253 rhythm LSI, factory mask AA (mask AC omitted: duplicate)' },
 ];
 
 // ── per-rhythm subdivision overrides ─────────────────────────────────────
@@ -150,7 +154,7 @@ for (let i = 0; i < MACHINES.length; i++) {
     // carries the reset (databook: "the column which now represents the reset output, rather than
     // the 8th instrument"). So that lane is a counter, not a drum. Verified: 7 of 7 short rhythms
     // have an empty OUT 8, and no rhythm marks it.
-    if (mach.tag === 'SGS' && counts < 32)
+    if (mach.family === 'sgs' && counts < 32)
       for (const l of lanes) if (l.label === 'OUT 8' && l.mask === 0n) l.resetcol = true;
     return { name: b.name, lanes, counts, unused,
              per_bar_out:  d.per_bar  ?? (mach.tag === 'FR2L' ? 24 : counts),
@@ -250,6 +254,11 @@ function selfcheck(sets) {
     runs(sets.find(s => s.mach.id === 'RB_SGS')) > 20, true);
   T('FR2L has almost none, so flagging it edge-only would be wrong',
     runs(sets.find(s => s.mach.id === 'RB_FR2L')) < 6, true);
+  const m253 = sets.find(s => s.mach.id === 'RB_M253');
+  T('M253 mask AA is present with 12 rhythms', m253 ? m253.rhythms.length : 0, 12);
+  T('M253 mask AC is NOT in the library (it duplicates M252 AD, doc §4c)',
+    m253 ? m253.rhythms.some(r => /AC/.test(r.name)) : true, false);
+  T('M253 rhythms inherit the SGS edge rule', m253 ? m253.mach.family : '', 'sgs');
   console.log(`\n${pass}/${total} known answers`);
   return pass === total;
 }
@@ -349,7 +358,7 @@ for (const { mach, rhythms } of sets) {
     const perBar  = d.per_bar  ?? (mach.tag === 'FR2L' ? 24 : r.counts);
     const perBeat = d.per_beat ?? mach.per_beat;
     const bars    = d.bars     ?? (mach.tag === 'FR2L' ? 2 : 1);
-    const rflags = mach.tag === 'SGS' ? 'RB_EDGE_ONLY' : '0';
+    const rflags = mach.family === 'sgs' ? 'RB_EDGE_ONLY' : '0';
     L.push(`    { "${esc(r.name)}", "${mach.tag}", ${r.counts}, ${perBar}, ${perBeat}, ${bars}, ` +
            `${r.lanes.length}, ${rflags}, ${hex(r.unused)}, ${mach.id}_L${i} },`);
   });

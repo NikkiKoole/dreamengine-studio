@@ -15,13 +15,14 @@ _Last updated: 2026-08-19 — **Tiny Pedalboard shipped to the App Store and is 
 
 ## Shipped ✓
 
-- **64 PRESET RHYTHMS, SOURCED OFF THE MANUFACTURERS' OWN DOCUMENTS** (2026-08-20). Every latin
+- **76 PRESET RHYTHMS, SOURCED OFF THE MANUFACTURERS' OWN DOCUMENTS** (2026-08-20). Every latin
   pattern in this repo was a plausible reconstruction, `sideman`'s twelve rhythms included. This is
   the real thing, traceable to a page and a figure:
   [`design/rhythm-box-patterns.md`](design/rhythm-box-patterns.md) holds all 16 rhythms of the Ace
   Tone Rhythm Ace FR-2L (c.1969, discrete logic, the units Ace Tone sold Hammond to build INTO
   organs), all 18 of the Roland TR-77 (1972, diode matrix) and 30 from the SGS M252 rhythm LSI (both
-  published factory masks, the chip that put AUTO RHYTHM inside cheap Italian organs), with the
+  published factory masks, the chip that put AUTO RHYTHM inside cheap Italian organs, plus 12 from
+  its sibling M253 whose second mask proved a byte-for-byte duplicate and was excluded), with the
   evidence trail kept verbatim in
   [`design/rhythm-box-transcription-log.md`](design/rhythm-box-transcription-log.md). The findings
   matter more than the data: ONE fixed clock **re-divided per rhythm** (the FR-2L's waltz splits the

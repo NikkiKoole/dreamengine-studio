@@ -1,4 +1,4 @@
-# Rhythm boxes: 64 preset patterns, read off the manufacturers' own documents
+# Rhythm boxes: 76 preset patterns, read off the manufacturers' own documents
 
 > **STATUS: LIVING (2026-08-20)** ‑ sourced pattern data for three generations of preset rhythm
 > hardware (1969 discrete logic, 1972 diode matrix, 1970s mask ROM). Every mark was read off a
@@ -7,7 +7,7 @@
 
 The organ-era rhythm box is the machine this studio keeps approximating and had never actually
 looked at. `sideman`'s twelve rhythms are **plausible reconstructions**, not sourced data, and so is
-every latin pattern anywhere else in the repo. This file is the real thing: 64 rhythms, each
+every latin pattern anywhere else in the repo. This file is the real thing: 76 rhythms, each
 traceable to a page and a figure.
 
 It exists because a research question ("what hardware is Domenique Dumont using?") landed on a
@@ -17,13 +17,14 @@ reason, not documented at all for the Elgam itself (§5).
 
 ---
 
-## 1. The three machines
+## 1. The machines
 
 | Machine | Year | How the patterns are stored | Rhythms | Document |
 |---|---|---|---|---|
 | Ace Tone Rhythm Ace **FR-2L** | c.1969 | discrete logic, 35 shared pulse trains | 16 of 16 | *Rhythm Ace model FR-2L Service Note*, p14 Fig 10 (patterns), p13 Fig 9 (the pulse trains) |
 | Roland Rhythm **TR-77** | 1972 | diode matrix | 18 of 18 | *Roland Rhythm Instrument* service manual, 7th ed. Nov 1976, p15 Fig 9 (Jazz) + Fig 10 (Latin) |
 | **SGS M252** rhythm LSI | databook 1979 | mask ROM, two published factory masks | 15 + 15 | *1979 SGS MOS and Special COS/MOS*, 1st ed., pp123-125, Tables 1 and 2 |
+| **SGS M253** rhythm LSI | databook 1979 | mask ROM, sibling part | 12 new (+12 duplicates) | same databook, pp134-136, Tables 1 and 2 |
 
 - FR-2L: <https://archive.org/details/RhythmAceFR2LServiceManual>
 - TR-77: <https://archive.org/download/roland_Roland_TR-77_Service_Manual/Roland_TR-77_Service_Manual.pdf>
@@ -31,7 +32,7 @@ reason, not documented at all for the Elgam itself (§5).
 - Elgam Carousel schematic (rhythm list + the chip designators, §5):
   <https://www.smemmusic.ch/sites/default/files/2026-05/elgam_carousel_sch.pdf>
 
-Why these three are the right three: Ace Tone **sold its rhythm units to Hammond to build into
+Why these are the right sources: Ace Tone **sold its rhythm units to Hammond to build into
 organs**, the TR-77 is its direct successor (and the CR-78's predecessor, whose patterns this repo
 already has from a pattern book), and the SGS M252 is **the chip that put auto-rhythm inside cheap
 Italian organs**, which is the class of machine the whole enquiry started from.
@@ -169,6 +170,39 @@ Four facts from it change how this data must be played:
 The voice side is documented too, which closes the last gap TN131 left: figure 24 gives "the circuit
 of the noise generators, preamplifier and power supply of a complete percussion unit", and the
 article also covers interfacing the chip to Elektor's own *Minidrum* (Elektor nos. 2 and 3).
+
+### 4c. The M253, and what a mechanical cross-check of 720 pairs found
+
+The M253 is the M252's sibling part, in the same databook (pp134-136). Both of its published masks
+were transcribed, then every M253 block was compared against every M252 block, lane by lane, over
+all 720 pairs. Two results, and they point in opposite directions:
+
+**Mask AC is mask AD's first twelve, byte for byte.** All 12 AC rhythms match their same-numbered,
+same-named M252 AD rhythm on all eight lanes, character for character. AD's extra three (BAJON, FOX
+TROT, SHUFFLE) have no AC counterpart. SGS shipped the same twelve rhythm ROMs under two part
+numbers. So **AC contributes no new pattern data** and is deliberately NOT in the generated header:
+including it would inflate the library with duplicates and make the corpus look richer than it is.
+Worth noting that the earlier warning here was "names matching is not content matching", which was
+exactly the right thing to check, and this time the answer came back that they DO match. Only
+reading the cells could establish that either way.
+
+**Mask AA is genuinely new, and is in the header.** Twelve rhythms, unnamed in the databook (blocks
+are captioned only "RHYTHM 1" to "RHYTHM 12"). An earlier reading suggested M253 AA blocks were
+M252 AA blocks with the lanes shifted down one output; tested mechanically as "M253 OUT k+1 ==
+M252 OUT k for all k", **no pair satisfies it**. The best pairs agree on 5 of 7 lanes, and most of
+those agreements are two empty lanes matching trivially; counting only lanes that carry marks, the
+best pairs manage 2 to 4 out of 3 to 6. What does hold is **lane-level** reuse: individual lanes are
+character-for-character identical to an M252 AA lane one output up, and every M253 AA block adds
+marks on OUT 1 that its nearest M252 relative lacks. So the reuse is real but finer-grained than a
+shifted block.
+
+**A correction to §4a's reset rule, from the M253 reading.** The implication runs ONE WAY ONLY.
+Every short rhythm has an empty OUT 8 (3 of 3 on the M253, 7 of 7 on the M252, no exceptions), but
+the converse fails: M253 AA rhythms 1, 4 and 6 run the full 32 counts and still leave OUT 8 empty.
+So an empty OUT 8 is evidence of nothing by itself, and anyone inferring a reset count from a blank
+lane would misread those three as short. Also, the databook conveys a short reset by **shading**
+counts 25-32 across all eight columns rather than by printing a cross in the OUT 8 lane, so the
+datasheet's "crossed column" language describes the mask programming, not the printed table.
 
 ## 5. Elgam: the patterns cannot be sourced, and the reason is the interesting part
 
@@ -925,6 +959,155 @@ OUT 7    ........................
 OUT 8    ........................
 ```
 
+### 8.4 SGS M253 rhythm LSI, factory mask AA, 12 rhythms
+FACTORY STANDARD MASK, NOT ELGAM (§5). Unnamed in the databook: blocks are captioned only
+"RHYTHM 1" to "RHYTHM 12". One character per counter state from 1 to the stated reset count.
+`OUT n` are chip pins. Mask AC is NOT here: it duplicates M252 AD (§4c).
+
+**TABLE 1 (M253 AA) — RHYTHM 1** (reset 32)
+```
+OUT 1    ..............x...............x.
+OUT 2    x...x...x...x.x.x...x...x...x.x.
+OUT 3    x...x...x...x.x.x...x...x...x.x.
+OUT 4    ................................
+OUT 5    ................................
+OUT 6    ..............x...............x.
+OUT 7    x.....x.x...x...x.....x.x...x...
+OUT 8    ................................
+```
+
+**TABLE 1 (M253 AA) — RHYTHM 2** (reset 24)
+```
+OUT 1    ............x...........
+OUT 2    x...........x...........
+OUT 3    ....x...x.......x...x...
+OUT 4    ........................
+OUT 5    ........................
+OUT 6    x...........x...........
+OUT 7    ........................
+OUT 8    ........................
+```
+
+**TABLE 1 (M253 AA) — RHYTHM 3** (reset 24)
+```
+OUT 1    ...x.....x.....x.....x..
+OUT 2    x..x..x..x..x..x..x..x..
+OUT 3    x.xx.xx.xx.xx.xx.xx.xx.x
+OUT 4    ........................
+OUT 5    ........................
+OUT 6    ........................
+OUT 7    x..x..x..x..x..x..x..x..
+OUT 8    ........................
+```
+
+**TABLE 1 (M253 AA) — RHYTHM 4** (reset 32)
+```
+OUT 1    ........x...............x.......
+OUT 2    x.......x.......x.......x.......
+OUT 3    ....x.......x.......x.......xxxx
+OUT 4    ................................
+OUT 5    ................................
+OUT 6    x.......x.......x.......x.......
+OUT 7    ................................
+OUT 8    ................................
+```
+
+**TABLE 1 (M253 AA) — RHYTHM 5** (reset 24)
+```
+OUT 1    ............x.........x.
+OUT 2    x.........x.x.........x.
+OUT 3    ......x...........x.....
+OUT 4    ........................
+OUT 5    ........................
+OUT 6    ........................
+OUT 7    x.x.x.x.x.x.x.xxx.x.x.x.
+OUT 8    ........................
+```
+
+**TABLE 1 (M253 AA) — RHYTHM 6** (reset 32)
+```
+OUT 1    ........x...............x.......
+OUT 2    x.......x.......x.......x.......
+OUT 3    ....x.......x.......x.......x...
+OUT 4    ................................
+OUT 5    ................................
+OUT 6    x.......x.......x...............
+OUT 7    ....x..x....x..x.......xx..xx..x
+OUT 8    ................................
+```
+
+**TABLE 1 (M253 AA) — RHYTHM 7** (reset 32)
+```
+OUT 1    ........x.x...x.........x.x.....
+OUT 2    x.x.....x.x...x.x.x.....x.x...x.
+OUT 3    ....x..x.x..x.......x..x.x..x..x
+OUT 4    ................................
+OUT 5    ................................
+OUT 6    ................................
+OUT 7    ....x.......x.......x.......x...
+OUT 8    x.x.x.x.x.x.x.x.x.x.x.x.x.x.x.x.
+```
+
+**TABLE 1 (M253 AA) — RHYTHM 8** (reset 32)
+```
+OUT 1    ........x...x...........x...x...
+OUT 2    x.....x.x...x...x.....x.x...x...
+OUT 3    x.....x.....x.......x...x.......
+OUT 4    ....x.....x...x.....x.....x...x.
+OUT 5    x.x...x.x...x...x.x...x.x...x...
+OUT 6    ................................
+OUT 7    ................................
+OUT 8    x.xxx.x.x.x.x.x.x.xxx.x.x.x.x.x.
+```
+
+**TABLE 1 (M253 AA) — RHYTHM 9** (reset 32)
+```
+OUT 1    ........x...x...........x...x...
+OUT 2    x.......x...x...x.......x...x...
+OUT 3    ..x...x...x...x...x...x...x...x.
+OUT 4    ..x...x...x...x...x...x...x...x.
+OUT 5    ..x...............x.............
+OUT 6    ......x...............x.........
+OUT 7    ..xxx.............xxx...........
+OUT 8    x.x.x.x.x.x.x.x.x.x.x.x.x.x.x.x.
+```
+
+**TABLE 1 (M253 AA) — RHYTHM 10** (reset 32)
+```
+OUT 1    ......x.....x.........x.....x...
+OUT 2    x.....x.....x...x.....x.....x...
+OUT 3    x...x...x.x.x...x...x...x.x.x...
+OUT 4    x...x...x...x...x...x...x...x...
+OUT 5    ............x.x.............x.x.
+OUT 6    ................................
+OUT 7    ................................
+OUT 8    x.x.x.x.x.x.x.x.x.x.x.x.x.x.x.x.
+```
+
+**TABLE 1 (M253 AA) — RHYTHM 11** (reset 32)
+```
+OUT 1    ........x...............x.......
+OUT 2    x.......x.......x.......x.......
+OUT 3    ..x...x...xx..x...x...x...xx..x.
+OUT 4    x...x...........x.x...x.........
+OUT 5    ........x.....x.........x...x...
+OUT 6    ................................
+OUT 7    ....x.......x.......x.......x...
+OUT 8    x.x.x.x.x.x.x.x.x.x.x.x.x.x.x.x.
+```
+
+**TABLE 1 (M253 AA) — RHYTHM 12** (reset 32)
+```
+OUT 1    ........x.....x.........x.....x.
+OUT 2    x.....x.x.....x.x.....x.x.....x.
+OUT 3    x.....x.....x.......x.....x.....
+OUT 4    ................................
+OUT 5    ................................
+OUT 6    ................................
+OUT 7    ....x.x.....x.x.....x.x.....x.x.
+OUT 8    x.x.x.x.x.x.x.x.x.x.x.x.x.x.x.x.
+```
+
 ## 9. Open items
 
 - **A cart.** The obvious build is a preset auto-rhythm box wired to one combo organ: pick a rhythm,
@@ -941,7 +1124,7 @@ OUT 8    ........................
   a 6-count beat, which would have played the waltz wrong.
 - **`sideman`'s twelve rhythms are reconstructions** and should be labelled as such in
   [`sideman.md`](sideman.md), since ten of their twelve names now have sourced data here.
-- **M253 tables** (databook pp134-136) are characterised but not transcribed. See §6.4 first.
+- ~~M253 tables.~~ **DONE (2026-08-20):** both masks transcribed and cross-checked against the M252 (§4c). Mask AA's twelve rhythms are in §8.4 and in the header; mask AC's twelve are duplicates of M252 AD and are recorded in the transcription log only.
 - ~~SGS Technical Note no. 131.~~ **CHASED (2026-08-20), not digitised.** The databook cites it four
   times ("TECHNICAL NOTE NO 131 AVAILABLE FOR FULL INFORMATION", "available on request"), so it is a
   separate document, and it is not on bitsavers (whose SGS tree holds exactly one application note,

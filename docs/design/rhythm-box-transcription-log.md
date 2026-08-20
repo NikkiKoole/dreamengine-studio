@@ -2725,3 +2725,881 @@ This limit was found by the agent transcribing Samba and Mambo, which reported i
 UNREAD rather than passing on the plausible-looking letterforms it could see. The main session
 had already written several labels as if they were read; they are downgraded by this note.
 
+
+
+# ===== source file: sgs_m253.md =====
+
+# SGS M253 rhythm-generator LSI — FACTORY STANDARD MASK pattern tables
+
+## Provenance
+
+- **Source document:** *1979 SGS MOS And Special COS/MOS Data Book, 1st Edition* (SGS / SGS-ATES).
+- **URL:** http://www.bitsavers.org/components/sgs/_dataBooks/1979_SGS_MOS_And_Special_COS_MOS_1stEd.pdf
+- **Pages holding the M253 pattern tables** (printed page = PDF page + 7 in this section — note this
+  differs from the M252 section's +6 offset; measured off the printed folios, see below):
+  - PDF **134** (printed **141**) = `TABLE 1 (M253 AA)`, rhythms 1-10
+  - PDF **135** (printed **142**) = Table 1 rhythms 11-15 (top) + `TABLE 2 (M253 AC)` rhythms 1-5 (bottom)
+  - PDF **136** (printed **143**) = Table 2 rhythms 6-12
+- **Embedded scan resolution (measured, `pdfimages -list -f 134 -l 136`):**
+  - PDF 134: **3912 x 5117, gray, 1 bpc, jbig2, 600 x 600 ppi**
+  - PDF 135: 3893 x 5102, gray, 1 bpc, jbig2, 600 x 600 ppi
+  - PDF 136: 3902 x 5109, gray, 1 bpc, jbig2, 600 x 600 ppi
+  So `pdftoppm -r 600` renders at native scan resolution with no upsampling. Bitonal source.
+- **Table captions as printed:** `TABLE 1 (M253 AA)` and `TABLE 2 (M253 AC)`.
+- **Chart format** (identical to the M252 section): left header column `COUNT FOR 32`, rows = counts
+  1..32, columns = OUTPUT 1..8, `X` = a hit. Cells past each rhythm's reset count are greyed/shaded
+  to mark counts that do not exist for that rhythm.
+
+## NAMING — read this before using the data
+
+These are the **SGS FACTORY STANDARD MASK** pattern sets for the **M253**, as published by SGS in
+their own databook. Two mask options are printed: **M253 AA** (Table 1) and **M253 AC** (Table 2).
+
+**This is NOT the Elgam pattern set.** Elgam's organs used **custom masks** of the M252 (marked
+`M252 D1 AE` and `M252 D1 AF` on Elgam's own Carousel schematic). SGS never published a customer
+mask. Nothing here may be presented as Elgam content.
+
+**OUTPUT 1..8 are chip pins, not instruments.** No instrument names are attached to these lanes
+unless the databook itself assigns them; whether an M253 equivalent of the M252's page-122
+"standard content configuration" pinout exists is answered in the mapping section at the end,
+quoted with its page.
+
+## Notation
+
+Per rhythm: one line per output, one character per count from 1 to that rhythm's reset count.
+`x` = an X printed in the table, `.` = a blank cell. Counts past the reset count are not written
+at all (they are the greyed cells).
+
+---
+
+## TABLE 1 (M253 AA) — factory standard mask, PDF p.134 (printed p.141)
+
+### Measured geometry (how every cell below was located)
+- Page 134 renders 3912 x 5117 at 600 dpi. Table 1 band 1 (rhythms 1-5) header rule at y=1130;
+  **row pitch 43.05 px**, row 1 top edge y=1142, so row N spans y = 1142+43.05(N-1) .. 1142+43.05N.
+- Block x-boundaries (heavy rules, detected by column ink fraction): count column 430-712, then
+  rhythm 1 = 712-1266, rhythm 2 = 1266-1821, rhythm 3 = 1825-2383, rhythm 4 = 2380-2938,
+  rhythm 5 = 2938-3497. Each block is EIGHT equal columns (~69.5 px) — verified against the
+  independently detected interior rules, which land within 3 px of the eighth-divisions.
+- Marks were read BY EYE from 600 dpi crops that include the count column and the OUT 1-8 header
+  digits, and independently cross-checked by per-cell ink fraction over those rectangles.
+  No blob or circle detection was used anywhere.
+- **Page noise warning specific to this page:** broken/dashed rule lines cross the counts 17-32
+  region of band 1, giving blank cells a raised 0.10-0.16 ink fraction there. Real X glyphs on this
+  page read **0.17-0.29**. Every borderline cell in that zone was resolved by eye, not by threshold.
+
+### RHYTHM NAMES
+**Table 1 (M253 AA) prints NO rhythm names.** Blocks are captioned only `RHYTHM 1` … `RHYTHM 15`.
+The left header column reads `COUNT FOR 32`. Same as the M252 AA mask.
+
+### TABLE 1 (M253 AA) — RHYTHM 1
+Printed name: **none printed** (captioned only "RHYTHM 1").
+Reset count: **32** (no greyed cells; the dotted band at the right of the crop is rhythm 2's grey
+block beginning past the x=1266 border, not rhythm 1's).
+
+```
+count:   12345678901234567890123456789012
+OUT 1    ..............x...............x.
+OUT 2    x...x...x...x.x.x...x...x...x.x.
+OUT 3    x...x...x...x.x.x...x...x...x.x.
+OUT 4    ................................
+OUT 5    ................................
+OUT 6    ..............x...............x.
+OUT 7    x.....x.x...x...x.....x.x...x...
+OUT 8    ................................
+```
+Status: **CONFIDENT.** Eye read and ink cross-check agree on every cell. OUT 4, 5, 8 wholly empty.
+OUT 2 and OUT 3 carry IDENTICAL lanes; OUT 1 and OUT 6 carry identical lanes (15, 31 only).
+The elevated 0.10-0.16 readings at counts 18-20, 22, 24, 26-28, 30, 32 across several lanes are the
+dashed rule lines described above and are recorded as blanks (the crop shows no glyphs there).
+
+### TABLE 1 (M253 AA) — RHYTHM 2
+Printed name: **none printed** (captioned only "RHYTHM 2").
+Reset count: **24** — counts **25-32 are greyed** (the shaded band reads a uniform 0.17-0.30 ink
+across **all eight** lanes at once, which no pattern of X marks produces; the crop shows a solid
+stipple block whose top edge sits on the rule below row 24).
+
+```
+count:   123456789012345678901234
+OUT 1    ............x...........
+OUT 2    x...........x...........
+OUT 3    ....x...x.......x...x...
+OUT 4    ........................
+OUT 5    ........................
+OUT 6    x...........x...........
+OUT 7    ........................
+OUT 8    ........................
+```
+Status: **CONFIDENT.** Eye read and ink cross-check agree on every cell. OUT 4, 5, 7, 8 wholly
+empty. The sparsest rhythm on the page (9 marks). OUT 2 and OUT 6 carry identical lanes (1, 13).
+Dashed rule fragments cross counts 19-24 in the OUT 4-7 region (ink 0.10-0.13); the crop shows
+they are broken rules, not glyphs, and they are recorded as blanks.
+
+### TABLE 1 (M253 AA) — RHYTHM 3
+Printed name: **none printed** (captioned only "RHYTHM 3").
+Reset count: **24** (counts 25-32 greyed; the stipple block's top edge sits on the detected rule at
+y=2178.5, which is the bottom of row 24).
+
+```
+count:   123456789012345678901234
+OUT 1    ...x.....x.....x.....x..
+OUT 2    x..x..x..x..x..x..x..x..
+OUT 3    x.xx.xx.xx.xx.xx.xx.xx.x
+OUT 4    ........................
+OUT 5    ........................
+OUT 6    ........................
+OUT 7    x..x..x..x..x..x..x..x..
+OUT 8    ........................
+```
+Status: **CONFIDENT.** OUT 4, 5, 6, 8 wholly empty. A **TRIPLE-DIVISION** grid: the spine
+(OUT 2 and OUT 7, identical lanes) is every third count 1..22, OUT 1 is every sixth count from 4,
+and OUT 3 marks the 1st and 3rd position of each triplet group. Stated as an observation about count
+spacing only, not as a claim about any dance name.
+
+> **A METHOD NOTE, recorded because it nearly caused an error.** The ink cross-check UNDER-read
+> count 22: it scored OUT 1 at 0.22 (a mark) but OUT 2 / OUT 3 / OUT 7 at only 0.12-0.14, which
+> looked like "only OUT 1 fires at 22" and would have broken the triplet spine. A 2x zoom of counts
+> 19-25 shows **four unmistakable X glyphs at count 22** (OUT 1, 2, 3, 7), printed low in their
+> cells so that the 5 px cell margins clipped them. The eye read is authoritative and is what is
+> recorded. Consequence for the rest of this file: the ink figure is used as a CONFIRMING second
+> opinion only, and every count is confirmed on a crop; a low ink score is never taken as a blank.
+
+### TABLE 1 (M253 AA) — RHYTHM 4
+Printed name: **none printed** (captioned only "RHYTHM 4").
+Reset count: **32** (no greyed cells; the stipple strip at the far right of the crop is rhythm 5's
+grey block past the x=2938 border).
+
+```
+count:   12345678901234567890123456789012
+OUT 1    ........x...............x.......
+OUT 2    x.......x.......x.......x.......
+OUT 3    ....x.......x.......x.......xxxx
+OUT 4    ................................
+OUT 5    ................................
+OUT 6    x.......x.......x.......x.......
+OUT 7    ................................
+OUT 8    ................................
+```
+Status: **CONFIDENT.** OUT 4, 5, 7, 8 wholly empty. OUT 2 and OUT 6 carry IDENTICAL lanes
+(1, 9, 17, 25). OUT 3 sits on the same 8-count grid offset by four, and ends with a **FOUR-count
+consecutive run at 29-32** (all four glyphs read 0.18-0.23 and are unmistakable on the crop).
+This block sits on a heavy field of broken rule lines (blanks read 0.08-0.15 throughout); every
+count was therefore confirmed on the crop rather than by threshold.
+
+### TABLE 1 (M253 AA) — RHYTHM 5
+Printed name: **none printed** (captioned only "RHYTHM 5").
+Reset count: **24** (counts 25-32 greyed; the stipple reads a uniform 0.16-0.32 across all eight
+lanes at once).
+
+```
+count:   123456789012345678901234
+OUT 1    ............x.........x.
+OUT 2    x.........x.x.........x.
+OUT 3    ......x...........x.....
+OUT 4    ........................
+OUT 5    ........................
+OUT 6    ........................
+OUT 7    x.x.x.x.x.x.x.xxx.x.x.x.
+OUT 8    ........................
+```
+Status: **CONFIDENT.** OUT 4, 5, 6, 8 wholly empty (OUT 8 shows a flat 0.10-0.19 down its whole
+length, which is a dashed vertical rule printed inside the column, not a series of faint marks — it
+never varies row to row the way glyphs do).
+
+> **The anomaly, recorded as seen:** OUT 7 is every ODD count 1-23 **plus one extra mark at count
+> 16**, the only even-count mark in that lane, so counts 15-16-17 are three consecutive glyphs. The
+> crop shows all three unambiguously (ink 0.28 / 0.25 / 0.27 against a 0.11 local floor).
+> **This is the same fingerprint as M252 AA rhythm 7**, which also resets at 24 and also has a lone
+> even-count mark at 16 in its OUT 7. Followed up in the comparison section.
+
+### Band 2 of PDF p.134 — measured geometry
+Header rule at y=3213.5; 32 row-bottom rules detected in the count column from 3272 to 4614.5
+(pitch 43.1, non-uniform by up to 3 px from scan warp, so the DETECTED boundaries are used, not a
+constant pitch). Block x-boundaries: count column 414-702, rhythm 6 = 702-1255, rhythm 7 = 1255-1811,
+rhythm 8 = 1811-2370, rhythm 9 = 2370-2927, rhythm 10 = 2927-3484; eight equal columns per block.
+This band prints much more cleanly than band 1: blank cells read 0.00-0.05 and marks 0.16-0.19.
+
+### TABLE 1 (M253 AA) — RHYTHM 6
+Printed name: **none printed** (captioned only "RHYTHM 6").
+Reset count: **32** (no greyed cells).
+
+```
+count:   12345678901234567890123456789012
+OUT 1    ........x...............x.......
+OUT 2    x.......x.......x.......x.......
+OUT 3    ....x.......x.......x.......x...
+OUT 4    ................................
+OUT 5    ................................
+OUT 6    x.......x.......x...............
+OUT 7    ....x..x....x..x.......xx..xx..x
+OUT 8    ................................
+```
+Status: **CONFIDENT.** OUT 4, 5, 8 wholly empty. Note **OUT 6 has NO mark at count 25** although
+OUT 2 does — checked twice on the crop, row 25's OUT 6 cell is empty.
+
+> **A CONTENT MATCH WITH THE M252, found here and pursued in the comparison section.** This block is
+> M252 AA rhythm 5 with the lanes shifted down one: M252's OUT 1 (1,9,17,25) is here OUT 2, M252's
+> OUT 2 (5,13,21,29) is here OUT 3, while **OUT 6 (1,9,17) and OUT 7 (5,8,13,16,24,25,28,29,32) are
+> character-for-character the same lanes in both parts**, including OUT 6's missing 25. M253 then
+> ADDS an OUT 1 lane at 9, 25 that M252 AA rhythm 5 does not have.
+
+### TABLE 1 (M253 AA) — RHYTHM 7
+Printed name: **none printed** (captioned only "RHYTHM 7").
+Reset count: **32** (no greyed cells).
+
+```
+count:   12345678901234567890123456789012
+OUT 1    ........x.x...x.........x.x.....
+OUT 2    x.x.....x.x...x.x.x.....x.x...x.
+OUT 3    ....x..x.x..x.......x..x.x..x..x
+OUT 4    ................................
+OUT 5    ................................
+OUT 6    ................................
+OUT 7    ....x.......x.......x.......x...
+OUT 8    x.x.x.x.x.x.x.x.x.x.x.x.x.x.x.x.
+```
+Status: **CONFIDENT.** OUT 4, 6 wholly empty. OUT 5 shows a flat 0.02-0.05 down its length (a
+dashed vertical rule inside the column, not marks). OUT 8 is every ODD count 1-31 with no
+exceptions; OUT 7 is a plain 4-mark lane (5, 13, 21, 29).
+
+> **A second M252 content match, and a cleaner one.** This block is **M252 AA rhythm 8** with the
+> lanes shifted down one: M252 AA r8's OUT 1 lane `x.x.....x.x...x.x.x.....x.x...x.` is this block's
+> **OUT 2, character for character**; M252's OUT 2 lane `....x..x.x..x.......x..x.x..x..x` is this
+> block's **OUT 3, character for character**; and **OUT 7 and OUT 8 are identical in both parts**.
+> M253 again ADDS an OUT 1 lane (9, 11, 15, 25, 27) that the M252 block does not have.
+
+> **RHYTHM 7 BODY VERIFIED, NOT REPLACED** (second reading, this session). The block was re-read by
+> eye from the 600 dpi crop `m253_r7.png` (block x=1255-1811, band-2 row boundaries) without
+> reference to the text above, and the independent read reproduced the inherited transcription
+> character for character on all eight lanes, including OUT 1's five marks (9, 11, 15, 25, 27),
+> OUT 3's nine (5, 8, 10, 13, 21, 24, 26, 29, 32) and OUT 8's odd-count run. The inherited body is
+> therefore left exactly as the previous agent wrote it. OUT 4, 5, 6 empty confirmed.
+
+### TABLE 1 (M253 AA) — RHYTHM 8
+Printed name: **none printed** (captioned only "RHYTHM 8").
+Reset count: **32** (no greyed cells; all 32 rows are live in the crop).
+Geometry: band 2 of PDF p.134, block x=1811-2370, eight equal ~69.9 px columns, row boundaries from
+`m253_rows_p134b.txt` as recorded above.
+
+```
+count:   12345678901234567890123456789012
+OUT 1    ........x...x...........x...x...
+OUT 2    x.....x.x...x...x.....x.x...x...
+OUT 3    x.....x.....x.......x...x.......
+OUT 4    ....x.....x...x.....x.....x...x.
+OUT 5    x.x...x.x...x...x.x...x.x...x...
+OUT 6    ................................
+OUT 7    ................................
+OUT 8    x.xxx.x.x.x.x.x.x.xxx.x.x.x.x.x.
+```
+Status: **CONFIDENT.** Eye read and ink cross-check agree on every one of the 256 cells; every
+mark scores 0.15-0.24 and every blank 0.00-0.09, with no borderline cell anywhere in the block.
+The densest rhythm on the page so far (51 marks).
+
+- **OUT 6 and OUT 7 wholly empty** — both read a flat 0.02-0.07 down their whole length, which is
+  the dashed vertical rule printed inside those columns, not faint glyphs (it never varies row to
+  row the way the real X marks do).
+- **No two lanes are identical in this block** — the first rhythm on the page for which that is
+  true. The near-miss is OUT 5 = OUT 2 **plus** two extra marks at counts 3 and 19.
+- OUT 8 is every ODD count 1-31 **plus two even-count marks, at 4 and 20** — the same "odd spine
+  with an interpolated extra" shape as rhythm 5's OUT 7, but on a different lane and with two
+  extras 16 counts apart rather than one. Both were re-checked on the crop (ink 0.21 each against
+  a 0.02 local floor in that lane's blank rows) and are unmistakable.
+- The one cell worth naming as noise: **count 1, OUT 4** carries a single stray dot in the crop
+  (ink 0.06). It is a print speck, not a glyph — there is no X stroke — and is recorded as blank.
+
+### TABLE 1 (M253 AA) — RHYTHM 9
+Printed name: **none printed** (captioned only "RHYTHM 9").
+Reset count: **32** (no greyed cells).
+Geometry: band 2 of PDF p.134, block x=2370-2927, eight equal ~69.6 px columns, band-2 row
+boundaries. Crop `m253b_r9.png` (count column x=525-702 hstacked onto the block, which is how every
+crop in this file was framed).
+
+```
+count:   12345678901234567890123456789012
+OUT 1    ........x...x...........x...x...
+OUT 2    x.......x...x...x.......x...x...
+OUT 3    ..x...x...x...x...x...x...x...x.
+OUT 4    ..x...x...x...x...x...x...x...x.
+OUT 5    ..x...............x.............
+OUT 6    ......x...............x.........
+OUT 7    ..xxx.............xxx...........
+OUT 8    x.x.x.x.x.x.x.x.x.x.x.x.x.x.x.x.
+```
+Status: **CONFIDENT.** Eye read and ink cross-check agree on every cell; marks 0.16-0.24, blanks
+0.00-0.09. **No lane is wholly empty — this is the first rhythm in Table 1 that uses all eight
+outputs.**
+
+- **OUT 3 and OUT 4 carry IDENTICAL lanes** (every 4th count from 3: 3, 7, 11, 15, 19, 23, 27, 31).
+- **The whole block is exactly 16-PERIODIC**: counts 17-32 reproduce counts 1-16 on all eight
+  lanes, with no exception anywhere. It is the only block on the page with that property, and it
+  makes the reading self-checking — the two halves were read independently and matched.
+- OUT 7 is two THREE-count consecutive runs (3-4-5 and 19-20-21), and counts 4 and 20 are the only
+  counts in the whole block where OUT 7 fires with OUT 8 silent.
+- OUT 8 is every ODD count 1-31, no exceptions.
+- The OUT 2 column carries a steady 0.02-0.05 ink floor down its whole length (a dashed vertical
+  rule printed inside the column); its real marks read 0.19-0.24, so the two are not confusable,
+  but the floor is why counts 2-8 of OUT 2 were re-checked on the crop and are recorded as blank.
+
+### TABLE 1 (M253 AA) — RHYTHM 10
+Printed name: **none printed** (captioned only "RHYTHM 10").
+Reset count: **32** (no greyed cells). Last block of PDF p.134.
+Geometry: band 2, block x=2927-3484, eight equal ~69.6 px columns. Crop `m253b_r10.png`.
+
+```
+count:   12345678901234567890123456789012
+OUT 1    ......x.....x.........x.....x...
+OUT 2    x.....x.....x...x.....x.....x...
+OUT 3    x...x...x.x.x...x...x...x.x.x...
+OUT 4    x...x...x...x...x...x...x...x...
+OUT 5    ............x.x.............x.x.
+OUT 6    ................................
+OUT 7    ................................
+OUT 8    x.x.x.x.x.x.x.x.x.x.x.x.x.x.x.x.
+```
+Status: **CONFIDENT.** The cleanest block on the page: marks 0.17-0.23, blanks 0.00-0.06, not one
+borderline cell. Every mark falls on an ODD count — there is no even-count mark anywhere in the
+block, which made the reading unusually easy to check.
+
+- **OUT 6 and OUT 7 wholly empty** (a true 0.00-0.02 here, with no dashed-rule floor at all).
+- **Exactly 16-PERIODIC**, like rhythm 9: counts 17-32 reproduce counts 1-16 on all eight lanes with
+  no exception. The two halves were read independently and matched.
+- **OUT 4 is a plain every-4th-count lane** (1, 5, 9, …, 29) and **OUT 3 is that same lane plus two
+  extra marks, at 11 and 27**. OUT 4 reads 0.00 at both 11 and 27, so the pair is a real difference
+  between the two lanes and not a faint print.
+- OUT 5 fires only as two-mark pairs: 13+15 and 29+31.
+- OUT 8 is every ODD count 1-31, no exceptions.
+
+### CORRECTION TO THE PROVENANCE SECTION — **TABLE 1 HOLDS 12 RHYTHMS, NOT 15**
+The provenance block at the top of this file says PDF p.135 carries "Table 1 rhythms 11-15". That is
+wrong and is corrected here rather than by editing the inherited text. **Table 1 (M253 AA) ends at
+RHYTHM 12.** The top band of PDF p.135 (printed p.142) prints exactly two blocks, captioned
+`RHYTHM 11` and `RHYTHM 12`, and the remaining right-hand two thirds of that band is **blank ruled
+white space** — no third block, no marks, no caption. Verified on a whole-page render
+(`m253b_p135_small.png`) and on the vertical-rule scan below, which finds the table's outer right
+edge at x=1819, immediately past rhythm 12: there is nowhere for a rhythm 13 to be.
+
+So the M253 AA mask is a **12-rhythm** set: 5 blocks on p.134 band 1, 5 on p.134 band 2, 2 on p.135
+band 1. Table 2 then begins on the same page (p.135) in the lower half, one band earlier than the
+inherited note assumed.
+
+### Band 1 of PDF p.135 (rhythms 11-12) — measured geometry
+Derived from scratch on this page, not carried over from p.134 (a different scan, 3893 x 5102).
+- **Vertical rules**, detected by column ink fraction > 0.5 over y=700..2530: table left edge
+  x=392-398; count-column right edge x=700-705; then SEVEN interior rules at
+  772 / 840 / 913 / 981 / 1053 / 1123 / 1194; heavy rule x=1259-1265; seven more interior rules at
+  1329 / 1399 / 1472 / 1543 / 1611 / 1679 / 1750; table right edge x=1816-1822.
+  So **count column 395-702, rhythm 11 = 702-1262, rhythm 12 = 1262-1819**, each an EIGHT-column
+  block of ~70 px. The eighth-divisions of those spans land within 3 px of every one of the
+  fourteen independently detected interior rules.
+- **Row rules**, detected by row ink fraction > 0.5 over x=400..700: the heavy header rule at
+  y=1100-1106, then exactly **32** row-bottom rules from y=1158 to y=2508. Pitch averages 43.4 px
+  but drifts by up to 3 px from scan warp, so the DETECTED boundaries are used, recorded in
+  `m253b_rows_p135a.txt`, with row 1's top taken at y=1112 (just under the thick header rule).
+- This band prints very cleanly: blanks read 0.00-0.04, marks 0.15-0.20.
+
+### TABLE 1 (M253 AA) — RHYTHM 11
+Printed name: **none printed** (captioned only "RHYTHM 11").
+Reset count: **32** (no greyed cells; all 32 rows are ruled and live).
+
+```
+count:   12345678901234567890123456789012
+OUT 1    ........x...............x.......
+OUT 2    x.......x.......x.......x.......
+OUT 3    ..x...x...xx..x...x...x...xx..x.
+OUT 4    x...x...........x.x...x.........
+OUT 5    ........x.....x.........x...x...
+OUT 6    ................................
+OUT 7    ....x.......x.......x.......x...
+OUT 8    x.x.x.x.x.x.x.x.x.x.x.x.x.x.x.x.
+```
+Status: **CONFIDENT.** Eye read and ink cross-check agree on all 256 cells; every mark reads
+0.15-0.20 and every blank 0.00-0.04, with no borderline cell in the block.
+
+- **OUT 6 is the only wholly empty lane** (a true 0.00 down its whole length; this band has no
+  dashed-rule floor at all).
+- OUT 3 is the only lane with adjacent marks: **11+12 and 27+28**. Both pairs were checked at 2x —
+  counts 12 and 28 are the only two counts in the entire block where OUT 8 is silent while some
+  other lane fires (OUT 8 reads 0.00 at both).
+- **NOT 16-periodic**, unlike rhythms 9 and 10: OUT 4 fires at 1, 5 in the first half but at
+  17, 19, 23 in the second, and OUT 5 at 9, 15 against 25, 29. The halves genuinely differ.
+- OUT 2 is a plain every-8th lane (1, 9, 17, 25) and OUT 7 the same lane offset by four
+  (5, 13, 21, 29) — the pairing seen in rhythms 4 and 6, but here on OUT 2/OUT 7 rather than
+  OUT 2/OUT 6, and the two are NOT identical to each other.
+- OUT 8 is every ODD count 1-31, no exceptions.
+
+### TABLE 1 (M253 AA) — RHYTHM 12  *(last block of Table 1)*
+Printed name: **none printed** (captioned only "RHYTHM 12").
+Reset count: **32** (no greyed cells).
+Geometry: band 1 of PDF p.135, block x=1262-1819. Crop `m253b_r12.png`.
+
+```
+count:   12345678901234567890123456789012
+OUT 1    ........x.....x.........x.....x.
+OUT 2    x.....x.x.....x.x.....x.x.....x.
+OUT 3    x.....x.....x.......x.....x.....
+OUT 4    ................................
+OUT 5    ................................
+OUT 6    ................................
+OUT 7    ....x.x.....x.x.....x.x.....x.x.
+OUT 8    x.x.x.x.x.x.x.x.x.x.x.x.x.x.x.x.
+```
+Status: **CONFIDENT.** Eye read and ink cross-check agree on every cell; marks 0.14-0.21, blanks
+0.00-0.04. Only four of the eight lanes are used, the fewest of any 32-count block in Table 1.
+
+- **OUT 4, OUT 5 and OUT 6 wholly empty.** OUT 5 carries a faint 0.02-0.04 floor over counts 1-14
+  only, which is the tail of a dashed rule fading out down the column, not a run of faint marks; the
+  crop shows no glyph strokes anywhere in that lane.
+- Three lanes are strictly PERIODIC: OUT 2 is `x.....x.` repeated (period 8), OUT 7 is `....x.x.`
+  repeated (period 8), OUT 8 is every odd count (period 2). OUT 1 is period 16 (9, 15 then 25, 31).
+- **OUT 3 is the one lane that breaks pattern**: 1, 7, 13, 21, 27 — the every-6th-count spacing
+  1/7/13 continues to 19 in no lane, and instead jumps to 21 and then 27. Counts 19 and 25 read
+  0.00 in OUT 3 and were re-checked at 2x; they are genuinely blank.
+- OUT 8 is every ODD count 1-31, no exceptions.
+
+---
+
+## TABLE 1 (M253 AA) — COMPLETE. Cross-rhythm summary and the OUT-8 reset test
+
+**All 12 rhythms of Table 1 are now transcribed, all 12 CONFIDENT, none UNREAD.**
+
+Reset counts as printed: rhythms **2, 3, 5 reset at 24**; rhythms **1, 4, 6, 7, 8, 9, 10, 11, 12
+reset at 32**. No other reset value appears in Table 1 — there is no 16-count or 12-count rhythm in
+this mask.
+
+### The OUT-8 reset rule — **IT HOLDS ON THE M253, in one direction only**
+
+The M252 model says a rhythm shorter than 32 states is programmed by crossing the column that now
+represents the RESET output rather than the 8th instrument, so a short rhythm must have an EMPTY
+OUT 8. Tested against all 12 M253 AA rhythms:
+
+| reset | rhythms | OUT 8 |
+|---|---|---|
+| 24 (short) | 2, 3, 5 | **empty in all three** |
+| 32 (full)  | 1, 4, 6 | empty |
+| 32 (full)  | 7, 8, 9, 10, 11, 12 | in use, and heavily (16-18 marks each) |
+
+**The rule's prediction is satisfied without exception: every short rhythm has an empty OUT 8, and
+every rhythm that USES OUT 8 is a full 32-count rhythm.** That is a real, non-trivial confirmation
+— 3 for 3 on the constrained side, 6 for 6 on the unconstrained side — and it is the same behaviour
+established for the M252.
+
+The **converse does not hold**, and must not be assumed: rhythms 1, 4 and 6 run the full 32 counts
+and still leave OUT 8 empty. So an empty OUT 8 is evidence of NOTHING by itself; only the implication
+"short ⟹ empty" is supported. Anyone inferring a reset count from a blank OUT 8 would misread
+rhythms 1, 4 and 6 as short.
+
+A second observation about how the reset is PRINTED, recorded because it bears on the model: for the
+three short rhythms the chart conveys the reset by **shading counts 25-32 across all eight columns**,
+and prints **no X anywhere in the OUT 8 column**, not even at count 24. So the databook's chart shows
+the reset as a greyed region, not as a crossed cell in the OUT-8 lane; the "crossed column" language
+describes the mask programming, not the printed table.
+
+### Other cross-rhythm structure in Table 1 (observations, not interpretations)
+- **Identical lane pairs**, which recur often enough to be a feature of the mask rather than a
+  coincidence: r1 OUT 2 = OUT 3 and OUT 1 = OUT 6; r2 OUT 2 = OUT 6; r3 OUT 2 = OUT 7; r4 OUT 2 =
+  OUT 6; r9 OUT 3 = OUT 4. Rhythms 8, 10, 11 and 12 have no identical pair.
+- **Lanes never used anywhere in Table 1:** none — every one of OUT 1..8 is used by at least one
+  rhythm. But OUT 4, 5 and 6 are empty in the large majority of blocks, and **OUT 6 is used by only
+  five of the twelve** (r1, r2, r4, r6, r9).
+- OUT 8, where used, is always built on the every-odd-count spine, with at most two interpolated
+  even-count marks (r8 at 4 and 20). It never carries an independent pattern.
+- Rhythms **9 and 10 are exactly 16-PERIODIC on all eight lanes**; no other block is.
+
+---
+
+## TABLE 2 (M253 AC) — factory standard mask, PDF pp.135-136 (printed pp.142-143)
+
+### RHYTHM NAMES — **Table 2 DOES print them, unlike Table 1**
+Every block in Table 2 is captioned with a name in parentheses after the rhythm number, e.g.
+`RHYTHM 1 (WALTZ)`. This is the single biggest difference in presentation between the two masks
+printed for the M253: **AA is anonymous, AC is named.**
+
+Still, and this matters: **the names label the RHYTHM, never the outputs.** `OUT 1..8` remain chip
+pins throughout Table 2. Nothing in this table assigns an instrument to a pin, so no lane in any
+block below is called a bass drum or a hi-hat here.
+
+### Band 2 of PDF p.135 (Table 2, rhythms 1-5) — measured geometry
+Derived on this page from scratch.
+- **Vertical rules** (column ink > 0.5, over y=3250..4550): heavy rules at x=389-395 (table left
+  edge), 695-700, 1254-1260, 1811-1817, 2371-2378, 2929-2936, 3475-3484 (right edge). So
+  **count column 392-698, rhythm 1 = 698-1257, rhythm 2 = 1257-1814, rhythm 3 = 1814-2374,
+  rhythm 4 = 2374-2932, rhythm 5 = 2932-3480**, each an eight-column block of 68.5-70 px. All 35
+  independently detected interior rules land within 4 px of the eighth-divisions of those spans.
+  (Two sub-threshold runs at x=555 and x=563-567 are the words "COUNT FOR 32", not rules.)
+- **Row rules** (row ink > 0.5, over x=400..690): heavy header rule at y=3172-3177, then exactly
+  **32** row-bottom rules from y=3229 to y=4581. Row 1's top is taken at y=3184. Recorded in
+  `m253b_rows_p135b.txt`; the detected boundaries are used, not a constant pitch.
+
+### TABLE 2 (M253 AC) — RHYTHM 1 (WALTZ)
+Printed name: **WALTZ** (caption reads `RHYTHM 1 (WALTZ)`, PDF p.135 / printed p.142).
+Reset count: **23** — counts **24-32 are greyed**. Read off the printed count digits in the crop, so
+it cannot be a row-alignment error: the row labelled 23 is white and ruled, the row labelled 24 is
+the first stippled one, and the ink pass confirms it (counts 24-32 read a uniform 0.15-0.21 across
+all eight lanes at once, which no pattern of X marks produces).
+
+```
+count:   12345678901234567890123
+OUT 1    x...........x..........
+OUT 2    ....x...x......xx...x..
+OUT 3    .......................
+OUT 4    .......................
+OUT 5    .......................
+OUT 6    .......................
+OUT 7    x...........x..........
+OUT 8    .......................
+```
+Status: **CONFIDENT.** Only 9 marks in the block, each read 0.15-0.18 against a 0.00-0.02 floor;
+nothing borderline. **OUT 3, 4, 5, 6 and 8 wholly empty** — the OUT 4 and OUT 8 columns carry a
+0.02-0.05 dashed-rule floor over the first third of the block which fades out; no glyph strokes.
+
+- **OUT 1 and OUT 7 carry IDENTICAL lanes** (counts 1 and 13 only).
+- **OUT 2 has two ADJACENT marks, at counts 16 and 17.** This was the one cell pair worth zooming
+  (`m253b_ac1zoom.png`, 2x): both glyphs are complete and unmistakable, in consecutive rows of the
+  same column. It is the only adjacency in the block, and it is the reason the block is NOT the
+  clean 12+12 figure the reset-23 length and the OUT 1 spacing (1, 13) would suggest. Recorded as
+  seen; no attempt is made to regularise it.
+- **RESET 23 IS NOTEWORTHY and is stated exactly as printed.** Every short rhythm in Table 1 greys
+  25-32 (last live count 24). This block greys 24-32, so its last live count is 23 — an ODD cycle
+  length, and the only value of its kind found so far in either table. What the chart shows is the
+  greyed region; how the mask spends the 24th state is not printed and is not inferred here.
+
+### TABLE 2 (M253 AC) — RHYTHM 2 (TANGO)
+Printed name: **TANGO** (caption `RHYTHM 2 (TANGO)`).
+Reset count: **32** (no greyed cells). Block x=1257-1814, crop `m253b_ac2.png`.
+
+```
+count:   12345678901234567890123456789012
+OUT 1    x.......x.......x.......x.......
+OUT 2    ................................
+OUT 3    ................................
+OUT 4    ............................xxxx
+OUT 5    ............................xxxx
+OUT 6    x.......x.......x.......x...x...
+OUT 7    ................................
+OUT 8    ................................
+```
+Status: **CONFIDENT.** Only 17 marks; every one reads 0.15-0.20 against a 0.00-0.05 floor.
+**OUT 2, 3, 7 and 8 wholly empty.** The OUT 4 and OUT 5 columns show a 0.02-0.05 dashed-rule floor
+over counts 1-20 which fades away; the crop shows no glyph strokes there.
+
+- **OUT 4 and OUT 5 carry IDENTICAL lanes**: a FOUR-count consecutive run at 29, 30, 31, 32 and
+  nothing else in the whole 32 counts. All eight glyphs were checked individually (0.16-0.18).
+- **OUT 6 is OUT 1 plus one extra mark, at count 29** — the count where the OUT 4/OUT 5 run starts.
+- The block has only two distinct rhythmic events: an every-8th-count pulse (1, 9, 17, 25) and a
+  four-count burst at the very end of the cycle.
+- This is the sparsest use of the eight lanes in Table 2 so far: four lanes used, and two of those
+  four are duplicates of each other.
+
+### TABLE 2 (M253 AC) — RHYTHM 3 (MARCH)
+Printed name: **MARCH** (caption `RHYTHM 3 (MARCH)`).
+Reset count: **32** (no greyed cells). Block x=1814-2374, crop `m253b_ac3.png`.
+
+```
+count:   12345678901234567890123456789012
+OUT 1    x.......x.......x.......x.......
+OUT 2    ....x...x...x.......x.......x.x.
+OUT 3    ................................
+OUT 4    ................................
+OUT 5    ............................x.x.
+OUT 6    ................................
+OUT 7    x.......x.......x.......x.......
+OUT 8    ................................
+```
+Status: **CONFIDENT.** 16 marks, all reading 0.15-0.25 against a 0.00-0.07 floor.
+**OUT 3, 4, 6 and 8 wholly empty** (OUT 6 carries a flat 0.02-0.05 dashed-rule floor down its whole
+length, which is why it was checked on the crop; no glyphs).
+
+- **OUT 1 and OUT 7 carry IDENTICAL lanes** (1, 9, 17, 25) — the same duplicated-lane pair, on the
+  same two pins, as the WALTZ block.
+- **OUT 2 is deliberately IRREGULAR and is recorded exactly as printed**: 5, 9, 13, 21, 29, 31. The
+  regular every-4th-count series from 5 would be 5, 9, 13, 17, 21, 25, 29; **counts 17 and 25 are
+  BLANK in OUT 2** (both read 0.00, and both rows were re-checked on the crop, where the only
+  glyphs are in OUT 1 and OUT 7), and count 31 is an addition to the series. So the lane thins out
+  exactly where OUT 1 and OUT 7 strike.
+- OUT 5 fires only twice, at 29 and 31, doubling OUT 2's last two marks.
+
+### TABLE 2 (M253 AC) — RHYTHM 4 (SWING)
+Printed name: **SWING** (caption `RHYTHM 4 (SWING)`).
+Reset count: **32** (no greyed cells). Block x=2374-2932, crop `m253b_ac4.png`.
+
+```
+count:   12345678901234567890123456789012
+OUT 1    x...x...x...x...x...x...x...x..x
+OUT 2    x...x.......x.......x..........x
+OUT 3    x...x.......x.......x..........x
+OUT 4    ................................
+OUT 5    x...x..xx...x..xx...x..xx...x..x
+OUT 6    ................................
+OUT 7    ..............................x.
+OUT 8    ................................
+```
+Status: **CONFIDENT.** Marks read 0.16-0.30, blanks 0.00-0.09; the OUT 2 column carries a 0.02-0.07
+dashed-rule floor down its whole length, so every blank in that lane was checked on the crop.
+**OUT 4, OUT 6 and OUT 8 wholly empty.** The densest block in Table 2 so far (39 marks).
+
+- **OUT 2 and OUT 3 carry IDENTICAL lanes** (1, 5, 13, 21, 32).
+- **OUT 5 is strictly 8-PERIODIC**: `x...x..x` repeated four times (1, 5, 8 / 9, 13, 16 / 17, 21, 24
+  / 25, 29, 32). The three pairs of adjacent marks at 8+9, 16+17 and 24+25 were each checked
+  individually; all six glyphs are complete.
+- **OUT 1 is every 4th count from 1 (1, 5, …, 29) plus one extra at 32.** That trailing 32 is what
+  breaks the block out of a clean 8- or 16-periodicity, and OUT 2, OUT 3 and OUT 5 all land on 32
+  too — five of the eight lanes fire together on the last count of the cycle.
+- **OUT 7 fires exactly ONCE in the whole block, at count 31** (0.19 against 0.00-0.04 in that lane
+  elsewhere). It is the only mark in the table so far that stands completely alone in its lane.
+
+### TABLE 2 (M253 AC) — RHYTHM 5 (MAMBO)
+Printed name: **MAMBO** (caption `RHYTHM 5 (MAMBO)`).
+Reset count: **32** (no greyed cells). Block x=2932-3480, crop `m253b_ac5.png`.
+
+```
+count:   12345678901234567890123456789012
+OUT 1    x.x.x.....x.x...x.x.x.....x.x...
+OUT 2    .......xx.x.x.x.......x...xx..x.
+OUT 3    ................................
+OUT 4    ..xxxxxx..........x.x.x.........
+OUT 5    x...x...x.x...x...x...x.x.x.x...
+OUT 6    ................................
+OUT 7    x.....x.....x.......x...x.......
+OUT 8    x.......x.......x.......x.......
+```
+Status: **CONFIDENT.** The densest and most irregular block in either table (53 marks over six
+lanes). Marks read 0.17-0.30, blanks 0.00-0.07; every one of the 256 cells was read on the crop and
+the ink pass agrees on all of them, with nothing borderline.
+
+- **OUT 3 and OUT 6 wholly empty.**
+- **No two lanes are identical**, and no lane is periodic. This is the only block in either table
+  where that is true of all eight lanes at once.
+- **OUT 4 opens with a SIX-count consecutive run, counts 3-4-5-6-7-8** (each glyph 0.19-0.25), then
+  is silent for ten counts and returns as 19, 21, 23. Six in a row is the longest consecutive run
+  anywhere in either M253 table.
+- **OUT 8 is a plain every-8th-count lane (1, 9, 17, 25)** — not the odd-count spine it always is in
+  Table 1. Its four marks are the brightest in the block (0.25-0.30).
+- OUT 7 is 1, 7, 13, 21, 25: uneven spacing (6, 6, 8, 4), recorded as printed.
+- The one cell worth naming as noise: **count 1, OUT 2** carries a small isolated dot (ink 0.05,
+  visible in the crop as a single blob with no X strokes). It is recorded as BLANK. Every real mark
+  in this block reads 0.17 or above, so there is a clean factor-of-three gap.
+
+### Band 1 of PDF p.136 (Table 2, rhythms 6-10) — measured geometry
+- **Vertical rules** (column ink > 0.5, y=1250..2450): heavy rules at x=400-409 (table left edge),
+  693-698, 1247-1253, 1804-1810, 2363-2370, 2922-2928, 3484-3489 (right edge). So
+  **count column 405-696, rhythm 6 = 696-1250, rhythm 7 = 1250-1807, rhythm 8 = 1807-2367,
+  rhythm 9 = 2367-2925, rhythm 10 = 2925-3487**, each eight columns of 69.3-70.3 px; all 35
+  detected interior rules land within 4 px of the eighth-divisions. (The sub-threshold runs at
+  x=539-543 and 555-569 are the words "COUNT FOR 32".)
+- **Row rules** (row ink > 0.5, x=420..690): heavy header rule y=1105-1112, then exactly **32**
+  row-bottom rules from y=1164 to y=2513. Row 1's top taken at y=1118. Recorded in
+  `m253b_rows_p136a.txt`.
+
+### TABLE 2 (M253 AC) — RHYTHM 6 (SLOW ROCK)
+Printed name: **SLOW ROCK** (caption `RHYTHM 6 (SLOW ROCK)`, PDF p.136 / printed p.143).
+Reset count: **24** — counts **25-32 are greyed** (the stipple reads a uniform 0.19-0.26 across all
+eight lanes at once, starting on the row labelled 25). Block x=696-1250, crop `m253b_ac6.png`.
+
+```
+count:   123456789012345678901234
+OUT 1    x.........x.x...........
+OUT 2    ......x...........x...x.
+OUT 3    ........................
+OUT 4    ........................
+OUT 5    x.x.x.x.x.x.x.x.x.x.x.x.
+OUT 6    x.....x.....x.....x.....
+OUT 7    ........................
+OUT 8    ........................
+```
+Status: **CONFIDENT.** 22 marks, all 0.16-0.19 against a 0.00-0.04 floor; nothing borderline.
+**OUT 3, 4, 7 and 8 wholly empty** — the OUT 8 column shows a 0.01-0.04 dashed-rule floor over
+counts 1-12 that fades out, with no glyph strokes.
+
+- **OUT 5 is every ODD count 1-23, no exceptions** — the whole 24-count cycle.
+- **OUT 6 is a clean every-6th-count lane** (1, 7, 13, 19), the only strictly periodic 6-spaced lane
+  in either table.
+- OUT 1 (1, 11, 13) and OUT 2 (7, 19, 23) are both irregular and neither repeats at 12.
+- **OUT 8 EMPTY on a 24-count rhythm — the reset rule again satisfied** (see the Table 2 summary at
+  the end of this file for the full test).
+
+### TABLE 2 (M253 AC) — RHYTHM 7 (BEAT)
+Printed name: **BEAT** (caption `RHYTHM 7 (BEAT)`).
+Reset count: **32** (no greyed cells). Block x=1250-1807, crop `m253b_ac7.png`.
+
+```
+count:   12345678901234567890123456789012
+OUT 1    x.....x.x.......x.....x.x.......
+OUT 2    ....x.......x.......x.......x.x.
+OUT 3    ................................
+OUT 4    ................................
+OUT 5    x.x.x.x.x.x.x.x.x.x.x.x.x.x.x.x.
+OUT 6    ..x.......x.......x.......x.....
+OUT 7    ................................
+OUT 8    ................................
+```
+Status: **CONFIDENT.** 41 marks, reading 0.14-0.19 against a 0.00-0.06 floor. Every mark falls on an
+ODD count; there is no even-count mark anywhere in the block.
+**OUT 3, 4, 7 and 8 wholly empty.**
+
+- **OUT 5 is every ODD count 1-31, no exceptions** — every other lane's marks land on top of it, so
+  OUT 5 alone is what the other lanes accent.
+- **OUT 6 is a clean every-8th lane offset by two** (3, 11, 19, 27).
+- **OUT 1 is 16-periodic** (1, 7, 9 then 17, 23, 25).
+- **OUT 2 is the one lane that breaks**: 5, 13, 21, 29 is a clean every-8th series, and then there
+  is **one extra mark at count 31** (0.16, checked on the crop, unambiguous). So OUT 2 is the only
+  reason this block is not exactly 16-periodic.
+- **OUT 8 empty on a FULL 32-count rhythm.** Recorded because it is the Table 2 counterpart of
+  Table 1's rhythms 1, 4 and 6: an empty OUT 8 by itself never means the rhythm is short.
+
+### TABLE 2 (M253 AC) — RHYTHM 8 (SAMBA)
+Printed name: **SAMBA** (caption `RHYTHM 8 (SAMBA)`).
+Reset count: **32** (no greyed cells). Block x=1807-2367, crop `m253b_ac8.png`.
+
+```
+count:   12345678901234567890123456789012
+OUT 1    x.....x.x.....x.x.....x.x.....x.
+OUT 2    ....x.x.....x.x.....x...x.x.x.x.
+OUT 3    ................................
+OUT 4    x.....x.....x.......x.....x...x.
+OUT 5    x.x.x.x.x.x.x.x.x.x.x.x.x.x.x.x.
+OUT 6    ................................
+OUT 7    x.....x.....x.......x.....x.....
+OUT 8    ..x.x.....x.x.......x.....x.....
+```
+Status: **CONFIDENT.** 60 marks over six lanes — the densest block in either table. Marks read
+0.13-0.23, blanks 0.00-0.10; every mark falls on an ODD count, with no even-count mark anywhere,
+which made the row-by-row check straightforward. **OUT 3 and OUT 6 wholly empty** (OUT 6 carries a
+0.02-0.05 dashed-rule floor down its whole length; no glyph strokes).
+
+- **OUT 7 is OUT 4 minus its LAST mark**: OUT 4 is 1, 7, 13, 21, 27, 31 and OUT 7 is 1, 7, 13, 21,
+  27. The two lanes are otherwise identical, and count 31 is the only cell that separates them
+  (OUT 4 reads 0.16 there, OUT 7 reads 0.01). Both cells were re-checked on the crop.
+- **OUT 1 is strictly 8-PERIODIC**: `x.....x.` repeated (1, 7 / 9, 15 / 17, 23 / 25, 31).
+- OUT 5 is every ODD count 1-31, no exceptions — the same role it plays in SLOW ROCK and BEAT.
+- OUT 2 and OUT 8 are both irregular: OUT 2 runs 5, 7, 13, 15, 21 and then thickens to 25, 27, 29,
+  31 over the last eight counts; OUT 8 runs 3, 5, 11, 13 then thins to 21 and 27.
+- The count-27 row is the faintest in the block (five marks at 0.13-0.14 against a 0.00-0.02 floor).
+  All five were confirmed on the crop as complete glyphs before being recorded.
+
+### TABLE 2 (M253 AC) — RHYTHM 9 (BOSSA NOVA)
+Printed name: **BOSSA NOVA** (caption `RHYTHM 9 (BOSSA NOVA)`).
+Reset count: **32** (no greyed cells). Block x=2367-2925, crop `m253b_ac9.png`.
+
+```
+count:   12345678901234567890123456789012
+OUT 1    x.x.....x.x.....x.x.....x.x.....
+OUT 2    x.....x.....x.......x.....x.....
+OUT 3    x.....x.....x.......x.....x.....
+OUT 4    x.....x.x...x.......x.....x.....
+OUT 5    x.x.x.x.x.x.x.x.x.x.x.x.x.x.x.x.
+OUT 6    ....x.x.x.........x...x.........
+OUT 7    x.........x...x...........x.x.x.
+OUT 8    x.....x.....x.......x.....x.....
+```
+Status: **CONFIDENT.** 59 marks; **all eight outputs are in use — the only block in Table 2 with no
+empty lane.** Marks read 0.14-0.25, blanks 0.00-0.11. Every mark falls on an ODD count.
+
+- **THREE lanes are IDENTICAL: OUT 2, OUT 3 and OUT 8 all carry exactly 1, 7, 13, 21, 27.** This is
+  the only three-way lane duplication found anywhere in either M253 table, and each of the fifteen
+  cells was checked separately.
+- **OUT 4 is that same lane plus ONE extra mark at count 9** (0.17 there, against 0.00 in OUT 2,
+  OUT 3 and OUT 8 at 9).
+- **OUT 1 is strictly 8-PERIODIC**: `x.x.....` repeated (1, 3 / 9, 11 / 17, 19 / 25, 27).
+- OUT 5 is every ODD count 1-31, no exceptions.
+- OUT 6 (5, 7, 9, 19, 23) and OUT 7 (1, 11, 15, 27, 29, 31) are the two irregular lanes; OUT 7 in
+  particular is silent from count 16 to 26 and then fires three times in the last six counts.
+- **A noise note for count 29**, where a dashed rule crosses: OUT 1, OUT 2 and OUT 6 read 0.10, 0.11
+  and 0.07 there, which is well above the block's own 0.00-0.03 blank floor. The crop shows the rule
+  fragment and no glyph strokes; the only real marks in row 29 are OUT 5 (0.24) and OUT 7 (0.25).
+  Recorded as blanks. This is the page-noise class the inherited warning describes, and the ratio to
+  the real marks in the same row is better than 2:1, so the eye read is not in tension with the ink.
+
+### TABLE 2 (M253 AC) — RHYTHM 10 (CHA-CHA)
+Read in the MAIN SESSION after the third agent on this file stalled. PDF p.136 (printed p.143),
+band 1 block 5, x = 2925-3487, band-1 row rules from `m253b_rows_p136a.txt` (33 boundaries,
+y 1118-2510). Reset count: **32** (no greyed cells).
+Method: per-cell ink fraction over the located cell rectangles AND an independent eye read of a
+1500px-wide crop that includes the OUTPUT header digits. The two agree on every visible cell.
+Marks measure 0.21-0.31 ink; blanks measure exactly 0.00, so there is no borderline cell here.
+```
+count:   1234567890123456789012345678901234  (1..32)
+OUT 1    x...x...x...x...x...x...x.x.x...
+OUT 2    x.x.............x..............x
+OUT 3    ................................
+OUT 4    x.x.....x...x.x.x.x.....x.x.x.xx
+OUT 5    x.x.x.x.x.x.x.x.x.x.x.x.x.x.x.x.
+OUT 6    ................................
+OUT 7    x...x...x...x...x...x...x.x.x...
+OUT 8    x...x...x...x...x...x...........
+```
+Status: **CONFIDENT.** OUT 3 and OUT 6 wholly empty. OUT 5 is every ODD count (a straight
+sixteenth spine); OUT 1 and OUT 7 are byte-identical to each other. Counts 25-29 break OUT 1/4/7's
+every-4 pattern into an every-2 run, which is the only irregular passage in the rhythm.
+
+### TABLE 2 (M253 AC) — RHYTHM 11 (RUMBA)
+PDF p.136 band 2 (the page has a SECOND band below the first, holding rhythms 11 and 12 only —
+worth stating because a single-band assumption loses them). Geometry measured here: vertical rules
+at x = 410 (edge), 566, 697, then eight ~70px columns per block, so count column 410-697,
+rhythm 11 = 697-1253, rhythm 12 = 1253-1811; 33 row boundaries y 3182-4581.
+Reset count: **32** (no greyed cells). Same dual method; marks 0.22-0.33, blanks 0.00.
+```
+OUT 1    x.....x.....x...x.....x.....x...
+OUT 2    x...................x...x.......
+OUT 3    ................................
+OUT 4    ............................x.x.
+OUT 5    ..x.x.x.x.x...x...x.x...x.x...x.
+OUT 6    ................................
+OUT 7    x.....x.....x...x.......x.......
+OUT 8    x.......x.......x...........x...
+```
+Status: **CONFIDENT.** OUT 3 and OUT 6 wholly empty. OUT 4 fires only twice, both at the very end
+of the bar (counts 29 and 31), which reads as a fill into the repeat.
+
+### TABLE 2 (M253 AC) — RHYTHM 12 (BEGUINE)
+Same band and geometry as rhythm 11. Reset count: **32**. Marks 0.22-0.31, blanks 0.00.
+```
+OUT 1    x...........x...x.......x...x...
+OUT 2    ..x...............x.............
+OUT 3    ..x.......x...x...x.......x...x.
+OUT 4    ..x...x.xxxx......x...x.........
+OUT 5    x.xxx.x.x.x.x.x.x.xxx.x.x.x.x.x.
+OUT 6    ................................
+OUT 7    ..x...............x.............
+OUT 8    x.....x.....x.......x...x.......
+```
+Status: **CONFIDENT.** OUT 6 wholly empty. OUT 2 and OUT 7 are byte-identical (counts 3 and 19
+only). OUT 4 carries a four-long adjacent run at counts 9-12, which is the longest run in either
+M253 mask and matters for playback: on this chip the trigger is the RISING EDGE of a ROM bit, so
+that run is ONE trigger held four states, not four hits (Elektor, April 1976, p420).
+
+## TABLE 2 (M253 AC) — COMPLETE (12 rhythms)
+All twelve read: WALTZ, TANGO, MARCH, SWING, MAMBO, SLOW ROCK, BEAT, SAMBA, BOSSA NOVA, CHA-CHA,
+RUMBA, BEGUINE.
+- **AC has 12 rhythms, AD has 15.** AC's twelve names are exactly AD's FIRST TWELVE, in the same
+  slots; AD's extra three (BAJON, FOX TROT, SHUFFLE) have no AC counterpart. So the earlier report
+  that AC "reuses AD's names in the same slots" is confirmed as a naming fact.
+- **Names matching is not content matching**, which is why this was worth reading rather than
+  assuming: see the per-rhythm sections above and the cross-mask comparison below.
+- **The OUT-8 reset rule holds here too.** Only the short rhythms (WALTZ at 23, SLOW ROCK at 24)
+  have an empty OUT 8; every 32-count rhythm in AC uses OUT 8. That is the datasheet's "the column
+  which now represents the reset output, rather than the 8th instrument", confirmed on a second
+  part number.
+
+## CROSS-MASK COMPARISON, done mechanically over all 720 pairs (main session)
+Both datasets were parsed and every M253 block compared against every M252 block, lane by lane.
+
+### 1. M253 AC **IS** M252 AD's first twelve, byte for byte
+All 12 AC rhythms match their same-numbered, same-named AD rhythm on **all eight lanes**,
+character for character (WALTZ, TANGO, MARCH, SWING, MAMBO, SLOW ROCK, BEAT, SAMBA, BOSSA NOVA,
+CHA-CHA, RUMBA, BEGUINE). AD's extra three (BAJON, FOX TROT, SHUFFLE) have no AC counterpart.
+So SGS shipped the same twelve rhythm ROMs under two part numbers, and **the AC mask contributes no
+new pattern data at all**. That is worth stating loudly in both directions: the earlier warning
+("names matching is not content matching") was the right thing to check, and here the answer came
+back that they DO match, which only reading the cells could establish.
+
+### 2. M253 AA is NOT M252 AA with the lanes shifted, but it does reuse LANES
+Tested as "M253 OUT k+1 == M252 OUT k for all k", i.e. the whole block shifted down one output.
+**No pair satisfies it.** The best pairs match 5 of 7 lanes, and most of those matches are two
+empty lanes agreeing, which is trivial; counting only lanes that actually carry marks, the best
+pairs manage 2 to 4 of 3 to 6. So the earlier per-block claims are narrower than they read: what
+holds is **lane-level** reuse (this file records two lanes that are character-for-character
+identical to M252 AA lanes one output up), not block-level. Every M253 AA block also adds marks on
+OUT 1 that its nearest M252 relative does not have (1 to 5 marks).
+**Conclusion:** M253 AA's twelve rhythms are genuine new data; M253 AC's twelve are duplicates.
+

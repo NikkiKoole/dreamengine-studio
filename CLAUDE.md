@@ -268,12 +268,17 @@ runtime/   studio.h (public API: constants + declarations), studio.c (Raylib imp
                          UNEVEN and the header says so: converted from the maker's own drum-patterns.lua,
                          which cites "Drum Machine - 260 Patterns" for its core set and nothing for the later
                          groups. --import re-parses that Lua file; --selfcheck round-trips every row
-             rhythmbox.h GENERATED (tools/gen-rhythmbox.js) from design/rhythm-box-patterns.md: 76 PRESET
+             rhythmbox.h GENERATED (tools/gen-rhythmbox.js) from design/rhythm-box-patterns.md: 101 PRESET
                          RHYTHMS read off three manufacturers' OWN documents, the sourced answer to what an
                          organ-era rhythm box actually plays. RB_FR2L[16] (Ace Tone Rhythm Ace FR-2L, c.1969,
                          the units Ace Tone sold Hammond to build INTO organs) · RB_TR77[18] (Roland TR-77,
                          1972) · RB_SGS[30] (SGS M252 LSI, both published factory masks, the chip that put
-                         AUTO RHYTHM inside cheap Italian organs) · RB_M253[12] (the sibling chip's mask AA; its OTHER
+                         AUTO RHYTHM inside cheap Italian organs) · RB_HAM[3] (a 1969 HAMMOND PATENT, the only
+                         source here with CHORD and BASS lanes: they GATE the notes the player holds, and the
+                         data shows the alternating root-fifth bass) · RB_M255[6] (pins NAMED on the datasheet,
+                         so FIFTH and CHORD TRIGGER are labelled accompaniment) · RB_M254[16] (eight of its
+                         twelve outputs feed the M251 accompaniment chip, so it is MOSTLY chord/bass content) ·
+                         RB_M253[12] (the sibling chip's mask AA; its OTHER
                          mask is byte-identical to an M252 one and is deliberately NOT included, so the library
                          holds no duplicates). A lane is a 48-bit MASK over counts, so the
                          whole library is a few KB; read it with rb_trigger (NOT rb_hit: on the SGS the chip
@@ -282,7 +287,8 @@ runtime/   studio.h (public API: constants + declarations), studio.c (Raylib imp
                          player must respect or it plays nonsense: per_beat and bars are PER RHYTHM (the FR-2L
                          waltz divides its 24-count bar by THREE, its slow rock reads all 48 as one 12/8 bar),
                          `unused` marks counts a rhythm SKIPS (the TR-77 hatches them), and RB_GATE lanes are
-                         HELD not struck (a brush swish, a guiro). ⚠ FR-2L lane LABELS are provisional (75 dpi
+                         HELD not struck (a brush swish, a guiro), and lane ROLE bits say whether a lane is a
+                         drum or gates a CHORD / LOW BASS / HIGH BASS. ⚠ FR-2L lane LABELS are provisional (75 dpi
                          scan, the letterforms are interpolation) — lane ORDER is reliable, the letters are
                          not, so assign voices by order and never claim which voice plays which lane. Elgam's
                          own patterns are NOT here and cannot be: custom mask ROMs, never published (doc §5).

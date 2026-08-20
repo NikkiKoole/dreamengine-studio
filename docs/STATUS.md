@@ -15,7 +15,7 @@ _Last updated: 2026-08-19 — **Tiny Pedalboard shipped to the App Store and is 
 
 ## Shipped ✓
 
-- **76 PRESET RHYTHMS, SOURCED OFF THE MANUFACTURERS' OWN DOCUMENTS** (2026-08-20). Every latin
+- **101 PRESET RHYTHMS, SOURCED OFF THE MANUFACTURERS' OWN DOCUMENTS, CHORD AND BASS INCLUDED** (2026-08-20). Every latin
   pattern in this repo was a plausible reconstruction, `sideman`'s twelve rhythms included. This is
   the real thing, traceable to a page and a figure:
   [`design/rhythm-box-patterns.md`](design/rhythm-box-patterns.md) holds all 16 rhythms of the Ace

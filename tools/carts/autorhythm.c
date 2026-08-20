@@ -34,6 +34,8 @@ static const Machine MACH[] = {
     { "SGS M252",       "1970s  mask ROM",         RB_SGS,  RB_SGS_N  },
     { "SGS M253",       "1970s  mask ROM",         RB_M253, RB_M253_N },
     { "HAMMOND patent",  "1969  US 3,567,838",     RB_HAM,  RB_HAM_N  },
+    { "SGS M255",        "1970s  pins NAMED",      RB_M255, RB_M255_N },
+    { "SGS M254",        "1970s  accompaniment",   RB_M254, RB_M254_N },
 };
 #define NMACH ((int)(sizeof MACH / sizeof MACH[0]))
 

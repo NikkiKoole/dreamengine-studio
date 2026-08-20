@@ -28,6 +28,14 @@ const MACHINES = [
   // A PATENT, not a service manual, and the only source here with chord/bass lanes.
   { id: 'RB_HAM',    sect: '### 8.5', counts: 48, per_bar: 24, per_beat: 6, bars: 2,
     tag: 'HAM',   human: 'Hammond organ rhythm system, US patent 3,567,838 FIG. 2' },
+  // M255: the one table whose lanes AND rhythms are named on the chip's own pinout, so two of its
+  // five lanes are accompaniment (FIFTH, CHORD TRIGGER) rather than drums.
+  { id: 'RB_M255',   sect: '### 8.6', counts: 16, per_bar: 16, per_beat: 4, bars: 1,
+    tag: 'M255',  family: 'sgs', human: 'SGS M255 mask B1-AB, pins named on the datasheet' },
+  // M254: eight of twelve outputs feed the M251 accompaniment chip, so most lanes are chord/bass
+  // content rather than percussion (doc §4e).
+  { id: 'RB_M254',   sect: '### 8.7', counts: 32, per_bar: 32, per_beat: 8, bars: 1,
+    tag: 'M254',  family: 'sgs', human: 'SGS M254 masks AD and AM, mostly accompaniment' },
 ];
 
 // ── per-rhythm subdivision overrides ─────────────────────────────────────
@@ -80,8 +88,8 @@ function blocks(text) {
 // may be a bare pattern character, or "CY  x  ?  x" would read as a label of "CY x" and lose a cell.
 // ...and no token may be the words that introduce the CODE column, or "Cy code 25" would parse
 // as a four-word label and the code would vanish into it.
-const LTOK  = String.raw`(?:&|[0-9]+\)?|(?!(?:code|trig|states)\b)(?![x.\/?:]\s)[A-Za-z][A-Za-z0-9'+?)\-]*)`;
-const LABEL = String.raw`([A-Za-z(\[][A-Za-z0-9'+?()\[\]\-]*(?:\s+(?![x.\/?:]\s)${LTOK}){0,4})`;
+const LTOK  = String.raw`(?:&|[0-9]+\)?|(?!(?:code|trig|states)\b)(?![x.\/?:]\s)[A-Za-z][A-Za-z0-9'+?)\/\-]*)`;
+const LABEL = String.raw`([A-Za-z(\[][A-Za-z0-9'+?()\[\]\/\-]*(?:\s+(?![x.\/?:]\s)${LTOK}){0,4})`;
 const CODE  = String.raw`(?:(?:code|trig)\s+([0-9][0-9'+ ]*(?:\([^)]*\))?[0-9'+K ]*|[0-9]+\?|\?)\s+)?`;
 const RE_A  = new RegExp('^\\s*' + LABEL + '\\s+' + CODE + '([x.\\/?:]{12,32})(?:\\s\\s+([x.\\/?:]{12,32}))?\\s*(.*)$');
 const RE_B  = new RegExp('^\\s*' + LABEL + '\\s+((?:[x.\\/?:]\\s+){7,}[x.\\/?:])\\s*$');
@@ -104,10 +112,12 @@ function laneRole(label) {
   const u = label.toUpperCase();
   let r = 0;
   if (/\bCHORD\b/.test(u))     r |= 2;
+  if (/\bFUNDAMENTAL\b/.test(u)) r |= 4;   // the M255's OUT 1 drives the kick AND the root note
+  if (/\bFIFTH\b/.test(u))     r |= 8;    // the fifth: the high half of an alternating bass
   if (/\bLOW BASS\b/.test(u))  r |= 4;
   if (/\bHIGH BASS\b/.test(u)) r |= 8;
   // a drum unless the label is ONLY chord/bass
-  const stripped = u.replace(/CHORD|LOW BASS|HIGH BASS|[&+ ]/g, '');
+  const stripped = u.replace(/CHORD|LOW BASS|HIGH BASS|FUNDAMENTAL|FIFTH|TRIGGER|[&+\/ ]/g, '');
   if (!r || stripped.length) r |= 1;
   return r;
 }
@@ -300,6 +310,17 @@ function selfcheck(sets) {
   T('Hammond rhythms are TWO measures of 24', sub('RB_HAM', /LATIN/), [24, 6, 2]);
   T('Hammond waltz divides its measure by THREE', sub('RB_HAM', /WALTZ/), [24, 8, 2]);
   T('TR77 keeps a one-bar structure', sub('RB_TR77', /^RHUMBA$/), [16, 4, 1]);
+  const m255 = sets.find(s => s.mach.id === 'RB_M255');
+  const m254 = sets.find(s => s.mach.id === 'RB_M254');
+  T('M255 present with 6 rhythms', m255 ? m255.rhythms.length : 0, 6);
+  T('M254 present with 16 rhythms (both masks)', m254 ? m254.rhythms.length : 0, 16);
+  // the M255 waltz is the accompaniment check: root on time 1, fifth on time 7 (0-based 0 and 6)
+  T('M255 waltz plays root then FIFTH', on(lane(find('RB_M255', /WALTZ/), 'FIFTH')), [6]);
+  T('M255 waltz root lane also drives the kick',
+    (() => { const l = lane(find('RB_M255', /WALTZ/), 'BASS DRUM/FUNDAMENTAL');
+             const r = laneRole(l.label); return [!!(r & 1), !!(r & 4)]; })(), [true, true]);
+  T('M255 CHORD TRIGGER is a chord lane and not a drum',
+    (() => { const r = laneRole('CHORD TRIGGER'); return [!!(r & 2), !!(r & 1)]; })(), [true, false]);
   console.log(`\n${pass}/${total} known answers`);
   return pass === total;
 }

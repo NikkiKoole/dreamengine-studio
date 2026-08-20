@@ -28,6 +28,7 @@ reason, not documented at all for the Elgam itself (§5).
 | **Hammond** organ rhythm system | filed 1969, granted 1971 | motor commutator or coincidence type | 3, and they carry CHORD + BASS | US patent **3,567,838** (Tennes & Kern, Hammond Corp), FIG. 2 |
 | **SGS M255** rhythm LSI | databook 1979 | mask ROM | 6, with NAMED accompaniment lanes | same databook, pp146-147 + the truth table on p158 |
 | **SGS M254** rhythm LSI | databook 1979 | mask ROM, two masks | 16, mostly ACCOMPANIMENT | same databook, pp142-144 (+ pinout p145) |
+| **Baldwin** organ accompaniment | filed 1979 | TMS1000 microprocessor | 0 patterns (FIG. 14 rejected, §4g), but the CHORD RULE | US patent **4,292,874**, FIG. 11 |
 
 - FR-2L: <https://archive.org/details/RhythmAceFR2LServiceManual>
 - TR-77: <https://archive.org/download/roland_Roland_TR-77_Service_Manual/Roland_TR-77_Service_Manual.pdf>
@@ -348,6 +349,78 @@ return high between two set states cannot present a second rising edge, which is
 adjacent marks fire once on the M252; and by this later part the behaviour had become a **per-output
 mask option**. The rule this project inferred from a 1976 magazine article is a documented, and by
 1979 configurable, property of the silicon.
+
+### 4g. A bass line with PITCHES, and a chord table that is really one line of arithmetic
+
+Source: **US patent 4,292,874**, "Automatic control apparatus for chords and sequences", Edward M.
+Jones and Carlton J. Simmons Jr., **Baldwin Piano and Organ Company**, filed 1979-05-18, granted
+1981-10-06. This is the only source in the collection whose bass carries **pitch** rather than gates.
+
+Sixteen rhythms are named, each with a *plain* and a *fancy* variant: Swing, Teen Beat, Shuffle,
+3/4 Waltz, Pop Rock, 6/8 March, Soul Rock, Rhumba Beguine, Tango, Fox Trot, Bossa Nova, Polka March,
+Bolero, Samba, Merengue, Cha-Cha.
+
+**The step unit is stated, not guessed.** The Activity Next bits "show which of the rhythms have
+activity (a trigger or a special damp) during the next sixteenth beat", and FIG. 14's own ruler
+counts CN 0..15 per measure. So: sixteenths, 16 per measure.
+
+**FIG. 14 was attempted and REJECTED, and the rejection is the useful part.** It was reported as a
+transcribable chart of the fancy SOUL ROCK pedal pattern in root G, three lanes over 33 sixteenths:
+`PT` trigger, `DO` damp and `PD` in semitones above the played root. It is not a chart. Rendered at
+400 dpi it is a set of **hand-drawn timing waveforms** plus a musical staff: `PT` and `DO` are square
+waves whose edges must be read, and `PD` is a **staircase** whose level must be read against a 0-to-12
+axis. Reading pulse edges and step heights off freehand traces is a different and much weaker
+operation than reading dots off a ruled grid.
+
+The transcription that came back did not survive its own stated cross-check. The patent says "a damp
+signal is generated automatically one beat in advance of trigger", so the damp set must be exactly
+the triggers shifted back one step; checked against the reported rows it is not (three damps have no
+trigger after them, five triggers have no damp before them). That check had been offered as the
+evidence the reading was right, so its failure retires the reading. The numbers are therefore NOT in
+this document and NOT in `rhythmbox.h`, and the generator's assertion that would have shipped them
+was deleted rather than loosened.
+
+Two things about the figure are worth recording for whoever tries again. The staff at the top
+notates the bass line directly, which is a far better route than the staircase: read the notation,
+not the trace. And the axis labels genuinely are what the earlier reading claimed, so the vocabulary
+below stands even though the pattern does not.
+
+**What is NOT there.** Tables 1-3 print only ONE sixteenth beat (MN=1, CN=3) as a worked example of
+the ROM encoding: 28 Activity Next bits, 14 fancy plus 14 plain, one per rhythm. The other 26
+branches and the other fifteen rhythms' data are printed nowhere. So this patent yields **one**
+pattern, not sixteen.
+
+### 4g.1 FIG. 11, "EASY PLAY CHORDS", and the rule hiding inside it
+
+The same patent prints a 13-row chord table giving, per key, the ROOT, MAJOR third, MINOR third,
+FIFTH and SEVENTH as keyboard note numbers, every value inside notes 30 to 42. Checked
+programmatically against all twelve keys, the whole table reduces to **one line of arithmetic with
+zero mismatches**:
+
+    note = 30 + ((pitch_class - 5) mod 12)
+
+applied to root, root+4 (major third), root+3 (minor third), root+7 (fifth) and root+10 (dominant
+seventh); the table writes 42 rather than 30 when a tone lands on the window's top F.
+
+The musical point is worth more than the table: **every chord tone is folded into one fixed 12-note
+window** (F upward). That is why an organ's auto-chord sits in the same register in every key instead
+of marching up the keyboard, and it is two lines in a cart. Note also that the minor third is
+notated as the enharmonic a semitone below the major third (in C: major E41, minor D#40).
+
+### 4g.2 The negative, recorded so nobody re-downloads it
+
+**US 3,708,604** (Hebeisen and Tevault, Jasper Electronics, filed 1971, granted 1973) was chased
+because its FIG. 5 was reported to chart "the periods during which pedal tones and chords sound".
+It is a **hand-drawn timing waveform, not a pattern grid**: ten labelled lanes, no time ruler, no bar
+or beat count, freehand ticks at irregular spacing, and the only x-axis annotation is the word
+"TIME". The description forecloses it outright: "any desired rhythm pattern could be employed, and
+the source of pulses could be derived from any sort of pulse generating devices". Nothing to
+transcribe.
+
+It does carry the mechanism, and it agrees with §4d: the bass alternates between two gated keyers
+flipped by a monostable multivibrator rather than by any stored step list, where "MJ" is the root and
+"MN" the fifth, each optionally 8' plus 16'. Root-fifth alternation, gates only, no degrees, no
+pattern memory.
 
 ## 5. Elgam: the patterns cannot be sourced, and the reason is the interesting part
 
@@ -1640,9 +1713,12 @@ OUTPUT 12   ..x...x...x...x...x...x...x...x.
   published chord/bass/arpeggio table for eight named rhythms, in a databook already on disk.
   Reading it needs the pinout page (printed p145) beside the truth table (pp150-151), because which
   column group is music and which is drums is decided by the pinout.
+- **FIG. 14 of US4292874** is unfinished business (§4g): its bass line is notated on a STAFF at the
+  top of the same figure, which is a far better route than the staircase trace that defeated the
+  first attempt. Anyone retrying should read the notation and check it against the patent's
+  damp-one-step-before-trigger rule, which is what caught the bad reading.
 - ~~M255, M258/M259, M108.~~ **DONE (2026-08-20):** M255's 6 rhythms are in §8.6 with their pins
   named; M258/M259 turned out to publish NO content but to explain the edge rule (§4f); the M108's
   bass decoder is in §4f.
-- **US4292874** and **US3708604A** are the two patents worth pulling for accompaniment (§4e).
 - **Elgam's own masks** would need a ROM dump off a surviving `M252 D1 AE`/`AF`, or transcription
   from recordings.

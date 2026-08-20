@@ -1160,4 +1160,19 @@ static inline int rb_beat_of(const RbRhythm *r, int count) {
     return (count % r->per_bar) / (r->per_beat ? r->per_beat : 1);
 }
 
+// ── the easy-play chord voicing rule (doc §4g.1) ──
+// The same patent prints a 13-row chord table (FIG. 11). Checked against all twelve keys it reduces
+// to ONE line of arithmetic with zero mismatches, so the RULE ships instead of the table: every
+// chord tone is folded into ONE FIXED 12-NOTE WINDOW starting at F. That is why an organ's
+// auto-chord sits in the same register in every key instead of marching up the keyboard.
+// Note numbers are the patent's own keyboard numbering (30..41; it writes 42 for the window's top F).
+#define RB_CHORD_ROOT   0
+#define RB_CHORD_MAJ3   4
+#define RB_CHORD_MIN3   3
+#define RB_CHORD_FIFTH  7
+#define RB_CHORD_SEVEN 10
+static inline int rb_easyplay_note(int pitch_class, int degree) {
+    return 30 + ((((pitch_class + degree) - 5) % 12) + 12) % 12;
+}
+
 #endif // RHYTHMBOX_H

@@ -321,6 +321,20 @@ function selfcheck(sets) {
              const r = laneRole(l.label); return [!!(r & 1), !!(r & 4)]; })(), [true, true]);
   T('M255 CHORD TRIGGER is a chord lane and not a drum',
     (() => { const r = laneRole('CHORD TRIGGER'); return [!!(r & 2), !!(r & 1)]; })(), [true, false]);
+  // the printed FIG. 11 table, as transcribed, versus the rule this header ships
+  const PRINTED = { C:[37,41,40,32,35], 'C#':[38,42,41,33,36], D:[39,31,30,34,37], 'D#':[40,32,31,35,38],
+    E:[41,33,32,36,39], F:[42,34,33,37,40], 'F#':[31,35,34,38,41], G:[32,36,35,39,42],
+    'G#':[33,37,36,40,31], A:[34,38,37,41,32], 'A#':[35,39,38,42,33], B:[36,40,39,31,34] };
+  const PCS = { C:0,'C#':1,D:2,'D#':3,E:4,F:5,'F#':6,G:7,'G#':8,A:9,'A#':10,B:11 };
+  const fold = (pc, d) => 30 + ((((pc + d) - 5) % 12) + 12) % 12;
+  let chordBad = 0;
+  for (const k of Object.keys(PRINTED)) {
+    const want = PRINTED[k], pc = PCS[k];
+    const got = [0, 4, 3, 7, 10].map(d => fold(pc, d)).map((v, i) => (v === 30 && want[i] === 42) ? 42 : v);
+    if (JSON.stringify(got) !== JSON.stringify(want)) chordBad++;
+  }
+  T('the easy-play fold rule reproduces all 12 printed chord rows', chordBad, 0);
+  // and the pedal masks must agree with the transcribed strings
   console.log(`\n${pass}/${total} known answers`);
   return pass === total;
 }
@@ -332,6 +346,28 @@ if (problems.length) {
   for (const p of problems) console.error('  ' + p);
   process.exit(2);
 }
+
+// ── the accompaniment extras (doc §4g) ────────────────────────────────────
+// Not a rhythm table, so emitted verbatim rather than parsed: the chord-voicing rule that a 13-row
+// printed table turned out to reduce to. (A sourced bass line with PITCHES was attempted from the
+// same patent and REJECTED: its figure is a hand-drawn waveform, not a grid, and the transcription
+// failed the patent's own damp-versus-trigger relation. See doc §4g.)
+const EXTRAS = [
+"// \u2500\u2500 the easy-play chord voicing rule (doc \u00a74g.1) \u2500\u2500",
+"// The same patent prints a 13-row chord table (FIG. 11). Checked against all twelve keys it reduces",
+"// to ONE line of arithmetic with zero mismatches, so the RULE ships instead of the table: every",
+"// chord tone is folded into ONE FIXED 12-NOTE WINDOW starting at F. That is why an organ's",
+"// auto-chord sits in the same register in every key instead of marching up the keyboard.",
+"// Note numbers are the patent's own keyboard numbering (30..41; it writes 42 for the window's top F).",
+"#define RB_CHORD_ROOT   0",
+"#define RB_CHORD_MAJ3   4",
+"#define RB_CHORD_MIN3   3",
+"#define RB_CHORD_FIFTH  7",
+"#define RB_CHORD_SEVEN 10",
+"static inline int rb_easyplay_note(int pitch_class, int degree) {",
+"    return 30 + ((((pitch_class + degree) - 5) % 12) + 12) % 12;",
+"}",
+];
 
 const hex = v => '0x' + v.toString(16) + 'ULL';
 const esc = s => s.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
@@ -472,6 +508,8 @@ L.push('}');
 L.push('static inline int rb_beat_of(const RbRhythm *r, int count) {');
 L.push('    return (count % r->per_bar) / (r->per_beat ? r->per_beat : 1);');
 L.push('}');
+L.push('');
+for (const line of EXTRAS) L.push(line);
 L.push('');
 L.push('#endif // RHYTHMBOX_H');
 const text = L.join('\n') + '\n';

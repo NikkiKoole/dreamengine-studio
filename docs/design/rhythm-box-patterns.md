@@ -1110,10 +1110,14 @@ OUT 8    x.x.x.x.x.x.x.x.x.x.x.x.x.x.x.x.
 
 ## 9. Open items
 
-- **A cart.** The obvious build is a preset auto-rhythm box wired to one combo organ: pick a rhythm,
-  pick a fill, one tempo knob, no grid editor. Findings 1, 3 and 6 are the honest core, and none of
-  the existing carts can express any of them. See [`instrument-carts.md`](../guides/instrument-carts.md)
-  for the chassis shelf before starting.
+- ~~A cart.~~ **DONE (2026-08-20):** `autorhythm` (tools/carts/autorhythm.c). A dial of machines, a
+  dial of rhythms and one clock knob, with the mechanism on screen instead of a step grid: skipped
+  states are struck through and really are stepped over, marks that cannot retrigger are drawn
+  hollow, gate lanes are held, and the tempo control is the machine's own variable CLOCK in ticks
+  per second with the BPM derived rather than set. Its `spec()` asserts the four sequencing
+  properties over all 76 rhythms plus the FR-2L unruled-count invariant (25 assertions). The voices
+  are `sideman.h` and are NOT sourced; the cart says so on screen, and the label-hint mapping it
+  uses is written up in [`instrument-recipes.md`](../guides/instrument-recipes.md).
 - ~~A generated header.~~ **DONE (2026-08-20):** [`runtime/rhythmbox.h`](../../runtime/rhythmbox.h),
   generated from THIS DOC by `node tools/gen-rhythmbox.js`, so the doc stays the single source of
   truth and the header carries only the bits. A lane is a 48-bit mask over counts; per-rhythm

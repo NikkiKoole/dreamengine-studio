@@ -814,6 +814,41 @@ tube glue, mix 0.8) for the analog character.
 
 ---
 
+### autorhythm (organ rhythm box — NO new voices, but a voice-ASSIGNMENT recipe, from autorhythm.c)
+
+`autorhythm` plays 76 preset rhythms read off manufacturer service manuals
+([`rhythm-box-patterns.md`](../design/rhythm-box-patterns.md), data in
+[`runtime/rhythmbox.h`](../../runtime/rhythmbox.h)) and adds **no new timbres at all**: it fires the
+shared `sideman.h` tube bank unchanged. What it contributes to this doc is the other half of an
+instrument recipe, the part that is usually implicit: **which voice plays which lane**, when the
+source will not tell you.
+
+The problem is specific. The FR-2L chart's lane labels sit in a ~75 dpi scan, so the letterforms are
+interpolation rather than ink: the labels are weak evidence, not zero and not fact. Ignoring them
+entirely (assign by lane order) was tried first and puts the bass drum on the backbeat of every
+latin rhythm, which sounds wrong for a reason that has nothing to do with the data. So the cart
+reads the label as a HINT, with the two-letter tokens tested before the one-letter ones (`Cy` must
+not be read as `C` for claves), and a prime (`Cy'`, `Sd'`) selecting the softer sibling:
+
+| label | voice | why |
+|---|---|---|
+| `Bd` | `SM_BASS` | bass drum |
+| `Sd` / `Sd'` | `SM_BRUSH` / `SM_TEMP1` | **this bank has no snare**; a wire brush stands in |
+| `Cy` / `Cy'` | `SM_CYMBAL` / `SM_BRUSH` | the primed lane is the softer cymbal |
+| `Hh` | `SM_MARACAS` | a hi-hat is the nearest thing to shaken noise here |
+| `Cb` | `SM_WOOD` | cowbell → wood block: the clack, not the pitch |
+| `Hb` / `Lb` | `SM_TOM1` / `SM_TOM2` | high / low bongo |
+| `Hc` / `Lc` | `SM_TOM1` / `SM_TOM2` | high / low conga |
+| `Rs` | `SM_CLAVES` | rim shot |
+| `Tb`, `Gu` | `SM_MARACAS` | tambourine, guiro: both shaken/scraped noise |
+| `Me` | `SM_WOOD` | the TR-77 metronome, a click, and **off by default** |
+| `OUT n` | lane order | the SGS chips label pins, not instruments |
+
+Two honesty notes that belong with the recipe. The bank is a **decade early** for these charts (1959
+tubes against a 1969 transistor box and a 1970s chip), so nothing here claims to be the machine's
+own voice. And the mapping is rotatable in the cart (`V`), because a hint is a hint: the patterns are
+sourced, the voicing is a choice the player can overrule.
+
 ## By cart
 
 The alternate view — each cart and the recipe names it stocks. Carts with no fixed recipes

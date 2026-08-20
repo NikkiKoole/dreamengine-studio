@@ -1,0 +1,8 @@
+# autorhythm: the FR-2L bossanova, the rhythm the whole enquiry started from.
+# Boots on the FR-2L (machine 0) at rhythm 0; RIGHT once lands on Bossanova, which is
+# the second block in doc §8.1. Then SPACE runs the machine's clock.
+#
+# The clock defaults to 8 ticks/second, which on a 6-per-beat rhythm is 80 bpm: slow
+# enough that the two-bar clave is audible as an asymmetry rather than a texture.
+tap 20 RIGHT
+tap 40 SPACE

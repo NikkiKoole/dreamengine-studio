@@ -35,18 +35,18 @@ de:meta */
 // quieter, and level alone could not close it (the toms were already near unity gain).
 typedef struct { int role, midi, vbump; const char *how; } Map;
 static const Map MAP[DP_NROLES] = {
-    [DP_BD]  = { DK_KICK,   36, 0, "kick" },
-    [DP_SD]  = { DK_SNARE,  38, 0, "snare" },
+    [DP_BD]  = { DK_KICK,   36, 3, "kick" },
+    [DP_SD]  = { DK_SNARE,  38, 3, "snare" },
     [DP_LT]  = { DK_TOM_LO, 41, 2, "low tom" },
     [DP_MT]  = { DK_TOM_LO, 48, 2, "mid tom = the low tom slot, up 7" },
     [DP_HT]  = { DK_TOM_HI, 55, 2, "high tom" },
     [DP_CH]  = { DK_HHC,    42, 0, "closed hat" },
     [DP_OH]  = { DK_HHO,    46, 0, "open hat" },
     [DP_CY]  = { DK_CRASH,  49, 0, "cymbal" },
-    [DP_RS]  = { DK_SNARE,  50, 0, "rim shot = snare, up 12" },
+    [DP_RS]  = { DK_SNARE,  50, 3, "rim shot = snare, up 12" },
     [DP_CB]  = { DK_TOM_HI, 62, 2, "cowbell = high tom, up 12" },
-    [DP_CPS] = { DK_CLAP,   39, 0, "claps" },
-    [DP_TB]  = { DK_HHC,    54, 1, "tambourine = closed hat, up 12" },
+    [DP_CPS] = { DK_CLAP,   39, 3, "claps" },
+    [DP_TB]  = { DK_HHC,    54, 0, "tambourine = closed hat, up 12" },
     [DP_AC]  = { -1,         0, 0, "ACCENT: a velocity lane, not a voice" },
 };
 static const char *RNAME[DP_NROLES] = { "BD","SD","LT","MT","HT","CH","OH","CY","RS","CB","CPS","TB","AC" };
@@ -59,19 +59,26 @@ static const DrumKitDef *KITS[2] = { &DK_ELECTRO, &DK_ACOUSTIC };
 // PER ROLE, not one blanket number: the noise voices (hats, snare, crash) are far louder than the
 // SINE toms, and a flat 0.45 left the toms 20 dB under the mix. Measured on Afro-Cuban 2's
 // "Measure B", whose only tom lane was inaudible until this table existed.
-static const float LVL[DK_N] = {
-    [DK_KICK]   = 0.50f,
-    [DK_SNARE]  = 0.45f,
-    [DK_HHC]    = 0.30f,   // plays on almost every step, so it dominates if left level
-    [DK_HHO]    = 0.38f,
-    [DK_CLAP]   = 0.45f,
-    [DK_TOM_LO] = 0.95f,   // sine: quiet for its velocity next to a noise burst
-    [DK_TOM_HI] = 0.95f,
-    [DK_CRASH]  = 0.40f,
+// PER KIT, because the two kits are not merely different sounds but different LOUDNESS SHAPES.
+// Measured intrinsic loudness (peak with level and velocity divided out):
+//   ELECTRO  hats -11, crash -20, sine toms -31, sine kick -33, band-noise snare/clap -38
+//   ACOUSTIC hats -11, crash -13, membrane kick/toms -38 to -39, snare/clap/rim -36 to -37
+// So a kick-led balance needs the hats pulled ~26 dB down in one kit and ~33 dB in the other, and
+// a single table leaves whichever kit it was not tuned for badly wrong. The ELECTRO table used to
+// be the only one, and on ACOUSTIC it left the toms 13 dB under a leading crash.
+static const float LVL[2][DK_N] = {
+    {   // ELECTRO
+        [DK_KICK] = 1.00f, [DK_SNARE] = 1.00f, [DK_HHC] = 0.050f, [DK_HHO] = 0.060f,
+        [DK_CLAP] = 1.00f, [DK_TOM_LO] = 0.55f, [DK_TOM_HI] = 0.55f, [DK_CRASH] = 0.200f,
+    },
+    {   // ACOUSTIC: membrane kick and toms are far quieter, its crash far louder
+        [DK_KICK] = 1.00f, [DK_SNARE] = 0.575f, [DK_HHC] = 0.023f, [DK_HHO] = 0.028f,
+        [DK_CLAP] = 0.50f, [DK_TOM_LO] = 0.70f, [DK_TOM_HI] = 0.70f, [DK_CRASH] = 0.045f,
+    },
 };
 static void use_kit(int k) {
     dk_use(KITS[k], KIT_BASE);
-    for (int i = 0; i < DK_N; i++) instrument_level(KIT_BASE + i, LVL[i]);   // gain is 0..1, not 0..7
+    for (int i = 0; i < DK_N; i++) instrument_level(KIT_BASE + i, LVL[k][i]);  // gain is 0..1, not 0..7
 }
 
 static int  grp = 0, pat = 0;          // where the cursor is
@@ -108,6 +115,14 @@ void init(void) {
     use_kit(kit);
     bpm(tempo);
     reverb(0.35f, 0.5f);
+    // Drum-bus glue for character. MEASURED, so nobody expects more of it: on material this
+    // transient the average gain reduction is tiny, so its automatic makeup is tiny too (0.35,
+    // 0.55 and 0.75 all landed within 0.05 dB of each other). The mix therefore peaks around
+    // -9.5 dBFS rather than the -0.2 that drummachine reaches, and that is the honest ceiling for
+    // a KICK-LED balance here: ELECTRO's voices span 28 dB of intrinsic loudness, the kick is
+    // already at unity gain and velocity 7, so the only way to a hotter mix is to let the hats
+    // lead again, which is the bug this table exists to fix.
+    glue(0, 0.35f, 8, 160);
 }
 
 void update(void) {
@@ -317,11 +332,15 @@ void spec(void) {
     // 6. the mix balance is a TABLE, and a flat table is the bug this cart already had: the sine
     //    toms measured 20 dB under the mix until they got their own level and velocity. Guard both
     //    so a later tidy-up cannot silently re-flatten them.
-    int zerolvl = 0;
-    for (int i = 0; i < DK_N; i++) if (!(LVL[i] > 0.0f)) zerolvl++;
-    expect(zerolvl == 0, "every kit role has a nonzero level (none is muted by accident)");
-    expect(LVL[DK_TOM_LO] > LVL[DK_HHC] && LVL[DK_TOM_HI] > LVL[DK_HHC],
-           "the sine toms sit louder than the closed hat, which plays on nearly every step");
+    int zerolvl = 0, tomsunder = 0;
+    for (int k = 0; k < 2; k++)
+        for (int i = 0; i < DK_N; i++) if (!(LVL[k][i] > 0.0f)) zerolvl++;
+    for (int k = 0; k < 2; k++)
+        if (!(LVL[k][DK_TOM_LO] > LVL[k][DK_HHC] && LVL[k][DK_TOM_HI] > LVL[k][DK_HHC])) tomsunder++;
+    expect(zerolvl == 0, "every role in BOTH kits has a nonzero level (none muted by accident)");
+    expect(tomsunder == 0, "in both kits the toms sit above the closed hat, which plays constantly");
+    expect(LVL[0][DK_CRASH] != LVL[1][DK_CRASH],
+           "the two kits have DIFFERENT tables (one table left the other kit 13 dB out)");
     expect(MAP[DP_LT].vbump > 0 && MAP[DP_MT].vbump > 0 && MAP[DP_HT].vbump > 0,
            "all three tom lanes carry a velocity bump (a sine needs it against noise)");
     expect(MAP[DP_LT].midi != MAP[DP_MT].midi,

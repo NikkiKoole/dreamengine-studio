@@ -849,6 +849,40 @@ tubes against a 1969 transistor box and a 1970s chip), so nothing here claims to
 own voice. And the mapping is rotatable in the cart (`V`), because a hint is a hint: the patterns are
 sourced, the voicing is a choice the player can overrule.
 
+### drumkit.h's two kits have DIFFERENT loudness shapes (measured, from groovebook.c)
+
+Not a timbre recipe: a mix one, and the kind of thing that costs an afternoon if you assume it away.
+`drumkit.h` ships `DK_ELECTRO` and `DK_ACOUSTIC` behind one role vocabulary, so it is tempting to
+treat them as interchangeable and give them one level table. They are not interchangeable. Measured
+with a probe cart that fires each role in isolation 1.5 s apart (the crash rings ~1.1 s, so tighter
+spacing measures the previous tail), with level and velocity divided back out:
+
+| voice | ELECTRO intrinsic | ACOUSTIC intrinsic |
+|---|---|---|
+| closed / open hat | -11 dB | -11 dB |
+| crash | -20 dB | **-13 dB** |
+| toms | -31 dB (sine) | **-38 dB** (membrane) |
+| kick | -33 dB (sine) | **-39 dB** (membrane) |
+| snare / clap / rim | -36 to -38 dB (band-filtered noise) | -36 to -37 dB |
+
+Two things follow. **The spread inside one kit is up to 28 dB**, so a flat trim buries the quiet
+voices: a blanket `instrument_level(slot, 0.45f)` left ELECTRO's kick 19 dB and its snare 26 dB
+under the open hat, and the bug reached a shipped cart. And **the two kits need different tables**:
+tuning for ELECTRO leaves ACOUSTIC's toms 13 dB below a crash that has taken the lead.
+
+A kick-led balance therefore means pulling the hats down by 26 dB (ELECTRO) or 33 dB (ACOUSTIC),
+which lands the mix around -16 and -22 dBFS peak respectively. That is the ceiling, not a choice:
+the kick is already at unity gain and velocity 7. `glue()` does not rescue it either, because on
+material this transient the average gain reduction is small and so is its automatic makeup (0.35,
+0.55 and 0.75 measured within 0.05 dB of each other). If you need it hotter, the answer is a louder
+kick voice, not a louder table.
+
+`groovebook` carries both tables and `spec()` guards them structurally: no role may be at zero, the
+toms must sit above the closed hat in BOTH kits, and the two tables must differ. Re-measure with
+`tools/carts/dkprobe.c` (set `probe_kit`) and a per-window peak read of the WAV; a per-role stem
+render (`play.js --solo-slot <base+role>`) is what shows a single buried lane, which the master-bus
+level checks cannot see.
+
 ## By cart
 
 The alternate view — each cart and the recipe names it stocks. Carts with no fixed recipes

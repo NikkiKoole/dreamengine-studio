@@ -2078,6 +2078,18 @@
     "lineage": "Showcase cart for the master filter() bus; the backing loop is cribbed directly from groovebox, making djfilter a focused performance layer over a proven rhythmic canvas rather than a new sequencer design."
   },
   {
+    "title": "dk probe",
+    "description": "Throwaway balance probe: fires each drumkit.h role in turn at groovebook's own levels and velocities so their loudness can be compared. None. It plays itself.",
+    "file": "dkprobe.cart.png",
+    "created": "2026-08-20",
+    "kind": [
+      "probe"
+    ],
+    "teaches": [
+      "drum-synthesis"
+    ]
+  },
+  {
     "title": "Donkey Kong",
     "description": "The arcade 25m girder stage, rebuilt from pure primitives: a tower of slanted red girders strung together with peach ladders, Kong thumping barrels off the top, and the princess blinking HELP at the summit. Run up the slopes, climb the ladders, and time your jumps as barrels tumble down and randomly peel off onto a ladder — clear one for +100, or grab the blinking hammer for six seconds of barrel-smashing frenzy. Touch a barrel without the hammer and the screen flashes red and shakes as you lose one of three lives; reach the top and she's saved. Hi-score persists between runs. Left/Right run along the girder, Up/Down climb ladders, Z to jump (and to restart).",
     "file": "donkeykong.cart.png",

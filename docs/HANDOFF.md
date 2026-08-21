@@ -1715,7 +1715,11 @@ a broken doc link or `#section`).
 >    `tools/clips/{upright/01-walk-line,walkbox/01-loop,walkroll/01-loop}.script`, each carrying that trap in
 >    its header. (2) **NEXT: the rest**
 >    with their own sizes: `mariachi` (2 violins), `polopan` (pizz), `bandbox` (bass + arco pad), `portapop`,
->    `modrack` slot 38. (3) **Leave `soundcheck`/`tunecheck`/`voicestress`/`pipetune` body-OFF** — they feed
+>    `modrack` slot 38, and **`morphbox`** — added 2026-08-21, it was missing from this list and is the most
+>    obvious case in the set: its UPRIGHT voice is `INSTR_BOWED` pizz, the same instrument at the same
+>    `BOW_SIZE_BASS` just cleared on the three bass carts. The full install base is 14 carts
+>    (`grep -l INSTR_BOWED tools/carts/*.c`): these 6, the 3 cleared, the 4 gate-feeders in (3), and `bowed`
+>    itself, which is the showcase and has had the body plus per-preset sizes since it was built. (3) **Leave `soundcheck`/`tunecheck`/`voicestress`/`pipetune` body-OFF** — they feed
 >    the audio gates, so re-voicing them moves the baselines.
 >    ⚠ Measuring a BASS body? Use `harmonic-spec`, NOT brightness/centroid — a 60 Hz box works below 350 Hz,
 >    so `wav-envelope` reported "no change" across a ±17 dB reshaping. Pick the gate by where the effect lives.

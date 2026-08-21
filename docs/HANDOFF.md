@@ -1714,14 +1714,29 @@ a broken doc link or `#section`).
 >    in it. The tell is all three carts returning the SAME sha. Tracks parked 2026-08-21 at
 >    `tools/clips/{upright/01-walk-line,walkbox/01-loop,walkroll/01-loop}.script`, each carrying that trap in
 >    its header. (2) **NEXT: the rest**
->    with their own sizes: `bandbox` (bass + arco pad), `portapop`, `modrack` slot 38.
+>    with their own sizes: **`portapop` and `modrack` slot 38 are ALL THAT IS LEFT.**
+>    **`bandbox` is DONE (2026-08-21) — `BSS_BODY` 0.6 (upright pizz, `BOW_SIZE_BASS`) + `PAD_BODY` 0.6
+>    (arco pad, violin).** Both are TONE OPTIONS (`bassTone` 3 / `padTone` 2, both boot at 0), so the cart's
+>    default sound did not move. ⚠ Its bass ladder is **NON-MONOTONIC** in peak (−20.5 / −21.2 / −21.2 /
+>    −20.7 dBFS at 0 / 0.4 / 0.6 / 0.85) and nobody knows why — recorded rather than explained.
+>    ⚠ To render either slot you must force the tone: neither is reachable from a keyboard, only from a
+>    `lay.h` chip whose coords do not survive a reflow, so the render pass temporarily patched the
+>    `static int bassTone/padTone` defaults inside a `try/finally` and let `ab-render` patch the body define
+>    on top. That composes correctly (ab-render restores what it read); just commit your wiring FIRST so git
+>    is a real net.
 >    **`polopan` is DONE (2026-08-21) — the ear picked `PIZZ_BODY` 0.4**, continuing the ordering: 0.85 for
 >    a solo upright, 0.6 for two violin desks in a six-piece, 0.4 for a pizz under a 16th groove with a
->    marimba, a chorus and a kit over it. ⚠ **A PIZZ body reads BACKWARDS from an ARCO one on the meters**
->    and this matters for `bandbox`, which has one of each: arco LIFTS level and darkens (mariachi, +3.2 dB
->    and −322 Hz across 0..1), pizz LOWERS level and barely colours (polopan, −2.0 dB and +7 Hz across
->    0..0.6; `morphbox` the same direction). A bow keeps feeding the box, a pluck is one injection the box
->    only redistributes — so **do not read a pizz level drop as the body failing.** The ringdown trap did
+>    marimba, a chorus and a kit over it. ⚠ **CORRECTED — the body's effect on LEVEL
+>    tracks POLYPHONY, not arco-vs-pizz.** This lane said "arco lifts, pizz lowers" for a few hours;
+>    `bandbox`'s pad falsified it (arco, and it LOSES 1.9 dB). Mechanism: [`sound.h:330`](../runtime/sound.h)
+>    divides the box's `wet_share` by the voice count (it radiates once however many strings drive it) while
+>    the per-voice blend's subtractive term at `:3566` is NOT divided, so a **chord** slot gets quieter as
+>    the body rises. Only a MONO ARCO slot gains level (`mariachi`, +3.2 dB); the other four measured slots
+>    all lose 1–2 dB. Full table + every cart's amount:
+>    [`synth-secrets-plan.md` → 2.4, the body's AMOUNT](design/synth-secrets-plan.md#24--the-bodys-amount-ear-passed-per-cart-2026-08-21).
+>    **Open question worth a look:** whether that undivided subtractive term is right, or whether a chord
+>    should keep its level — the only asymmetry here that looks like a defect rather than a choice.
+>    So **do not read a level drop as the body failing.** The ringdown trap did
 >    NOT bite: crest is flat (17.71 → 17.23) while rms tracks peak down, where an eaten tail would RAISE
 >    crest (peaks survive, tail energy goes). That crest test is the cheap way to check the additive blend
 >    on any pizz cart. Seeds: `polopan` rolls an archetype per song and only CANOPEE (`--seed 2`/4/5) and

@@ -518,10 +518,11 @@ static void setup_instruments(void) {
     // upright. Kept LOW because the Canopee bounce is 16ths under a marimba, a chorus and a kit, and
     // the ear's ordering is that a fuller arrangement wants less box per player (basses 0.85 solo,
     // mariachi's two violin desks 0.6 in a six-piece, this 0.4 under a 16th groove — ear, 2026-08-21).
-    // ⚠ A PIZZ body reads BACKWARDS from an arco one on the meters: it LOWERS level (-26.1 -> -28.1 dBFS
-    // across 0..0.6 on the stem) and moves the centroid 7 Hz, where mariachi's arco LIFTED level and
-    // darkened by 322 Hz. A bow keeps feeding the box; a pluck is one injection the box only
-    // redistributes. So do not read a level drop here as the body failing. And the ringdown is INTACT:
+    // ⚠ The body LOWERS level here (-26.1 -> -28.1 dBFS across 0..0.6 on the stem) and moves the centroid
+    // 7 Hz, where mariachi's violins GAINED 3.2 dB and darkened by 322. Measured across five carts, the
+    // axis is POLYPHONY (sound.h:330 divides the box's wet_share by the voice count while the per-voice
+    // blend's subtractive term is not divided) plus pizz-vs-arco: only a MONO ARCO slot gains level.
+    // So do not read a level drop here as the body failing. And the ringdown is INTACT:
     // crest is flat (17.71 -> 17.23) while rms tracks peak down, where an eaten tail would RAISE crest.
     // A/B the ladder with:
     //   node tools/ab-render.js polopan --set PIZZ_BODY=0.0f,0.25f,0.4f,0.6f --frames 1800 \

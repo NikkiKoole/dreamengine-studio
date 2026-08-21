@@ -107,11 +107,11 @@ conflict. Rules that prevent and catch it:
 ## Running the editor
 
 ```bash
-make               # kills stale Electron/Vite, then starts fresh (easiest)
+make               # kills THIS clone's stale Electron/Vite, then starts fresh (easiest)
 # manually: cd editor && nvm use 22 && npm start   # Vite + Electron together
 ```
 
-The Electron window opens once Vite is ready at `localhost:5173`. The browser tab edits too, but
+The Electron window opens once Vite is ready at `localhost:5273` (override with `DE_EDITOR_PORT=<n>`; 5173 is avoided on purpose — it collides with other dev servers). The browser tab edits too, but
 the **▶ run** button only works inside Electron (it spawns the compiler).
 
 ## Project structure

@@ -277,9 +277,18 @@ function serveDocs() {
   }
 }
 
+// The dev-server port. Electron (editor/electron/main.cjs) and the `start`
+// script's wait-on read the SAME env var + default, so the three agree.
+// 5173 (vite's default) is deliberately avoided — it collides with whatever
+// else you have running. Override:  DE_EDITOR_PORT=5999 make
+const PORT = Number(process.env.DE_EDITOR_PORT) || 5273
+
 export default defineConfig({
   plugins: [serveDocs()],
   server: {
+    port: PORT,
+    strictPort: true,   // fail loudly rather than silently sliding to PORT+1,
+                        // which Electron would then fail to find
     warmup: {
       // Pre-transform the entry chain so Electron's first page load is instant
       // rather than waiting for Vite to transform each import on demand.

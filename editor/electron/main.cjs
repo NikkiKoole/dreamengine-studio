@@ -10,6 +10,13 @@ const os                               = require('os')
 // comes from the Electron bundle's Info.plist, not this — see scripts/dev-branding.cjs.
 app.setName('dreamengine')
 
+// The Vite dev-server port. ONE source of truth for the port lives in
+// editor/vite.config.js (server.port, strictPort); this must agree with it, so
+// both read the same env var and the same default. Override for a machine
+// already running something on that port:  DE_EDITOR_PORT=5999 make
+const DEV_PORT = Number(process.env.DE_EDITOR_PORT) || 5273
+const DEV_URL  = `http://localhost:${DEV_PORT}`
+
 // ── PNG cart helpers ──────────────────────────────────────────
 function crc32(buf) {
   let crc = 0xFFFFFFFF
@@ -775,15 +782,15 @@ function createWindow() {
     },
   })
 
-  win.loadURL('http://localhost:5173')
+  win.loadURL(DEV_URL)
 
   // wait-on lets Electron through the instant the port answers, but on a cold
   // start Vite is still prebundling deps (esbuild) — the page's module requests
   // 504 mid-optimize and the renderer stays black forever. Retry the load until
   // Vite is genuinely ready. Bites slow CPUs hardest (wider optimize window).
   win.webContents.on('did-fail-load', (_e, _code, _desc, url) => {
-    if (url && url.startsWith('http://localhost:5173')) {
-      setTimeout(() => win.loadURL('http://localhost:5173'), 400)
+    if (url && url.startsWith(DEV_URL)) {
+      setTimeout(() => win.loadURL(DEV_URL), 400)
     }
   })
 

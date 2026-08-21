@@ -76,10 +76,12 @@ de:meta */
 // sawtooth, and INSTR_BOWED shipped without one. Violin-SIZED (the engine's default size, so only the
 // AMOUNT is set here) and one box per desk, which is right — two desks are two instruments.
 // The showcase cart runs 1.0 because it is demonstrating; a section sitting behind two trumpets and
-// three guitars wants less. A/B the ladder with:
+// three guitars wants less, and the ear picked 0.6 (2026-08-21) from the 0 / 0.6 / 0.75 / 1.0 ladder —
+// below the double basses' 0.85 too, so more players in the arrangement means less box each. A/B it with:
 //   node tools/ab-render.js mariachi --set VLN_BODY=0.0f,0.6f,0.75f,1.0f --frames 1800 \
 //     --play-arg --solo-slot --play-arg 5,6
-#define VLN_BODY 0.75f
+// (the violins do not enter until ~15s — the entrada is trumpets, so trim before listening)
+#define VLN_BODY 0.6f
 
 #define I_VLN1   5   // violin 1 — melody lead          (INSTR_BOWED, scoop+vib)
 #define I_VLN2   6   // violin 2 — the third below       (INSTR_BOWED)

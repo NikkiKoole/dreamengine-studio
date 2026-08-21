@@ -1715,7 +1715,15 @@ a broken doc link or `#section`).
 >    `tools/clips/{upright/01-walk-line,walkbox/01-loop,walkroll/01-loop}.script`, each carrying that trap in
 >    its header. (2) **NEXT: the rest**
 >    with their own sizes: `polopan` (pizz), `bandbox` (bass + arco pad), `portapop`, `modrack` slot 38.
->    **`mariachi` is WIRED (2026-08-21), amount NOT yet chosen** — both violin desks take a body at
+>    **`mariachi` is DONE (2026-08-21) — the ear picked `VLN_BODY` 0.6** from a 0 / 0.6 / 0.75 / 1.0 ladder.
+>    That is BELOW the showcase cart's 1.0 and below the double basses' 0.85, which is the transferable
+>    result: **the fuller the arrangement, the less box per player.** A solo upright can be mostly box; two
+>    violin desks behind two trumpets and three guitars cannot. Start the remaining carts' ladders LOW.
+>    ⚠ **When you hand a radio station's ear set over, TRIM IT FIRST.** `mariachi`'s violins do not enter
+>    until ~15s (the entrada is trumpets), so the stem's first 15s is digital silence and the first thing
+>    the owner said was "I don't hear anything". Also lift the level — a stem sits ~20 dB below a mix — with
+>    the SAME gain on every variant, since a body LIFTS level and normalising per file would erase half of
+>    what is being judged. Both violin desks take a body at
 >    violin size (the engine default, so only the amount is set) behind a `VLN_BODY` define, currently
 >    0.75. One box per desk, which is right: two desks are two instruments. The `sinte` band option
 >    (`sel == 2`, saw synth-strings) is untouched by construction, since it is not `INSTR_BOWED`.

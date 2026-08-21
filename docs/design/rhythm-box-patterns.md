@@ -1695,8 +1695,9 @@ OUTPUT 12   ..x...x...x...x...x...x...x...x.
   prose, and is gated by `repo-doctor`. It caught two errors on its first run: two 25-character rows
   in a 24-count bar (fixed here), and a first version of itself that stamped every FR-2L rhythm with
   a 6-count beat, which would have played the waltz wrong.
-- **`sideman`'s twelve rhythms are reconstructions** and should be labelled as such in
-  [`sideman.md`](sideman.md), since ten of their twelve names now have sourced data here.
+- ~~`sideman`'s twelve rhythms are reconstructions.~~ **DONE (2026-08-20):** labelled as such in
+  [`sideman.md`](sideman.md), with a pointer here, since ten of their twelve names now have sourced
+  data.
 - ~~M253 tables.~~ **DONE (2026-08-20):** both masks transcribed and cross-checked against the M252 (§4c). Mask AA's twelve rhythms are in §8.4 and in the header; mask AC's twelve are duplicates of M252 AD and are recorded in the transcription log only.
 - ~~SGS Technical Note no. 131.~~ **CHASED (2026-08-20), not digitised.** The databook cites it four
   times ("TECHNICAL NOTE NO 131 AVAILABLE FOR FULL INFORMATION", "available on request"), so it is a
@@ -1709,10 +1710,11 @@ OUTPUT 12   ..x...x...x...x...x...x...x...x.
   Internet Archive rather than Elektor's paywalled archive, and §4b records what they say. Between
   §4a and §4b the note's cited content is effectively recovered; the note itself remains
   un-digitised.
-- **The M254's accompaniment content** (§4e) is the best remaining target in the whole project: a
-  published chord/bass/arpeggio table for eight named rhythms, in a databook already on disk.
-  Reading it needs the pinout page (printed p145) beside the truth table (pp150-151), because which
-  column group is music and which is drums is decided by the pinout.
+- **The M254's PIN ROLES** are the best remaining target, and they are half done. Its two masks are
+  transcribed (§8.7, 16 rhythms), but the lanes are still recorded as printed `OUTPUT n` because
+  which output is a drum and which is chord, bass or arpeggio is decided by the **pinout on printed
+  page 145**, which nobody has read. Reading that one page would turn 16 already-transcribed rhythms
+  into sourced accompaniment parts, and it is the cheapest large win left.
 - **FIG. 14 of US4292874** is unfinished business (§4g): its bass line is notated on a STAFF at the
   top of the same figure, which is a far better route than the staircase trace that defeated the
   first attempt. Anyone retrying should read the notation and check it against the patent's

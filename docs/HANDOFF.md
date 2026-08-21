@@ -1715,9 +1715,17 @@ a broken doc link or `#section`).
 >    `tools/clips/{upright/01-walk-line,walkbox/01-loop,walkroll/01-loop}.script`, each carrying that trap in
 >    its header. (2) **NEXT: the rest**
 >    with their own sizes: `mariachi` (2 violins), `polopan` (pizz), `bandbox` (bass + arco pad), `portapop`,
->    `modrack` slot 38, and **`morphbox`** — added 2026-08-21, it was missing from this list and is the most
->    obvious case in the set: its UPRIGHT voice is `INSTR_BOWED` pizz, the same instrument at the same
->    `BOW_SIZE_BASS` just cleared on the three bass carts. The full install base is 14 carts
+>    `modrack` slot 38. **`morphbox` is DONE (2026-08-21)** — it was missing from this list and was the
+>    easiest case in the set: its UPRIGHT voice is `INSTR_BOWED` pizz, the same instrument at the same
+>    `BOW_SIZE_BASS` cleared by ear the same day. The body lives in `runtime/morphdrum.h`'s `MD_UPRIGHT`
+>    setup (only `morphbox` includes that header, so the blast radius is one cart) behind a named
+>    `MD_UPR_BODY` define so it stays A/B-able. Measured: on the UPRIGHT STEM peak −25.0 ON vs −24.0 OFF,
+>    centroid 940 vs 916 Hz; on the MIX the centroid moves 25 Hz, because the mix peaks at −0.4 dBFS with a
+>    centroid of 8.3 kHz and the hats own it — **A/B a groovebox voice on its STEM, never the mix.** The
+>    pizz-ringdown trap did not bite (the engine's blend is additive; this change only switches it on), and
+>    `click-check` is red on this cart in BOTH states from the pluck's own hard front — 32 events ON vs 45
+>    OFF, so the box ROUNDS the attack rather than splicing it. Ear check still open, but this one is the
+>    same voice you already approved. The full install base is 14 carts
 >    (`grep -l INSTR_BOWED tools/carts/*.c`): these 6, the 3 cleared, the 4 gate-feeders in (3), and `bowed`
 >    itself, which is the showcase and has had the body plus per-preset sizes since it was built. (3) **Leave `soundcheck`/`tunecheck`/`voicestress`/`pipetune` body-OFF** — they feed
 >    the audio gates, so re-voicing them moves the baselines.

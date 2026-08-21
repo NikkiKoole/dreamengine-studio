@@ -14,6 +14,10 @@
 //   --f0 <hz>              also print harmonic extent + >4kHz energy at this fundamental
 //   --keep                 keep the rendered WAVs and print their paths
 //   --seed <n>             pass through to play.js for determinism
+//   --play-arg <arg>       pass one extra argument straight to play.js; repeatable. The one you will
+//                          reach for is `--play-arg --solo-slot --play-arg <n>`: a MIX can bury the very
+//                          voice you are A/B-ing (drumkit.h's kits hold 28 dB of intrinsic spread), so a
+//                          quiet voice's change reads as "no change" on the summed bus.
 //
 // WHY THIS EXISTS: the manual version is "sed the flag, render, sed it back", which is three commands
 // and a footgun — a regex that matches the *initial* form of a line stops matching after the first
@@ -64,6 +68,8 @@ const frames = flag('frames', '420');
 const script = flag('script', '/dev/null');
 const f0 = flag('f0', null);
 const seed = flag('seed', null);
+// repeatable, so it collects every occurrence rather than the first (that is why it is not flag())
+const playArgs = argv.reduce((acc, a, i) => (a === '--play-arg' && argv[i + 1] ? acc.concat(argv[i + 1]) : acc), []);
 
 const fileArg = flag('file', null);
 const src = fileArg ? path.resolve(ROOT, fileArg) : path.join(ROOT, 'tools/carts', cart + '.c');
@@ -125,6 +131,7 @@ try {
     const wav = path.join(outDir, `${cart}_${i}.wav`);
     const args = [path.join(ROOT, 'tools/play.js'), cart, 'script', script, '--headless', '--frames', frames, '--wav', wav];
     if (seed) args.push('--seed', seed);
+    for (const a of playArgs) args.push(a);
     let ok = true, err = '';
     try {
       execFileSync('node', args, { cwd: ROOT, stdio: ['ignore', 'pipe', 'pipe'] });

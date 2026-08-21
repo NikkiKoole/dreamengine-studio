@@ -85,6 +85,8 @@ static const float MD_DEF[MD_NV][MD_NPARAM] = {
 
 // ── absolute param → engine-unit mappings ────────────────────────────────────
 #define MD_L(a, b, t)  ((a) + ((b) - (a)) * (t))
+#define MD_UPR_BODY 0.85f   // UPRIGHT bowed-body blend (audit §M2); 0 = the bare string. A named define so
+                            // `ab-render --file runtime/morphdrum.h --set MD_UPR_BODY=0.85f,0.0f` can A/B it
 static int md_lin(float p, int lo, int hi) { int v = lo + (int)(p * (hi - lo) + 0.5f); return v; }
 static int md_exp(float p, float lo, float oct) { return (int)(lo * de_powf(2.0f, p * oct)); }
 static int md_vol(float p) { int v = (int)(p * 7.0f + 0.5f); return v < 0 ? 0 : v > 7 ? 7 : v; }
@@ -239,6 +241,11 @@ static void morph_apply(MorphKit *k, int v) {
         int atk = md_lin(k->p[v][MD_PUNCH], 2, 30);          // ATK: pluck attack
         instrument(b + MDS_UPR, INSTR_BOWED, atk, 0, 7, r.dec);
         instrument_mode(b + MDS_UPR, MODE_BOW_PIZZ, 1.0f);   // pizzicato — seed a pluck, bow off
+        // THE BODY (audit §M2): an upright is mostly box, and this voice was ported from walkbox/walkroll,
+        // which carry the same 0.85 at BOW_SIZE_BASS (ear-cleared 2026-08-21). A pizz body must blend
+        // ADDITIVELY — a crossfade discards the string's own ringdown and the note dies twice as fast.
+        instrument_mode(b + MDS_UPR, MODE_BOW_BODY, MD_UPR_BODY);
+        instrument_mode(b + MDS_UPR, MODE_BOW_SIZE, BOW_SIZE_BASS);
         instrument_harmonics(b + MDS_UPR, r.harm);
         instrument_timbre(b + MDS_UPR, r.timbre);
         instrument_morph(b + MDS_UPR, r.morph);

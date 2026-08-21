@@ -16,7 +16,7 @@
   "description": {
     "summary": "76 preset rhythms off three generations of organ rhythm hardware, read from the service manuals, with the mechanism on screen instead of a sidx grid.",
     "detail": "Every latin pattern in this studio used to be a plausible reconstruction. These are not: all 76 come off manufacturer documents (docs/design/rhythm-box-patterns.md) and each one is traceable to a page and a figure. The cart is built to show what makes them unlike a sidx grid. ONE FIXED CLOCK, RE-DIVIDED PER RHYTHM: the FR-2L waltz splits the same 24-count bar by three, its slow rock reads all 48 counts as one 12/8 bar. SKIPPED STATES: the TR-77 hatches out counts a rhythm does not use, so its counter steps OVER them, which is what gives 6/8 MARCH its meter, and you can watch it happen. MARKS THAT DO NOT SOUND: on the SGS chips the trigger is the rising edge of a ROM bit, so two marks on consecutive states fire once, and those cells are drawn hollow (66 of the M252's 955 marks are hollow). GATES, NOT HITS: a few lanes are held rather than struck. The tempo control is the machine's own VARIABLE CLOCK in ticks per second, not a BPM, because that is what these boxes actually had; the implied BPM is shown but derived. THE VOICES ARE NOT SOURCED and the cart says so: the FR-2L scan is about 75 dpi, its lane labels are interpolation rather than ink, so the printed label is shown dim and the voice you hear is assigned BY LANE ORDER from the sideman.h tube bank, which you can rotate. Patterns sourced, voicing yours.",
-    "controls": "SPACE run/stop. K = the organ key: hold it and the rhythm plays while held, released it stops (Elektor 1976 fig 22: on these instruments the drums began when you played). LEFT/RIGHT rhythm, [ and ] machine, UP/DOWN clock rate. V rotates the voice map. M switches the TR-77 metronome click on (it is a click for the player, not part of the kit, so it is off by default). 1-8 audition a lane."
+    "controls": "SPACE run/stop. K = the organ key: hold it and the rhythm plays while held, released it stops (Elektor 1976 fig 22: on these instruments the drums began when you played). LEFT/RIGHT rhythm, [ and ] machine, UP/DOWN clock rate. V rotates the voice map. M switches the TR-77 metronome click on (it is a click for the player, not part of the kit, so it is off by default). 1-8 audition a lane. Z and X transpose the held chord a semitone and N flips it minor/major: those two only do anything on the machines that HAVE accompaniment lanes (the Hammond patent and the SGS M255), and the footer lights their row up when they do."
   }
 }
 de:meta */
@@ -122,6 +122,15 @@ static int   flash[SM_NV];
 static int   lastfire[SM_NV];
 
 static const RbRhythm *cur(void) { return &MACH[mach].set[rhy]; }
+
+// Does this rhythm drive the accompaniment at all? Only the Hammond patent and the M255
+// chart CHORD/BASS lanes, so on every other machine Z/X/N are inert and the UI says so.
+static bool has_acc(void) {
+    const RbRhythm *r = cur();
+    for (int l = 0; l < r->nlanes; l++)
+        if (r->lane[l].role & (RB_ROLE_CHORD | RB_ROLE_BASSLO | RB_ROLE_BASSHI)) return true;
+    return false;
+}
 
 // The TR-77 prints a METRONOME lane beside each rhythm. It is a click for the player,
 // not part of the kit, and the machine could switch it off, so this cart does too
@@ -237,7 +246,7 @@ static void draw_grid(void) {
     const RbRhythm *r = cur();
     int cw = (r->counts <= 16) ? 14 : (r->counts <= 32) ? 7 : CW;
     int playc = order[sidx];
-    int rh = (r->nlanes > 10) ? 9 : RH;          // 12 lanes still fit above the footer
+    int rh = (r->nlanes > 10) ? 8 : RH;          // 12 lanes still clear the 3-line footer
 
     for (int l = 0; l < r->nlanes; l++) {
         int y = GY + l * rh;
@@ -298,6 +307,9 @@ static void draw_panel(void) {
     const RbRhythm *r = cur();
     print(MACH[mach].name, 2, 4, CLR_WHITE);
     print(MACH[mach].era, 2, 12, CLR_DARK_GREY);
+    // the standing disclaimer, moved out of the footer to free a legend line for the keys
+    print("patterns from the service manuals", 150, 4, CLR_DARKER_GREY);
+    print("the voicing is this cart's guess", 150, 12, CLR_DARKER_GREY);
     print(r->name, 2, 24, CLR_LIME_GREEN);
     // the provenance line, but only when it says more than the name already does
     if (strcmp(r->source, r->name) != 0 && !MACH[mach].note)
@@ -317,23 +329,29 @@ static void draw_panel(void) {
     }
     if (r->flags & RB_EDGE_ONLY) print("edge-trig", 150, 34, CLR_DARK_GREY);
     if (MACH[mach].note) print(MACH[mach].note, 2, 54, CLR_DARK_ORANGE);
-    {   // the chord the accompaniment lanes gate, when this machine has any
-        bool acc = false;
-        for (int l = 0; l < r->nlanes; l++)
-            if (r->lane[l].role & (RB_ROLE_CHORD | RB_ROLE_BASSLO | RB_ROLE_BASSHI)) acc = true;
-        if (acc) {
-            static const char *NOTE[12] = {"C","C#","D","D#","E","F","F#","G","G#","A","A#","B"};
-            char b2[48];
-            snprintf(b2, sizeof b2, "gating %s%s", NOTE[root % 12], minor ? "m" : "");
-            print(b2, 150, 24, CLR_LIME_GREEN);
-        }
-    }
 
-    int y = 172;
+    // Three legend lines, each written to say what a key DOES rather than abbreviate its
+    // name — the old single line abbreviated so hard ("ZX=key") that the chord transpose was
+    // unlearnable from the screen, and it ran 6px off a 320px canvas besides. FONT_SMALL
+    // advances 5px/char, so a line starting at x=2 holds 63 characters and no more.
+    int y = 171;
     print((running || keyheld) ? "RUN" : "STOP", 2, y, (running || keyheld) ? CLR_RED : CLR_DARK_GREY);
-    print("space=run K=key []=mach <>=rhy ^v=clk V=voice M=metro ZX=key", 26, y, CLR_DARKER_GREY);
-    print("patterns from the service manuals; voicing is this cart's guess", 2, y + 10,
-          CLR_DARKER_GREY);
+    print("SPACE run/stop   K = organ key: plays while held", 26, y, CLR_MEDIUM_GREY);
+    print("< > rhythm   [ ] machine   ^ v clock   1-8 hear one lane", 2, y + 9, CLR_DARKER_GREY);
+    print("V voice map   M metronome   ", 2, y + 18, CLR_DARKER_GREY);
+    // The chord row carries the LIVE chord and lights up only on the machines that have
+    // accompaniment lanes, so it answers "what are these keys", "do they do anything here"
+    // and "what is held right now" in one place. It sits next to its own keys rather than
+    // up beside the rhythm name, where the longest name (M255 COUNTRY WESTERN, 157px) would
+    // have run straight under it.
+    {
+        static const char *NOTE[12] = {"C","C#","D","D#","E","F","F#","G","G#","A","A#","B"};
+        char b2[48];
+        if (has_acc()) snprintf(b2, sizeof b2, "chord %s%s: Z X transpose  N min/maj",
+                                NOTE[root % 12], minor ? "m" : "");
+        else           snprintf(b2, sizeof b2, "chord: Z X transpose  N min/maj");
+        print(b2, 2 + 28 * 5, y + 18, has_acc() ? CLR_LIME_GREEN : CLR_DARKER_GREY);
+    }
 }
 
 void draw(void) {

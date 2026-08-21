@@ -1886,6 +1886,66 @@ v1, document it on the panel.
     **hardtune** (robot auto-tune: carrier pitch snapped to `mic_pitch`). Design:
     [`vocoder.md`](vocoder.md). Recipes: [`../guides/effects-recipes.md`](../guides/effects-recipes.md).
 
+37. **Plate reverb voicing (`reverb_plate` / `reverb_plate_width`)** — `reverb_spring`'s sibling, and
+    the opposite voicing on the same Schroeder core. **✓ SHIPPED 2026-08-19.** `reverb_plate(amount)`,
+    0 = clean Schroeder (dormant → byte-identical), 1 = full plate. Built for
+    [analog-outboard-chain.md](analog-outboard-chain.md) §6, which named the stereo plate as the ONE
+    item on that chain's gap list that genuinely justified new DSP, because "lush" is not reachable
+    from a mono tank and **width is the product.** A plate is a steel sheet with a driver at one point
+    and TWO PICKUPS elsewhere, so: NO dispersion (that is the spring's chirp), dense input DIFFUSION
+    (4 mutually-prime allpasses, 149/211/293/421, one flat 1074-float buffer per tank), a ~170 Hz LOW
+    CUT (no sub in steel), a bright top — done by scaling the in-loop comb damping DOWN by
+    `PLATE_UNDAMP`, because the damping LP is inside the recirculation and an output shelf only
+    brightens the first pass — and NO early-reflection pattern, since steel has no room geometry,
+    which is precisely why a plate sits in a mix where a room fights it. **The stereo:** 8 multi-tap
+    reads of the existing comb lines per pickup, so it costs nothing beyond the diffusion buffer;
+    only their DIFFERENCE leaves the tank, as the side channel, so the mono fold is unchanged (proved:
+    the width knob moves L and R while L+R stays put to within 2 LSB of int16 rounding).
+    `reverb_plate_width(x)` rides the spread live, default 0.55; there is deliberately no
+    `reverb_plate_tone`, because `reverb()`'s own `damp` already IS the plate's tone control and width
+    is the thing nothing else could reach. **MEASURED** on the `obplate` bench (`tools/stereo-check.js`,
+    the only gate that reads L and R apart): plate out `corr 1.0000 / width 0.0000`, plate in
+    `corr 0.71 / width 0.41` on the master SEND and `corr 0.43 / width 0.63` as an in-line insert —
+    both PASS `--expect decorrelated` and `--expect wide`, and the plate-out control correctly FAILS
+    them. Balance +0.04 dB. Tail centroid 887 → 1171 Hz and the early tail 854 → 1323 Hz (brighter);
+    `click-check` on a tail-only window reads 3.5x with the plate vs 4.1x without, i.e. the diffusion
+    made the tail *smoother*. Bypass proved by the §4 method (last differing sample, not a sha) on
+    BOTH engine call sites: 0 differing samples over 10 s. **⚠ Two traps recorded in `sound.h`:** the
+    mid±side form does NOT centre the image by itself (the side is correlated with the mid it rides on,
+    which leaned the plate 1.02 dB; negating half the taps cancels it and lands at 0.14), and more taps
+    does not help — an 8-tap rotation leaned 0.49 dB, the same as 4.
+38. **`glue` grows a makeup leg and a program-dependent release** — the other two engine-side items on
+    [analog-outboard-chain.md](analog-outboard-chain.md)'s gap list (§5.2 and §2). **✓ SHIPPED
+    2026-08-19.** Both are AUTOMATIC and internal, like `multiband`'s `SQ_MAKEUP` — no new API, the
+    existing 4-arg `glue(bus, amount, atk_ms, rel_ms)` call site is unchanged — and both are on the
+    SELF-KEYED path only, so `sidechain()`'s pump is untouched (its release is a musical timing control
+    and its level dip IS the effect). (a) **MAKEUP.** `glue` had none, so switching the comp in made the
+    mix smaller and a level-matched A/B was impossible. It now measures the ENERGY RATIO it is taking
+    (slow ~1.5 s averages of `g²·p` against `p`) and puts exactly that back. Averaging the GAIN instead
+    left −0.86 dB on the table, because `g` sits near 1 through every gap and the gaps are most of the
+    samples while the RMS lives in the loud parts. MEASURED on `obglue`: dry RMS −20.55 dBFS; comp in at
+    amount 0.44/0.84/1.0 lands −20.57/−20.59/−20.60, i.e. **within 0.05 dB at every setting**, while the
+    crest factor still RISES 14.94 → 15.66 dB. So the level comes back and §2b's characterisation
+    (a ducker, not a limiter) survives. Peak goes UP ~0.7 dB — the transient that outran the attack gets
+    the makeup too, which is real and is why the chain still wants headroom. (b) **PROGRAM-DEPENDENT
+    RELEASE**, as a DUAL SLOPE: the release coefficient scales with how far the envelope has already
+    fallen from the peak that caused the reduction, measured against an absolute reference, so the first
+    part of the recovery runs at exactly your `rel_ms` and the tail takes 4x as long, and a loud event
+    drags where a quiet one does not. MEASURED on `obglue`'s release bench (a quiet steady tone under a
+    loud burst, so the tone's level IS the recovery curve), dB still ducked after the burst:
+    one exponential 200ms −0.65 / 500ms −0.20 / 900ms −0.05; dual slope 200ms −0.88 / 500ms −0.49 /
+    900ms −0.21. Roughly twice as much held through the tail, and about twice as long to let go.
+    **⚠ What did NOT work, so nobody rebuilds it:** a second envelope follower with a slow attack and
+    slow release, taking the deeper of the two reductions — the textbook two-stage design. It measured
+    **inert**, 0.01 dB worst case over 23 s, because a slow-attack peak follower never builds on
+    percussive material. A ducker's gain only matters where there is signal, and where there is signal
+    the fast follower is already up; so the leg has to work on the release SLOPE of the follower that is
+    actually in charge. **⚠ And: aggregate RMS is the wrong measure for a release change** (it moves by
+    hundredths of a dB) — measure the SHAPE, with a steady tone to read it off. Controls for both legs:
+    `GLUE_MK_AMT 0` + `GLUE_PD_TAIL 1` restores the pre-2026-08-19 stage byte-for-byte (×1.0 and 1+0 are
+    exact). `amount 0` stays dormant → byte-identical, proved by render diff: 0 differing samples over
+    10 s against a build that never calls `glue` at all.
+
 One-line version: **we built a very good modular synth and forgot to build the
 broken speaker it should play through.**
 
@@ -2684,3 +2744,51 @@ copy-pasted; the bug was assuming one map fits both.
 physically perceive?* — and the answer was "one channel." The gap was not a missing test, it was a
 shared helper quietly discarding half the signal before any test ran. Worth asking of the next
 oracle: what does its input throw away before it looks?
+
+## 28. The bowed BODY turns a CHORD down — polyphony vs `wet_share` (2026-08-21)
+
+`MODE_BOW_BODY` (the `INSTR_BOWED` box, Synth Secrets §M2) makes a **monophonic** slot louder and a
+**polyphonic** one quieter. Measured while ear-passing the amount across six carts:
+
+| cart | the bowed slot's voicing | peak across a 0 → max body ladder |
+|---|---|---|
+| `mariachi` | arco, **ONE note per slot** (two desks in parallel thirds) | **−24.6 → −21.4 dBFS** — gains 3.2 |
+| `bandbox` pad | arco, **CHORDS** | −15.1 → −17.0 — loses 1.9 |
+| `polopan` | pizz, one note per step | −26.1 → −28.1 — loses 2.0 |
+| `morphbox` | pizz, mono | −24.0 → −25.0 — loses 1.0 |
+| `bandbox` bass | pizz, mono | −20.5 → −20.7, **non-monotonic** (dips to −21.2 mid-ladder; unexplained) |
+
+**Why.** The body is ONE shared box per slot, and [`sound.h:330`](../../runtime/sound.h) divides its
+output by the number of voices reading it —
+
+```c
+bd->wet_share = wet / (float)(n > 0 ? n : 1);   // "RADIATES ONCE however many strings drive it"
+```
+
+— which is right, and matches a real instrument where four strings drive one shell. But the per-voice
+blend at `:3566` is `dc + amt * (wet_share - dc * 0.3f)`, and that **subtractive** `- dc*0.3*amt` term
+is **per voice and NOT divided**. So a four-note chord takes four times the subtraction against a
+quarter of the box each, and raising the body turns the chord *down*.
+
+**Open question — is that correct?** It is the one asymmetry in this pass that looks like a defect
+rather than a design choice. A real quartet does not get quieter as its bodies resonate. Anyone
+touching it: the ratio is deliberate elsewhere in the mix, so measure before "fixing".
+
+**Two consequences for anyone A/B-ing a body, both of which cost a round here.**
+
+- **A level drop is not the body failing.** The first write-up of this said "arco lifts, pizz lowers",
+  generalised from one cart, and `bandbox`'s arco pad falsified it within the hour. The axis is
+  polyphony, and only a mono arco slot gains.
+- **Centroid and brightness cannot pick the amount on a chord slot** — the level moves and the colour
+  barely does (`polopan`: 7 Hz of centroid across its whole ladder, against `mariachi`'s 322 Hz).
+  A body is a frequency response, so reach for [`harmonic-spec`](../../tools/harmonic-spec.js) and pick
+  the gate by where the box lives: a violin box works ABOVE the centroid, a double-bass box below it,
+  which is why `wav-envelope` reported "no change" on a bass across a ±17 dB reshaping.
+
+**The cheap ringdown check on a PIZZ body is CREST, not decay.** The §M2 trap is that blending a body as
+a crossfade discards the string's own ringdown (a crossfade at 0.8 made a pizzicato die twice as fast).
+Isolating one note's decay inside a 16th groove is hard; crest is free. An eaten tail **raises** crest,
+because the peaks survive and the tail energy goes. `polopan` reads 17.71 → 17.23 dB across its ladder
+with rms tracking peak down, so the tail is intact and the loss is honest attenuation.
+
+Amounts, and the ordering they landed in: [`synth-secrets-plan.md` → 2.4](synth-secrets-plan.md#24--the-bodys-amount-ear-passed-per-cart-2026-08-21).

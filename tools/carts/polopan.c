@@ -69,6 +69,7 @@ de:meta */
 // ── instrument slots ──────────────────────────────────────────────────────
 #define I_MAL   5   // MALLET — marimba / balafon / glockenspiel / vibraphone (per archetype)
 #define I_PIZZ  6   // BOWED pizzicato — the bounce that IS the groove
+#define PIZZ_BODY 0.4f   // its bowed-body blend (audit §M2); 0 = the bare string. See setup_instruments
 #define I_STAR  7   // the archetype's topline STAR — engine swapped per song:
                     //   PIPE flute · VOICE vocoder · SINE glass / sung lead
 #define I_BASS  8   // SAW — fat resonant MS-10 (riff) / round (round)
@@ -512,6 +513,21 @@ static void setup_instruments(void) {
 
     instrument(I_PIZZ, INSTR_BOWED, 1, 0, 7, 400);           // pizzicato strings
     instrument_mode(I_PIZZ, MODE_BOW_PIZZ, 1.0f);                               // BOWED idx0>=0.5 = PIZZICATO mode
+    // THE BODY (audit §M2 / Reid Part 22): the box that makes this a plucked STRING rather than a
+    // plucked oscillator. Violin-sized (the engine default) — these are pizzicato strings, not an
+    // upright. Kept LOW because the Canopee bounce is 16ths under a marimba, a chorus and a kit, and
+    // the ear's ordering is that a fuller arrangement wants less box per player (basses 0.85 solo,
+    // mariachi's two violin desks 0.6 in a six-piece, this 0.4 under a 16th groove — ear, 2026-08-21).
+    // ⚠ The body LOWERS level here (-26.1 -> -28.1 dBFS across 0..0.6 on the stem) and moves the centroid
+    // 7 Hz, where mariachi's violins GAINED 3.2 dB and darkened by 322. Measured across five carts, the
+    // axis is POLYPHONY (sound.h:330 divides the box's wet_share by the voice count while the per-voice
+    // blend's subtractive term is not divided) plus pizz-vs-arco: only a MONO ARCO slot gains level.
+    // So do not read a level drop here as the body failing. And the ringdown is INTACT:
+    // crest is flat (17.71 -> 17.23) while rms tracks peak down, where an eaten tail would RAISE crest.
+    // A/B the ladder with:
+    //   node tools/ab-render.js polopan --set PIZZ_BODY=0.0f,0.25f,0.4f,0.6f --frames 1800 \
+    //     --seed <a CANOPEE seed> --play-arg --solo-slot --play-arg 6
+    instrument_mode(I_PIZZ, MODE_BOW_BODY, PIZZ_BODY);
     instrument_harmonics(I_PIZZ, 0.30f);
     instrument_timbre(I_PIZZ, 0.42f);
     instrument_morph(I_PIZZ, 0.30f);

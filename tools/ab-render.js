@@ -14,6 +14,10 @@
 //   --f0 <hz>              also print harmonic extent + >4kHz energy at this fundamental
 //   --keep                 keep the rendered WAVs and print their paths
 //   --seed <n>             pass through to play.js for determinism
+//   --play-arg <arg>       pass one extra argument straight to play.js; repeatable. The one you will
+//                          reach for is `--play-arg --solo-slot --play-arg <n>`: a MIX can bury the very
+//                          voice you are A/B-ing (drumkit.h's kits hold 28 dB of intrinsic spread), so a
+//                          quiet voice's change reads as "no change" on the summed bus.
 //
 // WHY THIS EXISTS: the manual version is "sed the flag, render, sed it back", which is three commands
 // and a footgun — a regex that matches the *initial* form of a line stops matching after the first
@@ -22,6 +26,16 @@
 // tool does two things hand-rolling doesn't: it **restores the source in a finally block** (even on
 // crash or Ctrl-C), and it **shouts if two variants render byte-identical audio**, because that means
 // the flag never reached the DSP and any conclusion drawn from the numbers would be wrong.
+//
+// TWO TRAPS IT NOW NAMES RATHER THAN LETTING YOU HIT (both cost a round on 2026-08-21):
+//   1. A SILENT render is byte-identical too, so the "did not reach the DSP" warning used to fire on a
+//      take with no notes in it and send you to read the DSP for nothing. Carts that boot with their
+//      transport STOPPED (walkbox, walkroll, morphbox, bandbox) and PLAYED instruments with no transport
+//      at all (upright) render digital silence from `script /dev/null`. The warning now checks for
+//      silence first. The giveaway is two DIFFERENT carts returning the SAME sha.
+//   2. A MIX can bury the voice you are A/B-ing — that is what --play-arg --solo-slot is for. A groovebox
+//      peaking at −0.4 dBFS with an 8.3 kHz centroid moved 25 Hz when one bass voice changed; the same
+//      change on that voice's own STEM was a full dB of peak. A/B a voice on its stem, never the mix.
 //
 // Numbers come from tools/wav-envelope.js and tools/harmonic-spec.js so there is ONE source of truth
 // for peak/brightness/centroid; this tool only adds the sha (the did-it-actually-change check) and the
@@ -64,6 +78,8 @@ const frames = flag('frames', '420');
 const script = flag('script', '/dev/null');
 const f0 = flag('f0', null);
 const seed = flag('seed', null);
+// repeatable, so it collects every occurrence rather than the first (that is why it is not flag())
+const playArgs = argv.reduce((acc, a, i) => (a === '--play-arg' && argv[i + 1] ? acc.concat(argv[i + 1]) : acc), []);
 
 const fileArg = flag('file', null);
 const src = fileArg ? path.resolve(ROOT, fileArg) : path.join(ROOT, 'tools/carts', cart + '.c');
@@ -125,6 +141,7 @@ try {
     const wav = path.join(outDir, `${cart}_${i}.wav`);
     const args = [path.join(ROOT, 'tools/play.js'), cart, 'script', script, '--headless', '--frames', frames, '--wav', wav];
     if (seed) args.push('--seed', seed);
+    for (const a of playArgs) args.push(a);
     let ok = true, err = '';
     try {
       execFileSync('node', args, { cwd: ROOT, stdio: ['ignore', 'pipe', 'pipe'] });
@@ -170,10 +187,23 @@ for (const r of good) dupes.set(r.sha, (dupes.get(r.sha) || 0) + 1);
 const collided = [...dupes.entries()].filter(([, n]) => n > 1);
 if (collided.length) {
   console.log(`\n  ⚠  ${collided.length === 1 && collided[0][1] === good.length ? 'ALL' : 'SOME'} variants rendered BYTE-IDENTICAL audio.`);
+  // An EMPTY render is byte-identical too, and it is a completely different bug with the same symptom:
+  // the flag is fine, there was simply no sound to change. Blaming the flag sends you to read the DSP
+  // for nothing (it cost a round on walkbox/walkroll/upright, all three of which boot STOPPED). So test
+  // for silence FIRST and say which failure this is.
+  const silent = good.every((g) => !(g.peak > -200));
+  if (silent) {
+    console.log(`     …because the render is SILENT (peak −inf). \`${ident}\` is not the problem — there`);
+    console.log(`     was no sound to change. The cart needs INPUT: a sequencer that boots stopped needs`);
+    console.log(`     its transport started, and a played instrument has no transport at all. Drive it`);
+    console.log(`     with --script (see tools/clips/<cart>/) instead of the default /dev/null.`);
+    console.log(`     Tell-tale: two DIFFERENT carts rendering the same sha are both silent, not both broken.`);
+  } else {
   console.log(`     \`${ident}\` did not reach the DSP for those values — do NOT draw conclusions from the`);
   console.log(`     numbers above. Likely causes: the value is read once at init and this render never`);
   console.log(`     re-reads it; the code path is gated behind a mode the render never enters; or the`);
   console.log(`     identifier shadows another of the same name.`);
+  }
   process.exitCode = 2;
 } else if (good.length > 1) {
   console.log(`\n  ✓ all ${good.length} variants differ (distinct sha) — the flag reaches the audio.`);

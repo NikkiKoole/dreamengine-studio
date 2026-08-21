@@ -103,6 +103,7 @@ static int           wavcap_total = 0;           // samples wanted
 static volatile int  wavcap_pos   = 0;           // audio thread write cursor
 static volatile int  wavcap_state = 0;           // 0 idle · 1 recording · 2 done (ready to write)
 static char          wavcap_path[512];
+static int           wavcap_ch    = 1;           // 1 = mono downmix (the harness/gates), 2 = interleaved L/R (export_audio)
 
 // ── scope (oscilloscope tap — see docs/design/audio-notes.md §16) ────
 // The SAME tap as WAV capture: the final mono mix written into a power-of-2 ring
@@ -152,17 +153,22 @@ static int      sound_solo_active = 0;
 static uint64_t sound_solo_mask   = 0;
 #endif
 
-// write a 16-bit PCM mono 44.1kHz WAV
-static int sound_wav_write(const char *path, const float *buf, int n) {
+// write a 16-bit PCM 44.1kHz WAV. `n` is TOTAL SAMPLES (interleaved), so a stereo file of F
+// frames passes n = 2*F — the header maths below derives frames from n/ch, never the other way.
+// ⚠ ch defaulted to 1 for years and every audio gate reads mono; export_audio is the only caller
+// that passes 2, so a mono capture is byte-identical to what it always wrote.
+static int sound_wav_write(const char *path, const float *buf, int n, int ch) {
     FILE *w = fopen(path, "wb");
     if (!w) return -1;
+    if (ch < 1) ch = 1;
     int data_bytes = n * 2, riff = 36 + data_bytes;
-    int sr = SOUND_SAMPLE_RATE, byterate = sr * 2;
-    short block = 2, bits = 16, fmt = 1, ch = 1;
+    int sr = SOUND_SAMPLE_RATE, byterate = sr * ch * 2;
+    short block = (short)(ch * 2), bits = 16, fmt = 1;
     int fmtlen = 16;
     fwrite("RIFF", 1, 4, w); fwrite(&riff, 4, 1, w); fwrite("WAVE", 1, 4, w);
     fwrite("fmt ", 1, 4, w); fwrite(&fmtlen, 4, 1, w);
-    fwrite(&fmt, 2, 1, w); fwrite(&ch, 2, 1, w);
+    short chs = (short)ch;
+    fwrite(&fmt, 2, 1, w); fwrite(&chs, 2, 1, w);
     fwrite(&sr, 4, 1, w); fwrite(&byterate, 4, 1, w);
     fwrite(&block, 2, 1, w); fwrite(&bits, 2, 1, w);
     fwrite("data", 1, 4, w); fwrite(&data_bytes, 4, 1, w);
@@ -178,9 +184,10 @@ static int sound_wav_write(const char *path, const float *buf, int n) {
 }
 
 // main thread: arm a live capture (audio thread starts filling on its next callback)
-static void sound_wavcap_begin(const char *path, float seconds) {
+static void sound_wavcap_begin(const char *path, float seconds, int ch) {
     if (wavcap_state != 0) return;
-    int n = (int)(seconds * SOUND_SAMPLE_RATE);
+    if (ch != 2) ch = 1;
+    int n = (int)(seconds * SOUND_SAMPLE_RATE) * ch;   // TOTAL samples: stereo needs two per frame
     if (n <= 0) return;
     free(wavcap_buf);
     wavcap_buf = (float *)malloc((size_t)n * sizeof(float));
@@ -188,13 +195,14 @@ static void sound_wavcap_begin(const char *path, float seconds) {
     snprintf(wavcap_path, sizeof wavcap_path, "%s", path);
     wavcap_total = n;
     wavcap_pos   = 0;
+    wavcap_ch    = ch;
     wavcap_state = 1;
 }
 
 // main thread: if the audio thread finished, write the file and go idle
 static void sound_wavcap_poll(void) {
     if (wavcap_state != 2) return;
-    sound_wav_write(wavcap_path, wavcap_buf, wavcap_total);
+    sound_wav_write(wavcap_path, wavcap_buf, wavcap_total, wavcap_ch);
     free(wavcap_buf);
     wavcap_buf   = NULL;
     wavcap_state = 0;
@@ -429,6 +437,55 @@ static void echo_ins_set_coef(void) {
 #define SPRING_LP_COEF 0.42f         // ~4 kHz lowpass (drop the highs → metallic mid focus)
 static const int SPRING_AP_LEN[SPRING_AP_STAGES] = { 89, 113, 67, 97, 127, 71, 107, 83 };
 
+// ── plate reverb voicing (reverb_plate) — dense, bright, no geometry, and WIDE ────────────────────
+// The spring's sibling (docs/design/analog-outboard-chain.md §6), and the opposite voicing on the
+// same Schroeder core. A plate is a sheet of steel under tension with a driver at one point and TWO
+// PICKUPS at others, so its signature is:
+//   · NO dispersion. That is the spring's chirp; a plate does not chirp, so nothing here disperses.
+//   · dense DIFFUSION before the combs — four mutually-prime allpasses, so the tail arrives already
+//     smeared and no single early echo stands out.
+//   · NO early-reflection pattern. Steel has no room geometry, which is exactly why a plate sits in
+//     a mix where a room does not, so there is deliberately no tap pattern in front of the tank.
+//   · a bright top and a LOW CUT: a plate has no real sub, and its high end rings on.
+//   · DECORRELATED L/R. This is the product. The two pickups are two multi-tap reads of the SAME
+//     comb lines at different distances, so they cost no memory beyond the diffusion above; their
+//     DIFFERENCE is the side channel, which means the mono fold is unchanged (a plate that collapses
+//     on a phone would be a worse plate than a mono one).
+// Opt-in via reverb_plate(); 0 = off → byte-identical Schroeder, exactly like reverb_spring.
+#define PLATE_HP_COEF  0.024f        // ~170 Hz one-pole low CUT on the input (no sub in a steel sheet)
+#define PLATE_BR_COEF  0.23f         // ~1.8 kHz corner for the output top-lift shelf
+#define PLATE_BRIGHT   0.85f         // how much of the top-band is added back (+5.3 dB shelf at full plate)
+#define PLATE_SIDE     0.20f         // pickup-difference → side-channel scale (see reverb_plate_width)
+#define PLATE_UNDAMP   0.65f         // how much of the loop damping steel does NOT have (see the combs)
+static const int   PLATE_AP_LEN[PLATE_AP_STAGES] = { 149, 211, 293, 421 };   // mutually prime: no shared resonance
+static const int   PLATE_AP_OFF[PLATE_AP_STAGES] = {   0, 149, 360, 653 };   // offsets into the flat per-tank buffer
+static const float PLATE_AP_G[PLATE_AP_STAGES]   = { 0.75f, 0.75f, 0.625f, 0.625f };  // dense in front, softer behind
+// THE TWO PICKUPS, as 8 tap delays in samples. Every delay is < the SHORTEST comb (1427), so any
+// delay is legal on any line; they are mutually prime and spread 7..28 ms, so the two reads of one
+// sheet share no periodicity. Both pickups sum the SAME multiset of delays and differ only in WHICH
+// comb each lands on (a rotation by one).
+//
+// ⚠ KEEPING THE IMAGE CENTRED is the one non-obvious constraint here, and it does NOT come free from
+// the mid±side form. The side rides on top of a mid it is CORRELATED with (both are reads of the same
+// four comb lines), so E[mid·side] is not 0, and L = mid+side is then systematically louder than
+// R = mid-side. Measured on the obplate bench, as a static balance lean: independent hand-picked tap
+// sets 1.02 dB, a 4-tap rotation 0.53 dB, an 8-tap rotation 0.49 dB (so more taps does NOT fix it,
+// and reversing the rotation direction made it 0.84 dB — the sign is systematic, not incidental).
+// What fixes it: NEGATE the second half of the taps. The two halves then contribute equal-and-
+// opposite mid correlation and it cancels, while their side energy still sums, because they read
+// different delays. That lands at 0.14 dB, which is inaudible. Keep the halves balanced if you ever
+// retune these numbers, and re-measure the balance rather than assuming.
+#define PLATE_TAPS 8
+static const int PLATE_TAP_D[PLATE_TAPS] = { 401, 1063, 691, 1229, 877, 313, 1151, 547 };
+static const int PLATE_TAP_A[PLATE_TAPS] = {   0,    1,   2,    3,   0,    1,    2,   3 };  // comb per tap, pickup A
+static const int PLATE_TAP_B[PLATE_TAPS] = {   1,    2,   3,    0,   1,    2,    3,   0 };  // …rotated, pickup B
+// read one comb line `delay` samples back from its write position (buf[pos] is the oldest sample)
+static inline float rvb_tap(const float *buf, int pos, int size, int delay) {
+    int i = pos - delay;
+    if (i < 0) i += size;
+    return buf[i];
+}
+
 // THE reverb tank pool (Increment C — effects-bus-architecture.md §5). Was a single shared
 // reverberator; now SOUND_REVERB_TANKS independent tanks of identical DSP. Tank 0 = the legacy
 // reverb() master SEND (routing unchanged → bytes-identical for old carts). Tanks 1..N-1 are
@@ -455,7 +512,10 @@ static float rvb_allpass(float input, float *buf, int *pos, int size, float coef
 }
 // process one sample on tank t, returns the WET signal only (navkit _processReverbCore).
 // Identical math/summation order to the old single-tank version → tank 0 is bytes-identical.
-static float reverb_process(ReverbTank *t, float sample) {
+// `sideOut` receives the plate's DECORRELATED half (0 when the plate voicing is off): the caller
+// adds it to L and subtracts it from R. A mono caller ignores it and gets exactly the old signal.
+static float reverb_core(ReverbTank *t, float sample, float *sideOut) {
+    *sideOut = 0.0f;
     float pre = t->predelay[t->pd_p];                 // exactly REVERB_PREDELAY samples old
     t->predelay[t->pd_p] = sample;
     t->pd_p = (t->pd_p + 1) % REVERB_PREDELAY;
@@ -467,15 +527,54 @@ static float reverb_process(ReverbTank *t, float sample) {
         t->spring_lp += (d - t->spring_lp) * SPRING_LP_COEF; d  = t->spring_lp;   // drop the highs → metallic
         pre += rvb_spring * (d - pre);                                            // blend the sprung input in by amount
     }
-    // 4 parallel comb filters build a dense echo pattern
-    float c1 = rvb_comb(pre, t->comb1, &t->cp1, REVERB_COMB_1, &t->clp1, t->fb, t->damp);
-    float c2 = rvb_comb(pre, t->comb2, &t->cp2, REVERB_COMB_2, &t->clp2, t->fb, t->damp);
-    float c3 = rvb_comb(pre, t->comb3, &t->cp3, REVERB_COMB_3, &t->clp3, t->fb, t->damp);
-    float c4 = rvb_comb(pre, t->comb4, &t->cp4, REVERB_COMB_4, &t->clp4, t->fb, t->damp);
+    if (rvb_plate > 0.0f) {                            // PLATE voicing: low-cut + dense input diffusion
+        float d = pre;
+        t->plate_hp += (d - t->plate_hp) * PLATE_HP_COEF; d -= t->plate_hp;       // no sub in a steel sheet
+        for (int i = 0; i < PLATE_AP_STAGES; i++)      // four mutually-prime allpasses = the density
+            d = rvb_allpass(d, &t->plate_ap[PLATE_AP_OFF[i]], &t->plate_app[i], PLATE_AP_LEN[i], PLATE_AP_G[i]);
+        pre += rvb_plate * (d - pre);                                             // blend by amount
+    }
+    // THE TWO PICKUPS, read before the combs advance: same sheet, different distances from the
+    // driver. Only their DIFFERENCE leaves this function, as the side channel, so the mono sum is
+    // untouched and nothing cancels on a mono speaker. The sign flip on the second half of the taps
+    // is what keeps the image centred — see the tap table's warning, it is not cosmetic.
+    float sideRaw = 0.0f;
+    if (rvb_plate > 0.0f) {
+        const float *cbuf[4] = { t->comb1, t->comb2, t->comb3, t->comb4 };
+        const int    cpos[4] = { t->cp1, t->cp2, t->cp3, t->cp4 };
+        const int    clen[4] = { REVERB_COMB_1, REVERB_COMB_2, REVERB_COMB_3, REVERB_COMB_4 };
+        for (int i = 0; i < PLATE_TAPS; i++) {
+            int ia = PLATE_TAP_A[i], ib = PLATE_TAP_B[i], d = PLATE_TAP_D[i];
+            float dif = rvb_tap(cbuf[ia], cpos[ia], clen[ia], d)
+                      - rvb_tap(cbuf[ib], cpos[ib], clen[ib], d);
+            sideRaw += (i < PLATE_TAPS / 2) ? dif : -dif;
+        }
+    }
+    // 4 parallel comb filters build a dense echo pattern. THE PLATE'S TOP END IS DECIDED HERE, not
+    // by the output shelf below: the damping LP sits INSIDE the recirculating loop, so every pass
+    // through it eats more top and that is what sets how bright the TAIL stays. A steel sheet loses
+    // far less top per bounce than a room full of air, so the plate scales the damp knob down rather
+    // than trying to add the highs back afterwards (which only brightens the first pass).
+    float dmp = (rvb_plate > 0.0f) ? t->damp * (1.0f - PLATE_UNDAMP * rvb_plate) : t->damp;
+    float c1 = rvb_comb(pre, t->comb1, &t->cp1, REVERB_COMB_1, &t->clp1, t->fb, dmp);
+    float c2 = rvb_comb(pre, t->comb2, &t->cp2, REVERB_COMB_2, &t->clp2, t->fb, dmp);
+    float c3 = rvb_comb(pre, t->comb3, &t->cp3, REVERB_COMB_3, &t->clp3, t->fb, dmp);
+    float c4 = rvb_comb(pre, t->comb4, &t->cp4, REVERB_COMB_4, &t->clp4, t->fb, dmp);
     float sum = (c1 + c2 + c3 + c4) * 0.25f;
     // 2 series allpass filters diffuse + smooth the tail
     float a1 = rvb_allpass(sum, t->ap1, &t->ap_p1, REVERB_ALLPASS_1, 0.5f);
-    return rvb_allpass(a1, t->ap2, &t->ap_p2, REVERB_ALLPASS_2, 0.5f);
+    float wet = rvb_allpass(a1, t->ap2, &t->ap_p2, REVERB_ALLPASS_2, 0.5f);
+    if (rvb_plate <= 0.0f) return wet;                 // nothing above ran → byte-identical Schroeder
+    t->plate_br += (wet - t->plate_br) * PLATE_BR_COEF;                // first-order top-lift shelf:
+    wet += (wet - t->plate_br) * (PLATE_BRIGHT * rvb_plate);            // steel rings on up top
+    *sideOut = sideRaw * (PLATE_SIDE * rvb_plate_w * rvb_plate);
+    return wet;
+}
+// the MONO read of a tank (the shimmer's recirculating tail): the plate's side half is dropped, so
+// this is the plate's own mono fold — and with the plate off it is the original function, exactly.
+static float reverb_process(ReverbTank *t, float sample) {
+    float side;
+    return reverb_core(t, sample, &side);
 }
 
 // ── THE shared modulated-delay buffer — chorus (the first use) ─────────────
@@ -1183,16 +1282,104 @@ static void fx_set_univibe(int b, float rate, float depth, float mix) {
 // sidechain / bus-compression DYNAMICS (studio.h sidechain()/sidechain_key()/glue()). A gain stage
 // on a victim bus driven by an envelope follower: keyed off a TRIGGER (sidechain_key → sc_key_lvl)
 // or, for glue, off the bus's OWN level. Dormant (used=false) until configured → byte-identical.
+// GLUE's two extra legs (analog-outboard-chain.md §2 + §5.2), both on the SELF-KEYED path only, so a
+// keyed sidechain() pump is untouched — its release is a musical timing control and its level dip IS
+// the effect, so neither of these belongs there.
+//
+// 1. PROGRAM-DEPENDENT RECOVERY. A real FET unit's recovery is two-stage and level-dependent; one
+//    exponential is not. What ships is a DUAL-SLOPE release: the release coefficient is scaled by how
+//    far the envelope has already fallen from the peak that caused the reduction, so the first part of
+//    the recovery runs at exactly the rel_ms you asked for and the last part takes up to
+//    1/GLUE_PD_TAIL times as long. That is the 1176 curve ("the first half of the recovery is quick,
+//    the rest is slow"), and rel_ms stays the primary control because it still sets the fast part.
+//    LEVEL dependence comes from measuring that fraction against an ABSOLUTE reference: a quiet event
+//    (peak under GLUE_PD_REF) is already near the reference so it releases at full speed, while a loud
+//    one starts far below it and drags. Fast off a quiet hit, slow off a wall.
+//    MEASURED on obglue's release bench (program 3: a quiet steady tone under a loud burst every two
+//    seconds, so the tone's own level IS the recovery curve), amount 0.84, rel 280 ms, dB still ducked
+//    at each point after the burst:
+//        one exponential   200ms -0.65   500ms -0.20   900ms -0.05   1200ms -0.05
+//        dual slope        200ms -0.88   500ms -0.49   900ms -0.21   1200ms -0.11
+//    so it holds roughly twice as much through the tail and takes about twice as long to let go, which
+//    is the character. It is DELIBERATELY not bigger: on a whole render the difference is 0.07 dB of
+//    RMS on sustained material and 0.03 dB on sparse (the right way round, and small enough that no
+//    existing cart lurches). Diminishing returns set in fast — 0.10 buys only another 0.06 dB over
+//    0.25 — because the peak memory's own 1.5 s bleed becomes the limit.
+//    ⚠ Aggregate RMS is the WRONG measure for a release change and will tell you this leg is inert.
+//    Measure the SHAPE, with a steady tone to read it off.
+//    ⚠ WHAT DID NOT WORK, so nobody rebuilds it: a SECOND envelope follower with a slow attack and a
+//    slow release, taking the deeper of the two reductions. It reads as the textbook two-stage design
+//    and it measured INERT — 0.01 dB worst case over a 23 s bench. A slow-attack peak follower on
+//    percussive material never builds (k is only high for a few ms per hit, and it decays between
+//    them), so the "slow stage" sat an order of magnitude under the fast one and `max` never chose it.
+//    The lesson is about where a ducker's gain can matter at all: only where there is signal, and when
+//    there is signal the fast follower is already up. That is why this leg works on the release SLOPE
+//    of the follower that is actually in charge, rather than adding a second one beside it.
+// 2. AUTOMATIC MAKEUP. multiband() already carries makeup internally (SQ_MAKEUP, "a compressor with
+//    none just sounds smaller"); glue had none, so switching the comp in shrank the mix by up to
+//    ~3.8 dB and a level-matched A/B was impossible. Rather than guess a curve from `amount`, the
+//    stage MEASURES what it is taking and puts exactly that back. Program-independent by
+//    construction, which matters because glue keys off ABSOLUTE level, so a quiet mix compresses
+//    less and any amount-derived constant would be wrong for it.
+//    ⚠ WHAT IT AVERAGES IS THE ENERGY RATIO, not the gain. The first version averaged `g` over time
+//    and undershot by design: g sits near 1 through every gap, and the gaps are most of the samples
+//    while the RMS lives in the loud parts. Averaging g²·p against p (p = this sample's energy)
+//    weights the measurement where the music is, so mk = sqrt(den/num) restores the RMS exactly.
+//    Measured on the obglue bench at amount 1.0: averaging the GAIN over time left -0.86 dB on the
+//    table; the energy ratio lands the RMS back to within 0.05 dB of dry, at every amount, while the
+//    crest factor still RISES (14.94 -> 15.66 dB) — so the makeup restores the level without undoing
+//    the character. Peak goes UP about 0.7 dB, because the transient that outran the attack gets the
+//    makeup too; that is real and is why the chain still wants headroom (§2c).
+#define GLUE_PD_TAIL    0.25f        // the tail of the recovery runs at this fraction of rel_ms's speed
+                                     // (0.25 = the last part takes 4x as long). 1.0 = one exponential,
+                                     // i.e. exactly the old stage — the CONTROL for this leg.
+#define GLUE_PD_REF     0.25f        // "loud" starts here: the absolute level the fall is measured
+                                     // against, which is what makes the slope LEVEL-dependent
+#define GLUE_PD_HOLD    1.51173e-5f  // the peak memory's decay (~1.5 s) — what the fall is measured FROM
+#define GLUE_MK_COEF    1.51173e-5f  // one-pole makeup averaging over ~1.5 s (= sound_follow_coef(1500),
+                                     // written out because that helper is defined further down and this
+                                     // runs per sample). Far slower than any release, so the makeup is a
+                                     // steady gain and never expands the pumping back out.
+#define GLUE_MK_MIN     0.0625f      // floor on the energy ratio = a +12 dB ceiling on the makeup
+#define GLUE_MK_FLOOR   1e-6f        // energy floor (amplitude 1e-3, about -60 dBFS): below this the
+                                     // bus is silent and there is nothing to learn from
+#define GLUE_MK_AMT     1.0f         // 1 = put the whole measured loss back. THE CONTROL for that leg:
+                                     // set this to 0 and GLUE_PD_TAIL to 1 and sc_apply is the
+                                     // pre-2026-08-19 stage again, byte-for-byte, which is how both
+                                     // additions were measured against what they replaced.
 // duck gain for victim bus b. Updates the envelope follower; reads its trigger key (or the bus's own
-// level when self-keyed/glue). Returns the gain to multiply the bus by (1 = open, <1 = ducked).
+// level when self-keyed/glue). Returns the gain to multiply the bus by (1 = open, <1 = ducked; glue
+// can return >1 once its makeup has put back the level the stage is taking).
 static float sc_apply(int b, float curL, float curR) {
     SideChain *s = &sc[b];
     if (!s->used) return 1.0f;
-    float k = (s->key >= 0) ? fabsf(sc_key_lvl[s->key])
-                            : (fabsf(curL) > fabsf(curR) ? fabsf(curL) : fabsf(curR));   // glue: self-key
-    s->env += (k > s->env ? s->atk : s->rel) * (k - s->env);   // fast attack, slow release
+    if (s->key >= 0) {                                             // KEYED sidechain — unchanged
+        float k = fabsf(sc_key_lvl[s->key]);
+        s->env += (k > s->env ? s->atk : s->rel) * (k - s->env);    // fast attack, slow release
+        float e = s->env > 1.0f ? 1.0f : s->env;
+        return 1.0f - s->amount * e;
+    }
+    float k = fabsf(curL) > fabsf(curR) ? fabsf(curL) : fabsf(curR);   // glue: self-key
+    // the peak MEMORY: what caused the reduction we are recovering from, held and bled off slowly.
+    if (k > s->env2) s->env2 = k;
+    else             s->env2 -= s->env2 * GLUE_PD_HOLD;
+    // DUAL SLOPE: near the top of the fall the release runs at rel_ms; the further it has already
+    // fallen, the slower it goes. Measured against an ABSOLUTE reference so a quiet event (peak below
+    // GLUE_PD_REF) recovers at full speed and a loud one drags.
+    float ref  = s->env2 > GLUE_PD_REF ? s->env2 : GLUE_PD_REF;
+    float frac = s->env / ref; if (frac > 1.0f) frac = 1.0f;
+    float rel  = s->rel * (GLUE_PD_TAIL + (1.0f - GLUE_PD_TAIL) * frac);
+    s->env += (k > s->env ? s->atk : rel) * (k - s->env);
     float e = s->env > 1.0f ? 1.0f : s->env;
-    return 1.0f - s->amount * e;
+    float g = 1.0f - s->amount * e;
+    float p = curL * curL + curR * curR;                           // this sample's energy
+    if (p > GLUE_MK_FLOOR) {                                       // learn where there is music only
+        s->mk_den += (p - s->mk_den) * GLUE_MK_COEF;               // energy in
+        s->mk_num += (g * g * p - s->mk_num) * GLUE_MK_COEF;       // energy out
+        if (s->mk_den > 1e-20f) s->gavg = s->mk_num / s->mk_den;   // the ratio this stage is taking
+    }
+    float mk = 1.0f / sqrtf(s->gavg > GLUE_MK_MIN ? s->gavg : GLUE_MK_MIN);
+    return g * (1.0f + (mk - 1.0f) * GLUE_MK_AMT);
 }
 
 // ── VOCODER (docs/design/vocoder.md) — master-stage N-band carrier×modulator cross-synthesis.
@@ -1661,9 +1848,15 @@ static void apply_insert(int kind, int inst, int b, float *L, float *R) {
             int t = bus_tank[b];
             if (t >= 0 && rvb_tanks[t].used) {
                 float m = rvb_tanks[t].mix;                                   // 1 = wet-replace (send-bus), <1 = in-line blend
-                float wet = reverb_process(&rvb_tanks[t], (*L + *R) * 0.5f);   // MONO core, v1
-                *L = *L * (1.0f - m) + wet * m;   // m=1 → *L = wet, byte-identical to the old wet-replace
-                *R = *R * (1.0f - m) + wet * m;
+                float side;
+                float wet = reverb_core(&rvb_tanks[t], (*L + *R) * 0.5f, &side);   // MONO in, mono+side out
+                if (rvb_plate > 0.0f) {          // plate: the two pickups land on opposite channels
+                    *L = *L * (1.0f - m) + (wet + side) * m;
+                    *R = *R * (1.0f - m) + (wet - side) * m;
+                } else {
+                    *L = *L * (1.0f - m) + wet * m;   // m=1 → *L = wet, byte-identical to the old wet-replace
+                    *R = *R * (1.0f - m) + wet * m;
+                }
             }
         } break;
     }
@@ -1743,6 +1936,7 @@ static CtxKey sound_ctx_key(SoundReqKind k) {
         case SR_BPM: case SR_VOCODER: case SR_VOCODER_MIC: case SR_VOCODER_UNVOICED: case SR_AUTOTUNE_MIC:
         case SR_ECHO_INS_BBD: case SR_REVERB_SPRING: case SR_REVERB_SPRING_TONE: case SR_DRIVE_VOICE:
         case SR_MULTIBAND: case SR_HARMONIZE_MIC: case SR_INPUT_MONITOR:
+        case SR_REVERB_PLATE: case SR_REVERB_PLATE_WIDTH:
             return CTXK_K;
         // a = slot / instance / bus / tank / target id
         case SR_INSTR: case SR_INSTR_DUTY: case SR_INSTR_LFO: case SR_INSTR_FILTER:
@@ -5686,6 +5880,12 @@ static void sound_fire_req(SoundReq r) {
     case SR_REVERB_SPRING_TONE: {  // a=x*1000 — dispersion coefficient (the boing character), 0.20..0.90
         rvb_spring_disp = 0.20f + clamp01(r.a / 1000.0f) * 0.70f;
     } break;
+    case SR_REVERB_PLATE: {  // a=amount*1000 — PLATE voicing on the reverb (dense + bright + low-cut + WIDE)
+        rvb_plate = clamp01(r.a / 1000.0f);
+    } break;
+    case SR_REVERB_PLATE_WIDTH: {  // a=x*1000 — how far apart the plate's two pickups sit (0 = mono fold)
+        rvb_plate_w = clamp01(r.a / 1000.0f);
+    } break;
     case SR_DRIVE_VOICE: {  // a=voice (DRIVE_VOICE_*), b=tone*1000 — famous-pedal shaping on the drive insert
         drvins_voice = (r.a >= 0 && r.a <= 3) ? r.a : 0;
         drvins_tone  = clamp01(r.b / 1000.0f);
@@ -5975,6 +6175,14 @@ static void sound_fire_req(SoundReq r) {
         sc[vb].amount = amount;
         sc[vb].atk    = 1.0f - de_expf(-1.0f / (atk * 0.001f * (float)SOUND_SAMPLE_RATE));
         sc[vb].rel    = 1.0f - de_expf(-1.0f / (rel * 0.001f * (float)SOUND_SAMPLE_RATE));
+        // Makeup starts at unity (num == den → ratio 1 → no makeup). The seed is SMALL on purpose:
+        // the ratio is scale-free, so the seed's only job is to decide how long it takes to be
+        // forgotten, and a seed near 1 (i.e. ~150x a real mix's per-sample energy) held the makeup
+        // at unity for the first 7 seconds — measured as the whole makeup leg apparently undershooting
+        // by 1.6 dB. 1e-4 is swamped within ~25 ms, which is a ramp rather than a step.
+        // Guarded rather than assigned, so re-calling glue() (a knob turn, SET-AND-HOLD) does not
+        // jump the makeup back to 1 mid-note.
+        if (sc[vb].gavg <= 0.0f) { sc[vb].gavg = 1.0f; sc[vb].mk_num = 1e-4f; sc[vb].mk_den = 1e-4f; }
         sc[vb].used   = (amount > 0.0005f);
     } break;
     case SR_FILTER: {       // a=mode, b=cutoff_hz, c=res*1000 — master resonant filter (bus 0)
@@ -6526,8 +6734,10 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
 
         // SEND RETURN 2 — THE reverb bus (dormant until the first reverb API call)
         if (reverb_used) {
-            float wet = reverb_process(&rvb_tanks[0], reverb_in);   // tank 0 = the master send; navkit Schroeder core, MONO in v1
-            mixL += wet; mixR += wet;                // wet adds to both channels equally (centered)
+            float side;
+            float wet = reverb_core(&rvb_tanks[0], reverb_in, &side);   // tank 0 = the master send; navkit Schroeder core, MONO in
+            if (rvb_plate > 0.0f) { mixL += wet + side; mixR += wet - side; }   // plate: two pickups, one per channel
+            else                  { mixL += wet;        mixR += wet;        }   // mono tank — wet adds to both equally (centered)
         }
 
         // LIVE INPUT MONITOR (audio-input-frontier.md ★1) — the mic ring feeds the master DRY mix
@@ -6567,8 +6777,13 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
         out[2 * i]     = mixL;
         out[2 * i + 1] = mixR;
 #endif
-        if (wavcap_state == 1) {                       // WAV capture tap (wav_request) — MONO downmix
-            wavcap_buf[wavcap_pos++] = (mixL + mixR) * 0.5f;   // (L+R)/2 == the old mono mix when centered
+        if (wavcap_state == 1) {                       // WAV capture tap (wav_request + export_audio)
+            if (wavcap_ch == 2) {                      // export: keep the STEREO field
+                wavcap_buf[wavcap_pos++] = mixL;       // autopan / chorus width / the stereo clip are
+                wavcap_buf[wavcap_pos++] = mixR;       // all real here, and a mono export throws them away
+            } else {
+                wavcap_buf[wavcap_pos++] = (mixL + mixR) * 0.5f;   // (L+R)/2 == the old mono mix when centered
+            }
             if (wavcap_pos >= wavcap_total) wavcap_state = 2;
         }
         if (scope_ever) {                              // oscilloscope tap (scope_read) — MONO downmix
@@ -7641,6 +7856,12 @@ void reverb_spring(float amount) {     // spring-tank voicing on the reverb: dis
 void reverb_spring_tone(float x) {     // spring dispersion coefficient — the "boing" character (0 = looser, 1 = tighter/twangier)
     sound_push_ctrl(SR_REVERB_SPRING_TONE, (int)(clamp01(x) * 1000.0f), 0, 0, 0, 0, 0);
 }
+void reverb_plate(float amount) {      // plate-tank voicing on the reverb: dense, bright, low-cut, and WIDE (two pickups)
+    sound_push_ctrl(SR_REVERB_PLATE, (int)(clamp01(amount) * 1000.0f), 0, 0, 0, 0, 0);
+}
+void reverb_plate_width(float x) {     // how far apart the plate's two pickups sit — 0 = mono fold, 1 = fully spread
+    sound_push_ctrl(SR_REVERB_PLATE_WIDTH, (int)(clamp01(x) * 1000.0f), 0, 0, 0, 0, 0);
+}
 void drive_voice(int voice, float tone) {   // famous-pedal shaping on the drive insert (DRIVE_VOICE_TS = Tube Screamer); tone 0..1
     sound_push_ctrl(SR_DRIVE_VOICE, voice, (int)(clamp01(tone) * 1000.0f), 0, 0, 0, 0);
 }
@@ -8353,6 +8574,7 @@ static void sound_reset_state(void) {
                                                    //  a pre-existing mismatch, left alone: changing
                                                    //  it would move the DSP, not just the state)
     rvb_spring = 0.0f;    rvb_spring_disp = SPRING_DISP;
+    rvb_plate  = 0.0f;    rvb_plate_w     = PLATE_WIDTH;
     drvins_voice = 0;     drvins_tone = 0.5f;
     g_pan_law = PAN_LINEAR;
     g_listener_x = g_listener_y = g_listener_vx = g_listener_vy = 0.0f;

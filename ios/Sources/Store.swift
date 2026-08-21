@@ -78,7 +78,11 @@ final class Store {
         unlockedLock.lock()
         let ids = _unlockedIDs        // COW snapshot under the lock — the contains() below is race-free
         unlockedLock.unlock()
-        return ids.contains(id) || ids.contains("com.mipolai.tinyjam.masterpass")
+        // ONE rule, defined in AppGroup.grants and shared so the app and the extension cannot
+        // drift: an id ending `.masterpass` is the catch-all, SCOPED BY PREFIX. This line used to
+        // be `ids.contains("com.mipolai.tinyjam.masterpass")` — Tiny Jam's own bundle prefix, so
+        // any other app's pass unlocked nothing at all.
+        return AppGroup.grants(ids, id)
     }
 
     private func listen() -> Task<Void, Never> {
@@ -130,8 +134,13 @@ extension Store {
 #endif
 
 // ── C bridge (tinyjam_store.h) ───────────────────────────────────────────────
+// ⚠ Store_IsModuleUnlocked / Store_Purchase / Store_Restore are NOT here: they live in
+// Entitlements.swift, because an AUv3 extension compiles that file and NOT this one (it has no
+// StoreKit and no purchase sheet, only the App Group). Read that file's header before adding a
+// Store_* symbol anywhere.
 @_cdecl("Store_Init")
 public func Store_Init() {
+    AppGroup.report("app")   // is the shared container real on THIS side? (the extension reports too)
 #if targetEnvironment(simulator)
     Store.startTesting()   // activate the local .storekit before products load
 #endif
@@ -149,13 +158,3 @@ public func Store_ResetPurchases() {
 }
 #endif
 
-@_cdecl("Store_IsModuleUnlocked")
-public func Store_IsModuleUnlocked(_ moduleId: UnsafePointer<CChar>) -> Bool {
-    Store.isUnlocked(String(cString: moduleId))
-}
-
-@_cdecl("Store_Purchase")
-public func Store_Purchase(_ moduleId: UnsafePointer<CChar>) {
-    let id = String(cString: moduleId)
-    Task { await Store.shared.purchase(id) }
-}

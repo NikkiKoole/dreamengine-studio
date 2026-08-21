@@ -124,6 +124,24 @@ float de_param_get(DeInstance *in, int addr);
 void  de_param_set(DeInstance *in, int addr, float v);
 int   de_param_changed(DeInstance *in, int *addr, float *v);
 
+// ── EXPORT: the engine wrote an audio file, do something a human can reach ────────────────────
+// Called from de_frame once export_audio()'s capture is written to disk. WEAKLY defined in
+// studio.c as a no-op, so a plain desktop or web build links and simply leaves the file where it
+// is; a host overrides it (ios/Sources/Export.swift) to transcode and offer a share sheet.
+//   format: 0 = EXPORT_WAV (what is on disk), 1 = EXPORT_M4A (the cart asked for compressed —
+//           the ENGINE never encodes anything but WAV, because AAC needs a platform encoder)
+// ⚠ NO DeInstance HANDLE, and that is deliberate rather than the oversight lint-engine-seam hunts
+// for: the capture buffer is process-global (one export per process, see
+// tools/ctx-classification.json), and a path already identifies the take uniquely. If export ever
+// becomes per-instance, this grows a handle with it.
+// ⚠ MAY BE CALLED OFF THE MAIN THREAD. In an AUv3 de_frame runs in the render block, i.e. the
+// AUDIO thread. Any UI an override touches must hop to main.
+void de_export_ready(const char *path, int format);   // seam-lint-ignore: the capture buffer it
+// reports on is process-global by construction (one export per process — sound.h's wavcap group,
+// classified in tools/ctx-classification.json), so there is no per-instance state for a handle to
+// select. A path identifies the take uniquely. When export becomes per-instance, delete this waiver
+// and give it a DeInstance*.
+
 int de_save_state(DeInstance *in, void *out, int max);
 int de_load_state(DeInstance *in, const void *blob, int len);
 

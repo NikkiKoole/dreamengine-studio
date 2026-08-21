@@ -1,0 +1,10 @@
+# autorhythm: the M254, whose twelve outputs are MOSTLY accompaniment (eight of them feed the M251
+# chord/bass chip, doc §4e), so this is the widest machine on the dial: 12 lanes over 32 states.
+# Six presses of ] reach it, then run.
+tap 12 ]
+tap 20 ]
+tap 28 ]
+tap 36 ]
+tap 44 ]
+tap 52 ]
+tap 66 SPACE

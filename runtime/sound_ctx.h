@@ -397,6 +397,11 @@ typedef struct {
 #define SPRING_AP_STAGES 8
 #define SPRING_AP_MAX    128         // max per-stage delay (buffer size)
 #define SPRING_DISP    0.62f         // default dispersion coefficient (the "boing" character)
+// PLATE voicing (reverb_plate) — input diffusion lines, in ONE flat buffer per tank that the four
+// stages index by offset (so the sizes are exact, not padded to a common max like the spring's).
+#define PLATE_AP_STAGES 4
+#define PLATE_AP_TOTAL  1074         // 149+211+293+421 — ~4.3KB/tank of .bss (zero bytes of wasm)
+#define PLATE_WIDTH     0.55f        // default L/R spread of the two pickups (reverb_plate_width)
 #define SOUND_REVERB_TANKS 3
 typedef struct {
     float comb1[REVERB_COMB_1], comb2[REVERB_COMB_2], comb3[REVERB_COMB_3], comb4[REVERB_COMB_4];
@@ -409,6 +414,9 @@ typedef struct {
     float spring_ap[SPRING_AP_STAGES][SPRING_AP_MAX];  // stretched-allpass dispersion delay lines (rvb_spring > 0)
     int   spring_app[SPRING_AP_STAGES];                // their write positions
     float spring_hp, spring_lp;                        // spring band-limit filter states
+    float plate_ap[PLATE_AP_TOTAL];                    // plate input-diffusion allpass lines (rvb_plate > 0)
+    int   plate_app[PLATE_AP_STAGES];                  // their write positions
+    float plate_hp, plate_br;                          // plate low-cut + top-lift filter states
     float fb, damp;                  // config from size/damping — set by reverb() (tank 0) / reverb_bus()
     float mix;                       // dry/wet blend at the insert: 1 = wet-replace (a dedicated send-bus), <1 = in-line (reverb_insert)
     bool  used;                      // per-tank dormancy: a dormant tank is skipped (costs zero)
@@ -425,7 +433,10 @@ typedef struct {
 #define SOUND_PHASER_STAGES 8
 #define LESLIE_BUF        512        // ~11.6ms horn Doppler delay line (navkit LESLIE_BUFFER_SIZE)
 #define N_SC_KEYS 4   // independent trigger buses (kick/snare/…); sidechain_key key index 0..3
-typedef struct { bool used; int key; float amount, atk, rel, env; } SideChain;  // key<0 = glue (self-keyed)
+// key<0 = glue (self-keyed). env2 = the slowly-bled PEAK MEMORY that glue's dual-slope recovery
+// measures its fall from; mk_num/mk_den are slow energy-out/energy-in averages and gavg their ratio,
+// which IS glue's automatic makeup. A keyed sidechain touches none of them, so the pump is unchanged.
+typedef struct { bool used; int key; float amount, atk, rel, env, env2, gavg, mk_num, mk_den; } SideChain;
 #define VOC_BANDS 12
 #define AM_RING 8192
 enum { AM_SNAP, AM_SHIFT };
@@ -608,6 +619,8 @@ typedef enum {
     // "the context you are already in". An EVENT kind (never recorded into the log it replays).
     // de_load_state, docs/design/engine-instance-seam.md.
     SR_STATE_RESTORE = 146,   // (no payload) — session-state restore: reset + replay ctx_log[ctx_active]
+    SR_REVERB_PLATE = 147,    // a=amount*1000 — PLATE voicing on the reverb (reverb_plate): dense + bright + low-cut + decorrelated L/R
+    SR_REVERB_PLATE_WIDTH = 148, // a=x*1000 — how far apart the plate's two pickups sit (reverb_plate_width), live
 } SoundReqKind;
 typedef struct { SoundReqKind kind; int a, b, c; int delay_samples; int dur_samples; int e0, e1, e2; } SoundReq;
 #define SOUND_REQ_QUEUE   512   // generous: live held-voice control pushes many setters/frame, and a patch cart's
@@ -677,6 +690,8 @@ typedef struct {
     int g_pan_law;
     float rvb_spring;
     float rvb_spring_disp;
+    float rvb_plate;
+    float rvb_plate_w;
     ReverbTank rvb_tanks[SOUND_REVERB_TANKS];
     bool reverb_used;
     int fx_next_bus;
@@ -976,6 +991,7 @@ static DeSound de_snd_default = {
     .echo_ins_tone = 0.55f,
     .g_pan_law = PAN_LINEAR,
     .rvb_spring_disp = SPRING_DISP,
+    .rvb_plate_w = PLATE_WIDTH,
     .fx_next_bus = 1,
     .drvins_tone = 0.5f,
     .voc_q1 = 0.2f,
@@ -1064,6 +1080,8 @@ static _Thread_local DeSound *de_snd = &de_snd_default;
 #define g_pan_law            (de_snd->g_pan_law)
 #define rvb_spring           (de_snd->rvb_spring)
 #define rvb_spring_disp      (de_snd->rvb_spring_disp)
+#define rvb_plate            (de_snd->rvb_plate)
+#define rvb_plate_w          (de_snd->rvb_plate_w)
 #define rvb_tanks            (de_snd->rvb_tanks)
 #define reverb_used          (de_snd->reverb_used)
 #define fx_next_bus          (de_snd->fx_next_bus)

@@ -86,6 +86,15 @@ final class CanvasView: UIView {
             // de:engine-owner — the standalone app's ONE engine. Everything else (AudioEngine, GameHost)
             // is handed this pointer; nothing else may create one.
             engine = de_instance_create(DE_RENDERER_SOFTWARE)   // this app's one engine
+            // ⚠ WITHOUT THIS, EVERY save() IN EVERY CART SILENTLY NO-OPS ON iOS. The engine's
+            // save_dir defaults to "." — the sandboxed cwd, which is not writable — and studio.c's
+            // own comment predicted exactly this ("if the host never sets it … saves silently
+            // no-op on a sandboxed OS"). No iOS host ever called it. It is not theoretical: the
+            // shipping Tiny Acid Jam persists its pattern banks with save_bytes(), and
+            // export_audio() is how it was finally noticed, because a missing file is visible
+            // where a missing save is not. de_documents_path() is the same writable Documents dir
+            // the parallel de_save_bytes API in save.c has been using all along.
+            if let docs = de_documents_path() { de_set_save_dir(engine, docs) }
             // ⚠ HAND IT THE SAME INSTANCE. AudioEngine used to create its own, which was invisible
             // while de_instance_create returned a singleton and became total silence the moment it
             // started allocating — the speakers rendered an engine no touch ever reached.

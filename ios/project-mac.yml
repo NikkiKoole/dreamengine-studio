@@ -43,6 +43,11 @@ targets:
         # to open with an orange (!) and no crash report — the entitlements were just
         # com.apple.security.get-task-allow (a debug flag). Catalyst requires the sandbox anyway.
         com.apple.security.app-sandbox: true
+        # THE APP GROUP — the only channel a Pro purchase has to the extension, which is a separate
+        # sandboxed process a host loads without this app ever running (ios/Sources/AppGroup.swift,
+        # docs/design/pro-unlock.md §8–§9). Registered in the portal 2026-08-19. Must be on BOTH
+        # halves of the pair or there is no shared container, and the failure is silent.
+        com.apple.security.application-groups: [group.com.mipolai.shared]
     settings:
       base:
         SUPPORTS_MACCATALYST: YES
@@ -82,6 +87,12 @@ targets:
       # blit-only). AU_EXT keeps the app's AVAudioEngine/mic plumbing out of the extension, which never
       # owns audio — the host does.
       - Sources/CanvasView.swift
+      # THE ENTITLEMENT SOURCE. An appex links neither Store.swift nor StoreKit; without these two
+      # a cart's Store_IsModuleUnlocked resolves to pro.h's WEAK STUB, which answers TRUE, and the
+      # plug-in gives Pro away to everyone. Entitlements.swift + AppGroup.swift are the strong,
+      # fail-closed answer read out of the shared container. See Entitlements.swift's header.
+      - Sources/Entitlements.swift
+      - Sources/AppGroup.swift
       - ../runtime/studio.c
       - ../runtime/raylib_compat.c
       - gen/macau/cart.c
@@ -106,6 +117,14 @@ targets:
         # is for XPC SERVICES that adopt their parent's sandbox, and on an APP EXTENSION — which
         # gets its own — it makes the sandbox invalid, so the process dies at launch.
         com.apple.security.app-sandbox: true
+        # ⚠ The READ half of the app group. Note the warning right above about `inherit`: this file
+        # has form for an added entitlement killing the extension at launch. An app group is a
+        # different thing (a shared container, standard on an appex, not a sandbox-inheritance
+        # claim) and should be safe — but if the plug-in stops opening in GarageBand after this,
+        # THIS LINE IS THE FIRST SUSPECT. Removing it and the one in the app block reverts cleanly;
+        # nothing ships from the Mac targets (docs/design/pro-unlock.md §10 chose "Designed for
+        # iPad"), so they exist to TEST this path in a real host, which is why the group is here.
+        com.apple.security.application-groups: [group.com.mipolai.shared]
     info:
       # Its OWN generated plist. project.yml generates AU/Info.plist for the iOS extension, and both
       # are xcodegen output (ios/.gitignore:12), so sharing the path means whichever spec ran last

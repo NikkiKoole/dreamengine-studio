@@ -7,13 +7,120 @@
 > **here**, then fix the prose in the relevant design doc. If a design doc and this file
 > disagree, this file wins.
 
-_Last updated: 2026-08-18 — **Tiny Pedalboard is LIVE on the App Store** (1.1 and 1.0 both `READY_FOR_SALE`), the first thing built here that a stranger can buy; and the same cart now loads in GarageBand as an audio EFFECT (`aumf`), with one open defect. See the top two Shipped entries below, and [`HANDOFF.md`](HANDOFF.md) for what is in flight._
+_Last updated: 2026-08-19 — **Tiny Pedalboard shipped to the App Store and is now deliberately OFF SALE**, and *Tiny Acid Jam* is approved but unreleased, while both switch to **free with one $4.99 Pro unlock** ([ADR-0035](decisions/0035-free-with-one-pro-unlock.md)); the same cart also loads in GarageBand as an audio EFFECT (`aumf`), with one open defect. See the top two Shipped entries, the first Open entry, and [`HANDOFF.md`](HANDOFF.md)._
 
 > **This line is a headline, not an entry.** It reached **9,064 characters** and was the only place in the file that recorded `FILTER_DIODE`, `filter-spec.js` and `rebirth-classic.md` — three shipped things, invisible because nobody reads a shipped feature out of a `_Last updated:_` line. They have a real entry now (2026-07-02, above `sprite-draw.js`). Keep this to one date, one sentence, one link; `status-check --check` fails past 900 chars.
 
 ---
 
 ## Shipped ✓
+
+- **101 PRESET RHYTHMS, SOURCED OFF THE MANUFACTURERS' OWN DOCUMENTS, CHORD AND BASS INCLUDED** (2026-08-20). Every latin
+  pattern in this repo was a plausible reconstruction, `sideman`'s twelve rhythms included. This is
+  the real thing, traceable to a page and a figure:
+  [`design/rhythm-box-patterns.md`](design/rhythm-box-patterns.md) holds all 16 rhythms of the Ace
+  Tone Rhythm Ace FR-2L (c.1969, discrete logic, the units Ace Tone sold Hammond to build INTO
+  organs), all 18 of the Roland TR-77 (1972, diode matrix) and 30 from the SGS M252 rhythm LSI (both
+  published factory masks, the chip that put AUTO RHYTHM inside cheap Italian organs, plus 12 from
+  its sibling M253 whose second mask proved a byte-for-byte duplicate and was excluded), with the
+  evidence trail kept verbatim in
+  [`design/rhythm-box-transcription-log.md`](design/rhythm-box-transcription-log.md). The findings
+  matter more than the data: ONE fixed clock **re-divided per rhythm** (the FR-2L's waltz splits the
+  same 24-count bar by three, its slow rock reads all 48 counts as one 12/8 bar), **accent by
+  LAYERING** two lanes of one voice because the machines have no velocity, two cheap ways to buy a
+  two-bar feel (a shared fill pulse late in bar 2, shared by three rhythms; or ONE asymmetric cell,
+  which is the whole of samba's two-bar identity), swing placement stated **explicitly and not
+  uniformly** (+4 of 6 in the shuffle, +2 in the western), GATE lanes as well as trigger lanes, and a
+  rhythm as an assignment of **35 shared pulse trains** rather than N independent grids. None of that
+  is expressible on the 16-step grid every drum cart here uses. Validation nobody designed in: four
+  NAMED CLAVES fell out of raw dot positions across two machines and four independent readers, and
+  both machines' waltz reads the same musically despite different clock structures. ELGAM, the
+  machine the enquiry started from, is answered but **not sourceable**: its patterns live in custom
+  SGS mask ROMs that were never published, established from chip designators on Elgam's own
+  schematic rather than from a failed search, so presenting the factory tables as Elgam's would be a
+  fabrication (§5 states the boundary). Open: a cart, a generated shelf header, and labelling
+  `sideman`'s rhythms as reconstructions.
+
+- **THE FIRST DRUM MACHINE EVER SOLD, AND THE FIRST CART WHOSE SEQUENCER IS A MECHANISM**
+  (2026-08-19). The `sideman` cart plus `runtime/sideman.h`, the Wurlitzer Side Man (1959): ten
+  vacuum-tube percussion circuits, the oldest drum sound in this studio by two decades. FOUR of its
+  ten voices are struck wood (wood block, two temple blocks, claves) against three membranes, which is
+  why the era reads as a plock rather than a beat. Every other drum cart here is a left-to-right grid,
+  and that is the wrong shape for this machine: the wiper is bolted at twelve o'clock and the DISC
+  turns underneath it, so one revolution is one bar, the ten tracks are concentric rings, a comb of ten
+  contact fingers lights as each closes, and the tempo slider is the motor speed. A stamped disc also
+  gives a different track layout per rhythm for free, so WALTZ carries 12 slots in three beats and
+  SHUFFLE is four beats of REAL triplets where `cr78` needed a swing knob the CR-78 never had.
+  `spec()` asserts the one thing it rests on, that the slot which fires is the slot standing under the
+  arm, on pure functions because `beat()` is frozen under `-DDE_SPEC` (1647 assertions). Its cabinet is
+  the [outboard chain](design/analog-outboard-chain.md) used as a **SUBSET**, the first consumer to do
+  so: WARM EQ into IRON, no bus comp because a 1959 organ amp had none, and a SPRING tank instead of
+  the send stage's studio plate, because a plate in 1959 was a wardrobe-sized EMT. That made it the
+  second rack `bypass-check.js` gates, which is what turned the IRON DC blocker's reconvergence into a
+  property of the STAGE (267.8/301.0 ms against 300.8) rather than of one cart.
+  **Two findings worth more than the cart**, both in [sideman.md](design/sideman.md) §6b: `instrument()`
+  does NOT clear a slot's envelopes/LFOs/filter/sends, so reusing a slot silently inherits the last
+  voice's modulation (now on the function itself, `node tools/api.js instrument`); and the ear
+  disagreed with the measurements TWICE on one voice, both times preferring the shorter, simpler
+  gesture, which is why "three candidates measuring a clean 2x-4x grain separation" were
+  indistinguishable: they shared one 375 ms gesture, and gesture dominates parameter.
+
+- **THE PRO ENTITLEMENT SEAM, AND THE FIRST THING IT GATES: AUDIO EXPORT** (2026-08-19). The
+  engineering half of [ADR-0035](decisions/0035-free-with-one-pro-unlock.md); full picture in
+  [pro-unlock.md](design/pro-unlock.md). `runtime/pro.h` is the cart-land face — `pro_unlocked()`
+  plus a SHARED Pro sheet, stateless (the `ProSheet` belongs to the cart), and a cart never names a
+  product id: which product at what price comes from the app manifest via a generated `app_pro.h`,
+  so the same cart runs in a paid app, in the free web gallery and in the editor.
+  `ios/Sources/Entitlements.swift` is the strong, fail-closed answer, because the app links StoreKit
+  and an extension links only the App Group. `export_audio()` records the final mix to a **stereo**
+  file, and on iOS transcodes to M4A and offers the share sheet — **confirmed end to end on an
+  iPhone SE**. `tools/pro-check.js` gates it (25 + 9, four negative controls, in repo-doctor).
+  **Three bugs found by building it, each silent, one of them shipped.** (a) No AU target compiled
+  `Store.swift` OR `AppGroup.swift`, so a gated cart in the plug-in would have resolved to `pro.h`'s
+  weak stub — which answers TRUE, i.e. **Pro given away free in every host**. (b) The IAP block sat
+  inside `if (launcher)`, so a single-cart app generated no `.storekit` and **no purchase could ever
+  have been made** in either shipping app. (c) **Every `save()` in every cart was a no-op on iOS** —
+  `save_dir` defaults to the sandboxed cwd and no iOS host had ever called `de_set_save_dir`, a seam
+  function with zero callers, which hit the shipping *Tiny Acid Jam*'s pattern banks. Export found
+  that one because **a failed save is invisible and a failed export is a missing file**; reach for
+  that asymmetry when a silent path needs proving. Open work is listed in
+  [pro-unlock.md §11](design/pro-unlock.md#11-export-and-the-two-bugs-the-phone-found-2026-08-19) —
+  chiefly that **no shipping cart calls export yet**, so Pro still gates nothing.
+
+- **THE ANALOG OUTBOARD CHAIN IS A SHARED BASELINE, and the pitch it answers is now measured**
+  (2026-08-19). `runtime/outboard.h` is the `ampcab.h` move applied to the MASTER bus: the four-stage
+  output rack as one voicing table (EQ = `eq_inst(0)` · IRON = `drive_insert(DRIVE_ASYM)`, the
+  odd-AND-even shaper · COMP = an `eq_inst(1)` flat INPUT boost feeding `glue()`, because a FET unit
+  has no threshold and is driven by its input · PLATE = `reverb()` + per-slot sends). Bundles of
+  effects we already ship, per [0015](decisions/0015-effects-are-recipes-not-primitives.md), so no new
+  DSP. The bench is the `outboard` cart: a drum machine and a bassline loop themselves while you
+  switch each stage in and out. **Three findings the build produced, all in
+  [analog-outboard-chain.md](design/analog-outboard-chain.md):** (a) a UI on the comp must **meter RMS,
+  not peak** — measured, at the hardest ratio `glue` takes **6.3 dB off the crest factor** and hands
+  **+2.3 dB of RMS** back. ⚠ That is the engine as of the SAME DAY's later `glue` change (automatic
+  makeup + a program-dependent second release stage); before it, the stage took 3.8 dB of RMS while the
+  peak did not move and the crest *rose*, so it was a ducker rather than a compressor. The doc keeps
+  both measurements, because the before/after IS the evidence the change worked; (b) **the bypass is
+  bit-exact, verified by sample-diffing two renders** rather than asserted: EQ/IRON/COMP reconverge on
+  the switch, PLATE 3.75 s later because a reverb tail is real. That test found a real bug on its first
+  run (a chain assembled from only the enabled stages left the null inexact for ~2 s; `fx_order` must be
+  set unconditionally, which also means `outboard_apply()` OWNS the master insert order), and it has
+  since been promoted to an oracle, `tools/bypass-check.js`; (c) of the classic "we modeled a FET comp,
+  a British EQ and a German plate" pitch, **odd-and-even harmonic coloration is the closest to backed** —
+  `DRIVE_ASYM` puts h2 60 dB above what a symmetric shaper does, though the *third* harmonic still leads
+  it by 25–29 dB at usable drive — and the words to cut are *modeled*, *transistor*, *transformer* and
+  *limiter*. **Follow-up research (2026-08-19, same doc §6/§6b):** a **stereo reverb tank is NOT worth
+  building** (priced at +103 KB and +0.010% of one core, but a chorus placed after a reverb on a
+  send-bus already recovers 97% of the stereo width the mono tank destroys — measured with the
+  `rvbwidth` probe, and `reverb_plate`'s two-pickup approach then landed the static-width half at
+  4.3 KB/tank); **transformer saturation IS worth adding** as a `DRIVE_VOICE_XFMR` voice (~10 lines in
+  an existing extensible slot, no new state; prototyped offline, it saturates 80 Hz as hard as a
+  soft-clip while leaving 2 kHz **49 dB** cleaner, which no existing mode does); and **FET program
+  dependence is reachable from cart-land with no engine change** by riding `FXMOD_DRIVE` (wire verified,
+  perceptual claim still a LISTEN item). **Open:** the transformer voice, the EQ's fixed bands, and B-H hysteresis
+  (never claim "modelled"). ⚠ An "IRON bypass regressed" finding reported here on 2026-08-19 was
+  **withdrawn**: it was a harness fault (two renders that did not share their prelude), and
+  `bypass-check.js` passes all 8 stage-by-direction checks.
 
 - **A CART CAN BE AN AUDIO EFFECT: `pedalboard` is an `aumf` a DAW inserts on a track** (2026-08-17).
   The host's audio is pulled in the AU render block and pushed through `de_audio_input` into the ring
@@ -776,6 +883,50 @@ Detail lives in the linked design doc in every case; that is where it was always
 
 
 ## Open — prioritized
+
+> ### 💰 Both apps go FREE with one **$4.99** "Pro" unlock; `pedalboard` is OFF SALE until it can come back with the wall in place
+>
+> Decided 2026-08-18, amended 2026-08-19: [ADR-0035](decisions/0035-free-with-one-pro-unlock.md) and
+> its Update. *Tiny Pedalboard* and *Tiny Acid Jam* become **free downloads with one non-consumable
+> Pro unlock at $4.99** carrying **WAV export + MIDI in/out + AUv3**. ⚠ Of those three, only WAV
+> export exists as of 2026-08-19: `pedalboard` ships no AUv3 at all and MIDI IN is compiled out of
+> every iOS build. See [pro-unlock.md §3](design/pro-unlock.md#3-the-finding-pro-currently-sells-almost-nothing). The wall is "it leaves the app":
+> the free instrument is complete, including background audio, Ableton Link and saving your own
+> patterns. Both manifests already carry it (`"price": "0"` + `com.mipolai.<app>.pro`); **the store is
+> unchanged until somebody runs `node tools/asc-push.js <app> --price`**, and that belongs to the
+> re-release, not to a tidy-up.
+> **Listed first because it expires.** At **zero sales** the migration needs no grandfathering code at
+> all; the first purchase means writing a receipt check (`AppTransaction.originalAppVersion`) so
+> buyers keep Pro for nothing.
+> **As of 2026-08-19 NEITHER app is purchasable, which closes that window for good** as long as it
+> holds: `pedalboard` was **removed from sale in all 175 territories**, and *Tiny Acid Jam* is
+> **approved and ready for distribution but never released**, so it has no price exposure at all and
+> needs no pulling. The action there is the opposite one: **do not press release**, and preferably
+> **developer-reject** the approved version so the first public 1.0 already has the wall in it (it
+> has no listing, URL history or ranking to protect, unlike `pedalboard`). ⚠ Confirm in ASC whether
+> an approved-pending-release version has to be released or rejected before a 1.1 can be created.
+> **Two corrections to the original ADR live in the Update.**
+> (a) "Never pull" was about the wrong thing: removing from sale keeps the record, bundle ID, URL,
+> reviews and the approved binary, and coming back needs no review; only *deleting the record or
+> resubmitting under a fresh bundle ID* is guideline-4.3 bait. (b) The reason to stay dark rather than
+> just flip the price now: going Free **before** Pro exists hands every downloader export + MIDI +
+> AUv3, so the version that introduces Pro **takes features away from people who have them**, which is
+> worse than a wall that was always there. Order: **stay dark → build Pro → return Free.**
+> **The build half** is StoreKit 2 (in-house, no RevenueCat) plus an **App Group entitlement the AUv3
+> extension can read**, because a host loads the plug-in without the container app ever launching
+> ([`design/product-notes-followup.md`](design/product-notes-followup.md) §3). Order: `pedalboard`
+> first (off sale, unwatched), then `tinyacidjam`, then `tinyjam` inherits it.
+> **Two live follow-ons**: `apps/tinyacidjam/app.json`'s review notes still tell Apple *"no in-app
+> purchases"* (left wrong on purpose, since notes must describe the build being submitted; the
+> replacement paragraph is drafted in the ADR's Update, ready to paste); and the §🚩 trademark rule does not relax for a free app, since the Pro unlock is still a
+> paywall over a bigger install base.
+> **⏸ And one PARKED, on the maker's call (2026-08-18):** Tiny Jam's `masterpass` sits at $4.99, now
+> exactly *level* with a $4.99 per-app Pro while sounding bigger, so content and features do not yet have one story. That whole
+> two-axis reconciliation waits for a **trigger, not a date: about five music apps on the App Store**,
+> then the pricing gets fixed in one pass with the real catalog visible (standing at 2). Nothing is
+> blocked by it: Tiny Jam is v0.1, never submitted, so nothing was ever purchasable. The three IAPs
+> DO exist in ASC (created + priced + `READY_TO_SUBMIT` on 2026-07-07), so it is a later
+> `asc-push --iap --reprice`, not a blank slate. **Leave the $4.99 alone until then.**
 
 > ### The AUv3 panel's LAYOUT TOGGLE has never worked in GarageBand (pre-dates the context work)
 >

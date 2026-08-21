@@ -46,6 +46,27 @@ The ordering is the point: we spent a week polishing #6 (cheap, worth it, done),
 downloads come from #1–#4, which are mostly **execution** (make clips, show up) plus a little
 tooling the repo has scoped but not built.
 
+### Lever #3, MEASURED once (2026-08-19): what a promo-code giveaway actually produced
+
+The first outside datapoint for the gift-first tribe pass, from a Reddit self-post by the developer
+of **Vaporwave Beats** (an iPad drum machine on the same free-plus-one-Pro-unlock model we adopted in
+[ADR-0035](../decisions/0035-free-with-one-pro-unlock.md)):
+
+- **6 Pro promo codes**, offered to the first people who **asked in the thread**, and **DM'd rather
+  than posted**. All 6 claimed in **about 30 minutes**. Stated cadence: "another free giveaway here
+  in a week or so."
+- Two things his post does that ours should. The freemium objection is killed in the **second
+  sentence** ("free to download… No trial, nag screens, subscription or ads"), before a commenter can
+  raise it. And the gift is framed as a **bonus, not the pitch**: "you don't need Pro Mode to enjoy
+  the app." The playable thing is the gift; the codes are a garnish.
+- Calibration for our own plan (about ten codes per communication, weekly): scarcity in single digits
+  is enough to fill a thread, asking people to *reply* rather than DM first is what makes the thread
+  look alive, and a promo code is only a gift once the app is FREE, because then the code buys Pro.
+  Budget: roughly 100 codes per app, per platform, per version, replenished each version, expiring a
+  few weeks after generation (re-confirm in App Store Connect, not from this line).
+
+Log every code with `node tools/leads.js track add`, or the advocate list evaporates.
+
 **A rung *below* #1: knowing what to build.** Lever #1 assumes you've already made the delightful
 thing. [`demand-discovery.md`](demand-discovery.md) (`tools/reddit-gaps.js`) is the tool that feeds
 it — it mines a tribe's public RSS for what people keep asking for and nobody's built, cross-

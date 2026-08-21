@@ -143,7 +143,16 @@ function buildCart(name, { force = false, worklet = false } = {}) {
   } else {
     buildOk = runEmcc(['--shell-file', path.join(RUNTIME, 'web_shell.html'), '-o', outHtml])
   }
-  if (!buildOk) return false
+  if (!buildOk) {
+    // ⚠ LEAVE NO EMPTY site/<name>/ BEHIND. cart-status.js decides "is this cart published" by
+    // asking whether that directory EXISTS, so a failed build that leaves one turns the status
+    // tool into a liar: a 181-cart publish where 101 failed reported "not-published 0" afterwards,
+    // and git cannot see the difference either, because it does not track empty directories.
+    // Only remove it when it is EMPTY: a failed REBUILD must never delete the good build already
+    // sitting there.
+    try { if (fs.readdirSync(outDir).length === 0) fs.rmdirSync(outDir) } catch { /* keep the failure */ }
+    return false
+  }
 
   finishCart(name)
 

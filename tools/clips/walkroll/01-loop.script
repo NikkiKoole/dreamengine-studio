@@ -1,0 +1,11 @@
+# walkroll — start the loop and let it run (2026-08-21).
+#
+# READ THIS IF A BODY/VOICE A/B ON THIS CART COMES BACK BYTE-IDENTICAL: a plain
+# `script /dev/null` render of this cart is DIGITAL SILENCE (peak -inf), because the
+# sequencer boots STOPPED. ab-render then reports "the flag did not reach the DSP",
+# which is a lie — nothing reached the DSP because nothing was playing. The tell is
+# that walkbox, walkroll and upright all render the SAME sha: identical silence.
+#
+# init() already seeds a 16-step line (don/dde/dln/dsl, plus the demo bend on note 3), so SPACE is all it takes.
+down 10 SPACE
+up 12 SPACE

@@ -790,6 +790,21 @@
     "homage": "Asteroids (1979)"
   },
   {
+    "title": "auto rhythm",
+    "description": "76 preset rhythms off three generations of organ rhythm hardware, read from the service manuals, with the mechanism on screen instead of a sidx grid. Every latin pattern in this studio used to be a plausible reconstruction. These are not: all 76 come off manufacturer documents (docs/design/rhythm-box-patterns.md) and each one is traceable to a page and a figure. The cart is built to show what makes them unlike a sidx grid. ONE FIXED CLOCK, RE-DIVIDED PER RHYTHM: the FR-2L waltz splits the same 24-count bar by three, its slow rock reads all 48 counts as one 12/8 bar. SKIPPED STATES: the TR-77 hatches out counts a rhythm does not use, so its counter steps OVER them, which is what gives 6/8 MARCH its meter, and you can watch it happen. MARKS THAT DO NOT SOUND: on the SGS chips the trigger is the rising edge of a ROM bit, so two marks on consecutive states fire once, and those cells are drawn hollow (66 of the M252's 955 marks are hollow). GATES, NOT HITS: a few lanes are held rather than struck. The tempo control is the machine's own VARIABLE CLOCK in ticks per second, not a BPM, because that is what these boxes actually had; the implied BPM is shown but derived. THE VOICES ARE NOT SOURCED and the cart says so: the FR-2L scan is about 75 dpi, its lane labels are interpolation rather than ink, so the printed label is shown dim and the voice you hear is assigned BY LANE ORDER from the sideman.h tube bank, which you can rotate. Patterns sourced, voicing yours. SPACE run/stop. K = the organ key: hold it and the rhythm plays while held, released it stops (Elektor 1976 fig 22: on these instruments the drums began when you played). LEFT/RIGHT rhythm, [ and ] machine, UP/DOWN clock rate. V rotates the voice map. M switches the TR-77 metronome click on (it is a click for the player, not part of the kit, so it is off by default). 1-8 audition a lane.",
+    "file": "autorhythm.cart.png",
+    "created": "2026-08-20",
+    "kind": [
+      "instrument"
+    ],
+    "teaches": [
+      "step-sequencer",
+      "drum-synthesis"
+    ],
+    "lineage": "The AUTO RHYTHM section of a 1960s-70s organ, played from patterns read off the manufacturers' own service manuals rather than invented: Ace Tone Rhythm Ace FR-2L (c.1969), Roland TR-77 (1972) and the SGS M252/M253 rhythm-generator LSIs. Where cr78 is a 1978 box as a grid and sideman is a 1959 box as a rotating disc, this one is the ORGAN's built-in rhythm section, whose interface was never a grid: a dial of preset rhythms and one clock knob.",
+    "homage": "Ace Tone Rhythm Ace FR-2L; Roland Rhythm TR-77; SGS M252/M253 rhythm generator"
+  },
+  {
     "title": "BandBox",
     "description": "A 160x100 device-face chord SEQUENCER: compose a progression as a 5-lane tracker (CHORDS / BASS / MEL / DRUMS / PAD x 8 bars) and a genre BAND follows the one declared MODE. Every cell defaults to 'follow the chord + genre'; tap one to open its block editor in the glass and P-LOCK it - a per-cell override (a chord's own strum/inversion/octave, a bass MUTE or WALK, a drum FILL bar, a melody REST or ACCENT, a pad ON/OFF). The chassis (voice rail, nav, keybed) never moves; only the glass morphs. The build of the bandbox brief (docs/design/bandbox.md): the draw-only mockup wired for real. The chord lane analyzes in roman numerals via the shared harmony brain (harmony.h); the ^/v spinner steps a chord in-key; the keybed sets the selected chord's root. Playback ports chordwise's subdivided-bar loop (chord comp, walking/idiomatic bass, drumkit groove, blooming melody, held pad) - all reading the declared KEY + MODE, so the band plays the genre's idiom (14 genres: BOSSA/LOUNGE/POP/FOLK/MINOR/CINE/DORIAN/MIXO/PHRYG/LYDIAN/BLUES + four lifted from the radio stations: JANGLE, JINGLE, NAPOLN, CITYPO - the last two with their OWN harmony (HB_JINGLE Mac-DeMarco gravity, HB_CITYPOP Royal Road)). The sequencer difference: p-locks. Each bar carries per-cell overrides that playback reads as p-lock-else-global. The 2026-07-22 radio-idiom sweep (mined from the radio carts' bar-level moves) widened the vocab: chord COMP ANTIC/STAB/HELD/TACET, bass APPR/POP/GHOST/PEDAL, drum HALF/OPEN/HATS/DOUBLE, mel HOLD/DOUBLE/OCT+, pad SWELL/HIGH, and the band-wide FEELs HUSH/STOP/LIFT - enough to lay out bars that read as bossa (ANTIC+APPR), citypop (POP+OPEN+ANTIC+LIFT), napoleon disco (POP+GHOST+OPEN), or a cocktail hush. Deterministic (carries a spec()); no swing-jitter/life yet, same call chordwise made for spec-ability. Tap a tracker cell to edit it IN PLACE: that voice's lane rises to the top row (staying visible so you see the change land) and its block editor unfolds in the freed space below; tap another cell in the promoted lane to scrub to that bar, BACK (rail) closes it. CHORDS editor: a global TONE (PLUCK/EPIANO/ORGAN) + ^/v step the chord in-key + STRUM/INV/OCT/7TH/COMP chips (AUTO = follow the global voicing, else a per-cell p-lock; COMP = the bar's comp texture: ANTIC strikes the NEXT bar's chord on the last 8th and ties over the barline (the next downbeat comp is skipped, never doubled) - the bossa/citypop push - STAB chokes the hits short, HELD rings them to the bar line, TACET rests the comp); the keybed sets the chord's root. BASS: global STYLE + TONE (the bass SOUND: SYNTH/SUB/FM/UPRIGHT pizzicato) + per-cell FOLLOW/MUTE/HOLD/WALK/OCT/FILL/APPR/POP/GHOST/PEDAL (drop out, sit on the root, walk, octave-pump, run a fill, lead in chromatic on beat 4, the disco octave-pop cell, soft ghosts in the style's rests, or a key-tonic pedal point). DRUMS: global STYLE + KIT (ELECTRO/ACOUSTIC) + BUSY (SPARSE/NORMAL/BUSY - the Apple-Drummer simple<->complex axis: SPARSE drops the hats, BUSY fills offbeat hats + ghost snares) + per-cell GROOVE/DROP/KICK/FILL/CRASH/BUILD/HALF/OPEN/HATS/DOUBLE (half-time backbeat, offbeat open hats, hats-only breakdown, 16th-hat bar). MEL: global TONE (SINE/SQR/FM/BELL) + per-cell FOLLOW/REST/ACCENT/HOLD/DOUBLE/OCT+ (one bar-long tone, a double-time run, the bloom an octave up). PAD: global TONE (SINE/SAW/STRINGS) + per-cell FOLLOW/OFF/ON/SWELL/HIGH (a slow crescendo across the bar; the bed +12). Every BAR also has a FEEL in the editor header (STRAIGHT/ACCENT/DRAG/HUSH/STOP/LIFT) - a per-bar performance p-lock the whole band shares: ACCENT punches the bar louder, DRAG lays it behind the beat, HUSH pulls everyone down (the room leans in), STOP is the band stop (one accented downbeat hit then air), LIFT is the truck-driver gear change (+2 semitones from that bar to the loop's end; the wrap comes back down). Next to FEEL sits VOLTA (ALL/ODD/EVEN/4TH/VAR2/VAR4) - the 1st/2nd-ending mark over a 4-ROUND cycle: ODD/EVEN/4TH gate WHEN the bar sounds (rest otherwise - the classic volta endings), VAR2/VAR4 always sound but engage the bar's p-locks + FEEL only on even rounds / round 4 (plain groove otherwise - variation-on-the-repeat without silence; song structure lite). The tracker shows it live: resting bars dim, dormant VAR locks grey their pip. All deterministic; PUSH/ahead is still a follow-up - ANTIC covers the anticipation idiom forward-only. Tap a voice rail header to mute/unmute the lane (chords included). Nav: SONG (top-left) opens the SONGS popup - your autosaved song (MINE) + built-in demos (CITY POP = the Royal-Road demo with the full lock set, BOSSA = the early change + chromatic lead-in, NAPOLEON = the disco-funk boogie vamp with a STOP break, ACCENT re-entry and BUILD riser); picking one loads it. The song AUTOSAVES on every edit (a versioned 120-byte blob via save_bytes - the save file format); loading a demo is not an edit, so MINE survives browsing until you edit on top. < KEY > steps the key (STOPPED re-analyzes, PLAYING transposes), MODE cycles the genre, NEW empties to a fresh song (keeping your key/genre/voice setup), the play button loops. Tap the '+' chord cell to open the ADD-CHORD picker: the harmony brain's NEXT suggestions (ranked, what the progression wants) + the full mode palette as roman-numeral chips + the live keybed for any root; each pick appends + auditions and stays open. Keys: SPACE loop, LEFT/RIGHT key, B mode, N new song, BACKSPACE closes the editor/picker. MUSICAL TYPING (GarageBand-style): the QWERTY rows play the keybed - home row A S D F G H J K L (;) = white keys C D E F G A B C D E, top row W E T Y U O P = the black keys; each press adds/edits a chord on that root (opens the picker if idle), so you can type a progression. While the loop plays, the keybed LIGHTS UP (green) the notes the in-view voice is triggering, folded onto the keys - the focused voice when editing, or the chords while picking (the full tracker view stays dark).",
     "file": "bandbox.cart.png",
@@ -2063,6 +2078,18 @@
     "lineage": "Showcase cart for the master filter() bus; the backing loop is cribbed directly from groovebox, making djfilter a focused performance layer over a proven rhythmic canvas rather than a new sequencer design."
   },
   {
+    "title": "dk probe",
+    "description": "Throwaway balance probe: fires each drumkit.h role in turn at groovebook's own levels and velocities so their loudness can be compared. None. It plays itself.",
+    "file": "dkprobe.cart.png",
+    "created": "2026-08-20",
+    "kind": [
+      "probe"
+    ],
+    "teaches": [
+      "drum-synthesis"
+    ]
+  },
+  {
     "title": "Donkey Kong",
     "description": "The arcade 25m girder stage, rebuilt from pure primitives: a tower of slanted red girders strung together with peach ladders, Kong thumping barrels off the top, and the princess blinking HELP at the summit. Run up the slopes, climb the ladders, and time your jumps as barrels tumble down and randomly peel off onto a ladder — clear one for +100, or grab the blinking hammer for six seconds of barrel-smashing frenzy. Touch a barrel without the hammer and the screen flashes red and shakes as you lose one of three lives; reach the top and she's saved. Hi-score persists between runs. Left/Right run along the girder, Up/Down climb ladders, Z to jump (and to restart).",
     "file": "donkeykong.cart.png",
@@ -2567,6 +2594,18 @@
     ],
     "lineage": "Martin Denny / Les Baxter exotica homage; first radio station born on the radio.h scaffold rather than copied from dub.c, and the first to combine all three modeled engines (MALLET, PLUCK, FM) in one band.",
     "homage": "Martin Denny / Les Baxter (exotica)"
+  },
+  {
+    "title": "export demo",
+    "description": "The reference wiring for export_audio(): record what you are hearing to a real stereo file, with the free/Pro split that ADR-0035 puts on it. A four-bar loop you can hear, and two buttons that carry it OUT of the app. SHARE writes a compressed take anyone can post; WAV writes the lossless one, and that button is the paid unlock. The wall is deliberately on the FORMAT, not on the feature: a free player can still share what they made, which keeps the social loop open, and only a workflow that needs lossless audio has to pay. Watch the REC bar fill while the audio thread captures, then the path appear. The export is STEREO, so the autopan on the pad survives into the file, which a mono capture would have thrown away. SPACE toggles the loop. Tap SHARE for a compressed take, WAV for the lossless one (Pro). ESC closes the Pro sheet.",
+    "file": "exportdemo.cart.png",
+    "created": "2026-08-19",
+    "kind": [
+      "tech-demo"
+    ],
+    "teaches": [
+      "save-load-persistence"
+    ]
   },
   {
     "title": "extrude text",
@@ -3216,6 +3255,21 @@
       "algorithm-visualization"
     ],
     "lineage": "The consequence-side mirror of procplaces: procplaces paints R/C/I top-down from noise; gridcity DERIVES the data layers bottom-up from placed zones + feedback, the way SimCity 2000 runs its map. One smooth() diffusion primitive (pollution/density/water-value) plus one spread() distance-falloff primitive (service coverage), wired by cross-layer formulas into the crime↔land-value slum spiral. v1 carries a spec() proving the loop and the police-coverage reversal."
+  },
+  {
+    "title": "groove book",
+    "description": "565 drum patterns in 92 groups, browsable at speed: jump by letter, scrub groups and patterns while it keeps playing. A library is only worth having if you can find things in it, so this is a browser first and an instrument second. The group list is the primary axis (92 of them) and it never stops playing while you move: change group or pattern and the new one takes over on the next bar boundary, so you can scrub through dozens of grooves without breaking time. Press any LETTER to jump to the first group starting with it, which turns 92 groups into two keystrokes. Only the roles a pattern actually uses are drawn, so a four-lane groove looks like four lanes instead of nine empty rows. Two lanes are not drums and are drawn differently: ACCENT is a velocity lane (it scales the hit it lands on, it is not a thirteenth voice) and the 80 FLAM marks in the library are hits that want a doubled stroke. Voices come from the shared drumkit.h ELECTRO kit; the library's 12 voice roles are mapped onto its 8 with pitch offsets rather than by dropping lanes, and the mapping is on screen. Provenance is uneven and the cart says so: the core groups come from a cited pattern book, the later ones (EDM, dubstep, boombap) carry no citation. SPACE play/stop. UP/DOWN group, LEFT/RIGHT pattern, [ and ] jump ten groups. Any LETTER jumps to the first group starting with it. R random pattern. F cycles the kit (electro/acoustic). +/- tempo. TAB shows every role including the empty ones.",
+    "file": "groovebook.cart.png",
+    "created": "2026-08-20",
+    "kind": [
+      "instrument",
+      "tool"
+    ],
+    "teaches": [
+      "step-sequencer",
+      "drum-synthesis"
+    ],
+    "lineage": "The reader for runtime/drumpat.h, the maker's own 565-pattern library (converted from his love2d drum-patterns.lua). Where autorhythm plays 101 rhythms read off manufacturer service manuals on their own clocks, this one is the modern side: 16 steps of sixteenths, a big vocabulary, and a browser built for moving through it fast."
   },
   {
     "title": "groovebox",
@@ -4755,6 +4809,32 @@
     "homage": "Joe Meek & the Blue Men — I Hear a New World (1959-60)"
   },
   {
+    "title": "glue probe",
+    "description": "A drum loop that plays four bars sparse and four bars as a wall, with the bus compressor switchable in and out. The meter reads RMS, because RMS is the number that moves: a peak meter shows this stage doing nothing at all. Two facts about a self-keyed bus compressor that a peak meter hides. First, it is not a limiter: the transient outruns even a 1 ms attack and passes through, and the follower then squashes the BODY behind it, so the peak stays where it was and the crest factor goes UP. That is the mix breathing as one lump, which is what a bus comp is for, and it is why the meter here is RMS with a peak-hold tick. Second, its recovery is program-dependent, which needs two kinds of program to see: the sparse half is single hits with air between them and recovers at the release time you set, while the wall half builds a second, slower follower and takes about four times as long to let go. The makeup is automatic: the stage averages the gain it is applying over about a second and a half and puts exactly that back, so switching it in no longer costs you level and the A/B is a fair one. The rack runs at about -7 dBFS peak on purpose. Feed a mastering stage a mix that already peaks at 0 dBFS and the master soft-clip absorbs everything it does, which is how you conclude a working stage is inert. SPACE switches the comp in and out, LEFT/RIGHT step the ratio (which sets amount, attack and release together), W cycles the program (sparse-then-wall / wall only / sparse only / the release bench); it plays itself otherwise",
+    "file": "obglue.cart.png",
+    "created": "2026-08-19",
+    "kind": [
+      "probe"
+    ],
+    "teaches": [
+      "drum-synthesis"
+    ],
+    "lineage": "docs/design/analog-outboard-chain.md §2b measured glue() as a fast-attack slow-release DUCKER: at the hardest ratio it takes 3.8 dB of RMS while the peak does not move, so the crest factor RISES. §5.2 called the missing makeup the cheapest honesty win on the list, because without it switching the comp in makes the mix smaller and a level-matched A/B is impossible; §2 called program-dependent release the last honest piece of 'snappy'. This is the bench both were built and measured on: a loop with a SPARSE half and a WALL half, so the program dependence has something to depend on."
+  },
+  {
+    "title": "plate probe",
+    "description": "One mallet hit every two seconds, straight into a plate reverb, drawn on a vectorscope. A mono tank draws a vertical line down the middle of the screen. Switch the plate in and that line opens into a cloud, which is the whole point of a plate. The scope is a goniometer, the display a mastering engineer uses to look at stereo: mid (L+R) runs up the screen, side (L-R) runs across it. One signal in the middle of the mix has no side content at all, so it draws a vertical line, and that is exactly what the engine's reverb tank drew before reverb_plate() existed: the tank is mono, so the wet copy of every voice came back dead centre. With the plate in, the tank's two pickups read the same steel sheet at different distances and their DIFFERENCE becomes the side channel, so the cloud opens sideways as the WIDTH knob comes up. Only the difference is spread, so the mono fold is unchanged and nothing cancels on a phone speaker. The other three parts of the plate voicing are audible rather than visible here: a low cut (a steel sheet has no sub), a bright top (steel rings on), and dense diffusion in front of the tank so the hit arrives already smeared instead of as a discrete early echo, which is what makes a plate sit in a mix where a room fights it. Levels are deliberately low: the master soft-clip absorbs everything a mastering stage does if you feed it a mix that already peaks at 0 dBFS. SPACE switches the plate in and out, LEFT/RIGHT set the pickup spread, 1 fires a hit by hand, 2 swaps the route between the in-line insert and the master send; it plays itself otherwise",
+    "file": "obplate.cart.png",
+    "created": "2026-08-19",
+    "kind": [
+      "probe"
+    ],
+    "teaches": [
+      "positional-audio"
+    ],
+    "lineage": "docs/design/analog-outboard-chain.md §6 named the stereo plate as the ONE place in the analog output chain where new DSP is justified, because width is the product and 'lush' is not reachable from a mono tank. This probe is the bench that reverb_plate() was voiced on: a single mallet hit every two seconds into a hard reverb send, so the file is almost all TAIL, plus a real goniometer so the width is something you SEE and not only something a gate reports."
+  },
+  {
     "title": "Oersoep",
     "description": "The cell stage of Spore, in a drop of pond water (\"oersoep\" is Dutch for primordial soup). Swim a microbe toward the cursor and eat to earn DNA, then EVOLVE: at each DNA cap you find a mate and drop into a cell editor to bolt on a part - flagellum (speed), spike (rammers recoil), jaw (eat anything), poison sac - that changes how you play. The pond is a boid flock judged against YOUR size every frame: smaller cells flee and are food, bigger ones HUNT you and bite, and a bite drains health - so the cell that chased you at tier 1 is lunch at tier 3. Climb the food chain across four tiers, then crawl ashore. Unlike rollswarm you can be eaten. MOUSE/touch swims toward the pointer, Z chooses herbivore (X carnivore) on the title, in the editor Left/Right pick a part and Z confirms.",
     "file": "oersoep.cart.png",
@@ -4975,6 +5055,20 @@
     ],
     "lineage": "Classic Reversi; the CPU uses a corner-weighted heuristic board (WEIGHT[N][N]) — greedy positional evaluation, not minimax — making it a clean example of table-driven finite-state AI over a turn-based rule engine.",
     "genre": "tabletop"
+  },
+  {
+    "title": "outboard rack",
+    "description": "A mastering rack you can hear working. Three programs play themselves so both hands stay on the four stages: console EQ, asymmetric IRON saturation, a FET-style bus compressor and a plate send. The meter reads RMS, PEAK and CREST side by side, because the compressor moves the first and RAISES the third, and a peak meter alone says the stage is inert. A HEADROOM switch flips the mix to unity levels, which is what a cart sounds like when nobody trimmed anything, and the rack measurably loses 2.8 dB of its effect. Four stages, all bundles of effects the engine already ships (decision 0015), owned by the shared runtime/outboard.h table: EQ is eq_inst(0) with three fixed bands and a curve preset, IRON is drive_insert(DRIVE_ASYM) which is the even-harmonic shaper (the one line in the classic outboard pitch that is fully true here), COMP is a flat eq_inst(1) INPUT boost feeding glue() with the ratio button selecting an (amount, attack, release, dirt) tuple, and PLATE is reverb() plus per-slot instrument_reverb sends. Four things it makes measurable rather than claimed. (1) HEADROOM: HOT is not 'louder', it is UNITY on every slot, which is the default a cart gets if nobody sets instrument_level. Measured on the GROOVE loop, going from -6.6 dBFS peak to -0.05 dBFS halves what the EQ does (+0.55 dB of RMS becomes +0.27 dB), costs the EQ+IRON+COMP chain 2.8 dB of its lift (+10.30 becomes +7.53) and collapses the crest it leaves from 14.7 dB to 7.7 dB: the peak is pinned before the rack starts, so what you hear is mostly the soft-clip. The switch is on the panel because hearing that is the lesson. (2) The meter shows RMS, PEAK and CREST plus a live 'vs dry' delta, because COMP at the ALL ratio drops RMS about 4 dB while the peak stays at the ceiling and the crest factor RISES: glue() is a fast-attack slow-release DUCKER, not a peak limiter. (3) Three programs, each voiced to expose one stage: a steady groove, a loud-bar/quiet-bar PUMP that makes the comp's recovery audible, and a SPARSE pattern whose gaps the plate tail fills. (4) The bit-exact bypass, now a committed oracle (tools/bypass-check.js): EQ and IRON return on the same sample the switch flips, COMP within one LSB inside 17 ms, PLATE about 3.4 s later once its tail has decayed. With the PLATE in circuit every A/B smears for about a second, so the cart says so on the panel rather than letting you draw the wrong conclusion. Order note: the comp is PINNED after the whole insert chain, so the achievable path is EQ then IRON then COMP, never comp-first. Every outboard_apply() is SET-AND-HOLD, fired only by the control that actually changed. SPACE runs the loop; keys 1 2 3 4 switch EQ / IRON / COMP / PLATE in and out (or tap a name bar); drag a knob; C cycles the EQ curve, V the compression ratio; N cycles the presets (DRY / GLUE / SQUASH / AIR / FULL); P cycles the program; H flips HEADROOM between ROOM and HOT; B bypasses the whole rack; F auto-flips the rack in and out every two bars, hands-free",
+    "file": "outboard.cart.png",
+    "created": "2026-08-19",
+    "kind": [
+      "instrument",
+      "tech-demo"
+    ],
+    "teaches": [
+      "analog-voice-modeling"
+    ],
+    "lineage": "docs/design/analog-outboard-chain.md -- the honesty ledger for the classic 'we modeled a FET compressor, a British EQ and a German plate' output-chain promise. ampcab.h did this for a guitar cabinet (effects-bus-architecture.md 'E'); runtime/outboard.h does it for the MASTER bus, and this cart is the bench that plays it. Sibling of mixbooth (the per-instrument family) and groovebox (the summed-bus family): this one is the OUTPUT-STAGE family, four pinned stages you A/B against a loop."
   },
   {
     "title": "outrun",
@@ -6205,6 +6299,19 @@
     "genre": "puzzle"
   },
   {
+    "title": "reverb width probe",
+    "description": "A measurement probe, not a toy: two plucks panned hard left and hard right, and one key that raises the shared reverb send. Renders it so stereo-check.js can price what the engine's MONO reverb tank costs a stereo image. Slot 5 is panned hard left, slot 6 hard right, and they alternate on the beat, which gives a wide dry image (measurable as side/mid RMS). Press 1 to raise the reverb send on both. Because there is exactly one shared MONO tank, the wet copy of a hard-left voice arrives dead centre, so raising the send does not widen the tail, it narrows the whole mix: the wet is common-mode signal added to both channels. Two headless renders (send 0 vs send up) diffed with stereo-check.js turn 'the tank is mono' into a width number. The probe also prices the CPU: at send 0 the tank is dormant and costs literally nothing (the `used` flag skips it), so timing the two renders isolates reverb_process(). 1 raises the reverb send, 2 drops it back to dry; the voices play themselves",
+    "file": "rvbwidth.cart.png",
+    "created": "2026-08-19",
+    "kind": [
+      "probe"
+    ],
+    "teaches": [
+      "positional-audio"
+    ],
+    "lineage": "docs/design/analog-outboard-chain.md asks whether a STEREO reverb tank is worth new DSP. The claim 'the tank is mono' is easy to state and hard to price, because nothing in the repo measures what a mono send COSTS a stereo mix. This probe makes that a number: two voices panned hard apart, one key that raises the reverb send, and tools/stereo-check.js reads the width before and after."
+  },
+  {
     "title": "sampler",
     "description": "Record what you play, chop it, and build a SONG out of the chops. Hit REC and play a synth (SAW/FM/PLUCK/EPIANO/FLUTE/REED/BRASS) or a DRUM KIT (ELECTRO/ACOUSTIC) — the ENGINE button picks the source. STOP auto-slices the recording at the moments you triggered notes. Audition the chops, +ADD the ones you like to a 16-pad bank, then ARRANGE them on a 16-step grid that loops — record more takes (a flute part, an epiano part, drums) and they all pool into one song. The source is the console's own sound, no mic. A full loop: sample → chop → arrange. REC captures the master output into a ring (record_arm) AND logs every note-on time as you play — so STOP slices EXACTLY where you triggered notes (no fragile transient-guessing; a signal detector is only the fallback for audio we didn't play in, e.g. a future loaded WAV). Synth sources play the chromatic keybed; a DRUM KIT source (drumkit.h — a shared kit of KICK/SNARE/HAT/OPEN/CLAP/TOM/CRASH voices) swaps the keybed for a PAD GRID, so you play a beat on the pads and each hit becomes a chop — the engine has no drum instrument, so this is how you sample drums. The grab is peak-normalized + silence-trimmed. Drag a marker to move it, onto a neighbour to delete, SPLIT halves the selected slice, AUTO re-slices; click a slice to select AND hear it. Two play modes: KEYS pitches the SELECTED slice across the keybed (the melodic sampler); KIT is a pad per slice at original pitch (the SP-404 break-chopper). MODE (or V) cycles NORMAL/REVERSE/LOOP/PINGPONG. ARRANGE opens the SONG: +ADD banks the selected chop into a fixed 16-pad bank; each take grabs into its OWN sample buffer (up to 8) so chops from different takes coexist; a 16-step grid loops them off the tempo clock with a sweeping playhead. A seconds-used readout shows the sample budget (shown, not yet capped — SP-404 style). A GRIT button crushes the whole song lo-fi — CLEAN/12BIT/8BIT/CRUSH (SP-1200 bit+rate reduction applied to every chop voice; the capture stays clean, so you re-grit on playback). The whole arrangement PERSISTS — the chops' PCM + grid + tempo + grit are auto-saved and restored on the next launch (a SONG button on the record screen jumps straight to your saved song). REC/STOP (or R) — record a take. ENGINE (or [ / ]) picks the source: a synth (keybed) or a DRUM KIT (pads). Drum source: A S D F.. hit the pads (or touch). EDIT: click a slice to select+hear it; drag markers to move, onto a neighbour to delete; KEYS|KIT (M), AUTO (re-slice), SPLIT, MODE (fwd/rev/loop/pingpong), +ADD (bank the selected chop), ARRANGE (open the song), RE-REC. EDIT/KEYS: A S D.. play the selected slice pitched; EDIT/KIT: the letters fire the chops. SONG: tap grid cells to program the loop; PLAY/STOP, -/+ tempo, + TAKE (record another), GRIT (CLEAN/12BIT/8BIT/CRUSH lo-fi), EDIT (back to the take), CLEAR.",
     "file": "sampler.cart.png",
@@ -6422,6 +6529,23 @@
     "lineage": "Showcase cart for the shimmer() reverb effect (pitch-shifted feedback loop, the Strymon BlueSky / Brian Eno sound); rising-spark particle system visualises the octave-up tail."
   },
   {
+    "title": "wurlitzer side man",
+    "description": "The first drum machine ever sold, rebuilt: ten vacuum-tube voices on a rotating contact disc, four of them struck wood. In 1959 Wurlitzer put a motor, a disc of metal contacts and ten tube circuits in a walnut box and sold it to organ players. It is the oldest drum sound in this studio by two decades, and it does not sound like a drum machine: four of its ten voices are struck WOOD (wood block, two temple blocks, claves) and only two are membranes, which is why the era is remembered as a plock rather than as a beat. The sequencer here is the real mechanism instead of a grid: one disc revolution is one bar, the contacts turn clockwise into a fixed wiper arm at twelve o'clock, and the tempo slider is the motor speed. Click any slot on the disc to stamp or lift a contact. The voices come from the shared sideman.h bank, where the fullness is not reverb but a single-ended tube stage on every voice (asymmetric saturation brings even harmonics) plus the machine's own band limit. The Side Man had no speaker of its own: it fed the organ's amplifier and cabinet, so that stage is a rack you can switch out, pinned from outboard.h, and it returns bit-exact when you switch it off. Two knobs the original never had, both labelled as ours: CONTACT WEAR (every contact sits a hair early or late, the same hair every revolution, which is what a stamped disc actually does) and the cabinet A/B. SPACE motor on/off. LEFT/RIGHT rhythm (twelve, as on the dial). UP/DOWN tempo. 1-9 and 0 play the ten voices by hand, like the panel buttons. Click a slot on the disc to stamp or lift a contact, drag to paint. C cabinet, V spring reverb, B contact wear.",
+    "file": "sideman.cart.png",
+    "created": "2026-08-19",
+    "kind": [
+      "instrument"
+    ],
+    "teaches": [
+      "step-sequencer",
+      "drum-synthesis",
+      "analog-voice-modeling",
+      "subtractive-synth"
+    ],
+    "lineage": "Wurlitzer Side Man (1959) homage, the first drum machine ever sold. Where cr78 rebuilt a 1978 solid-state box as a left-to-right grid, this one is twenty years earlier and electro-mechanical, so the sequencer IS a rotating contact disc read by a fixed wiper: the pattern turns, the playhead does not move.",
+    "homage": "Wurlitzer Side Man, Rudolph Wurlitzer Company, 1959"
+  },
+  {
     "title": "sightlines",
     "description": "PROBE (probe-carts.md): is a tilemap line-of-sight / FOV primitive worth owning in the engine? Two candidates on the same occluder grid. SINGLE-RAY LOS — one Bresenham walk answers 'can A see B?' (enemy vision / stealth / aim / audio occlusion); each guard draws a ray to the eye, red when it has line of sight. FIELD OF VIEW — recursive shadowcasting reveals everything the eye can see, walls casting shadows (lighting / fog-of-war). ARROWS move the eye, L/R-drag paint & erase walls, TAB toggles LOS<->FOV, wheel sets FOV radius, C clears, R randomizes. Generalizes the acoustics-probe raycast beyond audio.",
     "file": "sightlines.cart.png",
@@ -6576,6 +6700,20 @@
     ],
     "lineage": "Guitar Hero / rhythm-game genre — four-lane fall-down chart driven by the engine beat clock; the pal()-recolor crowd trick and a hand-authored chart editor are the novel parts.",
     "genre": "arcade"
+  },
+  {
+    "title": "side man probe bench",
+    "description": "A deterministic bench for the ten Wurlitzer Side Man voices, and an A/B rig for four BRUSH candidates that span the body-to-tail relationship of a brushed jazz snare, audible solo and on a real backbeat. Not a musical cart: it is the render rig behind runtime/sideman.h. Two jobs. First the bank bench, whose timeline is pinned to frame numbers so a headless render puts every voice at a known second, then a whole-bank stack for headroom, a wooden roll, and a full-bank groove. Second the BRUSH A/B, now on its third round. The shipped voice reads as a woosh, which the numbers agreed with (its mid band sits 11.8 dB above both its ends). Round two split the spectrum and swept granular texture; the split was confirmed by ear but the three grain settings were indistinguishable to the listener despite measuring a 2x spread, so grain is now FIXED and the axis has moved. What the owner actually wants is a noise snare that fizzles out, a jazzy snare, and this machine has no snare voice at all, so the brush IS the snare and the wire rattle is central rather than decorative. Candidate 1 is round two winner-by-default as the control. Candidates 2, 3 and 4 are a brushed snare at three points on the body-to-tail axis: a tight tap whose body dominates, a short body under a long bright sizzling tail, and a short body under a two-stage tail that trails away gradually. They differ in gross structure (260, 700 and 950 ms) rather than in parameters, because round two proved parameter nudges are inaudible here. Deliberately DRY, with no cabinet and no outboard chain. SPACE starts and stops the groove. 1 2 3 4 pick the brush candidate and swap it live inside the groove, which is the judgement that counts; 0 fires the selected one on its own. Q W E R T Y U I O P play the ten bank voices by hand. It also plays a fixed measurement timeline on its own with no input at all.",
+    "file": "smprobe.cart.png",
+    "created": "2026-08-19",
+    "kind": [
+      "probe"
+    ],
+    "teaches": [
+      "drum-synthesis",
+      "analog-voice-modeling"
+    ],
+    "lineage": "The measurement bench for runtime/sideman.h (Wurlitzer Side Man, 1959). Fires each of the ten voices in isolation on a fixed frame grid so the spectral tools can read one hit at a time, then a whole-bank stack for headroom and two rolls for click hunting. Also the A/B bench for the BRUSH, the one voice that failed the ear test: round two swept grain and the owner could not tell the three grain settings apart, so round three sweeps the BODY-to-TAIL relationship instead, which is what separates a brushed jazz snare from a drag."
   },
   {
     "title": "snake",

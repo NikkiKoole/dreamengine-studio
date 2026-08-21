@@ -17,9 +17,51 @@ audit is the *findings*; this is the *doing*.
   modulate, so the finding-count that ranked it was a false premise) · **2.4 IN PROGRESS** — premise checked
   (3 faces solid, §E5 parked), and `BOWED` now has the body it never had (`MODE_BOW_BODY`, opt-in) —
   as ONE SHARED BOX PER SLOT with a size axis (`MODE_BOW_SIZE`, 0.5 violin .. 1 cello), shipped 2026-07-31.
-- **Still open in Phase 2:** default the bowed body ON (no longer blocked on sizing — it now needs the
-  owner's ear across the 14 BOWED carts), `guitar` as a measurement-only cross-check, §I4d (the loop's own +1.3→+4.0¢ offset),
+- **Still open in Phase 2:** default the bowed body ON (**6 of 14 BOWED carts ear-passed 2026-08-21, see
+  below**), `guitar` as a measurement-only cross-check, §I4d (the loop's own +1.3→+4.0¢ offset),
   and an ear pass on the five unverified piano voicings.
+
+#### 2.4 — the body's AMOUNT, ear-passed per cart (2026-08-21)
+
+Six carts through the ear, and the amounts are ordered by how full the arrangement is, not by instrument:
+
+| cart | slot | kind | amount | the arrangement |
+|---|---|---|---|---|
+| `upright` / `walkbox` / `walkroll` | bass | pizz, `BOW_SIZE_BASS` | **0.85** | a solo double bass |
+| `morphbox` | `MD_UPRIGHT` | pizz, `BOW_SIZE_BASS` | **0.85** | one bass in a groovebox |
+| `bandbox` | `I_BSS` / `I_PAD` | pizz bass / arco pad | **0.6** / **0.6** | a full band |
+| `mariachi` | `I_VLN1`+`I_VLN2` | arco, violin, one box per desk | **0.6** | a six-piece |
+| `polopan` | `I_PIZZ` | pizz, violin | **0.4** | 16ths under marimba + chorus + kit |
+
+**The transferable result: the fuller the arrangement, the less box per player.** A solo upright can be
+mostly box; a pizz under a 16th groove cannot. Start a new cart's ladder LOW.
+
+**And the body's effect on LEVEL depends on POLYPHONY, not on arco-vs-pizz.** First draft of this said
+arco lifts and pizz lowers, which `bandbox`'s pad falsified: it is arco and loses 1.9 dB. The mechanism is
+[`sound.h:330`](../../runtime/sound.h) — the box radiates ONCE however many strings drive it, so
+`wet_share` is divided by the voice count, while the per-voice blend's subtractive term at `:3566` is
+**not** divided. So a CHORD slot gets quieter as the body rises. Measured, across five slots:
+
+| cart | slot voicing | peak across its ladder |
+|---|---|---|
+| `mariachi` | arco, ONE note per slot | **−24.6 → −21.4 dBFS** (gains 3.2) |
+| `bandbox` pad | arco, CHORDS | −15.1 → −17.0 (loses 1.9) |
+| `polopan` | pizz, one note per step | −26.1 → −28.1 (loses 2.0) |
+| `morphbox` | pizz, mono | −24.0 → −25.0 (loses 1.0) |
+| `bandbox` bass | pizz, mono | −20.5 → −20.7, **non-monotonic** (dips to −21.2 mid-ladder, unexplained) |
+
+Only the mono arco gains. **Two consequences:** a centroid/brightness reading cannot pick an amount on a
+chord slot (the level moves and the colour barely does), and *"the body made it quieter"* is not evidence
+the body is broken. **Open question worth a look:** whether that undivided subtractive term is correct, or
+whether a chord should keep its level. It is the only asymmetry found here that looks like a defect rather
+than a design choice.
+
+**Two ear-set handover rules, both learned by getting them wrong:** TRIM the render to where the instrument
+actually plays (`mariachi`'s violins enter at ~15s because the entrada is trumpets, so the stem opens with
+15s of digital silence, and the first response was "I don't hear anything"), and LIFT the level with the
+**same** gain on every variant — a stem sits ~20 dB below a mix, and normalising per file would erase the
+level difference that is half of what is being judged. The cheap ringdown check on a pizz body is **crest**:
+an eaten tail raises it, since the peaks survive and the tail energy goes.
 - **Four oracles came out of the work**, each because nothing existing could see the bug:
   [`click-check`](../../tools/click-check.js) (splices), [`inharm-spec`](../../tools/inharm-spec.js)
   (partial frequencies + per-partial decay), [`disp-model`](../../tools/disp-model.js) (dispersion design,

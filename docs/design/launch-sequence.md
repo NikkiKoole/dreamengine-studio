@@ -100,6 +100,13 @@ when the collection feel is real, the small-price IAP model makes sense, AND it 
 home to **avoid Apple's guideline 4.3 "spam"** flag — a few standalone flagships is fine, but a pile
 of near-identical single-cart apps gets dinged; the umbrella consolidates breadth without tripping it.
 
+> **Two triggers, and they are NOT the same one** (added 2026-08-18, [ADR-0035](../decisions/0035-free-with-one-pro-unlock.md)):
+> the ~3-4 toys above says when to **launch** the umbrella; the maker's separate call says when to
+> **price** it, at about **five music apps on the App Store**, and until then the whole content-axis
+> question (rack prices, and a $4.99 master pass now LEVEL with the $4.99 per-app Pro) stays parked rather than
+> guessed at. The store unit is settled meanwhile: **free with one Pro unlock** (export + MIDI +
+> AUv3), which is the "free + one unlock" branch of the sentence below.
+
 **Concretely:** (1) now → ship **Tiny Acid Jam standalone** (paid, or free + one unlock); run its launch.
 (2) next → build 2–3 more toys you love. (3) then → launch **Tiny Jam** as the umbrella, folding
 Tiny Acid Jam in as a "single." (`tools/build-app.js` grows from one cart to the set — adding a rack is

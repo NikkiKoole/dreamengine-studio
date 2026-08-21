@@ -44,6 +44,51 @@ a broken doc link or `#section`).
 > What a reader needs to *choose* a lane is in the front-door output; what they need to *resume*
 > one is in the lane itself. A summary in between is a third copy, and it is the copy nobody
 > updates. If you find yourself writing one again, teach `handoff.js` to print it instead.
+> **▶ ACTIVE THREAD (2026-08-19) — PRO + EXPORT: the seam is built and PROVEN ON A PHONE, and no shipping cart uses it yet.**
+>
+> The engineering behind [ADR-0035](decisions/0035-free-with-one-pro-unlock.md) (free apps, one
+> $4.99 Pro unlock). **Everything below is measured on hardware, not asserted** — the share sheet
+> appeared on an iPhone SE, and the App Group reads `container OK` in both the app and the plug-in
+> process on Mac and in the app on iOS.
+>
+> **✅ SHIPPED:** `runtime/pro.h` (the gate + one shared Pro sheet; stateless, the cart owns the
+> struct) · `ios/Sources/Entitlements.swift` (fail-closed, on all four targets) · the App Group
+> registered and signed in · `export_audio()` writing a **stereo** WAV · `ios/Sources/Export.swift`
+> (M4A transcode + share sheet) · `tools/pro-check.js` (25 + 9, four negative controls, repo-doctor).
+> Reference cart: `exportdemo`. Detail, and every finding, in
+> [`design/pro-unlock.md`](design/pro-unlock.md).
+>
+> **▶▶ PICK UP HERE — the one thing that matters next: NO SHIPPING CART CALLS EXPORT.** `exportdemo`
+> is the only caller, so Pro currently gates **nothing** in `acidcandy` or `pedalboard`, and the
+> whole model is a mechanism with no product attached. It is a DESIGN question per rack, not
+> plumbing: where does the button live on a face already full of knobs, and what does it export (the
+> live loop? a fixed number of bars? the song)? `acidcandy`'s own de:meta has wanted "WAV export"
+> since 2026-07-18.
+>
+> **The rest, ranked, each with its own note in `pro-unlock.md`:**
+>
+> | # | Open item | Kind |
+> |---|---|---|
+> | 1 | **No shipping cart calls `export_audio`** — see above | design |
+> | 2 | **`apps/pedalboard/app.json` sets no `auCart`**, so the shipping app contains NO plug-in at all, and AUv3 is a headline Pro feature | one manifest line + the `aumf` lane's open items |
+> | 3 | **Cart `save()` still no-ops INSIDE the AUv3** — the extension has its own container and does not compile `Save.swift`. Smaller (an AU's state travels via `fullState`) but open | bug |
+> | 4 | **No Restore Purchases button.** `Store_Restore` exists and nothing calls it; App Review expects a restore path | wiring |
+> | 5 | **MIDI in does not exist on iOS** — `midi_input.h`'s CoreMIDI scan is `#if !defined(DE_NO_RAYLIB)`. Recommend DROPPING it from the Pro headline rather than listing a feature the app lacks | decision |
+> | 6 | **MIDI out unverified** on iOS and inside a sandboxed appex. It may sidestep Live's AU MIDI-out limitation entirely, since we publish a CoreMIDI virtual SOURCE, but nothing covers it | measurement |
+> | 7 | **`tinyacidjam`'s review notes** still say "no in-app purchases" — left wrong on purpose (notes describe the build being submitted); replacement drafted in ADR-0035's Update | copy |
+> | 8 | **The popover anchor** in `Export.swift` is untested — a share sheet is a popover on iPad/Mac and a missing anchor is a CRASH, not a glitch | measurement |
+> | 9 | `apps/tinyacidjam/icon.png` loses 6.6% of the bottom-right corner to the iOS 26 mask (one drip tip). Cosmetic; `node tools/icon-mask.js check` shows it | polish |
+> | 10 | `ios/TinyjamHello.entitlements` is a dead orphan (gitignored, referenced by nothing) | tidy |
+>
+> ⚠ **The maker's own Ableton is Live 10 Lite, which cannot host AUv3 at all** (11.3+, Apple Silicon
+> only). So "works in Live" is untestable here without a Live upgrade; **GarageBand on macOS hosts
+> AUv3 and is free**, and is the way to test the Designed-for-iPad route (§10) before spending money.
+>
+> ⚠ **Do not release either app** until Pro exists: going free first, then adding the wall, is a
+> feature takeaway. `pedalboard` is off sale, `tinyacidjam` is approved-but-unreleased.
+>
+> **Resume-at:** [`design/pro-unlock.md` → §11 what is still unproven](design/pro-unlock.md#11-export-and-the-two-bugs-the-phone-found-2026-08-19)
+
 > **▶ ACTIVE THREAD (2026-08-18) — `pedalboard` AS AN AUDIO EFFECT (`aumf`): IT PROCESSES A TRACK IN GARAGEBAND. Passthrough + host bypass SHIPPED and confirmed by ear; the boot-chain question is closed. Top open item is now the §4.1c ROUTING DESIGN CALL, which needs the maker. Items listed first because this lane is long.**
 >
 > **▶▶ PICK UP HERE. Verified working by the maker 2026-08-18:** the cart plays its own guitar AND
@@ -144,7 +189,7 @@ a broken doc link or `#section`).
 > **Runbook for all of this:** [`guides/cart-as-plugin.md`](guides/cart-as-plugin.md).
 > **Resume-at:** [`design/auv3-plugin-types.md` → §4.1d passthrough SHIPPED, and §4.1c's routing call is next](design/auv3-plugin-types.md#4-1d-the-effect-must-pass-its-input-through-fixed-2026-08-18-confirmed-by-ear)
 
-> **▶ ACTIVE THREAD (2026-08-17) — THE OTHER FOUR PLUG-IN SHAPES: we ship `aumu` and the ecosystem has five.**
+> **▶ ACTIVE THREAD (2026-08-19) — THE OTHER FOUR PLUG-IN SHAPES: we ship `aumu` and the ecosystem has five.**
 >
 > A survey, not built work. The AUv3 lane below got `acidcandy` behaving as an INSTRUMENT
 > (`aumu`), which was the right first goal and is also the only shape anyone has looked at.
@@ -195,7 +240,32 @@ a broken doc link or `#section`).
 > the seven answers now live in `apps/tinyacidjam/app.json` → `review.notes` (pushed by
 > `asc-push --review-contact`, which now REFUSES a notes body containing a placeholder — the previous
 > app's reply went out with a literal `[FILL IN …]` where the tested-devices answer belonged).
-> **▶ NEXT: nothing until Apple answers.**
+> **✅ APPROVED AND READY FOR DISTRIBUTION, NOT RELEASED (maker, 2026-08-19)**, which spends the "let
+> it land at $1.99" plan below. **It has never been on sale, so nobody can buy it and there is no
+> price exposure at all.**
+> **▶ NEXT: DO NOT PRESS RELEASE.** [ADR-0035](decisions/0035-free-with-one-pro-unlock.md) + its
+> **2026-08-19 Update** take this app **free with one $4.99 "Pro" unlock** (WAV export + MIDI in/out
+> + AUv3), and `apps/tinyacidjam/app.json` already carries that (`"price": "0"` plus
+> `com.mipolai.tinyacidjam.pro` at $4.99). Releasing now would ship a version with no wall in it, and
+> the version that adds Pro would then be **taking features away** from whoever downloaded it.
+> ⚠ **The store is UNCHANGED until somebody runs `node tools/asc-push.js tinyacidjam --price`, and
+> that is not a tidy-up job.** It belongs to the release that carries the Pro build.
+> **▶▶ This app has the option `pedalboard` does not, because it has NO history to protect**, and the
+> choice turns on one ASC mechanic to confirm rather than assume:
+> - **Hold** the approved version until Pro is built, then flip the price and release. ⚠ Check
+>   whether an approved-pending-release version must be **released or developer-rejected before a 1.1
+>   can be created** — if so, "hold" cannot reach a Pro build without a public no-wall release first.
+> - **Developer-reject it** and resubmit as 1.0 once Pro is real. Costs one review round trip that
+>   the Pro build pays anyway, and buys the thing the other app cannot have: **the first public
+>   version already has the wall in it.** Nothing is lost; there is no listing, URL history, ranking
+>   or review to reset on an app that never shipped. **Preferred, if ASC offers it.**
+> ✅ **With `pedalboard` off sale and this one unreleased, NEITHER app is purchasable, so the
+> grandfathering window (`AppTransaction.originalAppVersion`) is closed for good** unless something
+> gets released or re-listed at $1.99 before Pro exists.
+> ⚠ **`review.notes` answer 4 still tells Apple *"It is a one-time paid app with no in-app
+> purchases"***. Left wrong ON PURPOSE (notes describe the build being submitted, and Pro does not
+> exist yet); the replacement paragraph is drafted in ADR-0035's Update, ready to paste.
+> `pedalboard` goes first, so it pays for the StoreKit + App Group entitlement work (see its lane).
 >
 > ⚠ **Three traps from getting there, each worth an hour to the next app.** (1) **ITMS-90473** after
 > the upload: the AU shipped `CFBundleVersion: 1` inside an app stamped with the build number, because
@@ -1554,7 +1624,7 @@ a broken doc link or `#section`).
 > for the AU arc (incl. the three signing/entitlement gates and their symptoms), and
 > [external-clock-sync.md](design/external-clock-sync.md) for the clock seam itself.
 
-> **▶ ACTIVE THREAD (2026-08-18) — `pedalboard`: the guitar rig, and the first app LIVE ON THE APP STORE.**
+> **▶ ACTIVE THREAD (2026-08-19) — `pedalboard`: the guitar rig, the first app that SHIPPED to the App Store, and now deliberately OFF SALE until it returns free with a $4.99 Pro unlock.**
 > **This lane did not exist until 2026-07-30, and it should have.** A handoff audit found `pedalboard` was
 > the single most active thread in the repo — 18 commits since 07-28 (fret wires warmed into the board, the
 > mute check tracking the hand, TRAVIS picking as a second autoplay style, autoplay keeping YOUR chord
@@ -1568,13 +1638,37 @@ a broken doc link or `#section`).
 > ⚠ **A live version is FROZEN**: nothing in the listing is editable until `--new-version` creates the
 > next one, so a copy fix now costs a version bump. The engine seam it rides is the `input_monitor(gain)`
 > pedal tier that shipped 07-22, so real GUITAR IN → amp → pedals works on desktop.
+> 💰 **THE APP IS OFF SALE, AND COMES BACK FREE WITH A $4.99 "Pro" UNLOCK** (WAV export + MIDI in/out
+> + AUv3). Decided 2026-08-18, amended 2026-08-19:
+> [ADR-0035](decisions/0035-free-with-one-pro-unlock.md) + its Update.
+> **✅ REMOVED FROM SALE in all 175 territories (maker, 2026-08-19)** at $1.99 with zero sales. The
+> record, bundle ID, product page, URL, ratings and the approved binary all survive, and coming back
+> is re-selecting territories with **no review**. (ADR-0035's decision 5 said "never pull". That was
+> wrong, and the Update corrects it: only *deleting the record or resubmitting under a fresh bundle
+> ID* is 4.3 bait.)
+> **▶▶ WHY IT IS DARK RATHER THAN ALREADY FREE, and this is the thing not to undo:** flipping the
+> price to 0 before the entitlement exists hands every downloader export + MIDI + AUv3 with no wall,
+> so the version introducing Pro **takes three features away from people who have them**. That is
+> worse than a wall that was always there, and it is the 1-star shape. Off sale for the length of one
+> build costs nothing at zero installs. **Order: stay dark → build Pro → return Free with the wall
+> already in place.**
+> **What is left, and only (b) needs a build:** (a) the price flip is already staged in the manifest
+> (`"price": "0"` plus `com.mipolai.tinypedalboard.pro` at $4.99); running
+> `node tools/asc-push.js pedalboard --price` is **no binary and no review**, but do it **as part of
+> the re-release**, not before. (b) Pro itself is a StoreKit 2 non-consumable plus an **App Group
+> entitlement the appex can read**, because a host loads the plug-in without the container app ever
+> launching (see [`product-notes-followup.md`](design/product-notes-followup.md) §3).
+> ⚠ **This lane now has a dependency on the `aumf` lane at the top of this file:**
+> its open item 3 (`apps/pedalboard/app.json` sets no `auCart`, so the *shipping* app contains no
+> plug-in) is the Pro story's blocker, because AUv3 cannot be the headline paid feature of an app that
+> does not contain one. Pro can still ship on WAV export + MIDI alone; AUv3 joins when that item closes.
 > **Resume-at:** the cart's own punch list — `node tools/cart-todos.js pedalboard` — plus
 > [`design/effects-bus-architecture.md` → Increment E, the output stage](design/effects-bus-architecture.md#increment-e--the-output-stage-4th-zone-cabinets--ampcab--leslie)
 > for the amp/cabinet model
 > (`runtime/ampcab.h` is the shared voicing table; `fxicons.h` is the shared pedal LOOK).
 > Hot files: `tools/carts/pedalboard.c`, `runtime/ampcab.h`, `apps/pedalboard/app.json`.
 
-> **▶ ACTIVE THREAD (2026-07-31) — Synth Secrets: the audit is COMPLETE, the build plan is running (Phase 0 done, **PHASE 1 COMPLETE 7/7**, **PHASE 2: 2.1, 2.2 and 2.3(a) SHIPPED — PIANO now has real stiff-string inharmonicity + a completed Railsback curve; 2.3(b) DROPPED on measurement; 2.4's bowed body now SHARED PER SLOT with a size axis, and defaulting it on is the live item**).**
+> **▶ ACTIVE THREAD (2026-08-21) — Synth Secrets: the audit is COMPLETE, the build plan is running (Phase 0 done, **PHASE 1 COMPLETE 7/7**, **PHASE 2: 2.1, 2.2 and 2.3(a) SHIPPED — PIANO now has real stiff-string inharmonicity + a completed Railsback curve; 2.3(b) DROPPED on measurement; 2.4's bowed body now SHARED PER SLOT with a size axis, and defaulting it on is the live item**).**
 > The owner supplied Gordon Reid's **Synth Secrets** (Sound On Sound, 63 parts, 1999-2004) and asked for a
 > cross-check against `runtime/sound.h`. **All 63 articles are now read**: an architecture pass plus eight
 > per-family recipe passes, ~106 sub-findings, every one citing both sides (part + issue on the book side,
@@ -1612,10 +1706,80 @@ a broken doc link or `#section`).
 >    The size range now reaches a **DOUBLE BASS** (`BOW_SIZE_BASS`, 4.50x, 736-sample line, `BOW_BODY_MAX`
 >    768) because the three upright carts are basses and a cello box was still too small. Affordable only
 >    because bodies are shared. `BOW_SIZE_CELLO` is `0.7086f` so widening did not re-voice the approved cello.
->    **NEXT HERE, in order:** (1) the owner listens to the three baked bass carts — `upright`, `walkbox`,
->    `walkroll` (body 0.85 at BOW_SIZE_BASS; peak drops ~2 dB, a real mix-balance change). (2) Then the rest
->    with their own sizes: `mariachi` (2 violins), `polopan` (pizz), `bandbox` (bass + arco pad), `portapop`,
->    `modrack` slot 38. (3) **Leave `soundcheck`/`tunecheck`/`voicestress`/`pipetune` body-OFF** — they feed
+>    **NEXT HERE, in order:** (1) ✅ **CLEARED 2026-08-21 — the owner listened to the three bass carts and
+>    the verdict is "it sounds fine", so the body STAYS ON** in `upright`, `walkbox` and `walkroll` (body 0.85
+>    at BOW_SIZE_BASS, which is what their source already shipped — this step was the approval, not an edit).
+>    ⚠ **The "~2 dB peak drop" this lane predicted did NOT reproduce.** Measured ON-vs-OFF peak is 0.5 dB on
+>    `upright` and inside 0.1 dB on the other two, so the mix-balance worry was overstated. What the body
+>    actually moves is the 120–200 Hz region (`walkbox` h3 −17.2 → −1.9 dB, h4 −18.4 → −3.8 dB read at 41 Hz)
+>    while the centroid shifts under 10 Hz — the exact blindness the ⚠ two lines below warns about.
+>    Ear sets: `build/ab/bass-body-{upright,walkbox,walkroll}-{ON,OFF}.wav`, regenerate with
+>    `node tools/ab-render.js <cart> --set BODY_AMT=0.85f,0.0f --frames 900 --script tools/clips/<cart>/01-*.script`.
+>    ⚠ **Drive these three from their COMMITTED CLIPS, never `script /dev/null`** — all three render DIGITAL
+>    SILENCE with no input (the sequencers boot stopped; `upright` is a played instrument with no transport),
+>    and `ab-render` then reports "the flag did not reach the DSP", which is a lie about a take with no notes
+>    in it. The tell is all three carts returning the SAME sha. Tracks parked 2026-08-21 at
+>    `tools/clips/{upright/01-walk-line,walkbox/01-loop,walkroll/01-loop}.script`, each carrying that trap in
+>    its header. (2) **NEXT: the rest**
+>    with their own sizes: **`portapop` and `modrack` slot 38 are ALL THAT IS LEFT.**
+>    **`bandbox` is DONE (2026-08-21) — `BSS_BODY` 0.6 (upright pizz, `BOW_SIZE_BASS`) + `PAD_BODY` 0.6
+>    (arco pad, violin).** Both are TONE OPTIONS (`bassTone` 3 / `padTone` 2, both boot at 0), so the cart's
+>    default sound did not move. ⚠ Its bass ladder is **NON-MONOTONIC** in peak (−20.5 / −21.2 / −21.2 /
+>    −20.7 dBFS at 0 / 0.4 / 0.6 / 0.85) and nobody knows why — recorded rather than explained.
+>    ⚠ To render either slot you must force the tone: neither is reachable from a keyboard, only from a
+>    `lay.h` chip whose coords do not survive a reflow, so the render pass temporarily patched the
+>    `static int bassTone/padTone` defaults inside a `try/finally` and let `ab-render` patch the body define
+>    on top. That composes correctly (ab-render restores what it read); just commit your wiring FIRST so git
+>    is a real net.
+>    **`polopan` is DONE (2026-08-21) — the ear picked `PIZZ_BODY` 0.4**, continuing the ordering: 0.85 for
+>    a solo upright, 0.6 for two violin desks in a six-piece, 0.4 for a pizz under a 16th groove with a
+>    marimba, a chorus and a kit over it. ⚠ **CORRECTED — the body's effect on LEVEL
+>    tracks POLYPHONY, not arco-vs-pizz.** This lane said "arco lifts, pizz lowers" for a few hours;
+>    `bandbox`'s pad falsified it (arco, and it LOSES 1.9 dB). Mechanism: [`sound.h:330`](../runtime/sound.h)
+>    divides the box's `wet_share` by the voice count (it radiates once however many strings drive it) while
+>    the per-voice blend's subtractive term at `:3566` is NOT divided, so a **chord** slot gets quieter as
+>    the body rises. Only a MONO ARCO slot gains level (`mariachi`, +3.2 dB); the other four measured slots
+>    all lose 1–2 dB. Full table + every cart's amount:
+>    [`synth-secrets-plan.md` → 2.4, the body's AMOUNT](design/synth-secrets-plan.md#24--the-bodys-amount-ear-passed-per-cart-2026-08-21).
+>    **Open question worth a look:** whether that undivided subtractive term is right, or whether a chord
+>    should keep its level — the only asymmetry here that looks like a defect rather than a choice.
+>    So **do not read a level drop as the body failing.** The ringdown trap did
+>    NOT bite: crest is flat (17.71 → 17.23) while rms tracks peak down, where an eaten tail would RAISE
+>    crest (peaks survive, tail energy goes). That crest test is the cheap way to check the additive blend
+>    on any pizz cart. Seeds: `polopan` rolls an archetype per song and only CANOPEE (`--seed 2`/4/5) and
+>    COEUR use the pizz at all, so a wrong seed renders a stem with NO pizz in it (seed 1 = `-inf`); read
+>    the rolled archetype out of `--trace` at `w.arch`. Ear sets `build/ab/pizz-body-{000,025,040,060}-{stem,mix}.wav`.
+>    **`mariachi` is DONE (2026-08-21) — the ear picked `VLN_BODY` 0.6** from a 0 / 0.6 / 0.75 / 1.0 ladder.
+>    That is BELOW the showcase cart's 1.0 and below the double basses' 0.85, which is the transferable
+>    result: **the fuller the arrangement, the less box per player.** A solo upright can be mostly box; two
+>    violin desks behind two trumpets and three guitars cannot. Start the remaining carts' ladders LOW.
+>    ⚠ **When you hand a radio station's ear set over, TRIM IT FIRST.** `mariachi`'s violins do not enter
+>    until ~15s (the entrada is trumpets), so the stem's first 15s is digital silence and the first thing
+>    the owner said was "I don't hear anything". Also lift the level — a stem sits ~20 dB below a mix — with
+>    the SAME gain on every variant, since a body LIFTS level and normalising per file would erase half of
+>    what is being judged. Both violin desks take a body at
+>    violin size (the engine default, so only the amount is set) behind a `VLN_BODY` define, currently
+>    0.75. One box per desk, which is right: two desks are two instruments. The `sinte` band option
+>    (`sel == 2`, saw synth-strings) is untouched by construction, since it is not `INSTR_BOWED`.
+>    ⚠ **A violin body reads OPPOSITE to a bass one on the meters** — it darkens and LIFTS level, because a
+>    violin box works ABOVE the centroid where a double-bass box works below it. Ladder on the violin STEM
+>    (`--solo-slot 5,6`, seed 7): 0.0 → −24.6 dBFS / 3680 Hz · 0.6 → −23.2 / 3515 · 0.75 → −22.5 / 3454 ·
+>    1.0 → −21.4 / 3358. Monotonic in both, so the meters cannot pick the amount and the ear has to:
+>    ear sets `build/ab/vln-body-{000,060,075,100}-{stem,mix}.wav`. `click-check` is red in every state
+>    including 0.0 (64 events, worst 15.6x at body 0 vs 12.5x at 1.0 — the body REDUCES it), so it is the
+>    fast son gate's own hard attacks, not this change. **`morphbox` is DONE (2026-08-21)** — it was missing from this list and was the
+>    easiest case in the set: its UPRIGHT voice is `INSTR_BOWED` pizz, the same instrument at the same
+>    `BOW_SIZE_BASS` cleared by ear the same day. The body lives in `runtime/morphdrum.h`'s `MD_UPRIGHT`
+>    setup (only `morphbox` includes that header, so the blast radius is one cart) behind a named
+>    `MD_UPR_BODY` define so it stays A/B-able. Measured: on the UPRIGHT STEM peak −25.0 ON vs −24.0 OFF,
+>    centroid 940 vs 916 Hz; on the MIX the centroid moves 25 Hz, because the mix peaks at −0.4 dBFS with a
+>    centroid of 8.3 kHz and the hats own it — **A/B a groovebox voice on its STEM, never the mix.** The
+>    pizz-ringdown trap did not bite (the engine's blend is additive; this change only switches it on), and
+>    `click-check` is red on this cart in BOTH states from the pluck's own hard front — 32 events ON vs 45
+>    OFF, so the box ROUNDS the attack rather than splicing it. Ear check still open, but this one is the
+>    same voice you already approved. The full install base is 14 carts
+>    (`grep -l INSTR_BOWED tools/carts/*.c`): these 6, the 3 cleared, the 4 gate-feeders in (3), and `bowed`
+>    itself, which is the showcase and has had the body plus per-preset sizes since it was built. (3) **Leave `soundcheck`/`tunecheck`/`voicestress`/`pipetune` body-OFF** — they feed
 >    the audio gates, so re-voicing them moves the baselines.
 >    ⚠ Measuring a BASS body? Use `harmonic-spec`, NOT brightness/centroid — a 60 Hz box works below 350 Hz,
 >    so `wav-envelope` reported "no change" across a ±17 dB reshaping. Pick the gate by where the effect lives.
@@ -1809,6 +1973,39 @@ a broken doc link or `#section`).
 > `docs/design/bossa-rack.md`, `docs/design/genre-box-rosters.md`. Related: `bossaface.c` (the candy
 > vibe mockup) + the superseded `bossabloom.c`.
 
+> **▶ ACTIVE THREAD (2026-08-21) — 101 SOURCED rhythm-box patterns, and the two libraries that read them.**
+> Started from a research question ("what hardware is Domenique Dumont using?") and ended with real
+> data: **101 preset rhythms read off manufacturer service manuals, a 1979 databook and a 1969
+> patent**, every one traceable to a page and a figure, in
+> [`design/rhythm-box-patterns.md`](design/rhythm-box-patterns.md) with the full evidence trail
+> (including the readings that were REJECTED) in
+> [`design/rhythm-box-transcription-log.md`](design/rhythm-box-transcription-log.md). Machines:
+> Ace Tone FR-2L (16), Roland TR-77 (18), SGS M252 (30), M253 AA (12), M254 (16), M255 (6), and a
+> Hammond patent (3, the only source with CHORD and BASS lanes).
+> **Ships as code**: `runtime/rhythmbox.h` (generated by `tools/gen-rhythmbox.js`, 38 known answers,
+> repo-doctor-gated) and `runtime/drumpat.h` (the maker's own 565 modern 16-step patterns, generated
+> from `tools/drum-patterns.json`). Readers: **`autorhythm`** (seven machines, spec 43) and
+> **`groovebook`** (browses the 565, spec 14).
+> Five findings that make this data unlike a step grid, all encoded not just documented: one fixed
+> clock **re-divided per rhythm** (a waltz splits the same 24-count bar by three); **accent by
+> layering** since the machines have no velocity; **skipped states** the counter steps over; the
+> **rising-edge rule** (adjacent marks fire once, so 7% of the SGS marks never sound —
+> `rb_trigger()`, not `rb_hit()`); and **gate lanes** that are held rather than struck.
+> ⚠ **`drumkit.h`'s two kits have DIFFERENT loudness shapes** — 28 dB of intrinsic spread inside one
+> kit — so a flat level table buries the quiet voices. That bug shipped twice here and was caught by
+> EAR, not by a gate: `spec()` cannot hear and the master-bus level checks are blind to one buried
+> lane. The measured table and the method are in
+> [`guides/instrument-recipes.md`](guides/instrument-recipes.md); the tools are
+> `tools/carts/dkprobe.c` and `play.js --solo-slot <base+role>`.
+> **Resume-at: [`design/rhythm-box-patterns.md` → Open items](design/rhythm-box-patterns.md#9-open-items)** —
+> NEXT and cheapest = read the **M254 pinout, printed page 145** of the SGS databook (already on
+> disk): its 16 rhythms are transcribed but their lanes are still `OUTPUT n`, and that one page says
+> which are drums and which are chord/bass/arpeggio. Then FIG. 14 of US4292874 (read the STAFF, not
+> the staircase trace that defeated the first attempt). Elgam's own patterns are CLOSED: custom mask
+> ROMs, never published.
+> Hot files: `docs/design/rhythm-box-patterns.md`, `runtime/rhythmbox.h`, `tools/gen-rhythmbox.js`,
+> `tools/carts/autorhythm.c`, `tools/carts/groovebook.c`.
+
 > **▶ ACTIVE THREAD (2026-08-18) — Android as a Google-Play build target.**
 > The engine already runs frameworkless behind `platform.h` (`DE_NO_RAYLIB`), so Android is a **host
 > shell + Gradle packaging**, not engine work. SHIPPED this session: the toolchain (NDK/SDK/emulator,
@@ -1994,7 +2191,7 @@ a broken doc link or `#section`).
 > + `finger_px()`) is still open and now rides the faces lane above. Scoreboard:
 > [`device-adaptive-layout.md` → Where this stands](design/device-adaptive-layout.md#where-this-stands).
 
-> **▶ ACTIVE THREAD (2026-08-18) — store / ASO + the app-trailer builder.**
+> **▶ ACTIVE THREAD (2026-08-19) — store / ASO + the app-trailer builder.**
 > **LATEST (2026-07-19) — Tiny Acid Jam is LIVE ON ASC as a draft (the FIRST standalone single).**
 > Per [`design/launch-sequence.md`](design/launch-sequence.md)'s single-first plan, `acidcandy` ships
 > as its own app **Tiny Acid Jam** *before* the Tiny Jam umbrella. Renamed this session from "Acid
@@ -2074,7 +2271,14 @@ a broken doc link or `#section`).
 > bundle-nested scheme **`com.mipolai.tinyjam.{acidrack,epiano,masterpass}`** (was `com.tinyjam.*`;
 > rebirth→acidrack) across `app.json` + `Store.swift`/`canvas.c`/`Tinyjam.storekit` + the two iOS
 > tests, and the `.storekit` was resynced to the manifest (dropped a phantom "funk", fixed the master
-> pass $19.99→$5.00) — **purchase flow re-verified on the iPhone 16 (18.4) sim**. **Resume at:** the
+> pass $19.99→$5.00) — **purchase flow re-verified on the iPhone 16 (18.4) sim**.
+> ⏸ **PRICES HERE ARE PARKED, do not tune them (maker's call, 2026-08-18,
+> [ADR-0035](decisions/0035-free-with-one-pro-unlock.md)).** The rack prices and the $4.99 master
+> pass now sit LEVEL with a **$4.99** per-app **Pro** unlock (export + MIDI + AUv3) that sounds
+> smaller than it is (ADR-0035's 2026-08-19 Update settled Pro at $4.99, not the $9.99 first assumed), and reconciling the two axes waits for a **trigger, not a date: about five music apps on the
+> App Store**, then all of it gets priced in one pass with the real catalog visible (standing at 2).
+> Safe to leave: the app was never submitted, so nothing was ever purchasable, and the products
+> already in ASC are repriceable later with `asc-push --iap --reprice`. **Resume at:** the
 > credentials are set up (Key `Z5DTR9TFW2`); next store moves are per-locale `metadata/<locale>/`
 > folders + an editor button for `asc-push`, then the maker-gated submission. Snapshot in
 > [`store-agents.md` → Pick-up point](design/store-agents.md#pick-up-point-next-session).

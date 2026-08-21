@@ -1,0 +1,31 @@
+# sideman — a tour of the dial, two bars per rhythm, for a clip that shows the
+# disc RE-STAMPING itself as the selector moves.
+#
+# The point of the tour is the thing a grid cart cannot show: the number of
+# slots on the disc CHANGES with the rhythm. Watch the track layout when it
+# reaches SHUFFLE (four beats of triplets, 12 slots) and WALTZ (three beats,
+# also 12) — everything else carries 16.
+#
+# The cart self-plays: `motor = true` on frame 1, so there is no SPACE to press.
+# Each rhythm also brings its own tempo, so two bars is not a fixed number of
+# frames; ~150 frames per step is a comfortable two bars at the middle tempos
+# and never cuts a bar off at the fast end.
+#
+# Starts on FOXTROT 4 BEAT (index 4, the one every organ player used), so the
+# tour walks forward from there and wraps around the whole dial.
+down 150 RIGHT
+up   152 RIGHT
+down 300 RIGHT
+up   302 RIGHT
+down 450 RIGHT
+up   452 RIGHT
+down 600 RIGHT
+up   602 RIGHT
+down 750 RIGHT
+up   752 RIGHT
+down 900 RIGHT
+up   902 RIGHT
+down 1050 RIGHT
+up   1052 RIGHT
+down 1200 RIGHT
+up   1202 RIGHT

@@ -65,10 +65,17 @@ if [ -z "${DEVICE_ID:-}" ] && xcrun devicectl list devices --json-output /tmp/de
   # confidently targeted an offline iPad in another room while the iPhone it was asked for was
   # plugged in. Requiring a live tunnel makes DC_ID empty in that case, which is what lets the
   # ios-deploy fallback below do its job. (Bit an iPhone SE deploy, 2026-08-16.)
+  # ⚠ AND IT MUST BE `== 'connected'`, NOT `!= 'unavailable'` — the same trap survived the fix,
+  # because there are THREE tunnel states, not two. The offline iPad above reports `disconnected`,
+  # which is neither `connected` nor `unavailable`, so it passed the exclusion filter, won the sort
+  # and became the destination AGAIN — xcodebuild then failed with "Timed out waiting for all
+  # destinations", listing only that iPad, while `xctrace` showed the iPhone connected and the iPad
+  # under `== Devices Offline ==`. An allow-list of the ONE good state cannot rot this way: a new
+  # state name makes DC_ID empty and falls back, which is the safe direction. (2026-08-19.)
   DC_ID="$(/usr/bin/python3 -c "import json
 d=[x for x in json.load(open('/tmp/de-devices.json'))['result']['devices']
    if ('iPad' in x['deviceProperties'].get('name','') or 'iPhone' in x['deviceProperties'].get('name',''))
-   and x.get('connectionProperties',{}).get('tunnelState','') != 'unavailable']
+   and x.get('connectionProperties',{}).get('tunnelState','') == 'connected']
 d.sort(key=lambda x: x.get('connectionProperties',{}).get('pairingState','') != 'paired')
 print(d[0]['identifier'] if d else '')" 2>/dev/null)"
   # ⚠ ASK THE DEVICE, NOT THE CACHE. `list devices` reports the LAST KNOWN developerModeStatus, and

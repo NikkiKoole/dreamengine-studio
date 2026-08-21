@@ -422,7 +422,7 @@ float sync_beats(void);                                   // beats since the clo
 float sync_bpm(void);                                     // the external clock's tempo (0 if none) — show it, or feed your tempo-synced delay
 
 // instruments — give a slot a waveform + ADSR envelope, then play it like any wave: note(midi, slot, vol)
-void instrument(int slot, int wave, int attack_ms, int decay_ms, int sustain, int release_ms); // define slot 5..47: ms timings, sustain 0..7. pluck = fast attack+short release; pad = slow attack+long release
+void instrument(int slot, int wave, int attack_ms, int decay_ms, int sustain, int release_ms); // define slot 5..47: ms timings, sustain 0..7. pluck = fast attack+short release; pad = slow attack+long release. ⚠ REDEFINING a slot does NOT clear what else was attached to it: instrument_env/_lfo/_filter/_drive/_level/_pan and the sends all SURVIVE. Reusing a slot for a different voice inherits the old one's modulation, silently (it cost the sideman brush two stale ENV_CUTOFF sweeps). Switch each one off by amount, or use a fresh slot
 void wave_set(int which, const float *samples, int n);    // fill custom wave INSTR_USER0+which (which 0..3) with one drawn cycle: n samples in -1..1, resampled to 64. Live — a ringing note morphs as you redraw
 void instrument_duty(int slot, float duty);               // pulse width 0.0..1.0 for a square-wave slot (0.5 = square, 0.12 = thin/nasal). no effect on other waves
 void instrument_pan(int slot, float pan);                 // stereo position for a slot: -1 left .. 0 center (default) .. +1 right. voices inherit at note-on. sweep live with note_pan or LFO_PAN
@@ -430,6 +430,16 @@ void instrument_level(int slot, float gain);              // per-slot output LEV
 void instrument_glide(int slot, int ms);                   // PORTAMENTO for this patch — every note from this slot slides over `ms` (0 = snap, the default). the per-slot twin of note_glide
 void instrument_glide_scale(int slot, float amount);       // GLIDE SCALE for this patch: 0 = every interval takes the same time (default), GLIDE_ANALOG, 1 = `ms` per octave
 void instrument_trigger(int slot, int mode);               // TRIG_MULTI (default) = every note gets its attack transient; TRIG_SINGLE = only when no other key on this instrument is down (the real Hammond percussion rule)
+// ── EXPORT: save what you just played, so it can leave the app ─────────────────────────────
+// Records the next few seconds of everything you hear into an audio file, in STEREO. The file
+// lands in your cart's save folder; on a phone the app then offers it to the share sheet.
+#define EXPORT_WAV  0   // lossless, big — the one you'd drop into a DAW
+#define EXPORT_M4A  1   // compressed, small — the one you'd post. Falls back to WAV where the platform has no encoder
+int   export_audio(const char *name, float seconds, int format);  // start recording to a file (up to 60s). Returns 1 = started, 0 = busy or refused. e.g. export_audio("my-jam.wav", 8, EXPORT_WAV)
+int   export_busy(void);                                  // is an export still recording? Draw a REC light while this is 1
+float export_progress(void);                              // how far along, 0..1 — for a progress bar
+const char *export_last(void);                            // file path of the last finished export ("" = none yet)
+
 void record_arm(void);                                    // PCM SAMPLER: begin the always-on rolling capture of the master output (idempotent; off + byte-identical until called). Call once, then record_grab() any time to snapshot recent audio
 int  record_grab(int sample_slot, float seconds);         // snapshot the last `seconds` of captured audio into PCM sample slot 0..7; peak-normalized + leading/trailing SILENCE TRIMMED (starts at the first audible sample). Returns samples grabbed after trim (0 = not armed / nothing yet). Pair with instrument_sample() + INSTR_SAMPLE
 void instrument_sample(int slot, int sample_slot, int root_midi); // bind an INSTR_SAMPLE instrument slot to a recorded buffer; root_midi = the note that plays it at original speed (e.g. 60 = C4). Higher notes play faster/up in pitch
@@ -633,6 +643,8 @@ void reverb_bus_fx(int tank, int fx, float a, float b, float c);  // add an effe
 void reverb_insert(float size, float damp, float mix);            // reverb as a dry/wet INSERT on the master bus — a REAL reorderable pedal (put FX_REVERB in fx_order(0,…) to place it). size/damp 0..1, mix 0..1 (0 = bypass). Unlike reverb() (a send), its chain position is audible
 void reverb_spring(float amount);                                 // give the reverb a SPRING-TANK voice: transients smear into a metallic "boing" (dispersion — highs chirp ahead) and the tone narrows to a mid band, like a Fender/surf/dub spring tank. amount 0 = clean digital reverb (default), 1 = full spring. Affects every reverb tank (reverb()/reverb_bus()/reverb_insert())
 void reverb_spring_tone(float x);                                 // the spring's "boing" CHARACTER — the dispersion amount. 0 = looser/duller, 1 = tighter/twangier/more metallic. Ride it live. Default ~0.6
+void reverb_plate(float amount);                                  // give the reverb a PLATE voice: a sheet of steel, so the tail is DENSE, bright, has no sub and no room echoes at all — and it comes back WIDE, because a plate has two pickups in different places. The lush studio reverb. amount 0 = clean digital reverb (default), 1 = full plate. Affects every reverb tank (reverb()/reverb_bus()/reverb_insert())
+void reverb_plate_width(float x);                                 // how far apart the plate's two pickups sit — 0 = both in the middle (mono), 1 = fully spread. Ride it live. Default 0.55. Only does anything while reverb_plate() is up
 
 // chorus — THE master chorus (there is exactly one), applied to the whole mix: a BBD/Juno-style
 // modulated delay that thickens + widens everything into a lush shimmer. Master-wide (not per-slot).
@@ -787,7 +799,7 @@ void filter_inst(int instance, int mode, float cutoff_hz, float resonance);  // 
 // trigger — a bus compressor reading its OWN level, so the whole mix moves as one lump.
 void sidechain(int victim_bus, int key, float amount, int attack_ms, int release_ms);  // duck victim_bus (0 = master) by up to amount 0..1 on every hit in trigger `key` (0..3). amount 0 = off. attack ~1ms, release ~80–250ms = the pump
 void sidechain_key(int slot, int key, float send);   // route a slot into trigger key 0..3 — its level drives any sidechain() keyed there (kick → key 0). send 0..1 (0 = not a trigger)
-void glue(int victim_bus, float amount, int attack_ms, int release_ms);  // bus COMPRESSOR: duck victim_bus (0 = master) by up to amount 0..1 from its own level (no trigger) — the mix glued together. amount 0 = off
+void glue(int victim_bus, float amount, int attack_ms, int release_ms);  // bus COMPRESSOR: duck victim_bus (0 = master) by up to amount 0..1 from its own level (no trigger) — the mix glued together. amount 0 = off. Two things it does for you, both automatic: it puts the level it took back (MAKEUP, so switching it in no longer makes the mix smaller and an A/B is level-matched), and its recovery is PROGRAM-DEPENDENT (a single hit recovers in release_ms; a sustained loud wall takes ~4× that to let go)
 // multiband — MULTIBAND dynamics (the "OTT" sound): three bands, each pulled DOWN from above and pushed
 // UP from below, so loud parts sit flat while quiet detail comes forward and the mix reads permanently
 // "on" (modern pop/hyperpop/trap masters). glue() is the single-band, down-only version of this.

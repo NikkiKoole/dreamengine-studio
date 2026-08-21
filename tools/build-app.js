@@ -203,8 +203,7 @@ if (!app.name || !Array.isArray(app.carts) || app.carts.length === 0) {
   console.error('manifest needs at least: { "name": "...", "carts": ["cart", ...] }')
   process.exit(1)
 }
-for (const k of ['iap'])
-  if (app[k]) console.log(`note: manifest "${k}" is parked for a later rung — accepted, unused today`)
+// (manifest "iap" used to be parked-and-ignored here; it is READ now — see the two axes below.)
 // Icon existence is validated HERE rather than only at the --ios staging step far below, so that a
 // manifest pointing at a moved icon is caught by `--check` instead of at archive time. Found by the
 // selfcheck: the bad-icon fixture PASSED, because the only check was past the compile boundary.
@@ -330,24 +329,31 @@ fs.writeFileSync(path.join(stage, 'map_data.h'),
 // ── roster header for the launcher (rung 3) ──────────────────────────────────
 // One entry per rack, straight from the rack's own de:meta — adding a cart to the
 // manifest auto-adds its menu entry. The launcher #includes this under -DAPP_BUNDLE.
+// the in-game bitmap fonts are ASCII-only — typographic chars in de:meta prose
+// (em-dashes, curly quotes) would render as '?' on the menu, so fold them here
+const ascii = s => String(s).normalize('NFKD')
+  .replace(/[—–]/g, '-').replace(/[‘’]/g, "'")
+  .replace(/[“”]/g, '"').replace(/…/g, '...')
+  .replace(/[̀-ͯ]/g, '').replace(/[^\x20-\x7e]/g, '?')
+// IAP (manifest iap.products). TWO AXES, and they are read here for EVERY app, not just an
+// umbrella with a launcher: a single-cart app has no racks to sell but still sells Pro.
+//   CONTENT — a rack is PAID if some product (other than the "*" masterpass catch-all) lists it
+//   in `unlocks`. That product's id + price go in the launcher roster.
+//   FEATURE — the ONE product declaring a non-empty `features` list is Pro (ADR-0035: the paths
+//   that carry audio OUT of the app). It goes in app_pro.h, which runtime/pro.h reads.
+// ⚠ Until 2026-08-19 this whole block sat inside `if (launcher)`, so a single-cart app generated
+// NO .storekit either — Store.swift's configuredIDs() would have found no products and no purchase
+// could ever have been made in Tiny Pedalboard or Tiny Acid Jam.
+const products = (app.iap && Array.isArray(app.iap.products)) ? app.iap.products : []
+const productFor = slug => products.find(p => Array.isArray(p.unlocks) && !p.unlocks.includes('*') && p.unlocks.includes(slug))
+const masterpass = products.find(p => Array.isArray(p.unlocks) && p.unlocks.includes('*'))   // the "unlock all" offer
+
 if (launcher) {
   const { readMeta } = require(path.join(__dirname, 'build-cart-index.js'))
   const summaryOf = m => {
     const d = m && m.description
     return typeof d === 'object' && d ? (d.summary || '') : (d || '')
   }
-  // the in-game bitmap fonts are ASCII-only — typographic chars in de:meta prose
-  // (em-dashes, curly quotes) would render as '?' on the menu, so fold them here
-  const ascii = s => String(s).normalize('NFKD')
-    .replace(/[—–]/g, '-').replace(/[‘’]/g, "'")
-    .replace(/[“”]/g, '"').replace(/…/g, '...')
-    .replace(/[̀-ͯ]/g, '').replace(/[^\x20-\x7e]/g, '?')
-  // IAP (manifest iap.products): a rack is PAID if some product (other than the "*"
-  // masterpass catch-all) lists it in `unlocks`. That product's id + price go in the
-  // roster so the launcher can show a locked rack's price and fire its purchase.
-  const products = (app.iap && Array.isArray(app.iap.products)) ? app.iap.products : []
-  const productFor = slug => products.find(p => Array.isArray(p.unlocks) && !p.unlocks.includes('*') && p.unlocks.includes(slug))
-  const masterpass = products.find(p => Array.isArray(p.unlocks) && p.unlocks.includes('*'))   // the "unlock all" offer
   const roster = carts.map(c => {
     const meta = readMeta(fs.readFileSync(c.src, 'utf8'), c.name) || {}
     const prod = productFor(c.name)
@@ -374,25 +380,57 @@ void app_launch(int i);   // switch dispatch + sound context to rack i (roster i
 int  app_current(void);   // roster index of the rack most recently active (-1 = none yet)
 `)
 
-  // GENERATE the StoreKit test config from the manifest (single source of truth — no
-  // drift between the launcher's prices and StoreKit's). Bundled + activated in DEBUG via
-  // an in-app SKTestSession (a scheme storeKitConfiguration only helps Xcode's Run button,
-  // not simctl/ios-deploy). Real App Store prices come from ASC; this is the local mirror.
-  if (products.length && ios) {
-    const uuid = i => `00000000-0000-0000-0000-${String(i + 1).padStart(12, '0')}`
-    const skProducts = products.map((p, i) => ({
-      displayPrice: String(p.price), familyShareable: false, internalID: uuid(i),
-      localizations: [{ description: ascii(p.desc || ''), displayName: ascii(p.name || p.id), locale: 'en_US' }],
-      productID: p.id, referenceName: ascii(p.name || p.id), type: 'NonConsumable',
-    }))
-    const storekit = {
-      identifier: 'F1A2B3C4', appPolicies: { eula: '', policies: [] },
-      nonRenewingSubscriptions: [], products: skProducts, settings: { _failTransactionsEnabled: false },
-      subscriptionGroups: [], version: { major: 3, minor: 0 },
-    }
-    fs.mkdirSync(path.join(ROOT, 'ios/gen/app'), { recursive: true })
-    fs.writeFileSync(path.join(ROOT, 'ios/gen/app/Tinyjam.storekit'), JSON.stringify(storekit, null, 2) + '\n')
+}
+
+// ── the PRO unlock + the StoreKit config: EVERY app, launcher or not ─────────
+// ── the PRO product → a generated header every cart can see (runtime/pro.h reads it) ──────
+// The FEATURE axis, next to the roster's content axis. A product is Pro when it declares a
+// non-empty `features` list (ADR-0035: WAV export / MIDI / AUv3 — the paths that carry audio OUT
+// of the app). `unlocks` stays for RACKS, so the two axes never collide.
+const proProducts = products.filter(p => Array.isArray(p.features) && p.features.length)
+if (proProducts.length > 1) {
+  console.error(`${path.relative(ROOT, manifestFile)}: ${proProducts.length} products declare "features" — there is exactly ONE Pro unlock per app (ADR-0035)`)
+  process.exit(1)
+}
+const pro = proProducts[0]
+if (pro && Array.isArray(pro.unlocks) && pro.unlocks.length) {
+  console.error(`${path.relative(ROOT, manifestFile)}: the Pro product ${pro.id} also lists "unlocks" — Pro gates FEATURES, racks are the other axis`)
+  process.exit(1)
+}
+// The catch-all is matched by its LAST COMPONENT in both Store.swift and AppGroup.swift (an
+// extension has no .storekit to read), so a pass named anything else silently unlocks nothing.
+if (masterpass && !masterpass.id.endsWith('.masterpass')) {
+  console.error(`${path.relative(ROOT, manifestFile)}: the "*" product ${masterpass.id} must end in ".masterpass" — that suffix IS the catch-all rule the entitlement readers use`)
+  process.exit(1)
+}
+const proHeader =
+`// GENERATED by tools/build-app.js from ${path.relative(ROOT, manifestFile)} — do not edit.
+// The one Pro unlock for "${app.name}", read by runtime/pro.h. Absent outside a bundle (the
+// editor, a bare play.js run, the web build), which pro.h treats as "no store here".
+#pragma once
+#define APP_PRO_ID    ${JSON.stringify(pro ? pro.id : '')}
+#define APP_PRO_PRICE ${JSON.stringify(pro ? ascii(String(pro.price)) : '')}
+`
+fs.writeFileSync(path.join(stage, 'app_pro.h'), proHeader)
+
+// GENERATE the StoreKit test config from the manifest (single source of truth — no
+// drift between the launcher's prices and StoreKit's). Bundled + activated in DEBUG via
+// an in-app SKTestSession (a scheme storeKitConfiguration only helps Xcode's Run button,
+// not simctl/ios-deploy). Real App Store prices come from ASC; this is the local mirror.
+if (products.length && ios) {
+  const uuid = i => `00000000-0000-0000-0000-${String(i + 1).padStart(12, '0')}`
+  const skProducts = products.map((p, i) => ({
+    displayPrice: String(p.price), familyShareable: false, internalID: uuid(i),
+    localizations: [{ description: ascii(p.desc || ''), displayName: ascii(p.name || p.id), locale: 'en_US' }],
+    productID: p.id, referenceName: ascii(p.name || p.id), type: 'NonConsumable',
+  }))
+  const storekit = {
+    identifier: 'F1A2B3C4', appPolicies: { eula: '', policies: [] },
+    nonRenewingSubscriptions: [], products: skProducts, settings: { _failTransactionsEnabled: false },
+    subscriptionGroups: [], version: { major: 3, minor: 0 },
   }
+  fs.mkdirSync(path.join(ROOT, 'ios/gen/app'), { recursive: true })
+  fs.writeFileSync(path.join(ROOT, 'ios/gen/app/Tinyjam.storekit'), JSON.stringify(storekit, null, 2) + '\n')
 }
 
 // ── --dry: everything above ran, nothing has been compiled ───────────────────
@@ -603,6 +641,16 @@ ${fs.readFileSync(c.src, 'utf8')}`)
   }
   fs.copyFileSync(shimFile, path.join(dir, 'app_main.c'))
   if (launcher) fs.copyFileSync(path.join(stage, 'app_roster.h'), path.join(dir, 'app_roster.h'))
+  fs.copyFileSync(path.join(stage, 'app_pro.h'), path.join(dir, 'app_pro.h'))
+  // ⚠ The AUv3 extension is staged by ios/testflight.sh + device.sh (play.js → gen/au), NOT by this
+  // tool, and its HEADER_SEARCH_PATHS is gen/au — so without this copy pro.h finds no app_pro.h in
+  // the PLUG-IN, reads "no store here", and hands Pro to every host for free. Both stagers run
+  // AFTER this and clear only *.c, so the header survives. See runtime/pro.h's fail-open warning.
+  if (app.auCart) {
+    const auDir = path.join(ROOT, 'ios/gen/au')
+    fs.mkdirSync(auDir, { recursive: true })
+    fs.copyFileSync(path.join(stage, 'app_pro.h'), path.join(auDir, 'app_pro.h'))
+  }
   fs.copyFileSync(path.join(stage, 'sprites_data.h'), path.join(dir, 'sprites_data.h'))
   fs.copyFileSync(path.join(stage, 'map_data.h'), path.join(dir, 'map_data.h'))
   // ── does this app need the MICROPHONE? DERIVED, never declared ──────────────────────────────

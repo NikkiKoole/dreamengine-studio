@@ -63,6 +63,8 @@ const CHECKS = [
   { name: "reflections",  tool: "build-reflections.js",  args: ["--check"],     gate: true },
   { name: "cart index",   tool: "build-cart-index.js",   args: ["--check"],     gate: true },
   { name: "history",      tool: "build-history.js",      args: ["--check"],     gate: true },
+  { name: "rhythmbox",    tool: "gen-rhythmbox.js",      args: ["--check"],     gate: true },
+  { name: "drumpat",      tool: "gen-drumpat.js",       args: ["--check"],     gate: true },  // runtime/rhythmbox.h is derived from design/rhythm-box-patterns.md; edit the doc, regenerate
   // GATED, unlike the ledger row below it: this asserts the CHECKER against a known-answer fixture,
   // so it is deterministic and must always pass. A red ledger row is a backlog; a red selftest row
   // means the tool's findings cannot be believed at all. See checks-and-oracles.md "self-test the
@@ -77,6 +79,7 @@ const CHECKS = [
   { name: "selftest: fxicons", tool: "lint-fxicons.js",    args: ["--selfcheck"], gate: true },
   { name: "selftest: aux params", tool: "lint-aux-params.js", args: ["--selfcheck"], gate: true },
   { name: "selftest: seam", tool: "lint-engine-seam.js", args: ["--selfcheck"], gate: true },
+  { name: "selftest: pro seam", tool: "pro-check.js",     args: ["--selfcheck"], gate: true },
   // The first AUDIO gate to join this row. It renders no cart: the pitch detector is pure, so it
   // is judged on synthetic tones with answers known from arithmetic. See its header for why an
   // audio gate needs one at all — the failure mode is going blind, not crying wolf.
@@ -89,6 +92,10 @@ const CHECKS = [
   { name: "selftest: fx", tool: "fx-check.js", args: ["--selfcheck"], gate: true },
   { name: "selftest: soak", tool: "soak-check.js", args: ["--selfcheck"], gate: true },
   { name: "selftest: psola", tool: "psola-check.js", args: ["--selfcheck"], gate: true },
+  // SELFCHECK ONLY, on purpose: the full bypass-check renders five WAVs (~35 s) and belongs in the
+  // effects-edit loop, not in a health strip. This row gates the analyser, whose three failure
+  // verdicts are the interesting half (a byte-identical pair must read INCONCLUSIVE, never PASS).
+  { name: "selftest: bypass", tool: "bypass-check.js", args: ["--selfcheck"], gate: true },
   // ANALYSER ONLY — deliberately toolchain-free so this row runs on any machine. The half it cannot
   // reach (does the comparison reach the DSP) is `web-audio-check.js --bypass`, which needs emcc.
   { name: "selftest: web parity", tool: "web-audio-check.js", args: ["--selfcheck"], gate: true },
@@ -116,6 +123,10 @@ const CHECKS = [
   { name: "fx glyphs",    tool: "lint-fxicons.js",       args: ["--strict"],    gate: true },
   { name: "engine seam", tool: "lint-engine-seam.js",  args: ["--strict"],    gate: true },
   { name: "saved state", tool: "lint-saved-state.js",  args: ["--strict"],    gate: true },
+  // The PRO entitlement seam. It is a gate row rather than an advisory one because pro.h fails
+  // OPEN: a target that forgot to link the real answer does not misbehave, it silently gives the
+  // paid features away, and nothing else in the repo can see that.
+  { name: "pro seam",    tool: "pro-check.js",          args: ["--quiet"],     gate: true },
   // JOINED 2026-08-14, and the reason is the whole point of the two-row pattern above. The aux-param
   // SELFTEST row had been green for weeks while the lint ITSELF was red: the per-instance refactor
   // moved `eng_p[]` into sound_ctx.h, the lint read only sound.h, and it reported three findings on

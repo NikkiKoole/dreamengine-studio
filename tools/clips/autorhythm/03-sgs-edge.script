@@ -1,0 +1,10 @@
+# autorhythm: an SGS chip rhythm, which is where the EDGE RULE shows itself. On these
+# masks the trigger is the rising edge of a ROM bit, so a mark whose predecessor is
+# also marked is already sounding and cannot fire again; the panel says "edge-trig"
+# and those cells are drawn HOLLOW. Machine 2 (]] from the FR-2L), then walk to a
+# rhythm with adjacent marks: M252 AA rhythm 3 has them on two lanes.
+tap 20 ]
+tap 30 ]
+tap 45 RIGHT
+tap 55 RIGHT
+tap 70 SPACE

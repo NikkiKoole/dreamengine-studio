@@ -814,6 +814,75 @@ tube glue, mix 0.8) for the analog character.
 
 ---
 
+### autorhythm (organ rhythm box — NO new voices, but a voice-ASSIGNMENT recipe, from autorhythm.c)
+
+`autorhythm` plays 76 preset rhythms read off manufacturer service manuals
+([`rhythm-box-patterns.md`](../design/rhythm-box-patterns.md), data in
+[`runtime/rhythmbox.h`](../../runtime/rhythmbox.h)) and adds **no new timbres at all**: it fires the
+shared `sideman.h` tube bank unchanged. What it contributes to this doc is the other half of an
+instrument recipe, the part that is usually implicit: **which voice plays which lane**, when the
+source will not tell you.
+
+The problem is specific. The FR-2L chart's lane labels sit in a ~75 dpi scan, so the letterforms are
+interpolation rather than ink: the labels are weak evidence, not zero and not fact. Ignoring them
+entirely (assign by lane order) was tried first and puts the bass drum on the backbeat of every
+latin rhythm, which sounds wrong for a reason that has nothing to do with the data. So the cart
+reads the label as a HINT, with the two-letter tokens tested before the one-letter ones (`Cy` must
+not be read as `C` for claves), and a prime (`Cy'`, `Sd'`) selecting the softer sibling:
+
+| label | voice | why |
+|---|---|---|
+| `Bd` | `SM_BASS` | bass drum |
+| `Sd` / `Sd'` | `SM_BRUSH` / `SM_TEMP1` | **this bank has no snare**; a wire brush stands in |
+| `Cy` / `Cy'` | `SM_CYMBAL` / `SM_BRUSH` | the primed lane is the softer cymbal |
+| `Hh` | `SM_MARACAS` | a hi-hat is the nearest thing to shaken noise here |
+| `Cb` | `SM_WOOD` | cowbell → wood block: the clack, not the pitch |
+| `Hb` / `Lb` | `SM_TOM1` / `SM_TOM2` | high / low bongo |
+| `Hc` / `Lc` | `SM_TOM1` / `SM_TOM2` | high / low conga |
+| `Rs` | `SM_CLAVES` | rim shot |
+| `Tb`, `Gu` | `SM_MARACAS` | tambourine, guiro: both shaken/scraped noise |
+| `Me` | `SM_WOOD` | the TR-77 metronome, a click, and **off by default** |
+| `OUT n` | lane order | the SGS chips label pins, not instruments |
+
+Two honesty notes that belong with the recipe. The bank is a **decade early** for these charts (1959
+tubes against a 1969 transistor box and a 1970s chip), so nothing here claims to be the machine's
+own voice. And the mapping is rotatable in the cart (`V`), because a hint is a hint: the patterns are
+sourced, the voicing is a choice the player can overrule.
+
+### drumkit.h's two kits have DIFFERENT loudness shapes (measured, from groovebook.c)
+
+Not a timbre recipe: a mix one, and the kind of thing that costs an afternoon if you assume it away.
+`drumkit.h` ships `DK_ELECTRO` and `DK_ACOUSTIC` behind one role vocabulary, so it is tempting to
+treat them as interchangeable and give them one level table. They are not interchangeable. Measured
+with a probe cart that fires each role in isolation 1.5 s apart (the crash rings ~1.1 s, so tighter
+spacing measures the previous tail), with level and velocity divided back out:
+
+| voice | ELECTRO intrinsic | ACOUSTIC intrinsic |
+|---|---|---|
+| closed / open hat | -11 dB | -11 dB |
+| crash | -20 dB | **-13 dB** |
+| toms | -31 dB (sine) | **-38 dB** (membrane) |
+| kick | -33 dB (sine) | **-39 dB** (membrane) |
+| snare / clap / rim | -36 to -38 dB (band-filtered noise) | -36 to -37 dB |
+
+Two things follow. **The spread inside one kit is up to 28 dB**, so a flat trim buries the quiet
+voices: a blanket `instrument_level(slot, 0.45f)` left ELECTRO's kick 19 dB and its snare 26 dB
+under the open hat, and the bug reached a shipped cart. And **the two kits need different tables**:
+tuning for ELECTRO leaves ACOUSTIC's toms 13 dB below a crash that has taken the lead.
+
+A kick-led balance therefore means pulling the hats down by 26 dB (ELECTRO) or 33 dB (ACOUSTIC),
+which lands the mix around -16 and -22 dBFS peak respectively. That is the ceiling, not a choice:
+the kick is already at unity gain and velocity 7. `glue()` does not rescue it either, because on
+material this transient the average gain reduction is small and so is its automatic makeup (0.35,
+0.55 and 0.75 measured within 0.05 dB of each other). If you need it hotter, the answer is a louder
+kick voice, not a louder table.
+
+`groovebook` carries both tables and `spec()` guards them structurally: no role may be at zero, the
+toms must sit above the closed hat in BOTH kits, and the two tables must differ. Re-measure with
+`tools/carts/dkprobe.c` (set `probe_kit`) and a per-window peak read of the WAV; a per-role stem
+render (`play.js --solo-slot <base+role>`) is what shows a single buried lane, which the master-bus
+level checks cannot see.
+
 ## By cart
 
 The alternate view — each cart and the recipe names it stocks. Carts with no fixed recipes

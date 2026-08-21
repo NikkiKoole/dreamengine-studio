@@ -1,0 +1,68 @@
+# upright — a walking E-minor line on the GarageBand musical-typing map (2026-08-21).
+#
+# READ THIS IF AN A/B ON THIS CART COMES BACK BYTE-IDENTICAL: `script /dev/null` renders
+# DIGITAL SILENCE (peak -inf). upright is a played instrument, not a sequencer — there is
+# no transport to start, so a render with no input has no notes in it. ab-render then blames
+# the flag ("did not reach the DSP") for what is really an empty take.
+#
+# The map (upright.c:94-99): KB_ROOT 28, 'A' = E1 at octave 0, white keys "ASDFGHJKL;'" at
+# semitones 0 2 4 5 7 9 11 12 14 16 17, black keys WETYUOP at 1 3 6 8 10 13 15.
+# So E minor pentatonic (0 3 5 7 10) is A E F G U — that is the line below, 4 notes per bar,
+# 30 frames apart (=120bpm quarters at 60fps) held 26 frames for a legato pizz.
+# Mono, last-note-wins, so the holds must not overlap.
+down 12 A
+up 38 A
+down 42 E
+up 68 E
+down 72 F
+up 98 F
+down 102 G
+up 128 G
+down 132 U
+up 158 U
+down 162 K
+up 188 K
+down 192 U
+up 218 U
+down 222 G
+up 248 G
+down 252 F
+up 278 F
+down 282 E
+up 308 E
+down 312 F
+up 338 F
+down 342 G
+up 368 G
+down 372 A
+up 398 A
+down 402 E
+up 428 E
+down 432 F
+up 458 F
+down 462 G
+up 488 G
+down 492 U
+up 518 U
+down 522 K
+up 548 K
+down 552 U
+up 578 U
+down 582 G
+up 608 G
+down 612 F
+up 638 F
+down 642 E
+up 668 E
+down 672 F
+up 698 F
+down 702 G
+up 728 G
+down 732 A
+up 758 A
+down 762 E
+up 788 E
+down 792 F
+up 818 F
+down 822 G
+up 848 G

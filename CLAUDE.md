@@ -143,6 +143,18 @@ runtime/   studio.h (public API: constants + declarations), studio.c (Raylib imp
              cursor.h    pixel MOUSE CURSOR in the canvas — cursor_draw(CUR_HAND/GRAB/ARROW/CROSS/MOVE)
                          + _tint; auto-hides the OS arrow ONLY when a real mouse is seen (no-op on touch),
                          call LAST in draw(); shows in screenshots/GIFs (the OS cursor never does)
+             pro.h       the IN-APP-PURCHASE gate a cart asks: pro_unlocked() / pro_for_sale() /
+                         pro_can_purchase() + pro_buy/_restore + a SHARED Pro sheet (ProSheet is the
+                         CART's struct, so the header stays stateless). A cart never names a product id:
+                         which product at what price comes from the app manifest via a GENERATED
+                         app_pro.h, so the same cart runs inside a paid app, in the free web gallery and
+                         in the editor. Owns the ONE copy of the weak Store_* bridge (tinyjam-menu.c used
+                         to declare its own) + pro_module_* for Tiny Jam's per-rack CONTENT axis.
+                         ⚠ FAILS OPEN by design (a build with no store links weak stubs answering
+                         "unlocked" — that IS the editor/web case), so a target with a paywall that
+                         forgets to link the real answer gives Pro away SILENTLY: exactly what every
+                         AUv3 target did until 2026-08-19. tools/pro-check.js is the gate that catches
+                         it. ADR-0035 · docs/design/pro-unlock.md
              fxicons.h   the shared VISUAL LANGUAGE for the engine effects: one icon + body/accent
                          colour per FX_* kind, so every cart's "pedals" read the same. Drawing an
                          effect toggle/stompbox/mode chip? Reuse the glyph, don't redraw it.
@@ -229,10 +241,78 @@ runtime/   studio.h (public API: constants + declarations), studio.c (Raylib imp
                          voicing; the rest are absolute controls reaching PAST both machines. morph_build/_ride/
                          _fire, params 0..1 by MD_*, MD_PANEL[] = the knobs to lay out. NOT tr808/tr909.h (two
                          FIXED faithful recipes) and NOT drumkit.h (a pad MAP): this is the SPACE between. morphbox
+             sideman.h   the shared WURLITZER SIDE MAN (1959) VOICE BANK: ten vacuum-tube circuits, the FIRST
+                         drum machine ever sold and the oldest drum sound here by two decades. sideman_build/_fire
+                         + the SIDEMAN_V voice table; SM_* 10-voice roster (BASS/TOM I+II/WOOD/TEMPLE I+II/CLAVES/
+                         BRUSH/MARACAS/CYMBAL). FOUR of the ten voices are struck WOOD, which is why the era reads
+                         as a "plock" and not as a beat: one damped ring through a resonant band, no noise, no
+                         layers, hard front, fast clean decay. The FULLNESS is not reverb, it is (1) every voice
+                         through DRIVE_ASYM at 0.45 and (2) the machine's ~60Hz-6kHz band limit (which IS the
+                         circuit, not the box: the coupling cap and the tube's bandwidth). ⚠ MEASURED, correcting
+                         what this line first claimed: DRIVE_ASYM is a tanh with an asymmetric PRE-GAIN, so the ODD
+                         partials lead the evens by 25-30 dB at every amount on every voice. The evens merely EXIST
+                         where they otherwise would not (h2 -94 dB bypassed → -39 dB driven), which is what
+                         separates it from DRIVE_SOFT. The fullness is the whole LADDER, not its even half.
+                         Deliberately does NOT own the
+                         BOX: the real unit had no speaker, it fed the organ's amp and cabinet, so that stage is the
+                         cart's, via outboard.h. sideman cart; design/sideman.md
+             drumpat.h   GENERATED (tools/gen-drumpat.js) from tools/drum-patterns.json: 565 MODERN
+                         16-STEP patterns in 92 named groups (CR78, the classic-genre set, then rock/funk/
+                         disco/reggae/house/hiphop/dnb/dubstep/EDM/breaks…), bit-packed one uint16 per role
+                         per pattern, so the library is 36 KB of rodata; read with dp_hit/dp_flam/dp_accent.
+                         DP_AC is a VELOCITY lane, not a drum, and some steps are FLAMS (a hit that wants a
+                         doubled stroke). ⚠ NOT the same thing as rhythmbox.h: this is 16 sixteenths, a
+                         step-sequencer grid, which structurally cannot express what the organ-era boxes did
+                         (24 counts a bar, six per beat, held gates, skipped states, two-bar claves) — so use
+                         rhythmbox.h for period hardware and this for a big modern vocabulary. Provenance is
+                         UNEVEN and the header says so: converted from the maker's own drum-patterns.lua,
+                         which cites "Drum Machine - 260 Patterns" for its core set and nothing for the later
+                         groups. --import re-parses that Lua file; --selfcheck round-trips every row.
+                         READER: the groovebook cart (92 groups, any LETTER jumps to the first group
+                         starting with it, plays while you scrub, thumbnails of a whole group at once)
+             rhythmbox.h GENERATED (tools/gen-rhythmbox.js) from design/rhythm-box-patterns.md: 101 PRESET
+                         RHYTHMS read off three manufacturers' OWN documents, the sourced answer to what an
+                         organ-era rhythm box actually plays. RB_FR2L[16] (Ace Tone Rhythm Ace FR-2L, c.1969,
+                         the units Ace Tone sold Hammond to build INTO organs) · RB_TR77[18] (Roland TR-77,
+                         1972) · RB_SGS[30] (SGS M252 LSI, both published factory masks, the chip that put
+                         AUTO RHYTHM inside cheap Italian organs) · RB_HAM[3] (a 1969 HAMMOND PATENT, the only
+                         source here with CHORD and BASS lanes: they GATE the notes the player holds, and the
+                         data shows the alternating root-fifth bass) · RB_M255[6] (pins NAMED on the datasheet,
+                         so FIFTH and CHORD TRIGGER are labelled accompaniment) · RB_M254[16] (eight of its
+                         twelve outputs feed the M251 accompaniment chip, so it is MOSTLY chord/bass content) ·
+                         RB_M253[12] (the sibling chip's mask AA; its OTHER
+                         mask is byte-identical to an M252 one and is deliberately NOT included, so the library
+                         holds no duplicates). A lane is a 48-bit MASK over counts, so the
+                         whole library is a few KB; read it with rb_trigger (NOT rb_hit: on the SGS the chip
+                         fires on a ROM bit's RISING edge, so adjacent marks do not sound twice and 66 of its
+                         955 marks are already sounding) / rb_used / rb_beat_of. THREE things a
+                         player must respect or it plays nonsense: per_beat and bars are PER RHYTHM (the FR-2L
+                         waltz divides its 24-count bar by THREE, its slow rock reads all 48 as one 12/8 bar),
+                         `unused` marks counts a rhythm SKIPS (the TR-77 hatches them), and RB_GATE lanes are
+                         HELD not struck (a brush swish, a guiro), and lane ROLE bits say whether a lane is a
+                         drum or gates a CHORD / LOW BASS / HIGH BASS. ⚠ FR-2L lane LABELS are provisional (75 dpi
+                         scan, the letterforms are interpolation) — lane ORDER is reliable, the letters are
+                         not, so assign voices by order and never claim which voice plays which lane. Elgam's
+                         own patterns are NOT here and cannot be: custom mask ROMs, never published (doc §5).
+                         By contrast sideman's twelve rhythms are RECONSTRUCTIONS, now labelled as such
              ampcab.h    the shared guitar AMP/CABINET voicing table: five amps as preset BUNDLES of effects we
                          already ship (instrument_drive + a DRIVE_* shaper + eq + glue), pinned like leslie, NOT
                          new DSP. ONE truth so the standalone amp + pinned cabinet agree. combo/pedalboard/
                          afrobeat/mixbooth/wba; design/effects-bus-architecture.md §E. Sibling of fxicons.h (LOOK)
+             outboard.h  the ampcab.h move for the MASTER bus: the four-stage ANALOG OUTBOARD CHAIN as one
+                         voicing table (EQ = eq_inst(0) · IRON = drive_insert(DRIVE_ASYM), the odd+even shaper ·
+                         COMP = an eq_inst(1) INPUT boost + glue(), since a FET unit has no threshold and is driven
+                         by its input · PLATE = reverb() + per-slot sends). Reach for it when a cart or app wants
+                         "the analog output chain" instead of hand-tuning eq/drive/glue per cart. TWO measured facts
+                         it carries so nobody re-derives them: the comp is PINNED after the inserts (so the only
+                         achievable order is EQ→IRON→COMP, never comp-first), and METER RMS on the comp, not
+                         peak — RMS is what moves (measured: at the hardest ratio glue takes 6.3 dB off the CREST
+                         and hands +2.3 dB of RMS back; before it gained makeup + a program-dependent release on
+                         2026-08-19 it did the OPPOSITE, so any older prose calling it "a ducker, not a limiter" is
+                         describing the old engine). Every stage bypasses BIT-EXACT (verified by diffing two
+                         renders, not asserted; the plate reconverges ~3.5s later because a reverb tail is real).
+                         ⚠ outboard_apply() OWNS the master insert order. outboard cart + tools/bypass-check.js;
+                         design/analog-outboard-chain.md
              harmony.h   the shared HARMONY BRAIN (bidirectional): 13-function roman-numeral vocab + per-style
                          Markov tables (HB_BOSSA/HB_COCKTAIL, byte-exact) — hb_pick (generate) + hb_suggest
                          (ranked next chords + reason) + hb_analyze (key-in numerals, -1 = honest ?). Voicing
@@ -541,6 +621,24 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
                              same MEAN pan). `--expect mono|wide|decorrelated|autopan [--rate hz]` = PASS/FAIL
                              gate, `--check` = self-test vs synthetic signals (RUN IT FIRST — a broken analyser
                              and a mono file print the same thing). Run after any pan/width/stereo edit
+             bypass-check.js the RECONVERGENCE oracle: switch an effect OUT and does the mix come back
+                             BIT-EXACT, and how long does it take? Nothing else asserts that. Renders the
+                             SAME run twice (a stage IN then switched out at frame N, vs never in) and locates
+                             the LAST DIFFERING SAMPLE, because a whole-file sha only ever says "differs" (every
+                             stage differs while it is IN, that is its job) and the question is whether the two
+                             RECONVERGE, and when. Tolerance is a TIME + a residual CEILING per stage, not a
+                             boolean: EQ and IRON return on the switching sample, COMP within 1 LSB inside 17 ms
+                             (a nulled `eq_inst` is an ALGEBRAIC null, not a float-exact one), PLATE 3.1 s later
+                             because a reverb tail is real. FOUR ways it refuses to pass vacuously — a
+                             byte-identical pair reads INCONCLUSIVE not PASS (the toggle never reached the DSP) ·
+                             a difference still going when the render ENDS is the render length, not a
+                             reconvergence · a sub-audible or 0.2%-of-samples difference means the stage was
+                             inert · and the baseline is rendered TWICE and must be byte-identical, or the whole
+                             comparison is measuring nondeterminism. Also fingerprints runtime/ before and after
+                             and reports THE ENGINE MOVED rather than a finding, since a parallel agent landing
+                             in sound.h mid-run compares two different builds (that happened). `--quiet` gates,
+                             `--selfcheck` = 30 known answers on constructed WAV pairs (no cart, no engine),
+                             mutation-tested. docs/design/analog-outboard-chain.md §4
              voice-trace.js  read a --trace run's voice-allocation events (on/off/reuse/steal/choke, naming the
                              victim) → why a voice stopped; twin of play.js --solo-slot (stem render). For "a solo got
                              cut off by another instrument". Design: docs/design/audio-voice-debugging.md
@@ -622,6 +720,25 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
                              answers. docs/design/iso-rooms.md
              font-bake.js    bake real-TTF text into sprite-draw canvases at build time
              gen-rom-font.js bake the "extra" bitmap fonts (ROM dumps + EPX) into the shared atlas
+             gen-drumpat.js  GENERATE runtime/drumpat.h from tools/drum-patterns.json (the committed parse
+                             of the maker's own drum-patterns.lua, which lives outside this repo; --import
+                             <file.lua> refreshes it). --check gates staleness · --selfcheck rebuilds every row
+                             string FROM THE EMITTED TEXT and diffs it against the JSON (565 patterns, 7345
+                             role slots) so it tests what ships rather than what is in memory, plus two
+                             liveness answers (a bass drum lands on step 0 somewhere; flams survive)
+             gen-rhythmbox.js  GENERATE runtime/rhythmbox.h from docs/design/rhythm-box-patterns.md (the
+                             doc is the source of truth: it carries the provenance and the confidence markers,
+                             the header carries only the bits). Parses FIVE lane notations the doc actually uses
+                             and REFUSES to write a partial header: an unparsable lane line is reported and the
+                             run fails, because a silently dropped lane would be a lie about a sourced dataset.
+                             --check gates staleness · --dry parses and reports · --selfcheck = 14 known
+                             answers taken from findings the doc states in PROSE, so a wrong regex cannot ship
+                             (two are whole-corpus structural invariants: no FR-2L mark may fall on an UNRULED
+                             count, no TR-77 mark on a HATCHED column). It has already earned its keep twice:
+                             it caught two 25-character rows in a 24-count bar in the committed doc, and a v1
+                             that stamped every FR-2L rhythm with a 6-count beat, which would have played the
+                             waltz wrong. Per-rhythm subdivisions live in a SUBDIV table, each entry citing the
+                             doc section that states it; a rhythm the doc does not pin keeps its machine default
              build-cart-index.js  GENERATE editor/public/carts/index.json from each cart's de:meta block
                              (cart owns its metadata; index.json is a derived view); --check gates staleness
              lint-carts.js   validate each cart's de:meta (tags/status/created/description) + assert
@@ -719,6 +836,18 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
                              every cart compiles, and it must not change), the opted-in path must not. A seam
                              checked only in its enabled state is half a seam. Pattern + how to do the next
                              header: docs/design/engine-context.md → "Cart-land"
+             pro-check.js    THE GATE for the Pro entitlement seam (runtime/pro.h + ios/Sources/
+                             Entitlements.swift): compiles pro.h four ways and asserts BOTH DIRECTIONS
+                             (a strongly-linked "no" must LOCK, a strongly-linked "yes" must UNLOCK —
+                             without the second, a probe that always says locked scores full marks),
+                             then the STRUCTURAL half: every AU_EXT target in the git-TRACKED
+                             ios/project*.yml must link Entitlements.swift + AppGroup.swift. That half is
+                             the one that matters, because pro.h fails OPEN: an extension with no
+                             entitlement source linked compiles, runs, looks perfect and hands Pro to
+                             everyone. Four negative controls (no store must read unlocked · a strong
+                             "yes" must unlock · the bridge must be REACHED carrying the manifest's own
+                             product id · a mutated yml must go red). --quiet gates, --selfcheck = 5
+                             known answers for the yml parser in both directions
              state-check/    THE ACCEPTANCE TEST for SESSION STATE — does a saved rack come back?
                              (`bash tools/state-check/run.sh`, 20 assertions.) Backs the AU's `fullState`:
                              `de_save_state`/`de_load_state` serialise INTENT — the sound config log +
@@ -1208,6 +1337,9 @@ profiler JSON has `workMsAvg/Max`, `calls[]`, `work[]`. Both work in any native 
   whole string as ONE argument (e.g. `profile-fleet.js $SET` → one bogus "cart"; a multi-file `clang
   $FLAGS` → "no such file"). Fix: inline the words, build an **array** `args=(a b c)` + `"${args[@]}"`,
   or force-split with `${=VAR}`. (A recurring agent trip-up — it bit this repo's profiling loops.)
+  **zsh arrays are 1-INDEXED too** (`a=(x y z)` → `$a[1]` is `x`, `$a[0]` is EMPTY), so a bash-style
+  `${a[$i]}` loop from 0 silently reads one slot early and an empty first element — it produced a
+  confidently wrong measurement in this repo rather than an error.
   **zsh also SHADOWS some commands as builtins:** `log show …` hits zsh's `log` builtin, which prints
   "too many arguments" on *stderr* and nothing on stdout — indistinguishable from "nothing was logged",
   which is how it cost two wrong conclusions in one afternoon. Use `/usr/bin/log`.

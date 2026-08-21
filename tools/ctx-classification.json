@@ -20,7 +20,7 @@
   }
  },
  "harness": {
-  "_why": "Debug/tooling only. Should not be in a shipping per-instance context at all.",
+  "_why": "Debug/tooling only, EXCEPT the wavcap group. ⚠ CORRECTED 2026-08-19: that group is no longer harness-only — export_audio() (ADR-0035's paid WAV export) drives the same buffer, so it is a PRODUCT path with process-global state. Consequence, written down rather than discovered: only ONE export can run per process, so two AUv3 instances in one host cannot export at once. sound_wavcap_begin already refuses a second start (wavcap_state != 0), so it fails cleanly rather than corrupting, and export_audio returns 0. Moving it into the context is the real fix and belongs to the per-instance lane. See docs/design/pro-unlock.md.",
   "wavcap_buf": {
    "line": 451
   },
@@ -53,6 +53,10 @@
   },
   "sound_solo_mask": {
    "line": 516
+  },
+  "wavcap_ch": {
+   "line": 106,
+   "note": "1 = mono downmix (the harness and every audio gate), 2 = interleaved L/R (export_audio). Same group, same limitation as the note above"
   }
  },
  "looks_like_harness_but_is_public_api": {
@@ -741,6 +745,26 @@
    },
    "kv_loaded": {
     "line": 6026
+   },
+   "export_pending": {
+    "line": 2093,
+    "note": "export_audio() — ADR-0035's paid audio export. It sits next to the wavcap harness statics and reads as tooling, which is the trap this group is named for: it is a SHIPPING feature. Shared for now because the sound.h buffer it drives is (see the `harness` group's corrected _why), so per-instance here would buy nothing while that stays global. CONSEQUENCE: one export per process, so two AUv3 instances cannot export at once — refused cleanly, never interleaved. docs/design/pro-unlock.md"
+   },
+   "export_fmt": {
+    "line": 2094,
+    "note": "export_audio() — same group and same limitation as export_pending above"
+   },
+   "export_cur": {
+    "line": 2095,
+    "note": "export_audio() — same group and same limitation as export_pending above"
+   },
+   "export_done": {
+    "line": 2096,
+    "note": "export_audio() — same group and same limitation as export_pending above"
+   },
+   "export_secs": {
+    "line": 2097,
+    "note": "export_audio() — same group and same limitation as export_pending above"
    }
   },
   "function_local": {

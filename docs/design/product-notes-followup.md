@@ -95,6 +95,18 @@ a buffer headless — the `--wav` path is the proto render-callback):
 
 ## 4. Monetization model (answers product-notes.md open Q "pricing shape")
 
+> **SUPERSEDED IN PART (2026-08-18) by [ADR-0035](../decisions/0035-free-with-one-pro-unlock.md).**
+> The **content axis** below survives (free base, per-rack IAP, one-time pass, no subscription,
+> price scheduling over hardcoded price text). What ADR-0035 adds is a **feature axis** this section
+> never had: one **Pro** unlock (**$4.99**) carrying WAV export, MIDI in/out and AUv3, sold per app.
+> One thing below is now wrong for us: **AUv3 is not "buying a rack unlocks the plug-in"**, it is
+> what Pro is *for*. The rest of the content axis is **not being rewritten yet**: ordering the
+> pass against Pro (`apps/tinyjam/app.json` sells `masterpass` at $4.99, exactly LEVEL with a $4.99
+> Pro while sounding bigger) and the climbing-price ladder are **parked behind a maker trigger, about
+> five music apps on the App Store**, because pricing a catalog you cannot see yet is guessing. So
+> read §4 as the shape we will return to *with* a catalog, not as live prices. §3's App Group
+> entitlement mechanic is unaffected and is exactly what Pro needs.
+
 The conversation lands a concrete, community-validated shape (the iOS-music crowd's stated
 preferences — verify against current norms but directionally sound):
 

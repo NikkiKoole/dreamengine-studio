@@ -2072,6 +2072,86 @@ static int harness_take_request(const char *path, char *out, size_t outsz, char 
     return out[0] != '\0';
 }
 
+// ── AUDIO EXPORT — the paid path that carries what you played OUT of the app ─────────────────
+// ADR-0035's wall is "it leaves the app", and this is the door. Design: docs/design/pro-unlock.md.
+//
+// It reuses the WAV capture already in sound.h (one tap on the final mix) rather than adding a
+// second recorder, with one change: export asks for STEREO. The harness and every audio gate read
+// a mono downmix and keep it, but autopan, chorus width and the stereo soft-clip are all real in
+// this engine, and a mono export would throw them away in the one artefact a customer keeps.
+//
+// ⚠ THE POLL LIVES HERE, NOT IN harness_inspect(), and that is the whole reason this is not three
+// lines inside it. harness_inspect sits under `#ifndef DE_RELEASE`, so in a SHIPPING build it never
+// runs: an export would capture happily, reach state 2, and the file would never be written. Silent,
+// and only in the build a customer has. export_poll() is called unconditionally from de_frame.
+//
+// ⚠ ONE EXPORT PER PROCESS. The capture buffer is process-global (tools/ctx-classification.json's
+// `harness` group, whose "debug only" reason this feature invalidated), so two AUv3 instances in one
+// host cannot export at once. It fails CLEANLY — sound_wavcap_begin refuses while busy and
+// export_audio returns 0 — rather than interleaving two racks into one file.
+static const char *save_path(const char *file);   // defined with the save-dir block further down
+static int   export_pending = 0;            // 1 = a capture we started is in flight
+static int   export_fmt     = EXPORT_WAV;   // what the CART asked for (the host may transcode)
+static char  export_cur[600];               // path being written
+static char  export_done[600];              // last finished export ("" = none yet)
+static float export_secs    = 0;            // what we asked for, for progress
+
+// The HOST hook: the file exists on disk, do something a human can reach. Weak, so a plain desktop
+// or web build links and simply leaves the file where it is (there is no share sheet to call).
+// iOS/macOS override it to hand the file to a share sheet, transcoding to M4A first when the cart
+// asked for it — the ENGINE never encodes anything but WAV, because AAC needs a platform encoder.
+__attribute__((weak)) void de_export_ready(const char *path, int format) { (void)path; (void)format; }
+
+int export_audio(const char *name, float seconds, int format) {
+    if (export_pending) return 0;                       // one at a time — see the note above
+    if (!name || !*name) name = "export";
+    if (seconds <= 0.0f) seconds = 8.0f;
+    if (seconds > 60.0f) seconds = 60.0f;               // the engine cap; a longer take is a DAW's job
+    // Into the cart's own save dir, so it inherits the sandbox-safe writable location the host
+    // already set (save_dir_set) instead of guessing a path that fails on iOS.
+    snprintf(export_cur, sizeof export_cur, "%s", save_path(name));
+    sound_wavcap_begin(export_cur, seconds, 2);         // 2 = stereo
+    if (wavcap_state != 1) return 0;                    // refused (already busy, or malloc failed)
+    export_fmt = format; export_secs = seconds; export_pending = 1;
+    return 1;
+}
+
+// Called every frame from de_frame, in EVERY build. Writes the file the moment the audio thread
+// finishes filling, then tells the host.
+#define EXPORT_FADE_MS 5             // enough to kill the boundary step, short enough to be inaudible
+
+static void export_poll(void) {
+    if (!export_pending) return;
+    // ⚠ FADE BEFORE THE WRITE, and only on the export path. A capture starts and stops at an
+    // arbitrary point in a running mix, so sample 0 is a STEP from silence to whatever was
+    // playing — click-check reads it at 279x the local step-rms, the largest event in the file,
+    // and it is the very first thing a listener hears in the artefact they paid for. The harness
+    // path is deliberately left alone: its output feeds byte-comparing gates.
+    if (wavcap_state == 2 && wavcap_buf && wavcap_total > 0) {
+        int ch = wavcap_ch < 1 ? 1 : wavcap_ch;
+        int fade = (SOUND_SAMPLE_RATE * EXPORT_FADE_MS / 1000) * ch;   // in SAMPLES, so scale by channels
+        if (fade * 2 > wavcap_total) fade = wavcap_total / 2;          // a very short take still fades cleanly
+        for (int i = 0; i < fade; i++) {
+            float g = (float)(i / ch) / (float)(fade / ch);            // per FRAME, so L and R stay in step
+            wavcap_buf[i] *= g;
+            wavcap_buf[wavcap_total - 1 - i] *= g;
+        }
+    }
+    sound_wavcap_poll();                 // state 2 → writes the WAV → state 0
+    if (wavcap_state != 0) return;       // still capturing
+    export_pending = 0;
+    snprintf(export_done, sizeof export_done, "%s", export_cur);
+    de_export_ready(export_done, export_fmt);
+}
+
+int   export_busy(void)     { return export_pending; }
+const char *export_last(void) { return export_done; }
+float export_progress(void) {
+    if (!export_pending || wavcap_total <= 0) return 0.0f;
+    float p = (float)wavcap_pos / (float)wavcap_total;
+    return p < 0.0f ? 0.0f : (p > 1.0f ? 1.0f : p);
+}
+
 static void harness_inspect(int fno) {
     char out[512];
     // screenshot
@@ -2119,7 +2199,7 @@ static void harness_inspect(int fno) {
         float secs = (float)atof(dur);
         if (secs <= 0.0f) secs = 5.0f;
         if (secs > 60.0f) secs = 60.0f;
-        sound_wavcap_begin(out, secs);
+        sound_wavcap_begin(out, secs, 1);   // 1 = mono: the audio gates all read mono, keep them byte-identical
     }
     sound_wavcap_poll();   // recording finished → write the WAV, go idle
 }
@@ -2691,6 +2771,17 @@ static void loop_step(void) {
 #endif
     if (shake_amt > 0) { shake_amt *= 0.85f; if (shake_amt < 0.2f) shake_amt = 0; }
 
+#ifndef PLATFORM_WEB
+    export_poll();                         // export_audio(): write + hand to the host. Every NATIVE
+                                           // build — the harness poll below is #ifndef DE_RELEASE
+                                           // (see its note). ⚠ THE GUARD IS NOT OPTIONAL: export_poll
+                                           // is DEFINED inside this file's #ifndef PLATFORM_WEB block
+                                           // (a browser has no host to hand a file to), so calling it
+                                           // unconditionally is an undeclared function on wasm and
+                                           // EVERY cart's web build dies. build-all.js compiles the
+                                           // NATIVE path only, so nothing catches it: it shipped
+                                           // green and took the whole gallery down for a day.
+#endif
 #ifndef PLATFORM_WEB
     harness_trace(fno);                    // structured state for this frame (before aging)
     uiaudit_flush(fno);                    // --uiaudit: this frame's draw bounding boxes

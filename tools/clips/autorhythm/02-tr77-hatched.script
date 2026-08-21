@@ -1,0 +1,11 @@
+# autorhythm: the TR-77's 6/8 MARCH, chosen because it is the rhythm that PROVES the
+# hatching. Its counter steps OVER four of its sixteen columns, so the panel reads
+# "steps 12 of 16 (hatched)" and the skipped states are drawn as struck-through ticks.
+# Machine 1 (]), then RIGHT five times to reach it, then run.
+tap 20 ]
+tap 35 RIGHT
+tap 45 RIGHT
+tap 55 RIGHT
+tap 65 RIGHT
+tap 75 RIGHT
+tap 90 SPACE

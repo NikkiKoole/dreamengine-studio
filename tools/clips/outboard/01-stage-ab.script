@@ -1,0 +1,30 @@
+# outboard — the whole story in one take: the rack in, then each stage out and back, then no headroom.
+# Deterministic and keyboard-only, so it survives a relayout (resolution-portable-input.md).
+# The cart boots on the FULL preset already playing, so there is nothing to start.
+# frames 900
+# fps 30
+# crf 28
+
+# ── bars 1-2: the whole rack, as it boots ─────────────────────────────────────
+# ── bar 3: park the PLATE out, because with it in every A/B below smears ~1s ──
+down 130 4
+up 131 4
+# ── one stage out, then back: EQ, then IRON, then COMP ────────────────────────
+down 220 1
+up 221 1
+down 310 1
+up 311 1
+down 400 2
+up 401 2
+down 490 2
+up 491 2
+down 580 3
+up 581 3
+down 670 3
+up 671 3
+# ── the punchline: take the headroom away and watch the rack stop mattering ───
+down 760 H
+up 761 H
+# ── and give it back ──────────────────────────────────────────────────────────
+down 860 H
+up 861 H

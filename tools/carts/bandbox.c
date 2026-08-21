@@ -241,6 +241,13 @@ static int bassSel = B_BAND;
 // the bass TONE — the SOUND of the bass voice (I_BSS), swapped by re-instrumenting the
 // slot (set-and-hold: only on a TONE-chip change). Recipes from instrument-recipes.md.
 static const char *BTONE_LAB[4] = { "SYNTH", "SUB", "FM", "UPRIGHT" };
+// The two bowed BODIES (audit §M2). One cart, one of each kind: the bass is PIZZ, the pad is ARCO, and
+// they read OPPOSITE on every meter — see the comments at each call site. Amounts start below the solo
+// carts' 0.85 because this is a full band (the ear's ordering: fuller arrangement, less box per player).
+#define BSS_BODY 0.6f    // upright pizz bass — ear 2026-08-21 (its ladder is NON-MONOTONIC in
+                         // peak: -20.5/-21.2/-21.2/-20.7 dBFS at 0/0.4/0.6/0.85, unexplained)
+#define PAD_BODY 0.6f    // arco string pad   — ear 2026-08-21, top of its ladder
+
 static int bassTone = 0;
 static void apply_bass_tone(void) {
     switch (bassTone) {
@@ -257,6 +264,11 @@ static void apply_bass_tone(void) {
         case 3:  // jazz upright double-bass pizzicato (bowed/upright-pizz recipe)
             instrument(I_BSS, INSTR_BOWED, 4, 0, 7, 360);
             instrument_mode(I_BSS, MODE_BOW_PIZZ, 1.0f);
+            // THE BODY (audit §M2): a double-bass-sized box, same as upright/walkbox/walkroll. PIZZ, so
+            // expect it to LOWER level and barely move the centroid — that is the box redistributing one
+            // injection, not failing (arco does the opposite; see the pad below).
+            instrument_mode(I_BSS, MODE_BOW_BODY, BSS_BODY);
+            instrument_mode(I_BSS, MODE_BOW_SIZE, BOW_SIZE_BASS);
             instrument_filter(I_BSS, FILTER_LOW, 1400, 4);   // brighter = more presence in the mix
             instrument_harmonics(I_BSS, 0.30f); instrument_timbre(I_BSS, 0.40f); instrument_morph(I_BSS, 0.45f); break;
     }
@@ -304,6 +316,12 @@ static void apply_pad_tone(void) {
                 instrument_filter(I_PAD, FILTER_LOW, 1600, 2); break;                          // analog string-machine saw
         case 2: instrument(I_PAD, INSTR_BOWED, 200, 0, 7, 500);                                // bowed strings (arco, holds)
                 instrument_mode(I_PAD, MODE_BOW_PIZZ, 0.0f);
+                // THE BODY (audit §M2) — violin-sized (the engine default) for a string pad. ⚠ It LOSES
+                // 1.9 dB across 0..0.6 even though it is ARCO, because the axis is POLYPHONY, not
+                // arco-vs-pizz: this slot plays CHORDS, and sound.h:330 divides the box's wet_share by
+                // the voice count (it radiates once however many strings drive it) while the per-voice
+                // blend's subtractive term is NOT divided. A chord slot gets quieter as the body rises.
+                instrument_mode(I_PAD, MODE_BOW_BODY, PAD_BODY);
                 instrument_filter(I_PAD, FILTER_LOW, 2200, 2);
                 instrument_harmonics(I_PAD, 0.40f); instrument_timbre(I_PAD, 0.40f); instrument_morph(I_PAD, 0.40f); break;
     }

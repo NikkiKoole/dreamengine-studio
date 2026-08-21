@@ -34,9 +34,18 @@ targets:
       - target: TinyjamAU       # embed the AUv3 extension into the app's PlugIns
         embed: true
     # de:au-end
-    # NOTE: the app-group entitlement is re-added once the group is registered for automatic
-    # provisioning. It blocks plain device signing until then, and the AppGroup UserDefaults
-    # suite works without it. (Was: application-groups group.com.tinyjam.)
+    # THE APP GROUP. Registered in the portal 2026-08-19 as "Mipolai shared entitlements". It is the
+    # ONLY channel a Pro purchase has to the AUv3: the extension is a separate sandboxed process that
+    # a host can load without this app ever launching, so it cannot ask StoreKit and reads what this
+    # app wrote here instead (ios/Sources/AppGroup.swift, docs/design/pro-unlock.md §8–§9).
+    # ⚠ It must be on BOTH halves of a pair. One side alone is not a shared container, and the
+    # failure is silent: UserDefaults(suiteName:) still hands back a working suite, so everything
+    # looks fine inside one process and nothing crosses. AppGroup.containerAvailable is the only
+    # honest test, and it reads nil until this is here AND signed.
+    entitlements:
+      path: Tinyjam.entitlements
+      properties:
+        com.apple.security.application-groups: [group.com.mipolai.shared]
     settings:
       base:
         GENERATE_INFOPLIST_FILE: YES
@@ -99,9 +108,21 @@ targets:
       - path: AU
       # the plug-in's VIEW is the SAME CanvasView the standalone app uses (hosted: true = blit-only)
       - Sources/CanvasView.swift
+      # THE ENTITLEMENT SOURCE. An appex links neither Store.swift nor StoreKit; without these two
+      # a cart's Store_IsModuleUnlocked resolves to pro.h's WEAK STUB, which answers TRUE, and the
+      # plug-in gives Pro away to everyone. Entitlements.swift + AppGroup.swift are the strong,
+      # fail-closed answer read out of the shared container. See Entitlements.swift's header.
+      - Sources/Entitlements.swift
+      - Sources/AppGroup.swift
       - ../runtime/studio.c
       - ../runtime/raylib_compat.c
       - gen/au/cart.c
+    # The READ side of the pair above — see that comment. Without this the plug-in has no shared
+    # container and answers "not entitled" to a customer who paid.
+    entitlements:
+      path: TinyjamAU.entitlements
+      properties:
+        com.apple.security.application-groups: [group.com.mipolai.shared]
     settings:
       base:
         GENERATE_INFOPLIST_FILE: NO

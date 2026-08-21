@@ -194,6 +194,10 @@ public final class TinyjamAU: AUAudioUnit {
         // Apple's own instrument template declares none.
         let inBusses = isEffect ? [try AUAudioUnitBus(format: format)] : []
         _inputBusArray  = AUAudioUnitBusArray(audioUnit: self, busType: .input,  busses: inBusses)
+        // The extension's own view of the shared container. Reported separately from the app's
+        // because they are separate processes with separate entitlements: the app's being fine says
+        // nothing about this one, and THIS is the side a paying customer's plug-in reads.
+        AppGroup.report("auv3")
         inDiag.initialize(to: InDiag())
         bypassFlag.initialize(to: 0)     // allocate() does not zero; a garbage byte here reads as "bypassed"
         if isEffect { deDiag("[tinyjam] AU is an EFFECT (\(fourCCString(ct))) — input bus declared") }

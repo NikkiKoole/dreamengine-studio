@@ -72,6 +72,15 @@ de:meta */
 #define MARI_SEED 0   // pin a favourite here (0 = free-roaming radio)
 
 // ── instrument slots (5..11) ───────────────────────────────────────────────
+// The violin BODY (audit §M2 / Reid Part 22): a violin's box is what makes it a violin rather than a
+// sawtooth, and INSTR_BOWED shipped without one. Violin-SIZED (the engine's default size, so only the
+// AMOUNT is set here) and one box per desk, which is right — two desks are two instruments.
+// The showcase cart runs 1.0 because it is demonstrating; a section sitting behind two trumpets and
+// three guitars wants less. A/B the ladder with:
+//   node tools/ab-render.js mariachi --set VLN_BODY=0.0f,0.6f,0.75f,1.0f --frames 1800 \
+//     --play-arg --solo-slot --play-arg 5,6
+#define VLN_BODY 0.75f
+
 #define I_VLN1   5   // violin 1 — melody lead          (INSTR_BOWED, scoop+vib)
 #define I_VLN2   6   // violin 2 — the third below       (INSTR_BOWED)
 #define I_TPT1   7   // trumpet 1 — section + stabs       (INSTR_BRASS)
@@ -498,12 +507,14 @@ static void apply_chair(int idx) {
             instrument_morph(I_VLN1, 0.70f);
             instrument_lfo(I_VLN1, 0, LFO_PITCH, 5.6f, 0.10f);             // vibrato
             instrument_env(I_VLN1, 0, ENV_PITCH, 0, sdk, sc1);            // the scoop INTO the note
+            instrument_mode(I_VLN1, MODE_BOW_BODY, VLN_BODY);             // the box (§M2)
             instrument(I_VLN2, INSTR_BOWED, atk, 0, 7, 340);
             instrument_harmonics(I_VLN2, 0.48f);
             instrument_timbre(I_VLN2, 0.32f);
             instrument_morph(I_VLN2, 0.62f);
             instrument_lfo(I_VLN2, 0, LFO_PITCH, 5.2f, 0.09f);
             instrument_env(I_VLN2, 0, ENV_PITCH, 0, sdk, sc2);
+            instrument_mode(I_VLN2, MODE_BOW_BODY, VLN_BODY);             // its OWN box — a second desk
             if (sel == 0) { instrument_pan(I_VLN1, -0.40f); instrument_pan(I_VLN2, 0.40f); }
             else          { instrument_pan(I_VLN1, -0.08f); instrument_pan(I_VLN2, 0.08f); }
         }

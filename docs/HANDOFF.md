@@ -1714,8 +1714,18 @@ a broken doc link or `#section`).
 >    in it. The tell is all three carts returning the SAME sha. Tracks parked 2026-08-21 at
 >    `tools/clips/{upright/01-walk-line,walkbox/01-loop,walkroll/01-loop}.script`, each carrying that trap in
 >    its header. (2) **NEXT: the rest**
->    with their own sizes: `mariachi` (2 violins), `polopan` (pizz), `bandbox` (bass + arco pad), `portapop`,
->    `modrack` slot 38. **`morphbox` is DONE (2026-08-21)** — it was missing from this list and was the
+>    with their own sizes: `polopan` (pizz), `bandbox` (bass + arco pad), `portapop`, `modrack` slot 38.
+>    **`mariachi` is WIRED (2026-08-21), amount NOT yet chosen** — both violin desks take a body at
+>    violin size (the engine default, so only the amount is set) behind a `VLN_BODY` define, currently
+>    0.75. One box per desk, which is right: two desks are two instruments. The `sinte` band option
+>    (`sel == 2`, saw synth-strings) is untouched by construction, since it is not `INSTR_BOWED`.
+>    ⚠ **A violin body reads OPPOSITE to a bass one on the meters** — it darkens and LIFTS level, because a
+>    violin box works ABOVE the centroid where a double-bass box works below it. Ladder on the violin STEM
+>    (`--solo-slot 5,6`, seed 7): 0.0 → −24.6 dBFS / 3680 Hz · 0.6 → −23.2 / 3515 · 0.75 → −22.5 / 3454 ·
+>    1.0 → −21.4 / 3358. Monotonic in both, so the meters cannot pick the amount and the ear has to:
+>    ear sets `build/ab/vln-body-{000,060,075,100}-{stem,mix}.wav`. `click-check` is red in every state
+>    including 0.0 (64 events, worst 15.6x at body 0 vs 12.5x at 1.0 — the body REDUCES it), so it is the
+>    fast son gate's own hard attacks, not this change. **`morphbox` is DONE (2026-08-21)** — it was missing from this list and was the
 >    easiest case in the set: its UPRIGHT voice is `INSTR_BOWED` pizz, the same instrument at the same
 >    `BOW_SIZE_BASS` cleared by ear the same day. The body lives in `runtime/morphdrum.h`'s `MD_UPRIGHT`
 >    setup (only `morphbox` includes that header, so the blast radius is one cart) behind a named

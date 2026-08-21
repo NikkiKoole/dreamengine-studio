@@ -1714,7 +1714,19 @@ a broken doc link or `#section`).
 >    in it. The tell is all three carts returning the SAME sha. Tracks parked 2026-08-21 at
 >    `tools/clips/{upright/01-walk-line,walkbox/01-loop,walkroll/01-loop}.script`, each carrying that trap in
 >    its header. (2) **NEXT: the rest**
->    with their own sizes: `polopan` (pizz), `bandbox` (bass + arco pad), `portapop`, `modrack` slot 38.
+>    with their own sizes: `bandbox` (bass + arco pad), `portapop`, `modrack` slot 38.
+>    **`polopan` is DONE (2026-08-21) — the ear picked `PIZZ_BODY` 0.4**, continuing the ordering: 0.85 for
+>    a solo upright, 0.6 for two violin desks in a six-piece, 0.4 for a pizz under a 16th groove with a
+>    marimba, a chorus and a kit over it. ⚠ **A PIZZ body reads BACKWARDS from an ARCO one on the meters**
+>    and this matters for `bandbox`, which has one of each: arco LIFTS level and darkens (mariachi, +3.2 dB
+>    and −322 Hz across 0..1), pizz LOWERS level and barely colours (polopan, −2.0 dB and +7 Hz across
+>    0..0.6; `morphbox` the same direction). A bow keeps feeding the box, a pluck is one injection the box
+>    only redistributes — so **do not read a pizz level drop as the body failing.** The ringdown trap did
+>    NOT bite: crest is flat (17.71 → 17.23) while rms tracks peak down, where an eaten tail would RAISE
+>    crest (peaks survive, tail energy goes). That crest test is the cheap way to check the additive blend
+>    on any pizz cart. Seeds: `polopan` rolls an archetype per song and only CANOPEE (`--seed 2`/4/5) and
+>    COEUR use the pizz at all, so a wrong seed renders a stem with NO pizz in it (seed 1 = `-inf`); read
+>    the rolled archetype out of `--trace` at `w.arch`. Ear sets `build/ab/pizz-body-{000,025,040,060}-{stem,mix}.wav`.
 >    **`mariachi` is DONE (2026-08-21) — the ear picked `VLN_BODY` 0.6** from a 0 / 0.6 / 0.75 / 1.0 ladder.
 >    That is BELOW the showcase cart's 1.0 and below the double basses' 0.85, which is the transferable
 >    result: **the fuller the arrangement, the less box per player.** A solo upright can be mostly box; two

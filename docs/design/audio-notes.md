@@ -2744,3 +2744,51 @@ copy-pasted; the bug was assuming one map fits both.
 physically perceive?* — and the answer was "one channel." The gap was not a missing test, it was a
 shared helper quietly discarding half the signal before any test ran. Worth asking of the next
 oracle: what does its input throw away before it looks?
+
+## 28. The bowed BODY turns a CHORD down — polyphony vs `wet_share` (2026-08-21)
+
+`MODE_BOW_BODY` (the `INSTR_BOWED` box, Synth Secrets §M2) makes a **monophonic** slot louder and a
+**polyphonic** one quieter. Measured while ear-passing the amount across six carts:
+
+| cart | the bowed slot's voicing | peak across a 0 → max body ladder |
+|---|---|---|
+| `mariachi` | arco, **ONE note per slot** (two desks in parallel thirds) | **−24.6 → −21.4 dBFS** — gains 3.2 |
+| `bandbox` pad | arco, **CHORDS** | −15.1 → −17.0 — loses 1.9 |
+| `polopan` | pizz, one note per step | −26.1 → −28.1 — loses 2.0 |
+| `morphbox` | pizz, mono | −24.0 → −25.0 — loses 1.0 |
+| `bandbox` bass | pizz, mono | −20.5 → −20.7, **non-monotonic** (dips to −21.2 mid-ladder; unexplained) |
+
+**Why.** The body is ONE shared box per slot, and [`sound.h:330`](../../runtime/sound.h) divides its
+output by the number of voices reading it —
+
+```c
+bd->wet_share = wet / (float)(n > 0 ? n : 1);   // "RADIATES ONCE however many strings drive it"
+```
+
+— which is right, and matches a real instrument where four strings drive one shell. But the per-voice
+blend at `:3566` is `dc + amt * (wet_share - dc * 0.3f)`, and that **subtractive** `- dc*0.3*amt` term
+is **per voice and NOT divided**. So a four-note chord takes four times the subtraction against a
+quarter of the box each, and raising the body turns the chord *down*.
+
+**Open question — is that correct?** It is the one asymmetry in this pass that looks like a defect
+rather than a design choice. A real quartet does not get quieter as its bodies resonate. Anyone
+touching it: the ratio is deliberate elsewhere in the mix, so measure before "fixing".
+
+**Two consequences for anyone A/B-ing a body, both of which cost a round here.**
+
+- **A level drop is not the body failing.** The first write-up of this said "arco lifts, pizz lowers",
+  generalised from one cart, and `bandbox`'s arco pad falsified it within the hour. The axis is
+  polyphony, and only a mono arco slot gains.
+- **Centroid and brightness cannot pick the amount on a chord slot** — the level moves and the colour
+  barely does (`polopan`: 7 Hz of centroid across its whole ladder, against `mariachi`'s 322 Hz).
+  A body is a frequency response, so reach for [`harmonic-spec`](../../tools/harmonic-spec.js) and pick
+  the gate by where the box lives: a violin box works ABOVE the centroid, a double-bass box below it,
+  which is why `wav-envelope` reported "no change" on a bass across a ±17 dB reshaping.
+
+**The cheap ringdown check on a PIZZ body is CREST, not decay.** The §M2 trap is that blending a body as
+a crossfade discards the string's own ringdown (a crossfade at 0.8 made a pizzicato die twice as fast).
+Isolating one note's decay inside a 16th groove is hard; crest is free. An eaten tail **raises** crest,
+because the peaks survive and the tail energy goes. `polopan` reads 17.71 → 17.23 dB across its ladder
+with rms tracking peak down, so the tail is intact and the loss is honest attenuation.
+
+Amounts, and the ordering they landed in: [`synth-secrets-plan.md` → 2.4](synth-secrets-plan.md#24--the-bodys-amount-ear-passed-per-cart-2026-08-21).

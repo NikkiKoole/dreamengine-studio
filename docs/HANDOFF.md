@@ -1661,7 +1661,7 @@ a broken doc link or `#section`).
 > (`runtime/ampcab.h` is the shared voicing table; `fxicons.h` is the shared pedal LOOK).
 > Hot files: `tools/carts/pedalboard.c`, `runtime/ampcab.h`, `apps/pedalboard/app.json`.
 
-> **▶ ACTIVE THREAD (2026-07-31) — Synth Secrets: the audit is COMPLETE, the build plan is running (Phase 0 done, **PHASE 1 COMPLETE 7/7**, **PHASE 2: 2.1, 2.2 and 2.3(a) SHIPPED — PIANO now has real stiff-string inharmonicity + a completed Railsback curve; 2.3(b) DROPPED on measurement; 2.4's bowed body now SHARED PER SLOT with a size axis, and defaulting it on is the live item**).**
+> **▶ ACTIVE THREAD (2026-08-21) — Synth Secrets: the audit is COMPLETE, the build plan is running (Phase 0 done, **PHASE 1 COMPLETE 7/7**, **PHASE 2: 2.1, 2.2 and 2.3(a) SHIPPED — PIANO now has real stiff-string inharmonicity + a completed Railsback curve; 2.3(b) DROPPED on measurement; 2.4's bowed body now SHARED PER SLOT with a size axis, and defaulting it on is the live item**).**
 > The owner supplied Gordon Reid's **Synth Secrets** (Sound On Sound, 63 parts, 1999-2004) and asked for a
 > cross-check against `runtime/sound.h`. **All 63 articles are now read**: an architecture pass plus eight
 > per-family recipe passes, ~106 sub-findings, every one citing both sides (part + issue on the book side,
@@ -1699,8 +1699,21 @@ a broken doc link or `#section`).
 >    The size range now reaches a **DOUBLE BASS** (`BOW_SIZE_BASS`, 4.50x, 736-sample line, `BOW_BODY_MAX`
 >    768) because the three upright carts are basses and a cello box was still too small. Affordable only
 >    because bodies are shared. `BOW_SIZE_CELLO` is `0.7086f` so widening did not re-voice the approved cello.
->    **NEXT HERE, in order:** (1) the owner listens to the three baked bass carts — `upright`, `walkbox`,
->    `walkroll` (body 0.85 at BOW_SIZE_BASS; peak drops ~2 dB, a real mix-balance change). (2) Then the rest
+>    **NEXT HERE, in order:** (1) ✅ **CLEARED 2026-08-21 — the owner listened to the three bass carts and
+>    the verdict is "it sounds fine", so the body STAYS ON** in `upright`, `walkbox` and `walkroll` (body 0.85
+>    at BOW_SIZE_BASS, which is what their source already shipped — this step was the approval, not an edit).
+>    ⚠ **The "~2 dB peak drop" this lane predicted did NOT reproduce.** Measured ON-vs-OFF peak is 0.5 dB on
+>    `upright` and inside 0.1 dB on the other two, so the mix-balance worry was overstated. What the body
+>    actually moves is the 120–200 Hz region (`walkbox` h3 −17.2 → −1.9 dB, h4 −18.4 → −3.8 dB read at 41 Hz)
+>    while the centroid shifts under 10 Hz — the exact blindness the ⚠ two lines below warns about.
+>    Ear sets: `build/ab/bass-body-{upright,walkbox,walkroll}-{ON,OFF}.wav`, regenerate with
+>    `node tools/ab-render.js <cart> --set BODY_AMT=0.85f,0.0f --frames 900 --script tools/clips/<cart>/01-*.script`.
+>    ⚠ **Drive these three from their COMMITTED CLIPS, never `script /dev/null`** — all three render DIGITAL
+>    SILENCE with no input (the sequencers boot stopped; `upright` is a played instrument with no transport),
+>    and `ab-render` then reports "the flag did not reach the DSP", which is a lie about a take with no notes
+>    in it. The tell is all three carts returning the SAME sha. Tracks parked 2026-08-21 at
+>    `tools/clips/{upright/01-walk-line,walkbox/01-loop,walkroll/01-loop}.script`, each carrying that trap in
+>    its header. (2) **NEXT: the rest**
 >    with their own sizes: `mariachi` (2 violins), `polopan` (pizz), `bandbox` (bass + arco pad), `portapop`,
 >    `modrack` slot 38. (3) **Leave `soundcheck`/`tunecheck`/`voicestress`/`pipetune` body-OFF** — they feed
 >    the audio gates, so re-voicing them moves the baselines.

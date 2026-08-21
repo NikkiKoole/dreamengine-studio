@@ -36,6 +36,30 @@ au_identity_load() {
   # `aumf` (MUSIC EFFECT — the `m` is music, the `f` is effect) is the one to pick for an effect that
   # also wants notes; plain `aufx` has no reliable MIDI in. docs/design/auv3-plugin-types.md §1.
   AU_TYPE="$(node -p "require('$m').auType || 'aumu'")"
+  # ── THE COMPANION COMPONENT (optional) ────────────────────────────────────────────────────────
+  # A host lists a plug-in in the slot its TYPE names, and nowhere else: GarageBand's instrument list
+  # is `aumu` only, so an `aumf` cart can process someone else's track and can never be PLAYED there,
+  # however well it reads host notes (measured 2026-08-18 — GarageBand does not deliver MIDI to an
+  # effect slot at all). The fix is not to re-type the cart, which would lose the insert: it is to
+  # declare BOTH components in the one appex. `AudioComponents` is an ARRAY, and TinyjamAU derives
+  # `isEffect` PER INSTANCE from componentDescription.componentType, so each instantiation configures
+  # its own buses with no code change. auv3-plugin-types.md §4.1e.
+  # ⚠ The companion's subtype is FOREVER too, exactly like the primary's — it is a second identity a
+  # DAW will store in saved projects, not an alias of the first.
+  AU_SUBTYPE_INST="$(node -p "require('$m').auSubtypeInstrument || ''")"
+  if [ -n "$AU_SUBTYPE_INST" ]; then
+    case "$AU_TYPE" in
+      aumf|aufx) ;;
+      *) echo "✗ auSubtypeInstrument is for an EFFECT app: it adds an aumu companion so the rack is";          echo "  playable in a host's instrument slot. auType is '$AU_TYPE', which already IS an";          echo "  instrument, so the companion would collide with it."; return 1 ;;
+    esac
+    case "$AU_SUBTYPE_INST" in
+      [[:alnum:]][[:alnum:]][[:alnum:]][[:alnum:]]) ;;
+      *) echo "✗ auSubtypeInstrument must be exactly 4 alphanumeric chars, got '$AU_SUBTYPE_INST'"; return 1 ;;
+    esac
+    # The two components differ ONLY by (type, subtype), so an equal subtype makes them the same
+    # component declared twice — which is not an error a host reports, it just registers one.
+    [ "$AU_SUBTYPE_INST" != "$AU_SUBTYPE" ] || {       echo "✗ auSubtypeInstrument '$AU_SUBTYPE_INST' equals auSubtype — the companion needs its OWN code."; return 1; }
+  fi
   case "$AU_TYPE" in
     aumu|augn|aufx|aumf|aumi) ;;
     *) echo "✗ auType '$AU_TYPE' is not one of aumu/augn/aufx/aumf/aumi (docs/design/auv3-plugin-types.md §1)"; return 1 ;;
@@ -148,4 +172,47 @@ au_identity_apply() {
     grep -qF -- "$want" "$spec" || { echo "✗ AU identity did not substitute: expected '$want'"; \
       echo "  $spec's AU block moved — fix the sed targets in ios/au-identity.sh."; return 1; }
   done
+  # ── THE COMPANION aumu, APPENDED AS A SECOND ARRAY ITEM ────────────────────────────────────────
+  # ⚠ THIS MUST RUN AFTER THE SEDS ABOVE, AND THAT ORDER IS THE WHOLE TRICK. Those seds are
+  # line-oriented and unanchored to any one item, so with two component blocks present they would
+  # rewrite BOTH `subtype:` lines to the primary's code — leaving two entries that differ only by
+  # `type:` and silently registering one plug-in twice under one identity. Substituting first and
+  # appending literal final values second means nothing can rewrite the companion.
+  if [ -n "${AU_SUBTYPE_INST:-}" ]; then
+    node -e '
+      const fs = require("fs"), [spec, sub, manu, name] = process.argv.slice(1)
+      const L = fs.readFileSync(spec, "utf8").split("\n")
+      const key = L.findIndex(l => /^\s*AudioComponents:\s*$/.test(l))
+      if (key < 0) { console.error("no AudioComponents: key in " + spec); process.exit(1) }
+      const first = L.findIndex((l, i) => i > key && /^\s*- type:/.test(l))
+      if (first < 0) { console.error("AudioComponents: has no `- type:` item in " + spec); process.exit(1) }
+      const ind = L[first].match(/^(\s*)-/)[1]          // the SEQUENCE ITEM indent, read from the file
+      // End of the first item = the next non-blank line indented no deeper than the item dash. Read
+      // from the spec rather than assumed, so re-ordering or adding keys inside the block cannot
+      // silently put the companion in the wrong place.
+      let end = L.length
+      for (let i = first + 1; i < L.length; i++) {
+        if (!L[i].trim()) continue
+        if (L[i].match(/^(\s*)/)[1].length <= ind.length) { end = i; break }
+      }
+      L.splice(end, 0, ...[
+        ind + "- type: aumu",
+        ind + "  subtype: " + sub,
+        ind + "  manufacturer: " + manu,
+        ind + "  name: \"" + name + "\"",
+        ind + "  version: 1",
+        ind + "  sandboxSafe: true",
+        ind + "  tags:",
+        ind + "    - Synthesizer",
+      ])
+      fs.writeFileSync(spec, L.join("\n"))
+    ' "$spec" "$AU_SUBTYPE_INST" "$AU_MANUF" "$AU_NAME" || {
+      echo "✗ could not append the aumu companion to $spec"; return 1; }
+    # Assert the RESULT, same reason as the loop above: two components must be present, and the
+    # companion's own subtype must have survived. A grep for `aumu` alone would pass on the primary.
+    [ "$(grep -cE '^ +- type: (aumu|aumf|aufx)$' "$spec")" = "2" ] || { \
+      echo "✗ expected exactly 2 AudioComponents entries in $spec after appending the companion"; return 1; }
+    grep -qF -- "subtype: $AU_SUBTYPE_INST" "$spec" || { \
+      echo "✗ the companion's subtype '$AU_SUBTYPE_INST' is not in $spec"; return 1; }
+  fi
 }

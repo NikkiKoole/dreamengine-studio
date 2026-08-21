@@ -128,6 +128,13 @@ public final class TinyjamAU: AUAudioUnit {
         // (theirs vs OURS). So poison the buffer with a value no audio path produces and see if it
         // survives the pull. Without this the probe points confidently at the wrong half.
         var unwritten = UInt64(0)   // pull said noErr and left our sentinel in place
+        // §4.1e: MIDI events the HOST delivered to THIS component. The question it answers cannot be
+        // answered any other way: a host lists a plug-in only in the slot its componentType names, and
+        // GarageBand's instrument list is `aumu` only — so an `aumf` may be perfectly able to read host
+        // notes and simply never be sent any. "No sound from the keys" cannot tell those apart, and
+        // guessing cost a DAW pass. With both components declared, the two instances are each other's
+        // CONTROL: notes on the aumu prove the counter works, zero on the aumf proves the routing gap.
+        var midiRx = UInt64(0)
         var nonfinite = UInt64(0)   // a pull delivered inf/NaN (auval does; a DAW should not)
     }
     private let inDiag = UnsafeMutablePointer<InDiag>.allocate(capacity: 1)
@@ -622,10 +629,15 @@ public final class TinyjamAU: AUAudioUnit {
     // One line a second while the effect renders. It captures the POINTER and the id, never `self`:
     // a timer holding the AU would keep it alive past deinit and break the teardown ledger.
     private func startInDiag() {
-        guard isEffect, inDiagTimer == nil else { return }
+        // NOT `guard isEffect` any more (§4.1e). With two components declared, the INSTRUMENT
+        // instance is the one that proves the MIDI counter works at all — gate this on isEffect and
+        // the only instance a host sends notes to is the one that reports nothing, which is precisely
+        // the "absence is not evidence" shape this probe was written to stop.
+        guard inDiagTimer == nil else { return }
         let t = DispatchSource.makeTimerSource(queue: DispatchQueue.global(qos: .utility))
         t.schedule(deadline: .now() + 1.0, repeating: 1.0)
-        let d = inDiag, id = instanceID
+        let d = inDiag, id = instanceID, eff = isEffect
+        let kindStr = isEffect ? "EFFECT" : "INSTRUMENT"
         t.setEventHandler {
             let v = d.pointee
             d.pointee.peak = 0               // per-report, so a second of silence reads 0.00000
@@ -648,6 +660,10 @@ public final class TinyjamAU: AUAudioUnit {
             if cn > 0 { for i in 0..<Int(min(cn, 16)) { list += (i == 0 ? "" : ",") + String(kinds[i]) } }
             deDiag("[tinyjam] FXCHAIN · bus 0 holds \(cn) insert(s)" + (cn > 0 ? " · kinds \(list)" : " · EMPTY")
                    + " · dropped \(de_sound_dropped()) · pulls \(v.pulls)")
+            // §4.1e: does the host deliver MIDI to THIS component? Printed for both kinds and naming
+            // which kind it is, so one log shows the comparison without anybody matching pids to slots.
+            deDiag("[tinyjam] HOSTMIDI · inst \(id) · \(kindStr) · events \(v.midiRx)")
+            if !eff { return }        // the rest of this report is about the effect INPUT path
             // ⚠ THIS USED TO `return` WHEN pulls == 0, "to avoid filling the log". That silence WAS
             // the most important state in the whole diagnosis and I hid it: a plug-in that loads,
             // allocates, draws its panel and is NEVER RENDERED prints exactly nothing, which reads
@@ -725,6 +741,7 @@ public final class TinyjamAU: AUAudioUnit {
             var ev = eventListHead
             while let e = ev {
                 if e.pointee.head.eventType == .MIDI {
+                    inDiag.pointee.midiRx &+= 1     // §4.1e: counted BEFORE we interpret it — arrival is the question
                     let m = e.pointee.MIDI
                     if m.length >= 3 {
                         let status = m.data.0 & 0xF0, d1 = Int(m.data.1), d2 = Int(m.data.2)

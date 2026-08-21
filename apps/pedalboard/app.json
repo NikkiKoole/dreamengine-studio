@@ -9,6 +9,7 @@
   "auType":         "aumf",
   "auName":         "Mipolai: Tiny Pedalboard",
   "auSubtype":      "tpdl",
+  "auSubtypeInstrument": "tpdi",
   "auManufacturer": "Mpla",
   "auDisplayName":  "Tiny Pedalboard",
   "micUsage": "Lets you play your guitar, voice, or any sound live through the effects in real time. Audio is processed on your device and is never recorded, stored or sent anywhere.",

@@ -653,6 +653,18 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
                              byte-identical audio, i.e. the flag never reached the DSP and the numbers are
                              meaningless (that bug already cost a bogus finding once). The LISTEN-item
                              workhorse for design/synth-secrets-plan.md; measures, never judges
+             ref-render/     render a note from somebody ELSE'S physical model, so ours has something to
+                             be WRONG against — `run.sh stk <Brass|Flute|Clarinet|Bowed>` or `run.sh luthier
+                             <gut|steel|…>`, fetched+built on demand, output timed to match tools/carts/bowprobe.c
+                             so both drop into the same oracles. Every other gate checks an OUTPUT PROPERTY (in
+                             tune, right level, no clicks); NONE asks whether the MECHANISM is sane, which is how
+                             INSTR_BOWED ran for months with a friction coefficient ABOVE 1.0 behind a green
+                             board. A second implementation is what caught it. Carries peaks.js (partial
+                             frequencies at 0.33 Hz, the LONG window — inharm-spec's 0.3s one ALIASES our own
+                             ±15.5¢ vibrato and invents a partial stretch) + a per-reference state table:
+                             Clarinet ✅, Flute ◐ (+28¢, its own "fudge correction"), Bowed ◐ (octave), Brass ✗
+                             (won't self-oscillate). ⚠ STK+luthier are MIT (borrow WITH attribution, as
+                             BOW_BODY_HZ does); flute-lv2 is GPL-2.0 — measure against, never copy
              filter-spec.js  measure a per-voice FILTER's actual response (slope dB/oct, resonance peak,
                              bass drain per res step) via a generated probe cart — acceptance evidence for
                              any sound.h filter change; born from the 303-fidelity spike (audio-notes §25)

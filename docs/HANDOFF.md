@@ -44,6 +44,34 @@ a broken doc link or `#section`).
 > What a reader needs to *choose* a lane is in the front-door output; what they need to *resume*
 > one is in the lane itself. A summary in between is a third copy, and it is the copy nobody
 > updates. If you find yourself writing one again, teach `handoff.js` to print it instead.
+> **▶ ACTIVE THREAD (2026-08-25) — REFERENCE-MODEL COMPARISON: bowed is fixed, brass/pipe unchecked.**
+>
+> Started from the maker saying [chrisjz/luthier](https://github.com/chrisjz/luthier) sounded better
+> than our `INSTR_BOWED`. It did, and the reason was a **friction coefficient above 1.0** — the bow
+> returning more energy than arrived, every sample, at every pressure, behind a fully green board.
+>
+> **✅ SHIPPED (`ad657323`):** normalised friction (waveform went from NOISE to a real Helmholtz
+> ramp) · body swapped from a 3-line comb to 4 modal biquads (centroid 3728 → 2027 Hz, and the pool
+> shrank 72 KB → 1.2 KB) · faster arco onset (0.5 s → 0.2 s, ear-confirmed). All cost-neutral or
+> cheaper. Plus `tools/carts/bowprobe.c` (one note, because the showcase cart has autoplay ON) and
+> [`tools/ref-render/`](../tools/ref-render/run.sh) (render a note from STK or luthier and put it
+> beside ours — read its header's per-reference state table BEFORE trusting one).
+>
+> **Resume-at:** [`audio-notes.md → 29.1`](design/audio-notes.md#291-what-is-still-open) — the ~7 dB
+> gap, why "damp the highs" is the wrong fix, and the `brLoss` bifurcation that must be swept across
+> notes and pressures before any value ships.
+>
+> **Next, in order:** (1) a **periodicity gate** — a sustained note from a self-oscillating engine
+> must be periodic; no tolerance argument, one plot, and it would have caught this in one command.
+> It protects every engine, not just bowed. (2) STK `Clarinet` is a ✅ usable reference *today* —
+> point it at our `INSTR_REED`. (3) STK `Brass` **won't self-oscillate** at any amplitude 0.8-1.2 ×
+> lip CC 64/96 tried, so the brass question the maker actually asked is still open and needs either
+> a working STK config or a different reference.
+>
+> **Hot files:** `runtime/sound.h` (the bowed engine + the `bow_body_*` pool) and
+> `runtime/sound_ctx.h` (the `BowBody` struct — hand-edited, and `ctx-gen --check`/`--verify` both
+> still pass over it, so re-run them if you touch it).
+
 > **▶ ACTIVE THREAD (2026-08-19) — PRO + EXPORT: the seam is built and PROVEN ON A PHONE, and no shipping cart uses it yet.**
 >
 > The engineering behind [ADR-0035](decisions/0035-free-with-one-pro-unlock.md) (free apps, one

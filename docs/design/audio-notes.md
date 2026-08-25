@@ -2792,3 +2792,80 @@ because the peaks survive and the tail energy goes. `polopan` reads 17.71 → 17
 with rms tracking peak down, so the tail is intact and the loss is honest attenuation.
 
 Amounts, and the ordering they landed in: [`synth-secrets-plan.md` → 2.4](synth-secrets-plan.md#24--the-bodys-amount-ear-passed-per-cart-2026-08-21).
+
+## 29. INSTR_BOWED vs a reference implementation: the friction was over unity (2026-08-25)
+
+The maker pointed at [chrisjz/luthier](https://github.com/chrisjz/luthier) (MIT), an FDTD stiff-string
+solver, and said it sounded better than ours. It did. Extracting its physics core and rendering
+reference notes offline turned that into numbers, and the numbers found a real bug.
+
+**The bug.** `sound_bowed_sample`'s friction was `pres * dv * exp(-pres*dv*dv)` with
+`pres = pressure*5 + 0.5`, so the friction COEFFICIENT at `dv = 0` was `pres` itself: **1.0 to 1.8**.
+Above 1 means the bow hands the string back more velocity than arrived, unconditionally, at every
+pressure. STK's `BowTable` clamps that coefficient to 1 for exactly this reason. Two consequences,
+both measured: the curve's knee sat at `dv` 0.53-0.71 while the bow only moves at 0.06-0.18, so the
+curve was **linear across the whole operating range** (a negative resistance, not stick-slip), and
+the string swung ~25× the bow velocity where Helmholtz motion at that bow position wants ~7×.
+Normalising it (`BW_GRIP_LIGHT/HEAVY`) turned the waveform from **noise into a visible two-slope
+Helmholtz ramp**. Same op count. Makeup went 0.7 → 2.2 because the over-unity gain had been doing
+~10 dB of the amplitude work.
+
+**The body was the wrong model.** Three delay lines in the 1-4 ms window is a COMB: evenly spaced
+peaks *and nulls* across the band, which measured as a jagged spectrum (h2 +5.5 dB, h9 -48) and
+pushed the centroid **up**, 2467 → 2634 Hz. A real box pulls it **down** (luthier: 1251 → 885).
+Replaced with four biquad bandpass modes at luthier's 102/208/431/857 Hz, its Qs and gains. Centroid
+3728 → 2027 Hz, and the cost FELL: `BowBody` went 2304 floats → 36, so the pool is 1.2 KB not 72 KB.
+
+**Onset.** Arco seeded the string at 0.005 against a steady state near 0.5, so a note spent half a
+second climbing 40 dB and audibly "warming up". 0.05 puts full level 0.2 s after onset. ⚠ This
+shortens the AMPLITUDE ramp only, and the maker confirmed it by ear.
+
+### 29.1 What is still open
+
+Against the textbook `1/n · sin(nπβ)` bowed-string law, luthier tracks within a few dB and **ours
+sits a near-constant 6-9 dB below it for every partial above the fundamental**. A constant offset on
+everything except h1 means our FUNDAMENTAL is ~7 dB too strong, not that our highs are too loud —
+which kills the obvious "damp the highs" fix, since that would make it dull without making it full.
+
+The mechanism, found by sweeping their own material table: **fullness tracks σ₀**, their
+frequency-independent damping. Their steel (σ₀ 0.45) measures h2 = -2.9 and behaves like ours; their
+gut (σ₀ 1.5) measures +4.7. Our analogue is loop loss, and it reproduces the effect — `brLoss` 0.93
+gives h2 = +5.2 against a +4.7 target. **But it is a bifurcation, not a knob:** 0.995 down to 0.945
+changes *nothing*, then 0.94/0.935/0.93 changes everything. Do not ship a value off one measurement;
+sweep across notes and bow pressures first.
+
+That flat region is the real structural difference: **our spectrum is set by the nonlinearity,
+theirs by the damping.** The lever on our side is the shape of the friction curve, not the loss.
+
+### 29.2 Two measurement traps that cost a full round of wrong conclusions
+
+1. **`inharm-spec`'s 0.3 s window ALIASES our own vibrato.** BOWED runs a humanised 5.3 Hz pitch
+   vibrato at `±0.9% = ±15.5 cents`. Short windows caught different phases of it and reported the
+   partials sliding from 14¢ flat to 14¢ sharp. A 3 s window shows them locked to **within 0.2
+   cents** of each other. There was never a partial stretch. Use `tools/ref-render/peaks.js` with an
+   explicit long window when the question is *where* a partial is.
+2. **`bowed.c` has `autoplay = true`.** Every render made through the showcase cart is a CHORD, so a
+   whole round of "spectrum" numbers was a mixture of pitches. `tools/carts/bowprobe.c` exists
+   because of this: one note, nothing else.
+
+Four mechanisms were eliminated by measurement before σ₀ was found, recorded so nobody re-runs them:
+reflection-filter group delay (0.13¢, two orders too small), linear interpolation on the fractional
+reads (stretch survives forcing integer reads), luthier's bridge resonator (moving it 500 → 3000 Hz
+shifts h2 by 0.5 dB), and observing at the bridge rather than the bow (made it slightly worse).
+
+### 29.3 The general lesson, and the tool
+
+Every gate we own checks an **output property** — in tune, right level, no clicks, reconverges. Not
+one asks whether the **mechanism** is physically sane, which is how a coefficient above 1.0 in a
+feedback loop survived for months behind a fully green board. What caught it was having a second
+implementation to put beside ours. That is now
+[`tools/ref-render/`](../../tools/ref-render/run.sh): `run.sh stk <Brass|Flute|Clarinet|Bowed>` and
+`run.sh luthier <material>`, output timed to match `bowprobe` so both feed the same oracles. Its
+header carries a per-reference state table (Clarinet ✅ · Flute ◐ +28¢ · Bowed ◐ octave · Brass ✗
+won't self-oscillate) and the licence rule: STK and luthier are MIT, **flute-lv2 is GPL-2.0** —
+measure against it, never copy a constant.
+
+The cheap gate this suggests and which does NOT exist yet: **a sustained note from a
+self-oscillating engine must be periodic.** No tolerance argument, one plot, and it exposed this bug
+in a single command. BRASS and PIPE both pass it today, and both bound their nonlinearity properly
+(`lipRefl` is clamped to ±1; the jet goes through `de_tanhf`), so BOWED was the outlier.

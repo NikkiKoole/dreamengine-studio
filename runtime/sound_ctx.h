@@ -376,9 +376,11 @@ typedef struct { float *data; int len; bool loaded; } SoundSample;  // data = ma
 #define SOUND_USER_WAVES 4
 #define SOUND_WAVE_LEN   64
 typedef struct {
-    float buf[3][BOW_BODY_MAX];   // the three parallel delay lines
-    int   pos[3], len[3];         // read/write head + length, per line
-    float lp[3];                  // one-pole damping in each loop (a body's RT60 falls with frequency)
+    // FOUR MODAL RESONATORS. A wooden box is a small set of resonances, not a comb — see the
+    // BOW_BODY_HZ table in sound.h for why this replaced three delay lines.
+    float b0[4], b2[4], a1[4], a2[4];   // biquad bandpass coefficients, rebuilt only on a resize
+    float x1[4], x2[4], y1[4], y2[4];   // per-mode filter state
+    float g[4];                         // per-mode radiation gain
     float in;                     // this sample's summed string input from every voice on the slot
     float wet_share;              // last sample's output, divided by the number of voices reading it
     int   readers;                // voices that fed it this sample (refilled every sample)

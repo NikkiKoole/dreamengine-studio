@@ -224,11 +224,21 @@ static void sound_wavcap_poll(void) {
 // pitch track the chord size — play a triad and the body would ring roughly a twelfth high. Voices
 // only ADD to `in` and READ `wet_share`; they never touch pos/len/lp/buf.
 
-// Reid's three delays. Deliberately incommensurate, so the resonance series interleave into a dense
-// modal family instead of stacking into one comb. At 1.0x these give 24 resonances in 80-4000 Hz, 19
-// of them above 1 kHz, the lowest at 270 and 435 Hz — about where a violin's main air (~275-300) and
-// wood (~400-500) resonances sit, and the render confirms peaks on h5 (275 Hz) and h8 (440 Hz).
-static const float BOW_BODY_MS[3] = { 1.3f, 2.3f, 3.7f };
+// FOUR MODAL RESONANCES, not three delay lines. The comb version that shipped first was the wrong
+// MODEL, and the measurement is unambiguous: a comb puts evenly spaced peaks AND nulls across the
+// whole band, which read as a jagged spectrum (h2 +5.5 dB, h4 -0.3, h9 -48 on a sustained A3) and
+// pushed the spectral centroid UP, 2467 Hz bare -> 2634 Hz with the box. A real body does the
+// opposite: it concentrates energy low and rolls off hard above its top mode.
+//
+// The numbers are chrisjz/luthier's (MIT, github.com/chrisjz/luthier), whose FDTD string was A/B'd
+// against this engine — measured there at centroid 1251 Hz bare -> 885 Hz with the body, i.e. the
+// box DARKENS by 366 Hz where ours brightened by 167. Same four modes, same Qs, same gains.
+// Cost went DOWN: four biquads is ~20 multiplies per slot per sample against three delay lines
+// plus their 9 KB of buffer, and BowBody shrank from 2304 floats to 36 (72 KB -> 1.2 KB of pool).
+static const float BOW_BODY_HZ[4] = { 102.0f, 208.0f, 431.0f, 857.0f };   // mode centres at VIOLIN size
+static const float BOW_BODY_Q [4] = {   3.0f,   2.6f,   2.1f,   1.9f };   // lower modes ring longer
+#define BOW_BODY_TRIM 0.5f   // level trim on the mode sum, so `amt` spans the same range it did
+static const float BOW_BODY_G [4] = {   1.1f,  0.85f,  0.65f,  0.45f };   // radiation gain per mode
 
 // Body SIZE (MODE_BOW_SIZE, eng_p[2]) as a scale on those delays — a bigger instrument is a longer
 // delay. eng_p[2] defaults to 0.5f bank-wide and 0.5 maps to exactly 1.0x, so a cart that never sets
@@ -252,14 +262,24 @@ static inline float bow_body_scale(float size) {
 // would splice mid-waveform, so a resize is a rebuild, never an in-place stretch.
 static void bow_body_build(BowBody *bd, float scale) {
     bd->size = scale;
-    for (int i = 0; i < 3; i++) {
-        int L = (int)(BOW_BODY_MS[i] * scale * 0.001f * (float)SOUND_SAMPLE_RATE);
-        if (L < 2) L = 2;
-        if (L > BOW_BODY_MAX - 1) L = BOW_BODY_MAX - 1;
-        bd->len[i] = L;
-        bd->pos[i] = 0;
-        bd->lp[i]  = 0.0f;
-        for (int k = 0; k < BOW_BODY_MAX; k++) bd->buf[i][k] = 0.0f;
+    // A BIGGER instrument has LOWER body modes, so the size axis DIVIDES the frequencies where the
+    // delay-line version multiplied lengths — same direction, same bow_body_scale() curve, so a
+    // cart's MODE_BOW_SIZE keeps meaning exactly what it meant. Clamped because the axis reaches a
+    // double bass (4.5x): 102/4.5 is 23 Hz, under the lowest note the engine can play, and a mode
+    // below the fundamental only adds rumble.
+    for (int i = 0; i < 4; i++) {
+        float f = BOW_BODY_HZ[i] / (scale > 0.01f ? scale : 0.01f);
+        if (f < 30.0f) f = 30.0f;
+        if (f > 6000.0f) f = 6000.0f;
+        float w  = 6.2831853f * f / (float)SOUND_SAMPLE_RATE;
+        float al = de_sinf(w) / (2.0f * BOW_BODY_Q[i]);
+        float a0 = 1.0f + al;
+        bd->b0[i] =  al / a0;                      // constant-PEAK-gain bandpass: |H| = 1 at f
+        bd->b2[i] = -al / a0;
+        bd->a1[i] = -2.0f * de_cosf(w) / a0;
+        bd->a2[i] = (1.0f - al) / a0;
+        bd->g[i]  = BOW_BODY_G[i];
+        bd->x1[i] = bd->x2[i] = bd->y1[i] = bd->y2[i] = 0.0f;
     }
     bd->in = bd->wet_share = 0.0f;
     bd->readers = bd->quiet = 0;
@@ -290,7 +310,6 @@ static int bow_body_for(int slot, float size) {
 // is what breaks the circular dependency between "the box needs every string" and "every string needs
 // the box". The one-sample latency sits inside a 57-401 sample delay, so it is inaudible.
 static void bow_body_advance(void) {
-    static const float BD_FB[3] = { 0.72f, 0.68f, 0.62f };   // < 1 with a lowpass in the loop = stable
     for (int b = 0; b < SOUND_BOW_BODIES; b++) {
         BowBody *bd = &bow_bodies[b];
         if (!bd->live) continue;
@@ -304,10 +323,7 @@ static void bow_body_advance(void) {
         if (n == 0) {
             if (bd->quiet > 4096) { bd->wet_share = 0.0f; continue; }
             if (++bd->quiet > 4096) {
-                for (int i = 0; i < 3; i++) {
-                    bd->lp[i] = 0.0f;
-                    for (int k = 0; k < BOW_BODY_MAX; k++) bd->buf[i][k] = 0.0f;
-                }
+                for (int i = 0; i < 4; i++) bd->x1[i] = bd->x2[i] = bd->y1[i] = bd->y2[i] = 0.0f;
                 bd->wet_share = 0.0f;
                 continue;
             }
@@ -315,14 +331,13 @@ static void bow_body_advance(void) {
             bd->quiet = 0;
         }
         float wet = 0.0f;
-        for (int i = 0; i < 3; i++) {
-            float y = bd->buf[i][bd->pos[i]];
-            bd->lp[i] += 0.5f * (y - bd->lp[i]);                 // RT60 falls with frequency
-            bd->buf[i][bd->pos[i]] = in + bd->lp[i] * BD_FB[i];
-            bd->pos[i] = (bd->pos[i] + 1) % bd->len[i];
-            wet += y;
+        for (int i = 0; i < 4; i++) {
+            float y = bd->b0[i] * in + bd->b2[i] * bd->x2[i] - bd->a1[i] * bd->y1[i] - bd->a2[i] * bd->y2[i];
+            bd->x2[i] = bd->x1[i]; bd->x1[i] = in;
+            bd->y2[i] = bd->y1[i]; bd->y1[i] = y;
+            wet += y * bd->g[i];
         }
-        wet *= 0.333f;
+        wet *= BOW_BODY_TRIM;
         // Divided by the reader count so the box RADIATES ONCE however many strings drive it: each
         // voice mixes in its share and the shares sum back to one whole body. Without this a triad
         // would be three bodies loud. The maths works out exact — in is the SUM of the strings, so
@@ -3430,7 +3445,15 @@ static void sound_bowed_start(Voice *v) {
         }
     } else {
         for (int i = 0; i < nutLen + brLen; i++) {
-            v->ks_buf[i] = voice_white(v) * 0.005f;
+            // 0.05, not navkit's 0.005. The seed sets how far the self-oscillation has to CLIMB
+            // before it reaches its operating point, and at 0.005 that is ~40 dB, which measured as
+            // half a second of audible "warming up" after the note starts (full level 0.5s after
+            // onset; at 0.05 it is 0.2s). ⚠ This shortens the AMPLITUDE ramp only. The other half of
+            // the warm-up — the partials sliding from ~10 cents FLAT to ~13 cents SHARP over the
+            // first second, which is what actually reads as out of tune — is NOT fixed by it and
+            // settles at 1.0s either way. That one is the amplitude-dependent friction being
+            // traversed on the way up, and it needs a different answer.
+            v->ks_buf[i] = voice_white(v) * 0.05f;
         }
     }
     // TUNING. The loop delay isn't just the buffer length: it's (nutLen+brLen) PLUS the group
@@ -3462,12 +3485,16 @@ static void sound_bowed_start(Voice *v) {
 // (louder + wider wedge as it grows). Realism navkit omits (else it reads as a synth saw): a
 // humanized PITCH vibrato (a violinist's left hand), light bow-NOISE on the velocity (rosin
 // texture), and a brief attack BITE. Pitch tracks freq*pitch_mul like reed/pipe (§8.8.1).
+#define BW_GRIP_LIGHT 45.0f   // friction-curve `a` at light bow pressure (narrow grip, early slip)
+#define BW_GRIP_HEAVY 10.0f   // ... and at heavy pressure (wide grip, the string holds longer)
 static inline float sound_bowed_sample(Voice *v, float pitch_mul) {
     if (!v->bw_on || v->bw_nutlen <= 0 || v->bw_brlen <= 0) return 0.0f;   // engine id w/o note-on
     const float SR = (float)SOUND_SAMPLE_RATE;
     // macros → physical params, pinned inside the wedge
-    float pressure = 0.10f + v->timb * 0.16f;              // timbre = bow pressure [0.10,0.26] (recompressed 2026-06-16:
-                                                           // the old top (0.32) bowed scratchy — >4kHz noise jumped 0.5%→3.6%)
+    // timbre = bow PRESSURE, read straight off v->timb now. It used to be mapped to a physical
+    // [0.10,0.26] first (recompressed 2026-06-16: the old top of 0.32 bowed scratchy, >4kHz noise
+    // jumped 0.5%→3.6%) and then re-expanded by pres = pressure*5+0.5, which is an affine round trip
+    // — the normalised curve below reads the 0..1 macro directly, so the divide came back out.
     float bowSpeed = 0.30f + v->mor  * 0.60f;              // morph = bow speed [0.30,0.90]
     float velocity = bowSpeed * 0.2f;                      // navkit's physical-range scale
     // HUMANIZED pitch vibrato — wandering rate/depth, lives in PITCH (like a real bowed string)
@@ -3521,8 +3548,20 @@ static inline float sound_bowed_sample(Voice *v, float pitch_mul) {
     if (v->bw_pizz) {
         friction = 0.0f;
     } else {
-        float pres = pressure * 5.0f + 0.5f;
-        friction = pres * deltaV * de_expf(-pres * deltaV * deltaV);
+        // NORMALISED stick-slip (Friedlander / STK BowTable form). The curve that shipped was
+        // pres*dv*exp(-pres*dv^2) with pres = pressure*5+0.5, i.e. [1.0,1.8] — so the friction
+        // COEFFICIENT at dv=0 WAS pres, over 1.0: the bow handed the string back more velocity than
+        // arrived, unconditionally, at every pressure. STK clamps that coefficient to 1 for exactly
+        // this reason. Two consequences, both measured: the knee (dv at the friction peak, 1/sqrt(2a))
+        // sat at 0.53-0.71 while the bow only moves at 0.06-0.18, so the curve was LINEAR across the
+        // whole operating range (a linear negative resistance, not stick-slip), and the string ended up
+        // swinging ~25x the bow velocity where Helmholtz motion at this bow position wants ~7x.
+        // Normalising the peak to 1 and moving the knee onto real bow velocities fixes both. SAME
+        // COST: one exp, one multiply, exactly as before. Pressure now sets the WIDTH of the grip
+        // (higher pressure = rosin holds over a wider velocity range = smaller a), which is the same
+        // way STK maps it (slope = 5 - 4*pressure).
+        float grip = BW_GRIP_LIGHT + (BW_GRIP_HEAVY - BW_GRIP_LIGHT) * clamp01(v->timb);
+        friction = deltaV * de_expf(-grip * deltaV * deltaV);
     }
     // outgoing waves from the bow point toward each end
     float toNut = bridgeReturn + friction;
@@ -3565,7 +3604,9 @@ static inline float sound_bowed_sample(Voice *v, float pitch_mul) {
         // to listen for when comparing the two body models.
         dc = dc + v->bw_bd_amt * (bd->wet_share - dc * 0.3f);
     }
-    return dc * 0.7f;   // makeup gain — trimmed 3.0→0.7 (−12.6 dB) to sit with the palette: BOWED was +13 dB over the library median (level-check), so two notes clipped the limiter
+    return dc * 2.2f;   // makeup gain — re-trimmed 0.7->2.2 (+9.9 dB) when the friction curve was NORMALISED
+                        // (BW_GRIP_*): the old over-unity coefficient was doing ~10 dB of the amplitude work, so
+                        // level-check read BOWED 10 dB under the library median the moment it was removed. Old note — trimmed 3.0→0.7 (−12.6 dB) to sit with the palette: BOWED was +13 dB over the library median (level-check), so two notes clipped the limiter
 }
 
 // ── INSTR_BRASS: lip-reed brass (STK BrassInstrument, Cook/Scavone) ─────────────

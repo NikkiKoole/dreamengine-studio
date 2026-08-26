@@ -1664,6 +1664,18 @@ Rationale lives in [`design/api-notes.md`](design/api-notes.md)'s "What to defer
 [**External brainstorm review** (2026-05-30)](design/api-notes.md#external-brainstorm-review--divmmfsim-ideas-weighed-against-the-carts-2026-05-30)
 — which is where the entries dated `2026-05-30` below were decided.
 
+- **Making `INSTR_PIPE` an acoustically correct FLUTE.** Cut 2026-08-26 by ear. PIPE is
+  structurally a CLARINET (half-wavelength bore + inverting reflection = odd harmonics only; h2
+  measures ~56 dB down where STK's flute is ~26). The open-open rebuild was fully built and
+  measured — full-wavelength bore, asymmetric jet, in-loop DC blocker, jet delay proportional to the
+  period — and it worked: evens up ~20 dB at every pitch, and the flat-with-pitch tuning ramp fixed
+  as a side effect (C5 -15.6¢ → +4.1¢). The maker A/B'd it at four pitches and preferred the OLD
+  sound: *"the old ones are actually better, lets forget flute leave it at the old."* Reverted
+  whole. The breath noise is doing the work of sounding "pipish", and physical correctness made it
+  worse for this console. Full measurements, the four changes, and the one unsolved piece (a
+  top-octave mode flip that depends on the ONSET, not on a tuning constant):
+  [`design/audio-notes.md` → 30](design/audio-notes.md#30-instr_pipe-is-structurally-a-clarinet-and-the-fix-was-rejected-by-ear-2026-08-26).
+
 - **Packaging the EDITOR for end users** (was open item 16). Decided 2026-06-29 by
   [ADR-0023](decisions/0023-ship-carts-as-apps-not-the-editor.md): *we ship finished apps, not the
   editor.* The old item's premise ("web/wasm is the likely public path") was retired by that ADR and

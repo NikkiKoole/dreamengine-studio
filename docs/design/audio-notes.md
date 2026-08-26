@@ -2869,3 +2869,61 @@ The cheap gate this suggests and which does NOT exist yet: **a sustained note fr
 self-oscillating engine must be periodic.** No tolerance argument, one plot, and it exposed this bug
 in a single command. BRASS and PIPE both pass it today, and both bound their nonlinearity properly
 (`lipRefl` is clamped to ±1; the jet goes through `de_tanhf`), so BOWED was the outlier.
+
+## 30. INSTR_PIPE is structurally a CLARINET, and the fix was rejected by ear (2026-08-26)
+
+Filed so nobody spends another session rediscovering it. **PIPE has no even harmonics.** A bore of
+delay T closed by an INVERTING reflection resonates at odd multiples of 1/(2T), and PIPE's bore is a
+half wavelength (`SR/(2f)`) with `openFiltered = -boreReturn * 0.9f`. That is a closed-open pipe,
+i.e. a clarinet. A flute is open at both ends and has ALL harmonics. Measured on a sustained C4:
+
+```
+                    h2      h3      h4      h5      h6
+ours (shipped)   -56.2   -11.1   -56.9   -19.5   -57.0     evens dead
+STK Flute        -25.2   -12.2   -27.1   -20.3   -28.5
+STK Clarinet     -59.8    -9.7   -60.2   -14.5   -60.6     ← ours matches THIS
+```
+
+It reads as a flute anyway because the breath noise covers it. Clean the noise up and the clarinet
+underneath becomes obvious — which is exactly what the maker heard when a quieter version was
+A/B'd: *"at our 1 pipe it was at least pipish because of all the air … i feel we are missing an
+important detail somewhere."*
+
+### 30.1 The rebuild was BUILT and MEASURED, and then cut
+
+Four changes, all read out of [timowest/flute-lv2](https://github.com/timowest/flute-lv2) (GPL-2.0 —
+measured against, never copied) and each verified:
+
+1. **Full-wavelength bore + NON-inverting reflection.** The structural fix. h2 rose ~20 dB.
+2. **Asymmetric jet** (an offset inside the tanh). A SYMMETRIC nonlinearity cannot make even
+   harmonics whatever the bore does, so #1 alone still left h2 47 dB down. flute-lv2's `sigmOffset`
+   is this, and its default of 0.0 is why flute-lv2 ALSO measures odd-only.
+3. **A DC blocker inside the jet loop.** #2 is impossible without it: an open-open loop is
+   non-inverting and passes DC at 1/(1-fb), so the offset runs away and the note collapses to hiss
+   (measured: peak -41.7 dBFS, brightness 0.58, centroid 7.8 kHz). flute-lv2 does
+   `jet = jetDelay : jetNonlinearity : dcblocker` for exactly this reason.
+4. **Jet delay proportional to the period**, not a fixed 3-11 samples. Our own code predicted
+   needing this: *"Top-octave mode-flip on hollow voices is separate — needs jet∝bore."*
+
+Result: evens present at every pitch, and the tuning ramp fixed as a side effect (C3/C4/C5/A5 went
+-4.0/-7.6/-15.6/-26.7 cents → -0.6/-0.6/+4.1/+16.5). HNR +28.1 dB against STK Flute's +22.9.
+
+**And the maker preferred the OLD one.** Rendered at four pitches, level-matched: *"the old ones are
+actually better, lets forget flute leave it at the old."* So it was reverted whole. Correct and good
+came apart, and the ear decides. **Do not redo this** — see STATUS "Decided-against".
+
+What was still unsolved when it was cut, if anyone ever revisits: the top octave mode-flips at
+`tune-check`'s harm-0/timb-0/morph-0 corner, and the mode it lands in depends on the ONSET (a 4 ms
+attack flips it where 80 ms does not), so it is an attack-transient problem, not a tuning constant.
+
+### 30.2 The measurement traps this one added
+
+- **`tune-check` drives NO macros**, so it probes every engine at harm 0 / timb 0 / morph 0 — the
+  weakest-drive corner, which for PIPE is the overblow edge no recipe uses. An engine can measure
+  badly there and be fine everywhere a cart actually sets it. Check what a gate is probing before
+  believing a residual is representative.
+- **A loop-delay fit is a FIXED POINT, not a one-shot.** Changing the compensation changes the bore,
+  which changes the actual loop delay. Fitting once lands one end of the macro range and leaves the
+  other 20 cents out; iterate until the measured ratio stops moving.
+- **`peaks.js` had `f0` hardcoded to 220** and silently measured the wrong band when asked for C4.
+  Fixed here to take an optional 4th argument.

@@ -11,7 +11,7 @@ function goertzel(x,f,sr){const w=2*Math.PI*f/sr,c=2*Math.cos(w);let s1=0,s2=0;
  for(let i=0;i<x.length;i++){const s=x[i]+c*s1-s2;s2=s1;s1=s;}
  return Math.sqrt(Math.max(0,s1*s1+s2*s2-c*s1*s2));}
 const {x,sr}=readWav(process.argv[2]);
-const t0=Number(process.argv[3]), t1=Number(process.argv[4]), f0=220;
+const t0=Number(process.argv[3]), t1=Number(process.argv[4]), f0=Number(process.argv[5]||220);
 const seg=x.subarray(Math.floor(t0*sr),Math.floor(t1*sr));
 // hann
 const w=new Float64Array(seg.length);

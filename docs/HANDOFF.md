@@ -44,7 +44,7 @@ a broken doc link or `#section`).
 > What a reader needs to *choose* a lane is in the front-door output; what they need to *resume*
 > one is in the lane itself. A summary in between is a third copy, and it is the copy nobody
 > updates. If you find yourself writing one again, teach `handoff.js` to print it instead.
-> **▶ ACTIVE THREAD (2026-08-25) — REFERENCE-MODEL COMPARISON: bowed is fixed, brass/pipe unchecked.**
+> **▶ ACTIVE THREAD (2026-08-27) — REFERENCE-MODEL COMPARISON: bowed FIXED, pipe investigated and CUT, brass still open.**
 >
 > Started from the maker saying [chrisjz/luthier](https://github.com/chrisjz/luthier) sounded better
 > than our `INSTR_BOWED`. It did, and the reason was a **friction coefficient above 1.0** — the bow
@@ -57,16 +57,28 @@ a broken doc link or `#section`).
 > [`tools/ref-render/`](../tools/ref-render/run.sh) (render a note from STK or luthier and put it
 > beside ours — read its header's per-reference state table BEFORE trusting one).
 >
-> **Resume-at:** [`audio-notes.md → 29.1`](design/audio-notes.md#291-what-is-still-open) — the ~7 dB
-> gap, why "damp the highs" is the wrong fix, and the `brLoss` bifurcation that must be swept across
-> notes and pressures before any value ships.
+> **PIPE: investigated, rebuilt, and CUT by ear (2026-08-26).** It is structurally a CLARINET
+> (h2 ~56 dB down, matching STK's *clarinet*, not its flute). The open-open rebuild worked — evens up
+> ~20 dB, tuning ramp fixed — and the maker preferred the OLD sound and it was reverted whole. Do not
+> redo it: [`audio-notes.md → 30`](design/audio-notes.md#30-instr_pipe-is-structurally-a-clarinet-and-the-fix-was-rejected-by-ear-2026-08-26)
+> and the STATUS Decided-against entry.
+>
+> **REED: no case to answer.** Ours matches STK's Clarinet on the defining odd-harmonic structure to
+> within 0.2 dB (h3 -9.6 vs -9.7, h5 -14.3 vs -14.5) once its bore macro is set cylindrical
+> (`harmonics` = 0). The earlier "ours sounds thinner" reading was me comparing our engine at an
+> arbitrary mid-macro setting against STK's author's default. Set the macro and it goes away.
+>
+> **Resume-at:** [`audio-notes.md → 29.1`](design/audio-notes.md#291-what-is-still-open) — the one
+> genuinely open BOWED item: the ~7 dB gap, why "damp the highs" is the wrong fix, and the `brLoss`
+> bifurcation that must be swept across notes and pressures before any value ships.
 >
 > **Next, in order:** (1) a **periodicity gate** — a sustained note from a self-oscillating engine
-> must be periodic; no tolerance argument, one plot, and it would have caught this in one command.
-> It protects every engine, not just bowed. (2) STK `Clarinet` is a ✅ usable reference *today* —
-> point it at our `INSTR_REED`. (3) STK `Brass` **won't self-oscillate** at any amplitude 0.8-1.2 ×
-> lip CC 64/96 tried, so the brass question the maker actually asked is still open and needs either
-> a working STK config or a different reference.
+> must be periodic; no tolerance argument, one plot, and it would have caught the bowed bug in one
+> command. It protects every engine and is still the cheapest thing on this list. (2) **BRASS is the
+> only wind engine still unanswered**, and it has no reference: STK's `Brass` won't self-oscillate at
+> any amplitude 0.8-1.2 × lip CC 64/96 tried, and it has no reported symptom either. Do not touch it
+> until something sounds wrong — PIPE is the cautionary tale, where a correct fix to a real
+> structural defect still made the sound worse.
 >
 > **Hot files:** `runtime/sound.h` (the bowed engine + the `bow_body_*` pool) and
 > `runtime/sound_ctx.h` (the `BowBody` struct — hand-edited, and `ctx-gen --check`/`--verify` both

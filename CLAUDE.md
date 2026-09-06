@@ -665,6 +665,35 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
                              Clarinet ✅, Flute ◐ (+28¢, its own "fudge correction"), Bowed ◐ (octave), Brass ✗
                              (won't self-oscillate). ⚠ STK+luthier are MIT (borrow WITH attribution, as
                              BOW_BODY_HZ does); flute-lv2 is GPL-2.0 — measure against, never copy
+             patch-match/    SYNPLANT-style PATCH MATCHING: a sample in, EIGHT dreamengine patches out
+                             (`bash tools/patch-match/build.sh tools/patch-match/pm.c build/pm && ./build/pm <x.wav>`).
+                             Analysis-by-synthesis, no ML — a multi-resolution log-mel L1 distance + differential
+                             evolution driving the REAL engine headless. THREE stages, because the biggest decision
+                             is DISCRETE and an optimizer should not have to rediscover it through a wall of
+                             continuous knobs: ENGINE RACE (all 18, short window; the output is a RANKING, often the
+                             more useful answer) → VOICE REFINE (top 3 × 3 seeds, seeded from the race winner) →
+                             FX FIT with the voice FROZEN, so you can read WHICH HALF did the work. Emits pasteable
+                             instrument()/instrument_tape() blocks + a WAV per candidate to A/B against the target.
+                             FOUR things MEASURED that the design hangs on, each of which the obvious build gets
+                             wrong: a candidate must render on a FRESH de_instance_create (the same patch renders
+                             DIFFERENTLY note-to-note inside one instance — per-voice state, not a tail, so a longer
+                             flush does not help — and a fresh engine is CHEAPER than flushing anyway) · the RENDER
+                             is the bottleneck (26ms per second of audio) and the loss is NOT (5.7ms), the opposite
+                             of the usual advice · the fx stage seeds individual 0 with BYPASS, without which its
+                             "best" can be WORSE than adding nothing (bypass is in the space; the search just never
+                             found the off switch across 23 random dims) · and dimensions split by WHAT A DIAL DOES,
+                             not which API owns it — every periodic modulation (vibrato, tape wow/flutter, tremolo)
+                             competes in ONE stage, or whichever stage runs first takes the wobble and a cassette's
+                             flutter is reported as an 0.85-semitone "vibrato". `--selftest <ENGINE>` = THE ORACLE
+                             (render a known patch, throw the params away, find them again): the ONLY thing that
+                             separates "the engine genuinely cannot make that sample" from "the search is broken",
+                             since here the answer is reachable by construction. 6/6 correct engine at RANK 1 of 18;
+                             continuous macros back to ~3 decimals. ⚠ SNAPPED macros (FM/ORGAN/PIANO `harmonics`)
+                             recover worse — DE takes DIFFERENCES between vectors, and a detented axis is a
+                             staircase where it expects a slope; the raw-value error is also uninterpretable there
+                             (0.620 vs 0.694 may be the SAME detent). ⚠ A loss is only readable against its scale:
+                             0 = identical, ~1.0 = an UNRELATED real sample, 1.65 = noise — so 0.18 is a good match
+                             and 0.42 is the engine telling you it does not have that sound
              filter-spec.js  measure a per-voice FILTER's actual response (slope dB/oct, resonance peak,
                              bass drain per res step) via a generated probe cart — acceptance evidence for
                              any sound.h filter change; born from the 303-fidelity spike (audio-notes §25)

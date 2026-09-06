@@ -139,6 +139,41 @@ static float de_search(Ctx *c, float *best, int pop, int gens, unsigned seed, co
     return bf;
 }
 
+static int g_polish = 1;   // --no-polish, so the polish can be A/B'd rather than believed
+// ── detent polish ───────────────────────────────────────────────────────────
+// Differential evolution cannot resolve a stepped axis: it moves by differences,
+// and a detent is a flat plateau with a cliff at each end, so a step that would
+// land in the right position looks no better than one that does not until it
+// arrives. Since the positions are known and few, just TRY them all, holding
+// everything else. Costs n renders per snapped axis and cannot make things worse,
+// because the value the search chose is the incumbent.
+static float score_patch(Ctx *c, const PmPatch *p, float *scratch)
+{
+    render_patch(p, scratch, c->t->len, c->midi, c->hold_ms);
+    c->evals++;
+    return pm_distance(c->t, scratch);
+}
+
+static float polish_detents(Ctx *c, PmPatch *p, float loss, float *scratch)
+{
+    const int dims[3] = { V_HARM, V_TIMB, V_MORPH };
+    if (!g_polish) return loss;
+    for (int d = 0; d < 3; d++) {
+        const PmDetents *det = pm_detents_for(p->engine, dims[d]);
+        if (!det) continue;
+        float keep = p->v[dims[d]], best = loss, bestv = keep;
+        int snapped = 0;
+        for (int i = 0; i < det->n; i++) {
+            p->v[dims[d]] = det->centre[i];
+            float s = score_patch(c, p, scratch);
+            if (s < best || (!snapped && s == best)) { best = s; bestv = det->centre[i]; snapped = 1; }
+        }
+        p->v[dims[d]] = bestv;
+        loss = best;
+    }
+    return loss;
+}
+
 // ── dimension sets ──────────────────────────────────────────────────────────
 static const int DIMS_RACE[]  = { V_HARM, V_TIMB, V_MORPH, V_ATK, V_DEC, V_SUS, V_REL, V_FMODE, V_CUT, V_RES };
 // The VOICE stage is the instrument standing still: what it is, and its envelope
@@ -275,6 +310,9 @@ static void work_race(int i, FILE *out)
     Result r = { .loss = loss, .engine = g_elist[i] };
     r.p = c.base;
     for (int k = 0; k < c.ndims; k++) pm_put(&r.p, c.dims[k], x[k]);
+    float *scratch = (float*)malloc(sizeof(float) * c.t->len);
+    r.loss = polish_detents(&c, &r.p, r.loss, scratch);   // fairness: an engine with a
+    free(scratch);                                        // stepped axis must not lose the race to it
     fwrite(&r, sizeof r, 1, out);
 }
 
@@ -290,6 +328,7 @@ static void work_refine(int i, FILE *out)
 
     Ctx c = { .t = &g_full, .dims = dims, .ndims = nd, .fx = 0, .midi = g_midi, .hold_ms = g_hold_full };
     c.base = g_refine_seedpatch[i];
+    c.base.nmode = nm;              // the refine stage is where these dials become the search's
     float x[NDIM(DIMS_VOICE) + 4], sv[NDIM(DIMS_VOICE) + 4];
     for (int k = 0; k < nd; k++) sv[k] = pm_get(&c.base, dims[k]);
     int pop = g_quick ? 20 : 30, gens = g_quick ? 30 : 70;
@@ -297,6 +336,9 @@ static void work_refine(int i, FILE *out)
     Result r = { .loss = loss, .engine = g_refine_engine[i] };
     r.p = c.base;
     for (int k = 0; k < nd; k++) pm_put(&r.p, dims[k], x[k]);
+    float *scratch = (float*)malloc(sizeof(float) * c.t->len);
+    r.loss = polish_detents(&c, &r.p, r.loss, scratch);
+    free(scratch);
     fwrite(&r, sizeof r, 1, out);
 }
 
@@ -336,6 +378,7 @@ int main(int argc, char **argv)
         else if (!strcmp(argv[i], "--note") && i+1 < argc) forced_midi = atoi(argv[++i]);
         else if (!strcmp(argv[i], "--out") && i+1 < argc) outdir = argv[++i];
         else if (!strcmp(argv[i], "--stage1")) g_stage1_only = 1;
+        else if (!strcmp(argv[i], "--no-polish")) g_polish = 0;
         else if (!strcmp(argv[i], "--selftest") && i+1 < argc) selftest = argv[++i];
         else if (!strcmp(argv[i], "--race-pop") && i+1 < argc) g_race_pop = atoi(argv[++i]);
         else if (!strcmp(argv[i], "--race-gens") && i+1 < argc) g_race_gens = atoi(argv[++i]);
@@ -421,7 +464,15 @@ int main(int argc, char **argv)
     if (g_stage1_only) { printf("\n  (--stage1: stopping after the race, %.0fs)\n\n", now_s() - t0); return 0; }
 
     // ── stage 2: refine the top engines, several seeds each ─────────────────
-    int topk = g_quick ? 2 : 3, seeds = g_quick ? 2 : 3, nref = 0;
+    // topk is 3 even in --quick, and that is not a rounding choice. MEASURED over
+    // 24 oracle runs (6 engines x 4 seeds): the right engine placed in the top THREE
+    // 24/24 times but placed FIRST only 21/24, and INSTR_PD never placed first at
+    // all (its phase-distortion tones are reachable by SAW and friends, so it is
+    // genuinely ambiguous rather than badly searched). It ranked 3rd on one seed,
+    // so a --quick that refined only the top 2 would have thrown the correct answer
+    // away before stage 2 ever saw it. Quick mode buys its speed from pop/gens,
+    // never from cutting the shortlist.
+    int topk = 3, seeds = g_quick ? 2 : 3, nref = 0;
     if (topk > got) topk = got;
     for (int e = 0; e < topk && e < got; e++)
         for (int s = 0; s < seeds; s++) {
@@ -500,8 +551,23 @@ int main(int argc, char **argv)
             printf("    %-12s %8s %8s\n", "param", "truth", "found");
             const char *nm[] = {"harmonics","timbre","morph","attack","decay","sustain","release"};
             int ix[] = {V_HARM,V_TIMB,V_MORPH,V_ATK,V_DEC,V_SUS,V_REL};
-            for (int k = 0; k < 7; k++)
-                printf("    %-12s %8.3f %8.3f\n", nm[k], truth.v[ix[k]], fx[0].p.v[ix[k]]);
+            for (int k = 0; k < 7; k++) {
+                printf("    %-12s %8.3f %8.3f", nm[k], truth.v[ix[k]], fx[0].p.v[ix[k]]);
+                // On a SNAPPED axis the raw difference is not an error and must not be
+                // printed as one: two values inside one detent are the SAME setting and
+                // render byte-identically. Compare the detent, which is the real quantity.
+                const PmDetents *det = pm_detents_for(truth.engine, ix[k]);
+                if (det) {
+                    int a = 0, b = 0;
+                    for (int i = 1; i < det->n; i++) {
+                        if (fabsf(truth.v[ix[k]]     - det->centre[i]) < fabsf(truth.v[ix[k]]     - det->centre[a])) a = i;
+                        if (fabsf(fx[0].p.v[ix[k]]   - det->centre[i]) < fabsf(fx[0].p.v[ix[k]]   - det->centre[b])) b = i;
+                    }
+                    printf("   detent %d/%d vs %d/%d  %s", a+1, det->n, b+1, det->n,
+                           a == b ? "\033[32msame\033[0m" : "\033[31mdifferent\033[0m");
+                }
+                printf("\n");
+            }
         }
         rc = (right && fx[0].loss < 0.15f) ? 0 : 1;
         printf("\n  %s\n", rc == 0 ? "\033[32m  ORACLE PASS\033[0m" : "\033[31m  ORACLE FAIL — the search, not the sample, is the problem\033[0m");

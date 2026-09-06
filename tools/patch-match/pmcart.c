@@ -51,10 +51,13 @@ static void pm_apply(const PmPatch *p)
     instrument_lfo(s, 2, LFO_CUTOFF, 1.0f, 0.0f);
     instrument_follow(s, LFO_CUTOFF, 0, 0, 0.0f);
 
-    // per-engine structure dials; anything the engine does not answer stays untouched,
-    // and every engine gets the same four writes so nothing carries over from the last one.
+    // Per-engine structure dials. Only the ones this patch OWNS are written: a
+    // MODE_* the search is not moving must keep the ENGINE's default, because
+    // some of these are thresholds and no value here is neutral (pmpatch.h).
+    // Safe because each candidate gets a fresh instance, so nothing is inherited.
     int midx[4];
     int nm = pm_engine_modes(p->engine, midx);
+    if (nm > p->nmode) nm = p->nmode;
     for (int i = 0; i < nm; i++) instrument_mode(s, midx[i], p->v[V_MODE0 + i]);
 
     // level/pan/tuning: pinned, not searched. Level is normalized away by the loss

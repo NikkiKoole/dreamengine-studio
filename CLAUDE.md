@@ -666,7 +666,9 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
                              (won't self-oscillate). ⚠ STK+luthier are MIT (borrow WITH attribution, as
                              BOW_BODY_HZ does); flute-lv2 is GPL-2.0 — measure against, never copy
              patch-match/    SYNPLANT-style PATCH MATCHING: a sample in, EIGHT dreamengine patches out
-                             (`bash tools/patch-match/build.sh tools/patch-match/pm.c build/pm && ./build/pm <x.wav>`).
+                             (`bash tools/patch-match/build.sh tools/patch-match/pm.c build/pm && ./build/pm <x.wav>`;
+                             bench.c = the render-protocol gate + its `-shared` negative control, detents.c = the
+                             snapped-macro map + `--check`).
                              Analysis-by-synthesis, no ML — a multi-resolution log-mel L1 distance + differential
                              evolution driving the REAL engine headless. THREE stages, because the biggest decision
                              is DISCRETE and an optimizer should not have to rediscover it through a wall of
@@ -687,11 +689,26 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
                              flutter is reported as an 0.85-semitone "vibrato". `--selftest <ENGINE>` = THE ORACLE
                              (render a known patch, throw the params away, find them again): the ONLY thing that
                              separates "the engine genuinely cannot make that sample" from "the search is broken",
-                             since here the answer is reachable by construction. 6/6 correct engine at RANK 1 of 18;
-                             continuous macros back to ~3 decimals. ⚠ SNAPPED macros (FM/ORGAN/PIANO `harmonics`)
-                             recover worse — DE takes DIFFERENCES between vectors, and a detented axis is a
-                             staircase where it expects a slope; the raw-value error is also uninterpretable there
-                             (0.620 vs 0.694 may be the SAME detent). ⚠ A loss is only readable against its scale:
+                             since here the answer is reachable by construction. MEASURED over 24 runs (6 engines ×
+                             4 seeds): the right engine is in the TOP THREE 24/24 but FIRST only 21/24, and PD is
+                             NEVER first (its phase-distortion tones are reachable by SAW, so it is genuinely
+                             ambiguous, not badly searched) — which is why stage 2 refines 3 engines even in
+                             --quick, since PD ranked 3rd on one seed and a top-2 shortlist throws the answer away.
+                             Continuous macros come back to ~3 decimals. SNAPPED macro axes (FM 10 detents / ORGAN 8
+                             / PD 8 / PIANO 6 / EPIANO 3, all on `harmonics`) are MEASURED not guessed by
+                             detents.c — a snapped axis quantizes before the DSP, so every value inside a detent
+                             renders BYTE-IDENTICALLY and grouping identical renders recovers the boundaries
+                             exactly; `detents.c --check` gates the table against engine drift. The search then
+                             ENUMERATES the positions (DE cannot climb a staircase it expects to be a slope): net
+                             win, biggest on PIANO (0.165 → 0.092), and `--no-polish` A/Bs it. ⚠ On a snapped axis a
+                             RAW-VALUE difference is not an error — 0.620 vs 0.694 is the same FM detent, i.e. an
+                             exact hit; the oracle prints the detent index for this reason. ⚠ INSTR_VOICE ignores
+                             all 3 macros set on the SLOT (sound_voice_start() rewrites vox_p/vox_s at every
+                             note-on); only the live note_harmonics/_timbre/_morph face reaches it — found here,
+                             NOT fixed. ⚠ A "neutral" 0.5 on a MODE_* dial is a TRAP: MODE_BOW_PIZZ is a >= 0.5
+                             THRESHOLD, so 0.5 made every BOWED candidate a PIZZICATO — a patch now writes only the
+                             MODE dials the search OWNS, which is safe because each candidate gets a fresh instance.
+                             ⚠ A loss is only readable against its scale:
                              0 = identical, ~1.0 = an UNRELATED real sample, 1.65 = noise — so 0.18 is a good match
                              and 0.42 is the engine telling you it does not have that sound
              filter-spec.js  measure a per-voice FILTER's actual response (slope dB/oct, resonance peak,

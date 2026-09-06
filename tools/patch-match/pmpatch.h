@@ -51,6 +51,7 @@ enum {
 
 typedef struct {
     int   engine;        // an INSTR_* id
+    int   nmode;         // how many MODE_* dials this patch OWNS (see pm_patch_default)
     float v[PM_NV];      // voice coordinates, all 0..1
     float f[PM_NF];      // fx coordinates, all 0..1
 } PmPatch;
@@ -124,12 +125,51 @@ static inline const char *pm_engine_name(int e) {
     return "INSTR_?";
 }
 
+// ── the SNAPPED macro axes, MEASURED (tools/patch-match/detents.c) ──────────
+// studio.h says several macros are "snapped" but never says how many positions
+// or where. These were measured, not guessed: a snapped axis quantizes before
+// the DSP, so every value inside one detent renders BYTE-IDENTICALLY, and
+// sweeping the macro and grouping identical renders recovers the boundaries
+// exactly. `detents.c --check` re-measures and fails if the engine moves under
+// this table, so it is a recorded measurement rather than a copied constant.
+//
+// It matters because differential evolution takes DIFFERENCES between parameter
+// vectors: on a stepped axis it is climbing a staircase while expecting a slope.
+// With the centres known, the search stops guessing and simply TRIES each one.
+// Only axes with few enough detents to enumerate are listed; PLUCK morph (79),
+// PIANO timbre (53) and BOWED harmonics (85) are quantized too finely to be
+// worth it and behave like continuous axes.
+typedef struct { int engine; int dim; int n; float centre[10]; } PmDetents;
+#define PM_NDETENT 5
+static const PmDetents PM_DETENT[PM_NDETENT] = {
+    { 18, V_HARM, 10, { 0.050f, 0.155f, 0.255f, 0.355f, 0.455f, 0.555f, 0.655f, 0.755f, 0.855f, 0.955f } }, // FM     carrier:mod ratio
+    { 19, V_HARM,  8, { 0.060f, 0.190f, 0.315f, 0.440f, 0.565f, 0.690f, 0.815f, 0.940f } },                 // ORGAN  drawbar registrations
+    { 21, V_HARM,  8, { 0.060f, 0.190f, 0.315f, 0.440f, 0.565f, 0.690f, 0.815f, 0.940f } },                 // PD     wavetypes
+    { 20, V_HARM,  3, { 0.165f, 0.500f, 0.835f } },                                                         // EPIANO Rhodes/Wurli/Clav
+    { 27, V_HARM,  6, { 0.080f, 0.250f, 0.420f, 0.585f, 0.750f, 0.920f } },                                 // PIANO  the six voicings
+};
+static inline const PmDetents *pm_detents_for(int engine, int dim)
+{
+    for (int i = 0; i < PM_NDETENT; i++)
+        if (PM_DETENT[i].engine == engine && PM_DETENT[i].dim == dim) return &PM_DETENT[i];
+    return NULL;
+}
+
 // A neutral starting patch: every modulation OFF, every effect BYPASSED. Stage 1
 // searches a subset of this and the frozen dimensions must be inert, or the
 // engine race would be scoring a random vibrato it never chose.
+// ⚠ nmode STARTS AT ZERO, and that is load-bearing rather than lazy. There is no
+// value that means "leave this MODE_* alone": the dials are not all continuous.
+// MODE_BOW_PIZZ is a THRESHOLD (>= 0.5 plucks the string instead of bowing it),
+// so a "neutral" 0.5 sits exactly on the wrong side of it and every BOWED
+// candidate in the race was a PIZZICATO -- the one thing a violin is not. Same
+// shape for MODE_ORGAN_PERC_THIRD/_SLOW. Since every candidate now renders on a
+// FRESH instance there is nothing to inherit, so a dial the search does not own
+// is best left UNWRITTEN, at whatever the engine itself considers default.
 static inline void pm_patch_default(PmPatch *p, int engine)
 {
     p->engine = engine;
+    p->nmode = 0;
     for (int i = 0; i < PM_NV; i++) p->v[i] = 0.5f;
     p->v[V_ATK] = 0.0f; p->v[V_DEC] = 0.5f; p->v[V_SUS] = 0.9f; p->v[V_REL] = 0.2f;
     p->v[V_FMODE] = 0.0f;                       // bin 0 = FILTER_OFF

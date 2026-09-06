@@ -2927,3 +2927,48 @@ attack flips it where 80 ms does not), so it is an attack-transient problem, not
   other 20 cents out; iterate until the measured ratio stops moving.
 - **`peaks.js` had `f0` hardcoded to 220** and silently measured the wrong band when asked for C4.
   Fixed here to take an optional 4th argument.
+
+## 31. INSTR_VOICE ignores its three macros when set on the SLOT (2026-09-06)
+
+Found by [`tools/patch-match`](patch-matching.md) while sweeping every engine macro looking for
+detents: VOICE reported all three axes as producing byte-identical renders at every value, which for
+any other engine would mean the axis does nothing. It does mean that. `studio.h` advertises
+`harmonics = VOWEL (U→O→A→E→I)`, `timbre = SIZE`, `morph = EFFORT`, and the slot-level calls reach
+none of them.
+
+Measured with a minimal cart (define a slot, set one macro, strike; nothing else touched), FM as the
+control:
+
+```
+VOICE  hit() + slot macros      all-0 vs all-1: IDENTICAL
+VOICE  note_on + slot macros    all-0 vs all-1: IDENTICAL
+VOICE  note_on + note_* live    all-0 vs all-1: differs
+FM     all three paths                          differs
+```
+
+**Cause, and it is not subtle.** `sound_voice_start()` (`runtime/sound.h`, called from the note-on
+dispatch alongside `sound_pluck_start` and friends) opens by overwriting the *entire* parameter array
+with a hardcoded default table:
+
+```c
+const float def[VOX_NPARAM] = { 0.5f, 0.33f, 0.10f, 0.5f, 0.30f, ... };
+for (int i = 0; i < VOX_NPARAM; i++) v->vox_p[i] = v->vox_s[i] = def[i];
+```
+
+Index 0 is the vowel and index 1 is the size, which are two of the three advertised macros. Anything
+the slot wrote is clobbered at every note start. `note_harmonics()` / `note_timbre()` / `note_morph()`
+work because they land *after* the reset, on a live handle.
+
+**Who this affects:** any cart choosing a VOICE vowel with `instrument_harmonics()` is silently
+getting the default vowel, with no error and a perfectly plausible sound. The probe carts drive
+VOICE through `note_aux` and the live face, which is why this survived.
+
+**Not fixed here.** The shape of a fix is to seed `def[]` from the slot's macros for the indices the
+macros own rather than from constants, but that is `sound.h`, it is shared, and it wants an ear on
+the result plus a `tune-check` / `spec` pass. Filed rather than patched.
+
+Corollary worth keeping: **an engine macro that does nothing is invisible to every existing gate.**
+`tune-check` asks whether a note is in tune, `level-check` how loud, `fx-check` whether an effect
+changed something. None of them asks whether a knob the docs advertise actually moves the sound. The
+sweep that found this is three lines of "render at 0, render at 1, compare bytes" and could be a gate
+of its own across the whole macro surface.

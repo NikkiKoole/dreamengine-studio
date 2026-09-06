@@ -15,6 +15,26 @@ _Last updated: 2026-08-19 — **Tiny Pedalboard shipped to the App Store and is 
 
 ## Shipped ✓
 
+- **PATCH MATCHING: A SAMPLE IN, EIGHT DREAMENGINE PATCHES OUT** (2026-09-06). The Synplant/Genopatch
+  ask, answered with search rather than machine learning, because the expensive half of that product
+  is not the neural net. [`tools/patch-match/`](../tools/patch-match/) drives the real engine
+  headless with a multi-resolution log-mel distance and differential evolution, staged because the
+  biggest decision (which engine) is discrete: race all 18, refine the top three, then fit effects
+  with the voice frozen so you can read which half did the work. Output is pasteable
+  `instrument()` blocks plus a WAV per candidate. What makes it trustworthy is
+  `--selftest`, an oracle that renders a known patch, throws the parameters away and asks the search
+  to find them again: the correct engine lands in the top three 24 times out of 24, and continuous
+  macros come back to about three decimals. Four design choices had to be measured rather than
+  guessed, each one a place the obvious build is wrong (a fresh engine instance per candidate, which
+  is also cheaper than flushing; the render dominates the cost, not the loss; the fx stage must be
+  handed bypass or its "best" can be worse than adding nothing; and dimensions split by what a dial
+  does rather than which API owns it, or a cassette's flutter gets reported as vibrato). Turned up
+  two bugs on the way: a "neutral" 0.5 on `MODE_BOW_PIZZ` made every BOWED candidate a pizzicato
+  (fixed), and `INSTR_VOICE` ignores all three of its advertised macros when set on the slot
+  (filed, not fixed: [`design/audio-notes.md`](design/audio-notes.md) §31). **CLI only** and the
+  cart is a genuine design fork rather than a missing afternoon, since a cart cannot create the
+  engine instances the search renders into: [`design/patch-matching.md`](design/patch-matching.md) §10.
+
 - **101 PRESET RHYTHMS, SOURCED OFF THE MANUFACTURERS' OWN DOCUMENTS, CHORD AND BASS INCLUDED** (2026-08-20). Every latin
   pattern in this repo was a plausible reconstruction, `sideman`'s twelve rhythms included. This is
   the real thing, traceable to a page and a figure:

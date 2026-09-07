@@ -429,7 +429,19 @@ int main(int argc, char **argv)
 
     int full = (int)(wsecs * SR), shortn = (int)(wshort * SR);
     if (on + full > m) full = m - on;
-    if (full < SR / 4) { fprintf(stderr, "pm: sample too short after onset trim\n"); return 1; }
+    // The floor is the ANALYSER's requirement, not a round number. The largest
+    // scale is a 2048-point FFT, so anything past that plus a hop can be scored;
+    // 0.25s (the first guess) would have refused a real 0.14s one-shot that
+    // matches perfectly well. Below the floor the biggest window would have no
+    // frame to sit in at all.
+    if (full < 2048 + 512) {
+        fprintf(stderr, "pm: only %.3fs after onset trim; the 2048-point scale needs %.3fs\n",
+                full / (double)SR, (2048 + 512) / (double)SR);
+        return 1;
+    }
+    if (full < SR / 2)
+        printf("  \033[33mnote:\033[0m short target (%.2fs), scored on what is there; the 2048-point scale gets %d frame(s)\n",
+               full / (double)SR, (full - 2048) / 512 + 1);
     if (shortn > full) shortn = full;
     g_hold_full = (int)(full * 1000.0f / SR);
     g_hold_short = (int)(shortn * 1000.0f / SR);

@@ -24,6 +24,10 @@
 // Every candidate renders on a FRESH ENGINE INSTANCE (measured: cheaper than
 // flushing the old one, because it skips the flush render). That is what makes a
 // score depend on the patch alone and not on what was evaluated before it.
+// de:engine-owner multi — the whole design is one FRESH engine per candidate, created and
+// destroyed thousands of times (§5a of docs/design/patch-matching.md): that is what makes a
+// score depend on the patch rather than on what was evaluated before it. Measured: the
+// create/destroy pair does not leak (1000 cycles, RSS flat at 18.2 MB).
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

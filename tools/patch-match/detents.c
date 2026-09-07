@@ -19,6 +19,8 @@
 // step and reports as one group per step, which is how the two are told apart.
 //
 // This is also a plain statement about the engine that nothing else records.
+// de:engine-owner multi — one fresh engine per swept macro value, because the measurement is
+// a BYTE-COMPARISON between renders and per-voice state carried across notes would corrupt it.
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

@@ -25,6 +25,9 @@
 // LIVENESS. Every check here passes perfectly on silence, which is exactly what
 // a broken render protocol produces, so a silent render is a FAILURE and not a
 // very good score.
+// de:engine-owner multi — this gate exists to compare the fresh-instance render protocol
+// against the shared-instance one (`-shared`, its negative control), so it deliberately
+// creates engines both ways.
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

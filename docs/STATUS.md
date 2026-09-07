@@ -904,6 +904,20 @@ Detail lives in the linked design doc in every case; that is where it was always
 
 ## Open — prioritized
 
+- **PATCH MATCHING INTO A CART — the fork is specced, the pick is open** (2026-09-07). The CLI
+  ships ([`design/patch-matching.md`](design/patch-matching.md)); "drop a sample into a cart and
+  hear the console's own version" is the next wish and it is a design fork rather than an
+  afternoon. Priced four ways in
+  [`design/patch-matching-cart.md`](design/patch-matching-cart.md), of which **two need no engine
+  change at all**. The reframe that does most of the work: Genopatch (automatic matching) and
+  Synplant 1 (eight seeds, you listen, you breed) are two different products, and the second needs
+  no offline render and no scoring because the ear is the loss function. ⚠ The tempting shape,
+  letting a cart render candidates silently, is structurally wrong and not merely unbuilt: it would
+  race the audio thread and eat the live voice state, so it needs a second engine instance, i.e.
+  the AUv3 multi-instance refactor (146 mutable statics left). Recommendation is **the editor
+  first, then the ear-judged cart, seeded from the editor's match**; skip the realtime-scoring
+  option. Four questions only the maker can answer are listed at §6.
+
 > ### 💰 Both apps go FREE with one **$4.99** "Pro" unlock; `pedalboard` is OFF SALE until it can come back with the wall in place
 >
 > Decided 2026-08-18, amended 2026-08-19: [ADR-0035](decisions/0035-free-with-one-pro-unlock.md) and

@@ -193,10 +193,41 @@ A loss is meaningless without its scale. Against one target:
 | white noise | 1.65 |
 
 So 0.18 is a good match, 0.25 is decent, and 0.42 is the engine telling you it does not have that
-sound. Results on four samples from a commercial toy-keyboard pack: `analok` 0.182 (SAW),
-`cassette square wave` 0.244 (PIPE, effects doing real work), `toytone` 0.262 (FM), `sklocken` 0.418.
-That last one is the honest failure: MALLET can reach the target's decay but scores 1.58 at its best
-macros, so no search budget would have helped.
+sound.
+
+Measured on ten samples from a commercial toy-keyboard library (2026-09-06/07), best candidate:
+
+| sample | loss | engine | what the fx stage did |
+|---|---|---|---|
+| `ambitone` | 0.175 | PIPE | 0.329 → 0.175, nearly halved |
+| `analok` | 0.182 | SAW | nothing (voice alone won) |
+| `elenet` | 0.186 | REED | 0.231 → 0.186 |
+| `cassette square wave` | 0.244 | PIPE | 0.268 → 0.244 |
+| `toytone` | 0.262 | FM | 0.291 → 0.262 |
+| `lapharp-ebow` | 0.290 | BOWED | 0.334 → 0.290 |
+| `wisp` | 0.350 | FM | 0.397 → 0.350 |
+| `sklocken` | 0.418 | FM | barely |
+| `birdtopper` | 0.534 | BRASS | **nothing at all** |
+| `taplay` | 0.619 | PIPE | 0.644 → 0.619 |
+
+Three things in that table are worth more than the numbers.
+
+**A flat top eight is the failure signature.** `taplay` (0.62–0.68 across PIPE, FM and VOICE) and
+`birdtopper` (0.53–0.59 across BRASS, REED and BOWED) both spread their eight candidates across a
+band narrower than the gap to a good match, with unrelated engines scoring alike. That flatness says
+"nothing here is distinctly right", which is a more useful signal than the loss value itself. On
+`sklocken` the same conclusion was confirmed the harder way: MALLET can reach the target's decay but
+scores 1.58 even at its best macros, so no search budget would have helped.
+
+**`lapharp-ebow` is the case a number cannot settle.** BOWED took the top three places at 0.290 and
+EPIANO the next three at 0.298. Those are two completely different physical stories about one sound
+(a plucked string with an ebow sustaining it is genuinely both), separated by less than the run-to-run
+spread. A person can tell which is right; this loss cannot.
+
+**Effects earn their place unevenly, and that is informative.** They did roughly half the work on
+`ambitone`, and *nothing whatsoever* on `birdtopper`, where a 0.14s transient gives reverb and tape
+nothing to act on. `analok` was won by the voice alone. A run where every candidate improves a lot
+with effects (`wisp`) usually means the voice is wrong and the effects are papering over it.
 
 ## 9. Two bugs this turned up
 
@@ -212,26 +243,28 @@ fixed, written up as [`audio-notes.md` §31](audio-notes.md).
 
 ## 10. Open: everything past the command line
 
-There is no cart and no editor button, and that is a design fork rather than a missing afternoon.
-The search needs roughly 20,000 candidate renders, each a fresh engine instance rendered offline at
-38x realtime across several processes. A cart is a single process living *inside* one engine at
-60fps while that engine is playing audio; it cannot create engine instances to render candidates
-into, and the fresh-instance trick is exactly what bought determinism. Three shapes, none free:
+There is no cart and no editor button. That is a **design fork rather than a missing afternoon**,
+and it has its own doc with its own lifecycle:
+[`patch-matching-cart.md`](patch-matching-cart.md) (READY TO BUILD). The short version: two of the
+four options need no engine change at all, the tempting one (let a cart render candidates silently)
+is structurally wrong rather than merely unbuilt, and the reframe that does most of the work is that
+Genopatch and Synplant 1 are two different products with wildly different costs.
 
-- **Grow it live.** A much smaller search that improves over seconds while you watch, spending a
-  fixed render budget per frame. The Synplant metaphor fits: the tree grows *because* the search is
-  running. Needs a way to render offline from inside a cart.
-- **Precompute.** The CLI produces the candidates and the cart is an audition and breeding front end
-  over them. Works today, much less magic.
-- **An engine seam.** An offline-render call a cart can make. That is engine work.
+Smaller open items, none of them forks:
 
-Smaller open items: a `node tools/patch-match.js` wrapper so it behaves like the rest of the shelf
-(every other tool is `node tools/x.js`; this one is a C tree you compile by hand, because it has to
-link the engine); snapping the two coarse axes that are quantised but too fine to enumerate; and
-velocity, currently pinned at 5, which is a timbral parameter on most of these engines.
+- A `node tools/patch-match.js` wrapper, so it behaves like the rest of the shelf. Every other tool
+  is `node tools/x.js`; this one is a C tree you compile by hand, because it has to link the engine.
+- Snapping the two coarse axes (`PLUCK` morph at 79 groups, `PIANO` timbre at 53) that are quantised
+  but too fine to enumerate the way §7 does.
+- **Velocity, currently pinned at 5.** On most of these engines velocity is a timbral parameter, not
+  just a level, so it is a real dimension the search cannot currently reach.
+- A macro-liveness gate across the whole engine surface, which is the corollary of
+  [`audio-notes.md`](audio-notes.md) §31: an advertised knob that does nothing is invisible to every
+  gate we have. The sweep that caught `INSTR_VOICE` is three lines.
 
 ## See also
 
+- [`patch-matching-cart.md`](patch-matching-cart.md) — the cart fork (§10), specced and undecided.
 - [`docs/guides/checks-and-oracles.md`](../guides/checks-and-oracles.md) for which gate to run when.
 - [`docs/design/instrument-engines.md`](instrument-engines.md) for what each engine's macros mean.
 - [`docs/design/audio-notes.md`](audio-notes.md) §31 for the `INSTR_VOICE` macro finding.

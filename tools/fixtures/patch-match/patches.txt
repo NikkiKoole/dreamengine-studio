@@ -1,0 +1,18 @@
+// patch-match: piano.wav
+// f0 261.6 Hz -> midi 60, window 1.00s
+
+// ---- candidate 1: INSTR_PIANO   voice 0.12345 -> fx 0.09876
+    instrument(5, INSTR_PIANO, 8, 120, 7, 200);
+    instrument_harmonics(5, 0.620f);  instrument_timbre(5, 0.280f);  instrument_morph(5, 0.740f);
+    hit(60, 5, 5, 1000);
+
+// ---- candidate 2: INSTR_EPIANO   voice 0.15000 -> fx 0.14000
+    instrument(5, INSTR_EPIANO, 10, 80, 6, 180);
+    instrument_harmonics(5, 0.410f);  instrument_timbre(5, 0.550f);  instrument_morph(5, 0.330f);
+    instrument_tape(5, 0.120f, 0.080f, 0.200f);
+    hit(60, 5, 5, 1000);
+
+// ---- candidate 3: INSTR_MALLET   voice 0.21000 -> fx 0.20000
+    instrument(5, INSTR_MALLET, 4, 60, 0, 140);
+    instrument_harmonics(5, 0.500f);  instrument_timbre(5, 0.500f);  instrument_morph(5, 0.500f);
+    hit(60, 5, 5, 1000);

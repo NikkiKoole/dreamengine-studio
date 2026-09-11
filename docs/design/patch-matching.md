@@ -243,12 +243,13 @@ fixed, written up as [`audio-notes.md` §31](audio-notes.md).
 
 ## 10. Open: everything past the command line
 
-There is no cart and no editor button. That is a **design fork rather than a missing afternoon**,
-and it has its own doc with its own lifecycle:
-[`patch-matching-cart.md`](patch-matching-cart.md) (READY TO BUILD). The short version: two of the
-four options need no engine change at all, the tempting one (let a cart render candidates silently)
-is structurally wrong rather than merely unbuilt, and the reframe that does most of the work is that
-Genopatch and Synplant 1 are two different products with wildly different costs.
+Option A of the cart fork is in the editor (2026-09-11): drop a WAV on the window, it spawns this
+CLI, you audition the eight candidates and paste one. That is still a **tool**, not a cart — the
+remaining fork (option B, your ear as the loss) has its own lifecycle in
+[`patch-matching-cart.md`](patch-matching-cart.md). The short version: two of the four options need
+no engine change at all, the tempting one (let a cart render candidates silently) is structurally
+wrong rather than merely unbuilt, and the reframe that does most of the work is that Genopatch and
+Synplant 1 are two different products with wildly different costs.
 
 Smaller open items, none of them forks:
 
@@ -264,7 +265,7 @@ Smaller open items, none of them forks:
 
 ## See also
 
-- [`patch-matching-cart.md`](patch-matching-cart.md) — the cart fork (§10), specced and undecided.
+- [`patch-matching-cart.md`](patch-matching-cart.md) — the cart fork (§10); option A is in the editor, option B is next.
 - [`docs/guides/checks-and-oracles.md`](../guides/checks-and-oracles.md) for which gate to run when.
 - [`docs/design/instrument-engines.md`](instrument-engines.md) for what each engine's macros mean.
 - [`docs/design/audio-notes.md`](audio-notes.md) §31 for the `INSTR_VOICE` macro finding.

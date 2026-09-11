@@ -287,6 +287,48 @@ html, body {
              font-size: 12px; padding: 6px 16px; cursor: pointer; white-space: nowrap; margin-left: auto; }
 #dress-run:hover:not(:disabled) { color: var(--accent); border-color: var(--accent); }
 #dress-run:disabled { opacity: 0.5; cursor: default; }
+/* patch-match drop UI — shares the .modal backdrop + panel look; progress then eight candidates */
+#pm-lab { width: min(720px, 94vw); max-height: calc(100vh - 48px); overflow-y: auto; margin: auto;
+          background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+          padding: 16px; box-shadow: 0 8px 40px rgba(0, 0, 0, 0.4); }
+#pm-lab h3 { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; font-size: 14px; }
+#pm-lab .apps-hint { color: var(--fg-dim); font-size: 11px; font-weight: normal; margin-left: 8px; }
+#pm-close { margin-left: auto; font-size: 12px; padding: 1px 8px; cursor: pointer; background: var(--bg2); border: 1px solid var(--border); border-radius: 4px; color: var(--fg-dim); }
+.pm-progress-label { font-size: 12px; color: var(--fg); margin-bottom: 6px; }
+.pm-bar { height: 6px; background: var(--bg2); border: 1px solid var(--border); border-radius: 4px; overflow: hidden; }
+#pm-bar-fill { height: 100%; width: 0; background: var(--accent); transition: width 0.2s; }
+.pm-log, .pm-error {
+  margin: 10px 0 0; padding: 10px;
+  background: var(--bg); border: 1px solid var(--border); border-radius: 6px;
+  font-size: 11px; line-height: 1.4; color: var(--fg-dim);
+  white-space: pre-wrap; max-height: 220px; overflow-y: auto;
+}
+.pm-error { color: var(--fg); border-color: var(--accent); }
+.pm-actions { display: flex; justify-content: flex-end; margin-top: 10px; }
+#pm-cancel { background: none; border: 1px solid var(--border); color: var(--fg);
+             font-family: var(--font); font-size: 12px; padding: 6px 14px; cursor: pointer; }
+#pm-cancel:hover:not(:disabled) { color: var(--accent); border-color: var(--accent); }
+#pm-cancel:disabled { opacity: 0.5; cursor: default; }
+#pm-cands { display: flex; flex-direction: column; gap: 8px; }
+.pm-cand { border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px;
+           background: var(--bg2); display: flex; flex-direction: column; gap: 6px; }
+.pm-cand.playing { border-color: var(--accent); }
+.pm-cand-h { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; color: var(--fg); }
+.pm-dim { color: var(--fg-dim); font-size: 11px; }
+.pm-cand-actions { display: flex; gap: 8px; }
+.pm-cand-actions button {
+  background: none; border: 1px solid var(--border); color: var(--fg);
+  font-family: var(--font); font-size: 12px; padding: 4px 10px; cursor: pointer;
+}
+.pm-cand-actions button:hover:not(:disabled) { color: var(--accent); border-color: var(--accent); }
+.pm-cand-actions button:disabled { opacity: 0.5; cursor: default; }
+.pm-target .pm-cand-h { color: var(--fg-dim); }
+.pm-target > button {
+  align-self: flex-start;
+  background: none; border: 1px solid var(--border); color: var(--fg);
+  font-family: var(--font); font-size: 12px; padding: 4px 10px; cursor: pointer;
+}
+.pm-target > button:hover { color: var(--accent); border-color: var(--accent); }
 .pm-dress { font-size: 10px; padding: 1px 8px; cursor: pointer; }
 #apps-body h3 { margin: 0 0 10px; font-size: 14px; color: var(--fg); }
 #apps-body .apps-hint { color: var(--fg-dim); font-size: 11px; font-weight: normal; margin-left: 8px; }

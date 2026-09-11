@@ -200,7 +200,7 @@
       <div id="panel-tutorials" class="panel">
         <div id="cart-actions">
           <button id="save-cart-btn" title="save current code, sprites & map as a .cart.png">save cart</button>
-          <button id="load-cart-btn" title="open a .cart.png — or drop one onto the window">load cart</button>
+          <button id="load-cart-btn" title="open a .cart.png — or drop one onto the window (a .wav drop matches a patch)">load cart</button>
           <button id="save-source-btn" title="repo carts: write the code back to tools/carts/&lt;slug&gt;.c and rebake the gallery cart (source only — commit separately with cart-commit.js)">save to source</button>
           <!-- export / publish moved into the topbar ⇪ share popover (share-panel.md) -->
         </div>
@@ -418,6 +418,31 @@
             <div class="kw-hint">real engine pixel font · boil = per-letter wobble, breathe = scale pulse (0 = off). every region is optional; text is hand-typed. desktop app only.</div>
           </div>
         </div>
+      </section>
+    </div>
+
+    <!-- Patch match — drop a WAV on the window. Electron spawns the shipped `pm` CLI
+         (tools/patch-match), this panel streams stage progress then lists eight
+         candidates to audition + paste. Option A of docs/design/patch-matching-cart.md;
+         no engine change (ADR-0006). Desktop only. -->
+    <div id="pm-modal" class="modal" hidden>
+      <section id="pm-lab">
+        <h3>🎛 Patch match <span class="apps-hint" id="pm-subject"></span>
+          <button id="pm-close" title="close — a running search keeps going">✕</button></h3>
+        <div class="kw-hint">the editor spawns the patch-match CLI (a tool, not an engine API). drop a WAV · shift-drop for --quick · click a candidate to hear it · paste puts the instrument() block at the cursor.</div>
+        <div id="pm-progress" hidden>
+          <div id="pm-progress-label" class="pm-progress-label">starting…</div>
+          <div class="pm-bar"><div id="pm-bar-fill"></div></div>
+          <pre id="pm-log" class="pm-log"></pre>
+          <div class="pm-actions">
+            <button id="pm-cancel" title="stop the search">cancel</button>
+          </div>
+        </div>
+        <pre id="pm-error" class="pm-error" hidden></pre>
+        <div id="pm-results" hidden>
+          <div id="pm-cands"></div>
+        </div>
+        <audio id="pm-audio" hidden></audio>
       </section>
     </div>
 

@@ -1008,9 +1008,15 @@ Detail lives in the linked design doc in every case; that is where it was always
 > every runtime check and lands every value in the wrong field. That is enforced at BUILD time by
 > `tools/lint-saved-state.js` against a committed layout snapshot, whose rule is **append-only**. The two
 > halves are one design; neither is sufficient alone.
-> **2. `fullStateForDocument` is unverified.** GarageBand round-tripping a project is real evidence,
-> but which of the two it used is unknown, and other hosts may use the document variant. One assertion
-> in the `--state` gate settles it.
+> **✅ 2. `fullStateForDocument` — DONE 2026-09-12.** A host saves a PROJECT through this property,
+> not `fullState`; `AUAudioUnit`'s default forwards one to the other, so the rack reached the document
+> path only by INHERITANCE and no gate said so. Five assertions in `--state` now ask the document
+> property the same questions (it carries the rack, keeps super's keys, is the SAME rack `fullState`
+> saves compared inflated byte-wise, the setter restores without wedging, re-saving reproduces it).
+> Green against the shipping plug-in, mutation-tested both ways: drop the key → 2 red, hand it a
+> different-length rack → 1 red naming the length change. It matters the day somebody adds the override
+> these two properties exist FOR, because the project path would leave with it while every preset check
+> above stayed green.
 > **3. No `factoryPresets`.** (The `parameterTree` half of this SHIPPED 2026-08-16 — see the host-parameters
 > entry above.) The preset dropdown is empty, and whether saving a
 > GarageBand *patch* (as opposed to a project) carries the rack is untested — patches are how people
@@ -1026,7 +1032,7 @@ Detail lives in the linked design doc in every case; that is where it was always
 > Per-slice opt-in with **scratch as the default**, because forgetting to mark loses a setting
 > (recoverable) where the other default restores a stale handle (corruption). Gated three ways:
 > `bash tools/state-check/run.sh` (20 assertions, four negative controls, engine half),
-> `./au-transport-check --state` in `ios/mac.sh` (12, the real out-of-process plug-in, including the
+> `./au-transport-check --state` in `ios/mac.sh` (18, the real out-of-process plug-in, including the
 > **property-list round trip** a host performs when it writes the project file — anything not
 > plist-representable is dropped silently), and `tools/lint-saved-state.js`, which caught a real defect
 > on its first run (`acidcandy`'s `nav_poison[6]`, widget POINTERS inside the saved slice).
@@ -1084,11 +1090,21 @@ Detail lives in the linked design doc in every case; that is where it was always
 > silent, `tune-check` no new drift, `level-check` and `dc-check` clean, all carts compile (569 then, 570 now).
 > `MODE_PIANO_DECAY` / `MODE_PIANO_KNOCK` now exist so no cart needs raw indices again.
 >
-> **Still open, and the reason this stays here: `instrument_mode` does not validate its index.** An
-> out-of-range idx is silently ignored, which is how a dead user-facing control survived this long — it
-> compiles, runs, and looks fine. Worth deciding whether the engine should complain (a `[sound] WARNING`
-> would have surfaced this immediately, and `soundcheck` greps for exactly that). A sweep of every
-> `instrument_mode` call site found `piano.c` was the only cart affected.
+> **✅ THE BUG CLASS IS CLOSED TOO — 2026-09-12: `instrument_mode` is loud about a bad index.** The
+> guard used to `return` in silence, which is how a dead user-facing control survived this long: it
+> compiles, runs, and looks fine. It now counts the drop and `sound_tick` prints
+> `[sound] WARNING: instrument_mode(slot N, idx M) is OUT OF RANGE and was DROPPED`, naming the
+> offender and the valid range, on the same deduped tripwire path as the queue/ctx/pool warnings (one
+> line a frame, not sixty, for a cart that calls it in a loop). The range in the message is read from
+> `sizeof eng_p` rather than typed, because this bound has been widened three times and a message
+> naming a stale range is worse than one naming none. Diagnostic only per
+> [ADR-0017](decisions/0017-three-macro-core-plus-engine-aux-channel.md): no new channel, and in-range behaviour is
+> untouched — `refactor-guard` is 6/6 byte-identical, `soundcheck` silent over 900 frames,
+> `tune-check` no new drift. Both directions proven with a throwaway probe: an in-range
+> `MODE_PIANO_DECAY` stays silent in the same frame that a bad idx and a bad slot both warn.
+> Note it catches two opposite faults — a bad idx from a cart is the caller's bug, a bad idx that is
+> really a too-narrow bound is ours, and the second is the one this entry is about.
+> **This entry now has nothing open left; it is ready to retire into Shipped.**
 >
 > **A measurement trap from the same hunt, worth remembering:** the first probe "proved" idx 2 dead by
 > rendering byte-identical audio — but the probe set idx 2 and the cart's own `push_knobs()` line then

@@ -444,7 +444,8 @@ if argv.contains("--view") {
 //
 // This mode covers exactly that seam: the key reaches the host, it is our own format, super's keys are
 // not stripped, it survives plist serialisation byte-for-byte, and setting it back — valid or corrupt —
-// leaves a plug-in that still plays.
+// leaves a plug-in that still plays. It then asks the same questions of `fullStateForDocument`, which
+// is the property a host saves a PROJECT through and is not the one every check above measured.
 if argv.contains("--state") {
     print("▸ session state: does fullState carry the rack, and survive what a DAW does with it?")
     // SAME REASON AS --panel AND THE TRANSPORT GATE, which already skip here: this rig gives an
@@ -560,6 +561,76 @@ if argv.contains("--state") {
                 : "length changed: \(before.count) → \(again.count)")
     }
 
+    // ── THE DOCUMENT PATH: fullStateForDocument ─────────────────────────────────────────────────
+    // Everything above measured `fullState`, which is the PRESET property. A host saving a PROJECT
+    // reads a different one: `fullStateForDocument`. AUAudioUnit's default implementation forwards
+    // it to fullState in both directions, and TinyjamAU relies on that default rather than
+    // overriding it, so the twelve lines that carry the rack are reached on the document path only
+    // by inheritance. Nothing asserted that. It matters because the two properties exist precisely
+    // so a plug-in CAN split them (a bank you save in a project but not in a preset is the usual
+    // reason), and the day somebody adds that override the project path leaves with it while every
+    // check above stays green. The user-visible failure is the worse half of the pair: a rack that
+    // comes back from a saved preset and comes back at DEFAULTS from a saved song.
+    //
+    // Two shared helpers, so the document checks compare the same way the preset ones did.
+    let inflate: (Data?) -> Data? = { d in
+        guard let d = d else { return nil }
+        guard d.count > 8, d.prefix(4).elementsEqual(Data("DEZ1".utf8)) else { return d }   // raw DES1 passes through
+        return try? (Data(d.dropFirst(8)) as NSData).decompressed(using: .zlib) as Data
+    }
+    // Same tolerance and same reason as "re-saving the restored rack reproduces it" above: a few
+    // live counters move every frame, and a frame has to run for a restore to apply at all.
+    let rackDiff: (Data, Data) -> (ok: Bool, differing: Int, pct: Double) = { a, b in
+        var differing = 0
+        if a.count == b.count {
+            a.withUnsafeBytes { x in b.withUnsafeBytes { y in
+                let pa = x.bindMemory(to: UInt8.self), pb = y.bindMemory(to: UInt8.self)
+                for i in 0..<pa.count where pa[i] != pb[i] { differing += 1 }
+            }}
+        }
+        let pct = a.count > 0 ? 100.0 * Double(differing) / Double(a.count) : 100.0
+        return (a.count == b.count && pct < 1.0, differing, pct)
+    }
+
+    let docState = avAU.auAudioUnit.fullStateForDocument
+    let docData  = docState?[KEY] as? Data
+    check("fullStateForDocument carries the rack too", (docData?.count ?? 0) > 0,
+          docState == nil ? "it returned nil, so a DAW saving a PROJECT would get nothing"
+                          : docData == nil ? "no \"\(KEY)\" key on the DOCUMENT path (fullState has it)"
+                                           : "\(docData!.count) bytes under \"\(KEY)\"")
+    check("and the document path keeps super's keys too", (docState?.count ?? 0) > 1,
+          "\(docState?.count ?? 0) key(s) — without super's, the host cannot re-instantiate us from a project")
+
+    // …and it must be the SAME rack, not an empty one or a stale snapshot.
+    if let mine = inner, let theirs = inflate(docData) {
+        let d = rackDiff(mine, theirs)
+        check("and it is the same rack fullState saves", d.ok,
+              theirs.count == mine.count
+                ? "\(d.differing) of \(mine.count) bytes differ (\(String(format: "%.3f", d.pct))%), live counters only"
+                : "length changed: \(mine.count) → \(theirs.count), the document path is saving something else")
+    } else {
+        check("and it is the same rack fullState saves", false,
+              "could not inflate the document blob to a DES1 rack")
+    }
+
+    // THE SETTER HALF. Reopening a project writes this property, never fullState, so a setter that
+    // did not reach de_load_state would lose the song with no error anywhere. Proved the same way
+    // the preset setter was: put it back, keep playing, save again, and the bytes have to reproduce.
+    // "Still renders" alone is only "did not crash".
+    if let docState = docState {
+        avAU.auAudioUnit.fullStateForDocument = docState
+        let afterDoc = rig.render(beats: 4)
+        check("the plug-in still renders after a DOCUMENT restore", afterDoc.peak > 0.01,
+              "peak \(String(format: "%.3f", afterDoc.peak)) over 4 beats")
+        if let mine = inflate(docData), let again = inflate(avAU.auAudioUnit.fullStateForDocument?[KEY] as? Data) {
+            let d = rackDiff(mine, again)
+            check("and re-saving the document reproduces the rack", d.ok,
+                  again.count == mine.count
+                    ? "\(d.differing) of \(mine.count) bytes differ (\(String(format: "%.3f", d.pct))%), live counters only"
+                    : "length changed: \(mine.count) → \(again.count)")
+        }
+    }
+
     // BACKWARDS COMPATIBILITY: projects saved before compression landed hold a RAW DES1 blob, and the
     // maker has some. The setter must recognise those by their magic and pass them straight through.
     // ⚠ What this proves is that a legacy blob is not mistaken for a compressed one and does not wedge
@@ -597,7 +668,7 @@ if argv.contains("--state") {
               "peak \(String(format: "%.3f", afterBadInner.peak)) after mangling the layout fingerprint")
     }
 
-    print(failures == 0 ? "\nPASS — fullState reaches the host, survives a project save, and refuses safely."
+    print(failures == 0 ? "\nPASS — fullState + fullStateForDocument reach the host, survive a project save, and refuse safely."
                         : "\n\(failures) check(s) FAILED — a saved project would not restore this rack.")
     exit(failures == 0 ? 0 : 1)
 }

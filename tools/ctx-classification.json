@@ -99,7 +99,7 @@
   }
  },
  "function_local": {
-  "_why": "Declared INSIDE a function body. A `#define name (ctx->name)` cannot rewrite these — the declaration itself has to move. Only these seven exist, and one of them is load-bearing.",
+  "_why": "Declared INSIDE a function body. A `#define name (ctx->name)` cannot rewrite these — the declaration itself has to move. Only these exist, and one of them is load-bearing.",
   "lfo_seed_ctr": {
    "line": 5822,
    "fn": "sound_setup_note",
@@ -120,6 +120,11 @@
    "line": 8922,
    "fn": "sound_aw_process",
    "note": "web-only scratch, fully overwritten before read; static only to keep it off the 8KB worklet stack. Wants a per-callback buffer, not a context field"
+  },
+  "eng_tune_oor_reported": {
+   "line": 2277,
+   "fn": "sound_tick",
+   "note": "dedup latch for the OUT-OF-RANGE instrument_mode warning (added 2026-09-12 when that drop stopped being silent). Shared is right for the same reason as pool_reported: the worst case is one instance suppressing a duplicate of another instance reporting the same caller bug, and the counter it latches IS per-instance."
   },
   "pool_reported": {
    "line": 2035,

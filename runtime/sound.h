@@ -2287,6 +2287,17 @@ static void sound_tick(float dt) {
                    pools[i].what, pools[i].now, pools[i].cap);
             pool_reported[i] = pools[i].now;
         }
+
+    // ...and the same for an instrument_mode() index the setter had to throw away. The width is read
+    // from eng_p[] itself rather than written here, because a message naming a range that has rotted
+    // is worse than one naming none: this is a bound that has been widened three times already.
+    static int eng_tune_oor_reported = 0;
+    if (eng_tune_oor > eng_tune_oor_reported) {
+        printh("[sound] WARNING: instrument_mode(slot %d, idx %d) is OUT OF RANGE and was DROPPED — %d call(s), so that mode param is SILENTLY DEAD. slot is 0..%d, idx is 0..%d (use the MODE_* names).",
+               eng_tune_oor_slot, eng_tune_oor_idx, eng_tune_oor, SOUND_INSTR_SLOTS - 1,
+               (int)(sizeof instr_bank[0].eng_p / sizeof instr_bank[0].eng_p[0]) - 1);
+        eng_tune_oor_reported = eng_tune_oor;
+    }
 }
 
 // dur_samples: 0 = use default 250ms (for note/schedule); >0 = custom note length (for hit).
@@ -7178,7 +7189,20 @@ void instrument_mode(int slot, int idx, float value) {   // per-engine aux chann
     //   2026-07-30: idx 4 (MODE_PIANO_STRETCH) added, eng_p widened to 5, bound moved 4 → 5.
     //   2026-07-30: idx 5 (MODE_PIANO_STIFF) added, eng_p widened to 6, bound moved 5 → 6.
     //   `node tools/lint-aux-params.js` now asserts all five places agree — run it after any change here.
-    if (slot < 0 || slot >= SOUND_INSTR_SLOTS || idx < 0 || idx >= 7) return;
+    // ...AND SAY SO WHEN IT IS OUT OF RANGE. Until 2026-09-12 this guard returned in silence, which
+    // made it the last silent drop on this file's public surface: a cart wiring a knob to an idx past
+    // the width got a control that does nothing, with no error anywhere. Note the two failures this
+    // catches are opposite ones. A bad idx from a CART is the caller's bug. A bad idx that is really
+    // a too-narrow BOUND is ours, and that is the one that cost the piano its DECAY and KNOCK
+    // sliders for as long as they existed: the setter was right to reject 2 and 3 given what it
+    // believed, and the silence is the whole reason it took months rather than minutes. Diagnostic
+    // only (decision 0017): no new channel, no behaviour change, in-range calls untouched. Reported
+    // from sound_tick like the other tripwires, so a cart calling this in a loop gets one line a
+    // frame rather than sixty.
+    if (slot < 0 || slot >= SOUND_INSTR_SLOTS || idx < 0 || idx >= 7) {
+        eng_tune_oor++; eng_tune_oor_slot = slot; eng_tune_oor_idx = idx;
+        return;
+    }
     value = clamp01(value);
     sound_push_ctrl(SR_ENG_TUNE, slot, idx, (int)(value * 1000.0f), 0, 0, 0);
 }

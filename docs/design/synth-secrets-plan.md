@@ -599,10 +599,13 @@ Gates: soundcheck silent, `tune-check` no new drift, `level-check` + `dc-check` 
    diagnosis deserves less confidence than the prose it gets written up in** — the audit's own rule
    ("verify a claim by reading") applies to my own findings too.
 
-**Left open**, and now the more interesting half: `instrument_mode` **does not validate its index**, so an
-out-of-range one is silently ignored. That is precisely how a dead user-facing control survives — it
-compiles, runs, and looks fine. A `[sound] WARNING` would have caught it instantly, and `soundcheck` already
-greps for exactly that. Recorded at the top of [`STATUS.md`](../STATUS.md) → "Open".
+**✅ CLOSED 2026-09-12**, and it was the more interesting half: `instrument_mode` used to accept an
+out-of-range index in silence. That is precisely how a dead user-facing control survives: it compiles,
+runs, and looks fine. It now counts the drop and warns from `sound_tick` on the same deduped tripwire
+path as the queue/ctx/pool warnings, naming the slot, the index and the valid range (read from
+`sizeof eng_p`, so the range cannot rot as the bound is widened). `soundcheck` greps for exactly that
+pattern. In-range behaviour is untouched: `refactor-guard` 6/6 byte-identical. See
+[`STATUS.md`](../STATUS.md) → the `piano` dead-sliders entry.
 
 ### 1.7 martenot — ✅ GATE IS THE DEFAULT (owner's ear, 2026-07-29)
 

@@ -903,6 +903,9 @@ typedef struct {
     int ctx_log_n[SOUND_CART_CTX];
     int ctx_active;
     int ctx_overflow;
+    int eng_tune_oor;        // instrument_mode() calls DROPPED for an out-of-range slot/idx, + the last offender
+    int eng_tune_oor_slot;
+    int eng_tune_oor_idx;
     atomic_int sound_dropped;
     float drop_amount;
     float drop_depth;
@@ -1293,6 +1296,9 @@ static _Thread_local DeSound *de_snd = &de_snd_default;
 #define ctx_log_n            (de_snd->ctx_log_n)
 #define ctx_active           (de_snd->ctx_active)
 #define ctx_overflow         (de_snd->ctx_overflow)
+#define eng_tune_oor         (de_snd->eng_tune_oor)
+#define eng_tune_oor_slot    (de_snd->eng_tune_oor_slot)
+#define eng_tune_oor_idx     (de_snd->eng_tune_oor_idx)
 #define sound_dropped        (de_snd->sound_dropped)
 #define drop_amount          (de_snd->drop_amount)
 #define drop_depth           (de_snd->drop_depth)

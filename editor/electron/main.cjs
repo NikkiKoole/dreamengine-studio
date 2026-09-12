@@ -2213,6 +2213,54 @@ ipcMain.handle('studio:patch-match', async (_e, opts = {}) => {
   })
 })
 
+// ── the bench (docs/design/patch-matching-cart.md §7) ──────────────────────────
+// A search produces a SET, and until this existed the repo had no object that held one: the result
+// was pasted at the cursor into whatever cart happened to be open, which is wrong about the cart,
+// wrong about the place (a statement at file scope will not compile) and wrong about the judgement
+// (a candidate only means something next to its target). This writes the whole set into the ONE
+// region of the ONE cart built to hold it, and hands the source back so the editor can run it.
+ipcMain.handle('studio:patch-match-bench', async (_e, opts = {}) => {
+  const ROOT = path.join(__dirname, '../..')
+  const run = String(opts.run || '').replace(/[^a-zA-Z0-9._-]/g, '')
+  if (!run) return { ok: false, error: 'no run name' }
+  const got = pmParse.collectResults(path.join(ROOT, 'build', 'patch-match', run))
+  if (!got.ok) return { ok: false, error: got.error }
+  const cart = path.join(ROOT, 'tools', 'carts', 'patchbench.c')
+  try {
+    const src = fs.readFileSync(cart, 'utf8')
+    const out = pmParse.spliceSlots(src, pmParse.renderSlots(got, run))
+    fs.writeFileSync(cart, out)
+    return { ok: true, run, n: got.candidates.length, code: out }
+  } catch (e) {
+    // spliceSlots REFUSES rather than guessing when the markers are wrong, and that refusal is the
+    // whole safety property here: the alternative is eating a hand edit somebody made to the cart.
+    return { ok: false, error: String(e.message || e) }
+  }
+})
+
+// Previous runs. pm already writes a named directory per search and nothing listed them, so a
+// seven-minute result was one navigation away from being lost.
+ipcMain.handle('studio:patch-match-runs', async () => {
+  const ROOT = path.join(__dirname, '../..')
+  const base = path.join(ROOT, 'build', 'patch-match')
+  let names = []
+  try { names = fs.readdirSync(base, { withFileTypes: true }).filter(d => d.isDirectory()).map(d => d.name) } catch { return { ok: true, runs: [] } }
+  const runs = []
+  for (const name of names) {
+    const rpt = path.join(base, name, 'patches.txt')
+    let n = 0, best = null, when = 0
+    try {
+      const st = fs.statSync(rpt); when = st.mtimeMs
+      const parsed = pmParse.parsePatchesTxt(fs.readFileSync(rpt, 'utf8'))
+      n = parsed.candidates.length
+      if (n) best = { engine: parsed.candidates[0].engine, fx: parsed.candidates[0].fx }
+    } catch { continue }          // a directory with no report is a crashed or running search
+    if (n) runs.push({ name, n, best, when })
+  }
+  runs.sort((a, b) => b.when - a.when)
+  return { ok: true, runs }
+})
+
 ipcMain.handle('studio:leads', async (_e, name) => {
   const ROOT = path.join(__dirname, '../..')
   let carts = []

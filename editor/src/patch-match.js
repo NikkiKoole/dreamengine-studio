@@ -11,6 +11,8 @@
 import { view, flashRange } from './main.js'
 
 let toastFn = (msg) => console.warn(msg)
+let openBenchFn = null   // shell.js hands this in: put source in the buffer, name it, run it
+let lastRun = ''         // the run directory the current results came from
 let running = false
 let audioEl = null
 let playingN = -1
@@ -18,7 +20,7 @@ let wired = false
 
 function $(id) { return document.getElementById(id) }
 
-function showModal() { const m = $('pm-modal'); if (m) m.hidden = false }
+function showModal() { const m = $('pm-modal'); if (m) m.hidden = false; renderRuns() }
 function hideModal() { const m = $('pm-modal'); if (m) m.hidden = true }
 
 function setPanel(which) {
@@ -95,22 +97,33 @@ function renderResults(res, name) {
     play.textContent = c.wavDataUrl ? '▶ audition' : 'no wav'
     play.disabled = !c.wavDataUrl
     play.addEventListener('click', () => playUrl(c.wavDataUrl, play, c.n))
-    const paste = document.createElement('button')
-    paste.textContent = 'paste into cart'
-    paste.title = 'insert this instrument() block at the cursor'
-    paste.addEventListener('click', () => {
-      insertSnippet(c.snippet)
-      toastFn(`pasted candidate ${c.n} (${c.engine})`, 2500)
+    // COPY, not paste. Pasting at the cursor put a statement into whatever cart happened to be
+    // open, which could not compile and was never the cart the sample had anything to do with
+    // (docs/design/patch-matching-cart.md §7). The clipboard cannot break a file.
+    const copy = document.createElement('button')
+    copy.textContent = 'copy block'
+    copy.title = 'copy this instrument() block to the clipboard'
+    copy.addEventListener('click', async () => {
+      try { await navigator.clipboard.writeText(c.snippet.replace(/^\s*hit\(.*$/m, '').trimEnd() + '\n') }
+      catch { insertSnippet(c.snippet); toastFn('clipboard refused — inserted at the cursor instead', 3000); return }
+      toastFn(`copied candidate ${c.n} (${c.engine})`, 2500)
     })
     actions.appendChild(play)
-    actions.appendChild(paste)
+    actions.appendChild(copy)
     row.appendChild(actions)
     host.appendChild(row)
   }
 
+  const bench = document.createElement('button')
+  bench.className = 'pm-bench'
+  bench.textContent = `open all ${res.candidates.length} in the bench`
+  bench.title = 'write the whole set into patchbench.c and run it'
+  bench.addEventListener('click', () => openInBench(res.run || lastRun))
+  host.appendChild(bench)
+
   const note = document.createElement('div')
   note.className = 'kw-hint'
-  note.textContent = `${res.candidates.length} candidates from ${name} · paste sits at the cursor in the open buffer`
+  note.textContent = `${res.candidates.length} candidates from ${name} · the bench plays them against the target; copy puts one on the clipboard`
   host.appendChild(note)
 }
 
@@ -161,8 +174,50 @@ function wireOnce() {
   }
 }
 
-export function initPatchMatch({ showToast } = {}) {
+// The run directory's basename IS the run name (main.cjs derives both from the dropped file), so
+// this is a read of what already exists rather than a second source of truth.
+function runNameOf(dir) {
+  return String(dir || '').replace(/[\\/]+$/, '').split(/[\\/]/).pop() || ''
+}
+
+async function openInBench(run) {
+  if (!run) { toastFn('no run to open', 2500); return }
+  if (!window.studio?.patchMatchBench) { showError('the bench needs the desktop app (npm start).'); return }
+  const r = await window.studio.patchMatchBench({ run })
+  if (!r?.ok) { showError(r?.error || 'could not write the bench'); return }
+  hideModal()
+  stopAudition()
+  if (openBenchFn) await openBenchFn(r.code, run, r.n)
+  else toastFn(`patchbench.c now holds ${r.n} candidate(s) from ${run}`, 4000)
+}
+
+// PREVIOUS RUNS. pm names a directory per search and nothing listed them, so a seven-minute result
+// was one navigation away from being lost. Shown while a search runs too: there is nothing else to
+// look at for those minutes.
+async function renderRuns() {
+  const host = document.getElementById('pm-runs')
+  if (!host || !window.studio?.patchMatchRuns) return
+  const r = await window.studio.patchMatchRuns()
+  host.innerHTML = ''
+  if (!r?.runs?.length) return
+  const h = document.createElement('div')
+  h.className = 'pm-dim'
+  h.textContent = 'earlier runs'
+  host.appendChild(h)
+  for (const run of r.runs.slice(0, 12)) {
+    const b = document.createElement('button')
+    b.className = 'pm-run'
+    const best = run.best ? `${String(run.best.engine).replace(/^INSTR_/, '')} ${Number(run.best.fx).toFixed(3)}` : ''
+    b.textContent = `${run.name}  ·  ${run.n}  ·  ${best}`
+    b.title = 'open this run in the bench'
+    b.addEventListener('click', () => openInBench(run.name))
+    host.appendChild(b)
+  }
+}
+
+export function initPatchMatch({ showToast, openBench } = {}) {
   if (showToast) toastFn = showToast
+  if (openBench) openBenchFn = openBench
   wireOnce()
 }
 
@@ -205,6 +260,7 @@ export async function handleWavDrop(file, { quick = false } = {}) {
   try {
     const res = await window.studio.patchMatch({ wavPath, quick })
     if (res?.ok && res.candidates?.length) {
+      lastRun = runNameOf(res.dir)
       renderResults(res, name)
       if ($('pm-modal')?.hidden) toastFn(`${res.candidates.length} patches ready — click to review`, 8000, () => { showModal(); renderResults(res, name) })
     } else if (res?.cancelled) {

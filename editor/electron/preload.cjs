@@ -71,6 +71,9 @@ contextBridge.exposeInMainWorld('studio', {
   // Desktop only (it is a tool spawn, same spirit as studio:run). docs/design/patch-matching-cart.md A
   patchMatch:       (opts) => ipcRenderer.invoke('studio:patch-match', opts),
   patchMatchCancel: ()     => ipcRenderer.invoke('studio:patch-match-cancel'),
+  // write a finished run into patchbench.c's de:patch-slots region and hand back the source
+  patchMatchBench:  (opts) => ipcRenderer.invoke('studio:patch-match-bench', opts),
+  patchMatchRuns:   ()     => ipcRenderer.invoke('studio:patch-match-runs'),
   onPatchMatchLog:  (cb)   => ipcRenderer.on('pm:log', (_, s) => cb(s)),
   onPatchMatchProgress: (cb) => ipcRenderer.on('pm:progress', (_, info) => cb(info)),
 })

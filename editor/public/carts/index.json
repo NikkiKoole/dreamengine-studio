@@ -5251,6 +5251,20 @@
     "lineage": "Based on two RogueBasin articles (townsfolk AI and denizen herding behavior) — combines boids sheep, a schedule-driven townsfolk system with personality overrides, and a simple wolf predator on a shared day/night clock."
   },
   {
+    "title": "patchbench",
+    "description": "The bench where a matched patch gets judged. tools/patch-match listens to a sample and hands back eight dreamengine patches that try to sound like it; this is where you hear whether any of them actually do. The candidates sit on pads, the original sits on its own key, and A/B plays them back to back so the comparison is a keypress instead of a memory. Pick one, ride its three macros while it sounds, and COPY prints the patch as C you can paste. With no run loaded it holds three built-in patches, so there is always something to play. A cart with one job: hold a SET of instrument patches and let an ear choose between them. The eight candidates live in a `// de:patch-slots` region that the editor rewrites after a search (drop a WAV on the editor window), so the pasted code has exactly ONE legal home and can never land in an unrelated cart. Each pad shows its engine and its fx loss, which is the search's own opinion and deliberately not the last word: a spectral distance is not perception, which is the whole reason this bench exists. The TARGET key plays the original sample the search was chasing, loaded from the run directory next to the candidates; when no run is loaded the bench falls back to three built-in patches and says the target is missing rather than going quiet. A/B alternates target and selection at the same pitch and the same length, which is the only comparison that means anything. The three macro knobs (harmonics / timbre / morph) ride the SELECTED candidate live, so a near miss can be walked in by hand, and COPY prints the patch including whatever the knobs are set to now. 1-8 — select and play that candidate. T — play the target. SPACE — play the selection. B — A/B (target, then the selection, same note, same length). Click a pad to select and play it. HARM / TIMB / MORPH — drag the knobs to ride the selected candidate's three macros. COPY — print the selected patch as pasteable C into the editor's log panel. Up/down arrows move the note the bench plays.",
+    "file": "patchbench.cart.png",
+    "created": "2026-09-12",
+    "kind": [
+      "instrument",
+      "probe"
+    ],
+    "teaches": [
+      "adsr-envelope"
+    ],
+    "lineage": "The landing pad for tools/patch-match. The CLI hands back a SET of candidate patches and the repo had no object that held a set, so a match used to be pasted at the cursor into whatever cart happened to be open (docs/design/patch-matching-cart.md §7). This is where a set lands instead: the candidates on pads, the target on its own key, and one A/B button between them."
+  },
+  {
     "title": "pathfinding",
     "description": "Watch a search find its way around walls — the SAME loop runs three classic algorithms so you can see the difference. BFS floods evenly in every direction (ignores the goal); GREEDY rushes straight at the goal and gets fooled by walls; A* combines distance-so-far plus an estimate, so it's informed and optimal. Frontier cells glow bright, visited cells fade, the final path lights up yellow, and it re-animates on a loop. Move the cursor and press A to draw/erase walls, B to switch algorithm — and watch it re-solve live.",
     "file": "pathfinding.cart.png",

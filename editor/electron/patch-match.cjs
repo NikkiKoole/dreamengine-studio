@@ -116,6 +116,66 @@ function collectResults(outdir) {
   }
 }
 
+// ── THE BENCH REGION ────────────────────────────────────────────────────────────────────────────
+// Turn a parsed run into the block that lives between `// de:patch-slots begin` and `... end` in
+// tools/carts/patchbench.c. This is the whole answer to §7 of docs/design/patch-matching-cart.md:
+// a search result has ONE legal home, written by a generator, instead of being pasted at whatever
+// cursor happened to be in the editor.
+//
+// The snippet pm writes ends with a `hit(...)` so the CLI's output is audible by itself. Here that
+// line is DROPPED: the bench decides when to play and at what pitch, and a stray hit() inside the
+// apply function would fire a note every time you touched a knob.
+const SLOT_BEGIN = '// de:patch-slots begin'
+const SLOT_END = '// de:patch-slots end'
+
+function renderSlots(parsed, runName) {
+  const cands = (parsed.candidates || []).slice(0, 8)
+  if (!cands.length) throw new Error('no candidates to write')
+  const short = (e) => String(e || '').replace(/^INSTR_/, '')
+  const L = []
+  L.push(SLOT_BEGIN)
+  L.push(`// GENERATED from build/patch-match/${runName}/patches.txt — edit the cart, not this block.`)
+  L.push(`#define PB_RUN  ${JSON.stringify(runName)}`)
+  L.push(`#define PB_N    ${cands.length}`)
+  L.push(`static const char *PB_NAME[PB_N] = { ${cands.map(c => JSON.stringify(short(c.engine))).join(', ')} };`)
+  L.push(`static const float PB_LOSS[PB_N] = { ${cands.map(c => `${Number(c.fx).toFixed(5)}f`).join(', ')} };`)
+  L.push('static void pb_apply(int i, int slot) {')
+  L.push('    switch (i) {')
+  cands.forEach((c, i) => {
+    const last = i === cands.length - 1
+    L.push(last ? '    default:' : `    case ${i}:`)
+    for (const raw of String(c.snippet || '').split('\n')) {
+      const line = raw.trim()
+      if (!line || /^hit\s*\(/.test(line)) continue     // the bench owns when a note sounds
+      // Every emitted call targets slot 5; the bench passes its own slot in, so rewrite the first
+      // argument. GLOBAL, because pm puts three calls on one line ("harmonics(5,..) timbre(5,..)
+      // morph(5,..)") and a first-match-only rewrite leaves two of them hardcoded: it still works
+      // while the bench happens to use slot 5, and silently plays the wrong slot the day it does not.
+      // The `instrument` prefix is load-bearing: echo(251,...) and reverb(0.96,...) are MASTER calls
+      // whose first argument is a time and a size, not a slot, and must be left exactly alone.
+      L.push('        ' + line.replace(/\b(instrument[a-z_]*)\s*\(\s*5\s*,/g, '$1(slot,'))
+    }
+    L.push('        break;')
+  })
+  L.push('    }')
+  L.push('}')
+  L.push(SLOT_END)
+  return L.join('\n')
+}
+
+// Replace the region in the cart source. Refuses rather than guesses: no markers, markers in the
+// wrong order, or more than one of either means somebody edited the cart by hand and a blind
+// rewrite would eat their work.
+function spliceSlots(source, region) {
+  const nb = source.split(SLOT_BEGIN).length - 1
+  const ne = source.split(SLOT_END).length - 1
+  if (nb !== 1 || ne !== 1) throw new Error(`patchbench.c must hold exactly one de:patch-slots marker pair (found ${nb} begin, ${ne} end)`)
+  const a = source.indexOf(SLOT_BEGIN)
+  const b = source.indexOf(SLOT_END)
+  if (b < a) throw new Error('de:patch-slots end comes before begin')
+  return source.slice(0, a) + region + source.slice(b + SLOT_END.length)
+}
+
 function failMsg(code, stderr, stdout) {
   const tail = stripAnsi((stderr || '') + '\n' + (stdout || ''))
     .split('\n')
@@ -192,6 +252,50 @@ function selfcheck() {
     fs.rmSync(tmp, { recursive: true, force: true })
   }
 
+  // ── the region writer. It REWRITES A SOURCE FILE, so it is the most dangerous thing in here
+  // and gets the most assertions, in both directions.
+  {
+    const fake = { candidates: [
+      { n: 1, engine: 'INSTR_PIPE', voice: 0.3, fx: 0.17486, snippet:
+        '    instrument(5, INSTR_PIPE, 137, 0, 6, 372);\n' +
+        '    instrument_harmonics(5, 0.022f);  instrument_timbre(5, 0.083f);  instrument_morph(5, 0.025f);\n' +
+        '    echo(251, 0.420f, 0.034f);  instrument_echo(5, 0.249f);\n' +
+        '    reverb(0.960f, 0.409f);  instrument_reverb(5, 0.092f);\n' +
+        '    hit(60, 5, 5, 1000);' },
+      { n: 2, engine: 'INSTR_FM', voice: 0.2, fx: 0.177, snippet:
+        '    instrument(5, INSTR_FM, 10, 80, 6, 180);\n    hit(60, 5, 5, 1000);' },
+    ] }
+    const r = renderSlots(fake, 'ambitone')
+    t('region names the run', /#define PB_RUN\s+"ambitone"/.test(r))
+    t('region counts the candidates', /#define PB_N\s+2\b/.test(r))
+    t('engine names lose the INSTR_ prefix', /"PIPE", "FM"/.test(r))
+    t('losses are the FX losses', /0\.17486f, 0\.17700f/.test(r))
+    // THE ONE THAT MATTERS: pm puts three calls on ONE line, and a first-match-only rewrite leaves
+    // two of them pointing at a hardcoded slot 5. It still works while the bench uses slot 5 and
+    // breaks silently the day it does not. This caught exactly that bug on the first real run.
+    t('EVERY instrument_ call on a line is re-slotted', !/instrument[a-z_]*\(5,/.test(r))
+    t('and all three of a triple line moved', /instrument_harmonics\(slot,.*instrument_timbre\(slot,.*instrument_morph\(slot,/.test(r))
+    // …and the opposite: a MASTER call's first argument is a time or a size, never a slot.
+    t('echo() is left alone (master, not a slot)', /echo\(251, 0\.420f, 0\.034f\);/.test(r))
+    t('reverb() is left alone (master, not a slot)', /reverb\(0\.960f, 0\.409f\);/.test(r))
+    t('the per-slot echo send IS re-slotted', /instrument_echo\(slot,/.test(r))
+    t('hit() is dropped (the bench decides when a note sounds)', !/\bhit\(/.test(r))
+    t('the last case is default (so the switch is total)', /    default:/.test(r) && (r.split('case ').length - 1) === 1)
+    t('no candidates → throws rather than writing an empty switch',
+      (() => { try { renderSlots({ candidates: [] }, 'x'); return false } catch { return true } })())
+
+    const cart = `head\n${SLOT_BEGIN}\nold junk\n${SLOT_END}\ntail`
+    const out = spliceSlots(cart, r)
+    t('splice keeps what is outside the markers', out.startsWith('head\n') && out.endsWith('\ntail'))
+    t('splice removes the old body', !/old junk/.test(out))
+    t('splice is idempotent', spliceSlots(out, r) === out)
+    const refuses = (src) => { try { spliceSlots(src, r); return false } catch { return true } }
+    t('splice REFUSES a file with no markers', refuses('nothing here'))
+    t('splice REFUSES a doubled marker pair', refuses(`${SLOT_BEGIN}\nx\n${SLOT_END}\n${SLOT_BEGIN}\ny\n${SLOT_END}`))
+    t('splice REFUSES a lone begin', refuses(`${SLOT_BEGIN}\nx`))
+    t('splice REFUSES end-before-begin', refuses(`${SLOT_END}\nx\n${SLOT_BEGIN}`))
+  }
+
   t('timeout message names timeout', /timed out/.test(failMsg(null, '', 'stage 2')))
   t('short-target message is specific', /too short/.test(failMsg(1, 'pm: only 0.100s after onset trim; the 2048-point scale needs 0.058s\n', '')))
 
@@ -203,8 +307,28 @@ if (require.main === module && process.argv.includes('--selfcheck')) {
   process.exit(selfcheck() ? 0 : 1)
 }
 
+// `--load <run>` — the same thing the editor's "open in bench" button does, from a terminal.
+// One code path for both, so the button and the CLI cannot drift.
+if (require.main === module && process.argv.includes('--load')) {
+  const run = process.argv[process.argv.indexOf('--load') + 1]
+  const ROOT = path.join(__dirname, '../..')
+  if (!run) { console.error('usage: patch-match.cjs --load <run>   (a directory under build/patch-match/)'); process.exit(2) }
+  const dir = path.join(ROOT, 'build', 'patch-match', run)
+  const got = collectResults(dir)
+  if (!got.ok) { console.error(`pm: ${got.error}`); process.exit(1) }
+  const cart = path.join(ROOT, 'tools', 'carts', 'patchbench.c')
+  const src = fs.readFileSync(cart, 'utf8')
+  fs.writeFileSync(cart, spliceSlots(src, renderSlots(got, run)))
+  console.log(`patchbench.c loaded with ${got.candidates.length} candidate(s) from ${run}`)
+  process.exit(0)
+}
+
 module.exports = {
   stripAnsi,
+  renderSlots,
+  spliceSlots,
+  SLOT_BEGIN,
+  SLOT_END,
   progressFromLine,
   inStageProgress,
   parsePatchesTxt,

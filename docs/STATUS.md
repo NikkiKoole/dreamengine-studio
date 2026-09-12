@@ -7,13 +7,26 @@
 > **here**, then fix the prose in the relevant design doc. If a design doc and this file
 > disagree, this file wins.
 
-_Last updated: 2026-09-11 — editor patch-match drop UI (option A). See the top Shipped entry and [`design/patch-matching-cart.md`](design/patch-matching-cart.md)._
+_Last updated: 2026-09-12 — `patchbench`, the place a matched patch lands. See the top Shipped entry and [`design/patch-matching-cart.md`](design/patch-matching-cart.md) §7._
 
 > **This line is a headline, not an entry.** It reached **9,064 characters** and was the only place in the file that recorded `FILTER_DIODE`, `filter-spec.js` and `rebirth-classic.md` — three shipped things, invisible because nobody reads a shipped feature out of a `_Last updated:_` line. They have a real entry now (2026-07-02, above `sprite-draw.js`). Keep this to one date, one sentence, one link; `status-check --check` fails past 900 chars.
 
 ---
 
 ## Shipped ✓
+
+- **PATCHBENCH: WHERE A MATCHED PATCH LANDS** (2026-09-12). The drop UI shipped and the maker used
+  it the same day, and it pasted into an unrelated cart, that cart would not compile, and the
+  earlier runs were unfindable. Paste-at-the-cursor is wrong three times over (wrong CART, wrong
+  PLACE — a statement at file scope — and wrong JUDGEMENT, since a candidate only means something
+  next to its target), so the fix is not a better paste: **`pm` produces a SET and nothing held a
+  set.** The `patchbench` cart holds one, in a `de:patch-slots` region the editor writes, and the
+  candidates play against the target rather than as WAV files. Plus a **run browser** over
+  `build/patch-match/*` and **copy block** in place of paste. Two things only building it found: the
+  A/B was useless until the levels matched (**10.6 dB apart** measured, now within 0.25 dB via a BAL
+  trim, since `instrument_level` only attenuates), and `pm` writes three calls on one line so a
+  first-match-only re-slot left two hardcoded — silent while the bench used slot 5.
+  [`design/patch-matching-cart.md`](design/patch-matching-cart.md) §7.
 
 - **EDITOR PATCH-MATCH DROP UI** (2026-09-11). Option A of the patch-matching fork: drop a WAV on
   the editor, it spawns the shipped `pm` CLI in the background (same spirit as the compiler spawn),

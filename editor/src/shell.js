@@ -3479,7 +3479,19 @@ function showToast(msg, ms = 2000, onClick = null) {
   clearTimeout(toastTimer)
   toastTimer = setTimeout(() => { toast.classList.remove('visible'); toast.onclick = null }, ms)
 }
-initPatchMatch({ showToast })
+// The bench hand-off: patch-match writes patchbench.c, and this puts the result in the buffer and
+// runs it, so "open in bench" ends with the candidates playing rather than with a file on disk the
+// maker still has to go find. Same path as ▶ run — runCart() compiles whatever the buffer holds.
+initPatchMatch({
+  showToast,
+  openBench: async (code, run, n) => {
+    view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: code } })
+    setCartName('patchbench')
+    document.querySelector('#tabs .tab[data-tab="code"]')?.click()
+    showToast(`bench loaded: ${n} candidate(s) from ${run}`, 4000)
+    await runCart(null)
+  },
+})
 
 function applyCart(cart) {
   // run the cart at the config it was authored for (or safe defaults if it

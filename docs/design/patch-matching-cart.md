@@ -1,11 +1,11 @@
 # Taking patch matching into a cart: the fork
 
-> **STATUS: BUILDING (2026-09-12)** — option A (editor drop → spawn `pm` → audition → paste) is in
-> the editor, and using it turned up the half of A that was never designed: **where the patch lands**
-> (§7, the bench). Option B (the ear-judged Synplant cart) is still the next build and the bench is
-> most of its shell. Skip C; D waits on the AUv3 refactor. Upstream:
-> [`patch-matching.md`](patch-matching.md). No engine change (ADR-0006 — this is a tool spawn, not
-> `studio.h`).
+> **STATUS: BUILDING (2026-09-12)** — option A (editor drop → spawn `pm` → audition) is in the
+> editor, and **§7's bench is built**: the `patchbench` cart now holds the candidate SET and the
+> editor writes into it, so a match no longer lands at the cursor in an unrelated cart. Option B
+> (the ear-judged Synplant cart) is the next build and the bench is most of its shell. Skip C; D
+> waits on the AUv3 refactor. Upstream: [`patch-matching.md`](patch-matching.md). No engine change
+> (ADR-0006 — this is a tool spawn, not `studio.h`).
 
 The CLI works: hand it a WAV, get eight dreamengine patches back. The obvious next wish is "drop a
 sample into a cart and hear the console's own version of it". This doc is what that actually costs,
@@ -201,6 +201,31 @@ target and lets you tweak is **one mutation operator away** from being the sprou
 sequencing question is real: the minimum bench (a slot list and play buttons) works in an afternoon
 and risks being built twice; the fuller one is a day and is the shell [#16](https://github.com/NikkiKoole/dreamengine-studio/issues/16)
 plugs into.
+
+### ✅ BUILT 2026-09-12
+
+The `patchbench` cart plus the editor half. Three things worth recording because they were only
+found by building it:
+
+- **The A/B was silently useless until the levels matched.** The target plays at whatever level it
+  was recorded at and a candidate plays at `hit()` volume 5, and measured on the first real run
+  those sat **10.6 dB apart**. In a back-to-back comparison the louder one simply wins, whatever it
+  sounds like. The target is normalised up and the candidate trimmed down to meet it (the BAL knob,
+  default measured, not guessed) — `instrument_level` only attenuates, 0..1, which is why the trim
+  is on the candidate. Both sides now land within 0.25 dB. BAL stays a knob because candidates
+  differ in level from *each other* too, and no fixed number matches them all.
+- **`pm` puts three calls on one line.** `harmonics(5,..) timbre(5,..) morph(5,..)`. The generator's
+  first draft rewrote only the first one, which still worked while the bench happened to use slot 5
+  and would have played the wrong slot the day it did not. The re-slotting is global now, and the
+  `instrument` prefix is load-bearing: `echo(251,…)` and `reverb(0.96,…)` are MASTER calls whose
+  first argument is a time and a size, and must be left alone.
+- **The generator REWRITES A SOURCE FILE**, so it refuses rather than guesses: no markers, doubled
+  markers, or end-before-begin all throw instead of splicing, because the alternative is eating a
+  hand edit. 20 of the module's 52 selfcheck assertions are on these two functions, mutation-tested
+  (put the first-match-only bug back and exactly the two guards for it go red).
+
+The editor also got the **run browser** (`build/patch-match/*` with each run's best loss, so a
+seven-minute search is reopenable) and **"copy block"** in place of "paste into cart".
 
 ### What it still does NOT need
 

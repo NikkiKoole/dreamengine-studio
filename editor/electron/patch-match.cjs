@@ -18,16 +18,41 @@ function stripAnsi(s) {
   return String(s || '').replace(ANSI, '')
 }
 
-// pm prints "stage 1/2/3" then "candidates" then "wrote …". Mapped onto a coarse
-// bar so a 3–7 minute search still reads as progress, not a hung spawn.
+// pm prints "stage 1/2/3" then "candidates" then "wrote …", and WITHIN a stage a progress line
+// ("racing  53%  of 18 engines  22s"). The stage headers are ANCHORS on the bar and the in-stage
+// percentage INTERPOLATES between the current anchor and the next, so the bar moves continuously
+// instead of jumping and then sitting still for minutes.
+//
+// ⚠ The anchors have to stay in the order pm prints them, and each stage's span is the distance to
+// the following one. Getting that wrong does not error: the bar just goes backwards.
+const PM_ANCHORS = [0.12, 0.42, 0.72, 0.92, 1]
+
 function progressFromLine(raw) {
   const line = stripAnsi(raw).replace(/^\s+/, '')
-  if (/^stage 1\b/i.test(line)) return { stage: 1, pct: 0.12, label: 'stage 1 — engine race' }
-  if (/^stage 2\b/i.test(line)) return { stage: 2, pct: 0.42, label: 'stage 2 — voice refine' }
-  if (/^stage 3\b/i.test(line)) return { stage: 3, pct: 0.72, label: 'stage 3 — fx fit' }
-  if (/^candidates\b/i.test(line)) return { stage: 4, pct: 0.92, label: 'writing candidates' }
-  if (/^wrote\b/i.test(line)) return { stage: 5, pct: 1, label: 'done' }
+  if (/^stage 1\b/i.test(line)) return { stage: 1, pct: PM_ANCHORS[0], label: 'stage 1 — engine race' }
+  if (/^stage 2\b/i.test(line)) return { stage: 2, pct: PM_ANCHORS[1], label: 'stage 2 — voice refine' }
+  if (/^stage 3\b/i.test(line)) return { stage: 3, pct: PM_ANCHORS[2], label: 'stage 3 — fx fit' }
+  if (/^candidates\b/i.test(line)) return { stage: 4, pct: PM_ANCHORS[3], label: 'writing candidates' }
+  if (/^wrote\b/i.test(line)) return { stage: 5, pct: PM_ANCHORS[4], label: 'done' }
   return null
+}
+
+// The in-stage line. `stage` is whatever the last header said, so this is only meaningful after one
+// (a progress line with no stage yet is ignored rather than guessed at).
+const PM_INSTAGE = /^(racing|refining|fitting fx)\s+(\d+)%\s+of\s+(\d+)\s+(\S+)\s+(\d+)s$/i
+
+function inStageProgress(raw, stage) {
+  if (!stage || stage < 1 || stage > 3) return null
+  const m = PM_INSTAGE.exec(stripAnsi(raw).trim())
+  if (!m) return null
+  const within = Math.max(0, Math.min(1, parseInt(m[2], 10) / 100))
+  const from = PM_ANCHORS[stage - 1]
+  const to = PM_ANCHORS[stage]
+  return {
+    stage,
+    pct: from + (to - from) * within,
+    label: `${m[1].toLowerCase()} ${m[2]}% of ${m[3]} ${m[4]}  ${m[5]}s`,
+  }
 }
 
 // Split patches.txt on the candidate banners pm writes. Each block is the
@@ -121,6 +146,26 @@ function selfcheck() {
   t('wrote progress', progressFromLine('  wrote build/patch-match/  (target.wav, cand-1..8.wav, patches.txt)')?.pct === 1)
   t('noise is not progress', progressFromLine('    1. INSTR_SAW      0.12345') === null)
 
+  // ── the in-stage bar. These lines are REAL pm output, pasted from a run, not invented: the
+  // failure this whole selfcheck cannot otherwise see is a fixture written to match the parser.
+  t('in-stage line is not a stage header', progressFromLine('    racing  53%  of 18 engines  22s') === null)
+  t('racing interpolates inside stage 1',
+    Math.abs(inStageProgress('    racing  50%  of 18 engines  22s', 1).pct - (0.12 + 0.30 * 0.5)) < 1e-9)
+  t('refining interpolates inside stage 2',
+    Math.abs(inStageProgress('    refining  50%  of 9 voices  40s', 2).pct - (0.42 + 0.30 * 0.5)) < 1e-9)
+  t('fitting fx interpolates inside stage 3',
+    Math.abs(inStageProgress('    fitting fx  50%  of 8 candidates  60s', 3).pct - (0.72 + 0.20 * 0.5)) < 1e-9)
+  t('0% sits exactly on the stage anchor', inStageProgress('    racing   0%  of 18 engines  0s', 1).pct === 0.12)
+  t('100% reaches the NEXT anchor, never past it',
+    Math.abs(inStageProgress('    racing 100%  of 18 engines  37s', 1).pct - 0.42) < 1e-9)
+  t('the label names the stage size, not a completion count',
+    /53% of 18 engines/.test(inStageProgress('    racing  53%  of 18 engines  22s', 1).label))
+  // the two ways it must REFUSE rather than guess
+  t('no stage yet → no in-stage progress', inStageProgress('    racing  53%  of 18 engines  22s', 0) === null)
+  t('a stage with no bar (candidates) → null', inStageProgress('    racing  53%  of 18 engines  22s', 4) === null)
+  t('an engine-table row is not a bar', inStageProgress('    1. INSTR_SAW      0.12345', 1) === null)
+  t('a truncated bar line is not a bar', inStageProgress('    racing  53%', 1) === null)
+
   const fixture = fs.readFileSync(path.join(__dirname, '../../tools/fixtures/patch-match/patches.txt'), 'utf8')
   const parsed = parsePatchesTxt(fixture)
   t('fixture has 3 candidates', parsed.candidates.length === 3)
@@ -161,6 +206,7 @@ if (require.main === module && process.argv.includes('--selfcheck')) {
 module.exports = {
   stripAnsi,
   progressFromLine,
+  inStageProgress,
   parsePatchesTxt,
   collectResults,
   failMsg,

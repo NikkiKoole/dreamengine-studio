@@ -84,6 +84,28 @@ static const int FX_AMOUNT_DIM[9] = { FXD(F_DRIVE), FXD(F_TAPEWOW), FXD(F_CRUSHM
                                       FXD(F_TREMDEP), FXD(F_ECHOSEND), FXD(F_RVBSEND), FXD(F_TAPESAT),
                                       V_VIBDEP };
 
+// ── INTRA-STAGE PROGRESS ────────────────────────────────────────────────────────────────────────
+// A stage used to print its header and then go SILENT for minutes. Stage 1 races 18 engines and says
+// nothing until the whole table lands at once; stage 3 says nothing at all between its header and the
+// result. On a full search that is several minutes of a cursor not moving, which is indistinguishable
+// from a hang -- and it was reported as one, by the person who wrote the rest of this.
+//
+// So each worker ticks one byte per DE GENERATION and the parent renders a line. Generations, not
+// completed items: with 6 jobs, stage 3's 8 candidates are two waves, so an item counter would move
+// twice in four minutes. Generations give nitems*gens ticks, which the parent knows in advance and
+// can turn into a real percentage.
+//
+// The cost is one write() of one byte per generation, against a generation that is pop (up to 34)
+// engine renders at ~26ms each. It does not show up.
+static int pm_prog_fd = -1;     // the CHILD's write end. -1 in the parent, and when nobody is reporting.
+static void pm_tick(void)
+{
+    if (pm_prog_fd < 0) return;
+    char c = 1;
+    ssize_t n = write(pm_prog_fd, &c, 1);
+    (void)n;   // a short write just loses a tick, and a dead parent means we are about to die anyway
+}
+
 static float eval_patch(Ctx *c, const float *x, float *scratch)
 {
     PmPatch p = c->base;
@@ -134,6 +156,7 @@ static float de_search(Ctx *c, float *best, int pop, int gens, unsigned seed, co
             float f = eval_patch(c, trial, scratch);
             if (f < fit[i]) { memcpy(&X[i*np], trial, sizeof(float)*np); fit[i] = f; }
         }
+        pm_tick();   // one generation done — the only progress signal that exists (see pm_tick)
     }
     int bi = 0;
     for (int i = 1; i < pop; i++) if (fit[i] < fit[bi]) bi = i;
@@ -264,22 +287,79 @@ static double now_s(void) { struct timespec t; clock_gettime(CLOCK_MONOTONIC, &t
 // ── forked fan-out. The engine holds process-global state, so the workers are
 // PROCESSES, not threads. Forking happens before this process ever creates an
 // instance, so no child inherits a half-built engine.
+// What the progress line calls the stage, and how many ticks to expect. Set by the caller right
+// before run_forked; `total` 0 means "no idea", and then the line shows elapsed time only, which is
+// still the difference between a silent terminal and a visibly working one.
+static const char *g_stage_name = NULL;
+static int g_stage_total = 0, g_stage_unit_n = 0;
+static const char *g_stage_unit = "";
+
+static void pm_stage(const char *name, int total, int unit_n, const char *unit)
+{
+    g_stage_name = name; g_stage_total = total; g_stage_unit_n = unit_n; g_stage_unit = unit;
+}
+
 static int run_forked(int njobs, int nitems, void (*work)(int item, FILE *out), Result *into)
 {
     char tmpl[256];
     snprintf(tmpl, sizeof tmpl, "/tmp/pm-%d", (int)getpid());
+
+    // The progress channel. A PIPE rather than a counter file, because the parent has to hear about
+    // progress while the children are still ALIVE and it used to sit in wait(). Draining to EOF (every
+    // write end closed = every child gone) IS the join, so the wait() below only reaps. It cannot
+    // deadlock on a full pipe either: the parent does nothing but drain until EOF.
+    int pfd[2];
+    int reporting = (g_stage_name && pipe(pfd) == 0);
+
     for (int j = 0; j < njobs; j++) {
         pid_t pid = fork();
         if (pid == 0) {
+            if (reporting) { close(pfd[0]); pm_prog_fd = pfd[1]; }
             char path[300]; snprintf(path, sizeof path, "%s-%d", tmpl, j);
             FILE *o = fopen(path, "wb");
             for (int i = j; i < nitems; i += njobs) work(i, o);
             fclose(o);
+            if (reporting) close(pfd[1]);
             _exit(0);
         }
     }
+    if (reporting) {
+        close(pfd[1]);                 // the parent must NOT hold a write end, or it never sees EOF
+        // A TTY gets one line rewritten in place. A PIPE gets a new line per update, throttled
+        // harder: the editor reads this stream a line at a time, and \r would pile the whole search
+        // into one line it only prints at the end -- exactly the silence this is here to remove.
+        int tty = isatty(1);
+        double t0 = now_s(), last = 0, every = tty ? 0.1 : 1.5;
+        long done = 0;
+        char buf[1024];
+        ssize_t n;
+        int shown = 0;
+        while ((n = read(pfd[0], buf, sizeof buf)) > 0) {
+            done += n;
+            double t = now_s();
+            if (t - last < every && !(g_stage_total && done >= g_stage_total)) continue;
+            last = t;
+            shown = 1;
+            if (g_stage_total > 0) {
+                double f = done / (double)g_stage_total; if (f > 1) f = 1;
+                // The count is the stage SIZE, deliberately not "k of n finished". The items run
+                // CONCURRENTLY: with 6 jobs and 6 voices nothing completes until the very end, so a
+                // completion counter reads 0/6 at the halfway mark and then 6/6, which is both true
+                // and useless. The percentage is over generations, which is what actually moves.
+                printf("    %s %3.0f%%  of %d %s  %.0fs%s", g_stage_name, f * 100.0,
+                       g_stage_unit_n, g_stage_unit, t - t0, tty ? "   \r" : "\n");
+            } else {
+                printf("    %s  %.0fs%s", g_stage_name, t - t0, tty ? "   \r" : "\n");
+            }
+            fflush(stdout);
+        }
+        close(pfd[0]);
+        if (shown && tty) { printf("\r%60s\r", ""); fflush(stdout); }   // wipe the bar, the table follows
+    }
+
     int st, got = 0;
     while (wait(&st) > 0) { }
+    g_stage_name = NULL;   // a caller that forgets pm_stage() gets the old silent behaviour, not a stale label
     for (int j = 0; j < njobs; j++) {
         char path[300]; snprintf(path, sizeof path, "%s-%d", tmpl, j);
         FILE *in = fopen(path, "rb");
@@ -299,6 +379,13 @@ static unsigned g_seed = 7;
 static Result g_race[PM_NENGINES];
 static int g_elist[PM_NENGINES], g_ne = PM_NENGINES;   // which engines the race runs
 static int g_race_pop = 0, g_race_gens = 0, g_stage1_only = 0;            // 0 = the built-in budget
+
+// The generation budgets, named once. The workers need them to run and the parent needs them to
+// size the progress bar (ticks = items x generations), and two copies of a number that --quick
+// changes is how a bar quietly ends up reporting the wrong stage length.
+static int gens_race(void)   { return g_race_gens ? g_race_gens : (g_quick ? 12 : 22); }
+static int gens_refine(void) { return g_quick ? 30 : 70; }
+static int gens_fx(void)     { return g_quick ? 25 : 55; }
 static Result g_cand[16];
 static int g_ncand = 0;
 
@@ -309,7 +396,7 @@ static void work_race(int i, FILE *out)
     pm_patch_default(&c.base, g_elist[i]);
     float x[NDIM(DIMS_RACE)];
     int pop = g_race_pop ? g_race_pop : (g_quick ? 12 : 16);
-    int gens = g_race_gens ? g_race_gens : (g_quick ? 12 : 22);
+    int gens = gens_race();
     float loss = de_search(&c, x, pop, gens, g_seed + i * 101, NULL);
     Result r = { .loss = loss, .engine = g_elist[i] };
     r.p = c.base;
@@ -335,7 +422,7 @@ static void work_refine(int i, FILE *out)
     c.base.nmode = nm;              // the refine stage is where these dials become the search's
     float x[NDIM(DIMS_VOICE) + 4], sv[NDIM(DIMS_VOICE) + 4];
     for (int k = 0; k < nd; k++) sv[k] = pm_get(&c.base, dims[k]);
-    int pop = g_quick ? 20 : 30, gens = g_quick ? 30 : 70;
+    int pop = g_quick ? 20 : 30, gens = gens_refine();
     float loss = de_search(&c, x, pop, gens, g_refine_seed[i], sv);
     Result r = { .loss = loss, .engine = g_refine_engine[i] };
     r.p = c.base;
@@ -360,7 +447,7 @@ static void work_fx(int i, FILE *out)
     // rather than as "the optimizer never found the off switch".
     PmPatch byp; pm_patch_default(&byp, c.base.engine);
     for (int k = 0; k < c.ndims; k++) sv[k] = pm_get(&byp, c.dims[k]);
-    int pop = g_quick ? 24 : 34, gens = g_quick ? 25 : 55;
+    int pop = g_quick ? 24 : 34, gens = gens_fx();
     float loss = de_search(&c, x, pop, gens, g_seed + 977 * i, sv);
     Result r = { .loss = loss, .engine = c.base.engine };
     r.p = c.base;
@@ -472,6 +559,7 @@ int main(int argc, char **argv)
 
     // ── stage 1: the engine race ────────────────────────────────────────────
     printf("  \033[1mstage 1\033[0m  engine race (%d engine%s)\n", g_ne, g_ne == 1 ? "" : "s");
+    pm_stage("racing", g_ne * gens_race(), g_ne, g_ne == 1 ? "engine" : "engines");
     int got = run_forked(jobs, g_ne, work_race, g_race);
     qsort(g_race, got, sizeof(Result), cmp_result);
     for (int i = 0; i < got; i++)
@@ -499,6 +587,7 @@ int main(int argc, char **argv)
         }
     printf("\n  \033[1mstage 2\033[0m  voice refine (top %d engines x %d seeds)\n", topk, seeds);
     Result ref[16];
+    pm_stage("refining", nref * gens_refine(), nref, "voices");
     int nr = run_forked(jobs, nref, work_refine, ref);
     qsort(ref, nr, sizeof(Result), cmp_result);
     for (int i = 0; i < nr; i++) printf("    %-15s %.5f\n", pm_engine_name(ref[i].engine), ref[i].loss);
@@ -509,6 +598,7 @@ int main(int argc, char **argv)
     // ── stage 3: fx on top, voice frozen ────────────────────────────────────
     printf("\n  \033[1mstage 3\033[0m  fx fit (voice frozen)\n");
     Result fx[16];
+    pm_stage("fitting fx", g_ncand * gens_fx(), g_ncand, "candidates");
     int nf = run_forked(jobs, g_ncand, work_fx, fx);
 
     // Re-score without the sparsity cost so the printed number is comparable

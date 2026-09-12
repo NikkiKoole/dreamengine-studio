@@ -2169,6 +2169,9 @@ ipcMain.handle('studio:patch-match', async (_e, opts = {}) => {
       finish({ ok: false, error: pmParse.failMsg(null, stderr, stdout), timedOut: true })
     }, quick ? PM_TIMEOUT_MS.quick : PM_TIMEOUT_MS.full)
 
+    // `stage` is remembered across lines: an in-stage progress line ("racing 53%  9/18 engines") is
+    // only meaningful relative to the header that preceded it, and pm emits them interleaved.
+    let stage = 0
     const onChunk = (buf, which) => {
       const s = buf.toString()
       if (which === 'out') stdout += s
@@ -2178,9 +2181,21 @@ ipcMain.handle('studio:patch-match', async (_e, opts = {}) => {
       for (const line of parts) {
         if (!line.trim()) continue
         const clean = pmParse.stripAnsi(line)
-        log(clean + '\n')
         const prog = pmParse.progressFromLine(clean)
-        if (prog) send('pm:progress', { pct: prog.pct, label: prog.label, stage: prog.stage })
+        if (prog) {
+          stage = prog.stage
+          log(clean + '\n')
+          send('pm:progress', { pct: prog.pct, label: prog.label, stage: prog.stage })
+          continue
+        }
+        const within = pmParse.inStageProgress(clean, stage)
+        if (within) {
+          // NOT logged. pm emits one of these every 1.5s and they are the bar's job, not the
+          // transcript's: echoing them would bury the engine table nobody can scroll back to.
+          send('pm:progress', { pct: within.pct, label: within.label, stage: within.stage })
+          continue
+        }
+        log(clean + '\n')
       }
     }
     proc.stdout.on('data', c => onChunk(c, 'out'))

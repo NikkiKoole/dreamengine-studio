@@ -5,6 +5,7 @@ const fs                               = require('fs')
 const zlib                             = require('zlib')
 const http                             = require('http')
 const os                               = require('os')
+const pmParse                          = require('./patch-match.cjs')
 
 // Internal app name (menu bar, userData path). The Cmd-Tab / Dock *label* in dev
 // comes from the Electron bundle's Info.plist, not this — see scripts/dev-branding.cjs.
@@ -826,7 +827,15 @@ app.whenReady().then(() => {
   createWindow()
 })
 
-app.on('will-quit', () => { try { globalShortcut.unregisterAll() } catch {} })
+app.on('will-quit', () => {
+  try { globalShortcut.unregisterAll() } catch {}
+  // ...and take the patch-match search with us. `pm` is spawned DETACHED (it forks its own
+  // workers, so it needs its own process group to be killable at all), and detached means it
+  // does NOT die with us: quitting mid-search used to leave a six-job native process eating a
+  // core for up to twenty minutes with no window left to cancel it from. Same class as the
+  // orphaned-cart trap in tools/midi-check.
+  killPm('SIGKILL')
+})
 
 // The app menu is rebuilt whenever the loaded cart changes, so the macOS menu
 // bar shows what's open (" dreamengine  Edit  View  <cart>") — the window's own
@@ -2065,6 +2074,130 @@ function runLeadsJson(cart) {
     proc.on('error', e => resolve({ ok: false, cart, error: String(e.message) }))
   })
 }
+// ── patch-match drop UI (option A) ─────────────────────────────
+// Drop a WAV → spawn build/pm (the shipped CLI) → stream stage progress →
+// hand back the eight candidates pm already writes (patches.txt + cand-N.wav).
+// Tool, not engine: ADR-0006 / docs/design/patch-matching-cart.md option A.
+// One search at a time. Closing the modal does not kill it; Cancel / timeout do.
+const PM_BIN_REL = 'build/pm'
+const PM_TIMEOUT_MS = { full: 20 * 60 * 1000, quick: 12 * 60 * 1000 }
+let pmChild = null
+
+function killPm(signal = 'SIGTERM') {
+  if (!pmChild || !pmChild.pid) return
+  const pid = pmChild.pid
+  try { process.kill(-pid, signal) } catch {
+    try { pmChild.kill(signal) } catch {}
+  }
+}
+
+function ensurePm(ROOT, log) {
+  const bin = path.join(ROOT, PM_BIN_REL)
+  if (fs.existsSync(bin)) return { ok: true, bin }
+  log('building pm (first run)…\n')
+  const script = path.join(ROOT, 'tools/patch-match/build.sh')
+  const src = path.join(ROOT, 'tools/patch-match/pm.c')
+  const r = spawnSync('bash', [script, src, bin], { cwd: ROOT, encoding: 'utf8' })
+  if (r.status !== 0 || !fs.existsSync(bin)) {
+    const detail = ((r.stderr || '') + (r.stdout || '')).trim() || `exit ${r.status}`
+    return { ok: false, error: 'could not build the patch-match CLI (tools/patch-match/build.sh).\n' + detail }
+  }
+  return { ok: true, bin }
+}
+
+function pmStem(wavPath) {
+  const base = path.basename(String(wavPath || ''), path.extname(wavPath || ''))
+  const stem = base.replace(/[^a-zA-Z0-9._-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 48)
+  return stem || 'sample'
+}
+
+ipcMain.handle('studio:patch-match-cancel', () => {
+  if (!pmChild) return { ok: true, running: false }
+  killPm('SIGTERM')
+  setTimeout(() => killPm('SIGKILL'), 1500)
+  return { ok: true, running: true }
+})
+
+ipcMain.handle('studio:patch-match', async (_e, opts = {}) => {
+  const ROOT = path.join(__dirname, '../..')
+  const wc = _e.sender
+  const send = (ch, payload) => { if (!wc.isDestroyed()) wc.send(ch, payload) }
+  const log = (m) => send('pm:log', m)
+
+  if (pmChild) return { ok: false, error: 'a match is already running — cancel it first' }
+
+  const wavPath = path.resolve(String(opts.wavPath || ''))
+  if (!wavPath || !fs.existsSync(wavPath) || !fs.statSync(wavPath).isFile())
+    return { ok: false, error: 'that file is gone — drop the WAV again' }
+  if (!/\.wav$/i.test(wavPath))
+    return { ok: false, error: 'patch-match wants a .wav' }
+
+  const quick = !!opts.quick
+  const built = ensurePm(ROOT, log)
+  if (!built.ok) return built
+
+  const stem = pmStem(wavPath)
+  const outdir = path.join(ROOT, 'build', 'patch-match', stem)
+  fs.mkdirSync(outdir, { recursive: true })
+  const jobs = Math.max(1, Math.min(6, os.cpus().length || 4))
+  const args = [wavPath, '--out', outdir, '--jobs', String(jobs)]
+  if (quick) args.push('--quick')
+
+  log(`$ pm ${path.basename(wavPath)}${quick ? ' --quick' : ''} --jobs ${jobs}\n`)
+  send('pm:progress', { pct: 0.04, label: 'starting search' })
+
+  return new Promise(resolve => {
+    let stdout = '', stderr = '', settled = false, rest = ''
+    const finish = (result) => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      pmChild = null
+      resolve(result)
+    }
+
+    const proc = spawn(built.bin, args, {
+      cwd: ROOT,
+      detached: true,          // own process group — pm forks workers
+      stdio: ['ignore', 'pipe', 'pipe'],
+    })
+    pmChild = proc
+
+    const timer = setTimeout(() => {
+      killPm('SIGTERM')
+      setTimeout(() => killPm('SIGKILL'), 1500)
+      finish({ ok: false, error: pmParse.failMsg(null, stderr, stdout), timedOut: true })
+    }, quick ? PM_TIMEOUT_MS.quick : PM_TIMEOUT_MS.full)
+
+    const onChunk = (buf, which) => {
+      const s = buf.toString()
+      if (which === 'out') stdout += s
+      else stderr += s
+      const parts = (rest + s).split(/\r?\n/)
+      rest = parts.pop()
+      for (const line of parts) {
+        if (!line.trim()) continue
+        const clean = pmParse.stripAnsi(line)
+        log(clean + '\n')
+        const prog = pmParse.progressFromLine(clean)
+        if (prog) send('pm:progress', { pct: prog.pct, label: prog.label, stage: prog.stage })
+      }
+    }
+    proc.stdout.on('data', c => onChunk(c, 'out'))
+    proc.stderr.on('data', c => onChunk(c, 'err'))
+    proc.on('error', e => finish({ ok: false, error: String(e.message || e) }))
+    proc.on('exit', (code, signal) => {
+      if (settled) return
+      if (signal === 'SIGTERM' || signal === 'SIGKILL')
+        return finish({ ok: false, error: 'cancelled', cancelled: true })
+      if (code !== 0) return finish({ ok: false, error: pmParse.failMsg(code, stderr, stdout) })
+      const got = pmParse.collectResults(outdir)
+      if (got.ok) send('pm:progress', { pct: 1, label: 'done' })
+      finish(got)
+    })
+  })
+})
+
 ipcMain.handle('studio:leads', async (_e, name) => {
   const ROOT = path.join(__dirname, '../..')
   let carts = []

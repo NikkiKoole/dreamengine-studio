@@ -1,4 +1,5 @@
 import { view, setEditorTheme, setErrorLines, onDocChange } from './main.js'
+import { initPatchMatch, handleWavDrop } from './patch-match.js'
 import { initOutline, refreshOutline } from './outline.js'
 import { loadEngineSources, showEngineFileIn, renderEngineOutline } from './navigate.js'
 import './sprite-editor.js'
@@ -3478,6 +3479,7 @@ function showToast(msg, ms = 2000, onClick = null) {
   clearTimeout(toastTimer)
   toastTimer = setTimeout(() => { toast.classList.remove('visible'); toast.onclick = null }, ms)
 }
+initPatchMatch({ showToast })
 
 function applyCart(cart) {
   // run the cart at the config it was authored for (or safe defaults if it
@@ -3675,12 +3677,12 @@ publishBtn.addEventListener('click', async () => {
   }
 })
 
-// ── drag-and-drop file loading (.png cart) ──
+// ── drag-and-drop file loading (.png cart, image, .wav) ──
 // CAPTURE phase + stopPropagation so a FILE dropped on the code editor is handled here and NOT
 // inserted as text by CodeMirror (which grabs the drop at its own element first). Only intercept
 // file drags — an internal text drag (types has no 'Files') passes straight through to CodeMirror.
-// (Replaying a .rec take is no longer a drop target — open the cart, go to the promote tab, and
-// click a take to watch it. docs/design/promote-tab.md.)
+// .wav → patch-match CLI (option A, docs/design/patch-matching-cart.md). .rec replay is no longer
+// a drop target — open the cart, go to the promote tab, and click a take. docs/design/promote-tab.md.
 const isFileDrag = e => [...(e.dataTransfer?.types || [])].includes('Files')
 document.addEventListener('dragover', e => { if (isFileDrag(e)) { e.preventDefault(); e.stopPropagation() } }, true)
 // Push a sprite-sheet image (as a data-URL) into the sprite editor and reveal it.
@@ -3699,6 +3701,13 @@ document.addEventListener('drop', async e => {
   const file = e.dataTransfer.files[0]
   if (!file) return
   const name = file.name.toLowerCase()
+
+  // .wav → spawn the patch-match CLI (option A). Shift-drop = --quick.
+  // Desktop only; the browser tab gets a clear "needs npm start" panel.
+  if (name.endsWith('.wav')) {
+    handleWavDrop(file, { quick: !!e.shiftKey })
+    return
+  }
 
   // .cart.png → load the whole cart (its embedded source/sprites/settings)
   if (name.endsWith('.cart.png')) {

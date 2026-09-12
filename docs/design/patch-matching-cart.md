@@ -1,9 +1,9 @@
 # Taking patch matching into a cart: the fork
 
-> **STATUS: READY TO BUILD (2026-09-07)** ‑ two of the four options below need **no engine change and
-> no new API**, and both are specced here well enough to start. What is not decided is which, and
-> that is the maker's call, not a missing afternoon of work. Upstream:
-> [`patch-matching.md`](patch-matching.md) (the shipped CLI). Nothing here is started.
+> **STATUS: BUILDING (2026-09-11)** — option A (editor drop → spawn `pm` → audition → paste) is in
+> the editor; option B (the ear-judged Synplant cart) is still the next build. Skip C; D waits on
+> the AUv3 refactor. Upstream: [`patch-matching.md`](patch-matching.md). No engine change
+> (ADR-0006 — this is a tool spawn, not `studio.h`).
 
 The CLI works: hand it a WAV, get eight dreamengine patches back. The obvious next wish is "drop a
 sample into a cart and hear the console's own version of it". This doc is what that actually costs,
@@ -70,6 +70,7 @@ patch into the open cart.
 | **Cons** | It is an IDE feature. No player ever experiences it, and it does not answer the question as asked ("a cart where..."). |
 | **Effort** | Small. Highest value per hour of anything here. |
 | **Needs** | A drop target, a spawn + progress UI, an audition player, a paste-into-buffer action. |
+| **Shipped** | 2026-09-11 — drop a `.wav` on the editor window (shift-drop = `--quick`). Electron builds `build/pm` on first use if needed, streams stage progress, then lists the eight candidates `pm` already writes (six on `--quick`, which refines 3 engines × 2 seeds rather than × 3). Click to audition the WAV; **paste into cart** inserts the `instrument()` block at the cursor. Fail / timeout / cancel stay in the panel. Browser tab (no spawn) says so. Indexed in [`guides/editor-features.md`](../guides/editor-features.md). |
 
 ### B. A cart where your EAR is the loss function
 

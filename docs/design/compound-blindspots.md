@@ -119,7 +119,7 @@ trilogy, not a HUD meter.
 
 **What ships.** `scope_read` (lock-free oscilloscope feed). The shader trilogy
 + `shadermath.h` ([`cpu-shaders.md`](cpu-shaders.md): `shadelab` → `caustics` →
-`raymarch`). Candy-style / acid-pets already treat a mascot as live readout.
+`raymarch`). Candy-style / [`acid-pets`](acid-pets.md) already treat a mascot as live readout.
 
 **The blind spot.** Shaders stayed a lesson; scopes stayed a diagnostic. The
 compound is identity: one honest picture that *is* the machine (a diode-ladder
@@ -209,7 +209,7 @@ shadow dancer).
 second actor. Cart-facing inject (below) is the only engine maybe; a first
 ghost can parse the take in cart-land.
 
-### 8. `param_bind` + TCC live-coding demo
+### 8. `param_bind` + TCC [live-coding](../guides/live-coding.md) demo
 
 **The scene.** A knob is a host parameter *and* a C identifier. You edit the
 cart, libtcc hot-reloads, `de_state()` survives, the DAW lane still moves the

@@ -67,4 +67,10 @@ contextBridge.exposeInMainWorld('studio', {
   ascMetadata:  (name, opts)     => ipcRenderer.invoke('studio:asc-metadata', name, opts),
   // App Store promoted purchases: dry-run PLAN; { push:[productIds] } promotes only those IAPs
   ascPromote:   (name, opts)     => ipcRenderer.invoke('studio:asc-promote', name, opts),
+  // patch-match drop UI — spawn `pm`, stream stage progress, return eight pasteable candidates.
+  // Desktop only (it is a tool spawn, same spirit as studio:run). docs/design/patch-matching-cart.md A
+  patchMatch:       (opts) => ipcRenderer.invoke('studio:patch-match', opts),
+  patchMatchCancel: ()     => ipcRenderer.invoke('studio:patch-match-cancel'),
+  onPatchMatchLog:  (cb)   => ipcRenderer.on('pm:log', (_, s) => cb(s)),
+  onPatchMatchProgress: (cb) => ipcRenderer.on('pm:progress', (_, info) => cb(info)),
 })

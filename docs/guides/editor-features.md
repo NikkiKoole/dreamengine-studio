@@ -21,6 +21,7 @@ Structure follows the editor's own IA — **Make / Promote / Ship** ([`../design
 | **Map editor** — tilemap over the sprite sheet | Pixels tab | — |
 | **▶ run** — three backends: **native (clang)** default · **live (libtcc)** JIT hot-reload, state survives via `de_state()` · **web** (emcc → wasm) | ▶ button + Settings "run mode" | [`../design/cart-as-script.md`](../design/cart-as-script.md) |
 | **Tutorials / carts gallery** — every registered cart, load to edit | Carts tab | generated from each cart's `de:meta` |
+| **Patch match** — drop a `.wav` → spawn `pm` → eight candidates to audition + paste an `instrument()` block into the open buffer. Shift-drop = `--quick`, which is faster and hands back **six** (it refines 3 engines × 2 seeds instead of × 3). Desktop only (it is a tool spawn, not an in-cart render; ADR-0006) | drop on the window | [`../design/patch-matching-cart.md`](../design/patch-matching-cart.md) option A |
 
 ## PROMOTE — get the cart *seen* (the Promote tab)
 

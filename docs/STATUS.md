@@ -7,13 +7,23 @@
 > **here**, then fix the prose in the relevant design doc. If a design doc and this file
 > disagree, this file wins.
 
-_Last updated: 2026-08-19 — **Tiny Pedalboard shipped to the App Store and is now deliberately OFF SALE**, and *Tiny Acid Jam* is approved but unreleased, while both switch to **free with one $4.99 Pro unlock** ([ADR-0035](decisions/0035-free-with-one-pro-unlock.md)); the same cart also loads in GarageBand as an audio EFFECT (`aumf`), with one open defect. See the top two Shipped entries, the first Open entry, and [`HANDOFF.md`](HANDOFF.md)._
+_Last updated: 2026-09-11 — editor patch-match drop UI (option A). See the top Shipped entry and [`design/patch-matching-cart.md`](design/patch-matching-cart.md)._
 
 > **This line is a headline, not an entry.** It reached **9,064 characters** and was the only place in the file that recorded `FILTER_DIODE`, `filter-spec.js` and `rebirth-classic.md` — three shipped things, invisible because nobody reads a shipped feature out of a `_Last updated:_` line. They have a real entry now (2026-07-02, above `sprite-draw.js`). Keep this to one date, one sentence, one link; `status-check --check` fails past 900 chars.
 
 ---
 
 ## Shipped ✓
+
+- **EDITOR PATCH-MATCH DROP UI** (2026-09-11). Option A of the patch-matching fork: drop a WAV on
+  the editor, it spawns the shipped `pm` CLI in the background (same spirit as the compiler spawn),
+  streams stage progress, then the eight candidates are auditionable and a button pastes the
+  chosen `instrument()` block into the open cart buffer. (Eight is the DEFAULT path: `pm` caps at
+  `want = 8` out of 3 engines × 3 seeds, so a shift-drop `--quick` refines 3 × 2 and hands back
+  **six** — measured, and the panel counts what arrived rather than assuming.) No engine change, no `studio.h` growth,
+  no in-cart offline render — ADR-0006, the capability stays a tool. Fail / timeout / cancel stay
+  visible in the panel; the browser tab (no spawn) says so. Shift-drop is `--quick`.
+  [`design/patch-matching-cart.md`](design/patch-matching-cart.md) · [`guides/editor-features.md`](guides/editor-features.md).
 
 - **PATCH MATCHING: A SAMPLE IN, EIGHT DREAMENGINE PATCHES OUT** (2026-09-06). The Synplant/Genopatch
   ask, answered with search rather than machine learning, because the expensive half of that product
@@ -31,9 +41,10 @@ _Last updated: 2026-08-19 — **Tiny Pedalboard shipped to the App Store and is 
   does rather than which API owns it, or a cassette's flutter gets reported as vibrato). Turned up
   two bugs on the way: a "neutral" 0.5 on `MODE_BOW_PIZZ` made every BOWED candidate a pizzicato
   (fixed), and `INSTR_VOICE` ignores all three of its advertised macros when set on the slot
-  (filed, not fixed: [`design/audio-notes.md`](design/audio-notes.md) §31). **CLI only** and the
-  cart is a genuine design fork rather than a missing afternoon, since a cart cannot create the
-  engine instances the search renders into: [`design/patch-matching.md`](design/patch-matching.md) §10.
+  (filed, not fixed: [`design/audio-notes.md`](design/audio-notes.md) §31). The matcher itself is
+  still the CLI; the editor drop UI (2026-09-11, entry above) is a spawn of it. A cart still
+  cannot create the engine instances the search renders into:
+  [`design/patch-matching.md`](design/patch-matching.md) §10.
 
 - **101 PRESET RHYTHMS, SOURCED OFF THE MANUFACTURERS' OWN DOCUMENTS, CHORD AND BASS INCLUDED** (2026-08-20). Every latin
   pattern in this repo was a plausible reconstruction, `sideman`'s twelve rhythms included. This is
@@ -904,19 +915,11 @@ Detail lives in the linked design doc in every case; that is where it was always
 
 ## Open — prioritized
 
-- **PATCH MATCHING INTO A CART — the fork is specced, the pick is open** (2026-09-07). The CLI
-  ships ([`design/patch-matching.md`](design/patch-matching.md)); "drop a sample into a cart and
-  hear the console's own version" is the next wish and it is a design fork rather than an
-  afternoon. Priced four ways in
-  [`design/patch-matching-cart.md`](design/patch-matching-cart.md), of which **two need no engine
-  change at all**. The reframe that does most of the work: Genopatch (automatic matching) and
-  Synplant 1 (eight seeds, you listen, you breed) are two different products, and the second needs
-  no offline render and no scoring because the ear is the loss function. ⚠ The tempting shape,
-  letting a cart render candidates silently, is structurally wrong and not merely unbuilt: it would
-  race the audio thread and eat the live voice state, so it needs a second engine instance, i.e.
-  the AUv3 multi-instance refactor (146 mutable statics left). Recommendation is **the editor
-  first, then the ear-judged cart, seeded from the editor's match**; skip the realtime-scoring
-  option. Four questions only the maker can answer are listed at §6.
+- **PATCH MATCHING — the editor drop is in; the ear-judged cart is next** (2026-09-11). Option A
+  of [`design/patch-matching-cart.md`](design/patch-matching-cart.md) lives in the editor (drop a
+  WAV, spawn `pm`, audition, paste). Remaining work is option B: eight sprouts, your ear breeds,
+  optionally seeded from A's match. Skip C (realtime `record_grab` scoring). D waits on the AUv3
+  multi-instance refactor. No engine change for B either.
 
 > ### 💰 Both apps go FREE with one **$4.99** "Pro" unlock; `pedalboard` is OFF SALE until it can come back with the wall in place
 >

@@ -48,7 +48,7 @@ re-spec them here.** Pursue them in their own file; this hub only points.
 
 | grand | where the scene lives | GitHub |
 |-------|----------------------|--------|
-| Synplant cart (ear-as-loss, option B) | [`patch-matching-cart.md`](patch-matching-cart.md) | [#16](https://github.com/NikkiKoole/dreamengine-studio/issues/16) |
+| Synplant cart (ear-as-loss, option B) | [`patch-matching-cart.md`](patch-matching-cart.md) — built 2026-09-13 on `patchbench` | [#16](https://github.com/NikkiKoole/dreamengine-studio/issues/16) |
 | Editor patch-match drop (option A) | [`patch-matching.md`](patch-matching.md) · [`patch-matching-cart.md`](patch-matching-cart.md) | [#8](https://github.com/NikkiKoole/dreamengine-studio/issues/8) |
 | Live looper on `sound_extin` | [`audio-input-frontier.md`](audio-input-frontier.md) · [`vocoder.md`](vocoder.md) | [#17](https://github.com/NikkiKoole/dreamengine-studio/issues/17) |
 | `aumi` MIDI processor | [`auv3-plugin-types.md`](auv3-plugin-types.md) · [`midi-out.md`](midi-out.md) | [#18](https://github.com/NikkiKoole/dreamengine-studio/issues/18) |

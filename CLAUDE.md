@@ -321,6 +321,8 @@ runtime/   studio.h (public API: constants + declarations), studio.c (Raylib imp
                          de_data_path() (the --data flag / $DE_DATA) + walk it, so a cart loads its data at
                          RUNTIME instead of baking C arrays. Swap the file, don't regenerate the cart.
                          citydrive/floorplan/roadview; design/external-data-carts.md. Not committed API.
+             pmbreed.h   cart-land face of tools/patch-match/pmpatch.h: pm_mutate() in 0..1 space (detents
+                         step, they do not nudge) + pm_apply_slot(). patchbench option B. No scoring.
            Full table + contract: docs/guides/cart-authoring.md → "Cart-land library headers".
            Sound/instrument cart? docs/guides/instrument-carts.md indexes the shelf by block copied.
            cart_ctx.h  the shared half of "a cart-land header's state can be PER-INSTANCE" — an AUv3

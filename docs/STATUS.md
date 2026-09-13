@@ -7,13 +7,23 @@
 > **here**, then fix the prose in the relevant design doc. If a design doc and this file
 > disagree, this file wins.
 
-_Last updated: 2026-09-12 — `patchbench`, the place a matched patch lands. See the top Shipped entry and [`design/patch-matching-cart.md`](design/patch-matching-cart.md) §7._
+_Last updated: 2026-09-13 — option B on `patchbench`: hear eight, keep one, breed. See the top Shipped entry and [`design/patch-matching-cart.md`](design/patch-matching-cart.md)._
 
 > **This line is a headline, not an entry.** It reached **9,064 characters** and was the only place in the file that recorded `FILTER_DIODE`, `filter-spec.js` and `rebirth-classic.md` — three shipped things, invisible because nobody reads a shipped feature out of a `_Last updated:_` line. They have a real entry now (2026-07-02, above `sprite-draw.js`). Keep this to one date, one sentence, one link; `status-check --check` fails past 900 chars.
 
 ---
 
 ## Shipped ✓
+
+- **PATCHBENCH BREEDS BY EAR** (2026-09-13). Option B of the patch-matching fork, on the bench
+  §7 already was: pick a pad (that is the keep), BREED refills the other seven with mutations
+  of it, UNDO walks back the last few litters. The ear is the loss — no scoring, no offline
+  render, no `de_instance_create`. `pmpatch.h` now owns `pm_mutate()`; the header had the
+  representation and the measured detents but no neighbour function (#16's correction), and a
+  snapped axis that is nudged like a continuous dial either does nothing or jumps a whole
+  recipe. Generation 0 still plays the editor's `pb_apply` snippet so an A landing is what
+  `pm` printed; the editor also writes a `PB_SEED` vector so the first breed has a real parent.
+  [`design/patch-matching-cart.md`](design/patch-matching-cart.md) option B · [#16](https://github.com/NikkiKoole/dreamengine-studio/issues/16).
 
 - **PATCHBENCH: WHERE A MATCHED PATCH LANDS** (2026-09-12). The drop UI shipped and the maker used
   it the same day, and it pasted into an unrelated cart, that cart would not compile, and the
@@ -928,11 +938,10 @@ Detail lives in the linked design doc in every case; that is where it was always
 
 ## Open — prioritized
 
-- **PATCH MATCHING — the editor drop is in; the ear-judged cart is next** (2026-09-11). Option A
-  of [`design/patch-matching-cart.md`](design/patch-matching-cart.md) lives in the editor (drop a
-  WAV, spawn `pm`, audition, paste). Remaining work is option B: eight sprouts, your ear breeds,
-  optionally seeded from A's match. Skip C (realtime `record_grab` scoring). D waits on the AUv3
-  multi-instance refactor. No engine change for B either.
+- **PATCH MATCHING — option D still waits** (2026-09-13). A, the bench, and B (ear-judged
+  breeding on `patchbench`) are in. Skip C (realtime `record_grab` scoring). D — a scratch
+  engine instance a cart can render into — waits on the AUv3 multi-instance refactor, and is
+  not pulled forward for this. [`design/patch-matching-cart.md`](design/patch-matching-cart.md).
 
 > ### 💰 Both apps go FREE with one **$4.99** "Pro" unlock; `pedalboard` is OFF SALE until it can come back with the wall in place
 >

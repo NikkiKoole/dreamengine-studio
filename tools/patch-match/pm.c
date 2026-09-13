@@ -243,6 +243,14 @@ static void write_wav(const char *path, const float *x, int n)
 static void print_snippet(FILE *o, const PmPatch *p, int midi, int hold_ms, int with_fx)
 {
     const int s = PM_SLOT;
+    // Exact 0..1 vector so the bench can breed from this patch without inverse-mapping
+    // the printed integers. Older patches.txt files without this line still load; the
+    // editor reconstructs a parent from the instrument() calls instead.
+    fprintf(o, "    // pm:vec %d %d", p->engine, p->nmode);
+    for (int i = 0; i < PM_NV; i++) fprintf(o, "%s%.5f", i ? "," : " ", p->v[i]);
+    fprintf(o, " |");
+    for (int i = 0; i < PM_NF; i++) fprintf(o, "%s%.5f", i ? "," : " ", p->f[i]);
+    fprintf(o, "\n");
     fprintf(o, "    instrument(%d, %s, %d, %d, %d, %d);\n", s, pm_engine_name(p->engine),
             pm_atk_ms(p->v[V_ATK]), pm_dec_ms(p->v[V_DEC]), pm_sus(p->v[V_SUS]), pm_rel_ms(p->v[V_REL]));
     fprintf(o, "    instrument_harmonics(%d, %.3ff);  instrument_timbre(%d, %.3ff);  instrument_morph(%d, %.3ff);\n",

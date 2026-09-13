@@ -7,21 +7,21 @@
   "kind": ["instrument", "probe"],
   "genre": null,
   "teaches": ["adsr-envelope"],
-  "lineage": "The landing pad for tools/patch-match. The CLI hands back a SET of candidate patches and the repo had no object that held a set, so a match used to be pasted at the cursor into whatever cart happened to be open (docs/design/patch-matching-cart.md §7). This is where a set lands instead: the candidates on pads, the target on its own key, and one A/B button between them.",
+  "lineage": "The landing pad for tools/patch-match, and the sprout tree it was one mutation operator away from (docs/design/patch-matching-cart.md §7 + option B, #16). The CLI hands back a SET; this cart holds it, plays it, and lets the ear breed mutations around a keep. No scoring — the ear is the loss.",
   "description": {
-    "summary": "The bench where a matched patch gets judged. tools/patch-match listens to a sample and hands back eight dreamengine patches that try to sound like it; this is where you hear whether any of them actually do. The candidates sit on pads, the original sits on its own key, and A/B plays them back to back so the comparison is a keypress instead of a memory. Pick one, ride its three macros while it sounds, and COPY prints the patch as C you can paste. With no run loaded it holds three built-in patches, so there is always something to play.",
-    "detail": "A cart with one job: hold a SET of instrument patches and let an ear choose between them. The eight candidates live in a `// de:patch-slots` region that the editor rewrites after a search (drop a WAV on the editor window), so the pasted code has exactly ONE legal home and can never land in an unrelated cart. Each pad shows its engine and its fx loss, which is the search's own opinion and deliberately not the last word: a spectral distance is not perception, which is the whole reason this bench exists. The TARGET key plays the original sample the search was chasing, loaded from the run directory next to the candidates; when no run is loaded the bench falls back to three built-in patches and says the target is missing rather than going quiet. A/B alternates target and selection at the same pitch and the same length, which is the only comparison that means anything. The three macro knobs (harmonics / timbre / morph) ride the SELECTED candidate live, so a near miss can be walked in by hand, and COPY prints the patch including whatever the knobs are set to now.",
-    "controls": "1-8 — select and play that candidate. T — play the target. SPACE — play the selection. B — A/B (target, then the selection, same note, same length). Click a pad to select and play it. HARM / TIMB / MORPH — drag the knobs to ride the selected candidate's three macros. COPY — print the selected patch as pasteable C into the editor's log panel. Up/down arrows move the note the bench plays."
+    "summary": "Hear eight patches, keep the one you like, breed mutations around it. The landing pad for a patch-match run and the Synplant toy that grows from it: your ear is the loss, nothing is scored, nothing renders offline.",
+    "detail": "A cart with one job that grew a second honest verb. It still holds a SET of instrument patches — the eight candidates live in a `// de:patch-slots` region the editor rewrites after a search — and it still A/B's them against the target, rides the three macros, and COPY-prints pasteable C. On top of that: pick a pad (that is the keep) and BREED refills the other pads with mutations of it, walked in the same 0..1 space `pmpatch.h` already defined, with snapped axes stepping detents instead of dying between them. UNDO walks back the last few litters. A run from the editor is generation 0; the first breed is when the bench becomes the sprout tree. With no run loaded it starts from three built-in patches, so there is always something to keep.",
+    "controls": "1-8 — select and play that candidate (the selection is the keep). T — play the target. SPACE — play the selection. B — A/B (target, then the selection). R — breed mutations around the keep, refill the other pads. U — undo last breed. Click a pad to select and play it. HARM / TIMB / MORPH — ride the selected candidate's macros. SPRD — how far a breed wanders. COPY — print the selected patch as pasteable C. Up/down arrows move the note."
   },
   "todo": [
-    "The editor writes the de:patch-slots region (docs/design/patch-matching-cart.md §7) — until that lands, a run is pasted in by hand.",
-    "A run browser over build/patch-match/* belongs in the editor panel, not here.",
-    "One mutation operator away from option B (#16): perturb the selected PmPatch and refill the pads with its children. That is the whole sprout tree, and this is its shell."
+    "Maker ear: is mutation fun? That is #16's remaining blocker, not a missing operator.",
+    "A run browser over build/patch-match/ belongs in the editor panel, not here."
   ]
 }
 de:meta */
 #include "studio.h"
 #include "ui.h"
+#include "pmbreed.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -32,14 +32,27 @@ de:meta */
 // home, so it can never land in the middle of a cart you happened to have open.
 //
 // The shape is fixed. PB_RUN names the run directory under build/patch-match (the target lives
-// there), PB_N is how many pads are live, PB_NAME/PB_LOSS label them, and pb_apply(i) configures
-// PB_SLOT to be candidate i. The default below is three hand-written patches rather than a real
-// run, so the bench is playable on a fresh clone with no search ever having happened.
+// there), PB_N is how many pads are live at generation 0, PB_NAME/PB_LOSS label them, pb_apply(i)
+// configures PB_SLOT to be candidate i (the exact printed snippet — generation 0 plays this so an
+// A landing sounds like what `pm` found), and pb_fill_seeds() writes the matching PmPatch vector
+// so a breed has a real parent rather than a default-plus-macros guess.
 // de:patch-slots begin
 #define PB_RUN  ""              // "" = no run loaded, so no target to compare against
 #define PB_N    3
 static const char *PB_NAME[PB_N] = { "PLUCK", "EPIANO", "PIPE" };
 static const float PB_LOSS[PB_N] = { -1.0f, -1.0f, -1.0f };   // <0 = no loss (hand-written, not searched)
+static PmPatch PB_SEED[PB_N];
+static void pb_fill_seeds(void) {
+    pm_patch_default(&PB_SEED[0], 16);   // PLUCK
+    PB_SEED[0].v[V_HARM] = 0.35f; PB_SEED[0].v[V_TIMB] = 0.50f; PB_SEED[0].v[V_MORPH] = 0.20f;
+    pm_patch_adsr(&PB_SEED[0], 2, 90, 1, 120);
+    pm_patch_default(&PB_SEED[1], 20);   // EPIANO
+    PB_SEED[1].v[V_HARM] = 0.45f; PB_SEED[1].v[V_TIMB] = 0.55f; PB_SEED[1].v[V_MORPH] = 0.30f;
+    pm_patch_adsr(&PB_SEED[1], 4, 400, 3, 300);
+    pm_patch_default(&PB_SEED[2], 25);   // PIPE
+    PB_SEED[2].v[V_HARM] = 0.20f; PB_SEED[2].v[V_TIMB] = 0.80f; PB_SEED[2].v[V_MORPH] = 0.10f;
+    pm_patch_adsr(&PB_SEED[2], 60, 300, 5, 400);
+}
 static void pb_apply(int i, int slot) {
     switch (i) {
     case 0:
@@ -61,9 +74,10 @@ static void pb_apply(int i, int slot) {
 #define PB_SLOT  5        // the candidate under test
 #define PB_TGT   6        // the original the search was chasing
 #define PB_SAMP  0        // sample buffer holding target.wav
-#define PB_MAXN  8        // pads the layout draws; PB_N may be fewer
+#define PB_MAXN  8        // pads the layout draws; live_n grows to this on the first breed
+#define PB_UNDO  4        // last-N litters; issue asked for at least undo-last
 
-static int   sel = 0;                 // which candidate is selected
+static int   sel = 0;                 // which candidate is selected (= the keep)
 static int   note_midi = 60;
 static int   have_target = 0;
 static int   target_len = 0;          // samples, 0 = nothing loaded
@@ -77,6 +91,27 @@ static float bal = 0.30f;             // candidate trim so it sits at the target
 static int   bal_ready = 0;
 static char  status[64] = "";
 static float status_t = 0;
+
+static PmPatch live[PB_MAXN];
+static char    live_name[PB_MAXN][12];
+static float   live_loss[PB_MAXN];
+static int     live_kind[PB_MAXN];    // 0 = seed (gen 0), 1 = keep, 2 = child
+static int     live_n = 0;
+static int     bred = 0;              // 0 = still playing via pb_apply (exact A snippet)
+static int     gen_n = 0;
+static float   spread = 0.18f;
+
+typedef struct {
+    PmPatch p[PB_MAXN];
+    char    name[PB_MAXN][12];
+    float   loss[PB_MAXN];
+    float   mac[PB_MAXN][3];
+    int     ready[PB_MAXN];
+    int     kind[PB_MAXN];
+    int     n, sel, bred, gen;
+} PbSnap;
+static PbSnap undo[PB_UNDO];
+static int    undo_n = 0;
 
 #define NOTE_MS 900
 
@@ -156,14 +191,51 @@ static void load_target(void) {
 
 static void say(const char *s) { snprintf(status, sizeof status, "%s", s); status_t = 1.6f; }
 
+static void load_generation0(void) {
+    pb_fill_seeds();
+    live_n = PB_N < PB_MAXN ? PB_N : PB_MAXN;
+    for (int i = 0; i < live_n; i++) {
+        live[i] = PB_SEED[i];
+        snprintf(live_name[i], sizeof live_name[i], "%s", PB_NAME[i]);
+        live_loss[i] = PB_LOSS[i];
+        live_kind[i] = 0;
+        mac[i][0] = live[i].v[V_HARM];
+        mac[i][1] = live[i].v[V_TIMB];
+        mac[i][2] = live[i].v[V_MORPH];
+        mac_ready[i] = 0;                    // first play leaves the snippet's own macros
+    }
+    bred = 0;
+    gen_n = 0;
+    sel = 0;
+    applied = -1;
+}
+
+static void capture_macros(int i) {
+    if (i < 0 || i >= live_n) return;
+    if (!mac_ready[i]) return;
+    live[i].v[V_HARM] = mac[i][0];
+    live[i].v[V_TIMB] = mac[i][1];
+    live[i].v[V_MORPH] = mac[i][2];
+}
+
 // Configure PB_SLOT to be candidate i, then overlay whatever the knobs have been dragged to.
 // Only on a CHANGE: instrument() rebuilds a slot, and doing that every frame is the set-and-hold
 // mistake that makes a cart stutter rather than fail.
+//
+// Generation 0 plays the editor's pb_apply snippet so an A landing is bit-exact with what `pm`
+// printed. After the first breed the live PmPatch is the source of truth (the snippet cannot
+// express a child).
 static void use(int i) {
-    if (i < 0 || i >= PB_N) return;
-    if (applied != i) { pb_apply(i, PB_SLOT); applied = i; }
+    if (i < 0 || i >= live_n) return;
+    if (applied != i) {
+        if (!bred && i < PB_N) pb_apply(i, PB_SLOT);
+        else                   pm_apply_slot(&live[i], PB_SLOT);
+        applied = i;
+    }
     if (!mac_ready[i]) {                      // first visit: the knobs start where the patch is
-        mac[i][0] = 0.5f; mac[i][1] = 0.5f; mac[i][2] = 0.5f;
+        mac[i][0] = live[i].v[V_HARM];
+        mac[i][1] = live[i].v[V_TIMB];
+        mac[i][2] = live[i].v[V_MORPH];
         mac_ready[i] = 1;
         return;                               // leave the patch's own macro values alone
     }
@@ -176,25 +248,117 @@ static void use(int i) {
 // trim is applied once and holds across candidate switches. Set-and-hold, never per frame.
 static void apply_bal(void) { instrument_level(PB_SLOT, bal); }
 
-static void play_cand(void) { use(sel); hit(note_midi, PB_SLOT, 5, NOTE_MS); }
+static void play_cand(void) { use(sel); apply_bal(); hit(note_midi, PB_SLOT, 5, NOTE_MS); }
 static void play_target(void) {
     if (!have_target) { say("no target: this run has none"); return; }
     hit(60, PB_TGT, 5, NOTE_MS);              // 60 = the sample's own speed, never transposed
 }
 
+static void push_undo(void) {
+    if (undo_n == PB_UNDO) {
+        memmove(&undo[0], &undo[1], sizeof(undo[0]) * (PB_UNDO - 1));
+        undo_n--;
+    }
+    PbSnap *s = &undo[undo_n++];
+    memset(s, 0, sizeof *s);
+    s->n = live_n; s->sel = sel; s->bred = bred; s->gen = gen_n;
+    for (int i = 0; i < live_n; i++) {
+        s->p[i] = live[i];
+        memcpy(s->name[i], live_name[i], sizeof live_name[i]);
+        s->loss[i] = live_loss[i];
+        s->kind[i] = live_kind[i];
+        s->mac[i][0] = mac[i][0]; s->mac[i][1] = mac[i][1]; s->mac[i][2] = mac[i][2];
+        s->ready[i] = mac_ready[i];
+    }
+}
+
+static void breed(void) {
+    if (sel < 0 || sel >= live_n) return;
+    capture_macros(sel);
+    push_undo();
+    PmPatch parent = live[sel];
+    char pname[12];
+    snprintf(pname, sizeof pname, "%s", live_name[sel]);
+    int keep = sel;
+    live_n = PB_MAXN;
+    for (int i = 0; i < PB_MAXN; i++) {
+        if (i == keep) {
+            live[i] = parent;
+            snprintf(live_name[i], sizeof live_name[i], "%s", pname);
+            live_kind[i] = 1;
+            live_loss[i] = -1.0f;
+        } else {
+            unsigned seed = 1u + (unsigned)(gen_n + 1) * 7919u + (unsigned)(i + 1) * 104729u;
+            pm_mutate(&parent, &live[i], seed, spread);
+            snprintf(live_name[i], sizeof live_name[i], "%s~", pm_engine_short(live[i].engine));
+            live_kind[i] = 2;
+            live_loss[i] = -1.0f;
+        }
+        mac[i][0] = live[i].v[V_HARM];
+        mac[i][1] = live[i].v[V_TIMB];
+        mac[i][2] = live[i].v[V_MORPH];
+        mac_ready[i] = 1;
+    }
+    bred = 1;
+    gen_n++;
+    applied = -1;
+    {
+        char msg[64];
+        snprintf(msg, sizeof msg, "bred 7 around %d %s", keep + 1, pname);
+        say(msg);
+    }
+}
+
+static void undo_breed(void) {
+    if (undo_n <= 0) { say("nothing to undo"); return; }
+    PbSnap *s = &undo[--undo_n];
+    live_n = s->n; sel = s->sel; bred = s->bred; gen_n = s->gen;
+    for (int i = 0; i < live_n; i++) {
+        live[i] = s->p[i];
+        memcpy(live_name[i], s->name[i], sizeof live_name[i]);
+        live_loss[i] = s->loss[i];
+        live_kind[i] = s->kind[i];
+        mac[i][0] = s->mac[i][0]; mac[i][1] = s->mac[i][1]; mac[i][2] = s->mac[i][2];
+        mac_ready[i] = s->ready[i];
+    }
+    applied = -1;
+    say("undid last breed");
+}
+
 static void copy_patch(void) {
-    printh("// patchbench: %s candidate %d (%s)%s",
-           PB_RUN[0] ? PB_RUN : "built-in", sel + 1, PB_NAME[sel],
-           mac_ready[sel] ? "  [macros as set on the bench]" : "");
+    capture_macros(sel);
+    const PmPatch *p = &live[sel];
+    printh("// patchbench: %s  pad %d (%s)  gen %d%s",
+           PB_RUN[0] ? PB_RUN : "built-in", sel + 1, live_name[sel], gen_n,
+           live_kind[sel] == 2 ? "  child" : live_kind[sel] == 1 ? "  keep" : "");
     printh("    // paste this into your cart");
-    if (mac_ready[sel])
-        printh("    instrument_harmonics(5, %.3ff);  instrument_timbre(5, %.3ff);  instrument_morph(5, %.3ff);",
-               mac[sel][0], mac[sel][1], mac[sel][2]);
-    printh("    // (the instrument() line is candidate %d in this cart's de:patch-slots region)", sel + 1);
+    printh("    instrument(5, %s, %d, %d, %d, %d);",
+           pm_engine_name(p->engine),
+           pm_atk_ms(p->v[V_ATK]), pm_dec_ms(p->v[V_DEC]),
+           pm_sus(p->v[V_SUS]), pm_rel_ms(p->v[V_REL]));
+    printh("    instrument_harmonics(5, %.3ff);  instrument_timbre(5, %.3ff);  instrument_morph(5, %.3ff);",
+           p->v[V_HARM], p->v[V_TIMB], p->v[V_MORPH]);
+    int fb = pm_bin(p->v[V_FMODE], 4);
+    if (fb)
+        printh("    instrument_filter(5, %s, %d, %d);",
+               PM_FILTER_NAME[fb], pm_cut_hz(p->v[V_CUT]), pm_res(p->v[V_RES]));
+    if (p->f[F_DRIVE] > 0.02f)
+        printh("    instrument_drive(5, %.3ff);  instrument_drive_mode(5, %s);",
+               p->f[F_DRIVE], PM_DRIVE_NAME[pm_bin(p->f[F_DRIVEMODE], 4)]);
+    if (p->f[F_TAPEWOW] > 0.02f || p->f[F_TAPEFLUT] > 0.02f || p->f[F_TAPESAT] > 0.02f)
+        printh("    instrument_tape(5, %.3ff, %.3ff, %.3ff);",
+               p->f[F_TAPEWOW], p->f[F_TAPEFLUT], p->f[F_TAPESAT]);
+    if (p->f[F_ECHOSEND] > 0.02f)
+        printh("    echo(%d, %.3ff, %.3ff);  instrument_echo(5, %.3ff);",
+               pm_echo_ms(p->f[F_ECHOTIME]), pm_echo_fb(p->f[F_ECHOFB]), p->f[F_ECHOTONE], p->f[F_ECHOSEND]);
+    if (p->f[F_RVBSEND] > 0.02f)
+        printh("    reverb(%.3ff, %.3ff);  instrument_reverb(5, %.3ff);",
+               p->f[F_RVBSIZE], p->f[F_RVBDAMP], p->f[F_RVBSEND]);
     say("patch printed to the log panel");
 }
 
 void init(void) {
+    load_generation0();
     load_target();
     use(0);
     apply_bal();
@@ -205,11 +369,13 @@ void update(void) {
     float dt = 1.0f / 60.0f;
     if (status_t > 0) status_t -= dt;
 
-    for (int i = 0; i < PB_N && i < 9; i++)
+    for (int i = 0; i < live_n && i < 9; i++)
         if (keyp('1' + i)) { sel = i; play_cand(); }
     if (keyp('T')) play_target();
     if (keyp(KEY_SPACE)) play_cand();
     if (keyp('B')) { ab_stage = 1; ab_t = 0; play_target(); say("A/B: target"); }
+    if (keyp('R')) breed();
+    if (keyp('U')) undo_breed();
     if (keyp(KEY_UP)   && note_midi < 96) note_midi++;
     if (keyp(KEY_DOWN) && note_midi > 24) note_midi--;
 
@@ -225,6 +391,10 @@ void update(void) {
     watch("sel", "%d", sel);
     watch("note", "%d", note_midi);
     watch("target", "%d", have_target);
+    watch("gen", "%d", gen_n);
+    watch("undo", "%d", undo_n);
+    watch("bred", "%d", bred);
+    watch("live_n", "%d", live_n);
 #endif
 }
 
@@ -252,62 +422,119 @@ void draw(void) {
     ui_begin();       // presses are recorded here and resolved in ui_end(); without the pair
                       // every widget draws but nothing clicks, and the engine says so out loud
 
-    print("PATCHBENCH", 4, 3, CLR_WHITE);
+    print("PATCHBENCH", 4, 2, CLR_WHITE);
     font(FONT_SMALL);
     {
-        char sub[64];
-        snprintf(sub, sizeof sub, "run: %s   note %d", PB_RUN[0] ? PB_RUN : "(built-in patches)", note_midi);
-        print(sub, 4, 12, CLR_MEDIUM_GREY);
+        char sub[72];
+        if (gen_n > 0)
+            snprintf(sub, sizeof sub, "%s  note %d  gen %d",
+                     PB_RUN[0] ? PB_RUN : "built-in", note_midi, gen_n);
+        else
+            snprintf(sub, sizeof sub, "%s  note %d",
+                     PB_RUN[0] ? PB_RUN : "built-in", note_midi);
+        print(sub, 96, 4, CLR_MEDIUM_GREY);
+    }
+
+    draw_target_strip(4, 14, 248, 20);
+    // right rail: every verb lives here so eight pads never collide with a button
+    if (ui_button(256, 14, 60, 10, have_target ? "T target" : "no tgt")) play_target();
+    if (ui_button(256, 25, 60, 10, "B  A/B")) { ab_stage = 1; ab_t = 0; play_target(); say("A/B: target"); }
+    if (ui_button(256, 36, 60, 10, "R BREED")) breed();
+    if (ui_button(256, 47, 60, 10, undo_n ? "U UNDO" : "U undo")) undo_breed();
+    if (ui_button(256, 58, 60, 10, "play")) play_cand();
+    if (ui_button(256, 69, 60, 10, "COPY")) copy_patch();
+
+    // the pads: four columns, two rows, leave the rail free
+    for (int i = 0; i < live_n && i < PB_MAXN; i++) {
+        int col = i % 4, row = i / 4;
+        int x = 4 + col * 62, y = 38 + row * 24, w = 58, h = 22;
+        int act = ui_button(x, y, w, h, NULL);
+        if (i == sel) rect(x - 1, y - 1, w + 2, h + 2, CLR_YELLOW);
+        font(FONT_SMALL);   // ui_button may leave FONT_NORMAL; 8px "EPIANO" overflows a 58px pad
+        char lab[24];
+        snprintf(lab, sizeof lab, "%d %s", i + 1, live_name[i]);
+        print(lab, x + 3, y + 3, i == sel ? CLR_WHITE : CLR_LIGHT_GREY);
+        if (live_kind[i] == 1)      print("keep", x + 3, y + 12, CLR_YELLOW);
+        else if (live_kind[i] == 2) print("child", x + 3, y + 12, CLR_INDIGO);
+        else if (live_loss[i] >= 0) {
+            char ls[16]; snprintf(ls, sizeof ls, "fx %.3f", live_loss[i]);
+            print(ls, x + 3, y + 12, CLR_MEDIUM_GREY);
+        } else {
+            print("seed", x + 3, y + 12, CLR_MEDIUM_GREY);
+        }
+        if (act) { sel = i; play_cand(); }
     }
     font(FONT_NORMAL);
 
-    draw_target_strip(4, 22, 240, 26);
-    if (ui_button(248, 22, 68, 12, have_target ? "T target" : "no target")) play_target();
-    if (ui_button(248, 36, 68, 12, "B  A/B")) { ab_stage = 1; ab_t = 0; play_target(); say("A/B: target"); }
-
-    // the pads: the candidate set, which is the whole reason this cart exists
-    for (int i = 0; i < PB_N && i < PB_MAXN; i++) {
-        int col = i % 4, row = i / 4;
-        int x = 4 + col * 79, y = 54 + row * 30, w = 74, h = 26;
-        // NULL label: ui_button draws the fill, frame and capture, and the two lines of text are
-        // drawn here instead. Its own label is CENTRED, which put it straight through the loss
-        // figure below — ui-audit called that out as 8 overlapping pairs, which is what it is for.
-        int act = ui_button(x, y, w, h, NULL);
-        if (i == sel) rect(x - 1, y - 1, w + 2, h + 2, CLR_YELLOW);   // selection reads OUTSIDE it
-        char lab[24];
-        snprintf(lab, sizeof lab, "%d %s", i + 1, PB_NAME[i]);
-        print(lab, x + 4, y + 5, i == sel ? CLR_WHITE : CLR_LIGHT_GREY);
-        font(FONT_SMALL);
-        if (PB_LOSS[i] >= 0) {
-            char ls[16]; snprintf(ls, sizeof ls, "fx %.3f", PB_LOSS[i]);
-            print(ls, x + 4, y + 16, CLR_MEDIUM_GREY);
-        } else {
-            print("hand-written", x + 4, y + 16, CLR_MEDIUM_GREY);
-        }
-        font(FONT_NORMAL);
-        if (act) { sel = i; play_cand(); }
-    }
-
-    // the selected candidate, and the three macros you can ride while it sounds
-    int by = 54 + ((PB_N + 3) / 4) * 30 + 6;
+    int by = 38 + ((live_n + 3) / 4) * 24 + 4;
     {
         char h[48];
-        snprintf(h, sizeof h, "selected: %d  %s", sel + 1, PB_NAME[sel]);
+        snprintf(h, sizeof h, "keep %d %s", sel + 1, live_name[sel]);
         print(h, 4, by, CLR_YELLOW);
     }
-    if (ui_knob(&mac[sel][0],  30, by + 32, "harm"))  { mac_ready[sel] = 1; use(sel); }
-    if (ui_knob(&mac[sel][1],  86, by + 32, "timb"))  { mac_ready[sel] = 1; use(sel); }
-    if (ui_knob(&mac[sel][2], 142, by + 32, "morph")) { mac_ready[sel] = 1; use(sel); }
-    if (ui_knob(&bal, 254, by + 32, "bal"))            { bal_ready = 1; apply_bal(); }
-
-    if (ui_button(186, by + 12, 56, 13, "play")) play_cand();
-    if (ui_button(186, by + 28, 56, 13, "COPY")) copy_patch();
+    if (ui_knob(&mac[sel][0],  28, by + 28, "harm"))  { mac_ready[sel] = 1; capture_macros(sel); use(sel); }
+    if (ui_knob(&mac[sel][1],  74, by + 28, "timb"))  { mac_ready[sel] = 1; capture_macros(sel); use(sel); }
+    if (ui_knob(&mac[sel][2], 120, by + 28, "morph")) { mac_ready[sel] = 1; capture_macros(sel); use(sel); }
+    if (ui_knob(&spread,      166, by + 28, "sprd"))  { if (spread < 0.04f) spread = 0.04f; }
+    if (ui_knob(&bal,         212, by + 28, "bal"))   { bal_ready = 1; apply_bal(); }
 
     font(FONT_SMALL);
-    print("1-8 pick + play   T target   B a/b   SPACE play", 4, SCREEN_H - 18, CLR_DARK_GREY);
-    if (status_t > 0) print(status, 4, SCREEN_H - 9, CLR_YELLOW);
-    else print("up/down moves the note the bench plays", 4, SCREEN_H - 9, CLR_DARK_GREY);
+    print("1-8 keep  R breed  U undo  T target  B a/b  SPACE play", 4, SCREEN_H - 9,
+          status_t > 0 ? CLR_DARK_GREY : CLR_DARK_GREY);
+    if (status_t > 0) print(status, 4, SCREEN_H - 18, CLR_YELLOW);
+    else              print("up/down moves the note the bench plays", 4, SCREEN_H - 18, CLR_DARK_GREY);
     font(FONT_NORMAL);
 
     ui_end();
 }
+
+#ifdef DE_SPEC
+#include "spec.h"
+void spec(void) {
+    step(1);                                          // init() + one update
+    expect(live_n == 3, "generation 0 is the built-in set");
+    expect(undo_n == 0, "no undo on a fresh bench");
+    expect(bred == 0, "generation 0 still plays via pb_apply");
+    expect_eq(pm_mutate_selfcheck(), 0, "pm_mutate known answers");
+
+    sel = 1;                                          // keep the EPIANO
+    breed();
+    expect(live_n == 8, "breed fills eight pads");
+    expect(bred == 1, "after breed the live vector is the source of truth");
+    expect_eq(gen_n, 1, "first breed is generation 1");
+    expect_eq(undo_n, 1, "breed pushes one undo");
+    expect(live_kind[1] == 1, "the pick stays the keep, on its own pad");
+    expect(live[1].engine == 20, "keep is still EPIANO");
+    int moved = 0;
+    for (int i = 0; i < 8; i++)
+        if (i != 1 && memcmp(&live[i], &live[1], sizeof(PmPatch)) != 0) moved++;
+    expect(moved >= 6, "the other pads are children, not copies");
+    expect(live[0].engine == 20 && live[7].engine == 20, "children stay in the keep's family");
+
+    int n1 = live_n, g1 = gen_n;
+    undo_breed();
+    expect(live_n == 3, "undo restores the set size");
+    expect(bred == 0, "undo restores generation-0 playback");
+    expect_eq(gen_n, 0, "undo restores the generation counter");
+    expect_eq(undo_n, 0, "undo consumes the stack");
+    expect(live[1].engine == 20, "undo restores the pick");
+    expect(n1 == 8 && g1 == 1, "the pre-undo snapshot was the bred litter");
+
+    spec_tap('R');
+    expect(live_n == 8, "R breeds");
+    spec_tap('U');
+    expect(live_n == 3, "U undoes");
+
+    // two breeds, one undo — the stack is a lineage, not a toggle
+    breed();
+    int keep_pad = sel;
+    int child_engine = live[keep_pad == 0 ? 1 : 0].engine;
+    breed();
+    expect_eq(gen_n, 2, "second breed is generation 2");
+    expect_eq(undo_n, 2, "two litters on the stack");
+    undo_breed();
+    expect_eq(gen_n, 1, "undo last breed only");
+    expect(live_n == 8, "the previous litter is still eight pads");
+    expect(live[keep_pad == 0 ? 1 : 0].engine == child_engine, "gen-1 children come back");
+}
+#endif

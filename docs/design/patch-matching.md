@@ -265,7 +265,7 @@ Smaller open items, none of them forks:
 
 ## See also
 
-- [`patch-matching-cart.md`](patch-matching-cart.md) — the cart fork (§10); option A is in the editor, option B is next.
+- [`patch-matching-cart.md`](patch-matching-cart.md) — the cart fork (§10); A is in the editor, B is `patchbench` (keep / breed / undo).
 - [`docs/guides/checks-and-oracles.md`](../guides/checks-and-oracles.md) for which gate to run when.
 - [`docs/design/instrument-engines.md`](instrument-engines.md) for what each engine's macros mean.
 - [`docs/design/audio-notes.md`](audio-notes.md) §31 for the `INSTR_VOICE` macro finding.

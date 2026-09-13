@@ -1,11 +1,10 @@
 # Taking patch matching into a cart: the fork
 
-> **STATUS: BUILDING (2026-09-12)** — option A (editor drop → spawn `pm` → audition) is in the
-> editor, and **§7's bench is built**: the `patchbench` cart now holds the candidate SET and the
-> editor writes into it, so a match no longer lands at the cursor in an unrelated cart. Option B
-> (the ear-judged Synplant cart) is the next build and the bench is most of its shell. Skip C; D
-> waits on the AUv3 refactor. Upstream: [`patch-matching.md`](patch-matching.md). No engine change
-> (ADR-0006 — this is a tool spawn, not `studio.h`).
+> **STATUS: SHIPPED (2026-09-13)** — option A is in the editor, §7's bench holds the SET, and
+> **option B is the same cart**: pick a pad, BREED mutates around the keep, UNDO walks back.
+> `pmpatch.h` now owns `pm_mutate()` (detents step; there was no operator in the header — #16
+> corrected this). Skip C; D waits on the AUv3 refactor. Upstream: [`patch-matching.md`](patch-matching.md).
+> No engine change (ADR-0006 — a cart plays patches, it never renders them offline).
 
 The CLI works: hand it a WAV, get eight dreamengine patches back. The obvious next wish is "drop a
 sample into a cart and hear the console's own version of it". This doc is what that actually costs,
@@ -84,11 +83,26 @@ your choice. No target, no scoring, no comparison: it plays patches and mutates 
 | **Pros** | **Zero engine change, buildable today with shipped API only.** No rendering problem exists because nothing is rendered offline: the cart just plays a patch. Fits the north star (one honest core, legible to a stranger in one sentence, and genuinely delightful). Immune to the loss-is-not-perception flaw by construction. |
 | **Cons** | It **explores** rather than matches. On its own it does not do "drop a sample in and get it". |
 | **Effort** | Medium, and almost all of it is UI and feel rather than mechanism. |
-| **Needs** | The mutation operator (perturb a `PmPatch` in normalized space, which `pmpatch.h` already defines), the eight-way layout, an audition trigger, and a lineage/undo tree. |
+| **Needs** | The mutation operator (perturb a `PmPatch` in normalized space — written into `pmpatch.h` as `pm_mutate`, because the header shipped the representation and the detents but no neighbour function), the eight-way layout, an audition trigger, and a lineage/undo tree. |
+| **Shipped** | 2026-09-13 — on `patchbench`, not a second cart. Hear the pads (already there), the selection **is** the keep, **R / BREED** refills the other seven with children, **U / UNDO** pops the last few litters, SPRD sets how far a litter wanders. Generation 0 still plays the editor's `pb_apply` snippet so an A landing is the printed patch; after the first breed the live `PmPatch` is the source of truth. No scoring, no `record_grab`, no `de_instance_create`. |
 
 **The combination is the good bit.** Seed B's tree with A's match: the CLI finds the ballpark, you
 breed away from it by ear. That gives both halves of the wish without waiting for anything, and the
 two options are additive rather than alternatives.
+
+### ✅ BUILT 2026-09-13 — on the bench, not a second cart
+
+`patchbench` grew the operator §7 said it was one away from. The selection **is** the keep (yellow
+ring + a KEEP label); R / BREED writes seven children onto the other pads and leaves the parent
+where your finger was; U / UNDO pops a 4-deep litter stack; SPRD is how far a child wanders.
+Generation 0 still plays `pb_apply` so an A landing is the printed snippet. The editor also writes
+`PB_SEED` (an exact `// pm:vec` when `pm` is new enough, else an inverse of the printed calls) so
+the first breed has a real parent, not a default-plus-macros guess.
+
+`pmpatch.h` did **not** ship a mutation space — #16's 2026-09-13 correction. What it had was the
+representation and the detent table. `pm_mutate()` is the operator: continuous dims nudge in 0..1,
+snapped harmonics step an adjacent measured centre. `tools/patch-match/mutate-check.c` gates it
+without the engine. `runtime/pmbreed.h` is the cart-land include (apply-to-slot; leftovers cleared).
 
 ### C. A cart that scores in realtime via `record_grab`
 

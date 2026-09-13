@@ -128,10 +128,142 @@ function collectResults(outdir) {
 const SLOT_BEGIN = '// de:patch-slots begin'
 const SLOT_END = '// de:patch-slots end'
 
+// Same roster as pmpatch.h PM_ENGINE / PM_ENGINE_NAME. Kept here so a snippet can become a
+// PmPatch without compiling C — the bench needs the vector to breed, and older patches.txt
+// files only have the printed instrument() calls.
+const PM_ENGINE_ID = {
+  SQUARE: 0, SAW: 1, TRI: 2, SINE: 4,
+  PLUCK: 16, MALLET: 17, FM: 18, ORGAN: 19, EPIANO: 20, PD: 21,
+  MEMBRANE: 22, REED: 23, VOICE: 24, PIPE: 25, GUITAR: 26, PIANO: 27, BOWED: 28, BRASS: 29,
+}
+const FILTER_BIN = { FILTER_OFF: 0, FILTER_LOW: 1, FILTER_LADDER: 2, FILTER_BAND: 3 }
+const DRIVE_BIN = { DRIVE_SOFT: 0, DRIVE_HARD: 1, DRIVE_FOLD: 2, DRIVE_ASYM: 3 }
+
+function engineId(name) {
+  const s = String(name || '').replace(/^INSTR_/, '')
+  return Object.prototype.hasOwnProperty.call(PM_ENGINE_ID, s) ? PM_ENGINE_ID[s] : -1
+}
+
+function clamp01(x) { return x < 0 ? 0 : x > 1 ? 1 : x }
+function unatk(ms) { return ms <= 0 ? 0 : Math.sqrt(ms / 1500) }
+function undec(ms) { return ms <= 0 ? 0 : Math.sqrt(ms / 3000) }
+function unsus(s) { return s / 7.999 }
+function unrel(ms) { return ms <= 0 ? 0 : Math.sqrt(ms / 4000) }
+function uncut(hz) { return hz <= 40 ? 0 : Math.log(hz / 40) / Math.log(400) }
+function unres(r) { return r / 15 }
+function unenvOct(o) { return o / 4 }
+function unenvMs(ms) { return ms <= 0 ? 0 : Math.sqrt(ms / 1200) }
+function unvibSemi(s) { return s <= 0 ? 0 : Math.sqrt(s / 1.5) }
+function unvibHz(hz) { return (hz - 0.5) / 8 }
+function uncrushBits(b) { return (16 - b) / 15 }
+function uncrushRate(r) { return (r - 1) / 63 }
+function unchRate(hz) { return (hz - 0.1) / 4.9 }
+function untremRate(hz) { return (hz - 0.1) / 19.9 }
+function unechoMs(ms) { return ms <= 1 ? 0 : Math.sqrt((ms - 1) / 800) }
+function unechoFb(fb) { return fb / 0.9 }
+function uneqDb(db) { return db / 24 + 0.5 }
+
+function defaultPatch(engine) {
+  const v = new Array(19).fill(0.5)
+  v[3] = 0; v[4] = 0.5; v[5] = 0.9; v[6] = 0.2          // ATK DEC SUS REL
+  v[7] = 0                                               // FMODE off
+  v[10] = 0; v[11] = 0.3                                 // ENVAMT ENVDEC
+  v[12] = 0; v[13] = 0.5; v[14] = 0                      // VIBDEP VIBRATE TREMDEP
+  const f = new Array(23).fill(0)
+  f[20] = f[21] = f[22] = 0.5                            // EQ flat
+  return { engine, nmode: 0, v, f }
+}
+
+function parseVecLine(snippet) {
+  const m = /\/\/\s*pm:vec\s+(\d+)\s+(\d+)\s+([\d.,eE+-]+)\s*\|\s*([\d.,eE+-]+)/.exec(String(snippet || ''))
+  if (!m) return null
+  const v = m[3].split(',').map(Number)
+  const f = m[4].split(',').map(Number)
+  if (v.length < 7 || f.length < 3) return null
+  const p = defaultPatch(parseInt(m[1], 10))
+  p.nmode = parseInt(m[2], 10)
+  for (let i = 0; i < v.length && i < p.v.length; i++) p.v[i] = clamp01(v[i])
+  for (let i = 0; i < f.length && i < p.f.length; i++) p.f[i] = clamp01(f[i])
+  return p
+}
+
+// Reconstruct a PmPatch from the printed snippet. Prefer an exact // pm:vec line
+// (new pm writes); otherwise invert the mapping curves. Lossy on the integer
+// rounded ms/Hz, close enough to breed from.
+function snippetToPatch(snippet, engineName) {
+  const exact = parseVecLine(snippet)
+  if (exact) return exact
+  const p = defaultPatch(engineId(engineName))
+  const src = String(snippet || '')
+  const inst = /instrument\s*\(\s*\d+\s*,\s*(INSTR_[A-Z0-9]+)\s*,\s*(-?\d+)\s*,\s*(-?\d+)\s*,\s*(-?\d+)\s*,\s*(-?\d+)\s*\)/.exec(src)
+  if (inst) {
+    const id = engineId(inst[1])
+    if (id >= 0) p.engine = id
+    p.v[3] = clamp01(unatk(+inst[2]))
+    p.v[4] = clamp01(undec(+inst[3]))
+    p.v[5] = clamp01(unsus(+inst[4]))
+    p.v[6] = clamp01(unrel(+inst[5]))
+  }
+  const mac = /instrument_harmonics\s*\(\s*\d+\s*,\s*([0-9.]+)f?\s*\).*instrument_timbre\s*\(\s*\d+\s*,\s*([0-9.]+)f?\s*\).*instrument_morph\s*\(\s*\d+\s*,\s*([0-9.]+)f?/.exec(src)
+  if (mac) { p.v[0] = clamp01(+mac[1]); p.v[1] = clamp01(+mac[2]); p.v[2] = clamp01(+mac[3]) }
+  const fil = /instrument_filter\s*\(\s*\d+\s*,\s*(FILTER_[A-Z]+)\s*,\s*(-?\d+)\s*,\s*(-?\d+)\s*\)/.exec(src)
+  if (fil) {
+    const b = FILTER_BIN[fil[1]]
+    if (b !== undefined) p.v[7] = (b + 0.5) / 4
+    p.v[8] = clamp01(uncut(+fil[2]))
+    p.v[9] = clamp01(unres(+fil[3]))
+  }
+  const env = /instrument_env\s*\(\s*\d+\s*,\s*0\s*,\s*ENV_CUTOFF_OCT\s*,\s*0\s*,\s*(-?\d+)\s*,\s*([0-9.]+)f?/.exec(src)
+  if (env) { p.v[11] = clamp01(unenvMs(+env[1])); p.v[10] = clamp01(unenvOct(+env[2])) }
+  const vib = /instrument_lfo\s*\(\s*\d+\s*,\s*0\s*,\s*LFO_PITCH\s*,\s*([0-9.]+)f?\s*,\s*([0-9.]+)f?/.exec(src)
+  if (vib) { p.v[13] = clamp01(unvibHz(+vib[1])); p.v[12] = clamp01(unvibSemi(+vib[2])) }
+  const trm = /instrument_lfo\s*\(\s*\d+\s*,\s*1\s*,\s*LFO_VOLUME\s*,\s*([0-9.]+)f?\s*,\s*([0-9.]+)f?/.exec(src)
+  if (trm) { p.v[13] = clamp01(unvibHz(+trm[1])); p.v[14] = clamp01(+trm[2]) }
+  const modes = [...src.matchAll(/instrument_mode\s*\(\s*\d+\s*,\s*\d+\s*,\s*([0-9.]+)f?/g)]
+  p.nmode = modes.length
+  modes.forEach((m, i) => { if (i < 4) p.v[15 + i] = clamp01(+m[1]) })
+  const drv = /instrument_drive\s*\(\s*\d+\s*,\s*([0-9.]+)f?/.exec(src)
+  if (drv) p.f[0] = clamp01(+drv[1])
+  const drm = /instrument_drive_mode\s*\(\s*\d+\s*,\s*(DRIVE_[A-Z]+)/.exec(src)
+  if (drm && DRIVE_BIN[drm[1]] !== undefined) p.f[1] = (DRIVE_BIN[drm[1]] + 0.5) / 4
+  const tape = /instrument_tape\s*\(\s*\d+\s*,\s*([0-9.]+)f?\s*,\s*([0-9.]+)f?\s*,\s*([0-9.]+)f?/.exec(src)
+  if (tape) { p.f[2] = clamp01(+tape[1]); p.f[3] = clamp01(+tape[2]); p.f[4] = clamp01(+tape[3]) }
+  const cr = /instrument_crush\s*\(\s*\d+\s*,\s*([0-9.]+)f?\s*,\s*([0-9.]+)f?\s*,\s*([0-9.]+)f?/.exec(src)
+  if (cr) { p.f[5] = clamp01(uncrushBits(+cr[1])); p.f[6] = clamp01(uncrushRate(+cr[2])); p.f[7] = clamp01(+cr[3]) }
+  const ch = /instrument_chorus\s*\(\s*\d+\s*,\s*([0-9.]+)f?\s*,\s*([0-9.]+)f?\s*,\s*([0-9.]+)f?/.exec(src)
+  if (ch) { p.f[8] = clamp01(unchRate(+ch[1])); p.f[9] = clamp01(+ch[2]); p.f[10] = clamp01(+ch[3]) }
+  const echo = /echo\s*\(\s*(-?\d+)\s*,\s*([0-9.]+)f?\s*,\s*([0-9.]+)f?/.exec(src)
+  const esnd = /instrument_echo\s*\(\s*\d+\s*,\s*([0-9.]+)f?/.exec(src)
+  if (echo) { p.f[13] = clamp01(unechoMs(+echo[1])); p.f[14] = clamp01(unechoFb(+echo[2])); p.f[15] = clamp01(+echo[3]) }
+  if (esnd) p.f[16] = clamp01(+esnd[1])
+  const rvb = /reverb\s*\(\s*([0-9.]+)f?\s*,\s*([0-9.]+)f?/.exec(src)
+  const rsnd = /instrument_reverb\s*\(\s*\d+\s*,\s*([0-9.]+)f?/.exec(src)
+  if (rvb) { p.f[17] = clamp01(+rvb[1]); p.f[18] = clamp01(+rvb[2]) }
+  if (rsnd) p.f[19] = clamp01(+rsnd[1])
+  const eq = /instrument_eq\s*\(\s*\d+\s*,\s*([0-9.-]+)f?\s*,\s*([0-9.-]+)f?\s*,\s*([0-9.-]+)f?/.exec(src)
+  if (eq) { p.f[20] = clamp01(uneqDb(+eq[1])); p.f[21] = clamp01(uneqDb(+eq[2])); p.f[22] = clamp01(uneqDb(+eq[3])) }
+  return p
+}
+
+function fnum(x) { return `${Number(x).toFixed(5)}f` }
+
+function emitFillSeeds(patches) {
+  const L = ['static PmPatch PB_SEED[PB_N];', 'static void pb_fill_seeds(void) {']
+  patches.forEach((p, i) => {
+    L.push(`    pm_patch_default(&PB_SEED[${i}], ${p.engine});`)
+    L.push(`    PB_SEED[${i}].nmode = ${p.nmode};`)
+    L.push(`    { static const float v[PM_NV] = { ${p.v.map(fnum).join(', ')} }; memcpy(PB_SEED[${i}].v, v, sizeof v); }`)
+    L.push(`    { static const float f[PM_NF] = { ${p.f.map(fnum).join(', ')} }; memcpy(PB_SEED[${i}].f, f, sizeof f); }`)
+  })
+  L.push('}')
+  return L
+}
+
 function renderSlots(parsed, runName) {
   const cands = (parsed.candidates || []).slice(0, 8)
   if (!cands.length) throw new Error('no candidates to write')
   const short = (e) => String(e || '').replace(/^INSTR_/, '')
+  const seeds = cands.map(c => snippetToPatch(c.snippet, c.engine))
   const L = []
   L.push(SLOT_BEGIN)
   L.push(`// GENERATED from build/patch-match/${runName}/patches.txt — edit the cart, not this block.`)
@@ -139,6 +271,7 @@ function renderSlots(parsed, runName) {
   L.push(`#define PB_N    ${cands.length}`)
   L.push(`static const char *PB_NAME[PB_N] = { ${cands.map(c => JSON.stringify(short(c.engine))).join(', ')} };`)
   L.push(`static const float PB_LOSS[PB_N] = { ${cands.map(c => `${Number(c.fx).toFixed(5)}f`).join(', ')} };`)
+  L.push(...emitFillSeeds(seeds))
   L.push('static void pb_apply(int i, int slot) {')
   L.push('    switch (i) {')
   cands.forEach((c, i) => {
@@ -147,6 +280,7 @@ function renderSlots(parsed, runName) {
     for (const raw of String(c.snippet || '').split('\n')) {
       const line = raw.trim()
       if (!line || /^hit\s*\(/.test(line)) continue     // the bench owns when a note sounds
+      if (/^\/\/\s*pm:vec\b/.test(line)) continue       // the vector lives in PB_SEED, not in apply
       // Every emitted call targets slot 5; the bench passes its own slot in, so rewrite the first
       // argument. GLOBAL, because pm puts three calls on one line ("harmonics(5,..) timbre(5,..)
       // morph(5,..)") and a first-match-only rewrite leaves two of them hardcoded: it still works
@@ -283,6 +417,25 @@ function selfcheck() {
     t('the last case is default (so the switch is total)', /    default:/.test(r) && (r.split('case ').length - 1) === 1)
     t('no candidates → throws rather than writing an empty switch',
       (() => { try { renderSlots({ candidates: [] }, 'x'); return false } catch { return true } })())
+    t('region writes a seed vector for breeding', /static PmPatch PB_SEED\[PB_N\]/.test(r) && /pb_fill_seeds\(/.test(r))
+    t('seed 0 is PIPE (engine 25)', /pm_patch_default\(&PB_SEED\[0\], 25\)/.test(r))
+    t('seed 1 is FM (engine 18)', /pm_patch_default\(&PB_SEED\[1\], 18\)/.test(r))
+    t('pm:vec comments are not copied into pb_apply', !/pm:vec/.test(r.split('pb_apply')[1] || ''))
+
+    const piano = snippetToPatch(fake.candidates[0].snippet, 'INSTR_PIPE')
+    t('inverse seed keeps PIPE', piano.engine === 25)
+    t('inverse seed recovered the printed macros',
+      Math.abs(piano.v[0] - 0.022) < 1e-6 && Math.abs(piano.v[1] - 0.083) < 1e-6)
+    t('inverse seed recovered ADSR attack', Math.abs(piano.v[3] - Math.sqrt(137 / 1500)) < 1e-6)
+    t('inverse seed recovered echo send', Math.abs(piano.f[16] - 0.249) < 1e-6)
+    t('inverse seed recovered reverb send', Math.abs(piano.f[19] - 0.092) < 1e-6)
+
+    const vec = snippetToPatch(
+      '    // pm:vec 18 0 0.15500,0.40000,0.20000,0.10000,0.50000,0.90000,0.20000,0.00000,0.50000,0.50000,0.00000,0.30000,0.00000,0.50000,0.00000,0.50000,0.50000,0.50000,0.50000 | 0.00000,0.00000,0.00000,0.00000,0.00000,0.00000,0.00000,0.00000,0.00000,0.00000,0.00000,0.00000,0.00000,0.00000,0.00000,0.00000,0.00000,0.00000,0.00000,0.00000,0.50000,0.50000,0.50000\n' +
+      '    instrument(5, INSTR_FM, 10, 80, 6, 180);\n',
+      'INSTR_SAW')
+    t('pm:vec wins over the instrument() engine', vec.engine === 18 && Math.abs(vec.v[0] - 0.155) < 1e-6)
+    t('pm:vec keeps the printed ADSR from being inverse-mapped', Math.abs(vec.v[3] - 0.1) < 1e-6)
 
     const cart = `head\n${SLOT_BEGIN}\nold junk\n${SLOT_END}\ntail`
     const out = spliceSlots(cart, r)
@@ -335,4 +488,6 @@ module.exports = {
   collectResults,
   failMsg,
   wavDataUrl,
+  snippetToPatch,
+  engineId,
 }

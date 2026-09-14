@@ -247,6 +247,63 @@ No engine change. No `studio.h` growth. **No cart-created engine instance**: the
 candidates, it never renders them offline to score them, so §3's wall and §4's option-D trap both
 stay where they are. The search stays in the CLI where it belongs.
 
+## 8. PARKED: a CHORD in, the same sound out, in that shape
+
+> **STATUS: PARKED (2026-09-14)** — not now, no work planned. Written down so the next person asking
+> this question starts from the decomposition instead of from "we need polyphonic pitch detection".
+
+The wish: drop a WAV of a CHORD, have the tool work out (a) the notes, (b) the timbre, (c) hand back
+that one sound played in that shape. The three parts cost wildly different amounts, and separating
+them is most of the answer.
+
+**(c) is free today.** Once a patch exists, a chord is three `hit()` calls on one slot. The engine is
+polyphonic. Nothing to build.
+
+**(b) is what `pm` already does**, well, given a clean single note.
+
+**(a) is the only genuinely missing piece**, and the repo has nothing for it. `pmw_pitch` is
+normalized autocorrelation over one window: one f0, and it returns 0 rather than guess.
+`mic_pitch` is YIN. Both are monophonic BY CONSTRUCTION, not by accident. `hb_analyze` does not
+help: it takes symbolic roots and qualities as ints, so it NAMES a chord, it does not hear one.
+
+### The move that dodges (a) entirely
+
+Do not transcribe: **race the chord the way stage 1 races the engine**. "Which chord" is a discrete
+decision, the same kind as "which engine", and `pm` already resolves those by rendering every option
+and ranking. Take the vocabulary from `harmony.h`, pin the octave from the target's lowest strong
+partial, render, rank. Cost: ~200 candidates on a short window, against a measured ~26ms render per
+second of audio, already forked across 4 workers. **Seconds, inside a search that takes 7.5 minutes.**
+The expensive part is the part we already own.
+
+Three things would bite, all with known shapes:
+
+- **Chord and timbre are entangled** — a wrong chord is papered over by a wrong timbre. That is
+  exactly why stage 3 freezes the voice before fitting fx; the same discipline applies (race chords
+  against a fixed probe, then the engine race, then re-race the chord with the winner).
+- **A strum is not a block chord.** One cheap continuous dim: milliseconds between notes.
+- **An ambiguity that does not go away** — a rich single note imitates a triad's lower partials, and
+  voicings an octave apart are near-identical to a log-mel loss. Same class as PD never ranking first
+  because SAW reaches its tones (`patch-matching.md` §on the selftest). Expect a RANKING, not a fact.
+
+### What it would take, if it is ever wanted
+
+1. **A render that strikes more than one note.** `pmcart.c` fires `hit(pm_midi, …)` and the host seam
+   is three ints; it needs a note LIST. Small.
+2. **A chord beside `PmPatch`, not inside it.** A chord is not timbre. The printed snippet ends in one
+   `hit()` and the bench plays one note with up/down; both would carry a shape.
+3. **A `--selftest` for it**, which is the part that decides whether any of it works: render a known
+   chord with a known patch, throw both away, find them again. Without it you cannot separate "the
+   console cannot make that chord" from "the chord search is broken" — the exact distinction
+   `--selftest` already exists to settle for engines.
+
+### Build the ear version first
+
+None of the above is needed to answer the question that matters. **Put a chord picker on the bench**
+and let the ear do it, exactly like BREED: the patch is already there, so play a triad, a seventh, an
+inversion, keep what matches. Zero multi-f0, zero new search, same thesis that just worked in option
+B. An afternoon. It would also reveal whether picking the chord was ever the hard part, which decides
+whether the automatic version is worth wanting at all.
+
 ## See also
 
 - [`patch-matching.md`](patch-matching.md) — the shipped CLI, the measurements, and §6's honest limits.

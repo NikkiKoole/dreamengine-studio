@@ -7,13 +7,25 @@
 > **here**, then fix the prose in the relevant design doc. If a design doc and this file
 > disagree, this file wins.
 
-_Last updated: 2026-09-13 — option B on `patchbench`: hear eight, keep one, breed. See the top Shipped entry and [`design/patch-matching-cart.md`](design/patch-matching-cart.md)._
+_Last updated: 2026-09-14 — engine-reach tier 1: the matcher can search duty/unison/sync/fold. See the top Shipped entry and [`design/engine-reach.md`](design/engine-reach.md) §3._
 
 > **This line is a headline, not an entry.** It reached **9,064 characters** and was the only place in the file that recorded `FILTER_DIODE`, `filter-spec.js` and `rebirth-classic.md` — three shipped things, invisible because nobody reads a shipped feature out of a `_Last updated:_` line. They have a real entry now (2026-07-02, above `sprite-draw.js`). Keep this to one date, one sentence, one link; `status-check --check` fails past 900 chars.
 
 ---
 
 ## Shipped ✓
+
+- **ENGINE-REACH TIER 1: THE MATCHER CAN SEARCH WHAT THE ENGINE ALREADY OWNS** (2026-09-14).
+  `pm` used to pin duty/unison/bandlimit shut and never call `instrument_sync`, so a supersaw,
+  a PWM pad, a sync lead or a clean BLEP saw was structurally unreachable even though those
+  APIs ship. Voice vector now has `V_DUTY` / `V_UNISON` / `V_DETUNE` / `V_SYNC` / `V_BANDLIMIT`
+  (unison + bandlimit are snapped detents) and fold (`V_DRIVE` / `V_DRIVEMODE`) moved out of
+  the fx stage so it can ride cutoff. `pm_engine_modes` now writes PIANO knock + stretch; the
+  other 14 engines have no `MODE_*` in `studio.h`. Analog extras are refine-only — putting
+  them in the race drowned engine identity at 12 pop. Reach is gated by `detents.c --reach`.
+  Honest partial: the commercial ten-sample table is not in the repo, so the named §8
+  failures (`sklocken` / `birdtopper` / `taplay`) were not re-scored.
+  [`design/engine-reach.md`](design/engine-reach.md) §3 · [#27](https://github.com/NikkiKoole/dreamengine-studio/issues/27).
 
 - **PATCHBENCH BREEDS BY EAR** (2026-09-13). Option B of the patch-matching fork, on the bench
   §7 already was: pick a pad (that is the keep), BREED refills the other seven with mutations

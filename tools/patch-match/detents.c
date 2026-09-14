@@ -51,11 +51,49 @@ static uint64_t render_hash(const PmPatch *p, int midi)
 
 int main(int argc, char **argv)
 {
-    int steps = 201, check = 0; const char *only = NULL;
+    int steps = 201, check = 0, reach = 0; const char *only = NULL;
     for (int i = 1; i < argc; i++) {
         if (!strcmp(argv[i], "--steps") && i+1 < argc) steps = atoi(argv[++i]);
         else if (!strcmp(argv[i], "--engine") && i+1 < argc) only = argv[++i];
         else if (!strcmp(argv[i], "--check")) { check = 1; steps = 101; }
+        else if (!strcmp(argv[i], "--reach")) reach = 1;
+    }
+
+    // ── does each new analog dim actually reach the DSP? Two renders that
+    // differ only in that dim must hash differently on the engine that owns
+    // it, and identically on one that does not (the silent-axis control).
+    if (reach) {
+        typedef struct { const char *name; int engine; int dim; float a, b; int live; } Reach;
+        const Reach R[] = {
+            { "duty on SQUARE",     0, V_DUTY,      0.50f, 0.12f, 1 },
+            { "duty on SAW (dead)", 1, V_DUTY,      0.50f, 0.12f, 0 },
+            { "unison on SAW",      1, V_UNISON,    0.00f, 0.93f, 1 },
+            { "unison on PIANO",    27, V_UNISON,   0.00f, 0.93f, 0 },
+            { "detune on SAW",      1, V_DETUNE,    0.00f, 0.80f, 1 },
+            { "sync on SAW",        1, V_SYNC,      0.00f, 0.60f, 1 },
+            { "sync on FM (dead)",  18, V_SYNC,     0.00f, 0.60f, 0 },
+            { "bandlimit on SAW",   1, V_BANDLIMIT, 0.00f, 1.00f, 1 },
+            { "bandlimit on SQUARE",0, V_BANDLIMIT, 0.00f, 1.00f, 0 },
+            { "drive/fold on SAW",  1, V_DRIVE,     0.00f, 0.70f, 1 },
+            { "drivemode on SAW",   1, V_DRIVEMODE, 0.00f, 0.62f, 1 },
+        };
+        int bad = 0;
+        printf("\n  analog-dim reach (two hashes; live must differ, dead must match):\n\n");
+        for (int i = 0; i < (int)(sizeof R / sizeof R[0]); i++) {
+            PmPatch p; pm_patch_default(&p, R[i].engine);
+            if (R[i].dim == V_DRIVEMODE) p.v[V_DRIVE] = 0.70f;   // mode is silent at drive 0
+            if (R[i].dim == V_DETUNE)    p.v[V_UNISON] = 0.93f;  // detune is silent at 1 voice
+            p.v[R[i].dim] = R[i].a; uint64_t ha = render_hash(&p, 60);
+            p.v[R[i].dim] = R[i].b; uint64_t hb = render_hash(&p, 60);
+            int differ = (ha != hb);
+            int ok = R[i].live ? differ : !differ;
+            printf("  %s %-22s %s\n", ok ? "\033[32m✓\033[0m" : "\033[31m✗\033[0m",
+                   R[i].name, differ ? "hashes differ" : "hashes identical");
+            if (!ok) bad++;
+        }
+        printf("\n  %s\n\n", bad ? "\033[31mREACH FAIL — a dim never hit the DSP, or a dead axis moved\033[0m"
+                                 : "\033[32mreach ok\033[0m");
+        return bad ? 1 : 0;
     }
 
     // ── the GATE. pmpatch.h carries these detent positions as a table and the
@@ -70,7 +108,7 @@ int main(int argc, char **argv)
         printf("\n  re-measuring the %d snapped axes pmpatch.h has a table for:\n\n", PM_NDETENT);
         for (int t = 0; t < PM_NDETENT; t++) {
             const PmDetents *d = &PM_DETENT[t];
-            PmPatch p; pm_patch_default(&p, d->engine);
+            PmPatch p; pm_patch_default(&p, d->engine < 0 ? 1 : d->engine); // -1 = any: measure on SAW
             for (int s = 0; s < steps; s++) { p.v[d->dim] = s / (float)(steps - 1); hh[s] = render_hash(&p, 60); }
             int n = 1;
             for (int s = 1; s < steps; s++) if (hh[s] != hh[s-1]) n++;
@@ -84,9 +122,15 @@ int main(int argc, char **argv)
                     if (e > tol) ok = 0;
                     start = s; k++;
                 }
+            const char *ename = d->engine < 0 ? "ANY" : pm_engine_name(d->engine) + 6;
+            const char *dname = d->dim == V_HARM ? "harmonics"
+                              : d->dim == V_TIMB ? "timbre"
+                              : d->dim == V_MORPH ? "morph"
+                              : d->dim == V_UNISON ? "unison"
+                              : d->dim == V_BANDLIMIT ? "bandlimit"
+                              : "dim";
             printf("  %s %-15s %-10s table %d detents, measured %d, worst centre drift %.4f (tol %.4f)\n",
-                   ok ? "\033[32m✓\033[0m" : "\033[31m✗\033[0m", pm_engine_name(d->engine) + 6,
-                   d->dim == V_HARM ? "harmonics" : (d->dim == V_TIMB ? "timbre" : "morph"),
+                   ok ? "\033[32m✓\033[0m" : "\033[31m✗\033[0m", ename, dname,
                    d->n, n, worst, tol);
             if (!ok) bad++;
         }

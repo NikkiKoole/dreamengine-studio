@@ -1,6 +1,7 @@
 # Research round: exciter into resonator (the modal bank)
 
-> **STATUS: RESEARCH COMPLETE (2026-09-14)**, paper design not started. The §5 round owed by
+> **STATUS: RESEARCH COMPLETE (2026-09-14)**, reference RENDERED AND CHARACTERISED (§7),
+> paper design not started. The §5 round owed by
 > [`engine-reach.md`](engine-reach.md) §7.1, answering its six questions with citations and a
 > reference implementation rather than from memory. **It confirms the §7.1 collapse and pins one
 > implementation choice that the collapse silently depends on** (§3 below). Next step is the paper
@@ -147,11 +148,38 @@ Both candidates are present and MIT licensed:
 | STK `BandedWG`, `Resonate`, `Shakers` | same | the neighbouring approaches, including Cook's PhISM |
 | Mutable `elements/` and `rings/` | `github.com/pichenettes/eurorack`, MIT | the modern exciter-mix and continuous-geometry design |
 
-`tools/ref-render/run.sh` already renders STK into the exact 7-second shape our oracles consume, so
-wiring `ModalBar` in is adding a class to `stkrender.cpp`, not new infrastructure. Its header carries
-a per-reference state table, and three of its four existing references are marked partly broken, so
-**render `ModalBar` and characterise it before trusting it**, exactly as that table's Flute and Bowed
-rows warn.
+`ModalBar` is now wired in and characterised (2026-09-14):
+`bash tools/ref-render/run.sh stk ModalBar <hz> <amp> <preset 0-8>`, with its verdict recorded in
+that script's per-reference state table. **Verdict: usable as-is**, the first reference here to
+clear the bar without a caveat since Clarinet.
+
+**The measurement, which is the part worth having.** Preset 0 (marimba) at 220 Hz puts its modes at
+220 / 878 / 2343 Hz. The preset table says 1.0 / 3.99 / 10.65. That is exact.
+
+Then the same preset at 110 Hz:
+
+| | mode 1 | mode 2 | mode 3 | mode 4 |
+|---|---|---|---|---|
+| rendered at 220 Hz | 220 | 878 | 2343 | **2443** |
+| rendered at 110 Hz | 110 | 439 | 1172 | **2443** |
+
+Everything halves except one mode, which sits at 2443 Hz in both. **That is §6's negative-ratio
+gotcha, confirmed by ear-independent measurement rather than by reading the source**: the marimba
+preset pins its fourth mode at an absolute frequency that does not transpose, at -36 dB relative to
+the fundamental at 220 Hz and -48 dB at 110 Hz, so it is audible, not a rounding artefact. An engine
+whose mode table holds only ratios cannot voice this preset. Design consequence: **a mode needs a
+flag or a sign convention for "absolute Hz", and the macro that moves geometry must leave those
+modes alone.**
+
+Two further things only a render shows:
+
+- **It is shorter than our harness.** Pole radius 0.9996 works out to a T60 of about 0.39s, so the
+  bar is silent by ~0.9s and `ref-render`'s 6.0s note-off damps nothing. Analyse near the strike.
+  The header's standing "give `peaks.js` a 3s window" rule is for *sustained* references and cannot
+  apply to a struck one, which is a real conflict in that advice and now noted in the state table.
+- **STK's exciter is a recorded strike**, `rawwaves/marmstk1.raw` through an envelope and a one-pole,
+  not a synthetic burst. So the attack is not portable: we get the architecture from STK and must
+  source the excitation ourselves. Elements' STRIKE generator is the model for that half.
 
 ## 8. Licence
 
@@ -171,6 +199,9 @@ rhythm.
 2. **The exciter is a mix, not a menu.** §7.1's "exciter menu" wording should be corrected.
 3. **Mode count is a per-voicing budget**, not a constant, and 4 is the floor rather than the target.
 4. **Residual excitation is in the literature and is still out**, for the reason §1 already gives.
+5. **A mode table of pure ratios is not enough**, measured in §7: some modes are pinned to absolute
+   Hz, and the geometry macro must not drag them.
+6. **The exciter is ours to build.** STK's is a recorded sample, so only the architecture ports.
 
 ## Sources
 

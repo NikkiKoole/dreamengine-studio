@@ -4,6 +4,7 @@
 #include "Flute.h"
 #include "Clarinet.h"
 #include "Bowed.h"
+#include "ModalBar.h"
 #include <cstdio>
 #include <cstring>
 #include <string>
@@ -12,6 +13,8 @@ int main(int argc, char **argv) {
   std::string which = argc > 1 ? argv[1] : "Brass";
   double freq = argc > 2 ? atof(argv[2]) : 220.0;
   double amp = argc > 3 ? atof(argv[3]) : 0.8;
+  // argv[4] is per-instrument: lip pressure CC for Brass, modal PRESET index for ModalBar
+  // (0 marimba, 1 vibraphone, 2 agogo, 3 wood1, 4 reso, 5 wood2, 6 beats, 7 twofix, 8 clump).
   double lip = argc > 4 ? atof(argv[4]) : -1;
   Stk::setSampleRate(44100.0);
   Stk::setRawwavePath("stk/rawwaves/");
@@ -20,11 +23,19 @@ int main(int argc, char **argv) {
   else if (which == "Flute")    inst = new Flute(50.0);
   else if (which == "Clarinet") inst = new Clarinet();
   else if (which == "Bowed")    inst = new Bowed();
+  else if (which == "ModalBar")  inst = new ModalBar();
   else { fprintf(stderr, "unknown %s\n", which.c_str()); return 1; }
+  // ModalBar's preset must be selected BEFORE the strike: setPreset() rewrites every mode's
+  // ratio, radius and gain, plus stick hardness and strike position. Setting it after noteOn
+  // would re-voice a bar that is already ringing.
+  if (which == "ModalBar") inst->controlChange(16, lip >= 0 ? lip : 0);
   const int SR = 44100, N = SR * 7;
   for (int i = 0; i < N; i++) {
     double t = (double)i / SR;
-    if (i == (int)(0.5 * SR)) { inst->noteOn(freq, amp); if (lip >= 0) inst->controlChange(2, lip); }
+    if (i == (int)(0.5 * SR)) {
+      inst->noteOn(freq, amp);
+      if (lip >= 0 && which != "ModalBar") inst->controlChange(2, lip);
+    }
     if (i == (int)(6.0 * SR)) inst->noteOff(0.5);
     float s = (float)inst->tick();
     fwrite(&s, sizeof(float), 1, stdout);

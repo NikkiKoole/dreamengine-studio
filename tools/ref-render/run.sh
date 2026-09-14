@@ -2,7 +2,7 @@
 # ref-render — render a note from somebody ELSE'S physical model, so ours has something to be
 # wrong against. The tool that found the INSTR_BOWED friction bug (commit ad657323).
 #
-#   bash tools/ref-render/run.sh stk <Brass|Flute|Clarinet|Bowed> [hz] [amp] [lipCC]
+#   bash tools/ref-render/run.sh stk <Brass|Flute|Clarinet|Bowed|ModalBar> [hz] [amp] [lipCC|preset]
 #   bash tools/ref-render/run.sh luthier <steel|nylon|gut|glass> [hz]
 #   bash tools/ref-render/run.sh clean
 #
@@ -40,6 +40,21 @@
 #   Brass     ✗  DOES NOT SELF-OSCILLATE. Blips and dies at every amplitude 0.8-1.2 × lip CC
 #                64/96 tried. Its bore loses 15% per round trip so the lip must make up 18%.
 #                Unsolved; this is why the brass question is still open.
+#   ModalBar  ✅ USABLE AS-IS (measured 2026-09-14). The modal reference for the exciter-into-
+#                resonator engine (design/engine-reach-modal-research.md). Preset 0 (marimba) at
+#                220 Hz puts its modes at 220 / 878 / 2343 Hz, which is its preset table's
+#                1.0 / 3.99 / 10.65 to the Hz. TWO THINGS ONLY A RENDER SHOWS:
+#                (a) ONE MODE DOES NOT TRANSPOSE. Render the same preset at 110 Hz and the first
+#                    three modes halve to 110 / 439 / 1172 while a fourth sits at 2443 Hz in BOTH
+#                    (-36 dB at 220, -48 dB at 110). That is STK's negative-ratio convention
+#                    (a ratio < 0 means absolute Hz) audible and measurable: an engine that assumes
+#                    every mode is a ratio cannot voice this preset.
+#                (b) IT IS SHORTER THAN THE HARNESS. Pole radius 0.9996 is a ~0.39s T60, so the bar
+#                    is silent by ~0.9s and the 6.0s noteOff damps nothing. Analyse in a window near
+#                    the strike (0.52-0.82s works); the header's "give peaks.js 3s" rule is for
+#                    SUSTAINED references and cannot apply to a struck one.
+#                ⚠ Its exciter is a RECORDED STRIKE (rawwaves/marmstk1.raw through an envelope and a
+#                one-pole), not a synthetic burst, so the attack is not something we can port.
 #   luthier   ✅ USABLE. FDTD stiff string. `gut` is the voicing the maker preferred by ear.
 #
 # LICENCES. STK is Cook/Scavone, MIT-equivalent ("without restriction") — borrowing a constant is
@@ -59,17 +74,21 @@ stk)
   INST="${2:-Clarinet}"; HZ="${3:-220}"; AMP="${4:-0.8}"; LIP="${5:--1}"
   [ -d "$OUT/stk" ] || git clone --depth 1 -q https://github.com/thestk/stk.git "$OUT/stk"
   if [ ! -x "$OUT/stkrender" ]; then
-    src=(Stk BiQuad ADSR DelayA DelayL Envelope Noise OnePole OneZero PoleZero SineWave FileRead Brass Flute Clarinet Bowed)
+    src=(Stk BiQuad ADSR DelayA DelayL Envelope Noise OnePole OneZero PoleZero SineWave
+         FileRead FileWvIn Brass Flute Clarinet Bowed Modal ModalBar)
     files=(); for s in "${src[@]}"; do files+=("$OUT/stk/src/$s.cpp"); done
     # NOTE the array. `for s in $LIST` does NOT word-split in zsh and hands clang one bogus path.
     clang++ -O2 -std=c++11 -I "$OUT/stk/include" -D__OS_MACOSX__ -D__LITTLE_ENDIAN__ \
             -o "$OUT/stkrender" tools/ref-render/stkrender.cpp "${files[@]}"
   fi
   # rawwaves path is relative to CWD inside stkrender.cpp
+  # ModalBar voices NINE different bars off one class, so the preset goes in the filename or
+  # every render overwrites the last one and an A/B compares a file with itself.
+  TAG="$INST"; [ "$INST" = "ModalBar" ] && TAG="ModalBar${LIP/-1/0}"
   ( cd "$OUT" && ./stkrender "$INST" "$HZ" "$AMP" "$LIP" > "raw.f32" )
-  ffmpeg -v error -y -f f32le -ar 44100 -ac 1 -i "$OUT/raw.f32" "$OUT/stk_$INST.wav"
+  ffmpeg -v error -y -f f32le -ar 44100 -ac 1 -i "$OUT/raw.f32" "$OUT/stk_$TAG.wav"
   rm -f "$OUT/raw.f32"
-  echo "wrote $OUT/stk_$INST.wav"
+  echo "wrote $OUT/stk_$TAG.wav"
   ;;
 luthier)
   MAT="${2:-gut}"; HZ="${3:-220}"

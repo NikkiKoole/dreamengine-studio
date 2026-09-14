@@ -1,11 +1,12 @@
 # modal — recommended mapping, breath/blow (preset 6).
 # Continuous-noise exciter into a few string modes. Hold the bar so the gate stays open.
 #
-#   node tools/play.js modal script tools/clips/modal/02-breath-blow.script \
-#        --headless --frames 180 --wav /opt/cursor/artifacts/modal-breath-blow.wav
+# Re-render: bash tools/clips/modal/render-nr.sh   (Linux DE_NO_RAYLIB)
+#        or: node tools/play.js modal script tools/clips/modal/02-breath-blow.script \
+#               --headless --frames 180 --wav /opt/cursor/artifacts/modal-breath-blow.wav
 # frames 180
-down 2 m
-up 4 m
+down 0 m
+up 1 m
 down 6 6
 up 8 6
 down 30 a

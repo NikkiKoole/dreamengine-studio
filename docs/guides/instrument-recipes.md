@@ -91,6 +91,13 @@ from `MODE_MODAL_EXCITE`). The `h/t/m` below are the **recommended** triple.
 > The named instruments are knob positions, same as mallet.c. If pressing "bowl" does not
 > sound like a glass bowl, the mapping is wrong, not the preset. Toggle A/B in the cart
 > and judge both routes before freezing one.
+>
+> Linux DE_NO_RAYLIB proof (no Raylib / no window):
+> `bash tools/clips/modal/render-nr.sh [/opt/cursor/artifacts]`.
+> Mac: `node tools/play.js modal script tools/clips/modal/01-marimba-strike.script --headless --frames 180 --wav out.wav`.
+> Phone/gallery: `modal` is in `.github/publish-carts.txt`; live URL plan
+> `https://mipolai.com/dreamengine/modal/`. From a machine that can publish:
+> `node tools/build-site.js modal` then the `site/` push in `tools/publish-cart.sh`.
 
 ## INSTR_MALLET — modal struck bar
 

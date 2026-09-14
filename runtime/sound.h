@@ -2564,6 +2564,10 @@ static inline float sound_mallet_sample(Voice *v, float pitch_mul) {
     return out * 0.9f;
 }
 
+// Defined with the guitar body (below). Prototype here so the modal bank can tick
+// a resonator without living after that helper.
+static inline float sound_biquad_run(SoundBiquad *bq, float in);
+
 // ── INSTR_MODAL: exciter into resonator (engine-reach §7.1) ──────────────────
 // A bank of excited two-pole FILTERS, not decaying sines. Load-bearing: a decaying
 // sine has no input, so this row would split back into three engines (mallet-gap /
@@ -2699,7 +2703,7 @@ static inline float sound_modal_sample(Voice *v, float pitch_mul) {
         for (int m = 0; m < n; m++) v->mo_gain[m] *= inv;
     }
     // more modes must not read as louder (playbook step 2)
-    v->mo_norm = 0.55f / sqrtf((float)n);
+    v->mo_norm = 0.88f / sqrtf((float)n);
 
     // T60: bright/ringing ~3.2s → dull/short ~0.12s. Per-mode tilt so highs die first
     // (the struck-bar percept). Pole radius from T60: r = exp(-6.91 / (T60 * sr)).
@@ -2725,15 +2729,23 @@ static inline float sound_modal_sample(Voice *v, float pitch_mul) {
     float bow_tone = de_sin_turns(v->phase);            // carrier rides v->phase already
     float bow_in = nse * grain * 0.85f + bow_tone * 0.35f;
 
-    float raw = strike_in * v->mo_strike * 1.15f
-              + blow_in   * v->mo_blow   * 0.28f
-              + bow_in    * v->mo_bow    * 0.32f;
+    float raw = strike_in * v->mo_strike * 1.45f
+              + blow_in   * v->mo_blow   * 0.95f
+              + bow_in    * v->mo_bow    * 0.62f;
     // one-pole on the exciter (STK Modal::tick). Brightness opens it.
     float ex_cut = 0.08f + 0.72f * (1.0f - bright);
     v->mo_ex_lp += ex_cut * (raw - v->mo_ex_lp);
     float excit = v->mo_ex_lp;
 
     // ── the resonator ──────────────────────────────────────────────────────
+    // STK setResonance(normalize=true) sets b0 = 0.5*(1-r²). At T60 ~1–3s that is
+    // ~1e-4, so a unit noise burst does not move the mode. A decaying-sine mallet
+    // injects amplitude into the oscillator; the filter equivalent is writing z1.
+    // Strike dumps on the attack sample. Blow/bow keep feeding z1, but the dump
+    // is scaled by (1-r): a constant 0.18/sample fights the pole and clips a
+    // held blow (~50–80% full-scale runs on the first Linux proof). Equilibrium
+    // z1 ≈ G * excit, independent of T60.
+    int attack = (v->mo_ex_env > 0.99f);
     float ring = 0.0f;
     for (int m = 0; m < n; m++) {
         float mf = f0 * v->mo_ratio[m];
@@ -2741,6 +2753,15 @@ static inline float sound_modal_sample(Voice *v, float pitch_mul) {
         float tilt = 1.0f + 0.55f * (float)m;
         float r = de_expf(-6.9078f * tilt / (t60 * sr));
         sound_modal_set(&v->mo_bq[m], mf, r);
+        if (attack)
+            v->mo_bq[m].z1 += v->mo_gain[m] * (0.22f + 0.70f * v->mo_strike);
+        // (1-r) keeps the held equilibrium independent of T60. Blow (broadband) needs
+        // more dump than bow (a sine already on the fundamental); a constant 0.18/sample
+        // was the clip, a constant 1.15 left breath/bow as whispers.
+        float leak = 1.0f - r;
+        if (leak < 0.0f) leak = 0.0f;
+        float g_cont = 2.4f + 12.0f * v->mo_blow + 5.5f * v->mo_bow;
+        v->mo_bq[m].z1 += excit * leak * g_cont;
         ring += sound_biquad_run(&v->mo_bq[m], excit) * v->mo_gain[m];
     }
 

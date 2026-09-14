@@ -1747,6 +1747,9 @@ void key_down(int k){ if (k >= 0 && k < KEYSTATE_N) key_pending[k] = 1; }
 void key_up  (int k){ if (k >= 0 && k < KEYSTATE_N) key_pending[k] = 0; }
 
 void step(int n){
+    inject_input = true;                           // spec owns the inject buffers; without this,
+                                                   // DE_NO_RAYLIB hosts (no --spec main()) never
+                                                   // see key_down/keyp and every tap is a no-op
     if (!spec_inited) { init(); spec_inited = 1; }
     for (int i = 0; i < n; i++){
         memcpy(key_inject_prev, key_inject, sizeof key_inject);   // prev = last frame's state (for keyp/keyr edges)

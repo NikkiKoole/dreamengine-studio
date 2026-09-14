@@ -203,6 +203,24 @@ rhythm.
    Hz, and the geometry macro must not drag them.
 6. **The exciter is ours to build.** STK's is a recorded sample, so only the architecture ports.
 
+## 10. Linux proof (2026-09-14, DE_NO_RAYLIB)
+
+No Raylib / no xxd on the agent VM. `bash tools/clips/modal/render-nr.sh` builds
+`tools/clips/modal/render-nr.c` against `studio.c` + the `modal` cart and drives the
+five committed scripts. Measured after the z1 feed was scaled by `(1-r)` (a constant
+per-sample dump clipped a held blow; a decaying-sine dump on attack is still how a
+strike speaks past STK's tiny `b0`):
+
+| clip | peak | rms | clip% | notes |
+|---|---|---|---|---|
+| marimba-strike | 0.42 | −26 dB | 0 | decays; mallet control on the same host was 0.12 |
+| breath-blow | 0.30 | −26 dB | 0 | held A is continuous (rms/sec flat) |
+| bowed | 0.23 | −20 dB | 0 | held A, scratch + tone |
+| map-a (recommended) | 0.08 | −40 dB | 0 | bowl strike |
+| map-b (Elements) | 0.12 | −36 dB | 0 | same bowl, opposite mapping — bytes differ |
+
+Mac: `node tools/play.js modal script tools/clips/modal/<clip>.script --headless --frames 180 --wav out.wav`.
+
 ## Sources
 
 - [Adrien, "The missing link: modal synthesis" (1991)](https://dl.acm.org/doi/10.5555/131150.131158)

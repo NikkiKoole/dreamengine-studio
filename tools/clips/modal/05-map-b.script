@@ -2,11 +2,12 @@
 # B toggles the mapping; preset 2 (bowl) re-applies its Elements triple.
 # Pair with 04-map-a.script.
 #
-#   node tools/play.js modal script tools/clips/modal/05-map-b.script \
-#        --headless --frames 180 --wav /opt/cursor/artifacts/modal-map-b.wav
+# Re-render: bash tools/clips/modal/render-nr.sh   (Linux DE_NO_RAYLIB)
+#        or: node tools/play.js modal script tools/clips/modal/05-map-b.script \
+#               --headless --frames 180 --wav /opt/cursor/artifacts/modal-map-b.wav
 # frames 180
-down 2 m
-up 4 m
+down 0 m
+up 1 m
 down 6 2
 up 8 2
 down 12 b

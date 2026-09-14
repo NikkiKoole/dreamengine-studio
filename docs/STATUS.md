@@ -21,7 +21,8 @@ _Last updated: 2026-09-14 — INSTR_MODAL (exciter→resonator) shipped. See the
   endpoints (plate / string / bar / bell). Three live macros; both paper-round mappings stay
   hearable via a tappable A/B (`MODE_MODAL_MAP`), not a `#define`. Pinned-Hz modes leave the
   geometry axis (macro-mapping §2c option 1). Showcase: `modal`. Matcher races it (`PM_NENGINES`
-  19). Live URL plan: `https://mipolai.com/dreamengine/modal/`.
+  19). Live URL plan: `https://mipolai.com/dreamengine/modal/`. Linux proof
+  (DE_NO_RAYLIB, no Raylib): `bash tools/clips/modal/render-nr.sh`.
   [`design/engine-reach.md`](design/engine-reach.md) §7.1 ·
   [`design/engine-reach-modal-research.md`](design/engine-reach-modal-research.md) ·
   [#25](https://github.com/NikkiKoole/dreamengine-studio/issues/25).

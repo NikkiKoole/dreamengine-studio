@@ -196,7 +196,7 @@ void update(void) {
 
     if (keyp('B') || (ab_rw > 0 && tapp(ab_rx, ab_ry, ab_rw, ab_rh))) toggle_map();
     if (keyp('M') || (auto_rw > 0 && tapp(auto_rx, auto_ry, auto_rw, auto_rh))) autoplay = !autoplay;
-    if (keyp(KEY_SPACE) || (gliss_rx >= 0 && tapp(gliss_rx - 2, SCREEN_H - 13, 56, 13))) gliss();
+    if (keyp(KEY_SPACE) || (gliss_rx >= 0 && tapp(gliss_rx - 4, SCREEN_H - 16, 72, 16))) gliss();
 
     for (int i = 0; i < touch_count(); i++) {
         int id = touch_id(i), tx = touch_x(i), ty = touch_y(i);

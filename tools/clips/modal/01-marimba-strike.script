@@ -2,12 +2,12 @@
 # Autoplay is ON at boot; M turns it off so the strike is the only event.
 # 'A' is the lowest bar. Gate is long (material is ringing).
 #
-# Re-render on Linux headless:
-#   node tools/play.js modal script tools/clips/modal/01-marimba-strike.script \
-#        --headless --frames 180 --wav /opt/cursor/artifacts/modal-marimba-strike.wav
+# Re-render: bash tools/clips/modal/render-nr.sh   (Linux DE_NO_RAYLIB)
+#        or: node tools/play.js modal script tools/clips/modal/01-marimba-strike.script \
+#               --headless --frames 180 --wav /opt/cursor/artifacts/modal-marimba-strike.wav
 # frames 180
-down 2 m
-up 4 m
+down 0 m
+up 1 m
 down 6 1
 up 8 1
 down 30 a

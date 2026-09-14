@@ -101,7 +101,25 @@ to port from STK or navkit and nothing to attribute. A ref-render of someone
 else's ring mod would compare a *carrier frequency*, not a mechanism, and
 would not change the decision.
 
-## 6. The decision
+## 6. Measured (C-major scale, INSTR_SAW, mix 0.8)
+
+Headless `DE_NO_RAYLIB` renders of `ringtrack` (`-DRINGTRACK_HZ` vs default ratio 1.5).
+Peaks via a 1 Hz Goertzel scan on the C4 and C5 windows:
+
+| mode | note | strongest peaks | as × f0 |
+|---|---|---|---|
+| Hz 440 | C4 261.6 | 178, 702 Hz | **0.68, 2.68** |
+| Hz 440 | C5 523.3 | 83, 963 Hz | **0.16, 1.84** |
+| ratio 1.5 | C4 261.6 | 131, 654 Hz | **0.50, 2.50** |
+| ratio 1.5 | C5 523.3 | 262, 1308 Hz | **0.50, 2.50** |
+
+Fixed Hz: the interval between the note and the clang **changes** with the key
+(178 = \|261.6−440\|; 83 = \|523.3−440\|). Ratio: the multipliers **hold**.
+That is the catalog sentence, as a table. WAVs: regenerate with
+`tools/clips/ringtrack/01-hz.script` / `02-ratio.script` (or `-DRINGTRACK_HZ`
+into `tools/headless-nr.c`).
+
+## 7. The decision
 
 **A: parameter-only.** `ringmod_ratio(ratio, mix)` and
 `instrument_ringmod_ratio(slot, ratio, mix)` on the shipped `FX_RINGMOD`

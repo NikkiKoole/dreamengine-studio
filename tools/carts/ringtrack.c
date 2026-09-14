@@ -44,8 +44,8 @@ de:meta */
 static const float RATIOS[4] = { 0.5f, 1.0f, 1.5f, 2.0f };
 static const char *RLAB[4]   = { "1/2", "1", "3/2", "2" };
 
-static const int SCALE[] = { 60, 62, 64, 65, 67, 69, 71, 72 };  // C4..C5
-#define NSCALE ((int)(sizeof SCALE / sizeof SCALE[0]))
+static const int MAJOR[] = { 60, 62, 64, 65, 67, 69, 71, 72 };  // C4..C5
+#define NMAJOR ((int)(sizeof MAJOR / sizeof MAJOR[0]))
 #define NOTE_FR  22
 #define GAP_FR    4
 
@@ -83,6 +83,9 @@ static void relayout(void) {
 void init(void) {
     instrument(SLOT, INSTR_SAW, 6, 80, 5, 180);
     keybed_config(SLOT, 4, 14);
+#ifdef RINGTRACK_HZ
+    mode = 0;   // compile-time A/B: -DRINGTRACK_HZ renders the fixed-440 half
+#endif
     apply_fx();
 }
 
@@ -102,13 +105,13 @@ void update(void) {
     if (mode != last_mode || rsel != last_rsel) apply_fx();
 
     if (ap) {
-        int period = NSCALE * (NOTE_FR + GAP_FR);
+        int period = NMAJOR * (NOTE_FR + GAP_FR);
         int t = (f - 1) % period;
         int i = t / (NOTE_FR + GAP_FR);
         int sub = t % (NOTE_FR + GAP_FR);
         if (sub == 0) {
             if (ap_h) { note_off(ap_h); ap_h = 0; }
-            ap_h = note_on(SCALE[i], SLOT, 6);
+            ap_h = note_on(MAJOR[i], SLOT, 6);
         } else if (sub == NOTE_FR && ap_h) {
             note_off(ap_h);
             ap_h = 0;

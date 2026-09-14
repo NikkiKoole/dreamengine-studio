@@ -79,17 +79,21 @@ Now shipped, no DSP:
 3. **`pm_engine_modes` finished.** `studio.h` only declares `MODE_*` for four engines
    (PIANO / GUITAR / ORGAN / BOWED) — "4 of 18" was the whole roster. PIANO now owns all six
    (weight / click / decay / **knock** / **stretch** / stiff); it used to skip knock and stretch.
-4. **Measured.** Self-recovery oracle, `--quick --stage1` (same protocol before and after): see
-   the PR for the table. Commercial ten-sample WAVs (`sklocken`, `birdtopper`, `taplay`) are not
-   in the repo, so those named §8 losses were **not re-scored** — honest partial. Analog-dim
-   reach is gated by `detents.c --reach` (hash A/B: live axes must differ, dead axes must match).
-   `--selftest ENGINE --analog` pins a PWM / supersaw / fold into the oracle truth so refine
-   recovery of those axes is checkable.
+4. **Measured** (`--quick --stage1`, 6 engines × seeds 1/2/3/7 — same protocol before and after).
+   Race ranking is **unchanged**: **23/24** top-3, **19/24** first. SAW seed 1 loss is
+   bit-identical (0.12856). The one miss is still FM seed 1 ranked 4th (PIPE / SQUARE / SAW
+   then FM). Published 24/24 used the fuller race budget (16 pop / 22 gens), not `--quick`.
+   Commercial ten-sample WAVs (`sklocken`, `birdtopper`, `taplay`) are not in the repo, so
+   those named §8 losses were **not re-scored** — honest partial. Analog-dim reach is gated
+   by `detents.c --reach` (11/11: live axes differ, dead axes match). `--selftest SQUARE
+   --analog` at full refine recovered unison (detent 7/7) and detune (0.550 → 0.554); duty /
+   sync / fold moved but missed the truth on that seed.
 
 Cut list: none of the new dims were silent on the engine that owns them. Analog extras were cut
-from the **race** (not from the vector) for the reason in item 1. `LFO_DUTY` / `LFO_DETUNE` /
-`ENV_DETUNE` stay unsearched — they are periodic modulation and belong with the fx-stage wobble
-set, not this ticket.
+from the **race** (not from the vector) for the reason in item 1 — and that cut is what kept
+the race bit-identical to the baseline. `LFO_DUTY` / `LFO_DETUNE` / `ENV_DETUNE` stay
+unsearched — they are periodic modulation and belong with the fx-stage wobble set, not this
+ticket.
 
 ## 4. Tier 2: the patch shape
 

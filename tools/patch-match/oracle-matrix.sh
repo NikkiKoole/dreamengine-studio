@@ -24,8 +24,9 @@ for e in "${ENGINES[@]}"; do
     set +e
     "$PM" --selftest "$e" --quick --jobs 4 --seed "$s" --out "build/patch-match/oracle-${LABEL}-${e}-s${s}" "$@" > "$logfile" 2>&1
     rc=$?
-    set -e
+    set +e
     # Prefer the oracle block; --stage1 only prints the race table + a rank line.
+    # grep returning 1 is "not found", not a script failure (pipefail would abort).
     rank=$(grep -E 'race rank' "$logfile" | tail -1 | awk '{print $3}')
     if [ -z "${rank:-}" ]; then
       rank=$(grep -E "^[[:space:]]*[0-9]+\. INSTR_${e}[[:space:]]" "$logfile" | head -1 | awk '{print $1}' | tr -d '.')
@@ -38,6 +39,7 @@ for e in "${ENGINES[@]}"; do
     if [ -z "${loss:-}" ]; then
       loss=$(grep -E "^[[:space:]]*[0-9]+\. INSTR_${e}[[:space:]]" "$logfile" | head -1 | awk '{print $3}')
     fi
+    set -e
     echo "  rc=$rc  race_rank=${rank:-?}  winner=${winner:-?}  loss=${loss:-?}" | tee -a "$OUT"
     if [ -n "${rank:-}" ] && [ "$rank" -le 3 ] 2>/dev/null; then top3=$((top3+1)); fi
     echo "$winner" | grep -qi "$e" && first=$((first+1)) || true

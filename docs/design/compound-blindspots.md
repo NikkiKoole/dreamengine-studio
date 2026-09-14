@@ -1,10 +1,14 @@
 # Compound blind spots — undocumented grands
 
-> **STATUS: EXPLORING (2026-09-11).** Parking-lot hub, **not READY TO BUILD.**
-> These are maker blind spots: seams that already ship, never given a scene.
-> File a GitHub `grand` only when actually pursuing one. Do not copy this list
-> into [`STATUS.md`](../STATUS.md) — that ledger is shipped / open / cut, not a
-> wish pile. The umbrella for grands that *are* already filed is
+> **STATUS: EXPLORING (2026-09-14).** Parking-lot hub — the page itself is
+> **not** READY TO BUILD. Three scenes have graduated via `grand` and are
+> queued: [#31](https://github.com/NikkiKoole/dreamengine-studio/issues/31) §3 ·
+> [#29](https://github.com/NikkiKoole/dreamengine-studio/issues/29) §6 ·
+> [#30](https://github.com/NikkiKoole/dreamengine-studio/issues/30) §9. The
+> other rows stay unqueued. File a GitHub `grand` only when actually pursuing
+> one. Do not copy this list into [`STATUS.md`](../STATUS.md) — that ledger is
+> shipped / open / cut, not a wish pile. The umbrella for grands that *are*
+> already filed is
 > [#15](https://github.com/NikkiKoole/dreamengine-studio/issues/15).
 
 A **compound grand** is a cart (or tiny tool) that *composes* capabilities we
@@ -72,7 +76,11 @@ maker-only until someone writes one.
 ## Blind spots
 
 Each entry is a *scene that was never written*: what already ships, what you
-compose, what you must not invent. None of these is queued.
+compose, what you must not invent. Three have graduated and are queued
+([#31](https://github.com/NikkiKoole/dreamengine-studio/issues/31) §3 ·
+[#29](https://github.com/NikkiKoole/dreamengine-studio/issues/29) §6 ·
+[#30](https://github.com/NikkiKoole/dreamengine-studio/issues/30) §9). The
+rest are not.
 
 ### 1. Spatial radio drive-by
 
@@ -112,6 +120,9 @@ rack, a replay take, a road seed. Not a new filesystem. Not a Workbench.
 already the cheap radio half; do not invent a 4th fidelity layer.
 
 ### 3. Scope + CPU-shader as rack identity
+
+**STATUS: READY TO BUILD (2026-09-14).** Graduated via
+[#31](https://github.com/NikkiKoole/dreamengine-studio/issues/31).
 
 **The scene.** A rack's *face* is a living picture — `scope_read` into a CPU
 shader — so the instrument is recognisable with the knobs off. Not a teaching
@@ -172,6 +183,9 @@ external-clock face (MIDI / AU / Link). Do not add a second public clock.
 
 ### 6. Grains-freeze product
 
+**STATUS: READY TO BUILD (2026-09-14).** Graduated via
+[#29](https://github.com/NikkiKoole/dreamengine-studio/issues/29).
+
 **The scene.** Hold a chord, freeze, the room becomes a pad. Phrase-locker /
 infinite sustain as a *thing you play*, not a demo knob on a teaching cart.
 
@@ -229,6 +243,9 @@ existing live run mode. No cart-created engine instance (the option-D trap in
 [`patch-matching-cart.md`](patch-matching-cart.md)).
 
 ### 9. MIDI-out radios
+
+**STATUS: READY TO BUILD (2026-09-14).** Graduated via
+[#30](https://github.com/NikkiKoole/dreamengine-studio/issues/30).
 
 **The scene.** A radio is a MIDI generator. Its improv line, its drums, its
 bass leave the machine and play someone else's piano — voice still on, pattern
@@ -338,7 +355,8 @@ unlock nothing on this page and they fight a settled ADR or a cut:
 
 This page is **not**:
 
-- a READY-TO-BUILD queue (nothing here is specced far enough to start)
+- a READY-TO-BUILD queue for the parking lot as a whole (the hub is not;
+  graduated rows are, and they already have issues)
 - a second [`STATUS.md`](../STATUS.md) (do not paste these into Open)
 - a place to file GitHub issues in bulk (label `grand` **when pursuing**, so
   defects / Pro / gates stay the front of the board)
@@ -362,10 +380,15 @@ may appear on [`STATUS.md`](../STATUS.md):
    [`README.md`](../README.md). Delete or shrink the row here.
 2. **Label `grand`.** File a GitHub issue, parent it under
    [#15](https://github.com/NikkiKoole/dreamengine-studio/issues/15) if it is
-   that shape of bet, and keep the design in *its* file. This hub stays
-   EXPLORING.
+   that shape of bet. The row here becomes READY TO BUILD (scene stays on
+   this page until it earns its own doc). The hub itself stays EXPLORING.
 
 Do not graduate by adding an Open bullet to the ledger alone. Do not mark this
 file READY — it is a parking lot. When every row has graduated or been
 honestly dropped, this page can shrink to a pointer at [#15](https://github.com/NikkiKoole/dreamengine-studio/issues/15)
 and the skip table.
+
+Queued today via path 2:
+[#31](https://github.com/NikkiKoole/dreamengine-studio/issues/31) §3 ·
+[#29](https://github.com/NikkiKoole/dreamengine-studio/issues/29) §6 ·
+[#30](https://github.com/NikkiKoole/dreamengine-studio/issues/30) §9.

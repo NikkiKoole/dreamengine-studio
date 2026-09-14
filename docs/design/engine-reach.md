@@ -218,33 +218,70 @@ What it buys, in one engine:
 - **the additive half**: a sustaining exciter into many modes is the §8.9 additive row (choir, bell,
   string pads), which ORGAN's 9 fixed drawbar sines only partly reaches.
 
-So the exciter menu is not a nice-to-have, it is what makes this one engine instead of three. The
-research round must settle it up front: impulse/strike, plucked, noise burst, continuous noise, and
-whether a sustaining bowed or blown excitation belongs here or stays with the existing waveguides.
+So the exciter is not a nice-to-have, it is what makes this one engine instead of three.
 
-Research targets: modal synthesis proper (Adrien, Bilbao), the exciter/resonator split as a design
-(Mutable's Rings and Elements are the well-known modern realisation and the source is public, so
-check the licence before borrowing rather than measuring), and the numerical question of how many
-modes you can afford per voice. Gotchas to ask about up front: mode count versus polyphony cost,
-per-mode level normalisation as inharmonicity moves, the click risk when the exciter changes on a
-held note, and where the noise generator's determinism comes from.
+> **§5 RESEARCH ROUND: DONE (2026-09-14).**
+> [`engine-reach-modal-research.md`](engine-reach-modal-research.md). It confirms the collapse above
+> and changed four things here:
+>
+> 1. **The engine must be a bank of excited FILTERS, not decaying sine oscillators**, and this is
+>    load-bearing. Our existing struck engines (MALLET 4, MEMBRANE 6, EPIANO 12) are decaying sines,
+>    which have no input, so noise cannot be injected into them. A filter bank has an input, and that
+>    is the only reason this engine absorbs tuned noise and additive instead of becoming a fourth
+>    fixed family beside the three we already have. A decaying-sine design splits this row back into
+>    three engines.
+> 2. **The exciter is a MIX, not a menu.** Elements ships three generators with independent levels
+>    (bow, blow, strike) rather than a selector, and both it and STK blend un-resonated exciter back
+>    into the output, which is where the attack bite lives.
+> 3. **Mode count is a per-voicing BUDGET, not a constant.** Cook's "practical and efficient, if few
+>    modes" makes it the variable that decides whether this ships; STK uses 4, Rings trades modes for
+>    voices on hardware solving the same phone-shaped constraint. 4 is the floor, not the target.
+> 4. **Geometry is a real axis with published endpoints** (free-free bar 1.0 / 2.765 / 5.404 / 8.933,
+>    Bessel ratios for a round plate, near-harmonic for a string, odd multiples for a stopped tube),
+>    so "continuous inharmonicity" is a mechanism rather than a knob we invented.
+>
+> Cost, gotchas and licence are answered there. Both reference implementations are MIT and one is
+> already on disk. The open question it hands to the paper round is the **three-macro mapping**:
+> Elements needs four resonator controls plus three exciter levels, and we get three macros.
 
-### 7.2 Multi-operator FM
+### 7.2 Four-operator FM
 
 **The second pick, and the only other distinct mechanism on the list.** 2-op reaches a thin slice of
 FM's spectra. FM already wins or places on the metallic and bell targets (`toytone`, `wisp` at 0.350,
 `sklocken` at 0.418) mostly as the *least wrong* option, which is the signature of an engine pointed
 at the right family that cannot get there.
 
-What it buys: 4 operators with a handful of fixed algorithms puts the DX vocabulary in reach: bells,
-metallic percussion, the whole 80s electric-piano and bass corpus. The algorithm choice is a snapped
-axis, which the matcher already handles well.
+What it buys: four operators with a handful of fixed algorithms puts the DX vocabulary in reach:
+bells, metallic percussion, the whole 80s electric-piano and bass corpus. The algorithm choice is a
+snapped axis, which the matcher already handles well.
 
-Research targets: Chowning first, then the actual DX7 algorithm set and what the published
+**Why four and not six, stated as a hypothesis the research round must confirm or overturn.**
+Operator count is normally a research *output*, so naming it up front needs a reason:
+
+- **Four is where the price/reach knee sits.** Six operators is the DX7. Four is the TX81Z, DX21,
+  DX100 and the OPL/OPM chips, which is most of the FM vocabulary a listener actually recognises, at
+  two thirds of the per-voice cost.
+- **We already have a four-operator reference on disk.** STK's `FM` class takes
+  `unsigned int operators = 4`, and all seven of its FM instruments (`TubeBell`, `Rhodey`, `Wurley`,
+  `HevyMetl`, `BeeThree`, `PercFlut`, `FMVoices`) are built on it, implementing *named TX81Z
+  algorithms*: `TubeBell.cpp`'s own docblock says "algorithm 5 of the TX81Z". MIT, and already
+  fetched under `build/ref-render/stk/`. A six-operator design would satisfy §5 item 5 with nothing
+  local.
+
+Two questions the round must settle that matter more than the count:
+
+- **It is phase modulation, not frequency modulation.** Every digital "FM" chip does PM. That is what
+  keeps the feedback operator stable and the spectra clean, and getting it wrong is how you ship an
+  engine that is subtly not-DX for reasons nobody can name.
+- **A curated algorithm set, or a free routing matrix?** A matrix is more general, wrecks
+  searchability, and cuts against the §1 mechanism rule. Expect a curated set; say why in the note.
+
+Research targets: Chowning first, then the actual TX81Z and DX7 algorithm sets and what the published
 reimplementations (Dexed and the Music Synthesizer for Android lineage) learned about envelope and
 operator scaling. Gotchas: the feedback operator is where aliasing and instability live, the
 level-per-algorithm normalisation problem is severe, and the envelope *rates* are as much of the
-sound as the operator topology.
+sound as the operator topology. Licence note for §5 item 6, from STK's own docblock: the basic
+Chowning/Stanford FM patent expired in 1995, but follow-on patents exist, mostly assigned to Yamaha.
 
 ### 7.3 Conditional: note-tracking ring modulation
 

@@ -1535,6 +1535,9 @@ v1, document it on the panel.
     carrier 150 Hz) the 440 fundamental vanishes — pitch conf collapses to 0.4 as the 290/590 Hz sidebands
     appear, RMS −20→−23 dB (the sin×sin power halving), 0 clipped. **Showcase: `pedalboard`** (the RINGMOD
     pedal — FRQ 20..3000 Hz exp + MIX). A dedicated robot-voice/bells cart is the optional fast-follow.
+    **Note-tracking (2026-09-14):** `ringmod_ratio(ratio, mix)` / `instrument_ringmod_ratio(slot, ratio, mix)`
+    — same insert, carrier = ratio × last-started voice pitch, so the clang stays harmonic up the
+    keyboard. Engine-reach §7.3 decision A (not an engine). Proof: `ringtrack`.
 
 18. **Delay INSERT (`echo_insert`)** — the parallel echo SEND made into an in-line, reorderable DELAY
     pedal. **✓ SHIPPED 2026-06-14.** `echo_insert(time_ms, feedback, tone, mix)` — the same tape-delay

@@ -232,8 +232,9 @@ instrument-engines §8.9 re-scored by *how many racks/stations each engine unloc
 > (`INSTR_VOICE`, 2026-06-10, + the `formant()` vowel filter), PD (`INSTR_PD`, 2026-06-08),
 > membrane (`INSTR_MEMBRANE`, 2026-06-08), bowed (`INSTR_BOWED`, 2026-06-09), reed
 > (`INSTR_REED`, 2026-06-08) and brass (`INSTR_BRASS`, 2026-06-10). AM/ring's *sound* shipped
-> as the `ringmod()` bus effect (2026-06-14); an engine version would only add the
-> note-tracking modulator ratio. The last two rows are covered *cart-side* but not as engines:
+> as the `ringmod()` bus effect (2026-06-14); note-tracking (ratio follows the played pitch)
+> shipped 2026-09-14 as `ringmod_ratio()` / `instrument_ringmod_ratio()` on the same insert
+> — not an engine (engine-reach §7.3). The last two rows are covered *cart-side* but not as engines:
 > **Additive**'s small 2–3-partial family shipped as the `mt70` cart (2026-06-07 — stacked note
 > slots at exact `note_pitch` ratios, the proof that "two oscillators" is a recipe); the **Juno
 > second-osc** stays open as infra (§12 gap 2b, the live saw+pulse blend) but the `juno` cart

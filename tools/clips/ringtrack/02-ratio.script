@@ -1,0 +1,5 @@
+# ringtrack — ratio 1.5 (the AFTER, default). Autoplay walks C4..C5.
+# Hear: the clang stays the same colour on every key. Sidebands sit at 0.5× and
+# 2.5× of the played note. Press R in case a previous run left HZ latched.
+down 2 82
+up 6 82

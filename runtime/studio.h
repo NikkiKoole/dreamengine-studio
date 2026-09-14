@@ -728,6 +728,8 @@ void instrument_autopan(int slot, float rate, float depth, int shape);  // auto-
 // it adds NEW frequencies. Low freq (~2..30 Hz) = a throbby AM; high (~100..2000 Hz) = the atonal clang.
 void ringmod(float freq_hz, float mix);                                 // freq 1..8000 Hz, mix 0..1 (0 = off). THE master ring modulator
 void instrument_ringmod(int slot, float freq_hz, float mix);            // ring mod on just this slot (auto-grabs a private FX bus)
+void ringmod_ratio(float ratio, float mix);                             // NOTE-tracking master ring mod: carrier = ratio × last-played pitch (0.25..16, 1 = unison, 1.5 = fifth). mix 0 = off. THE harmonic clang; ringmod() is the fixed-Hz Dalek
+void instrument_ringmod_ratio(int slot, float ratio, float mix);        // NOTE-tracking ring mod on just this slot — clang stays harmonic up the keyboard. Same ratio/mix as ringmod_ratio()
 
 // phaser — a chain of allpass filters swept by an LFO carves moving NOTCHES in the spectrum: the
 // 70s electric-piano / Small Stone swirl (vocal, hollow, "jet-like" but softer than a flanger's

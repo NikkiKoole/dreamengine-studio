@@ -7,13 +7,23 @@
 > **here**, then fix the prose in the relevant design doc. If a design doc and this file
 > disagree, this file wins.
 
-_Last updated: 2026-09-14 — engine-reach tier 1: the matcher can search duty/unison/sync/fold. See the top Shipped entry and [`design/engine-reach.md`](design/engine-reach.md) §3._
+_Last updated: 2026-09-14 — note-tracking ringmod is a ratio, not an engine. See the top Shipped entry and [`design/engine-reach-ringmod-research.md`](design/engine-reach-ringmod-research.md)._
 
 > **This line is a headline, not an entry.** It reached **9,064 characters** and was the only place in the file that recorded `FILTER_DIODE`, `filter-spec.js` and `rebirth-classic.md` — three shipped things, invisible because nobody reads a shipped feature out of a `_Last updated:_` line. They have a real entry now (2026-07-02, above `sprite-draw.js`). Keep this to one date, one sentence, one link; `status-check --check` fails past 900 chars.
 
 ---
 
 ## Shipped ✓
+
+- **NOTE-TRACKING RINGMOD IS A RATIO, NOT AN ENGINE** (2026-09-14). Engine-reach §7.3 asked
+  whether clang that stays harmonic per note needs a third engine. It does not.
+  `ringmod_ratio` / `instrument_ringmod_ratio` ride the shipped `FX_RINGMOD` insert:
+  carrier = ratio × last-started voice pitch. Hz API unchanged (Dalek / robot). Research:
+  Bode / Odyssey / EMS — an effect is Hz, two tracking oscs already *are* a ratio; a
+  voice-local multiply would only buy a chord of independent clangs, which analog never
+  treated as the job. Proof: `ringtrack`. Count stays 2. Do not reopen from vibes.
+  [`design/engine-reach-ringmod-research.md`](design/engine-reach-ringmod-research.md) ·
+  [#28](https://github.com/NikkiKoole/dreamengine-studio/issues/28).
 
 - **ENGINE-REACH TIER 1: THE MATCHER CAN SEARCH WHAT THE ENGINE ALREADY OWNS** (2026-09-14).
   `pm` used to pin duty/unison/bandlimit shut and never call `instrument_sync`, so a supersaw,

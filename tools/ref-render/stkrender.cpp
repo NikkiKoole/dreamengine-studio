@@ -5,6 +5,13 @@
 #include "Clarinet.h"
 #include "Bowed.h"
 #include "ModalBar.h"
+#include "TubeBell.h"
+#include "Rhodey.h"
+#include "Wurley.h"
+#include "HevyMetl.h"
+#include "BeeThree.h"
+#include "PercFlut.h"
+#include "FMVoices.h"
 #include <cstdio>
 #include <cstring>
 #include <string>
@@ -24,6 +31,15 @@ int main(int argc, char **argv) {
   else if (which == "Clarinet") inst = new Clarinet();
   else if (which == "Bowed")    inst = new Bowed();
   else if (which == "ModalBar")  inst = new ModalBar();
+  // The FOUR-OPERATOR FM references. All seven derive from STK's FM class, whose constructor
+  // takes `unsigned int operators = 4`, and each is a named TX81Z algorithm.
+  else if (which == "TubeBell")  inst = new TubeBell();
+  else if (which == "Rhodey")    inst = new Rhodey();
+  else if (which == "Wurley")    inst = new Wurley();
+  else if (which == "HevyMetl")  inst = new HevyMetl();
+  else if (which == "BeeThree")  inst = new BeeThree();
+  else if (which == "PercFlut")  inst = new PercFlut();
+  else if (which == "FMVoices")  inst = new FMVoices();
   else { fprintf(stderr, "unknown %s\n", which.c_str()); return 1; }
   // ModalBar's preset must be selected BEFORE the strike: setPreset() rewrites every mode's
   // ratio, radius and gain, plus stick hardness and strike position. Setting it after noteOn

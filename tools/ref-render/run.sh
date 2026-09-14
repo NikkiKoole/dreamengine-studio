@@ -3,6 +3,7 @@
 # wrong against. The tool that found the INSTR_BOWED friction bug (commit ad657323).
 #
 #   bash tools/ref-render/run.sh stk <Brass|Flute|Clarinet|Bowed|ModalBar> [hz] [amp] [lipCC|preset]
+#   bash tools/ref-render/run.sh stk <TubeBell|Rhodey|Wurley|HevyMetl|BeeThree|PercFlut|FMVoices> [hz] [amp]
 #   bash tools/ref-render/run.sh luthier <steel|nylon|gut|glass> [hz]
 #   bash tools/ref-render/run.sh clean
 #
@@ -75,7 +76,8 @@ stk)
   [ -d "$OUT/stk" ] || git clone --depth 1 -q https://github.com/thestk/stk.git "$OUT/stk"
   if [ ! -x "$OUT/stkrender" ]; then
     src=(Stk BiQuad ADSR DelayA DelayL Envelope Noise OnePole OneZero PoleZero SineWave
-         FileRead FileWvIn Brass Flute Clarinet Bowed Modal ModalBar)
+         FileRead FileWvIn FileLoop TwoZero Brass Flute Clarinet Bowed Modal ModalBar
+         FM TubeBell Rhodey Wurley HevyMetl BeeThree PercFlut FMVoices Phonemes)
     files=(); for s in "${src[@]}"; do files+=("$OUT/stk/src/$s.cpp"); done
     # NOTE the array. `for s in $LIST` does NOT word-split in zsh and hands clang one bogus path.
     clang++ -O2 -std=c++11 -I "$OUT/stk/include" -D__OS_MACOSX__ -D__LITTLE_ENDIAN__ \

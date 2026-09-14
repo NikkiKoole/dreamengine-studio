@@ -276,12 +276,29 @@ Two questions the round must settle that matter more than the count:
 - **A curated algorithm set, or a free routing matrix?** A matrix is more general, wrecks
   searchability, and cuts against the §1 mechanism rule. Expect a curated set; say why in the note.
 
-Research targets: Chowning first, then the actual TX81Z and DX7 algorithm sets and what the published
-reimplementations (Dexed and the Music Synthesizer for Android lineage) learned about envelope and
-operator scaling. Gotchas: the feedback operator is where aliasing and instability live, the
-level-per-algorithm normalisation problem is severe, and the envelope *rates* are as much of the
-sound as the operator topology. Licence note for §5 item 6, from STK's own docblock: the basic
-Chowning/Stanford FM patent expired in 1995, but follow-on patents exist, mostly assigned to Yamaha.
+> **§5 RESEARCH ROUND: DONE (2026-09-14).**
+> [`engine-reach-fm-research.md`](engine-reach-fm-research.md). Four operators confirmed, both
+> questions above answered, and one finding that does not wait on this engine at all:
+>
+> 1. **Four is a standard, not a cost trade.** Eight algorithms is shared across Yamaha's OPN, OPM
+>    and OPZ families (TX81Z, DX21, DX100, DX9), so the routing set is not ours to invent. Curated
+>    set, not a matrix.
+> 2. **PM versus FM is contentious in the literature**, not settled as stated above: the modulator
+>    is added to the phase accumulator (PM) while Yamaha's patent says FM. What is not contentious is
+>    that modulating phase keeps feedback stable, **and our 2-op already does it that way**, so the
+>    4-op inherits a correct foundation.
+> 3. **Our shipped FM cannot make an inharmonic spectrum, and that is a one-line fix.** All ten
+>    `harmonics` detents are rational with denominator 1 or 2, and a rational ratio p/q can only
+>    produce a spectrum periodic at carrier/q. Measured both ways: our `bell` preset puts partials at
+>    half-integer multiples of the carrier, while STK's `TubeBell` (a real bell) is built on **√2**
+>    and lands nowhere near a common fundamental. Adding an irrational detent is cheap and has
+>    `sklocken` waiting for it. The compatibility cost is real and is written up there.
+> 4. **Three details that shape the sound and that we do differently**: the DX7 averages two samples
+>    in the feedback path (we store one), its envelopes are linear in dB, and it lowpasses its own
+>    output at 16 kHz because FM aliases by construction.
+>
+> Cost, gotchas and licence are answered there, including the patent question, which matters because
+> we ship paid apps. The reference is wired into `ref-render` and `TubeBell` is characterised.
 
 ### 7.3 Conditional: note-tracking ring modulation
 

@@ -25,14 +25,17 @@ the effects-layer plan. **Genre: design exploration.**
 > source of truth for what's shipped; the per-engine §8.8.x "step-1 design" labels are
 > historical and mostly mean SHIPPED now.)
 >
-> **Engines: the roster is COMPLETE — all 12 shipped + 1 experimental.** PLUCK · MALLET ·
+> **Engines: the navkit-port roster is COMPLETE — all 12 shipped + 1 experimental.** PLUCK · MALLET ·
 > FM · ORGAN · EPIANO · PD · MEMBRANE · REED · PIPE · GUITAR · PIANO · BOWED, each behind an
 > `INSTR_*` id with the fixed 3-macro surface (harmonics/timbre/morph). **VOICE** (formant,
 > `INSTR_VOICE`) SHIPPED 2026-06-10 with its mapping LOCKED and documented in `studio.h`
 > (harmonics = VOWEL, timbre = SIZE, morph = EFFORT), plus `voice_nasal`/`voice_consonant`/
 > `voice_coda`; `voice_param()` was the voxlab prototype's raw path and is not public API.
-> See [voice-engine.md](voice-engine.md). What's left on engines is **tweaking/tuning**,
-> not new engines. To add/tune one: its §8.8.x section + the shipping playbook §8.8.2.
+> See [voice-engine.md](voice-engine.md). **Reach program (2026-09-14):** `INSTR_MODAL` (31)
+> shipped as the first engine-reach §7 engine — not a navkit port. Filter bank + exciter mix.
+> Showcase: `modal`. See [`engine-reach.md`](engine-reach.md) §7.1 and §8.8.11 below.
+> What's left on the *navkit* engines is **tweaking/tuning**. To add/tune one: its §8.8.x
+> section + the shipping playbook §8.8.2.
 >
 > **Stereo (the effects-layer prerequisite): DONE.** Shipped 2026-06-09 (linear pan law,
 > `instrument_pan`/`note_pan`/`LFO_PAN`); constant-power added as a gated opt-in `pan_law()`
@@ -1388,6 +1391,26 @@ it free). Six acceptance presets (trumpet/cornet/flugelhorn/trombone/french horn
 (STEP 6, the owner's): preset taste-tuning by ear; a **mute** axis (harmon/cup → a second
 bandpass) is deferred — there are only three macros and bore/brassiness/breath earned them.
 
+### 8.8.11 Engine: MODAL — exciter into resonator (engine-reach §7.1) — SHIPPED 2026-09-14
+
+Not a navkit port. The first engine of the **reach** program
+([`engine-reach.md`](engine-reach.md) §7.1): a bank of excited two-pole **filters** you
+strike / blow / bow into. A decaying-sine design would have split this row back into three
+engines (mallet-gap / tuned-noise / additive); a filter bank has an input, so one id covers
+all three. Research:
+[`engine-reach-modal-research.md`](engine-reach-modal-research.md). Paper macros:
+[`engine-reach-macro-mapping.md`](engine-reach-macro-mapping.md) — both routes stay a
+runtime `MODE_MODAL_MAP` in the `modal` cart, not a `#define`.
+
+```c
+#define INSTR_MODAL   31  // exciter into resonator — tuned FILTERS, not decaying sines
+```
+
+Macros (recommended mapping): `harmonics` = geometry (smooth plate→string→bar→bell),
+`timbre` = material (bright+ringing → dull+short), `morph` = exciter (strike→blow→bow).
+`MODE_MODAL_POS` / `DIRECT` / `MODES` / `EXCITE` / `MAP` on the aux channel. Mode count is
+a budget (4..12). Pinned-Hz modes leave the geometry axis. Showcase: **modal**.
+
 ### 8.9 Candidate engine catalog (running wishlist)
 
 The set we'd *like*, beyond the first-bite engines (§8.5). Adding one is mostly: port the
@@ -1398,7 +1421,7 @@ the table's only job is to say what those three mean for each. Grow it freely.
 
 | Engine | navkit src (§8.7) | buffer | harmonics | timbre | morph | character |
 |---|---|---|---|---|---|---|
-| **Additive / sine** (bell, choir, brass, strings) | additive osc | free | # / spread of partials | spectral tilt (brightness) | per-partial decay + inharmonicity | rich multi-partial pads. (A *bare* sine is already `INSTR_SINE` — see the MT70 note below) |
+| **Additive / sine** (bell, choir, brass, strings) | additive osc | free | # / spread of partials | spectral tilt (brightness) | per-partial decay + inharmonicity | **Absorbed by `INSTR_MODAL` (2026-09-14).** A sustaining exciter into many modes *is* this row; a decaying-sine additive would have been a third engine beside MALLET/MEMBRANE. See [`engine-reach.md`](engine-reach.md) §7.1. (A *bare* sine is already `INSTR_SINE` — see the MT70 note below) |
 | **FM** (2-op + feedback, DX) | `processFMOscillator` | free | carrier:modulator ratio (snapped table) | mod index (decays in-note) | feedback | DX bells, chimes, e-pianos, clang. Macros *are* the cure for "expert to dial". **Full design + post-ship findings: §8.8.3** — SHIPPED 2026-06-05 |
 | **AM / ring mod** | trivial (≈10 lines native) | free | modulator ratio | AM ↔ ring depth | modulator detune / wave | metallic, robotic, clangorous bells. **Covered.** Fixed-Hz `ringmod()`/`instrument_ringmod()` (`FX_RINGMOD`, 2026-06-14) is the Dalek/atonal clang. Note-TRACKING (ratio follows the played pitch, clang stays harmonic per note) shipped 2026-09-14 as `ringmod_ratio()`/`instrument_ringmod_ratio()` on the same insert — last-started voice, not a new engine. [`engine-reach.md`](engine-reach.md) §7.3 · [`engine-reach-ringmod-research.md`](engine-reach-ringmod-research.md) · showcase `ringtrack`. A chord of *independent* clangs would still be voice-local; that is a different product, not this row. |
 | **Voice / formant** | formant SVF + buzz (§8.3) | free (reuses SVF) | vowel (a→e→i→o→u) | breathiness / brightness | formant shift (size/gender) | choir "aah", vocal-organ, talkbox. **SHIPPED 2026-06-10** as `INSTR_VOICE` (24) — the navkit VoicForm port; shipped macros are harmonics = vowel (U→O→A→E→I), timbre = SIZE, morph = EFFORT, plus `voice_nasal()` + the full consonant/coda phoneme set (`voice_consonant()`/`voice_coda()`). The vowel *filter* also shipped separately as `formant()`/`instrument_formant()` (`FX_FORMANT`) |

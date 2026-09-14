@@ -2,10 +2,12 @@
 
 > **STATUS: SHIPPED (2026-09-14)** for tier 1 — matcher wiring, no new DSP. Partial on the
 > commercial ten-sample table (those WAVs are not in the repo, so the named §8 failures were
-> not re-scored). **§7.3 (note-tracking ringmod) is also SHIPPED as a parameter**, not an engine
-> (`ringmod_ratio` / `instrument_ringmod_ratio`). Tiers 2 and 3 are specced here but each engine
+> not re-scored). **§7.1 (`INSTR_MODAL`) is also SHIPPED** — filter bank + exciter mix +
+> `modal` cart; both three-macro routes stay a live A/B. **§7.3 (note-tracking ringmod) is
+> SHIPPED as a parameter**, not an engine (`ringmod_ratio` / `instrument_ringmod_ratio`).
+> **§7.2 (four-op FM) is next.** Tiers 2 and 3 are specced here but each remaining engine
 > owes a research round (§5) before a line of code. **After the rules in §1 and §5 are applied,
-> tier 3 is TWO new engines** (§7.5). Root doc: it owns the *what and why*; the *how* to ship an
+> tier 3 is TWO new engines** (§7.5) — one of them now ships. Root doc: it owns the *what and why*; the *how* to ship an
 > engine is the playbook in [`instrument-engines.md`](instrument-engines.md) §8.8.2, and the
 > candidate catalog that predates this doc is §8.9 there.
 
@@ -247,6 +249,14 @@ So the exciter is not a nice-to-have, it is what makes this one engine instead o
 > Cost, gotchas and licence are answered there. Both reference implementations are MIT and one is
 > already on disk. The open question it hands to the paper round is the **three-macro mapping**:
 > Elements needs four resonator controls plus three exciter levels, and we get three macros.
+>
+> **SHIPPED (2026-09-14) as `INSTR_MODAL` (31).** Filter bank, not decaying sines. Exciter is a
+> mix (bow / blow / strike) plus un-resonated bleed (`MODE_MODAL_DIRECT`). Mode count is a
+> budget (`MODE_MODAL_MODES`, 4..12). Geometry is a smooth lerp across four published endpoints.
+> Three live macros; both paper-round routes (`engine-reach-macro-mapping.md` §2) are a runtime
+> `MODE_MODAL_MAP`, not a `#define` — the `modal` cart toggles them on a tappable A/B. Pinned-Hz
+> modes leave the geometry axis (option 1). Matcher races it. Ear still open on which mapping
+> won. Next in serial order is §7.2.
 
 ### 7.2 Four-operator FM
 
@@ -346,9 +356,10 @@ it sits on top of tier 1, which needs no DSP at all.
    ratio API on the shipped ringmod; count stays two. See
    [`engine-reach-ringmod-research.md`](engine-reach-ringmod-research.md).
 3. Decide the tier 2 question (is a two-layer patch still a patch?).
-4. Research round for §7.1, then its paper design, then the engine, then its cart. It is first
-   because it absorbs two other candidates; getting its exciter menu wrong is what would split it
-   back into three engines.
+4. ~~Research round for §7.1, then its paper design, then the engine, then its cart.~~ **Done
+   2026-09-14:** `INSTR_MODAL` + `modal` cart. Research and paper mapping are live; the ear
+   still owns which three-macro route won. It was first because it absorbs two other
+   candidates; a decaying-sine design would have split it back into three engines.
 5. Research round for §7.2, then its paper design, then the engine, then its cart.
 6. Re-measure. The ten-sample table is the scoreboard for this whole programme, so it gets re-run
    after every tier and the numbers land back in [`patch-matching.md`](patch-matching.md) §8.
@@ -358,6 +369,10 @@ it sits on top of tier 1, which needs no DSP at all.
 - [`patch-matching.md`](patch-matching.md) - the matcher, the loss scale, the ten-sample measurement
   this doc is built on
 - [`patch-matching-cart.md`](patch-matching-cart.md) - the ear-as-loss-function fork
+- [`engine-reach-modal-research.md`](engine-reach-modal-research.md) - §7.1 research:
+  filter bank, not decaying sines; exciter mix; mode-count budget
+- [`engine-reach-macro-mapping.md`](engine-reach-macro-mapping.md) - paper-round macros;
+  both modal routes stay hearable from one build
 - [`engine-reach-ringmod-research.md`](engine-reach-ringmod-research.md) - §7.3 research:
   note-tracking ringmod is a ratio parameter, not a third engine
 - [`instrument-engines.md`](instrument-engines.md) - the engine program: §8.8.2 playbook, §8.9

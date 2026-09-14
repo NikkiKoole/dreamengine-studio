@@ -1,10 +1,11 @@
 # Paper round: the macro mappings for both new engines
 
-> **STATUS: PROPOSED (2026-09-14), decision pending an EAR.** Step 1 of the
-> [`instrument-engines.md`](instrument-engines.md) §8.8.2 playbook for the two engines in
-> [`engine-reach.md`](engine-reach.md) §7, written before any code as that step requires. Each fork
-> carries a recommendation AND its alternative, and **both routes are meant to be heard, not read**:
-> §4 specifies the live toggle that makes that possible from one build.
+> **STATUS: PROPOSED (2026-09-14); modal A/B LIVE in the `modal` cart, ear still open.**
+> Step 1 of the [`instrument-engines.md`](instrument-engines.md) §8.8.2 playbook for the two
+> engines in [`engine-reach.md`](engine-reach.md) §7. Each fork carries a recommendation AND
+> its alternative, and **both routes are meant to be heard, not read**: §4's runtime toggle
+> ships in `modal` (tappable A/B, not a `#define`). FM mapping is still paper-only. Pinned-Hz
+> wrinkle (§2c): **option 1** — geometry only moves ratios; v1 does not implement `MODE_PIN`.
 
 The constraint is three macros (`harmonics` / `timbre` / `morph`), no per-engine named params ever
 ([`instrument-engines.md`](instrument-engines.md) §8.1.1), each a percept that audibly steps every
@@ -81,7 +82,9 @@ candidate answers, neither yet chosen:
    moves away from the voicing that wanted it. Keeps everything on one axis; costs a gain lane per
    mode.
 
-Decide this in the port, not now, but do not discover it mid-build.
+**Chosen in the port (2026-09-14): option 1.** Geometry only ever moves ratios. A pinned-Hz
+mode is a per-voicing property that v1 does not implement (`MODE_PIN` is not in the aux
+channel). The STK marimba 2443 Hz partial is therefore not on this engine's geometry axis.
 
 ## 3. §7.2 four-op FM: the proposal
 
@@ -148,9 +151,11 @@ Requirements that follow:
 
 ## 5. What is still open
 
-1. Modal: is `morph` the exciter (recommended) or damping (the Elements answer)?
+1. Modal: is `morph` the exciter (recommended) or damping (the Elements answer)? **Both
+   live in the `modal` cart; ear still owns the verdict.**
 2. FM: is `harmonics` a voicing list (recommended) or the algorithm?
-3. Modal: which answer to the pinned-mode wrinkle (§2c)?
+3. ~~Modal: which answer to the pinned-mode wrinkle (§2c)?~~ **Option 1.** Geometry only
+   moves ratios; pinned-Hz modes are not on that axis. v1 has no `MODE_PIN`.
 4. Whether widening the patch vector to five `MODE_` slots happens with the FM engine or before it.
 
 Items 1 and 2 are for the ear, and §4 exists so they can be answered that way. Items 3 and 4 fall out

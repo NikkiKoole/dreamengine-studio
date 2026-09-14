@@ -1,0 +1,15 @@
+# modal — A/B proof, Elements route (timbre = brightness, morph = damping).
+# B toggles the mapping; preset 2 (bowl) re-applies its Elements triple.
+# Pair with 04-map-a.script.
+#
+#   node tools/play.js modal script tools/clips/modal/05-map-b.script \
+#        --headless --frames 180 --wav /opt/cursor/artifacts/modal-map-b.wav
+# frames 180
+down 2 m
+up 4 m
+down 6 2
+up 8 2
+down 12 b
+up 14 b
+down 30 a
+up 36 a

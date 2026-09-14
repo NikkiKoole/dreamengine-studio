@@ -2564,6 +2564,194 @@ static inline float sound_mallet_sample(Voice *v, float pitch_mul) {
     return out * 0.9f;
 }
 
+// ── INSTR_MODAL: exciter into resonator (engine-reach §7.1) ──────────────────
+// A bank of excited two-pole FILTERS, not decaying sines. Load-bearing: a decaying
+// sine has no input, so this row would split back into three engines (mallet-gap /
+// tuned-noise / additive). STK Modal::tick() is the shape (Cook/Scavone, MIT):
+//   temp  = onepole(exciter * envelope)
+//   temp2 = sum of biquad resonators ticking that
+//   out   = temp2*(1-direct) + direct*temp
+// Elements supplies the exciter MIX (bow / blow / strike, independent levels) and
+// the continuous geometry axis. Mode count is a budget (4..12), not a constant.
+// Three live macros; depth via MODE_MODAL_*. Both macro mappings from
+// engine-reach-macro-mapping.md §2 are a runtime MODE_MODAL_MAP, not a #define.
+// Pinned-Hz modes (STK negative ratio, measured on ModalBar marimba at 2443 Hz)
+// leave the geometry axis (macro-mapping §2c option 1) — geometry only ever
+// moves ratios, so a search can put partials anywhere a ratio table can.
+
+#define MODAL_NYQ  0.45f
+#define MODAL_NGEO 4
+
+// Published geometry endpoints (Cook CCRMA notes + free-free-bar / Bessel / stiff-string).
+// 12 slots so MODE_MODAL_MODES can spend the budget; unused high slots stay silent.
+static const float MODAL_GEO[MODAL_NGEO][SOUND_MODAL_MAX] = {
+    // plate / round drum — circular-membrane Bessel ratios (Cook; MEMBRANE's family)
+    { 1.000f, 1.593f, 2.136f, 2.296f, 2.653f, 2.918f, 3.156f, 3.500f, 3.600f, 3.877f, 4.126f, 4.230f },
+    // string — near-harmonic, slight stiffness stretch (B ≈ 4e-4)
+    { 1.000f, 2.001f, 3.002f, 4.003f, 5.005f, 6.007f, 7.010f, 8.013f, 9.016f, 10.020f, 11.024f, 12.029f },
+    // bar / tube — Cook free-free bar 1 / 2.765 / 5.404 / 8.933, then ((2n+1)/3)^2
+    { 1.000f, 2.765f, 5.404f, 8.933f, 13.34f, 18.64f, 24.84f, 31.96f, 40.00f, 48.96f, 58.84f, 69.64f },
+    // bell / bowl — inharmonic church-bell / bowl cluster (prime, tierce, quint, nominal…)
+    { 1.000f, 2.000f, 2.400f, 3.000f, 4.160f, 5.430f, 6.790f, 8.210f, 9.720f, 11.40f, 13.20f, 15.10f },
+};
+
+static void modal_exciter_mix(float x, float *strike, float *blow, float *bow) {
+    // x 0 = strike, 0.5 = blow, 1 = bow. Adjacent pair crossfade; the third is silent.
+    if (x < 0.5f) {
+        float t = x * 2.0f;
+        *strike = 1.0f - t; *blow = t; *bow = 0.0f;
+    } else {
+        float t = (x - 0.5f) * 2.0f;
+        *strike = 0.0f; *blow = 1.0f - t; *bow = t;
+    }
+}
+
+static void modal_geometry(float harm, float *ratio, int n) {
+    // SMOOTH structure axis (macro-mapping §2b): an object halfway between a bar and a
+    // tube is a real object. Three equal spans across the four published endpoints.
+    float x = clamp01(harm) * (float)(MODAL_NGEO - 1);
+    int   a = (int)x;
+    if (a > MODAL_NGEO - 2) a = MODAL_NGEO - 2;
+    float t = x - (float)a;
+    for (int m = 0; m < n; m++)
+        ratio[m] = MODAL_GEO[a][m] + (MODAL_GEO[a + 1][m] - MODAL_GEO[a][m]) * t;
+}
+
+// Two-pole resonator, STK BiQuad::setResonance(freq, radius, normalize=true).
+// Does NOT reset z1/z2 — updating frequency on a ringing mode must not click.
+static void sound_modal_set(SoundBiquad *bq, float fc, float radius) {
+    float nyq = MODAL_NYQ * (float)SOUND_SAMPLE_RATE;
+    if (fc < 20.0f) fc = 20.0f;
+    if (fc >= nyq || radius < 0.0f) {          // above Nyquist: mute (STK halves the ratio; we skip)
+        bq->b0 = bq->b1 = bq->b2 = 0.0f;
+        bq->a1 = bq->a2 = 0.0f;
+        return;
+    }
+    if (radius > 0.99999f) radius = 0.99999f;
+    float w  = SOUND_TWO_PI * fc / (float)SOUND_SAMPLE_RATE;
+    float r2 = radius * radius;
+    bq->a1 = -2.0f * radius * de_cosf(w);
+    bq->a2 = r2;
+    bq->b0 = 0.5f - 0.5f * r2;                 // zeros at ±1, peak gain ≈ 1
+    bq->b1 = 0.0f;
+    bq->b2 = -bq->b0;
+}
+
+static void sound_modal_start(Voice *v) {
+    int n = 4 + (int)(clamp01(v->eng_p[MODE_MODAL_MODES]) * (float)(SOUND_MODAL_MAX - 4) + 0.5f);
+    if (n < 4) n = 4;
+    if (n > SOUND_MODAL_MAX) n = SOUND_MODAL_MAX;
+    v->mo_n = n;
+    v->mo_direct = clamp01(v->eng_p[MODE_MODAL_DIRECT]);
+    v->mo_ex_lp = v->mo_ex_env = 0.0f;
+    v->mo_bow_ph = v->mo_bow_lp = 0.0f;
+    v->mo_dc_prev = v->mo_dc_state = 0.0f;
+    v->mo_ex_env = 1.0f;                       // strike envelope: full on the attack sample
+    for (int m = 0; m < SOUND_MODAL_MAX; m++) {
+        v->mo_bq[m].z1 = v->mo_bq[m].z2 = 0.0f;
+        v->mo_bq[m].b0 = v->mo_bq[m].b1 = v->mo_bq[m].b2 = 0.0f;
+        v->mo_bq[m].a1 = v->mo_bq[m].a2 = 0.0f;
+        v->mo_gain[m] = v->mo_ratio[m] = 0.0f;
+    }
+    v->mo_on = true;
+}
+
+static inline float sound_modal_sample(Voice *v, float pitch_mul) {
+    if (!v->mo_on) return 0.0f;
+    const float sr = (float)SOUND_SAMPLE_RATE;
+    const float dt = 1.0f / sr;
+    int n = v->mo_n;
+    if (n < 4) n = 4;
+    if (n > SOUND_MODAL_MAX) n = SOUND_MODAL_MAX;
+
+    int elements = (v->eng_p[MODE_MODAL_MAP] >= 0.5f);
+    float bright, damp, ex;
+    if (elements) {
+        // Elements: timbre = brightness, morph = damping, exciter baked on MODE_MODAL_EXCITE
+        bright = clamp01(v->timb);
+        damp   = clamp01(v->mor);
+        ex     = clamp01(v->eng_p[MODE_MODAL_EXCITE]);
+    } else {
+        // recommended: timbre compounds brightness+damping (a damped material is
+        // both duller and shorter); morph is the exciter walk.
+        bright = clamp01(v->timb);
+        damp   = clamp01(v->timb);
+        ex     = clamp01(v->mor);
+    }
+    modal_exciter_mix(ex, &v->mo_strike, &v->mo_blow, &v->mo_bow);
+    modal_geometry(v->harm, v->mo_ratio, n);
+
+    // position: center (0) weights the fundamental; edge (1) weights the upper modes.
+    float pos = clamp01(v->eng_p[MODE_MODAL_POS]);
+    float gsum = 0.0f;
+    for (int m = 0; m < n; m++) {
+        float mf = (n <= 1) ? 0.0f : (float)m / (float)(n - 1);
+        float w  = (1.0f - pos) * de_expf(-1.4f * mf) + pos * (0.12f + 0.88f * mf);
+        // brightness = high-mode attenuation (Elements BRIGHTNESS / muted→reflective)
+        float hw = 1.0f;
+        float soft = 1.0f - 0.82f * bright;
+        for (int k = 0; k < m; k++) hw *= soft;
+        v->mo_gain[m] = w * hw;
+        gsum += v->mo_gain[m];
+    }
+    if (gsum > 1e-6f) {
+        float inv = 1.0f / gsum;
+        for (int m = 0; m < n; m++) v->mo_gain[m] *= inv;
+    }
+    // more modes must not read as louder (playbook step 2)
+    v->mo_norm = 0.55f / sqrtf((float)n);
+
+    // T60: bright/ringing ~3.2s → dull/short ~0.12s. Per-mode tilt so highs die first
+    // (the struck-bar percept). Pole radius from T60: r = exp(-6.91 / (T60 * sr)).
+    float t60 = 0.12f * de_expf((1.0f - damp) * 3.3f);   // 0.12s → ~3.3s
+    float f0  = v->freq * pitch_mul;
+    if (f0 < 20.0f) f0 = 20.0f;
+
+    // ── the exciter ────────────────────────────────────────────────────────
+    // Strike: short noise burst (STK's recorded marmstk1 is not portable — Elements
+    // STRIKE is the model). Blow: continuous breath noise. Bow: granular scratch +
+    // a purer tone (Elements: "raw scratching granular noise with a purer sound").
+    float nse = voice_white(v);
+    float strike_in = 0.0f;
+    if (v->mo_ex_env > 0.0001f) {
+        strike_in = nse * v->mo_ex_env;
+        v->mo_ex_env *= de_expf(-dt / 0.007f);          // ~7ms strike
+    }
+    float blow_in = nse;
+    v->mo_bow_ph += (6.0f + 11.0f * v->mo_bow) * dt;    // scratch grain ~6–17 Hz
+    if (v->mo_bow_ph >= 1.0f) v->mo_bow_ph -= 1.0f;
+    float grain = 0.35f + 0.65f * (0.5f + 0.5f * de_sin_turns(v->mo_bow_ph));
+    // bow "purer" component tracks the played pitch (the residual tone under the scratch)
+    float bow_tone = de_sin_turns(v->phase);            // carrier rides v->phase already
+    float bow_in = nse * grain * 0.85f + bow_tone * 0.35f;
+
+    float raw = strike_in * v->mo_strike * 1.15f
+              + blow_in   * v->mo_blow   * 0.28f
+              + bow_in    * v->mo_bow    * 0.32f;
+    // one-pole on the exciter (STK Modal::tick). Brightness opens it.
+    float ex_cut = 0.08f + 0.72f * (1.0f - bright);
+    v->mo_ex_lp += ex_cut * (raw - v->mo_ex_lp);
+    float excit = v->mo_ex_lp;
+
+    // ── the resonator ──────────────────────────────────────────────────────
+    float ring = 0.0f;
+    for (int m = 0; m < n; m++) {
+        float mf = f0 * v->mo_ratio[m];
+        // higher modes decay faster (the bar/plate percept); floor so they still speak
+        float tilt = 1.0f + 0.55f * (float)m;
+        float r = de_expf(-6.9078f * tilt / (t60 * sr));
+        sound_modal_set(&v->mo_bq[m], mf, r);
+        ring += sound_biquad_run(&v->mo_bq[m], excit) * v->mo_gain[m];
+    }
+
+    float mixed = ring * (1.0f - v->mo_direct) + excit * v->mo_direct;
+    // DC blocker — resonators near 0 Hz and asymmetric bow/strike inject DC
+    float dc = mixed - v->mo_dc_prev + 0.995f * v->mo_dc_state;
+    v->mo_dc_prev  = mixed;
+    v->mo_dc_state = dc;
+    return dc * v->mo_norm;
+}
+
 // One FM sample (2-op + feedback — §8.8.3 in audio-notes). The carrier is v->phase, which
 // the mix loop already advances by freq*pitch_mul — so the whole pitch machinery works by
 // construction; only the modulator phase lives here. The second oscillator is INAUDIBLE
@@ -4726,6 +4914,7 @@ static inline float sound_engine_sample(Voice *v, float pitch_mul) {
         case INSTR_BOWED:    return sound_bowed_sample(v, pitch_mul);
         case INSTR_BRASS:    return sound_brass_sample(v, pitch_mul);
         case INSTR_SAMPLE:   return sound_sample_sample(v, pitch_mul);
+        case INSTR_MODAL:    return sound_modal_sample(v, pitch_mul);
     }
     // fall-through: the modal Karplus-Strong string — any engine id not handled above.
     int alloc = v->ks_len;
@@ -5119,6 +5308,7 @@ static void sound_suppress_onset(Voice *v) {
     else if (v->wave == INSTR_REED)  v->rd_attack = 0;
     else if (v->wave == INSTR_BRASS) v->br_attack = 0;
     else if (v->wave == INSTR_ORGAN) { v->org_perc = 0.0f; v->org_perc_ph = 0.0f; }   // click SURVIVES
+    else if (v->wave == INSTR_MODAL) v->mo_ex_env = 0.0f;   // keep the ringing bank; drop the new strike
 }
 
 // ── spatial audio (spatial.md): listener + per-source geometry → pan, distance-gain, Doppler.
@@ -5347,6 +5537,7 @@ static void sound_setup_note(Voice *v, int midi, int slot, int vol, int gate_sam
     v->bw_on  = false;
     v->br_on  = false;
     v->smp_on = false;
+    v->mo_on  = false;
     v->fm_mph = v->fm_fb = v->fm_tph = 0.0f;   // FM needs no excitation, just deterministic phases
     if      (v->wave == INSTR_PLUCK)  sound_pluck_start(v);    // excite the string
     else if (v->wave == INSTR_MALLET) sound_mallet_start(v);   // strike the bar
@@ -5369,6 +5560,7 @@ static void sound_setup_note(Voice *v, int midi, int slot, int vol, int gate_sam
         v->smp_dir = 1.0f;
         v->smp_on = true;
     }
+    else if (v->wave == INSTR_MODAL)  sound_modal_start(v);    // arm the filter bank + strike envelope
     // TRIGGER POLICY (§L4). The engine hooks above have just ARMED this voice's onset transient; if the
     // slot declares itself single-triggering and another key on it is already down, take it back off.
     // Deliberately AFTER the hooks rather than conditional inside them: each engine keeps one place that

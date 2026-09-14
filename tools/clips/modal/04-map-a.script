@@ -1,0 +1,12 @@
+# modal — A/B proof, recommended route (morph = exciter). Glass-bowl preset.
+# Pair with 05-map-b.script: same preset, same strike, opposite mapping.
+#
+#   node tools/play.js modal script tools/clips/modal/04-map-a.script \
+#        --headless --frames 180 --wav /opt/cursor/artifacts/modal-map-a.wav
+# frames 180
+down 2 m
+up 4 m
+down 6 2
+up 8 2
+down 30 a
+up 36 a

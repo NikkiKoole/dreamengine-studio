@@ -120,6 +120,11 @@ void init(void) {
     instrument_harmonics(22, 0.45f);             // trumpet-ish bore (bright end)
     instrument_timbre(22, 0.55f);                // a bit of brassiness
     instrument_morph(22, 0.5f);                  // moderate breath
+    instrument(21, INSTR_MODAL, 1, 0, 7, 1200);  // slot 21 = the exciter→resonator bank
+    instrument_harmonics(21, 0.55f);             // bar-ish geometry
+    instrument_timbre(21, 0.35f);                // still ringing
+    instrument_morph(21, 0.15f);                 // mostly strike
+    instrument_mode(21, MODE_MODAL_MODES, 0.5f); // 8 modes
     bpm(120);
 }
 
@@ -163,6 +168,7 @@ void update(void) {
         note_glide(held, 80);
         note_on(57, 23, 5);   // exercise the bowed engine's held/self-oscillating request path (slot 23)
         note_on(53, 22, 5);   // exercise the brass engine's held/self-oscillating request path (slot 22)
+        hit(69, 21, 6, 800);  // exercise the modal bank (slot 21) — struck, so a hit not a hold
     } else if (s == 21 && held >= 0) {
         label = "live: pitch/cutoff/res/duty/lfo/env/macros";
         note_pitch(held, 59);

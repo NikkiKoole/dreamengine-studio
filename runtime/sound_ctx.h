@@ -29,6 +29,7 @@
 #define SOUND_SFX_SLOTS    32
 #define SOUND_INSTR_SLOTS  48   // 0-4 = the raw waves; 5-47 cart-defined (rich patch carts like modrack want banks per wave + many macro engines). ~200B/slot
 #define SOUND_KS_MAX       1024   // Karplus-Strong delay line cap (~4KB/voice) — bottoms out around 43Hz / MIDI 29
+#define SOUND_MODAL_MAX    12     // INSTR_MODAL resonator budget (4 is the floor; MODE_MODAL_MODES spends this)
 #define ORGAN_SCAN         64     // INSTR_ORGAN scanner-chorus delay taps (~1.5ms; borrows ks_buf's head — organ never uses the Karplus path)
 #define SOUND_BOW_BODIES   8      // pool size — a string-quartet cart wants 4 (2 violins/viola/cello); ~9KB each
 #define BOW_BODY_MAX       768    // longest line, in samples: DOUBLE BASS 16.67ms = 736 @ 44.1k, + headroom.
@@ -368,6 +369,25 @@ typedef struct {
     float  smp_dir;                     // playback direction for PINGPONG: +1 forward / -1 back
     double smp_pos;                     // fractional read position into the buffer (double: no drift over long buffers)
     bool   smp_on;                      // note-on init guard (engine id hit without a start → silent)
+    // modal bank (INSTR_MODAL): a bank of excited two-pole resonators — NOT decaying sines.
+    // A filter has an input, which is what makes the exciter mix (bow/blow/strike) one engine
+    // instead of three (engine-reach §7.1 + modal-research §3). Mode count is a budget
+    // (SOUND_MODAL_MAX = 12; MODE_MODAL_MODES spends 4..12). Geometry is a SMOOTH lerp
+    // across published endpoints (plate / string / bar / bell). Attribution: STK Modal
+    // (Cook/Scavone, MIT) for the resonator + direct-gain shape; Elements for the exciter mix.
+    SoundBiquad mo_bq[SOUND_MODAL_MAX]; // per-mode two-pole resonators (STK BiQuad::setResonance)
+    float  mo_gain[SOUND_MODAL_MAX];    // per-mode gain (position + brightness + geometry)
+    float  mo_ratio[SOUND_MODAL_MAX];   // current ratio (recomputed live from harmonics)
+    int    mo_n;                        // active modes this note (4..SOUND_MODAL_MAX)
+    float  mo_ex_lp;                    // exciter one-pole (STK: wavetable through envelope + onepole)
+    float  mo_ex_env;                   // strike-envelope remaining (0..1, decays in ~8ms)
+    float  mo_bow_ph;                   // bow "purer tone" phase + scratch LFO
+    float  mo_bow_lp;                   // bow-scratch noise filter
+    float  mo_dc_prev, mo_dc_state;     // output DC blocker (resonators + asymmetric exciters)
+    float  mo_direct;                   // un-resonated exciter bleed (STK directGain / Elements strike-bleed)
+    float  mo_norm;                     // equal-loudness scale across geometry / mode count
+    float  mo_strike, mo_blow, mo_bow;  // live exciter mix (0..1 each, not a selector)
+    bool   mo_on;                       // note-on init guard (engine id without a strike → silent)
 } Voice;
 #define SOUND_HANDLE_BITS 5                      // slot field width — must hold SOUND_VOICES-1 (32 voices → 0..31 → 5 bits)
 #define SCOPE_LEN 2048

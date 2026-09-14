@@ -1,12 +1,12 @@
 # Research round: exciter into resonator (the modal bank)
 
-> **STATUS: RESEARCH COMPLETE (2026-09-14)**, reference RENDERED AND CHARACTERISED (§7),
-> paper design not started. The §5 round owed by
+> **STATUS: RESEARCH COMPLETE (2026-09-14); ENGINE + CART SHIPPED (2026-09-14).** Reference
+> RENDERED AND CHARACTERISED (§7). The §5 round owed by
 > [`engine-reach.md`](engine-reach.md) §7.1, answering its six questions with citations and a
 > reference implementation rather than from memory. **It confirms the §7.1 collapse and pins one
-> implementation choice that the collapse silently depends on** (§3 below). Next step is the paper
-> round: the three-macro mapping, per the playbook in [`instrument-engines.md`](instrument-engines.md)
-> §8.8.2 step 1.
+> implementation choice that the collapse silently depends on** (§3 below). Paper-round mapping
+> is a live A/B in the `modal` cart (not frozen). Pinned-Hz modes leave the geometry axis
+> (macro-mapping §2c option 1) — v1 does not implement `MODE_PIN`.
 
 ## 1. The standard algorithm, and who published it
 

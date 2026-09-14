@@ -7,13 +7,24 @@
 > **here**, then fix the prose in the relevant design doc. If a design doc and this file
 > disagree, this file wins.
 
-_Last updated: 2026-09-14 — note-tracking ringmod is a ratio, not an engine. See the top Shipped entry and [`design/engine-reach-ringmod-research.md`](design/engine-reach-ringmod-research.md)._
+_Last updated: 2026-09-14 — INSTR_MODAL (exciter→resonator) shipped. See the top Shipped entry and [`design/engine-reach.md`](design/engine-reach.md) §7.1._
 
 > **This line is a headline, not an entry.** It reached **9,064 characters** and was the only place in the file that recorded `FILTER_DIODE`, `filter-spec.js` and `rebirth-classic.md` — three shipped things, invisible because nobody reads a shipped feature out of a `_Last updated:_` line. They have a real entry now (2026-07-02, above `sprite-draw.js`). Keep this to one date, one sentence, one link; `status-check --check` fails past 900 chars.
 
 ---
 
 ## Shipped ✓
+
+- **INSTR_MODAL: EXCITER INTO RESONATOR** (2026-09-14). Engine-reach §7.1's first new engine:
+  a bank of excited **filters** (not decaying sines), so strike / blow / bow is one mechanism
+  instead of three. Mode count is a budget (4..12). Geometry is a smooth lerp across published
+  endpoints (plate / string / bar / bell). Three live macros; both paper-round mappings stay
+  hearable via a tappable A/B (`MODE_MODAL_MAP`), not a `#define`. Pinned-Hz modes leave the
+  geometry axis (macro-mapping §2c option 1). Showcase: `modal`. Matcher races it (`PM_NENGINES`
+  19). Live URL plan: `https://mipolai.com/dreamengine/modal/`.
+  [`design/engine-reach.md`](design/engine-reach.md) §7.1 ·
+  [`design/engine-reach-modal-research.md`](design/engine-reach-modal-research.md) ·
+  [#25](https://github.com/NikkiKoole/dreamengine-studio/issues/25).
 
 - **NOTE-TRACKING RINGMOD IS A RATIO, NOT AN ENGINE** (2026-09-14). Engine-reach §7.3 asked
   whether clang that stays harmonic per note needs a third engine. It does not.

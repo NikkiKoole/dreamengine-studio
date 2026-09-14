@@ -1197,9 +1197,38 @@ static void fx_set_autopan(int b, float rate, float depth, int shape) {
 // tremolo's unipolar 0..1 gain), so it generates inharmonic sum/difference tones — the robot/bell/
 // Dalek clang, NOT just a wobble. |carrier|≤1 and the dry/wet blend keep |out|≤|in|, so no added clip
 // risk. Per-bus carrier phase. Dormant until ringmod()/instrument_ringmod() with mix>0 → byte-identical.
+//
+// RATIO MODE (engine-reach §7.3 / engine-reach-ringmod-research.md): rm_ratio[b] > 0 means the
+// carrier tracks last-started voice pitch (rm_follow_slot, or any slot if -1) so the clang stays
+// harmonic across the keyboard. One carrier per bus — a held chord shares it. Hz mode is unchanged.
+static float rm_follow_hz(int follow_slot) {
+    float best_hz = 0.0f;
+    int best_age = 0x7fffffff;
+    for (int i = 0; i < SOUND_VOICES; i++) {
+        if (!voices[i].active) continue;
+        if (follow_slot >= 0 && voices[i].instr_slot != follow_slot) continue;
+        if (voices[i].step_samples < best_age) {
+            best_age = voices[i].step_samples;
+            best_hz = voices[i].freq;   // includes glide; last-started wins
+        }
+    }
+    return best_hz;
+}
 static void rm_process(int b, float *mixL, float *mixR) {
+    float freq = rm_freq[b];
+    if (rm_ratio[b] > 0.0f) {
+        float hz = rm_follow_hz(rm_follow_slot[b]);
+        if (hz > 0.0f) {
+            freq = rm_ratio[b] * hz;
+            if (freq < 1.0f) freq = 1.0f;
+            if (freq > 8000.0f) freq = 8000.0f;
+            rm_last_hz[b] = freq;
+        } else if (rm_last_hz[b] > 0.0f) {
+            freq = rm_last_hz[b];       // hold through the gap between notes
+        }
+    }
     float c = de_sin_turns(rm_phase[b]);
-    rm_phase[b] += rm_freq[b] * (1.0f / (float)SOUND_SAMPLE_RATE);
+    rm_phase[b] += freq * (1.0f / (float)SOUND_SAMPLE_RATE);
     if (rm_phase[b] >= 1.0f) rm_phase[b] -= 1.0f;
     float m = rm_mix[b];
     *mixL = *mixL * (1.0f - m) + (*mixL * c) * m;
@@ -1209,7 +1238,16 @@ static void fx_set_ringmod(int b, float freq, float mix) {
     freq = clampf(1.0f, 8000.0f, freq);
     mix = clamp01(mix);
     rm_freq[b] = freq; rm_mix[b] = mix;
+    rm_ratio[b] = 0.0f;                  // Hz mode — clears a previous ratio
     rm_used[b] = (mix > 0.0f);   // mix 0 = off (dry), like the other inserts
+}
+static void fx_set_ringmod_ratio(int b, float ratio, float mix, int follow_slot) {
+    ratio = clampf(0.25f, 16.0f, ratio);
+    mix = clamp01(mix);
+    rm_ratio[b] = ratio;
+    rm_follow_slot[b] = follow_slot;
+    rm_mix[b] = mix;
+    rm_used[b] = (mix > 0.0f);
 }
 
 // ── phaser — cascaded allpass chain swept by an LFO (the 70s Rhodes / Small Stone swirl) ─────────
@@ -6025,12 +6063,16 @@ static void sound_fire_req(SoundReq r) {
         int b = fx_instr_bus(r.a);
         if (b >= 1) fx_set_autopan(b, r.b / 1000.0f, r.c / 1000.0f, r.e0);
     } break;
-    case SR_RINGMOD: {      // master ring mod (bus 0): a=freq_hz, b=mix*1000
-        fx_set_ringmod(0, (float)r.a, r.b / 1000.0f);
+    case SR_RINGMOD: {      // master ring mod (bus 0): a=freq_hz OR ratio*1000, b=mix*1000, e0=0 Hz / 1 ratio
+        if (r.e0) fx_set_ringmod_ratio(0, r.a / 1000.0f, r.b / 1000.0f, -1);
+        else      fx_set_ringmod(0, (float)r.a, r.b / 1000.0f);
     } break;
-    case SR_INSTR_RINGMOD: {// per-instrument: a=slot, b=freq_hz, c=mix*1000
+    case SR_INSTR_RINGMOD: {// per-instrument: a=slot, b=freq_hz OR ratio*1000, c=mix*1000, e0=0 Hz / 1 ratio
         int b = fx_instr_bus(r.a);
-        if (b >= 1) fx_set_ringmod(b, (float)r.b, r.c / 1000.0f);
+        if (b >= 1) {
+            if (r.e0) fx_set_ringmod_ratio(b, r.b / 1000.0f, r.c / 1000.0f, r.a);
+            else      fx_set_ringmod(b, (float)r.b, r.c / 1000.0f);
+        }
     } break;
     case SR_PHASER: {       // master phaser (bus 0): a=rate, b=depth, c=fb(signed), e0=mix (×1000), e1=stages
         fx_set_phaser(0, r.a / 1000.0f, r.b / 1000.0f, r.c / 1000.0f, r.e0 / 1000.0f, r.e1);
@@ -8205,6 +8247,15 @@ void ringmod(float freq_hz, float mix) {
 void instrument_ringmod(int slot, float freq_hz, float mix) {
     if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
     sound_push_ctrl(SR_INSTR_RINGMOD, slot, (int)freq_hz, (int)(mix * 1000.0f), 0, 0, 0);
+}
+
+void ringmod_ratio(float ratio, float mix) {
+    sound_push_ctrl(SR_RINGMOD, (int)(ratio * 1000.0f), (int)(mix * 1000.0f), 0, 1, 0, 0);
+}
+
+void instrument_ringmod_ratio(int slot, float ratio, float mix) {
+    if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
+    sound_push_ctrl(SR_INSTR_RINGMOD, slot, (int)(ratio * 1000.0f), (int)(mix * 1000.0f), 1, 0, 0);
 }
 
 // ── phaser: THE master phaser (LFO-swept allpass chain — the 70s Rhodes / Small Stone swirl) ──

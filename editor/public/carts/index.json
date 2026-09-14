@@ -6063,6 +6063,20 @@
     ]
   },
   {
+    "title": "ring track",
+    "description": "Play a saw up the keyboard through a ring modulator. HZ is a fixed 440 Hz carrier — the clang goes atonal as you leave A4. RATIO tracks the played note, so the clang stays the same colour on every key. The hearable answer to engine-reach §7.3. One slot, one saw, one ring-mod insert. HZ calls instrument_ringmod(slot, 440, mix) — the Dalek / atonal clang we already shipped. RATIO calls instrument_ringmod_ratio(slot, ratio, mix) — carrier = ratio × last-played pitch, so a fifth (3/2) puts sidebands at 0.5× and 2.5× of every note. Autoplay walks a C-major scale so the difference is a scale, not an argument. Last-started voice wins; a held chord shares one carrier (that is the bus, and it is honest). Tap HZ / RATIO (or H / R). Tap 1/2, 1, 3/2, 2 to pick the interval. Keybed: A-K white keys, W-E-T-Y-U-O-P black, Z/X octave (+ mouse/touch/MIDI). M = autoplay on/off.",
+    "file": "ringtrack.cart.png",
+    "created": "2026-09-14",
+    "kind": [
+      "instrument",
+      "probe"
+    ],
+    "teaches": [
+      "per-instrument-fx-bus"
+    ],
+    "lineage": "Engine-reach §7.3 proof: note-tracking ringmod is a RATIO on the shipped FX_RINGMOD insert, not a third engine. Fixed-Hz clang goes atonal up the keyboard; ratio clang stays harmonic. docs/design/engine-reach-ringmod-research.md."
+  },
+  {
     "title": "ripple tank",
     "description": "Water, and how waves add up. Each cell next height is the average of its neighbours minus its previous height, damped so ripples fade. Drop two stones and the rings cross: crests meeting crests pile up, crests meeting troughs cancel — interference, the same maths behind sound and light. Arrows move the stone, Z drops it, and rain falls on its own.",
     "file": "ripple.cart.png",

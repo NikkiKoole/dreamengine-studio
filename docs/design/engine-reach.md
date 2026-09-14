@@ -2,12 +2,12 @@
 
 > **STATUS: SHIPPED (2026-09-14)** for tier 1 — matcher wiring, no new DSP. Partial on the
 > commercial ten-sample table (those WAVs are not in the repo, so the named §8 failures were
-> not re-scored). Tiers 2 and 3 are specced here but each engine owes a research round
-> (§5) before a line of code. **After the rules in §1 and §5 are applied, tier 3 is TWO new
-> engines** (§7.5), possibly three; the rest of the candidate field turns out to be dimensions,
-> a cart-land header, or one mechanism under several names. Root doc: it owns the *what and why*; the *how* to ship an engine
-> is the playbook in [`instrument-engines.md`](instrument-engines.md) §8.8.2, and the candidate
-> catalog that predates this doc is §8.9 there.
+> not re-scored). **§7.3 (note-tracking ringmod) is also SHIPPED as a parameter**, not an engine
+> (`ringmod_ratio` / `instrument_ringmod_ratio`). Tiers 2 and 3 are specced here but each engine
+> owes a research round (§5) before a line of code. **After the rules in §1 and §5 are applied,
+> tier 3 is TWO new engines** (§7.5). Root doc: it owns the *what and why*; the *how* to ship an
+> engine is the playbook in [`instrument-engines.md`](instrument-engines.md) §8.8.2, and the
+> candidate catalog that predates this doc is §8.9 there.
 
 The patch matcher ([`patch-matching.md`](patch-matching.md)) gave us something no roadmap had before:
 a **measured** answer to "what can this console actually make". Throw ten real samples at it and read
@@ -185,8 +185,9 @@ table and `pm_engine_modes`, and its recipe in [`instrument-recipes.md`](../guid
 ## 7. Tier 3: the engine candidates, after the rules are applied
 
 The rules in §1 and §5 are not decoration: applied honestly they shrink this list more than they
-grow it. **Two engines survive, possibly three.** Everything else that reads like an engine turns out
-to be a dimension, a header, or the same mechanism wearing a different name.
+grow it. **Two engines survive.** Everything else that reads like an engine turns out to be a
+dimension, a header, or the same mechanism wearing a different name. §7.3's conditional third
+(note-tracking ring mod) was answered with a parameter.
 
 The collapse that does the most work: **two engines with one mechanism are one engine.** A "tuned
 noise" engine is a continuous-noise exciter into one or two resonant modes, which is §7.1 at
@@ -303,17 +304,21 @@ Two questions the round must settle that matter more than the count:
 > Cost, gotchas and licence are answered there, including the patent question, which matters because
 > we ship paid apps. The reference is wired into `ref-render` and `TubeBell` is characterised.
 
-### 7.3 Conditional: note-tracking ring modulation
+### 7.3 Conditional: note-tracking ring modulation — NOT AN ENGINE
 
-The §8.9 catalog row says the fixed-Hz `ringmod()` bus effect mostly covers AM and ring mod, and what
+The §8.9 catalog row said the fixed-Hz `ringmod()` bus effect mostly covers AM and ring mod, and what
 an *engine* would add is a modulator that **tracks the played pitch**, so the clang stays harmonic
 per note.
 
-**Check the cheap thing first.** `instrument_ringmod(slot, freq_hz, mix)` takes an absolute
-frequency. If it can take a ratio instead, the tracking is a parameter change on a shipped effect and
-this is not an engine at all. Only if the modulator must sit inside the voice (and the research round
-should say why) does it earn a row. Resolve this before planning around it, because it is the
-difference between two engines and three.
+> **§5 RESEARCH ROUND: DONE (2026-09-14). DECISION A.**
+> [`engine-reach-ringmod-research.md`](engine-reach-ringmod-research.md). The cheap path works.
+> `ringmod_ratio(ratio, mix)` / `instrument_ringmod_ratio(slot, ratio, mix)` ride the shipped
+> `FX_RINGMOD` insert: carrier = ratio × last-started voice pitch. Hz API unchanged (Dalek /
+> robot / atonal clang). Proof: the `ringtrack` cart. A voice-local multiply would only buy a
+> *chord* of independent clangs, which analog practice never treated as the job and which FM
+> already reaches. Count stays 2. Do not reopen from vibes.
+
+**Check the cheap thing first.** Done. It was a parameter.
 
 ### 7.4 Things that read like an engine and are not
 
@@ -329,15 +334,17 @@ Recorded here so they are not re-proposed:
 
 ### 7.5 The count
 
-**2 engines, 2 showcase carts, 2 research rounds.** Three if §7.3 cannot be answered with a
-parameter. That is the whole tier, and it sits on top of tier 1, which needs no DSP at all.
+**2 engines, 2 showcase carts, 2 research rounds.** §7.3 was answered with a parameter
+(`ringmod_ratio` / `instrument_ringmod_ratio` on the shipped insert). That is the whole tier, and
+it sits on top of tier 1, which needs no DSP at all.
 
 ## 8. Order of work
 
 1. ~~Tier 1, all four items, measured before and after.~~ Done 2026-09-14 (matcher wiring;
    ten-sample table N/A — commercial WAVs not in-repo).
-2. Answer §7.3 with a parameter if it can be answered with a parameter. One command's worth of
-   reading, and it decides whether this tier is two engines or three.
+2. Answer §7.3 with a parameter if it can be answered with a parameter. **DONE (2026-09-14):**
+   ratio API on the shipped ringmod; count stays two. See
+   [`engine-reach-ringmod-research.md`](engine-reach-ringmod-research.md).
 3. Decide the tier 2 question (is a two-layer patch still a patch?).
 4. Research round for §7.1, then its paper design, then the engine, then its cart. It is first
    because it absorbs two other candidates; getting its exciter menu wrong is what would split it
@@ -351,6 +358,8 @@ parameter. That is the whole tier, and it sits on top of tier 1, which needs no 
 - [`patch-matching.md`](patch-matching.md) - the matcher, the loss scale, the ten-sample measurement
   this doc is built on
 - [`patch-matching-cart.md`](patch-matching-cart.md) - the ear-as-loss-function fork
+- [`engine-reach-ringmod-research.md`](engine-reach-ringmod-research.md) - §7.3 research:
+  note-tracking ringmod is a ratio parameter, not a third engine
 - [`instrument-engines.md`](instrument-engines.md) - the engine program: §8.8.2 playbook, §8.9
   candidate catalog, §8.2 buffer-free versus buffered
 - [`synth-secrets-audit.md`](synth-secrets-audit.md) - the synthesizer-literature audit and its

@@ -673,7 +673,7 @@ with auto-pan, 0.33 / −1.78 dB mono-fold = real width, and a slow sweep swings
 > insert is the honest, composable form — two LFOs, two pedals. See
 > [`../design/effects-bus-architecture.md`](../design/effects-bus-architecture.md) §0.
 
-## ring mod — `ringmod(freq_hz, mix)` · `instrument_ringmod(slot, freq_hz, mix)`
+## ring mod — `ringmod(freq_hz, mix)` · `instrument_ringmod(slot, freq_hz, mix)` · `ringmod_ratio(ratio, mix)` · `instrument_ringmod_ratio(slot, ratio, mix)`
 
 Multiply the signal by a sine **carrier** at `freq_hz` → inharmonic **sum/difference sidebands**: the
 metallic, clangorous, robotic/bell texture (the Dalek voice, the sci-fi clang, Sabbath's "Paranoid"
@@ -690,6 +690,8 @@ moves the fundamental off 440 with confidence collapsing as the sidebands appear
 | metallic clang | `ringmod(440.0f, 0.8f)` | bright inharmonic bell/gong tone — atonal, alien | `pedalboard` (RINGMOD) |
 | robot voice / Dalek | `ringmod(30.0f, 1.0f)` on a vocal/lead | the low-carrier buzz that turns any voice robotic | `pedalboard` (FRQ low) |
 | throbby AM | `ringmod(6.0f, 0.7f)` | a very-low carrier = a rough tremolo-like pulse (the AM end of the range) | `pedalboard` (FRQ near 0) |
+| tracking fifth | `instrument_ringmod_ratio(I_LEAD, 1.5f, 0.8f)` | clang that stays harmonic up the keyboard — sidebands at 0.5× and 2.5× of every note | `ringtrack` (RATIO) |
+| tracking octave | `instrument_ringmod_ratio(I_LEAD, 2.0f, 0.7f)` | octave-up clang, same colour on every key | `ringtrack` (RATIO 2) |
 
 > **Ring mod vs tremolo:** both modulate amplitude, but tremolo's LFO is *unipolar* (gain 0..1, no new
 > tones — a wobble) while ring mod's carrier is *bipolar* (adds sidebands — a new timbre). That's why

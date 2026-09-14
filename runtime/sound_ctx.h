@@ -542,8 +542,8 @@ typedef enum {
     SR_FILTER       = 75,   // a=mode, b=cutoff_hz, c=resonance*1000 — THE master resonant filter (DJ filter), bus 0
     SR_AUTOPAN      = 76,   // a=rate*1000, b=depth*1000, c=shape — THE master auto-pan (bus 0, antiphase tremolo)
     SR_INSTR_AUTOPAN= 77,   // a=slot, b=rate*1000, c=depth*1000, e0=shape — auto-pan on one instrument (auto-bus)
-    SR_RINGMOD      = 78,   // a=freq_hz, b=mix*1000 — THE master ring modulator (bus 0)
-    SR_INSTR_RINGMOD= 79,   // a=slot, b=freq_hz, c=mix*1000 — ring mod on one instrument (auto-bus)
+    SR_RINGMOD      = 78,   // a=freq_hz OR ratio*1000, b=mix*1000, e0=0 Hz / 1 ratio — THE master ring modulator (bus 0)
+    SR_INSTR_RINGMOD= 79,   // a=slot, b=freq_hz OR ratio*1000, c=mix*1000, e0=0 Hz / 1 ratio — ring mod on one instrument (auto-bus)
     SR_ECHO_INSERT  = 80,   // a=time_ms, b=fb*1000, c=tone*1000, e0=mix*1000 — echo as a dry/wet INSERT on the master bus (in the fx_order chain)
     SR_GRAINS       = 81,   // a=grain_ms, b=density*100, c=position*1000, e0=scatter*1000, e1=feedback*1000, e2=mix*1000 — THE master granular delay (bus 0)
     SR_INSTR_GRAINS = 82,   // a=slot, b=grain_ms, c=density*100, e0=position*1000, e1=scatter*1000, e2=PACK(feedback*100·*1001 + mix*1000) — granular on one instrument (auto-bus)
@@ -793,6 +793,9 @@ typedef struct {
     float rm_mix[SOUND_FX_BUSES];
     float rm_phase[SOUND_FX_BUSES];
     bool rm_used[SOUND_FX_BUSES];
+    float rm_ratio[SOUND_FX_BUSES];       // 0 = Hz mode (rm_freq); >0 = last-note tracking, carrier = ratio × f0
+    int rm_follow_slot[SOUND_FX_BUSES];   // slot to follow in ratio mode; -1 = last-started voice on any slot (master)
+    float rm_last_hz[SOUND_FX_BUSES];     // last resolved carrier, so a release tail keeps the note's clang
     float phaser_rate[SOUND_FX_BUSES];
     float phaser_depth[SOUND_FX_BUSES];
     float phaser_fb[SOUND_FX_BUSES];
@@ -1186,6 +1189,9 @@ static _Thread_local DeSound *de_snd = &de_snd_default;
 #define rm_mix               (de_snd->rm_mix)
 #define rm_phase             (de_snd->rm_phase)
 #define rm_used              (de_snd->rm_used)
+#define rm_ratio             (de_snd->rm_ratio)
+#define rm_follow_slot       (de_snd->rm_follow_slot)
+#define rm_last_hz           (de_snd->rm_last_hz)
 #define phaser_rate          (de_snd->phaser_rate)
 #define phaser_depth         (de_snd->phaser_depth)
 #define phaser_fb            (de_snd->phaser_fb)

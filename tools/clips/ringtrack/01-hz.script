@@ -1,0 +1,5 @@
+# ringtrack — fixed 440 Hz carrier (the BEFORE). Autoplay walks C4..C5.
+# Hear: the clang goes atonal as the scale leaves A4. Sidebands stay at |f0-440|
+# and f0+440, which is a different interval on every note.
+down 2 72
+up 6 72

@@ -58,6 +58,8 @@ argument for widening it before adding anything exotic.
 
 ## 3. Tier 1: reach we already own and the search pins shut
 
+Queued as [#27](https://github.com/NikkiKoole/dreamengine-studio/issues/27).
+
 This is the cheapest work in the repo and probably the largest single gain. `pmcart.c` (the file
 that turns a candidate vector into engine calls) currently nails these to neutral on every render:
 
@@ -301,6 +303,8 @@ Two questions the round must settle that matter more than the count:
 > we ship paid apps. The reference is wired into `ref-render` and `TubeBell` is characterised.
 
 ### 7.3 Conditional: note-tracking ring modulation
+
+Queued as [#28](https://github.com/NikkiKoole/dreamengine-studio/issues/28).
 
 The §8.9 catalog row says the fixed-Hz `ringmod()` bus effect mostly covers AM and ring mod, and what
 an *engine* would add is a modulator that **tracks the played pitch**, so the clang stays harmonic

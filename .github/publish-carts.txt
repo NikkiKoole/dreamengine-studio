@@ -1,0 +1,11 @@
+# Carts published to the web by .github/workflows/publish-web.yml.
+#
+# One cart name per line (the .c filename stem in tools/carts/). Lines starting with #
+# are ignored. Every push to master that touches tools/carts/ or runtime/ republishes
+# this list, so adding a showcase cart here in the same PR as the cart is what makes it
+# audible on a phone without anyone at a desk.
+#
+# Keep it SHORT. Each entry is an emcc compile on every run.
+
+# modal
+# fm4op

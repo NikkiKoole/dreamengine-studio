@@ -1,0 +1,186 @@
+# publish-web.yml: build carts to wasm and publish them where a phone can play them.
+#
+# WHY THIS EXISTS: the desktop editor is the only place a cart normally runs, so an agent
+# working through pull requests can build an engine nobody can hear. This turns a named set
+# of carts into playable web builds and pushes them to a Pages-served repo.
+#
+# ⚠ TWO BLANKS BELOW, BOTH DELIBERATE, BOTH THE OWNER'S CALL (see the doc linked at the
+#    bottom of this file). Until they are filled the workflow still runs every gate and
+#    still builds the site, and uploads it as an ARTIFACT instead of publishing. It never
+#    silently does nothing.
+#
+#      vars.PUBLISH_REPO     owner/name of the repo whose Pages serves the built site.
+#                            The public gallery is one option; a separate preview repo
+#                            keeps work-in-progress off the public shelf.
+#      secrets.PUBLISH_TOKEN a token or deploy key with push rights to THAT repo.
+#
+# Emscripten is installed from source rather than via a third-party action on purpose:
+# this job holds a push credential, so its dependency list is kept auditable.
+
+name: publish-web
+
+on:
+  workflow_dispatch:
+    inputs:
+      carts:
+        description: "Space-separated cart names. Empty = use .github/publish-carts.txt"
+        required: false
+        default: ""
+      skip_parity:
+        description: "Skip the wasm-vs-native audio parity gate (say why in the run notes)"
+        type: boolean
+        default: false
+  push:
+    branches: [master]
+    paths:
+      - "tools/carts/**"
+      - "runtime/**"
+      - ".github/publish-carts.txt"
+
+# One publish at a time: two runs would race each other pushing the gallery.
+concurrency:
+  group: publish-web
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # ── which carts ────────────────────────────────────────────────────────
+      # The committed list is the AFK path: an agent adds its new showcase cart to
+      # .github/publish-carts.txt in the same PR as the cart, and every push republishes.
+      - name: Resolve cart list
+        id: carts
+        run: |
+          if [ -n "${{ github.event.inputs.carts }}" ]; then
+            LIST="${{ github.event.inputs.carts }}"
+          elif [ -f .github/publish-carts.txt ]; then
+            LIST=$(grep -vE '^\s*(#|$)' .github/publish-carts.txt | tr '\n' ' ')
+          else
+            LIST=""
+          fi
+          echo "list=$LIST" >> "$GITHUB_OUTPUT"
+          if [ -z "$LIST" ]; then
+            echo "::error::No carts to publish. Pass the 'carts' input or add names to .github/publish-carts.txt"
+            exit 1
+          fi
+          echo "Publishing: $LIST"
+
+      # ── emscripten ─────────────────────────────────────────────────────────
+      # runtime/raylib-web is VENDORED in this repo, so nothing else needs building.
+      - name: Cache emsdk
+        id: emsdk-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/emsdk
+          key: emsdk-4.0.0-${{ runner.os }}
+
+      - name: Install emscripten
+        if: steps.emsdk-cache.outputs.cache-hit != 'true'
+        run: |
+          git clone --depth 1 https://github.com/emscripten-core/emsdk.git ~/emsdk
+          ~/emsdk/emsdk install latest
+          ~/emsdk/emsdk activate latest
+
+      - name: Put emcc on PATH
+        run: |
+          source ~/emsdk/emsdk_env.sh
+          echo "$EMSDK/upstream/emscripten" >> "$GITHUB_PATH"
+          echo "$EMSDK" >> "$GITHUB_PATH"
+          echo "$EMSDK/node/$(ls "$EMSDK/node" | head -1)/bin" >> "$GITHUB_PATH"
+
+      - name: Show toolchain
+        run: |
+          node --version
+          clang --version | head -1
+          emcc --version | head -1
+
+      # ── gates, cheapest first ──────────────────────────────────────────────
+      # build-all compile-checks EVERY cart and deliberately does not link raylib, so it
+      # runs on a bare Linux runner. It is here because a publish is a good moment to
+      # notice that an engine change rotted an unrelated cart.
+      - name: Lint carts and the generated index
+        run: |
+          node tools/lint-carts.js
+          node tools/build-cart-index.js --check
+
+      - name: Compile-check every cart
+        run: node tools/build-all.js
+
+      # The one gate that is specifically about SHIPPING TO A BROWSER: emscripten's compiled
+      # DSP math is not guaranteed to match native clang, and a brand-new engine is exactly
+      # where it would first show up. Skippable, but you have to say so out loud.
+      - name: Audio parity, wasm versus native
+        if: ${{ github.event.inputs.skip_parity != 'true' }}
+        run: node tools/web-audio-check.js --quiet
+
+      # ── build ──────────────────────────────────────────────────────────────
+      # Clone the target first so build-site.js regenerates the gallery over the carts that
+      # are ALREADY published rather than dropping them. With no target configured it builds
+      # into an empty site/ and the gallery lists only this run's carts, which is correct
+      # for an artifact.
+      - name: Clone the publish target
+        if: ${{ vars.PUBLISH_REPO != '' }}
+        run: |
+          git clone --depth 1 \
+            "https://x-access-token:${{ secrets.PUBLISH_TOKEN }}@github.com/${{ vars.PUBLISH_REPO }}.git" \
+            site
+
+      - name: Build carts for the web
+        run: node tools/build-site.js ${{ steps.carts.outputs.list }}
+
+      # ── publish, or hand back an artifact ──────────────────────────────────
+      - name: Publish
+        if: ${{ vars.PUBLISH_REPO != '' }}
+        working-directory: site
+        run: |
+          git config user.name  "dreamengine publish bot"
+          git config user.email "noreply@github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "Nothing changed; not publishing."
+            exit 0
+          fi
+          git commit -m "publish: ${{ steps.carts.outputs.list }} (from ${GITHUB_SHA:0:8})"
+          git push
+
+      - name: Report where to listen
+        if: ${{ vars.PUBLISH_REPO != '' }}
+        run: |
+          OWNER="${{ vars.PUBLISH_REPO }}"; OWNER="${OWNER%%/*}"
+          NAME="${{ vars.PUBLISH_REPO }}";  NAME="${NAME##*/}"
+          echo "### Live in a minute" >> "$GITHUB_STEP_SUMMARY"
+          for c in ${{ steps.carts.outputs.list }}; do
+            echo "- https://$OWNER.github.io/$NAME/$c/" >> "$GITHUB_STEP_SUMMARY"
+          done
+
+      - name: Upload site as an artifact (no publish target configured)
+        if: ${{ vars.PUBLISH_REPO == '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: site
+          path: site/
+          retention-days: 14
+
+      - name: Say why nothing was published
+        if: ${{ vars.PUBLISH_REPO == '' }}
+        run: |
+          {
+            echo "### Built, not published"
+            echo ""
+            echo "The site is attached as an artifact. To make it playable on a phone, set:"
+            echo ""
+            echo "- repository **variable** \`PUBLISH_REPO\` = owner/name of the Pages repo"
+            echo "- repository **secret** \`PUBLISH_TOKEN\` = a token with push rights to it"
+            echo ""
+            echo "Both are deliberate decisions, not oversights."
+            echo "See docs/design/web-publishing-ci.md."
+          } >> "$GITHUB_STEP_SUMMARY"

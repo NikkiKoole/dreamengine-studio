@@ -33,8 +33,12 @@ enum {
     V_VIBDEP, V_VIBRATE,               // LFO_PITCH — vibrato / tape-ish wobble
     V_TREMDEP,                         // LFO_VOLUME — tremolo
     V_MODE0, V_MODE1, V_MODE2, V_MODE3,// per-engine MODE_* (see pm_engine_modes)
+    V_MODE4, V_MODE5,                  // PIANO knock + stretch (idx 3, 4) — appended so old 19-float pm:vec still maps
+    V_DUTY, V_UNISON, V_DETUNE, V_SYNC, V_BANDLIMIT, // analog extras the search used to pin shut
+    V_DRIVE, V_DRIVEMODE,              // fold is an oscillator op — voice stage, not fx (engine-reach §3)
     PM_NV
 };
+#define PM_NMODE 6                     // slots in the vector; an engine may own fewer
 
 // ── the FX half (stage 3, voice frozen) ─────────────────────────────────────
 // Per-INSTRUMENT effects throughout, so the answer stays one pasteable block
@@ -83,6 +87,15 @@ static const int PM_FILTER_BIN[4] = { 0, 1, 5, 3 };
 static const char *const PM_FILTER_NAME[4] = { "FILTER_OFF", "FILTER_LOW", "FILTER_LADDER", "FILTER_BAND" };
 static inline int pm_bin(float x, int n) { int i = (int)(x * (float)n); return i < 0 ? 0 : (i >= n ? n - 1 : i); }
 
+// Analog extras. Unison count and bandlimit are DISCRETE (the APIs take an int), so the
+// 0..1 coordinate is binned the same way V_FMODE is. Detune is 0..0.7 semitones (studio.h:
+// "0.1 shimmer .. 0.7 wide"). Sync is 0 = off, then 1..4 (the tearing range); a small dead
+// zone at the bottom keeps the default "never called" rather than a 1.0 unison slave.
+static inline int   pm_unison_n(float x)    { return 1 + pm_bin(x, 7); }
+static inline float pm_detune_st(float x)   { return x * 0.7f; }
+static inline float pm_sync_ratio(float x)  { return x < 0.02f ? 0.0f : 1.0f + x * 3.0f; }
+static inline int   pm_bandlimit_on(float x){ return pm_bin(x, 2); }
+
 // ── fx mapping ──────────────────────────────────────────────────────────────
 static const char *const PM_DRIVE_NAME[4] = { "DRIVE_SOFT", "DRIVE_HARD", "DRIVE_FOLD", "DRIVE_ASYM" };
 static inline float pm_crush_bits(float x) { return 16.0f - x * 15.0f; }   // 16 clean .. 1 gnarly
@@ -94,18 +107,44 @@ static inline float pm_echo_fb(float x)    { return x * 0.9f; }            // ne
 static inline float pm_eq_db(float x)      { return (x - 0.5f) * 24.0f; }  // ±12 dB
 
 // ── which MODE_* dials an engine actually answers ───────────────────────────
-// Four slots because that is what the vector has; an engine with fewer simply
-// leaves the tail unused (pm_engine_modes returns the count). Indices are the
-// MODE_* ids from studio.h, written as literals so this header stays free of it.
+// studio.h only declares MODE_* for four engines (PIANO/GUITAR/ORGAN/BOWED).
+// The other 14 have none to wire — "4 of 18" was the whole roster, not a
+// shortlist. PIANO owns all six (weight/click/decay/knock/stretch/stiff);
+// earlier this skipped knock (3) and stretch (4). Indices are the MODE_*
+// ids from studio.h, written as literals so this header stays free of it.
 static inline int pm_engine_modes(int engine, int *idx)
 {
     switch (engine) {
-        case 27: idx[0]=0; idx[1]=1; idx[2]=2; idx[3]=5; return 4;  // PIANO  weight/click/decay/stiff
+        case 27: idx[0]=0; idx[1]=1; idx[2]=2; idx[3]=3; idx[4]=4; idx[5]=5; return 6; // PIANO
         case 26: idx[0]=0; idx[1]=1;                     return 2;  // GUITAR weight/click
         case 19: idx[0]=0; idx[1]=1; idx[2]=6;           return 3;  // ORGAN  perc3rd/percslow/leak
         case 28: idx[0]=0; idx[1]=1; idx[2]=2;           return 3;  // BOWED  pizz/body/size
         default: return 0;
     }
+}
+
+// Wavetable slots (SQUARE/SAW/TRI/SINE). Unison/sync/duty/bandlimit only reach
+// DSP here; searching them on a piano wastes budget on a silent axis.
+static inline int pm_is_wavetable(int engine)
+{
+    return engine == 0 || engine == 1 || engine == 2 || engine == 4;
+}
+
+// Extra voice dims this engine should SEARCH (drive/fold is offered to every
+// engine — it is a slot insert, not a wavetable op). Analog extras only on
+// wavetable; duty only on square; bandlimit only on saw.
+static inline int pm_voice_extras(int engine, int *out)
+{
+    int n = 0;
+    out[n++] = V_DRIVE;
+    out[n++] = V_DRIVEMODE;
+    if (!pm_is_wavetable(engine)) return n;
+    if (engine == 0) out[n++] = V_DUTY;
+    out[n++] = V_UNISON;
+    out[n++] = V_DETUNE;
+    out[n++] = V_SYNC;
+    if (engine == 1) out[n++] = V_BANDLIMIT;
+    return n;
 }
 
 // ── the engines the race runs over ──────────────────────────────────────────
@@ -143,19 +182,26 @@ static inline const char *pm_engine_name(int e) {
 // PIANO timbre (53) and BOWED harmonics (85) are quantized too finely to be
 // worth it and behave like continuous axes.
 typedef struct { int engine; int dim; int n; float centre[10]; } PmDetents;
-#define PM_NDETENT 5
+#define PM_NDETENT 7
 static const PmDetents PM_DETENT[PM_NDETENT] = {
     { 18, V_HARM, 10, { 0.050f, 0.155f, 0.255f, 0.355f, 0.455f, 0.555f, 0.655f, 0.755f, 0.855f, 0.955f } }, // FM     carrier:mod ratio
     { 19, V_HARM,  8, { 0.060f, 0.190f, 0.315f, 0.440f, 0.565f, 0.690f, 0.815f, 0.940f } },                 // ORGAN  drawbar registrations
     { 21, V_HARM,  8, { 0.060f, 0.190f, 0.315f, 0.440f, 0.565f, 0.690f, 0.815f, 0.940f } },                 // PD     wavetypes
     { 20, V_HARM,  3, { 0.165f, 0.500f, 0.835f } },                                                         // EPIANO Rhodes/Wurli/Clav
     { 27, V_HARM,  6, { 0.080f, 0.250f, 0.420f, 0.585f, 0.750f, 0.920f } },                                 // PIANO  the six voicings
+    // engine -1 = any: the apply path bins these, so the plateaus are ours to name
+    { -1, V_UNISON,    7, { 0.071f, 0.214f, 0.357f, 0.500f, 0.643f, 0.786f, 0.929f } },
+    { -1, V_BANDLIMIT, 2, { 0.250f, 0.750f } },
 };
 static inline const PmDetents *pm_detents_for(int engine, int dim)
 {
-    for (int i = 0; i < PM_NDETENT; i++)
-        if (PM_DETENT[i].engine == engine && PM_DETENT[i].dim == dim) return &PM_DETENT[i];
-    return NULL;
+    const PmDetents *any = NULL;
+    for (int i = 0; i < PM_NDETENT; i++) {
+        if (PM_DETENT[i].dim != dim) continue;
+        if (PM_DETENT[i].engine == engine) return &PM_DETENT[i];
+        if (PM_DETENT[i].engine < 0) any = &PM_DETENT[i];
+    }
+    return any;
 }
 
 // A neutral starting patch: every modulation OFF, every effect BYPASSED. Stage 1
@@ -178,6 +224,9 @@ static inline void pm_patch_default(PmPatch *p, int engine)
     p->v[V_FMODE] = 0.0f;                       // bin 0 = FILTER_OFF
     p->v[V_ENVAMT] = 0.0f; p->v[V_ENVDEC] = 0.3f;
     p->v[V_VIBDEP] = 0.0f; p->v[V_VIBRATE] = 0.5f; p->v[V_TREMDEP] = 0.0f;
+    p->v[V_DUTY] = 0.5f;                        // square — the pin we used to hard-code
+    p->v[V_UNISON] = 0.0f; p->v[V_DETUNE] = 0.0f; p->v[V_SYNC] = 0.0f; p->v[V_BANDLIMIT] = 0.0f;
+    p->v[V_DRIVE] = 0.0f; p->v[V_DRIVEMODE] = 0.0f;
     for (int i = 0; i < PM_NF; i++) p->f[i] = 0.0f;
     p->f[F_CRUSHBITS] = 0.0f;                   // 0 -> 16 bits, i.e. clean
     p->f[F_EQLOW] = p->f[F_EQMID] = p->f[F_EQHIGH] = 0.5f;   // 0.5 -> 0 dB, flat
@@ -308,6 +357,23 @@ static inline void pm_mutate(const PmPatch *src, PmPatch *dst, unsigned seed, fl
     pm_nudge(&dst->v[V_VIBDEP], &s, spread);
     pm_nudge(&dst->v[V_VIBRATE], &s, spread);
     pm_nudge(&dst->v[V_TREMDEP], &s, spread);
+    {
+        const PmDetents *d = pm_detents_for(src->engine, V_UNISON);
+        if (d && pm_is_wavetable(src->engine)) pm_nudge_detent(d, &dst->v[V_UNISON], &s, spread);
+        else if (pm_is_wavetable(src->engine)) pm_nudge(&dst->v[V_UNISON], &s, spread);
+    }
+    if (src->engine == 0) pm_nudge(&dst->v[V_DUTY], &s, spread);
+    if (pm_is_wavetable(src->engine)) {
+        pm_nudge(&dst->v[V_DETUNE], &s, spread);
+        pm_nudge(&dst->v[V_SYNC], &s, spread);
+    }
+    if (src->engine == 1) {
+        const PmDetents *d = pm_detents_for(src->engine, V_BANDLIMIT);
+        if (d) pm_nudge_detent(d, &dst->v[V_BANDLIMIT], &s, spread);
+        else   pm_nudge(&dst->v[V_BANDLIMIT], &s, spread);
+    }
+    pm_nudge(&dst->v[V_DRIVE], &s, spread);
+    pm_nudge(&dst->v[V_DRIVEMODE], &s, spread);
 
     // filter mode is four bins. Rare neighbour-step so a keep does not jump
     // OFF→LADDER every litter, but a wild spread can open a filter.
@@ -319,7 +385,7 @@ static inline void pm_mutate(const PmPatch *src, PmPatch *dst, unsigned seed, fl
         dst->v[V_FMODE] = ((float)b + 0.5f) / 4.0f;
     }
 
-    int midx[4];
+    int midx[PM_NMODE];
     int nm = pm_engine_modes(src->engine, midx);
     if (nm > src->nmode) nm = src->nmode;
     dst->nmode = src->nmode;
@@ -330,7 +396,7 @@ static inline void pm_mutate(const PmPatch *src, PmPatch *dst, unsigned seed, fl
     // a flat EQ unless it was already tilted — 0.5 is 0 dB, not "off".
     for (int i = 0; i < PM_NF; i++) {
         int eq = (i == F_EQLOW || i == F_EQMID || i == F_EQHIGH);
-        int amt = (i == F_DRIVE || i == F_TAPEWOW || i == F_TAPEFLUT || i == F_TAPESAT
+        int amt = (i == F_TAPEWOW || i == F_TAPEFLUT || i == F_TAPESAT
                 || i == F_CRUSHMIX || i == F_CHMIX || i == F_TREMDEP
                 || i == F_ECHOSEND || i == F_RVBSEND);
         float on = eq ? fabsf(src->f[i] - 0.5f) : src->f[i];
@@ -375,6 +441,10 @@ static inline int pm_mutate_selfcheck(void)
                + fabsf(b.v[V_DEC] - a.v[V_DEC]) + fabsf(b.v[V_MORPH] - a.v[V_MORPH]);
     PM_OK(move > 0.01f);
     PM_OK(pm_engine_id("PIPE") == 25 && pm_engine_id("INSTR_FM") == 18);
+    PM_OK(pm_unison_n(0.0f) == 1 && pm_unison_n(0.93f) == 7);
+    PM_OK(pm_sync_ratio(0.0f) == 0.0f && pm_sync_ratio(1.0f) > 3.9f);
+    { int piano_m[PM_NMODE]; PM_OK(pm_engine_modes(27, piano_m) == 6 && piano_m[3] == 3 && piano_m[4] == 4); }
+    PM_OK(pm_detents_for(1, V_UNISON) && pm_detents_for(1, V_UNISON)->n == 7);
     PM_OK(strcmp(pm_engine_short(25), "PIPE") == 0);
     PM_OK(fabsf((float)pm_atk_ms(pm_unatk_ms(60)) - 60.0f) <= 1.0f);
     PM_OK(fabsf((float)pm_dec_ms(pm_undec_ms(400)) - 400.0f) <= 1.0f);

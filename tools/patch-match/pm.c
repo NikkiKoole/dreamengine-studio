@@ -80,7 +80,7 @@ typedef struct {
 // The fx stage answers "which effects EARN their place", not "what is the lowest
 // number". Without a cost per effect the optimizer leaves all eight slightly on,
 // which scores a hair better and tells you nothing you can act on.
-static const int FX_AMOUNT_DIM[9] = { FXD(F_DRIVE), FXD(F_TAPEWOW), FXD(F_CRUSHMIX), FXD(F_CHMIX),
+static const int FX_AMOUNT_DIM[8] = { FXD(F_TAPEWOW), FXD(F_CRUSHMIX), FXD(F_CHMIX),
                                       FXD(F_TREMDEP), FXD(F_ECHOSEND), FXD(F_RVBSEND), FXD(F_TAPESAT),
                                       V_VIBDEP };
 
@@ -115,7 +115,7 @@ static float eval_patch(Ctx *c, const float *x, float *scratch)
     float d = pm_distance(c->t, scratch);
     if (c->fx && d < PM_BAD) {
         int on = 0;
-        for (int i = 0; i < 9; i++) if (pm_get(&p, FX_AMOUNT_DIM[i]) > 0.02f) on++;
+        for (int i = 0; i < 8; i++) if (pm_get(&p, FX_AMOUNT_DIM[i]) > 0.02f) on++;
         d += c->sparsity * on;
     }
     return d;
@@ -183,11 +183,20 @@ static float score_patch(Ctx *c, const PmPatch *p, float *scratch)
 
 static float polish_detents(Ctx *c, PmPatch *p, float loss, float *scratch)
 {
-    const int dims[3] = { V_HARM, V_TIMB, V_MORPH };
+    const int dims[5] = { V_HARM, V_TIMB, V_MORPH, V_UNISON, V_BANDLIMIT };
     if (!g_polish) return loss;
-    for (int d = 0; d < 3; d++) {
+    for (int d = 0; d < 5; d++) {
         const PmDetents *det = pm_detents_for(p->engine, dims[d]);
         if (!det) continue;
+        if (dims[d] == V_UNISON && !pm_is_wavetable(p->engine)) continue;
+        if (dims[d] == V_BANDLIMIT && p->engine != 1) continue;
+        /* Analog detents are refine-only. Polishing them after the race would
+           let a square grow a supersaw and shuffle the ranking. */
+        if (dims[d] == V_UNISON || dims[d] == V_BANDLIMIT) {
+            int searched = 0;
+            for (int k = 0; k < c->ndims; k++) if (c->dims[k] == dims[d]) searched = 1;
+            if (!searched) continue;
+        }
         float keep = p->v[dims[d]], best = loss, bestv = keep;
         int snapped = 0;
         for (int i = 0; i < det->n; i++) {
@@ -207,18 +216,43 @@ static const int DIMS_RACE[]  = { V_HARM, V_TIMB, V_MORPH, V_ATK, V_DEC, V_SUS, 
 // and filter. No wobble of any kind lives here.
 static const int DIMS_VOICE[] = { V_HARM, V_TIMB, V_MORPH, V_ATK, V_DEC, V_SUS, V_REL, V_FMODE, V_CUT, V_RES,
                                   V_ENVAMT, V_ENVDEC };
-static const int DIMS_MODE[]  = { V_MODE0, V_MODE1, V_MODE2, V_MODE3 };
 // The FX stage owns EVERY periodic modulation, whichever API it belongs to.
 // Vibrato and tape wow are the same physical claim about the sound (the pitch
 // wobbles), so they must be offered to the search together and priced together:
 // with vibrato in the earlier stage it always won by arriving first, and a
 // cassette's flutter came out described as an 0.85-semitone vibrato.
+// Drive/fold left this list: a wavefolder is an oscillator op and belongs in
+// the voice stage so it can co-optimise with cutoff (engine-reach §3 / matcher §5d).
 static const int DIMS_FX[]    = { V_VIBDEP, V_VIBRATE, V_TREMDEP,
-                                  FXD(F_DRIVE), FXD(F_DRIVEMODE), FXD(F_TAPEWOW), FXD(F_TAPEFLUT), FXD(F_TAPESAT),
+                                  FXD(F_TAPEWOW), FXD(F_TAPEFLUT), FXD(F_TAPESAT),
                                   FXD(F_CRUSHBITS), FXD(F_CRUSHRATE), FXD(F_CRUSHMIX), FXD(F_CHRATE), FXD(F_CHDEP), FXD(F_CHMIX),
                                   FXD(F_TREMRATE), FXD(F_TREMDEP), FXD(F_ECHOTIME), FXD(F_ECHOFB), FXD(F_ECHOTONE), FXD(F_ECHOSEND),
                                   FXD(F_RVBSIZE), FXD(F_RVBDAMP), FXD(F_RVBSEND), FXD(F_EQLOW), FXD(F_EQMID), FXD(F_EQHIGH) };
 #define NDIM(a) ((int)(sizeof(a)/sizeof(a[0])))
+#define PM_MAX_DIMS 32
+
+// Race ranks ENGINE IDENTITY on the original 10 voice dims. Analog extras
+// (duty / unison / sync / bandlimit) and drive/fold live in refine — they
+// change colour without changing which oscillator is right, and at 12 pop
+// they drown the ranking. Drive specifically co-optimises with cutoff there.
+static int fill_race_dims(int engine, int *dims)
+{
+    (void)engine;
+    int n = 0;
+    for (int i = 0; i < NDIM(DIMS_RACE); i++) dims[n++] = DIMS_RACE[i];
+    return n;
+}
+
+static int fill_voice_dims(int engine, int *dims)
+{
+    int n = 0;
+    for (int i = 0; i < NDIM(DIMS_VOICE); i++) dims[n++] = DIMS_VOICE[i];
+    int extra[8], ne = pm_voice_extras(engine, extra);
+    for (int i = 0; i < ne; i++) dims[n++] = extra[i];
+    int midx[PM_NMODE], nm = pm_engine_modes(engine, midx);
+    for (int i = 0; i < nm; i++) dims[n++] = V_MODE0 + i;
+    return n;
+}
 
 typedef struct { float loss; int engine; PmPatch p; } Result;
 static int cmp_result(const void *a, const void *b)
@@ -263,14 +297,22 @@ static void print_snippet(FILE *o, const PmPatch *p, int midi, int hold_ms, int 
         fprintf(o, "    instrument_lfo(%d, 0, LFO_PITCH, %.2ff, %.3ff);\n", s, pm_vib_hz(p->v[V_VIBRATE]), pm_vib_semi(p->v[V_VIBDEP]));
     if (p->v[V_TREMDEP] > 0.01f)
         fprintf(o, "    instrument_lfo(%d, 1, LFO_VOLUME, %.2ff, %.3ff);\n", s, pm_vib_hz(p->v[V_VIBRATE]), p->v[V_TREMDEP]);
-    int midx[4], nm = pm_engine_modes(p->engine, midx);
+    int midx[PM_NMODE], nm = pm_engine_modes(p->engine, midx);
     for (int i = 0; i < nm; i++) fprintf(o, "    instrument_mode(%d, %d, %.3ff);\n", s, midx[i], p->v[V_MODE0+i]);
+    if (fabsf(p->v[V_DUTY] - 0.5f) > 0.02f)
+        fprintf(o, "    instrument_duty(%d, %.3ff);\n", s, p->v[V_DUTY]);
+    if (pm_unison_n(p->v[V_UNISON]) > 1)
+        fprintf(o, "    instrument_unison(%d, %d, %.3ff);\n", s, pm_unison_n(p->v[V_UNISON]), pm_detune_st(p->v[V_DETUNE]));
+    if (pm_sync_ratio(p->v[V_SYNC]) > 0.02f)
+        fprintf(o, "    instrument_sync(%d, %.3ff);\n", s, pm_sync_ratio(p->v[V_SYNC]));
+    if (pm_bandlimit_on(p->v[V_BANDLIMIT]))
+        fprintf(o, "    instrument_bandlimit(%d, 1);\n", s);
+    if (p->v[V_DRIVE] > 0.02f)
+        fprintf(o, "    instrument_drive(%d, %.3ff);  instrument_drive_mode(%d, %s);\n",
+                s, p->v[V_DRIVE], s, PM_DRIVE_NAME[pm_bin(p->v[V_DRIVEMODE], 4)]);
 
     if (with_fx) {
         const float *f = p->f;
-        if (f[F_DRIVE] > 0.02f) {
-            fprintf(o, "    instrument_drive(%d, %.3ff);  instrument_drive_mode(%d, %s);\n", s, f[F_DRIVE], s, PM_DRIVE_NAME[pm_bin(f[F_DRIVEMODE],4)]);
-        }
         if (f[F_TAPEWOW] > 0.02f || f[F_TAPEFLUT] > 0.02f || f[F_TAPESAT] > 0.02f)
             fprintf(o, "    instrument_tape(%d, %.3ff, %.3ff, %.3ff);\n", s, f[F_TAPEWOW], f[F_TAPEFLUT], f[F_TAPESAT]);
         if (f[F_CRUSHMIX] > 0.02f)
@@ -387,6 +429,7 @@ static unsigned g_seed = 7;
 static Result g_race[PM_NENGINES];
 static int g_elist[PM_NENGINES], g_ne = PM_NENGINES;   // which engines the race runs
 static int g_race_pop = 0, g_race_gens = 0, g_stage1_only = 0;            // 0 = the built-in budget
+static int g_analog = 0;   // --analog: pin a PWM / supersaw / fold into the oracle truth
 
 // The generation budgets, named once. The workers need them to run and the parent needs them to
 // size the progress bar (ticks = items x generations), and two copies of a number that --quick
@@ -399,10 +442,12 @@ static int g_ncand = 0;
 
 static void work_race(int i, FILE *out)
 {
-    Ctx c = { .t = &g_short, .dims = DIMS_RACE, .ndims = NDIM(DIMS_RACE), .fx = 0,
+    int dims[PM_MAX_DIMS];
+    int nd = fill_race_dims(g_elist[i], dims);
+    Ctx c = { .t = &g_short, .dims = dims, .ndims = nd, .fx = 0,
               .midi = g_midi, .hold_ms = g_hold_short };
     pm_patch_default(&c.base, g_elist[i]);
-    float x[NDIM(DIMS_RACE)];
+    float x[PM_MAX_DIMS];
     int pop = g_race_pop ? g_race_pop : (g_quick ? 12 : 16);
     int gens = gens_race();
     float loss = de_search(&c, x, pop, gens, g_seed + i * 101, NULL);
@@ -420,15 +465,14 @@ static PmPatch g_refine_seedpatch[16];
 
 static void work_refine(int i, FILE *out)
 {
-    int midx[4], nm = pm_engine_modes(g_refine_engine[i], midx);
-    int dims[NDIM(DIMS_VOICE) + 4]; int nd = 0;
-    for (int k = 0; k < NDIM(DIMS_VOICE); k++) dims[nd++] = DIMS_VOICE[k];
-    for (int k = 0; k < nm; k++) dims[nd++] = DIMS_MODE[k];
+    int dims[PM_MAX_DIMS];
+    int nd = fill_voice_dims(g_refine_engine[i], dims);
+    int midx[PM_NMODE], nm = pm_engine_modes(g_refine_engine[i], midx);
 
     Ctx c = { .t = &g_full, .dims = dims, .ndims = nd, .fx = 0, .midi = g_midi, .hold_ms = g_hold_full };
     c.base = g_refine_seedpatch[i];
     c.base.nmode = nm;              // the refine stage is where these dials become the search's
-    float x[NDIM(DIMS_VOICE) + 4], sv[NDIM(DIMS_VOICE) + 4];
+    float x[PM_MAX_DIMS], sv[PM_MAX_DIMS];
     for (int k = 0; k < nd; k++) sv[k] = pm_get(&c.base, dims[k]);
     int pop = g_quick ? 20 : 30, gens = gens_refine();
     float loss = de_search(&c, x, pop, gens, g_refine_seed[i], sv);
@@ -477,6 +521,7 @@ int main(int argc, char **argv)
         else if (!strcmp(argv[i], "--note") && i+1 < argc) forced_midi = atoi(argv[++i]);
         else if (!strcmp(argv[i], "--out") && i+1 < argc) outdir = argv[++i];
         else if (!strcmp(argv[i], "--stage1")) g_stage1_only = 1;
+        else if (!strcmp(argv[i], "--analog")) g_analog = 1;
         else if (!strcmp(argv[i], "--no-polish")) g_polish = 0;
         else if (!strcmp(argv[i], "--selftest") && i+1 < argc) selftest = argv[++i];
         else if (!strcmp(argv[i], "--race-pop") && i+1 < argc) g_race_pop = atoi(argv[++i]);
@@ -492,7 +537,7 @@ int main(int argc, char **argv)
         else if (argv[i][0] != '-') path = argv[i];
     }
     if (g_ne == PM_NENGINES) for (int k = 0; k < PM_NENGINES; k++) g_elist[k] = PM_ENGINE[k];
-    if (!path && !selftest) { fprintf(stderr, "usage: pm <sample.wav> [--quick] [--window s] [--jobs n] [--seed n] [--note midi] [--out dir]\n"); return 2; }
+    if (!path && !selftest) { fprintf(stderr, "usage: pm <sample.wav> [--quick] [--window s] [--jobs n] [--seed n] [--note midi] [--out dir] [--selftest ENGINE] [--analog] [--stage1]\n"); return 2; }
 
     // ── target prep ─────────────────────────────────────────────────────────
     // THE ORACLE. --selftest renders a patch WE chose with the real engine, throws
@@ -511,6 +556,24 @@ int main(int argc, char **argv)
         truth.v[V_HARM]=0.62f; truth.v[V_TIMB]=0.28f; truth.v[V_MORPH]=0.74f;
         truth.v[V_ATK]=0.10f;  truth.v[V_DEC]=0.44f;  truth.v[V_SUS]=0.55f; truth.v[V_REL]=0.35f;
         truth.v[V_FMODE]=0.30f; truth.v[V_CUT]=0.68f; truth.v[V_RES]=0.22f;
+        if (g_analog) {
+            /* Reachable-by-construction analog extras. Duty only on square;
+               unison/sync on wavetable; bandlimit only on saw; fold on all. */
+            if (e == 0) truth.v[V_DUTY] = 0.12f;
+            if (pm_is_wavetable(e)) {
+                truth.v[V_UNISON] = 0.93f;
+                truth.v[V_DETUNE] = 0.55f;
+                truth.v[V_SYNC]   = 0.40f;
+            }
+            if (e == 1) truth.v[V_BANDLIMIT] = 1.0f;
+            truth.v[V_DRIVE] = 0.70f;
+            truth.v[V_DRIVEMODE] = 0.625f;   // bin 2 = DRIVE_FOLD
+            if (e == 27) {
+                truth.nmode = 6;
+                truth.v[V_MODE3] = 0.80f;    // knock
+                truth.v[V_MODE4] = 0.20f;    // stretch
+            }
+        }
         g_midi = forced_midi ? forced_midi : 60;
         m = (int)(wsecs * SR) + SR/4;
         rs = (float*)malloc(sizeof(float) * m);
@@ -573,7 +636,16 @@ int main(int argc, char **argv)
     for (int i = 0; i < got; i++)
         printf("    %2d. %-15s %.5f\n", i + 1, pm_engine_name(g_race[i].engine), g_race[i].loss);
 
-    if (g_stage1_only) { printf("\n  (--stage1: stopping after the race, %.0fs)\n\n", now_s() - t0); return 0; }
+    if (g_stage1_only) {
+        if (have_truth) {
+            int rank = -1;
+            for (int i = 0; i < got; i++) if (g_race[i].engine == truth.engine) rank = i + 1;
+            printf("    race rank         %d of %d\n", rank, got);
+            printf("    winner            %s\n", pm_engine_name(g_race[0].engine));
+        }
+        printf("\n  (--stage1: stopping after the race, %.0fs)\n\n", now_s() - t0);
+        return 0;
+    }
 
     // ── stage 2: refine the top engines, several seeds each ─────────────────
     // topk is 3 even in --quick, and that is not a rounding choice. MEASURED over
@@ -629,7 +701,9 @@ int main(int argc, char **argv)
         float voice_loss = 0;
         for (int k = 0; k < g_ncand; k++)
             if (g_cand[k].p.engine == fx[i].p.engine &&
-                memcmp(g_cand[k].p.v, fx[i].p.v, sizeof(float) * V_VIBDEP) == 0) voice_loss = g_cand[k].loss;
+                memcmp(g_cand[k].p.v, fx[i].p.v, sizeof(float) * V_VIBDEP) == 0 &&
+                memcmp(g_cand[k].p.v + V_MODE0, fx[i].p.v + V_MODE0,
+                       sizeof(float) * (PM_NV - V_MODE0)) == 0) voice_loss = g_cand[k].loss;
         printf("  %d. \033[1m%-15s\033[0m voice %.5f -> with fx \033[1m%.5f\033[0m\n", i+1, pm_engine_name(fx[i].engine), voice_loss, fx[i].loss);
         fprintf(o, "// ---- candidate %d: %s   voice %.5f -> fx %.5f\n", i+1, pm_engine_name(fx[i].engine), voice_loss, fx[i].loss);
         print_snippet(o, &fx[i].p, g_midi, g_hold_full, 1);
@@ -663,9 +737,12 @@ int main(int argc, char **argv)
                rank > 0 && g_race[rank-1].loss > 0 ? best_wrong / g_race[rank-1].loss : 0.0f);
         if (right) {
             printf("    %-12s %8s %8s\n", "param", "truth", "found");
-            const char *nm[] = {"harmonics","timbre","morph","attack","decay","sustain","release"};
-            int ix[] = {V_HARM,V_TIMB,V_MORPH,V_ATK,V_DEC,V_SUS,V_REL};
-            for (int k = 0; k < 7; k++) {
+            const char *nm[] = {"harmonics","timbre","morph","attack","decay","sustain","release",
+                                "duty","unison","detune","sync","bandlimit","drive","drivemode"};
+            int ix[] = {V_HARM,V_TIMB,V_MORPH,V_ATK,V_DEC,V_SUS,V_REL,
+                        V_DUTY,V_UNISON,V_DETUNE,V_SYNC,V_BANDLIMIT,V_DRIVE,V_DRIVEMODE};
+            int nprint = g_analog ? 14 : 7;
+            for (int k = 0; k < nprint; k++) {
                 printf("    %-12s %8.3f %8.3f", nm[k], truth.v[ix[k]], fx[0].p.v[ix[k]]);
                 // On a SNAPPED axis the raw difference is not an error and must not be
                 // printed as one: two values inside one detent are the SAME setting and

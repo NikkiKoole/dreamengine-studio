@@ -55,7 +55,7 @@ static void pm_apply(const PmPatch *p)
     // MODE_* the search is not moving must keep the ENGINE's default, because
     // some of these are thresholds and no value here is neutral (pmpatch.h).
     // Safe because each candidate gets a fresh instance, so nothing is inherited.
-    int midx[4];
+    int midx[PM_NMODE];
     int nm = pm_engine_modes(p->engine, midx);
     if (nm > p->nmode) nm = p->nmode;
     for (int i = 0; i < nm; i++) instrument_mode(s, midx[i], p->v[V_MODE0 + i]);
@@ -66,14 +66,17 @@ static void pm_apply(const PmPatch *p)
     instrument_pan(s, 0.0f);
     instrument_tune(s, 0.0f);
     instrument_glide(s, 0);
-    instrument_duty(s, 0.5f);
-    instrument_unison(s, 1, 0.0f);
-    instrument_bandlimit(s, 0);
+    // Analog extras — written EVERY time so a leftover PWM/supersaw/sync cannot
+    // leak into the next candidate. Defaults are the old pins (square, 1 voice, off).
+    instrument_duty(s, p->v[V_DUTY]);
+    instrument_unison(s, pm_unison_n(p->v[V_UNISON]), pm_detune_st(p->v[V_DETUNE]));
+    instrument_sync(s, pm_sync_ratio(p->v[V_SYNC]));
+    instrument_bandlimit(s, pm_bandlimit_on(p->v[V_BANDLIMIT]));
+    instrument_drive(s, p->v[V_DRIVE]);
+    instrument_drive_mode(s, pm_bin(p->v[V_DRIVEMODE], 4));
 
     // ── fx. Written every time too, bypassed (mix/amount 0) unless stage 3 opened them.
     const float *f = p->f;
-    instrument_drive(s, f[F_DRIVE]);
-    instrument_drive_mode(s, pm_bin(f[F_DRIVEMODE], 4));
     instrument_tape(s, f[F_TAPEWOW], f[F_TAPEFLUT], f[F_TAPESAT]);
     instrument_crush(s, pm_crush_bits(f[F_CRUSHBITS]), pm_crush_rate(f[F_CRUSHRATE]), f[F_CRUSHMIX]);
     instrument_chorus(s, pm_ch_rate(f[F_CHRATE]), f[F_CHDEP], f[F_CHMIX]);

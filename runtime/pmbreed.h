@@ -36,7 +36,7 @@ static inline void pm_apply_slot(const PmPatch *p, int s)
     instrument_lfo(s, 2, LFO_CUTOFF, 1.0f, 0.0f);
     instrument_follow(s, LFO_CUTOFF, 0, 0, 0.0f);
 
-    int midx[4];
+    int midx[PM_NMODE];
     int nm = pm_engine_modes(p->engine, midx);
     if (nm > p->nmode) nm = p->nmode;
     for (int i = 0; i < nm; i++) instrument_mode(s, midx[i], p->v[V_MODE0 + i]);
@@ -45,13 +45,14 @@ static inline void pm_apply_slot(const PmPatch *p, int s)
     instrument_pan(s, 0.0f);
     instrument_tune(s, 0.0f);
     instrument_glide(s, 0);
-    instrument_duty(s, 0.5f);
-    instrument_unison(s, 1, 0.0f);
-    instrument_bandlimit(s, 0);
+    instrument_duty(s, p->v[V_DUTY]);
+    instrument_unison(s, pm_unison_n(p->v[V_UNISON]), pm_detune_st(p->v[V_DETUNE]));
+    instrument_sync(s, pm_sync_ratio(p->v[V_SYNC]));
+    instrument_bandlimit(s, pm_bandlimit_on(p->v[V_BANDLIMIT]));
+    instrument_drive(s, p->v[V_DRIVE]);
+    instrument_drive_mode(s, pm_bin(p->v[V_DRIVEMODE], 4));
 
     const float *f = p->f;
-    instrument_drive(s, f[F_DRIVE]);
-    instrument_drive_mode(s, pm_bin(f[F_DRIVEMODE], 4));
     instrument_tape(s, f[F_TAPEWOW], f[F_TAPEFLUT], f[F_TAPESAT]);
     instrument_crush(s, pm_crush_bits(f[F_CRUSHBITS]), pm_crush_rate(f[F_CRUSHRATE]), f[F_CRUSHMIX]);
     instrument_chorus(s, pm_ch_rate(f[F_CHRATE]), f[F_CHDEP], f[F_CHMIX]);

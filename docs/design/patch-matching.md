@@ -120,6 +120,11 @@ number:
 The fx stage also charges a small cost per effect switched on. Without it the optimiser leaves all
 eight slightly engaged, which scores a hair better and tells you nothing you can act on.
 
+The same rule moved **fold** the other way. `DRIVE_FOLD` is a wavefolder — an oscillator operation,
+not a send — so `V_DRIVE` / `V_DRIVEMODE` live in the voice stage (engine-reach §3). Leaving them
+in fx froze the voice before the folder could ride cutoff. The fx-enum slots stay so old `pm:vec`
+lines still parse; they are no longer searched.
+
 ## 6. The oracle, and what it does not prove
 
 `--selftest <ENGINE>` renders a patch we chose with the real engine, throws the parameters away, and
@@ -161,6 +166,8 @@ reports one group per step, which is how the two are told apart.
 | PD | harmonics | 8 | wavetypes |
 | PIANO | harmonics | 6 | the six voicings |
 | EPIANO | harmonics | 3 | Rhodes / Wurli / Clav |
+| any wavetable | unison | 7 | voice count 1..7 (`instrument_unison`) |
+| SAW | bandlimit | 2 | naive vs PolyBLEP |
 
 The last two match `studio.h`'s prose exactly, which is a good sign the method reads the real thing.
 `PLUCK` morph (79 groups), `PIANO` timbre (53) and `BOWED` harmonics (85) are quantised too finely to
@@ -265,6 +272,7 @@ Smaller open items, none of them forks:
 
 ## See also
 
+- [`engine-reach.md`](engine-reach.md) — what the console cannot make yet; tier 1 (duty / unison / fold in the voice stage) shipped into this matcher.
 - [`patch-matching-cart.md`](patch-matching-cart.md) — the cart fork (§10); A is in the editor, B is `patchbench` (keep / breed / undo).
 - [`docs/guides/checks-and-oracles.md`](../guides/checks-and-oracles.md) for which gate to run when.
 - [`docs/design/instrument-engines.md`](instrument-engines.md) for what each engine's macros mean.

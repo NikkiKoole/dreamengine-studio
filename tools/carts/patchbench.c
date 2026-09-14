@@ -342,9 +342,18 @@ static void copy_patch(void) {
     if (fb)
         printh("    instrument_filter(5, %s, %d, %d);",
                PM_FILTER_NAME[fb], pm_cut_hz(p->v[V_CUT]), pm_res(p->v[V_RES]));
-    if (p->f[F_DRIVE] > 0.02f)
+    if (fabsf(p->v[V_DUTY] - 0.5f) > 0.02f)
+        printh("    instrument_duty(5, %.3ff);", p->v[V_DUTY]);
+    if (pm_unison_n(p->v[V_UNISON]) > 1)
+        printh("    instrument_unison(5, %d, %.3ff);",
+               pm_unison_n(p->v[V_UNISON]), pm_detune_st(p->v[V_DETUNE]));
+    if (pm_sync_ratio(p->v[V_SYNC]) > 0.02f)
+        printh("    instrument_sync(5, %.3ff);", pm_sync_ratio(p->v[V_SYNC]));
+    if (pm_bandlimit_on(p->v[V_BANDLIMIT]))
+        printh("    instrument_bandlimit(5, 1);");
+    if (p->v[V_DRIVE] > 0.02f)
         printh("    instrument_drive(5, %.3ff);  instrument_drive_mode(5, %s);",
-               p->f[F_DRIVE], PM_DRIVE_NAME[pm_bin(p->f[F_DRIVEMODE], 4)]);
+               p->v[V_DRIVE], PM_DRIVE_NAME[pm_bin(p->v[V_DRIVEMODE], 4)]);
     if (p->f[F_TAPEWOW] > 0.02f || p->f[F_TAPEFLUT] > 0.02f || p->f[F_TAPESAT] > 0.02f)
         printh("    instrument_tape(5, %.3ff, %.3ff, %.3ff);",
                p->f[F_TAPEWOW], p->f[F_TAPEFLUT], p->f[F_TAPESAT]);

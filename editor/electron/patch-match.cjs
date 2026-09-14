@@ -164,11 +164,14 @@ function unechoFb(fb) { return fb / 0.9 }
 function uneqDb(db) { return db / 24 + 0.5 }
 
 function defaultPatch(engine) {
-  const v = new Array(19).fill(0.5)
+  const v = new Array(28).fill(0.5)
   v[3] = 0; v[4] = 0.5; v[5] = 0.9; v[6] = 0.2          // ATK DEC SUS REL
   v[7] = 0                                               // FMODE off
   v[10] = 0; v[11] = 0.3                                 // ENVAMT ENVDEC
   v[12] = 0; v[13] = 0.5; v[14] = 0                      // VIBDEP VIBRATE TREMDEP
+  v[21] = 0.5                                            // DUTY square
+  v[22] = 0; v[23] = 0; v[24] = 0; v[25] = 0             // UNISON DETUNE SYNC BANDLIMIT off
+  v[26] = 0; v[27] = 0                                   // DRIVE off
   const f = new Array(23).fill(0)
   f[20] = f[21] = f[22] = 0.5                            // EQ flat
   return { engine, nmode: 0, v, f }
@@ -184,6 +187,12 @@ function parseVecLine(snippet) {
   p.nmode = parseInt(m[2], 10)
   for (let i = 0; i < v.length && i < p.v.length; i++) p.v[i] = clamp01(v[i])
   for (let i = 0; i < f.length && i < p.f.length; i++) p.f[i] = clamp01(f[i])
+  // old pm:vec put drive on f[0]/f[1]. A 19-float voice vector is that era —
+  // lift the amount into the voice slot so a stored fold patch still folds.
+  if (v.length <= 19 && (p.f[0] || 0) > 0.02) {
+    p.v[26] = clamp01(p.f[0])
+    p.v[27] = clamp01(p.f[1] || 0)
+  }
   return p
 }
 
@@ -221,11 +230,26 @@ function snippetToPatch(snippet, engineName) {
   if (trm) { p.v[13] = clamp01(unvibHz(+trm[1])); p.v[14] = clamp01(+trm[2]) }
   const modes = [...src.matchAll(/instrument_mode\s*\(\s*\d+\s*,\s*\d+\s*,\s*([0-9.]+)f?/g)]
   p.nmode = modes.length
-  modes.forEach((m, i) => { if (i < 4) p.v[15 + i] = clamp01(+m[1]) })
+  modes.forEach((m, i) => { if (i < 6) p.v[15 + i] = clamp01(+m[1]) })
   const drv = /instrument_drive\s*\(\s*\d+\s*,\s*([0-9.]+)f?/.exec(src)
-  if (drv) p.f[0] = clamp01(+drv[1])
+  if (drv) p.v[26] = clamp01(+drv[1])
   const drm = /instrument_drive_mode\s*\(\s*\d+\s*,\s*(DRIVE_[A-Z]+)/.exec(src)
-  if (drm && DRIVE_BIN[drm[1]] !== undefined) p.f[1] = (DRIVE_BIN[drm[1]] + 0.5) / 4
+  if (drm && DRIVE_BIN[drm[1]] !== undefined) p.v[27] = (DRIVE_BIN[drm[1]] + 0.5) / 4
+  const duty = /instrument_duty\s*\(\s*\d+\s*,\s*([0-9.]+)f?/.exec(src)
+  if (duty) p.v[21] = clamp01(+duty[1])
+  const uni = /instrument_unison\s*\(\s*\d+\s*,\s*(-?\d+)\s*,\s*([0-9.]+)f?/.exec(src)
+  if (uni) {
+    const n = Math.max(1, Math.min(7, +uni[1]))
+    p.v[22] = (n - 0.5) / 7
+    p.v[23] = clamp01(+uni[2] / 0.7)
+  }
+  const sync = /instrument_sync\s*\(\s*\d+\s*,\s*([0-9.]+)f?/.exec(src)
+  if (sync) {
+    const r = +sync[1]
+    p.v[24] = r < 0.02 ? 0 : clamp01((r - 1) / 3)
+  }
+  const bl = /instrument_bandlimit\s*\(\s*\d+\s*,\s*(-?\d+)/.exec(src)
+  if (bl) p.v[25] = +bl[1] ? 0.75 : 0.25
   const tape = /instrument_tape\s*\(\s*\d+\s*,\s*([0-9.]+)f?\s*,\s*([0-9.]+)f?\s*,\s*([0-9.]+)f?/.exec(src)
   if (tape) { p.f[2] = clamp01(+tape[1]); p.f[3] = clamp01(+tape[2]); p.f[4] = clamp01(+tape[3]) }
   const cr = /instrument_crush\s*\(\s*\d+\s*,\s*([0-9.]+)f?\s*,\s*([0-9.]+)f?\s*,\s*([0-9.]+)f?/.exec(src)
@@ -436,6 +460,24 @@ function selfcheck() {
       'INSTR_SAW')
     t('pm:vec wins over the instrument() engine', vec.engine === 18 && Math.abs(vec.v[0] - 0.155) < 1e-6)
     t('pm:vec keeps the printed ADSR from being inverse-mapped', Math.abs(vec.v[3] - 0.1) < 1e-6)
+
+    const oldDrive = snippetToPatch(
+      '    // pm:vec 1 0 0.50000,0.50000,0.50000,0.00000,0.50000,0.90000,0.20000,0.00000,0.50000,0.50000,0.00000,0.30000,0.00000,0.50000,0.00000,0.50000,0.50000,0.50000,0.50000 | 0.40000,0.62000,0.00000,0.00000,0.00000,0.00000,0.00000,0.00000,0.00000,0.00000,0.00000,0.00000,0.00000,0.00000,0.00000,0.00000,0.00000,0.00000,0.00000,0.00000,0.50000,0.50000,0.50000\n' +
+      '    instrument(5, INSTR_SAW, 2, 90, 7, 120);\n',
+      'INSTR_SAW')
+    t('old 19-float vec lifts f[0] drive into the voice slot', Math.abs(oldDrive.v[26] - 0.4) < 1e-6 && Math.abs(oldDrive.v[27] - 0.62) < 1e-6)
+
+    const analog = snippetToPatch(
+      '    instrument(5, INSTR_SQUARE, 10, 80, 6, 180);\n' +
+      '    instrument_duty(5, 0.120f);\n' +
+      '    instrument_unison(5, 7, 0.385f);\n' +
+      '    instrument_sync(5, 2.200f);\n' +
+      '    instrument_bandlimit(5, 1);\n' +
+      '    instrument_drive(5, 0.700f);  instrument_drive_mode(5, DRIVE_FOLD);\n',
+      'INSTR_SQUARE')
+    t('inverse seed recovered duty', Math.abs(analog.v[21] - 0.12) < 1e-6)
+    t('inverse seed recovered unison count', analog.v[22] > 0.8)
+    t('inverse seed recovered fold amount', Math.abs(analog.v[26] - 0.7) < 1e-6)
 
     const cart = `head\n${SLOT_BEGIN}\nold junk\n${SLOT_END}\ntail`
     const out = spliceSlots(cart, r)

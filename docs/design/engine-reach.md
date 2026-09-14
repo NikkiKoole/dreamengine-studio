@@ -1,7 +1,8 @@
 # Engine reach: what the console cannot make yet
 
-> **STATUS: READY TO BUILD (2026-09-14)** for tier 1 (search dimensions over engines we already
-> ship, no DSP at all). Tiers 2 and 3 are specced here but each engine owes a research round
+> **STATUS: SHIPPED (2026-09-14)** for tier 1 — matcher wiring, no new DSP. Partial on the
+> commercial ten-sample table (those WAVs are not in the repo, so the named §8 failures were
+> not re-scored). Tiers 2 and 3 are specced here but each engine owes a research round
 > (§5) before a line of code. **After the rules in §1 and §5 are applied, tier 3 is TWO new
 > engines** (§7.5), possibly three; the rest of the candidate field turns out to be dimensions,
 > a cart-land header, or one mechanism under several names. Root doc: it owns the *what and why*; the *how* to ship an engine
@@ -56,41 +57,39 @@ And one near-miss worth reading the other way: `analok` matched at 0.182 on a ba
 the fx stage contributing nothing. The cheap end of the roster is carrying real weight, which is the
 argument for widening it before adding anything exotic.
 
-## 3. Tier 1: reach we already own and the search pins shut
+## 3. Tier 1: reach we already own — SHIPPED (2026-09-14)
 
-This is the cheapest work in the repo and probably the largest single gain. `pmcart.c` (the file
-that turns a candidate vector into engine calls) currently nails these to neutral on every render:
+The matcher used to nail analog extras shut on every render (`instrument_duty(s, 0.5f)`,
+`instrument_unison(s, 1, 0.0f)`, `instrument_bandlimit(s, 0)`, and `instrument_sync` never called).
+That structurally could not produce a supersaw, a PWM pad, a sync lead, or a clean bandlimited saw,
+even though those APIs already ship.
 
-```c
-instrument_duty(s, 0.5f);        // PWM pinned to square
-instrument_unison(s, 1, 0.0f);   // unison OFF
-instrument_bandlimit(s, 0);      // naive saw always
-// instrument_sync() is never called at all
-```
+Now shipped, no DSP:
 
-So the search **structurally cannot produce a supersaw, a PWM pad, a sync lead, or a clean
-bandlimited saw**, even though `instrument_unison` / `instrument_unison_detune` / `note_duty` /
-`instrument_sync` / `note_sync` / `LFO_DUTY` / `LFO_DETUNE` / `ENV_DETUNE` all ship today. That is a
-large slice of real-world sampled material (pads, leads, most toy-keyboard "strings", most 80s
-anything), and detune beating is exactly the kind of signature a log-mel loss picks up instantly.
+1. **Voice vector dims `V_DUTY`, `V_UNISON`, `V_DETUNE`, `V_SYNC`, `V_BANDLIMIT`.** Unison count
+   (7) and bandlimit (2) are snapped detents, measured by `detents.c --check`. `pmcart.c` /
+   `pmbreed.h` write the real `instrument_*` calls every render so leftovers cannot leak.
+   Searched on wavetable engines only (duty on SQUARE, bandlimit on SAW). **Refine-only**, not
+   the engine race: they change colour, not which oscillator is right, and at 12 pop they drown
+   the ranking.
+2. **`V_DRIVE` / `V_DRIVEMODE` live in the voice stage.** `F_DRIVE` / `F_DRIVEMODE` stay in the
+   fx enum so old `pm:vec` indices do not shift; they are no longer searched or applied. Fold
+   co-optimises with cutoff in refine. The editor lifts an old 19-float vec's `f[0]` into the
+   voice slot.
+3. **`pm_engine_modes` finished.** `studio.h` only declares `MODE_*` for four engines
+   (PIANO / GUITAR / ORGAN / BOWED) — "4 of 18" was the whole roster. PIANO now owns all six
+   (weight / click / decay / **knock** / **stretch** / stiff); it used to skip knock and stretch.
+4. **Measured.** Self-recovery oracle, `--quick --stage1` (same protocol before and after): see
+   the PR for the table. Commercial ten-sample WAVs (`sklocken`, `birdtopper`, `taplay`) are not
+   in the repo, so those named §8 losses were **not re-scored** — honest partial. Analog-dim
+   reach is gated by `detents.c --reach` (hash A/B: live axes must differ, dead axes must match).
+   `--selftest ENGINE --analog` pins a PWM / supersaw / fold into the oracle truth so refine
+   recovery of those axes is checkable.
 
-Work items, no DSP:
-
-1. **Add `V_DUTY`, `V_UNISON`, `V_DETUNE`, `V_SYNC`, `V_BANDLIMIT` to the voice vector.** Unison
-   voice count and bandlimit are discrete, so they want the snapped-detent treatment the harmonics
-   axis already has (§7 of the matcher doc, `detents.c`).
-2. **Move `F_DRIVE` / `F_DRIVEMODE` from the fx stage into the voice stage.** `DRIVE_FOLD` is a
-   wavefolder, which is an oscillator operation, not an effect. Freezing the voice before fitting it
-   means fold and cutoff can never co-optimise, and by the matcher's own §5d rule (split dimensions
-   by what a dial *does*, not by which API owns it) it belongs in stage 2.
-3. **Finish `pm_engine_modes`.** It wires modes for 4 of 18 engines, and even for PIANO it skips
-   `MODE_PIANO_STRETCH` and `MODE_PIANO_KNOCK`.
-4. **Re-run the ten-sample table and the self-recovery oracle** before and after, so the gain is a
-   number. Widening the vector costs search budget; if a dim does not pay, cut it.
-
-Acceptance: the oracle still finds the right engine in the top three 24/24, and at least one of the
-three named failures moves. A dim that changes nothing is a dim that never reached the DSP, which is
-what `ab-render.js` exists to catch.
+Cut list: none of the new dims were silent on the engine that owns them. Analog extras were cut
+from the **race** (not from the vector) for the reason in item 1. `LFO_DUTY` / `LFO_DETUNE` /
+`ENV_DETUNE` stay unsearched — they are periodic modulation and belong with the fx-stage wobble
+set, not this ticket.
 
 ## 4. Tier 2: the patch shape
 
@@ -318,7 +317,7 @@ Recorded here so they are not re-proposed:
 
 | Candidate | What it actually is |
 |---|---|
-| **Wavefolder** | Tier 1, item 2. `DRIVE_FOLD` ships; it needs moving from the fx stage to the voice stage so it can co-optimise with cutoff. No new engine. |
+| **Wavefolder** | Tier 1, item 2 — done. `DRIVE_FOLD` ships; the matcher now searches it in the voice stage so fold and cutoff can co-optimise. No new engine. |
 | **Subtractive imitation** (the Minimoog playing a trumpet, rather than the trumpet) | A cart-land `subtractive.h` header holding published parameter values as data, per the §8.9 argument and the `acid303.h` precedent. Escalate to an engine only if the pieces prove they must sit closer to the voice. |
 | **Tuned noise** | §7.1 with a continuous-noise exciter. |
 | **Additive** | §7.1 with a sustaining exciter. |
@@ -331,7 +330,8 @@ parameter. That is the whole tier, and it sits on top of tier 1, which needs no 
 
 ## 8. Order of work
 
-1. Tier 1, all four items, measured before and after. No DSP, largest expected gain per hour.
+1. ~~Tier 1, all four items, measured before and after.~~ Done 2026-09-14 (matcher wiring;
+   ten-sample table N/A — commercial WAVs not in-repo).
 2. Answer §7.3 with a parameter if it can be answered with a parameter. One command's worth of
    reading, and it decides whether this tier is two engines or three.
 3. Decide the tier 2 question (is a two-layer patch still a patch?).

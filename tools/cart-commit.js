@@ -37,7 +37,10 @@ const fs = require('fs')
 const path = require('path')
 
 const ROOT = path.resolve(__dirname, '..')
-const COAUTHOR = 'Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>'
+// Deliberately GENERIC. A model name in a trailer rots: it pins a commit to whichever
+// version happened to be running that week, and it was already wrong (this said 4.8 while
+// a 5 wrote the commits). Which agent is not the durable fact; that one worked here is.
+const COAUTHOR = 'Co-Authored-By: an agent <noreply@anthropic.com>'
 
 // ── tiny arg parser ─────────────────────────────────────────────────────────
 const a = process.argv.slice(2)

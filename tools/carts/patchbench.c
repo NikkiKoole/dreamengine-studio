@@ -490,51 +490,63 @@ void draw(void) {
 
 #ifdef DE_SPEC
 #include "spec.h"
+// The de:patch-slots region is EDITOR-OWNED: it holds the built-in seeds on a fresh clone and a
+// real run's candidates the moment you drop a WAV. So nothing here may assert what is IN it.
+// v1 did (live_n == 3, engine == 20) and went red on `--load wisp`, i.e. on the cart being used
+// as designed — a gate that fails on correct usage is worse than no gate, because it teaches you
+// to ignore it. Every expectation below is relative to the region instead: how many pads it
+// declares, and which engine the pad you kept happens to be.
 void spec(void) {
+    const int gen0_n = PB_N < PB_MAXN ? PB_N : PB_MAXN;   // what load_generation0() fills
+    const int keep   = gen0_n > 1 ? 1 : 0;                // some pad that is not the default 0
+
     step(1);                                          // init() + one update
-    expect(live_n == 3, "generation 0 is the built-in set");
+    expect_eq(live_n, gen0_n, "generation 0 is exactly what the region declares");
     expect(undo_n == 0, "no undo on a fresh bench");
     expect(bred == 0, "generation 0 still plays via pb_apply");
     expect_eq(pm_mutate_selfcheck(), 0, "pm_mutate known answers");
 
-    sel = 1;                                          // keep the EPIANO
+    sel = keep;
+    int keep_engine = live[keep].engine;              // whatever the region put on that pad
     breed();
     expect(live_n == 8, "breed fills eight pads");
     expect(bred == 1, "after breed the live vector is the source of truth");
     expect_eq(gen_n, 1, "first breed is generation 1");
     expect_eq(undo_n, 1, "breed pushes one undo");
-    expect(live_kind[1] == 1, "the pick stays the keep, on its own pad");
-    expect(live[1].engine == 20, "keep is still EPIANO");
+    expect(live_kind[keep] == 1, "the pick stays the keep, on its own pad");
+    expect(live[keep].engine == keep_engine, "the keep's engine survives its own litter");
     int moved = 0;
     for (int i = 0; i < 8; i++)
-        if (i != 1 && memcmp(&live[i], &live[1], sizeof(PmPatch)) != 0) moved++;
+        if (i != keep && memcmp(&live[i], &live[keep], sizeof(PmPatch)) != 0) moved++;
     expect(moved >= 6, "the other pads are children, not copies");
-    expect(live[0].engine == 20 && live[7].engine == 20, "children stay in the keep's family");
+    int strayed = 0;                                  // stronger than v1's two spot-checks
+    for (int i = 0; i < 8; i++) if (live[i].engine != keep_engine) strayed++;
+    expect_eq(strayed, 0, "every child stays in the keep's family");
 
     int n1 = live_n, g1 = gen_n;
     undo_breed();
-    expect(live_n == 3, "undo restores the set size");
+    expect_eq(live_n, gen0_n, "undo restores the set size");
     expect(bred == 0, "undo restores generation-0 playback");
     expect_eq(gen_n, 0, "undo restores the generation counter");
     expect_eq(undo_n, 0, "undo consumes the stack");
-    expect(live[1].engine == 20, "undo restores the pick");
+    expect(live[keep].engine == keep_engine, "undo restores the pick");
     expect(n1 == 8 && g1 == 1, "the pre-undo snapshot was the bred litter");
 
     spec_tap('R');
     expect(live_n == 8, "R breeds");
     spec_tap('U');
-    expect(live_n == 3, "U undoes");
+    expect_eq(live_n, gen0_n, "U undoes");
 
     // two breeds, one undo — the stack is a lineage, not a toggle
     breed();
-    int keep_pad = sel;
-    int child_engine = live[keep_pad == 0 ? 1 : 0].engine;
-    breed();
-    expect_eq(gen_n, 2, "second breed is generation 2");
+    int other = (sel == 0) ? 1 : 0;
+    PmPatch gen1_child = live[other];                 // the WHOLE child, not just its engine:
+    breed();                                          // engine is held, so an engine match proves
+    expect_eq(gen_n, 2, "second breed is generation 2");   // nothing about which litter came back
     expect_eq(undo_n, 2, "two litters on the stack");
     undo_breed();
     expect_eq(gen_n, 1, "undo last breed only");
     expect(live_n == 8, "the previous litter is still eight pads");
-    expect(live[keep_pad == 0 ? 1 : 0].engine == child_engine, "gen-1 children come back");
+    expect(memcmp(&live[other], &gen1_child, sizeof(PmPatch)) == 0, "gen-1 children come back exactly");
 }
 #endif

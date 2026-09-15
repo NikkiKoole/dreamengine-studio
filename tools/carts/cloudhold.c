@@ -61,9 +61,9 @@ typedef struct {
 //   GLASS — tiny grains, high density, sparkle detune
 //   DUST  — long grains, sparse, wide pitch wander
 static const Material MAT[NMAT] = {
-    { 170.0f, 32.0f, 0.86f, 0.28f, 0.48f, 0.92f, 0.16f },
-    {  36.0f, 56.0f, 0.70f, 0.52f, 0.36f, 0.90f, 0.34f },
-    { 380.0f,  8.0f, 0.42f, 0.72f, 0.20f, 0.88f, 0.58f },
+    { 170.0f, 32.0f, 0.86f, 0.28f, 0.36f, 0.92f, 0.16f },
+    {  22.0f, 72.0f, 0.78f, 0.62f, 0.28f, 0.90f, 0.48f },
+    { 460.0f,  5.0f, 0.32f, 0.82f, 0.18f, 0.88f, 0.70f },
 };
 static const char *MNAME[NMAT] = { "CLOUD", "GLASS", "DUST" };
 
@@ -129,6 +129,9 @@ static void apply_voice(void) {
         const Material *m = &MAT[material];
         instrument_grains(SL_PAD, m->grain_ms, m->density, m->position,
                           m->scatter, m->feedback, m->mix);
+        // slight pad colour into the next capture (does not recapture a freeze)
+        instrument_filter(SL_PAD, FILTER_LOW,
+            material == MAT_GLASS ? 4200 : material == MAT_DUST ? 1200 : 2400, 1);
         a_mat  = material;
         a_lift = -1;   // re-apply pitch so the new spread lands
     }

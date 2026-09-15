@@ -1,16 +1,30 @@
 # modal — A/B proof, Elements route (timbre = brightness, morph = damping).
-# B toggles the mapping; preset 2 (bowl) re-applies its Elements triple.
+# Same fork gesture as 04-map-a (key 0), then B. Knobs stay put:
+#   harmonics 0.88 / timbre 0.12 / morph 0.95 / excite_hold = strike
+# Elements: short bright STRIKE on a dead-damped bell, same notes.
 # Pair with 04-map-a.script.
 #
 # Re-render: bash tools/clips/modal/render-nr.sh   (Linux DE_NO_RAYLIB)
 #        or: node tools/play.js modal script tools/clips/modal/05-map-b.script \
-#               --headless --frames 180 --wav /opt/cursor/artifacts/modal-map-b.wav
-# frames 180
+#               --headless --frames 280 --wav /opt/cursor/artifacts/modal-map-b.wav
+# frames 280
 down 0 m
 up 1 m
-down 6 2
-up 8 2
+down 6 0
+up 8 0
 down 12 b
 up 14 b
-down 30 a
-up 36 a
+down 24 a
+up 48 a
+down 52 s
+up 76 s
+down 80 d
+up 104 d
+down 108 f
+up 132 f
+down 136 g
+up 160 g
+down 164 h
+up 188 h
+down 192 j
+up 220 j

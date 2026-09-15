@@ -1,13 +1,14 @@
 # modal — recommended mapping, bowed glass (preset 5).
-# Scratch grain + a purer tone into a bell bank. Hold the bar.
+# Continuous friction into the bank: scratch → tone, then a held ring.
+# Not a strike transient + looping ding (that was the old f0-sine AM).
 #
 # Re-render: bash tools/clips/modal/render-nr.sh   (Linux DE_NO_RAYLIB)
 #        or: node tools/play.js modal script tools/clips/modal/03-bowed.script \
-#               --headless --frames 180 --wav /opt/cursor/artifacts/modal-bowed.wav
-# frames 180
+#               --headless --frames 240 --wav /opt/cursor/artifacts/modal-bowed.wav
+# frames 240
 down 0 m
 up 1 m
 down 6 5
 up 8 5
-down 30 a
-up 120 a
+down 24 a
+up 220 a

@@ -2713,8 +2713,14 @@ static inline float sound_modal_sample(Voice *v, float pitch_mul) {
 
     // ── the exciter ────────────────────────────────────────────────────────
     // Strike: short noise burst (STK's recorded marmstk1 is not portable — Elements
-    // STRIKE is the model). Blow: continuous breath noise. Bow: granular scratch +
-    // a purer tone (Elements: "raw scratching granular noise with a purer sound").
+    // STRIKE is the model). Blow: continuous breath noise.
+    // Bow: dedicated friction, not a strike + looping tone. Cook: continuous
+    // interaction does not fall out of feeding the bank raw noise; Elements used
+    // a generator ("raw scratching granular noise with a purer sound"). A sine
+    // at f0 into high-Q modes + 6–17 Hz AM was a doorbell; a 0.22 z1 dump on
+    // every attack (even at strike=0) was the marimba hit in front. Friction
+    // only: hipass scratch + stick-slip noise bursts + a slow rise. The pitched
+    // tone comes FROM the resonators blooming, never from an f0 oscillator.
     float nse = voice_white(v);
     float strike_in = 0.0f;
     if (v->mo_ex_env > 0.0001f) {
@@ -2722,18 +2728,29 @@ static inline float sound_modal_sample(Voice *v, float pitch_mul) {
         v->mo_ex_env *= de_expf(-dt / 0.007f);          // ~7ms strike
     }
     float blow_in = nse;
-    v->mo_bow_ph += (6.0f + 11.0f * v->mo_bow) * dt;    // scratch grain ~6–17 Hz
+
+    float bow_env = 1.0f - de_expf(-(float)v->step_samples * dt / 0.10f); // ~100ms scratch→tone
+    if (bow_env < 0.0f) bow_env = 0.0f;
+    if (bow_env > 1.0f) bow_env = 1.0f;
+    // hipass = rosin scratch; raw noise is the energy the bank needs (blow-loud);
+    // the pitched tone still comes from the resonators, not an f0 sine.
+    float scratch = nse - v->mo_bow_lp;
+    v->mo_bow_lp += 0.07f * (nse - v->mo_bow_lp);
+    // stick-slip ~2–5 Hz: a short noise burst, not a sine AM (that pitched the ding)
+    v->mo_bow_ph += (2.1f + 3.4f * v->mo_bow) * dt;
     if (v->mo_bow_ph >= 1.0f) v->mo_bow_ph -= 1.0f;
-    float grain = 0.35f + 0.65f * (0.5f + 0.5f * de_sin_turns(v->mo_bow_ph));
-    // bow "purer" component tracks the played pitch (the residual tone under the scratch)
-    float bow_tone = de_sin_turns(v->phase);            // carrier rides v->phase already
-    float bow_in = nse * grain * 0.85f + bow_tone * 0.35f;
+    float slip = 0.0f;
+    if (v->mo_bow_ph < 0.035f) slip = 1.0f - v->mo_bow_ph / 0.035f;  // ~8–16 ms
+    float bow_in = (nse * 0.80f + scratch * (0.40f + 0.55f * slip)) * (0.22f + 0.78f * bow_env);
 
     float raw = strike_in * v->mo_strike * 1.45f
               + blow_in   * v->mo_blow   * 0.95f
-              + bow_in    * v->mo_bow    * 0.62f;
+              + bow_in    * v->mo_bow    * 1.50f;
     // one-pole on the exciter (STK Modal::tick). Brightness opens it.
+    // Bow starts brighter (scratch) and warms as the bank takes over.
     float ex_cut = 0.08f + 0.72f * (1.0f - bright);
+    ex_cut += 0.18f * v->mo_bow * (1.0f - bow_env);
+    if (ex_cut > 0.95f) ex_cut = 0.95f;
     v->mo_ex_lp += ex_cut * (raw - v->mo_ex_lp);
     float excit = v->mo_ex_lp;
 
@@ -2741,11 +2758,11 @@ static inline float sound_modal_sample(Voice *v, float pitch_mul) {
     // STK setResonance(normalize=true) sets b0 = 0.5*(1-r²). At T60 ~1–3s that is
     // ~1e-4, so a unit noise burst does not move the mode. A decaying-sine mallet
     // injects amplitude into the oscillator; the filter equivalent is writing z1.
-    // Strike dumps on the attack sample. Blow/bow keep feeding z1, but the dump
-    // is scaled by (1-r): a constant 0.18/sample fights the pole and clips a
-    // held blow (~50–80% full-scale runs on the first Linux proof). Equilibrium
-    // z1 ≈ G * excit, independent of T60.
-    int attack = (v->mo_ex_env > 0.99f);
+    // Strike dumps on the attack sample — and ONLY when there is strike. A 0.22
+    // floor used to put a mallet hit in front of every bow/blow. Blow/bow keep
+    // feeding z1 scaled by (1-r): a constant 0.18/sample fights the pole and
+    // clips a held blow. Equilibrium z1 ≈ G * excit, independent of T60.
+    int attack = (v->mo_ex_env > 0.99f && v->mo_strike > 0.05f);
     float ring = 0.0f;
     for (int m = 0; m < n; m++) {
         float mf = f0 * v->mo_ratio[m];
@@ -2756,21 +2773,24 @@ static inline float sound_modal_sample(Voice *v, float pitch_mul) {
         if (attack)
             v->mo_bq[m].z1 += v->mo_gain[m] * (0.22f + 0.70f * v->mo_strike);
         // (1-r) keeps the held equilibrium independent of T60. Blow (broadband) needs
-        // more dump than bow (a sine already on the fundamental); a constant 0.18/sample
-        // was the clip, a constant 1.15 left breath/bow as whispers.
+        // more dump than bow (the bank supplies the tone as energy accumulates).
         float leak = 1.0f - r;
         if (leak < 0.0f) leak = 0.0f;
-        float g_cont = 2.4f + 12.0f * v->mo_blow + 5.5f * v->mo_bow;
+        float g_cont = 2.4f + 12.0f * v->mo_blow + 14.0f * v->mo_bow;
         v->mo_bq[m].z1 += excit * leak * g_cont;
         ring += sound_biquad_run(&v->mo_bq[m], excit) * v->mo_gain[m];
     }
 
-    float mixed = ring * (1.0f - v->mo_direct) + excit * v->mo_direct;
+    // Bow hears the bank, not the raw scratch (direct is a strike-bleed control).
+    float direct = v->mo_direct * (1.0f - 0.75f * v->mo_bow);
+    float mixed = ring * (1.0f - direct) + excit * direct;
     // DC blocker — resonators near 0 Hz and asymmetric bow/strike inject DC
     float dc = mixed - v->mo_dc_prev + 0.995f * v->mo_dc_state;
     v->mo_dc_prev  = mixed;
     v->mo_dc_state = dc;
-    return dc * v->mo_norm;
+    // Bow has no attack dump, so it needs makeup to sit next to strike/blow
+    // (playbook: every macro position at the same loudness).
+    return dc * v->mo_norm * (1.0f + 1.6f * v->mo_bow);
 }
 
 // One FM sample (2-op + feedback — §8.8.3 in audio-notes). The carrier is v->phase, which

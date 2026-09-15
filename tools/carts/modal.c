@@ -16,8 +16,8 @@
   "lineage": "INSTR_MODAL showcase — the engine-reach §7.1 exciter→resonator bank (excited FILTERS, not decaying sines). The cart is the tuning rig for the two three-macro mappings in engine-reach-macro-mapping.md §2; both stay live as a tappable A/B, not a #define.",
   "description": {
     "summary": "Exciter into resonator — strike, blow, or bow a bank of tuned filters.",
-    "detail": "INSTR_MODAL showcase: a filter bank you put energy into, so one engine covers struck bars, breath/chiff, and additive-ish pads. Eight pentatonic bars plus the three engine macros. Two mappings stay live — tap A/B (or B) to swap the recommended route (geometry / material / exciter) for the Elements route (geometry / brightness / damping) without rebuilding. Named presets (marimba, glass bowl, steel drum, tube, bowed glass, breath) are the acceptance test: if the name does not sound like the name, the mapping is wrong.",
-    "controls": "Tap or sweep the bars (multitouch) · A S D F G H J K strike · 1..6 presets · tap A/B (or B) to swap mapping · drag the sliders · M autoplay · SPACE gliss"
+    "detail": "INSTR_MODAL showcase: a filter bank you put energy into, so one engine covers struck bars, breath/chiff, and additive-ish pads. Eight pentatonic bars plus the three engine macros. Two mappings stay live — tap A/B (or B) to reinterpret the SAME three knobs (recommended: geometry / material / exciter vs Elements: geometry / brightness / damping). That fork is meant to be opposite personalities, not a subtle EQ. 0 loads the hearable-fork gesture (bowed ring vs short strike). Named presets (marimba, glass bowl, steel drum, tube, bowed glass, breath) still voice themselves when you re-pick them. Autoplay walks a scale while sweeping the macros.",
+    "controls": "Tap or sweep the bars (multitouch) · A S D F G H J K strike · 1..6 presets · 0 hearable A/B fork · tap A/B (or B) to swap mapping (same knobs) · drag the sliders · M autoplay (scale + macros) · SPACE gliss"
   },
   "todo": [
     "ear-settle which mapping won (recommended morph=exciter vs Elements morph=damping) — both stay live via A/B until then",
@@ -31,7 +31,8 @@ de:meta */
 // The engine-reach §7.1 bank: tuned FILTERS with an input, so strike / blow / bow is one
 // mechanism (a decaying-sine design would split this back into three engines). Both
 // three-macro routes from engine-reach-macro-mapping.md §2 stay hearable from this one
-// build — tap A/B (or press B). A #define would need two builds and could not be judged
+// build — tap A/B (or press B). Same three knobs, opposite mapping (no rematch).
+// Key 0 is the hearable fork. A #define would need two builds and could not be judged
 // on a phone.
 //
 //   recommended: harmonics = geometry,  timbre = material,   morph = exciter
@@ -39,7 +40,8 @@ de:meta */
 //                (exciter comes from MODE_MODAL_EXCITE, baked per preset)
 //
 // controls: tap/sweep the bars (multitouch) · A S D F G H J K
-//           1..6 presets · tap A/B (or B) mapping · drag sliders · M autoplay · SPACE gliss
+//           1..6 presets · 0 hearable A/B fork · tap A/B (or B) mapping (keeps knobs)
+//           drag sliders · M autoplay (slow scale + macro sweep) · SPACE gliss
 
 #include "studio.h"
 #include "pointer.h"
@@ -76,11 +78,14 @@ static float knob[3] = { 0.62f, 0.22f, 0.06f };
 static int   sel = 0;
 static int   cur_preset = 0;
 static int   elements = 0;          // 0 = recommended, 1 = Elements (MODE_MODAL_MAP)
+static float excite_hold = 0.06f;   // MODE_MODAL_EXCITE — independent of morph (the A/B fork)
+static float mode_pos = 0.32f, mode_direct = 0.12f, mode_modes = 0.25f;
 static bool  autoplay = true;
 static int   apos = 0;
 static int   gliss_rx = -1;
 static int   ab_rx = 0, ab_ry = 0, ab_rw = 88, ab_rh = 16;
 static int   auto_rx = 0, auto_ry = 0, auto_rw = 108, auto_rh = 14;
+static int   fork_rx = 8, fork_ry = 16, fork_rw = 50, fork_rh = 16;
 
 enum { PTR_IDLE, PTR_DRAG, PTR_SWEEP };
 typedef struct { int id, mode, k, prevX; } Ptr;
@@ -112,12 +117,11 @@ static const char *knob_hi(int k) {
 }
 
 static void apply_modes(void) {
-    const Preset *p = (cur_preset >= 0) ? &PRESET[cur_preset] : NULL;
     instrument_mode(I_BAR, MODE_MODAL_MAP,    elements ? 1.0f : 0.0f);
-    instrument_mode(I_BAR, MODE_MODAL_EXCITE, p ? p->excite : knob[2]);
-    instrument_mode(I_BAR, MODE_MODAL_POS,    p ? p->pos    : 0.35f);
-    instrument_mode(I_BAR, MODE_MODAL_DIRECT, p ? p->direct : 0.12f);
-    instrument_mode(I_BAR, MODE_MODAL_MODES,  p ? p->modes  : 0.50f);
+    instrument_mode(I_BAR, MODE_MODAL_EXCITE, excite_hold);
+    instrument_mode(I_BAR, MODE_MODAL_POS,    mode_pos);
+    instrument_mode(I_BAR, MODE_MODAL_DIRECT, mode_direct);
+    instrument_mode(I_BAR, MODE_MODAL_MODES,  mode_modes);
 }
 
 static void apply_knobs(void) {
@@ -128,7 +132,7 @@ static void apply_knobs(void) {
 }
 
 static float damp_of(void)   { return elements ? knob[2] : knob[1]; }
-static float excite_of(void) { return elements ? (cur_preset >= 0 ? PRESET[cur_preset].excite : knob[2]) : knob[2]; }
+static float excite_of(void) { return elements ? excite_hold : knob[2]; }
 
 static int gate_ms(void) {
     float d = damp_of(), ex = excite_of();
@@ -154,16 +158,36 @@ static void set_preset(int p) {
     knob[0] = PRESET[p].h;
     if (elements) { knob[1] = PRESET[p].tB; knob[2] = PRESET[p].mB; }
     else          { knob[1] = PRESET[p].tA; knob[2] = PRESET[p].mA; }
+    excite_hold = PRESET[p].excite;
+    mode_pos = PRESET[p].pos;
+    mode_direct = PRESET[p].direct;
+    mode_modes = PRESET[p].modes;
     apply_knobs();
     strike(4, 6);
 }
 
+// Hearable A/B fork: SAME three knobs, opposite personalities.
+// Recommended (morph=exciter): bright ringing bowed bell.
+// Elements (morph=damping, excite_hold=strike): short bright ping.
+// Paper maps on a bowl strike were too close — this gesture is the ear test.
+static void load_fork(void) {
+    cur_preset = -2;
+    knob[0] = 0.88f;
+    knob[1] = 0.12f;
+    knob[2] = 0.95f;
+    excite_hold = 0.04f;
+    mode_pos = 0.58f;
+    mode_direct = 0.08f;
+    mode_modes = 0.70f;
+    apply_knobs();
+    // No auto-strike: scripts load the fork then play the same notes under
+    // each mapping. A ding here would leave a recommended bow ringing under map-b.
+}
+
 static void toggle_map(void) {
+    // Same gesture, opposite mapping — do NOT rematch preset knobs.
+    // Re-pick 1..6 if you want that route's named voicing.
     elements = !elements;
-    if (cur_preset >= 0) {
-        if (elements) { knob[1] = PRESET[cur_preset].tB; knob[2] = PRESET[cur_preset].mB; }
-        else          { knob[1] = PRESET[cur_preset].tA; knob[2] = PRESET[cur_preset].mA; }
-    }
     apply_knobs();
     strike(4, 5);
 }
@@ -175,6 +199,8 @@ void init(void) {
     for (int b = 0; b < NBAR; b++) midi_of[b] = degree(SCALE_PENTA, 4, b + 1);
     bpm(88);
     glow[2] = 0.6f; glow[5] = 0.9f;
+    // autoplay stays at its file-scope default (on). spec() turns it off
+    // before the first step so a walk cannot rewrite the knobs under test.
 }
 
 void update(void) {
@@ -195,6 +221,7 @@ void update(void) {
     }
 
     if (keyp('B') || (ab_rw > 0 && tapp(ab_rx, ab_ry, ab_rw, ab_rh))) toggle_map();
+    if (keyp('0') || (fork_rw > 0 && tapp(fork_rx, fork_ry, fork_rw, fork_rh))) load_fork();
     if (keyp('M') || (auto_rw > 0 && tapp(auto_rx, auto_ry, auto_rw, auto_rh))) autoplay = !autoplay;
     if (keyp(KEY_SPACE) || (gliss_rx >= 0 && tapp(gliss_rx - 4, SCREEN_H - 16, 72, 16))) gliss();
 
@@ -238,13 +265,20 @@ void update(void) {
         if (p) p->id = PTR_NONE;
     }
 
-    if (autoplay && every(1)) {
-        static const int seq[16] = { 0,4,2,5, 7,4,2,0, 3,5,4,1, 2,4,0,5 };
-        if (beat() % 16 == 0) gliss();
-        else {
-            strike(seq[apos % 16], 5);
-            if (chance(28)) schedule_hit(330, midi_of[(seq[apos % 16] + 4) % NBAR], I_BAR, 3, gate_ms());
-        }
+    if (autoplay && (every(1) || (apos == 0 && frame() == 1))) {
+        // Slow pentatonic walk + a stepped macro sweep so mapping and pitch
+        // move together (not a static note). excite_hold stays strike so the
+        // same walk on Elements is short-damped hits, not a rematch.
+        static const int walk[8] = { 0, 2, 4, 7, 5, 4, 2, 0 };
+        int i = apos & 7;
+        float u = (float)i / 7.0f;
+        knob[0] = 0.16f + 0.74f * u;            // plate → bell
+        knob[1] = 0.14f + 0.08f * (1.0f - u);   // stay ringing
+        knob[2] = 0.05f + 0.90f * u;            // strike → bow (A) / long → dead (B)
+        excite_hold = 0.05f;
+        cur_preset = -1;
+        apply_knobs();
+        strike(walk[i], 6);
         apos++;
     }
 
@@ -265,7 +299,7 @@ void draw(void) {
     print("exciter into resonator", 56, 8, CLR_MEDIUM_GREY);
 
     auto_rx = SCREEN_W - 118; auto_ry = 2; auto_rw = 110; auto_rh = 14;
-    print_right(autoplay ? "M autoplay: on" : "M autoplay: off", SCREEN_W - 10, 8,
+    print_right(autoplay ? "M walk+macros" : "M autoplay: off", SCREEN_W - 10, 8,
                 autoplay ? CLR_LIME_GREEN : CLR_DARK_GREY);
 
     ab_rx = SCREEN_W - 118; ab_ry = 16; ab_rw = 110; ab_rh = 16;
@@ -273,6 +307,11 @@ void draw(void) {
     rect(ab_rx, ab_ry, ab_rw, ab_rh, CLR_WHITE);
     print(elements ? "A/B Elements" : "A/B recommended", ab_rx + 4, ab_ry + 4,
           elements ? CLR_LIGHT_YELLOW : CLR_PEACH);
+
+    fork_rx = 8; fork_ry = 16; fork_rw = 50; fork_rh = 16;
+    rectfill(fork_rx, fork_ry, fork_rw, fork_rh, cur_preset == -2 ? CLR_DARK_BROWN : CLR_BROWNISH_BLACK);
+    rect(fork_rx, fork_ry, fork_rw, fork_rh, cur_preset == -2 ? CLR_LIGHT_YELLOW : CLR_DARK_GREY);
+    print("0 fork", fork_rx + 4, fork_ry + 4, cur_preset == -2 ? CLR_LIGHT_YELLOW : CLR_MEDIUM_GREY);
 
     font(FONT_NORMAL);
     for (int b = 0; b < NBAR; b++) {
@@ -312,7 +351,7 @@ void draw(void) {
     }
 
     font(FONT_TINY);
-    gliss_rx = print("A..K strike   tap/sweep   1..6 presets   ", 10, SCREEN_H - 9, CLR_DARK_GREY);
+    gliss_rx = print("A..K  1..6  0 fork  ", 10, SCREEN_H - 9, CLR_DARK_GREY);
     print("SPACE gliss", gliss_rx, SCREEN_H - 9, CLR_MEDIUM_GREY);
     font(FONT_NORMAL);
 }
@@ -320,6 +359,7 @@ void draw(void) {
 #ifdef DE_SPEC
 #include "spec.h"
 void spec(void) {
+    autoplay = false;
     step(1);
     expect(elements == 0, "boots on the recommended mapping (morph = exciter)");
     expect(spec_close(knob[0], 0.62f, 0.02f), "boots at the marimba geometry");
@@ -328,11 +368,15 @@ void spec(void) {
     expect(spec_close(knob[0], 0.92f, 0.02f), "bowl geometry is near-bell");
     spec_tap('B');
     expect_eq(elements, 1, "B toggles to the Elements mapping");
-    expect(spec_close(knob[1], 0.20f, 0.02f), "re-applied bowl uses the Elements brightness");
-    expect(spec_close(knob[2], 0.18f, 0.02f), "re-applied bowl uses the Elements damping");
+    expect(spec_close(knob[1], 0.12f, 0.02f), "A/B keeps the same gesture (no rematch)");
+    expect(spec_close(knob[2], 0.10f, 0.02f), "morph stays put; mapping reinterprets it");
     spec_tap('B');
     expect_eq(elements, 0, "B toggles back to recommended");
-    expect(spec_close(knob[2], 0.10f, 0.02f), "re-applied bowl restores the recommended exciter");
+    expect(spec_close(knob[2], 0.10f, 0.02f), "knobs still the bowl recommended triple");
+    spec_tap('0');
+    expect_eq(cur_preset, -2, "key 0 loads the hearable A/B fork");
+    expect(spec_close(knob[2], 0.95f, 0.02f), "fork morph is bow (A) / short (B)");
+    expect(spec_close(excite_hold, 0.04f, 0.02f), "fork keeps Elements excite as strike");
     spec_tap('1');
     expect_eq(cur_preset, 0, "key 1 is marimba");
     spec_tap('6');

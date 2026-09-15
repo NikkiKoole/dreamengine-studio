@@ -23,6 +23,8 @@ _Last updated: 2026-09-14 — INSTR_MODAL (exciter→resonator) shipped. See the
   geometry axis (macro-mapping §2c option 1). Showcase: `modal`. Matcher races it (`PM_NENGINES`
   19). Live URL plan: `https://mipolai.com/dreamengine/modal/`. Linux proof
   (DE_NO_RAYLIB, no Raylib): `bash tools/clips/modal/render-nr.sh`.
+  Ear pass 2026-09-15: bow is friction (scratch→tone, not a strike+ding);
+  A/B keeps the same knobs (hearable fork); autoplay walks a scale while macros step.
   [`design/engine-reach.md`](design/engine-reach.md) §7.1 ·
   [`design/engine-reach-modal-research.md`](design/engine-reach-modal-research.md) ·
   [#25](https://github.com/NikkiKoole/dreamengine-studio/issues/25).

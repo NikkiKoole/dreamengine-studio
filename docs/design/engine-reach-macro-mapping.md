@@ -1,6 +1,10 @@
 # Paper round: the macro mappings for both new engines
 
 > **STATUS: PROPOSED (2026-09-14); modal A/B LIVE in the `modal` cart, ear still open.**
+> Hearable fork (2026-09-15): A/B keeps the same three knobs (no rematch). Key `0`
+> loads an extreme same-gesture pair — recommended = bowed ringing bell, Elements =
+> short bright strike — because a bowl strike under both paper maps was too close
+> to hear. Autoplay walks a scale while the macros step.
 > Step 1 of the [`instrument-engines.md`](instrument-engines.md) §8.8.2 playbook for the two
 > engines in [`engine-reach.md`](engine-reach.md) §7. Each fork carries a recommendation AND
 > its alternative, and **both routes are meant to be heard, not read**: §4's runtime toggle

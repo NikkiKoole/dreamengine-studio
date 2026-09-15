@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Render the five modal proof clips on Linux DE_NO_RAYLIB (no Raylib, no xxd, no window).
+# Render the modal proof clips on Linux DE_NO_RAYLIB (no Raylib, no xxd, no window).
 #
 #   bash tools/clips/modal/render-nr.sh [/opt/cursor/artifacts]
 #
@@ -29,21 +29,28 @@ if [ ! -f build/sprites_data.h ] || [ ! -f build/map_data.h ]; then
 fi
 
 cp tools/carts/modal.c build/cart.c
-clang -O2 tools/clips/modal/render-nr.c runtime/studio.c runtime/raylib_compat.c build/cart.c \
+# -lm AFTER the objects — gcc drops the library if it appears first.
+CC="${CC:-clang}"
+command -v "$CC" >/dev/null 2>&1 || CC=gcc
+$CC -O2 tools/clips/modal/render-nr.c runtime/studio.c runtime/raylib_compat.c build/cart.c \
   -I runtime -I build -DDE_NO_RAYLIB=1 \
   -DSCALE=1 -DSCREEN_W=320 -DSCREEN_H=200 -DMAP_W=128 -DMAP_H=64 -DCELL_W=16 -DCELL_H=16 \
-  -lm -lpthread -o build/modal-nr-script
+  -o build/modal-nr-script -lm -lpthread
 
+# script:wav-stem:frames
 pairs=(
-  "01-marimba-strike:modal-marimba-strike"
-  "02-breath-blow:modal-breath-blow"
-  "03-bowed:modal-bowed"
-  "04-map-a:modal-map-a"
-  "05-map-b:modal-map-b"
+  "01-marimba-strike:modal-marimba-strike:180"
+  "02-breath-blow:modal-breath-blow:180"
+  "03-bowed:modal-bowed:240"
+  "04-map-a:modal-map-a:280"
+  "05-map-b:modal-map-b:280"
+  "06-walk:modal-walk:360"
 )
 for pair in "${pairs[@]}"; do
   script="${pair%%:*}"
-  name="${pair##*:}"
-  build/modal-nr-script 180 "tools/clips/modal/${script}.script" "$OUT/${name}.wav"
+  rest="${pair#*:}"
+  name="${rest%%:*}"
+  frames="${rest##*:}"
+  build/modal-nr-script "$frames" "tools/clips/modal/${script}.script" "$OUT/${name}.wav"
 done
-echo "wrote 5 WAVs under $OUT"
+echo "wrote 6 WAVs under $OUT"

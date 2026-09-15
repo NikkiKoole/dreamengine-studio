@@ -381,8 +381,8 @@ typedef struct {
     int    mo_n;                        // active modes this note (4..SOUND_MODAL_MAX)
     float  mo_ex_lp;                    // exciter one-pole (STK: wavetable through envelope + onepole)
     float  mo_ex_env;                   // strike-envelope remaining (0..1, decays in ~8ms)
-    float  mo_bow_ph;                   // bow "purer tone" phase + scratch LFO
-    float  mo_bow_lp;                   // bow-scratch noise filter
+    float  mo_bow_ph;                   // bow stick-slip phase (friction bursts, not an f0 oscillator)
+    float  mo_bow_lp;                   // bow-scratch hipass state (rosin residual)
     float  mo_dc_prev, mo_dc_state;     // output DC blocker (resonators + asymmetric exciters)
     float  mo_direct;                   // un-resonated exciter bleed (STK directGain / Elements strike-bleed)
     float  mo_norm;                     // equal-loudness scale across geometry / mode count

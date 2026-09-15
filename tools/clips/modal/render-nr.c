@@ -27,7 +27,7 @@ static void put_u32(FILE *f, unsigned v) { fputc(v, f); fputc(v>>8, f); fputc(v>
 static void put_u16(FILE *f, unsigned v) { fputc(v, f); fputc(v>>8, f); }
 
 typedef struct { int frame, down, key; } Ev;
-static Ev ev[64];
+static Ev ev[128];
 static int nev;
 
 static int parse_script(const char *path) {

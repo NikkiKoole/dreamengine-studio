@@ -203,23 +203,24 @@ rhythm.
    Hz, and the geometry macro must not drag them.
 6. **The exciter is ours to build.** STK's is a recorded sample, so only the architecture ports.
 
-## 10. Linux proof (2026-09-14, DE_NO_RAYLIB)
+## 10. Linux proof (2026-09-15 ear pass, DE_NO_RAYLIB)
 
 No Raylib / no xxd on the agent VM. `bash tools/clips/modal/render-nr.sh` builds
 `tools/clips/modal/render-nr.c` against `studio.c` + the `modal` cart and drives the
-five committed scripts. Measured after the z1 feed was scaled by `(1-r)` (a constant
-per-sample dump clipped a held blow; a decaying-sine dump on attack is still how a
-strike speaks past STK's tiny `b0`):
+six committed scripts. Ear pass vs the 2026-09-14 clips: bow is friction (no f0
+sine, no strike-dump floor), A/B is a same-gesture fork (not two bowl voicings),
+and a walk clip steps a scale while the macros move.
 
 | clip | peak | rms | clip% | notes |
 |---|---|---|---|---|
-| marimba-strike | 0.42 | −26 dB | 0 | decays; mallet control on the same host was 0.12 |
-| breath-blow | 0.30 | −26 dB | 0 | held A is continuous (rms/sec flat) |
-| bowed | 0.23 | −20 dB | 0 | held A, scratch + tone |
-| map-a (recommended) | 0.08 | −40 dB | 0 | bowl strike |
-| map-b (Elements) | 0.12 | −36 dB | 0 | same bowl, opposite mapping — bytes differ |
+| marimba-strike | 0.42 | −26 dB | 0 | decays |
+| breath-blow | 0.24 | −25 dB | 0 | held A is continuous (rms/sec flat) |
+| bowed | 0.19 | −28 dB | 0 | scratch→tone bloom, then held; rms/sec flat (not a ding) |
+| map-a (recommended) | 0.25 | −28 dB | 0 | fork: bowed ringing walk, rms grows |
+| map-b (Elements) | 0.08 | −49 dB | 0 | same knobs: short bright strikes (~21 dB quieter RMS) |
+| walk | 0.42 | −24 dB | 0 | scale + macros; first note on frame 1 |
 
-Mac: `node tools/play.js modal script tools/clips/modal/<clip>.script --headless --frames 180 --wav out.wav`.
+Mac: `node tools/play.js modal script tools/clips/modal/<clip>.script --headless --frames <n> --wav out.wav`.
 
 ## Sources
 

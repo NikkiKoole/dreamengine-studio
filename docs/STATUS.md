@@ -7,13 +7,23 @@
 > **here**, then fix the prose in the relevant design doc. If a design doc and this file
 > disagree, this file wins.
 
-_Last updated: 2026-09-15 — INSTR_FM4 (four-op FM) shipped. See the top Shipped entry and [`design/engine-reach.md`](design/engine-reach.md) §7.2._
+_Last updated: 2026-09-15 — cloudhold ships freeze as a performed gesture. See the top Shipped entry and [`design/compound-blindspots.md`](design/compound-blindspots.md) §6._
 
 > **This line is a headline, not an entry.** It reached **9,064 characters** and was the only place in the file that recorded `FILTER_DIODE`, `filter-spec.js` and `rebirth-classic.md` — three shipped things, invisible because nobody reads a shipped feature out of a `_Last updated:_` line. They have a real entry now (2026-07-02, above `sprite-draw.js`). Keep this to one date, one sentence, one link; `status-check --check` fails past 900 chars.
 
 ---
 
 ## Shipped ✓
+
+- **CLOUD HOLD: FREEZE AS A PERFORMED GESTURE** (2026-09-15). Compound-blindspot
+  §6 was a product that never got a product cart: `grains_freeze` lived on the
+  `grains` lab and the `pedalboard` GRAINS stomp. `cloudhold` is the boutique
+  pedal — hold a chord, stomp FREEZE, play over the cloud, unfreeze. Existing
+  `FX_GRAINS` / `instrument_grains` / `_freeze` / `_pitch`; no new primitive
+  (ADR-0015). Live URL plan: `https://mipolai.com/dreamengine/cloudhold/`.
+  Linux proof (DE_NO_RAYLIB): `bash tools/clips/cloudhold/render-nr.sh`.
+  [`design/compound-blindspots.md`](design/compound-blindspots.md) §6 ·
+  [#29](https://github.com/NikkiKoole/dreamengine-studio/issues/29).
 
 - **INSTR_FM4: FOUR-OPERATOR FM** (2026-09-15). Engine-reach §7.2's second new engine:
   four operators, the Yamaha OPN/OPM/OPZ eight-algorithm family (TX81Z / DX21 / DX100 /

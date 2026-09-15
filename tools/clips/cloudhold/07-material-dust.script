@@ -1,0 +1,9 @@
+# cloudhold — DUST material, same C hold/freeze as the cloud/glass A/B twins.
+# Re-render: bash tools/clips/cloudhold/render-nr.sh
+# frames 360
+down 0 7
+up 2 7
+down 4 1
+down 220 SPACE
+up 221 SPACE
+up 230 1

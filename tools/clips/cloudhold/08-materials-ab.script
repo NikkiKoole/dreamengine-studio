@@ -1,0 +1,14 @@
+# cloudhold — one freeze, then flip CLOUD → GLASS → DUST on the same buffer.
+# Proof that materials retune scatter, not recapture. Listen: wash → sparkle → smear.
+# Re-render: bash tools/clips/cloudhold/render-nr.sh
+# frames 520
+down 0 5
+up 2 5
+down 4 1
+down 220 SPACE
+up 221 SPACE
+up 230 1
+down 320 6
+up 321 6
+down 420 7
+up 421 7

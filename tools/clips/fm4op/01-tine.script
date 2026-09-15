@@ -1,0 +1,14 @@
+# fm4op — recommended mapping, tine epiano (preset 1).
+# Autoplay is ON at boot; M turns it off so the strike is the only event.
+# 'A' is the lowest key.
+#
+# Re-render: bash tools/clips/fm4op/render-nr.sh   (Linux DE_NO_RAYLIB)
+#        or: node tools/play.js fm4op script tools/clips/fm4op/01-tine.script \
+#               --headless --frames 180 --wav /opt/cursor/artifacts/fm4op-tine.wav
+# frames 180
+down 0 m
+up 1 m
+down 6 1
+up 8 1
+down 30 a
+up 36 a

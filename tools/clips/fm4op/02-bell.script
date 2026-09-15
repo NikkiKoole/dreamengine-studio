@@ -1,0 +1,11 @@
+# fm4op — recommended mapping, tube-bell (preset 2). √2 ratios — inharmonic.
+# Autoplay is ON at boot; M turns it off so the strike is the only event.
+#
+# Re-render: bash tools/clips/fm4op/render-nr.sh   (Linux DE_NO_RAYLIB)
+# frames 180
+down 0 m
+up 1 m
+down 6 2
+up 8 2
+down 30 d
+up 40 d

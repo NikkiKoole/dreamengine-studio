@@ -2846,6 +2846,158 @@ static inline float sound_fm_sample(Voice *v, float pitch_mul) {
     return out;
 }
 
+// ── INSTR_FM4: four-operator FM (engine-reach §7.2) ──────────────────────────
+// Curated Yamaha OPN/OPM/OPZ eight-algorithm family (TX81Z / DX21 / DX100 / DX9),
+// not a free routing matrix and not a DX7. Phase modulation of the accumulator —
+// the 2-op already does the stable thing; we inherit it. Feedback averages two
+// samples (DX7 anti-hunting). Modulator envelopes are linear in dB. Output is
+// one-poled at 16 kHz because FM aliases by construction.
+//
+// Three live macros; depth via MODE_FM4_*. Both mappings from
+// engine-reach-macro-mapping.md §3 are a runtime MODE_FM4_MAP, not a #define.
+// Recommended: harmonics = a snapped VOICING (algorithm + 4 ratios + 4 levels).
+// Alt:         harmonics = the algorithm; ratios from MODE_FM4_R0..R3.
+// Bell voicings carry √2 / φ — the gap the shipped 2-op table cannot close.
+// B′ (irrational detent on INSTR_FM) is DEFERRED: changing RATIO[10] re-voices
+// every existing 2-op patch. The irrationals live here, as data.
+
+#define FM4_NVOICE 8
+#define FM4_NRATIO 13
+
+// src-bitmask per dest op. Feedback on op0 is separate. Sources are always a
+// lower index, so we evaluate 0..3 in order.
+static const unsigned char FM4_MODSRC[8][4] = {
+    { 0x00, 0x01, 0x02, 0x04 },   // 0: 1→2→3→4
+    { 0x00, 0x00, 0x03, 0x04 },   // 1: 1+2 → 3 → 4
+    { 0x00, 0x00, 0x02, 0x05 },   // 2: 1→4, 2→3→4
+    { 0x00, 0x01, 0x00, 0x06 },   // 3: 1→2→4, 3→4
+    { 0x00, 0x01, 0x00, 0x04 },   // 4: 1→2, 3→4          (TX81Z alg 5 / TubeBell)
+    { 0x00, 0x01, 0x01, 0x01 },   // 5: 1→2, 1→3, 1→4
+    { 0x00, 0x01, 0x00, 0x00 },   // 6: 1→2, 3, 4
+    { 0x00, 0x00, 0x00, 0x00 },   // 7: 1, 2, 3, 4
+};
+static const unsigned char FM4_CARRIER[8] = {
+    0x08, 0x08, 0x08, 0x08, 0x0A, 0x0E, 0x0E, 0x0F
+};
+// per-algorithm makeup so a 4-stack and four parallel sines sit at one loudness
+static const float FM4_ALG_GAIN[8] = {
+    1.20f, 1.12f, 1.12f, 1.12f, 0.88f, 0.78f, 0.78f, 0.66f
+};
+
+typedef struct { unsigned char alg; float ratio[4]; float level[4]; } Fm4Voice;
+
+// Snapped voicings (recommended harmonics). Paper order + organ.
+// Irrational ratios are DATA: √2 = TubeBell, 2.414 and φ are the other classics.
+static const Fm4Voice FM4_VOICE[FM4_NVOICE] = {
+    { 4, { 1.00f, 14.00f, 1.00f,  1.00f }, { 0.55f, 0.85f, 0.35f, 0.70f } }, // tine
+    { 4, { 1.00f, 1.414f, 1.00f,  1.414f }, { 0.50f, 0.80f, 0.50f, 0.75f } }, // bell (√2)
+    { 0, { 1.00f,  3.50f, 1.414f, 2.414f }, { 0.70f, 0.65f, 0.55f, 0.80f } }, // metal
+    { 1, { 1.00f,  1.00f, 1.00f,  1.00f }, { 0.75f, 0.55f, 0.70f, 0.90f } }, // brass (default 0.5)
+    { 6, { 0.50f,  0.50f, 1.00f,  2.00f }, { 0.80f, 0.85f, 0.45f, 0.30f } }, // bass
+    { 6, { 1.00f,  2.00f, 3.00f,  4.00f }, { 0.40f, 0.65f, 0.50f, 0.35f } }, // wood
+    { 5, { 1.00f, 2.414f, 3.50f,  1.618f }, { 0.70f, 0.60f, 0.55f, 0.50f } }, // glass
+    { 7, { 0.50f,  1.00f, 2.00f,  3.00f }, { 0.55f, 0.70f, 0.45f, 0.30f } }, // organ
+};
+
+static float fm4_ratio_of(float x) {
+    static const float R[FM4_NRATIO] = {
+        0.50f, 1.00f, 1.41421356f, 1.50f, 1.61803399f, 2.00f, 2.41421356f,
+        3.00f, 3.50f, 4.00f, 5.00f, 7.00f, 14.00f
+    };
+    int i = (int)(clamp01(x) * 12.999f);
+    if (i < 0) i = 0; else if (i > 12) i = 12;
+    return R[i];
+}
+
+static int fm4_snap8(float x) {
+    int i = (int)(clamp01(x) * 7.999f);
+    if (i < 0) i = 0; else if (i > 7) i = 7;
+    return i;
+}
+
+static void fm4_pick(const Voice *v, int *alg, float *ratio, float *level) {
+    int alt = (v->eng_p[MODE_FM4_MAP] >= 0.5f);
+    if (alt) {
+        *alg = fm4_snap8(v->harm);
+        ratio[0] = fm4_ratio_of(v->eng_p[MODE_FM4_R0]);
+        ratio[1] = fm4_ratio_of(v->eng_p[MODE_FM4_R1]);
+        ratio[2] = fm4_ratio_of(v->eng_p[MODE_FM4_R2]);
+        ratio[3] = fm4_ratio_of(v->eng_p[MODE_FM4_R3]);
+        unsigned car = FM4_CARRIER[*alg];
+        for (int i = 0; i < 4; i++)
+            level[i] = (car & (1u << i)) ? 0.70f : 0.60f;
+    } else {
+        const Fm4Voice *vc = &FM4_VOICE[fm4_snap8(v->harm)];
+        *alg = vc->alg;
+        for (int i = 0; i < 4; i++) { ratio[i] = vc->ratio[i]; level[i] = vc->level[i]; }
+    }
+}
+
+static void sound_fm4_start(Voice *v) {
+    for (int i = 0; i < 4; i++) v->fm4_ph[i] = 0.0f;
+    v->fm4_fb = v->fm4_fb_z = v->fm4_lp = 0.0f;
+    v->fm4_on = true;
+}
+
+static inline float sound_fm4_sample(Voice *v, float pitch_mul) {
+    if (!v->fm4_on) return 0.0f;
+    int alg;
+    float ratio[4], level[4];
+    fm4_pick(v, &alg, ratio, level);
+
+    float f0 = v->freq * pitch_mul;
+    if (f0 < 20.0f) f0 = 20.0f;
+    const float sr = (float)SOUND_SAMPLE_RATE;
+    const float nyq = sr * 0.45f;
+    const float dt = 1.0f / sr;
+
+    // timbre = master index on every modulator (clean → bright → screaming).
+    // Decays within the note toward a 25% floor over ~0.9s (the DX strike),
+    // and follows the amp ATTACK so brass swells (the 2-op brass answer).
+    float t = (float)v->step_samples * dt;
+    float db = -26.7f * t;                     // linear in dB, ~24 dB in 0.9s
+    if (db < -24.0f) db = -24.0f;
+    float menv = de_expf(db * 0.115129254f);   // 10^(dB/20)
+    float idx = v->timb * v->timb * 12.0f * (0.25f + 0.75f * menv);
+    if (v->a_samp > 0 && v->step_samples < v->a_samp)
+        idx *= (float)v->step_samples / (float)v->a_samp;
+
+    // DX7 anti-hunting: average the latest feedback sample with the previous one
+    float fb_in = 0.5f * (v->fm4_fb + v->fm4_fb_z);
+    v->fm4_fb_z = v->fm4_fb;
+
+    float op[4];
+    unsigned car = FM4_CARRIER[alg];
+    int ncar = 0;
+    for (int i = 0; i < 4; i++) {
+        float pm = 0.0f;
+        if (i == 0) pm = fb_in * v->mor * 1.3f * SOUND_PI;
+        unsigned src = FM4_MODSRC[alg][i];
+        for (int s = 0; s < i; s++)
+            if (src & (1u << s)) pm += op[s] * idx;
+        float f = f0 * ratio[i];
+        if (f >= nyq || level[i] < 1e-6f) {
+            op[i] = 0.0f;
+        } else {
+            op[i] = de_sinf(v->fm4_ph[i] * SOUND_TWO_PI + pm) * level[i];
+            v->fm4_ph[i] += f * dt;
+            if (v->fm4_ph[i] >= 1.0f) v->fm4_ph[i] -= (float)(int)v->fm4_ph[i];
+        }
+        if (car & (1u << i)) ncar++;
+    }
+    v->fm4_fb = (level[0] > 1e-6f) ? (op[0] / level[0]) : 0.0f;   // unscaled sine for fb
+
+    float mix = 0.0f;
+    for (int i = 0; i < 4; i++)
+        if (car & (1u << i)) mix += op[i];
+    if (ncar < 1) ncar = 1;
+    mix *= FM4_ALG_GAIN[alg] / sqrtf((float)ncar);
+
+    // hardware 16 kHz admission that FM aliases. one-pole, ~0.90 at 44.1 kHz
+    v->fm4_lp += 0.90f * (mix - v->fm4_lp);
+    return v->fm4_lp;
+}
+
 // One PD (Casio CZ phase-distortion) sample — buffer-free, NO note-on init (phase rides
 // v->phase like FM; the only per-note motion is the DCW envelope, which derives from
 // step_samples — the FM beta-decay trick — so it needs zero Voice state). Design + the STEP 0
@@ -4956,6 +5108,7 @@ static inline float sound_engine_sample(Voice *v, float pitch_mul) {
         case INSTR_BRASS:    return sound_brass_sample(v, pitch_mul);
         case INSTR_SAMPLE:   return sound_sample_sample(v, pitch_mul);
         case INSTR_MODAL:    return sound_modal_sample(v, pitch_mul);
+        case INSTR_FM4:      return sound_fm4_sample(v, pitch_mul);
     }
     // fall-through: the modal Karplus-Strong string — any engine id not handled above.
     int alloc = v->ks_len;
@@ -5602,6 +5755,7 @@ static void sound_setup_note(Voice *v, int midi, int slot, int vol, int gate_sam
         v->smp_on = true;
     }
     else if (v->wave == INSTR_MODAL)  sound_modal_start(v);    // arm the filter bank + strike envelope
+    else if (v->wave == INSTR_FM4)    sound_fm4_start(v);      // reset 4 phases + feedback average
     // TRIGGER POLICY (§L4). The engine hooks above have just ARMED this voice's onset transient; if the
     // slot declares itself single-triggering and another key on it is already down, take it back off.
     // Deliberately AFTER the hooks rather than conditional inside them: each engine keeps one place that

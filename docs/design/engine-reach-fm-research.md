@@ -1,10 +1,13 @@
 # Research round: four-operator FM
 
-> **STATUS: RESEARCH COMPLETE (2026-09-14)**, reference RENDERED AND CHARACTERISED (§7), paper
-> design not started. The §5 round owed by [`engine-reach.md`](engine-reach.md) §7.2. It confirms
+> **STATUS: RESEARCH COMPLETE (2026-09-14); ENGINE + CART SHIPPED (2026-09-15) as
+> `INSTR_FM4` / `fm4op`.** Mapping A/B still live. B′ (irrational detent on shipped
+> `INSTR_FM`) is **deferred** — changing `RATIO[10]` re-voices every existing 2-op
+> patch; the irrationals live in the 4-op voicing table instead. The §5 round owed by
+> [`engine-reach.md`](engine-reach.md) §7.2. It confirms
 > four operators, settles both of the questions §7.2 said mattered more than the count, and
-> **turns up a cheap fix to the 2-op engine we already ship** (§3), which is worth having whether or
-> not the 4-op engine ever gets built.
+> **turns up a cheap fix to the 2-op engine we already ship** (§3). B′ deferred that
+> fix onto this engine's voicing table instead of rewriting `INSTR_FM`'s `RATIO[10]`.
 
 ## 1. The standard algorithm, and who published it
 

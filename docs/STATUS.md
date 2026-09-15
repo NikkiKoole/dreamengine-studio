@@ -7,13 +7,28 @@
 > **here**, then fix the prose in the relevant design doc. If a design doc and this file
 > disagree, this file wins.
 
-_Last updated: 2026-09-14 — INSTR_MODAL (exciter→resonator) shipped. See the top Shipped entry and [`design/engine-reach.md`](design/engine-reach.md) §7.1._
+_Last updated: 2026-09-15 — INSTR_FM4 (four-op FM) shipped. See the top Shipped entry and [`design/engine-reach.md`](design/engine-reach.md) §7.2._
 
 > **This line is a headline, not an entry.** It reached **9,064 characters** and was the only place in the file that recorded `FILTER_DIODE`, `filter-spec.js` and `rebirth-classic.md` — three shipped things, invisible because nobody reads a shipped feature out of a `_Last updated:_` line. They have a real entry now (2026-07-02, above `sprite-draw.js`). Keep this to one date, one sentence, one link; `status-check --check` fails past 900 chars.
 
 ---
 
 ## Shipped ✓
+
+- **INSTR_FM4: FOUR-OPERATOR FM** (2026-09-15). Engine-reach §7.2's second new engine:
+  four operators, the Yamaha OPN/OPM/OPZ eight-algorithm family (TX81Z / DX21 / DX100 /
+  DX9) — not a free matrix, not a DX7. Phase-mod of the accumulator (the 2-op already
+  did the stable thing). Three live macros; both paper-round mappings stay hearable via
+  a tappable A/B (`MODE_FM4_MAP`), not a `#define`. Recommended: harmonics = voicing
+  (snapped patch). Alt: harmonics = algorithm, ratios via `MODE_FM4_R0..R3`. Bell
+  voicings carry √2. **B′ deferred:** adding an irrational detent to shipped `INSTR_FM`
+  re-voices every existing 2-op patch (`(int)(harm*9.999)`). Showcase: `fm4op`. Matcher
+  races it (`PM_NENGINES` 20). Live URL plan: `https://mipolai.com/dreamengine/fm4op/`.
+  Linux proof (DE_NO_RAYLIB, no Raylib): `bash tools/clips/fm4op/render-nr.sh`.
+  Patent: Chowning/Stanford expired 1995; cite
+  [`design/engine-reach-fm-research.md`](design/engine-reach-fm-research.md) §8.
+  [`design/engine-reach.md`](design/engine-reach.md) §7.2 ·
+  [#26](https://github.com/NikkiKoole/dreamengine-studio/issues/26).
 
 - **INSTR_MODAL: EXCITER INTO RESONATOR** (2026-09-14). Engine-reach §7.1's first new engine:
   a bank of excited **filters** (not decaying sines), so strike / blow / bow is one mechanism

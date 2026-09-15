@@ -5,9 +5,10 @@
 > not re-scored). **§7.1 (`INSTR_MODAL`) is also SHIPPED** — filter bank + exciter mix +
 > `modal` cart; both three-macro routes stay a live A/B. **§7.3 (note-tracking ringmod) is
 > SHIPPED as a parameter**, not an engine (`ringmod_ratio` / `instrument_ringmod_ratio`).
-> **§7.2 (four-op FM) is next.** Tiers 2 and 3 are specced here but each remaining engine
-> owes a research round (§5) before a line of code. **After the rules in §1 and §5 are applied,
-> tier 3 is TWO new engines** (§7.5) — one of them now ships. Root doc: it owns the *what and why*; the *how* to ship an
+> **§7.2 (`INSTR_FM4`) SHIPPED 2026-09-15** — four operators, eight OPN/OPM/OPZ algorithms,
+> `fm4op` cart; both three-macro routes stay a live A/B. B′ (irrational detent on shipped
+> `INSTR_FM`) is deferred: the 4-op voicings carry √2 instead. Tiers 2 and the remaining
+> open questions sit below. Root doc: it owns the *what and why*; the *how* to ship an
 > engine is the playbook in [`instrument-engines.md`](instrument-engines.md) §8.8.2, and the
 > candidate catalog that predates this doc is §8.9 there.
 
@@ -290,6 +291,11 @@ Two questions the round must settle that matter more than the count:
 - **A curated algorithm set, or a free routing matrix?** A matrix is more general, wrecks
   searchability, and cuts against the §1 mechanism rule. Expect a curated set; say why in the note.
 
+> **SHIPPED (2026-09-15) as `INSTR_FM4` (32).** Four operators, eight OPN/OPM/OPZ algorithms,
+> phase-mod foundation inherited from 2-op. Three live macros; both paper-round mappings stay
+> a live `MODE_FM4_MAP` (recommended = voicing, alt = algorithm). Showcase: `fm4op`.
+> B′ deferred — see the STATUS entry.
+>
 > **§5 RESEARCH ROUND: DONE (2026-09-14).**
 > [`engine-reach-fm-research.md`](engine-reach-fm-research.md). Four operators confirmed, both
 > questions above answered, and one finding that does not wait on this engine at all:
@@ -344,7 +350,8 @@ Recorded here so they are not re-proposed:
 
 ### 7.5 The count
 
-**2 engines, 2 showcase carts, 2 research rounds.** §7.3 was answered with a parameter
+**2 engines, 2 showcase carts, 2 research rounds — both engines now ship
+(`INSTR_MODAL` 2026-09-14, `INSTR_FM4` 2026-09-15).** §7.3 was answered with a parameter
 (`ringmod_ratio` / `instrument_ringmod_ratio` on the shipped insert). That is the whole tier, and
 it sits on top of tier 1, which needs no DSP at all.
 
@@ -360,7 +367,9 @@ it sits on top of tier 1, which needs no DSP at all.
    2026-09-14:** `INSTR_MODAL` + `modal` cart. Research and paper mapping are live; the ear
    still owns which three-macro route won. It was first because it absorbs two other
    candidates; a decaying-sine design would have split it back into three engines.
-5. Research round for §7.2, then its paper design, then the engine, then its cart.
+5. ~~Research round for §7.2, then its paper design, then the engine, then its cart.~~
+   **Done 2026-09-15:** `INSTR_FM4` + `fm4op` cart. Research and paper mapping are live;
+   the ear still owns which three-macro route won. B′ (2-op irrational detent) deferred.
 6. Re-measure. The ten-sample table is the scoreboard for this whole programme, so it gets re-run
    after every tier and the numbers land back in [`patch-matching.md`](patch-matching.md) §8.
 

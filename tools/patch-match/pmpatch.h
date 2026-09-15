@@ -107,8 +107,9 @@ static inline float pm_echo_fb(float x)    { return x * 0.9f; }            // ne
 static inline float pm_eq_db(float x)      { return (x - 0.5f) * 24.0f; }  // ±12 dB
 
 // ── which MODE_* dials an engine actually answers ───────────────────────────
-// studio.h declares MODE_* for five engines (PIANO/GUITAR/ORGAN/BOWED/MODAL).
-// The other 14 have none to wire — "5 of 19" is the whole roster, not a
+// studio.h declares MODE_* for six engines (PIANO/GUITAR/ORGAN/BOWED/MODAL/FM4).
+// FM4's MODE slots are cart depth (alg + ratios); the race searches the 3 macros.
+// The other 14 have none to wire — "6 of 20" is the whole roster, not a
 // shortlist. PIANO owns all six (weight/click/decay/knock/stretch/stiff);
 // earlier this skipped knock (3) and stretch (4). Indices are the MODE_*
 // ids from studio.h, written as literals so this header stays free of it.
@@ -120,6 +121,7 @@ static inline int pm_engine_modes(int engine, int *idx)
         case 19: idx[0]=0; idx[1]=1; idx[2]=6;           return 3;  // ORGAN  perc3rd/percslow/leak
         case 28: idx[0]=0; idx[1]=1; idx[2]=2;           return 3;  // BOWED  pizz/body/size
         case 31: idx[0]=0; idx[1]=1; idx[2]=2;           return 3;  // MODAL  pos/direct/modes (MAP+EXCITE are the A/B fork, not searched)
+        case 32:                                         return 0;  // FM4    macros are the voicing list; MODE alg/ratios are cart depth
         default: return 0;
     }
 }
@@ -152,17 +154,17 @@ static inline int pm_voice_extras(int engine, int *out)
 // The four bare waves are in because a filtered saw or square IS a toy keyboard
 // sound, and leaving them out would force every such target onto a physical
 // model that has to work to imitate one. NOISE is out: the targets are pitched.
-#define PM_NENGINES 19
+#define PM_NENGINES 20
 static const int PM_ENGINE[PM_NENGINES] = {
     0, 1, 2, 4,                              // SQUARE SAW TRI SINE
-    16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 31
+    16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 31, 32
 };
 static const char *const PM_ENGINE_NAME[PM_NENGINES] = {
     "INSTR_SQUARE", "INSTR_SAW", "INSTR_TRI", "INSTR_SINE",
     "INSTR_PLUCK", "INSTR_MALLET", "INSTR_FM", "INSTR_ORGAN", "INSTR_EPIANO",
     "INSTR_PD", "INSTR_MEMBRANE", "INSTR_REED", "INSTR_VOICE", "INSTR_PIPE",
     "INSTR_GUITAR", "INSTR_PIANO", "INSTR_BOWED", "INSTR_BRASS",
-    "INSTR_MODAL"
+    "INSTR_MODAL", "INSTR_FM4"
 };
 static inline const char *pm_engine_name(int e) {
     for (int i = 0; i < PM_NENGINES; i++) if (PM_ENGINE[i] == e) return PM_ENGINE_NAME[i];
@@ -184,13 +186,14 @@ static inline const char *pm_engine_name(int e) {
 // PIANO timbre (53) and BOWED harmonics (85) are quantized too finely to be
 // worth it and behave like continuous axes.
 typedef struct { int engine; int dim; int n; float centre[10]; } PmDetents;
-#define PM_NDETENT 7
+#define PM_NDETENT 8
 static const PmDetents PM_DETENT[PM_NDETENT] = {
     { 18, V_HARM, 10, { 0.050f, 0.155f, 0.255f, 0.355f, 0.455f, 0.555f, 0.655f, 0.755f, 0.855f, 0.955f } }, // FM     carrier:mod ratio
     { 19, V_HARM,  8, { 0.060f, 0.190f, 0.315f, 0.440f, 0.565f, 0.690f, 0.815f, 0.940f } },                 // ORGAN  drawbar registrations
     { 21, V_HARM,  8, { 0.060f, 0.190f, 0.315f, 0.440f, 0.565f, 0.690f, 0.815f, 0.940f } },                 // PD     wavetypes
     { 20, V_HARM,  3, { 0.165f, 0.500f, 0.835f } },                                                         // EPIANO Rhodes/Wurli/Clav
     { 27, V_HARM,  6, { 0.080f, 0.250f, 0.420f, 0.585f, 0.750f, 0.920f } },                                 // PIANO  the six voicings
+    { 32, V_HARM,  8, { 0.060f, 0.190f, 0.315f, 0.440f, 0.565f, 0.690f, 0.815f, 0.940f } },                 // FM4    voicing list (or algorithm on alt map)
     // engine -1 = any: the apply path bins these, so the plateaus are ours to name
     { -1, V_UNISON,    7, { 0.071f, 0.214f, 0.357f, 0.500f, 0.643f, 0.786f, 0.929f } },
     { -1, V_BANDLIMIT, 2, { 0.250f, 0.750f } },
@@ -447,6 +450,7 @@ static inline int pm_mutate_selfcheck(void)
     PM_OK(pm_sync_ratio(0.0f) == 0.0f && pm_sync_ratio(1.0f) > 3.9f);
     { int piano_m[PM_NMODE]; PM_OK(pm_engine_modes(27, piano_m) == 6 && piano_m[3] == 3 && piano_m[4] == 4); }
     { int modal_m[PM_NMODE]; PM_OK(pm_engine_id("MODAL") == 31 && pm_engine_modes(31, modal_m) == 3 && modal_m[2] == 2); }
+    { int fm4_m[PM_NMODE];   PM_OK(pm_engine_id("FM4") == 32 && pm_engine_modes(32, fm4_m) == 0); }
     PM_OK(pm_detents_for(1, V_UNISON) && pm_detents_for(1, V_UNISON)->n == 7);
     PM_OK(strcmp(pm_engine_short(25), "PIPE") == 0);
     PM_OK(fabsf((float)pm_atk_ms(pm_unatk_ms(60)) - 60.0f) <= 1.0f);

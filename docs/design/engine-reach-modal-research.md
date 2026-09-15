@@ -1,12 +1,12 @@
 # Research round: exciter into resonator (the modal bank)
 
-> **STATUS: RESEARCH COMPLETE (2026-09-14)**, reference RENDERED AND CHARACTERISED (§7),
-> paper design not started. The §5 round owed by
+> **STATUS: RESEARCH COMPLETE (2026-09-14); ENGINE + CART SHIPPED (2026-09-14).** Reference
+> RENDERED AND CHARACTERISED (§7). The §5 round owed by
 > [`engine-reach.md`](engine-reach.md) §7.1, answering its six questions with citations and a
 > reference implementation rather than from memory. **It confirms the §7.1 collapse and pins one
-> implementation choice that the collapse silently depends on** (§3 below). Next step is the paper
-> round: the three-macro mapping, per the playbook in [`instrument-engines.md`](instrument-engines.md)
-> §8.8.2 step 1.
+> implementation choice that the collapse silently depends on** (§3 below). Paper-round mapping
+> is a live A/B in the `modal` cart (not frozen). Pinned-Hz modes leave the geometry axis
+> (macro-mapping §2c option 1) — v1 does not implement `MODE_PIN`.
 
 ## 1. The standard algorithm, and who published it
 
@@ -202,6 +202,25 @@ rhythm.
 5. **A mode table of pure ratios is not enough**, measured in §7: some modes are pinned to absolute
    Hz, and the geometry macro must not drag them.
 6. **The exciter is ours to build.** STK's is a recorded sample, so only the architecture ports.
+
+## 10. Linux proof (2026-09-15 ear pass, DE_NO_RAYLIB)
+
+No Raylib / no xxd on the agent VM. `bash tools/clips/modal/render-nr.sh` builds
+`tools/clips/modal/render-nr.c` against `studio.c` + the `modal` cart and drives the
+six committed scripts. Ear pass vs the 2026-09-14 clips: bow is friction (no f0
+sine, no strike-dump floor), A/B is a same-gesture fork (not two bowl voicings),
+and a walk clip steps a scale while the macros move.
+
+| clip | peak | rms | clip% | notes |
+|---|---|---|---|---|
+| marimba-strike | 0.42 | −26 dB | 0 | decays |
+| breath-blow | 0.24 | −25 dB | 0 | held A is continuous (rms/sec flat) |
+| bowed | 0.19 | −28 dB | 0 | scratch→tone bloom, then held; rms/sec flat (not a ding) |
+| map-a (recommended) | 0.25 | −28 dB | 0 | fork: bowed ringing walk, rms grows |
+| map-b (Elements) | 0.08 | −49 dB | 0 | same knobs: short bright strikes (~21 dB quieter RMS) |
+| walk | 0.42 | −24 dB | 0 | scale + macros; first note on frame 1 |
+
+Mac: `node tools/play.js modal script tools/clips/modal/<clip>.script --headless --frames <n> --wav out.wav`.
 
 ## Sources
 

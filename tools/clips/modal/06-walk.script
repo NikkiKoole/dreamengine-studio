@@ -1,0 +1,10 @@
+# modal — moving notes + moving macros (recommended mapping).
+# Autoplay stays ON: a slow pentatonic walk while geometry / material / exciter
+# step each beat (plate+strike → bell+bow). This is the clip that answers
+# "want more notes, gradually moving, while changing macros."
+#
+# Re-render: bash tools/clips/modal/render-nr.sh   (Linux DE_NO_RAYLIB)
+#        or: node tools/play.js modal script tools/clips/modal/06-walk.script \
+#               --headless --frames 360 --wav /opt/cursor/artifacts/modal-walk.wav
+# frames 360
+# (no keys — boot autoplay is the walk)

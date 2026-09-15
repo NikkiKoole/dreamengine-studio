@@ -72,6 +72,34 @@ macros. Gate is dynamic: `600ms + (1−morph)² · 14000ms`.
 > (nylon), and `mariachi` (vihuela / guitarra / guitarrón — one engine, three registers) all
 > reach it now. These eight are still the reference rig.
 
+## INSTR_MODAL — exciter into resonator
+
+All from **modal.c** (showcase). Same base `A1 D0 S7 R1600`; presets vary the three macros
+plus `MODE_MODAL_*`. Two mappings stay live (`MODE_MODAL_MAP`): recommended
+(geometry / material / exciter) and Elements (geometry / brightness / damping, exciter
+from `MODE_MODAL_EXCITE`). The `h/t/m` below are the **recommended** triple.
+
+| name | source cart | recipe | character |
+|---|---|---|---|
+| modal/marimba | modal.c (showcase) | h0.62 t0.22 m0.06 · pos0.32 dir0.12 modes0.25 | Wooden bar, strike, 6 modes — the mallet-gap this engine exists to cover. |
+| modal/bowl | modal.c | h0.92 t0.12 m0.10 · pos0.55 dir0.08 modes0.75 | Glass / singing bowl, high inharmonicity, long ring. |
+| modal/steel | modal.c | h0.18 t0.32 m0.12 · pos0.48 dir0.18 modes0.50 | Steel drum — plate geometry, strike bite from direct gain. |
+| modal/tube | modal.c | h0.72 t0.38 m0.48 · pos0.22 dir0.05 modes0.40 | Stopped tube / blown bar — blow exciter, additive-ish sustain. |
+| modal/bowed | modal.c | h0.88 t0.18 m0.92 · pos0.60 dir0.10 modes0.65 | Bowed glass — continuous friction (scratch→tone) into a bell bank, not a strike + ding. |
+| modal/breath | modal.c | h0.38 t0.55 m0.50 · pos0.20 dir0.22 modes0.15 | Tuned noise / chiff — blow into a few string modes. |
+
+> The named instruments are knob positions, same as mallet.c. If pressing "bowl" does not
+> sound like a glass bowl, the mapping is wrong, not the preset. Toggle A/B in the cart
+> and judge both routes before freezing one.
+>
+> Linux DE_NO_RAYLIB proof (no Raylib / no window):
+> `bash tools/clips/modal/render-nr.sh [/opt/cursor/artifacts]` (six clips: strike /
+> blow / bow / map-a / map-b / walk). Mac: `node tools/play.js modal script
+> tools/clips/modal/01-marimba-strike.script --headless --frames 180 --wav out.wav`.
+> Phone/gallery: `modal` is in `.github/publish-carts.txt`; live URL plan
+> `https://mipolai.com/dreamengine/modal/`. From a machine that can publish:
+> `node tools/build-site.js modal` then the `site/` push in `tools/publish-cart.sh`.
+
 ## INSTR_MALLET — modal struck bar
 
 | name | source cart | recipe | character |

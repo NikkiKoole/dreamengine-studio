@@ -4502,6 +4502,22 @@
     "lineage": "docs/design/teaching-gaps.md Gap type 3 flagged 8 instrument_* per-slot effect variants as zero-cart -- undersold, not under-taught. groovebox.c owns the SUMMED-BUS family (many voices, one shared rack) and pedalboard.c/combo.c own the SERIAL-chain family (one guitar, many pedals); this is the third sibling -- the PER-INSTRUMENT family, where each voice gets its OWN private effect and the rest of the mix stays untouched. Also retrofits ampcab.h (previously only combo/pedalboard/afrobeat/wba) onto a sixth track, and clears strum_notes (an explicit voicing, not a CHORD_* type) on the guitar's re-strum."
   },
   {
+    "title": "modal",
+    "description": "Exciter into resonator — strike, blow, or bow a bank of tuned filters. INSTR_MODAL showcase: a filter bank you put energy into, so one engine covers struck bars, breath/chiff, and additive-ish pads. Eight pentatonic bars plus the three engine macros. Two mappings stay live — tap A/B (or B) to reinterpret the SAME three knobs (recommended: geometry / material / exciter vs Elements: geometry / brightness / damping). That fork is meant to be opposite personalities, not a subtle EQ. 0 loads the hearable-fork gesture (bowed ring vs short strike). Named presets (marimba, glass bowl, steel drum, tube, bowed glass, breath) still voice themselves when you re-pick them. Autoplay walks a scale while sweeping the macros. Tap or sweep the bars (multitouch) · A S D F G H J K strike · 1..6 presets · 0 hearable A/B fork · tap A/B (or B) to swap mapping (same knobs) · drag the sliders · M autoplay (scale + macros) · SPACE gliss",
+    "file": "modal.cart.png",
+    "created": "2026-09-14",
+    "kind": [
+      "instrument",
+      "tech-demo"
+    ],
+    "teaches": [
+      "additive-synth",
+      "analog-voice-modeling",
+      "adsr-envelope"
+    ],
+    "lineage": "INSTR_MODAL showcase — the engine-reach §7.1 exciter→resonator bank (excited FILTERS, not decaying sines). The cart is the tuning rig for the two three-macro mappings in engine-reach-macro-mapping.md §2; both stay live as a tappable A/B, not a #define."
+  },
+  {
     "title": "modal jazz radio",
     "description": "An endless modal-jazz set - the Miles Davis 'So What' homage, and the first station that GENERATES its changes over a MODE instead of functional chords. The chord brain is runtime/harmony.h's HB_DORIAN_STYLE: it floats the i<->IV dorian vamp (that bright major IV is the whole tell), one chord held two bars so nothing's in a hurry, coming home to i at the top of each chorus - the same shared brain the chordwise analyzer names chords with, here running FORWARD to compose. Over an AABA form it lifts a half-step for the B section (the 'So What' key bump: Dm up to Ebm) and settles back. The band: a Harmon-muted trumpet lead (improv.h solos, spare and behind the beat), a Rhodes comping the rootless 3-7-9 voicings, a walking upright bass (chord tone on 1, motion through the middle, chromatic approach into the next root), and brushes at a whisper (swung ride ding ding-ga-ding, hat on 2 and 4, feathered kick). Set form: head, trumpet solo, Rhodes solo, trumpet trades back, head out - R replays the tune, the solos are always new. SPACE next tune, [ ] history, LEFT/RIGHT feel, UP/DOWN tempo, T tone, M power, B band (swap chairs live), H help.",
     "file": "modaljazz.cart.png",

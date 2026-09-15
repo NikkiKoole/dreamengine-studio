@@ -62,7 +62,7 @@ static void wav_close(void) {
 // pair to keep long feedback tails ringing (where libm/FMA ULP differences compound the most).
 static const int ENGINES[] = {
     INSTR_PLUCK, INSTR_MALLET, INSTR_FM,    INSTR_ORGAN, INSTR_EPIANO, INSTR_PD,
-    INSTR_REED,  INSTR_PIPE,   INSTR_GUITAR, INSTR_PIANO, INSTR_BOWED, INSTR_BRASS,
+    INSTR_REED,  INSTR_PIPE,   INSTR_GUITAR, INSTR_PIANO, INSTR_BOWED, INSTR_BRASS, INSTR_MODAL,
 };
 #define NENG ((int)(sizeof(ENGINES) / sizeof(ENGINES[0])))
 static const int MIDIS[] = { 45, 52, 57, 60, 64, 69, 72, 67 };

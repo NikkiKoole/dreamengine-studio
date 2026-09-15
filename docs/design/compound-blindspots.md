@@ -170,7 +170,7 @@ until two real carts fail to agree on a path.
 **Compose, don't grow.** A JSON/text file + `--data`. `sync_beats()` stays the
 external-clock face (MIDI / AU / Link). Do not add a second public clock.
 
-### 6. Grains-freeze product
+### 6. Grains-freeze product — **SHIPPED 2026-09-15** as `cloudhold`
 
 **The scene.** Hold a chord, freeze, the room becomes a pad. Phrase-locker /
 infinite sustain as a *thing you play*, not a demo knob on a teaching cart.
@@ -180,10 +180,13 @@ infinite sustain as a *thing you play*, not a demo knob on a teaching cart.
 GRAINS stomp). Capture-then-freeze sampling (`mic_record`) is a different
 door.
 
-**The blind spot.** The DSP is a product that never got a product cart. The
-`grains` toy proves the texture; it does not ask you to *perform* freeze
-(hold → lock → play over the cloud → unfreeze). Boutique-pedal identity, not a
-new `FX_*`.
+**Shipped.** [`cloudhold`](../../tools/carts/cloudhold.c) is the product cart:
+hold a chord pad → stomp FREEZE → play the keybed over the cloud → unfreeze.
+Boutique-pedal identity on existing `FX_GRAINS`. Not the `grains` lab, not
+`grainchop`'s sampler spike, not a new primitive (ADR-0015).
+[#29](https://github.com/NikkiKoole/dreamengine-studio/issues/29) · live
+`https://mipolai.com/dreamengine/cloudhold/` · Linux proof
+`bash tools/clips/cloudhold/render-nr.sh`.
 
 **Compose, don't grow.** One cart, one gesture, existing `FX_GRAINS`. A new
 freeze primitive fails ADR-0015 on arrival.
@@ -363,7 +366,8 @@ may appear on [`STATUS.md`](../STATUS.md):
 2. **Label `grand`.** File a GitHub issue, parent it under
    [#15](https://github.com/NikkiKoole/dreamengine-studio/issues/15) if it is
    that shape of bet, and keep the design in *its* file. This hub stays
-   EXPLORING.
+   EXPLORING. When the cart ships, shrink the row to a pointer (that's §6
+   `cloudhold` / [#29](https://github.com/NikkiKoole/dreamengine-studio/issues/29)).
 
 Do not graduate by adding an Open bullet to the ledger alone. Do not mark this
 file READY — it is a parking lot. When every row has graduated or been

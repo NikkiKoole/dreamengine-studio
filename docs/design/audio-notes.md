@@ -1571,9 +1571,11 @@ v1, document it on the panel.
     compile-gate `ok` + 900-frame tripwire silent; A/B vs navkit's genuine `processGranularDelay`
     (`tools/navkit-fx-render.c grains` + `grainstest.c`) — crest 7.29 (navkit) / 7.59 (ours) dB, the
     level-independent texture fingerprint matching despite the intentional buffer-size divergence (stochastic
-    effect → character match, not sample-identity). **Showcases: `grains`** (the freeze/cloud toy) +
+    effect → character match, not sample-identity).     **Showcases: `grains`** (the freeze/cloud toy) +
     the **`pedalboard`** GRAINS pedal (`FX_GRAINS` insert: SIZE/DENS/MIX + a discrete FRZ freeze knob;
-    position/scatter/feedback fixed to a shimmer-cloud voicing since the pedal has only 4 knobs).
+    position/scatter/feedback fixed to a shimmer-cloud voicing since the pedal has only 4 knobs) +
+    **`cloudhold`** (2026-09-15, compound-blindspot §6 / #29): the *product* cart — hold a chord,
+    stomp FREEZE, play over the cloud, unfreeze. Boutique-pedal identity, no new `FX_*`.
     **Addendum 2026-06-14 — pitched + reversed grains (building-blocks Block A).** `grains_pitch(semitones,
     spread, reverse)` + `instrument_grains_pitch` (`SR_GRAINS_PITCH`=91/92): per-grain `posInc =
     2^(semitones/12)` set at spawn (the Hanning window still lasts `grainSamples` *output* samples, so it's

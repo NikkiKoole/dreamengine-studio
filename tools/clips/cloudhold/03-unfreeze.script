@@ -1,0 +1,9 @@
+# cloudhold — freeze the C cloud, then unfreeze into silence (recapture eats the pad).
+# Re-render: bash tools/clips/cloudhold/render-nr.sh
+# frames 360
+down 0 1
+down 160 SPACE
+up 161 SPACE
+up 170 1
+down 260 SPACE
+up 261 SPACE

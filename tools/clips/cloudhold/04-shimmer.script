@@ -1,0 +1,9 @@
+# cloudhold — SHIMMER (+12 grains_pitch) then hold / freeze / release.
+# Re-render: bash tools/clips/cloudhold/render-nr.sh
+# frames 240
+down 0 q
+up 2 q
+down 8 1
+down 160 SPACE
+up 161 SPACE
+up 170 1

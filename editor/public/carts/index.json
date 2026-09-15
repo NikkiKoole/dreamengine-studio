@@ -1721,6 +1721,25 @@
     "homage": "Hohner Clavinet D6 + auto-wah"
   },
   {
+    "title": "cloud hold",
+    "description": "Hold a chord, freeze, the room becomes a pad. Play over the cloud, then unfreeze. The product cart for grains_freeze: one gesture, existing FX_GRAINS. Tap a chord pad to hold a soft triad into the granular cloud (or hold 1-4). Stomp FREEZE — capture stops, the buffer loops, the dry chord drops away, and the room is now a pad. Play the keybed over that cloud. Stomp again to recapture. SHIMMER transposes the frozen grains up an octave. Not a teaching demo with a hidden freeze knob: the stomp is the instrument. Cousin of grains (the lab) and grainchop (the sampler spike); this one is the boutique pedal. Tap a chord pad to hold it. Stomp FREEZE to lock the cloud; stomp again to recapture. Play the keys over the pad. SHIMMER = octave-up grains. 1-4 hold chords, SPACE freeze, Q shimmer. Keybed: A-K white, W-E-T-Y-U-O-P black, Z/X octave (+ mouse/touch/MIDI).",
+    "file": "cloudhold.cart.png",
+    "created": "2026-09-15",
+    "orientation": "portrait",
+    "kind": [
+      "instrument"
+    ],
+    "teaches": [
+      "granular-synth",
+      "gesture-loop"
+    ],
+    "collection": [
+      "device-face",
+      "responsive"
+    ],
+    "lineage": "Compound-blindspot §6 product cart: freeze as a performed gesture on existing FX_GRAINS. Hold a chord, lock the cloud, play over it, unfreeze. Boutique-pedal identity — not the grains lab, not grainchop's sampler spike, not a new FX_*. ADR-0015 / #29."
+  },
+  {
     "title": "coaster & slide",
     "description": "Draw a track with the mouse, then watch it run. Flip with M between COASTER - a closed loop where a coupled train circulates forever, fed by a chain-lift (hoist) up the back - and SLIDE - an open water flume where riders flow top-to-bottom, splash at the end, and ride again. Same gravity-along-the-tangent physics core for both. Drag in empty space to lay track, drag a point to reshape it; hold B/S/H/F while drawing to paint boost/slow/hoist zones (green/red/yellow) or flip points (pink) where carts swap to the other rail for corkscrews. Up/down lengthen the train. Support beams drop to the ground automatically. Opens on a ready-made loop. A port of an old LOVE2D toy.",
     "file": "coaster.cart.png",

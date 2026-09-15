@@ -1,14 +1,14 @@
 # Paper round: the macro mappings for both new engines
 
-> **STATUS: PROPOSED (2026-09-14); modal A/B LIVE in the `modal` cart, ear still open.**
-> Hearable fork (2026-09-15): A/B keeps the same three knobs (no rematch). Key `0`
-> loads an extreme same-gesture pair — recommended = bowed ringing bell, Elements =
-> short bright strike — because a bowl strike under both paper maps was too close
-> to hear. Autoplay walks a scale while the macros step.
+> **STATUS: PROPOSED (2026-09-14); modal A/B LIVE in the `modal` cart; FM4 A/B LIVE
+> in the `fm4op` cart; ear still open on both.** Hearable fork (2026-09-15): A/B
+> keeps the same three knobs (no rematch). Modal key `0` is bowed ring vs short
+> strike. FM4 key `0` is √2 tube-bell vs a 1:1 harmonic stack. Autoplay walks a
+> scale while the macros step.
 > Step 1 of the [`instrument-engines.md`](instrument-engines.md) §8.8.2 playbook for the two
 > engines in [`engine-reach.md`](engine-reach.md) §7. Each fork carries a recommendation AND
 > its alternative, and **both routes are meant to be heard, not read**: §4's runtime toggle
-> ships in `modal` (tappable A/B, not a `#define`). FM mapping is still paper-only. Pinned-Hz
+> ships in `modal` and `fm4op` (tappable A/B, not a `#define`). Pinned-Hz
 > wrinkle (§2c): **option 1** — geometry only moves ratios; v1 does not implement `MODE_PIN`.
 
 The constraint is three macros (`harmonics` / `timbre` / `morph`), no per-engine named params ever
@@ -158,12 +158,14 @@ Requirements that follow:
 1. Modal: is `morph` the exciter (recommended) or damping (the Elements answer)? **Both
    live in the `modal` cart; ear still owns the verdict.**
 2. FM: is `harmonics` a voicing list (recommended) or the algorithm?
+   **Both live in the `fm4op` cart; ear still owns the verdict.**
 3. ~~Modal: which answer to the pinned-mode wrinkle (§2c)?~~ **Option 1.** Geometry only
    moves ratios; pinned-Hz modes are not on that axis. v1 has no `MODE_PIN`.
-4. Whether widening the patch vector to five `MODE_` slots happens with the FM engine or before it.
+4. ~~Whether widening the patch vector to five `MODE_` slots happens with the FM engine.~~
+   **No.** The race searches the three macros (8 voicing detents on `V_HARM`).
+   `pm_engine_modes(32)` returns 0 — `MODE_FM4_*` is cart depth, not a matcher dim.
 
-Items 1 and 2 are for the ear, and §4 exists so they can be answered that way. Items 3 and 4 fall out
-once 1 and 2 are settled.
+Items 1 and 2 are for the ear, and §4 exists so they can be answered that way.
 
 ## See also
 

@@ -1,0 +1,26 @@
+# fm4op — A/B proof, recommended route (harmonics = voicing).
+# Key 0 loads the hearable FORK: same three knobs as 05-map-b.
+#   harmonics VDET(1)=bell / timbre 0.70 / morph 0.18
+# Recommended: √2 tube-bell, inharmonic, walking a pentatonic.
+# Pair with 05-map-b.script — opposite personality, not a subtle EQ.
+#
+# Re-render: bash tools/clips/fm4op/render-nr.sh   (Linux DE_NO_RAYLIB)
+# frames 280
+down 0 m
+up 1 m
+down 6 0
+up 8 0
+down 24 a
+up 48 a
+down 52 s
+up 76 s
+down 80 d
+up 104 d
+down 108 f
+up 132 f
+down 136 g
+up 160 g
+down 164 h
+up 188 h
+down 192 j
+up 220 j

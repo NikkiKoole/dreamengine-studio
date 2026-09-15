@@ -31,9 +31,11 @@ the effects-layer plan. **Genre: design exploration.**
 > `INSTR_VOICE`) SHIPPED 2026-06-10 with its mapping LOCKED and documented in `studio.h`
 > (harmonics = VOWEL, timbre = SIZE, morph = EFFORT), plus `voice_nasal`/`voice_consonant`/
 > `voice_coda`; `voice_param()` was the voxlab prototype's raw path and is not public API.
-> See [voice-engine.md](voice-engine.md). **Reach program (2026-09-14):** `INSTR_MODAL` (31)
+> See [voice-engine.md](voice-engine.md). **Reach program (2026-09-14/15):** `INSTR_MODAL` (31)
 > shipped as the first engine-reach §7 engine — not a navkit port. Filter bank + exciter mix.
 > Showcase: `modal`. See [`engine-reach.md`](engine-reach.md) §7.1 and §8.8.11 below.
+> **`INSTR_FM4` (32) shipped 2026-09-15** — four-op, eight OPN/OPM/OPZ algorithms. Showcase:
+> `fm4op`. See §7.2 and §8.8.12 below.
 > What's left on the *navkit* engines is **tweaking/tuning**. To add/tune one: its §8.8.x
 > section + the shipping playbook §8.8.2.
 >
@@ -1411,6 +1413,30 @@ Macros (recommended mapping): `harmonics` = geometry (smooth plate→string→ba
 `MODE_MODAL_POS` / `DIRECT` / `MODES` / `EXCITE` / `MAP` on the aux channel. Mode count is
 a budget (4..12). Pinned-Hz modes leave the geometry axis. Showcase: **modal**.
 
+### 8.8.12 Engine: FM4 — four-operator FM (engine-reach §7.2) — SHIPPED 2026-09-15
+
+Not a navkit port. The second engine of the **reach** program
+([`engine-reach.md`](engine-reach.md) §7.2): four operators, the Yamaha OPN/OPM/OPZ
+eight-algorithm family (TX81Z / DX21 / DX100 / DX9). A free routing matrix would wreck
+searchability and cut against the §1 mechanism rule; six operators is the DX7 and is
+out of scope. Phase modulation of the accumulator — the 2-op already does the stable
+thing; we inherit it. Feedback averages two samples (DX7 anti-hunting). Modulator
+envelopes are linear in dB. Output is one-poled at 16 kHz because FM aliases by
+construction. Research:
+[`engine-reach-fm-research.md`](engine-reach-fm-research.md). Paper macros:
+[`engine-reach-macro-mapping.md`](engine-reach-macro-mapping.md) — both routes stay a
+runtime `MODE_FM4_MAP` in the `fm4op` cart, not a `#define`.
+
+```c
+#define INSTR_FM4     32  // four-op FM — TX81Z/OPN/OPM/OPZ eight-algorithm family
+```
+
+Macros (recommended mapping): `harmonics` = voicing (snapped: tine → bell → metal →
+brass → bass → wood → glass → organ), `timbre` = brightness (master modulator index),
+`morph` = feedback. `MODE_FM4_ALG` / `R0..R3` / `MAP` on the aux channel. Bell voicings
+carry √2. **B′ deferred:** do not change the shipped 2-op `RATIO[10]` — that re-voices
+every existing patch. Showcase: **fm4op**.
+
 ### 8.9 Candidate engine catalog (running wishlist)
 
 The set we'd *like*, beyond the first-bite engines (§8.5). Adding one is mostly: port the
@@ -1422,7 +1448,7 @@ the table's only job is to say what those three mean for each. Grow it freely.
 | Engine | navkit src (§8.7) | buffer | harmonics | timbre | morph | character |
 |---|---|---|---|---|---|---|
 | **Additive / sine** (bell, choir, brass, strings) | additive osc | free | # / spread of partials | spectral tilt (brightness) | per-partial decay + inharmonicity | **Absorbed by `INSTR_MODAL` (2026-09-14).** A sustaining exciter into many modes *is* this row; a decaying-sine additive would have been a third engine beside MALLET/MEMBRANE. See [`engine-reach.md`](engine-reach.md) §7.1. (A *bare* sine is already `INSTR_SINE` — see the MT70 note below) |
-| **FM** (2-op + feedback, DX) | `processFMOscillator` | free | carrier:modulator ratio (snapped table) | mod index (decays in-note) | feedback | DX bells, chimes, e-pianos, clang. Macros *are* the cure for "expert to dial". **Full design + post-ship findings: §8.8.3** — SHIPPED 2026-06-05 |
+| **FM** (2-op + feedback, DX) | `processFMOscillator` | free | carrier:modulator ratio (snapped table) | mod index (decays in-note) | feedback | DX bells, chimes, e-pianos, clang. Macros *are* the cure for "expert to dial". **Full design + post-ship findings: §8.8.3** — SHIPPED 2026-06-05. **Four-op sibling `INSTR_FM4` (32) shipped 2026-09-15** — §8.8.12 / engine-reach §7.2. B′ (√2 on this 2-op table) deferred. |
 | **AM / ring mod** | trivial (≈10 lines native) | free | modulator ratio | AM ↔ ring depth | modulator detune / wave | metallic, robotic, clangorous bells. **Covered.** Fixed-Hz `ringmod()`/`instrument_ringmod()` (`FX_RINGMOD`, 2026-06-14) is the Dalek/atonal clang. Note-TRACKING (ratio follows the played pitch, clang stays harmonic per note) shipped 2026-09-14 as `ringmod_ratio()`/`instrument_ringmod_ratio()` on the same insert — last-started voice, not a new engine. [`engine-reach.md`](engine-reach.md) §7.3 · [`engine-reach-ringmod-research.md`](engine-reach-ringmod-research.md) · showcase `ringtrack`. A chord of *independent* clangs would still be voice-local; that is a different product, not this row. |
 | **Voice / formant** | formant SVF + buzz (§8.3) | free (reuses SVF) | vowel (a→e→i→o→u) | breathiness / brightness | formant shift (size/gender) | choir "aah", vocal-organ, talkbox. **SHIPPED 2026-06-10** as `INSTR_VOICE` (24) — the navkit VoicForm port; shipped macros are harmonics = vowel (U→O→A→E→I), timbre = SIZE, morph = EFFORT, plus `voice_nasal()` + the full consonant/coda phoneme set (`voice_consonant()`/`voice_coda()`). The vowel *filter* also shipped separately as `formant()`/`instrument_formant()` (`FX_FORMANT`) |
 | **Bowed string** (violin/cello) | `processBowedOscillator` (Smith/McIntyre waveguide) | nut+bridge lines, **sum = one period → likely packs into the one `ks_buf`** (split at the bow point; verify at port) | bow position (sul tasto ↔ ponticello) | bow pressure (smooth ↔ scratchy stick-slip) | bow velocity / swell | sustained strings that *speak* — attack scratch, swells. Wants held notes (§6); macros-as-CV is its natural surface. **SHIPPED 2026-06-09** as `INSTR_BOWED` (28) — + `MODE_BOW_PIZZ` pizzicato on the same string |

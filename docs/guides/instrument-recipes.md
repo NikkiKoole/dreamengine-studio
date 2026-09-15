@@ -72,6 +72,36 @@ macros. Gate is dynamic: `600ms + (1−morph)² · 14000ms`.
 > (nylon), and `mariachi` (vihuela / guitarra / guitarrón — one engine, three registers) all
 > reach it now. These eight are still the reference rig.
 
+## INSTR_FM4 — four-operator FM
+
+All from **fm4op.c** (showcase). A DX patch is macros + an ADSR (the engine does not
+bake amplitude). Two mappings stay live (`MODE_FM4_MAP`): recommended
+(voicing / brightness / feedback) and alt (algorithm / brightness / feedback, ratios
+from `MODE_FM4_R0..R3`). The `h/t/m` below are the **recommended** triple.
+
+| name | source cart | recipe | character |
+|---|---|---|---|
+| fm4op/tine | fm4op.c (showcase) | A2 D400 S3 R600 · h0.06 t0.45 m0.10 | DX tine epiano — two 2-op pairs, 14:1 ping + 1:1 body. |
+| fm4op/bell | fm4op.c | h0.19 t0.60 m0.15 | Tube bell — √2 pairs (STK TubeBell / TX81Z alg 5). Inharmonic. |
+| fm4op/metal | fm4op.c | h0.31 t0.85 m0.55 | 4-stack, 3.5 + √2 + 2.414 — clangorous, no common fundamental. |
+| fm4op/brass | fm4op.c | A~70 D~200 S6 R~180 · h0.44 t0.90 m0.40 | Unison 1:1 stack; the slow attack IS the brass. |
+| fm4op/bass | fm4op.c | h0.56 t0.70 m0.25 | Sub-octave 2-op + two sines. |
+| fm4op/wood | fm4op.c | h0.69 t0.40 m0.12 | Milder additive-ish wood. |
+| fm4op/glass | fm4op.c | h0.81 t0.55 m0.20 | One modulator, three carriers; 2.414 / 3.5 / φ. |
+| fm4op/organ | fm4op.c | h0.94 t0.35 m0.05 | Four parallel sines, Hammond-ish footages. |
+
+> The named instruments are knob positions, same as fm.c / modal.c. If pressing "bell"
+> does not sound like a tube bell, the mapping is wrong, not the preset. Toggle A/B
+> in the cart and judge both routes before freezing one.
+>
+> Linux DE_NO_RAYLIB proof (no Raylib / no window):
+> `bash tools/clips/fm4op/render-nr.sh [/opt/cursor/artifacts]` (six clips: tine /
+> bell / brass / map-a / map-b / walk). Mac: `node tools/play.js fm4op script
+> tools/clips/fm4op/01-tine.script --headless --frames 180 --wav out.wav`.
+> Phone/gallery: `fm4op` is in `.github/publish-carts.txt`; live URL plan
+> `https://mipolai.com/dreamengine/fm4op/`. From a machine that can publish:
+> `node tools/build-site.js fm4op` then the `site/` push in `tools/publish-cart.sh`.
+
 ## INSTR_MODAL — exciter into resonator
 
 All from **modal.c** (showcase). Same base `A1 D0 S7 R1600`; presets vary the three macros

@@ -1,0 +1,5 @@
+# fm4op — autoplay walk (scale + macros). Leave M alone: autoplay is ON at boot.
+# Proof that mapping and pitch move together, not a static note.
+#
+# Re-render: bash tools/clips/fm4op/render-nr.sh   (Linux DE_NO_RAYLIB)
+# frames 360

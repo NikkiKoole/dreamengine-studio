@@ -85,7 +85,7 @@ static const int FX_AMOUNT_DIM[8] = { FXD(F_TAPEWOW), FXD(F_CRUSHMIX), FXD(F_CHM
                                       V_VIBDEP };
 
 // ── INTRA-STAGE PROGRESS ────────────────────────────────────────────────────────────────────────
-// A stage used to print its header and then go SILENT for minutes. Stage 1 races 19 engines and says
+// A stage used to print its header and then go SILENT for minutes. Stage 1 races 20 engines and says
 // nothing until the whole table lands at once; stage 3 says nothing at all between its header and the
 // result. On a full search that is several minutes of a cursor not moving, which is indistinguishable
 // from a hang -- and it was reported as one, by the person who wrote the rest of this.

@@ -1,0 +1,11 @@
+# fm4op — recommended mapping, brass (preset 4). Slow attack IS the brass.
+# Hold the key so the swell can speak.
+#
+# Re-render: bash tools/clips/fm4op/render-nr.sh   (Linux DE_NO_RAYLIB)
+# frames 240
+down 0 m
+up 1 m
+down 6 4
+up 8 4
+down 24 f
+up 160 f

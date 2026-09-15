@@ -234,6 +234,7 @@ cleanest examples of "here's what this engine sounds like."
 | **organ** (`organ`) | `INSTR_ORGAN` | Nine drawbar sines per key. |
 | **epiano** (`epiano`) | `INSTR_EPIANO` | Rhodes / Wurlitzer / Clavinet in one. |
 | **fm** (`fm`) | `INSTR_FM` | Two-operator FM — the DX recipe. |
+| **fm4op** (`fm4op`) | `INSTR_FM4` | Four-operator FM — curated Yamaha OPN/OPM/OPZ algorithms (engine-reach §7.2). Live A/B of the two three-macro mappings (voicing vs algorithm). Eight hardware-named presets. |
 | **pd** (`pd`) | `INSTR_PD` | Phase distortion — the Casio CZ sound. |
 | **tabla** (`tabla`) | `INSTR_MEMBRANE` | A struck drumhead. |
 | **handpan** (`handpan`) | `INSTR_MALLET` | A steel hang drum — one ding, eight tone fields, every strike a gesture. |

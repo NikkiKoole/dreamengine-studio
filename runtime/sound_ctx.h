@@ -188,6 +188,11 @@ typedef struct {
     // wave); only the inaudible modulator needs its own phase + the feedback memory.
     // fm_tph is the DX tine ping (1:1 detent only — see sound_fm_sample).
     float  fm_mph, fm_fb, fm_tph;
+    // four-op FM (INSTR_FM4): four phase accumulators + DX-style two-sample feedback
+    // average + a 16 kHz output one-pole (FM aliases by construction; the hardware
+    // admits this). Buffer-free — tens of floats, no delay line. See sound_fm4_sample.
+    float  fm4_ph[4], fm4_fb, fm4_fb_z, fm4_lp;
+    bool   fm4_on;                 // note-on init guard (engine id without a start → silent)
     // tonewheel organ state (INSTR_ORGAN): 9 additive drawbar sines (buffer-free), plus a
     // key-click burst, a percussion ping, and the scanner chorus — whose short delay line
     // borrows the head of ks_buf (organ never touches the Karplus path), so it adds no buffer.

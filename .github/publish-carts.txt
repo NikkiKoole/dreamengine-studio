@@ -8,5 +8,5 @@
 # Keep it SHORT. Each entry is an emcc compile on every run.
 
 modal
-# fm4op
+fm4op
 ringtrack

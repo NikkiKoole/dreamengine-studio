@@ -1,9 +1,9 @@
-# cloudhold — hold C, freeze, release. The cloud must keep sounding.
+# cloudhold — hold C (~3.7s fill), freeze, release. The cloud must keep sounding.
 # Re-render: bash tools/clips/cloudhold/render-nr.sh
 #        or: node tools/play.js cloudhold script tools/clips/cloudhold/01-hold-freeze.script \
-#               --headless --frames 300 --wav /opt/cursor/artifacts/cloudhold-hold-freeze.wav
-# frames 300
+#               --headless --frames 360 --wav /opt/cursor/artifacts/cloudhold-hold-freeze.wav
+# frames 360
 down 0 1
-down 160 SPACE
-up 161 SPACE
-up 170 1
+down 220 SPACE
+up 221 SPACE
+up 230 1

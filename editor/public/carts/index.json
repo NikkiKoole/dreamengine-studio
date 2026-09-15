@@ -1722,7 +1722,7 @@
   },
   {
     "title": "cloud hold",
-    "description": "Hold a chord, freeze, the room becomes a pad. Play over the cloud, then unfreeze. The product cart for grains_freeze: one gesture, existing FX_GRAINS. Tap a chord pad to hold a soft triad into the granular cloud (or hold 1-4). Stomp FREEZE — capture stops, the buffer loops, the dry chord drops away, and the room is now a pad. Play the keybed over that cloud. Stomp again to recapture. SHIMMER transposes the frozen grains up an octave. Not a teaching demo with a hidden freeze knob: the stomp is the instrument. Cousin of grains (the lab) and grainchop (the sampler spike); this one is the boutique pedal. Tap a chord pad to hold it. Stomp FREEZE to lock the cloud; stomp again to recapture. Play the keys over the pad. SHIMMER = octave-up grains. 1-4 hold chords, SPACE freeze, Q shimmer. Keybed: A-K white, W-E-T-Y-U-O-P black, Z/X octave (+ mouse/touch/MIDI).",
+    "description": "Hold a chord, freeze, the room becomes a pad. Play over the cloud, then unfreeze. The product cart for grains_freeze: one gesture, existing FX_GRAINS. Tap a chord pad to hold a saw triad into the granular cloud (or hold 1-4). Stomp FREEZE — capture stops, the buffer loops, the dry chord drops away, and the room is now a pad. CLOUD / GLASS / DUST retune how that capture is scattered (wash / sparkle / smear) — same freeze, different room. Play the keybed over that cloud. Stomp again to recapture. SHIMMER transposes the frozen grains up an octave. Not a teaching demo with a hidden freeze knob: the stomp is the instrument. Cousin of grains (the lab) and grainchop (the sampler spike); this one is the boutique pedal. Tap a chord pad to hold it. CLOUD / GLASS / DUST pick the grain material. Stomp FREEZE to lock the cloud; stomp again to recapture. Play the keys over the pad. SHIMMER = octave-up grains. 1-4 hold chords, 5-7 materials, SPACE freeze, Q shimmer. Keybed: A-K white, W-E-T-Y-U-O-P black, Z/X octave (+ mouse/touch/MIDI).",
     "file": "cloudhold.cart.png",
     "created": "2026-09-15",
     "orientation": "portrait",
@@ -1737,7 +1737,7 @@
       "device-face",
       "responsive"
     ],
-    "lineage": "Compound-blindspot §6 product cart: freeze as a performed gesture on existing FX_GRAINS. Hold a chord, lock the cloud, play over it, unfreeze. Boutique-pedal identity — not the grains lab, not grainchop's sampler spike, not a new FX_*. ADR-0015 / #29."
+    "lineage": "Compound-blindspot §6 product cart: freeze as a performed gesture on existing FX_GRAINS. Hold a chord, lock the cloud, play over it, unfreeze. Boutique-pedal identity — not the grains lab, not grainchop's sampler spike, not a new FX_*. ADR-0015 / #29. CLOUD / GLASS / DUST are grain-recipe stomps (size/density/scatter/pitch-spread), not source pickers."
   },
   {
     "title": "coaster & slide",

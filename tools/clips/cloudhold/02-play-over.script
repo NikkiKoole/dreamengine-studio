@@ -1,17 +1,15 @@
 # cloudhold — hold C, freeze, release, play a lead over the cloud.
 # Re-render: bash tools/clips/cloudhold/render-nr.sh
-# cloudhold — hold C, freeze, release, play a lead over the cloud.
-# Re-render: bash tools/clips/cloudhold/render-nr.sh
-# frames 360
+# frames 420
 down 0 1
-down 160 SPACE
-up 161 SPACE
-up 170 1
-down 190 a
-up 210 a
-down 216 s
-up 236 s
-down 242 d
-up 272 d
-down 280 f
-up 320 f
+down 220 SPACE
+up 221 SPACE
+up 230 1
+down 250 a
+up 270 a
+down 276 s
+up 296 s
+down 302 d
+up 332 d
+down 340 f
+up 380 f

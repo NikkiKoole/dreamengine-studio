@@ -39,10 +39,14 @@ $CC -O2 tools/clips/cloudhold/render-nr.c runtime/studio.c runtime/raylib_compat
 
 # script:wav-stem:frames
 pairs=(
-  "01-hold-freeze:cloudhold-hold-freeze:300"
-  "02-play-over:cloudhold-play-over:360"
-  "03-unfreeze:cloudhold-unfreeze:360"
-  "04-shimmer:cloudhold-shimmer:300"
+  "01-hold-freeze:cloudhold-hold-freeze:360"
+  "02-play-over:cloudhold-play-over:420"
+  "03-unfreeze:cloudhold-unfreeze:420"
+  "04-shimmer:cloudhold-shimmer:360"
+  "05-material-cloud:cloudhold-material-cloud:360"
+  "06-material-glass:cloudhold-material-glass:360"
+  "07-material-dust:cloudhold-material-dust:360"
+  "08-materials-ab:cloudhold-materials-ab:520"
 )
 shot=""
 for pair in "${pairs[@]}"; do
@@ -82,5 +86,5 @@ print("wrote", out, w, "x", h)
 PY
 fi
 
-echo "wrote 4 WAVs under $OUT"
+echo "wrote 8 WAVs under $OUT"
 echo "regenerate: bash tools/clips/cloudhold/render-nr.sh [/opt/cursor/artifacts]"

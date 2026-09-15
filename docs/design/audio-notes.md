@@ -1575,7 +1575,8 @@ v1, document it on the panel.
     the **`pedalboard`** GRAINS pedal (`FX_GRAINS` insert: SIZE/DENS/MIX + a discrete FRZ freeze knob;
     position/scatter/feedback fixed to a shimmer-cloud voicing since the pedal has only 4 knobs) +
     **`cloudhold`** (2026-09-15, compound-blindspot §6 / #29): the *product* cart — hold a chord,
-    stomp FREEZE, play over the cloud, unfreeze. Boutique-pedal identity, no new `FX_*`.
+    stomp FREEZE, play over the cloud, unfreeze. CLOUD / GLASS / DUST retune grain size / density /
+    scatter / pitch-spread (same capture, different room). Boutique-pedal identity, no new `FX_*`.
     **Addendum 2026-06-14 — pitched + reversed grains (building-blocks Block A).** `grains_pitch(semitones,
     spread, reverse)` + `instrument_grains_pitch` (`SR_GRAINS_PITCH`=91/92): per-grain `posInc =
     2^(semitones/12)` set at spawn (the Hanning window still lasts `grainSamples` *output* samples, so it's

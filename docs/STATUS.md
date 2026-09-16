@@ -7,13 +7,25 @@
 > **here**, then fix the prose in the relevant design doc. If a design doc and this file
 > disagree, this file wins.
 
-_Last updated: 2026-09-15 — cloudhold ships freeze as a performed gesture. See the top Shipped entry and [`design/compound-blindspots.md`](design/compound-blindspots.md) §6._
+_Last updated: 2026-09-16 — liveloop ships the capture-then-freeze live looper. See the top Shipped entry and [`design/audio-input-frontier.md`](design/audio-input-frontier.md)._
 
 > **This line is a headline, not an entry.** It reached **9,064 characters** and was the only place in the file that recorded `FILTER_DIODE`, `filter-spec.js` and `rebirth-classic.md` — three shipped things, invisible because nobody reads a shipped feature out of a `_Last updated:_` line. They have a real entry now (2026-07-02, above `sprite-draw.js`). Keep this to one date, one sentence, one link; `status-check --check` fails past 900 chars.
 
 ---
 
 ## Shipped ✓
+
+- **LIVE LOOP: CAPTURE-THEN-FREEZE MIC LAYERS** (2026-09-16). Audio-input-frontier ★1
+  was the loudest unmet mic wish: record → overdub → stacked layers on the ring
+  that already feeds vocoder + GUITAR IN. `liveloop` is the product cart —
+  hold/clap/sing/guitar into the mic, freeze a bar, stack another take, mute
+  and clear. Compose only: `input_monitor` (live-through, ADR-0032) +
+  `mic_record` → `sample_load` → `SAMPLE_LOOP`. Overdub is a new freeze layer,
+  not a circulating PCM ring (ADR-0015: no new primitive unless freeze-stack
+  fails the ear). Linux proof: `bash tools/clips/liveloop/render-nr.sh`.
+  Live URL plan: `https://mipolai.com/dreamengine/liveloop/`.
+  [`design/audio-input-frontier.md`](design/audio-input-frontier.md) ★1 ·
+  [#17](https://github.com/NikkiKoole/dreamengine-studio/issues/17).
 
 - **CLOUD HOLD: FREEZE AS A PERFORMED GESTURE** (2026-09-15). Compound-blindspot
   §6 was a product that never got a product cart: `grains_freeze` lived on the

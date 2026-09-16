@@ -52,10 +52,12 @@ in this engine, but it's not cart-facing and shouldn't grow to be — these two 
    continuous gestures are controller-change streams, both live in one
    timestamped list. This is the right level for the looper.
 
-3. **Audio samples** (a true loop pedal records the rendered waveform). The
-   engine has no PCM capture or playback path at all — biggest lift, least
-   editable, and level 2 already yields "save as songs." Not now; noted as the
-   far end of the spectrum.
+3. **Audio samples** (a true loop pedal records the rendered waveform).
+   **SHIPPED 2026-09-16 as [`liveloop`](../../tools/carts/liveloop.c)** — but as
+   *capture-then-freeze mic layers* (`mic_record` → `sample_load` → `SAMPLE_LOOP`
+   under live `input_monitor`), not this doc's event looper and not a circulating
+   overdub ring. Least editable; the stack is the product. Level 2 (control
+   events) stays `loopstation` / `portapop`'s world.
 
 ### "But the theremin is all tiny continuous tweaks…"
 

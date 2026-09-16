@@ -52,6 +52,7 @@ seconds of mic, freeze it to a PCM buffer, then chop/pitch/loop it like any samp
 | [`humseq`](../../tools/carts/humseq.c) | **hum→MIDI** — hum a melody; a hysteresis note-tracker freezes it to a scale-locked loop played on any `INSTR_*` (vein 2) | capture-then-freeze |
 | [`singsynth`](../../tools/carts/singsynth.c) | **Voice sampler** — hold a vowel, loop it into a keybed instrument you play polyphonically, SK-1-style (vein 3) | capture-then-freeze |
 | [`hardtune`](../../tools/carts/hardtune.c) | **Robot auto-tune** — a saw carrier locked to `snap_scale(mic_pitch)`, vocoded by the live mic; RETUNE slider = hard T-Pain robot ↔ natural glide (vein 3, flavour A) | audio-thread ring (live mic) |
+| [`liveloop`](../../tools/carts/liveloop.c) | **Live looper** — freeze a bar of mic, stack another take, mute/clear. `input_monitor` + capture-then-freeze (`mic_record` → `sample_load`). Overdub = new layer (★1, 2026-09-16) | capture-then-freeze + live monitor |
 
 The engine seam (host owns the device behind `platform.h`; engine analyses + exposes the API)
 is live on **desktop + web**; the vocoder ring runs on the audio thread. Full ship log:
@@ -75,7 +76,8 @@ The practical rule for anything below: if you want it to replay/save, freeze fir
 
 ## What it opens NEXT — the frontier, ranked by juice-per-effort
 
-*Shipped since this doc was written:* **hum→MIDI** ([`humseq`](../../tools/carts/humseq.c) — hum → a
+*Shipped since this doc was written:* the **live looper** ([`liveloop`](../../tools/carts/liveloop.c)
+— 2026-09-16, ★1: capture-then-freeze layers under `input_monitor`), **hum→MIDI** ([`humseq`](../../tools/carts/humseq.c) — hum → a
 scale-locked note loop on any instrument, vein 2) and the **voice sampler**
 ([`singsynth`](../../tools/carts/singsynth.c) — hold a vowel, play your own voice polyphonically,
 vein 3). Both capture-then-freeze (deterministic). What's left:
@@ -87,9 +89,11 @@ master bus 0's DRY mix just before the `fx_order` insert chain — so every mast
 delay pedals) processes your own sound. Dormant unless armed (existing carts byte-identical);
 live-only per ADR-0032. Proven by the spike [`micfuzz`](../../tools/carts/micfuzz.c) (latency
 confirmed good on Mac), then wired into [`pedalboard`](../../tools/carts/pedalboard.c) as the
-**GUITAR IN** toggle — a guitar/voice now runs through the chain you build, order and all. *Still
-open:* the **live looper** (record → overdub → stacked layers) — the loudest unmet wish the demand
-tool keeps surfacing — off the same ring; and live granular. *Prereq: done (ring + `input_monitor`).*
+**GUITAR IN** toggle — a guitar/voice now runs through the chain you build, order and all. *Shipped 2026-09-16:* the **live looper** — [`liveloop`](../../tools/carts/liveloop.c)
+(record → freeze a bar → stack another take → mute/clear) composes `input_monitor`
++ `mic_record` → `sample_load` → `SAMPLE_LOOP`. Overdub is a new freeze layer, not
+a circulating PCM ring. *Still open on this row:* live granular. *Prereq: done
+(ring + `input_monitor`).*
 Detail: [`vocoder.md`](vocoder.md) §"the pedal tier" + [`sound-next-steps.md`](sound-next-steps.md).
 
 **★ 2 — Auto-tune / pitch-correction.** Two very different builds hide under one name:
@@ -147,8 +151,9 @@ The mic turned the engine from a thing that *only speaks* into a thing that *hea
 and remembers* sound. The deterministic side (freeze → sample → chop → arrange) is well down its
 road in [`mic-and-sampling.md`](mic-and-sampling.md). The **live side is the young frontier**: one
 ring, already built, waiting for the pedals and the voice-driven instruments to be plugged into it.
-If we chase one thing next, the live looper is the sweet spot — loudest demand, foundation done,
-honest core.
+The live looper shipped 2026-09-16 as [`liveloop`](../../tools/carts/liveloop.c)
+(capture-then-freeze stack). What's left on the live side is granular, and landing
+the ear on glass.
 
 ## See also
 

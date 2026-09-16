@@ -4033,6 +4033,24 @@
     "genre": "sandbox"
   },
   {
+    "title": "live loop",
+    "description": "Hold, clap, sing, guitar — freeze a bar, stack another, mute and clear. Live monitor while you play. The product cart for the pedal-tier live looper. Arm the mic, stomp REC, a bar (or 2 / 4) freezes into a sample slot and loops under you. Stomp again and a new layer stacks while the old ones play — capture-then-freeze, not a circulating overdub ring. Hear yourself the whole time via input_monitor (the micfuzz / GUITAR IN path). Mute or clear a layer; when all four slots are full the next take bounces the unmuted stack down so you can keep going. Optional WASH is a light echo+tape on the stack (tapeloop DNA), off by default. LIVE monitor does not replay (ADR-0032); frozen layers are plain PCM and do. No mic? D drops a demo layer so the ring still moves. TAP ENABLE then REC (or SPACE) to freeze a bar. REC again to stack. Tap a layer, MUTE / CLR. BARS 1/2/4 (empty stack only). CLICK = metronome. WASH = light echo+tape. -/+ gain. 1-4 select, M mute, BACKSPACE clear, N click, B bars, T wash, D demo layer. Phone: big REC at the thumb.",
+    "file": "liveloop.cart.png",
+    "created": "2026-09-16",
+    "orientation": "portrait",
+    "kind": [
+      "instrument"
+    ],
+    "teaches": [
+      "audio-input"
+    ],
+    "collection": [
+      "device-face",
+      "responsive"
+    ],
+    "lineage": "Audio-input-frontier ★1 product cart: capture-then-freeze mic layers under live input_monitor. loopstation chrome (REC / mute / clear / loop ring), micfuzz path (no new public API). Overdub = another freeze take, not a circulating PCM ring. ADR-0015 / ADR-0032 / #17."
+  },
+  {
     "title": "livetune (live auto-tune spike)",
     "description": "Sing and hear yourself auto-tuned in REAL TIME. Press SPACE, allow the mic, and sing an 'ah' — your pitch snaps onto the scale live while you still sound like you. The ribbon scrolls your pitch (orange) snapping to the notes (green). A spike: the point is whether the latency feels live. Front-end for autotune_mic(root, scale, amount) — streaming TD-PSOLA on the audio thread (docs/design/transparent-autotune.md §live). SPACE opens the mic and turns on live correction: the engine reads the mic ring, tracks the pitch, and re-spaces glottal grains at the snapped target period so your voice comes back in tune, formants kept. A scrolling ribbon shows your live pitch vs where it snaps; a level meter shows it's hearing you; the latency note is the inherent buffering. S cycles the scale; [ / ] ride the correction amount. LIVE — does not replay deterministically (ADR-0032). This is a spike: if it lags or gargles, that's the finding. SPACE: mic + live auto-tune on/off. S: scale. [ / ]: correction amount down/up. Sing an 'ah'.",
     "file": "livetune.cart.png",

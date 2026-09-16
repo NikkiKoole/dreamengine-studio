@@ -2071,7 +2071,7 @@ a broken doc link or `#section`).
 > Hot files: `android/app/src/main/cpp/main.c` (the NativeActivity shell), `android/build.sh`,
 > `docs/design/android-plan.md`.
 
-> **▶ ACTIVE THREAD (2026-08-18) — the audio-input frontier (the engine HEARS *and SPEAKS*).**
+> **▶ ACTIVE THREAD (2026-09-16) — the audio-input frontier (the engine HEARS *and SPEAKS*).**
 > The reddit-gaps drip kept surfacing the SAME blocked wishes (hum→MIDI, pedals, live looping) — all
 > one missing capability: the engine had no ear. Now it does, on every platform, and it vocodes. The
 > arc, spike → ship → instruments → vocoder:
@@ -2115,15 +2115,17 @@ a broken doc link or `#section`).
 >   spike tweaks). See `design/transparent-autotune.md` §"live real-time path" for the full write-up.
 > **Resume-at: [`design/audio-input-frontier.md` → the frontier, ranked](design/audio-input-frontier.md#what-it-opens-next--the-frontier-ranked-by-juice-per-effort).** Auto-tune
 > arc is COMPLETE for the offline feature; the LIVE path is feasible-and-parked (warble). Open frontier, ranked:
-> (1) the **live looper** — the *pedal tier* half of this SHIPPED 2026-07-22 (`input_monitor(gain)`, and
->     `pedalboard` became its own app, **on sale since 2026-08-17**); the looper is the part still open;
+> (1) the **live looper** — **SHIPPED 2026-09-16 as `liveloop`** (capture-then-freeze
+>     stack: `input_monitor` + `mic_record` → `sample_load`). Pedal-tier half of this
+>     SHIPPED 2026-07-22 (`input_monitor(gain)`, and `pedalboard` became its own app,
+>     **on sale since 2026-08-17**); continuous PCM overdub ring is a later maybe;
 > (2) **vocoder v2 tail** — mic-rate resample (non-44.1k device mics drift the ring) + on-device latency tuning;
 > (3) **beatbox→live drum trigger**; (4) **live-autotune warble** if revisited (real-time YIN / phase vocoder).
 > `voxroll` decouples formant/pitch but only on synth `INSTR_VOICE`, not a real-mic corrector.
 > Hot files: `runtime/sound.h` (vocoder + extin ring + `sample_autotune`/`autotune_mic`), `runtime/mic.h`
 > (analysis + record + ring write), `runtime/studio.h`/`.c` (the seam + `DE_MIC_WAV`), the per-host capture
 > (`mic_desktop.h`, `ios/Sources/AudioEngine.swift`, `android/…/main.c`). Reference carts: `vocode`/`voxbox`
-> (vocoder), `mictune` (offline auto-tune), `livetune` (live spike). Test harness: `DE_MIC_WAV=<wav>` + `tools/testdata/`.
+> (vocoder), `mictune` (offline auto-tune), `livetune` (live spike), `liveloop` (freeze-stack looper). Test harness: `DE_MIC_WAV=<wav>` + `tools/testdata/`.
 
 > **▶ ACTIVE THREAD (2026-07-29) — the candy acid RACK (`acidcandy`).**
 > `acidcandy` (160×100 ×4) packages `acidrack`'s guts as the **device-face paradigm** instead of the

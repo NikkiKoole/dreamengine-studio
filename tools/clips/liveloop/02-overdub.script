@@ -1,0 +1,7 @@
+# liveloop — freeze layer 1, wait the wrap, freeze layer 2 on top.
+# Re-render: bash tools/clips/liveloop/render-nr.sh
+# frames 520
+down 8 SPACE
+up 9 SPACE
+down 140 SPACE
+up 141 SPACE

@@ -87,16 +87,26 @@ static float res_amt(void) {
     return sat(k_res) * 15.0f;
 }
 
+// A VOICE COPIES THE SLOT'S FILTER AT NOTE-ON AND NEVER LOOKS AT IT AGAIN:
+// sound.h does `v->flt_cutoff = v->cutoff_target = kt_cut;` once, out of
+// instr_bank[]. So instrument_filter() alone only ever aims the NEXT note, which
+// is why the knobs used to need a retrigger. note_cutoff/note_res retarget a
+// voice that is already sounding, and the engine walks to the new value at
+// SLEW_MED per sample, so it sweeps rather than steps. Ride every live handle,
+// not just the drone's — the keybed keeps one per held note and hands it over
+// through keybed_handle(), which exists for exactly this.
 static void apply_filter(void) {
     int hz = cut_hz();
     int rs = (int)(res_amt() + 0.5f);
     if (hz == a_cut && rs == a_res) return;
-    instrument_filter(SL, FILTER_DIODE, hz, rs);
+    instrument_filter(SL, FILTER_DIODE, hz, rs);   // aims the next note
     a_cut = hz;
     a_res = rs;
-    if (drone_h >= 0) {
-        note_cutoff(drone_h, hz);
-        note_res(drone_h, res_amt());
+    float r = res_amt();
+    if (drone_h >= 0) { note_cutoff(drone_h, hz); note_res(drone_h, r); }
+    for (int m = 0; m < 128; m++) {                // and everything held right now
+        int h = keybed_handle(m);
+        if (h >= 0) { note_cutoff(h, hz); note_res(h, r); }
     }
 }
 

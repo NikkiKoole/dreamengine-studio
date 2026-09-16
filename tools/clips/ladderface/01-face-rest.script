@@ -1,0 +1,6 @@
+# ladderface — idle drone, knobs at rest. The ribbon must still breathe.
+# Re-render: bash tools/clips/ladderface/render-nr.sh
+#        or: node tools/play.js ladderface script tools/clips/ladderface/01-face-rest.script \
+#               --headless --frames 180 --wav /opt/cursor/artifacts/ladderface-face-rest.wav
+# frames 180
+# drone is ON at boot; no keys. Face + sound both live.

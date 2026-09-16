@@ -99,22 +99,21 @@ typedef struct {
 // spread is the ONE the engine clamps, to 0..1 (a semitone), so 0.9 is as wide
 // as a grain cloud here can be.
 //
-// ⚠ CALIBRATION BUILD, DELIBERATELY OVER THE TOP. The maker could still not hear
-// grains at overlap 1.08, so these are set where the grains are separate EVENTS
-// you cannot miss — measured duty cycle (how much of the time anything is
-// sounding at all, frozen, 100% wet):
-//     overlap 5.44 (shipped) → 94%   a continuous drone
-//     overlap 1.08           → 80%
-//     overlap 0.54           → 40%
-//     overlap 0.18           → 13%   pointillist
-//     overlap 0.09           →  8%   droplets
-// Mix is up at 0.85 too, so the cloud is what you hear rather than the chord.
-// That trades away most of the FREEZE step this same cart just gained, so once
-// the grain rate is settled by ear, mix comes back down to ~0.5.
+// The rate was settled BY EAR at the pointillist end, after two rounds where
+// the maker still could not hear grains. Measured duty cycle (how much of the
+// time anything is sounding at all, frozen, 100% wet):
+//     overlap 5.44 (as first shipped) → 94%   a continuous drone
+//     overlap 1.08                    → 80%
+//     overlap 0.54                    → 40%
+//     overlap 0.18  ← CLOUD / GLASS   → 13%   pointillist, grains are events
+//     overlap 0.48  ← DUST            → 41%
+// Mix is back at 0.5 now that the rate is chosen: at the 0.85 of the
+// calibration build the cloud drowned the dry triad, and it is the triad
+// LEAVING that makes the FREEZE stomp an event you hear.
 static const Material MAT[NMAT] = {
-    {  60.0f,  3.0f, 0.86f, 0.80f, 0.30f, 0.85f, 1.00f },
-    {  25.0f,  6.0f, 0.78f, 0.95f, 0.25f, 0.85f, 1.00f },
-    { 400.0f,  1.2f, 0.32f, 0.90f, 0.18f, 0.85f, 0.80f },
+    {  60.0f,  3.0f, 0.86f, 0.80f, 0.30f, 0.50f, 1.00f },
+    {  25.0f,  6.0f, 0.78f, 0.95f, 0.25f, 0.50f, 1.00f },
+    { 400.0f,  1.2f, 0.32f, 0.90f, 0.18f, 0.50f, 0.80f },
 };
 static const char *MNAME[NMAT] = { "CLOUD", "GLASS", "DUST" };
 

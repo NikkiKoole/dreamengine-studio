@@ -1,6 +1,9 @@
 # cloudhold — freeze the C cloud, then unfreeze into silence (recapture eats the pad).
+# 540 frames, not 420: the grains are sparse enough now to keep finding old content,
+# so the recapture takes the CAPTURE BUFFER'S FULL 3 s to clear. Measured digital
+# silence from 8.3 s, which is exactly 5.33 s (the unfreeze) + 3 s.
 # Re-render: bash tools/clips/cloudhold/render-nr.sh
-# frames 420
+# frames 540
 down 0 1
 down 220 SPACE
 up 221 SPACE

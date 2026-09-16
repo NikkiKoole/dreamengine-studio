@@ -50,6 +50,13 @@ de:meta */
 #define DESIGN_W 200
 #define DESIGN_H 320
 
+// The lead has to sit ON TOP of the room it plays over. It used to peak 6 dB
+// UNDER the frozen cloud (-15.3 vs -9.3 dBFS), so playing the keybed added only
+// about 1 dB to the sum and "play over the cloud" never landed. Both slots stay
+// at UNITY and the balance comes from the one honest knob: once the chord is
+// released the frozen cloud is pure wet, so the grain MIX *is* its volume.
+#define LEAD_LEVEL 1.00f
+
 enum { MAT_CLOUD = 0, MAT_GLASS, MAT_DUST };
 
 typedef struct {
@@ -60,10 +67,54 @@ typedef struct {
 //   CLOUD — mid grains, dense wet wash (the default room)
 //   GLASS — tiny grains, high density, sparkle detune
 //   DUST  — long grains, sparse, wide pitch wander
+//
+// MIX IS THE WHOLE GESTURE, and it used to be wrong. At 0.92 the insert had
+// already replaced 92% of the dry triad BEFORE the stomp, so "the dry chord
+// drops away" was inaudible: measured, frozen and never-frozen stayed within
+// ±1.3 dB for 0.8 s and only parted ~1.6 s later, as an ABSENCE (the un-frozen
+// one decays, this one doesn't). The screen flipped instantly and the ears
+// heard nothing, which reads as broken.
+//
+// Around half the dry chord is genuinely in the room while LIVE, so taking it
+// away IS the event, and the saw edge leaving is as loud a cue as the level
+// step. Mix doubles as the frozen cloud's volume (post-release it is pure wet),
+// which is what seats the lead above it.
+//
+// DENSITY x SIZE IS THE OVERLAP, and the overlap is whether you hear GRAINS at
+// all. Above 1 the Hann windows sum back into a continuous tone and the engine
+// then divides by sqrt(overlap), so it deliberately smooths what is left: at
+// the shipped 32 grains/s x 170 ms = 5.4x this cart WAS a plain saw pad behind
+// a lowpass, which is exactly what it sounded like. Measured spread of the
+// short-window level, filter pinned so only the grains move:
+//     overlap 5.44 (shipped) →  1.7 dB     a drone
+//     overlap 1.68           →  2.3 dB
+//     overlap 1.08           →  8.2 dB     breathing, still continuous
+//     overlap 0.78           → 13.0 dB     pointillist, you hear each grain
+// CLOUD sits at 1.08 because it still has to be a pad you play over; GLASS and
+// DUST go under 1 because sparkle and smear ARE the separate grains.
+//
+// It also matters that the source is a SUSTAINED chord: scatter and position
+// read a 3 s buffer holding the same steady tone, so they move phase and not
+// texture. On a drone the recipe's audible axes are overlap and spread — and
+// spread is the ONE the engine clamps, to 0..1 (a semitone), so 0.9 is as wide
+// as a grain cloud here can be.
+//
+// ⚠ CALIBRATION BUILD, DELIBERATELY OVER THE TOP. The maker could still not hear
+// grains at overlap 1.08, so these are set where the grains are separate EVENTS
+// you cannot miss — measured duty cycle (how much of the time anything is
+// sounding at all, frozen, 100% wet):
+//     overlap 5.44 (shipped) → 94%   a continuous drone
+//     overlap 1.08           → 80%
+//     overlap 0.54           → 40%
+//     overlap 0.18           → 13%   pointillist
+//     overlap 0.09           →  8%   droplets
+// Mix is up at 0.85 too, so the cloud is what you hear rather than the chord.
+// That trades away most of the FREEZE step this same cart just gained, so once
+// the grain rate is settled by ear, mix comes back down to ~0.5.
 static const Material MAT[NMAT] = {
-    { 170.0f, 32.0f, 0.86f, 0.28f, 0.36f, 0.92f, 0.16f },
-    {  22.0f, 72.0f, 0.78f, 0.62f, 0.28f, 0.90f, 0.48f },
-    { 460.0f,  5.0f, 0.32f, 0.82f, 0.18f, 0.88f, 0.70f },
+    {  60.0f,  3.0f, 0.86f, 0.80f, 0.30f, 0.85f, 1.00f },
+    {  25.0f,  6.0f, 0.78f, 0.95f, 0.25f, 0.85f, 1.00f },
+    { 400.0f,  1.2f, 0.32f, 0.90f, 0.18f, 0.85f, 0.80f },
 };
 static const char *MNAME[NMAT] = { "CLOUD", "GLASS", "DUST" };
 
@@ -87,6 +138,10 @@ static int   sounding = -1;     // dry chord currently on, or -1
 static int   latch    = -1;     // tap-to-latch (one thumb)
 static int   cloud_i  = 0;      // last chord that fed the tank (the frozen identity)
 static int   a_frozen = -1, a_lift = -1, a_mat = -1;
+static float stomp_t  = -1.0f;  // seconds since the last stomp, <0 = idle
+static float duck     = 1.0f;   // stomp transient: scales BOTH legs of the pad
+static float a_mix    = -1.0f;
+static float a_pad_lv = -1.0f;
 
 static FaceZone ZONES[] = {
     { FACE_BAND, EDGE_TOP,    0.11f, "nav"    },
@@ -122,18 +177,49 @@ static void set_frozen(int on) {
     frozen = on;
     instrument_grains_freeze(SL_PAD, on ? 1 : 0);
     if (on) release_pad();
+    stomp_t = 0.0f;   // the stomp gets a transient of its own (ride_stomp)
+}
+
+// A real pedal makes a noise when you step on it. Freezing is a state change and
+// not an attack, so the pad DUCKS on the switch and blooms back: that is what
+// turns "a label changed" into "I did that".
+//
+// It has to duck BOTH legs, and neither one alone works — that cost two rounds:
+//   instrument_level scales the VOICE contribution, upstream of the insert, so
+//     it cannot touch a frozen cloud at all (the tank is looping, not being fed).
+//   the grain MIX is the cloud's volume once the chord is gone, but on its own a
+//     duck just trades wet for DRY, and the pad's release is 1200 ms, so the
+//     triad is still right there — measured, ducking mix alone made the stomp
+//     1.8 dB LOUDER.
+// Scaled together they take the dry leg and the wet leg down at once, which is
+// the gap you hear. fx_set_grains only assigns fields once the tank exists and
+// both writes are change-gated, so this stays set-and-hold safe.
+static void ride_stomp(float dt) {
+    duck = 1.0f;
+    if (stomp_t >= 0.0f) {
+        stomp_t += dt;
+        if      (stomp_t < 0.07f) duck = 1.00f - 0.88f * (stomp_t / 0.07f);
+        else if (stomp_t < 0.42f) duck = 0.12f + 0.88f * ((stomp_t - 0.07f) / 0.35f);
+        else                      stomp_t = -1.0f;
+    }
+    if (fabsf(duck - a_pad_lv) > 0.003f) { instrument_level(SL_PAD, duck); a_pad_lv = duck; }
 }
 
 static void apply_voice(void) {
+    const Material *m = &MAT[material];
     if (a_mat != material) {
-        const Material *m = &MAT[material];
-        instrument_grains(SL_PAD, m->grain_ms, m->density, m->position,
-                          m->scatter, m->feedback, m->mix);
         // slight pad colour into the next capture (does not recapture a freeze)
         instrument_filter(SL_PAD, FILTER_LOW,
             material == MAT_GLASS ? 4200 : material == MAT_DUST ? 1200 : 2400, 1);
         a_mat  = material;
         a_lift = -1;   // re-apply pitch so the new spread lands
+        a_mix  = -1.0f;   // and re-push the recipe below
+    }
+    float mix = m->mix * duck;
+    if (fabsf(mix - a_mix) > 0.003f) {
+        instrument_grains(SL_PAD, m->grain_ms, m->density, m->position,
+                          m->scatter, m->feedback, mix);
+        a_mix = mix;
     }
     if (a_frozen != frozen) {
         instrument_grains_freeze(SL_PAD, frozen ? 1 : 0);
@@ -201,8 +287,9 @@ void init(void) {
     instrument(SL_PAD,  INSTR_SAW,  50, 280, 8, 1200);
     instrument_filter(SL_PAD, FILTER_LOW, 2400, 1);
     instrument(SL_LEAD, INSTR_SAW,   6,  90, 5, 220);
-    instrument_level(SL_LEAD, 0.75f);
+    instrument_level(SL_LEAD, LEAD_LEVEL);
     keybed_config(SL_LEAD, 4, 8);   // one octave of whites — fat enough on a phone
+    keybed_velocity(7);             // the lead plays OVER the room, so it leads
     apply_voice();                  // CLOUD recipe + pitch
 }
 
@@ -233,11 +320,12 @@ void update(void) {
     }
     if (!frozen && want >= 0) cloud_i = want;
 
+    float dt = 1.0f / 60.0f;
+    ride_stomp(dt);   // before apply_voice: it sets the duck the recipe is scaled by
     apply_voice();
 
     // visual swarm — denser while a chord is feeding or the cloud is locked;
     // GLASS sprays faster, DUST hangs fewer specks
-    float dt = 1.0f / 60.0f;
     float dens = (frozen || sounding >= 0) ? 22.0f : 4.0f;
     if (material == MAT_GLASS) dens *= 1.6f;
     if (material == MAT_DUST)  dens *= 0.55f;

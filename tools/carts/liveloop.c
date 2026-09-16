@@ -16,6 +16,10 @@
     "responsive"
   ],
   "lineage": "Audio-input-frontier ★1 product cart: capture-then-freeze mic layers under live input_monitor. loopstation chrome (REC / mute / clear / loop ring), micfuzz path (no new public API). Overdub = another freeze take, not a circulating PCM ring. ADR-0015 / ADR-0032 / #17.",
+  "todo": [
+    "2026-09-16 ear: FX/WASH not heard clearly enough — maybe more tapeloop DNA / WASH more present. Not now.",
+    "Parked: bars/quantize count-in; mix-down UX for 5th-layer fold; pedalboard hook later. Continuous overdub ring stays ADR-0015-gated (freeze-stack passed ear)."
+  ],
   "description": {
     "summary": "Hold, clap, sing, guitar — freeze a bar, stack another, mute and clear. Live monitor while you play.",
     "detail": "The product cart for the pedal-tier live looper. Arm the mic, stomp REC, a bar (or 2 / 4) freezes into a sample slot and loops under you. Stomp again and a new layer stacks while the old ones play — capture-then-freeze, not a circulating overdub ring. Hear yourself the whole time via input_monitor (the micfuzz / GUITAR IN path). Mute or clear a layer; when all four slots are full the next take bounces the unmuted stack down so you can keep going. Optional WASH is a light echo+tape on the stack (tapeloop DNA), off by default. LIVE monitor does not replay (ADR-0032); frozen layers are plain PCM and do. No mic? D drops a demo layer so the ring still moves.",
@@ -38,7 +42,15 @@ de:meta */
 //   mute / clear   →  note_vol 0 / drop the slot
 //
 // Four sample slots. A fifth take mixes the unmuted stack down (slot budget).
-// No new API. Continuous PCM overdub into one circulating ring is a later maybe.
+// No new API. Continuous PCM overdub into one circulating ring is ADR-0015
+// only if freeze-stack fails ear (2026-09-16: it passed).
+//
+// TODO — maker ear 2026-09-16: leave liveloop alone for now. Parked:
+//   - FX / WASH not heard clearly enough — maybe more tapeloop DNA / WASH
+//     more present (not now)
+//   - bars / quantize count-in
+//   - mix-down UX for the 5th-layer fold
+//   - pedalboard hook later
 
 #define DESIGN_W 200
 #define DESIGN_H 320

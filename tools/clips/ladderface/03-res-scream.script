@@ -1,0 +1,13 @@
+# ladderface — hold a note, shut the lid, scream the resonance. Ridge must move.
+# Re-render: bash tools/clips/ladderface/render-nr.sh
+#        or: node tools/play.js ladderface script tools/clips/ladderface/03-res-scream.script \
+#               --headless --frames 240 --wav /opt/cursor/artifacts/ladderface-res-scream.wav
+# frames 240
+down 10 a
+down 40 1
+up 42 1
+down 90 6
+up 92 6
+down 150 3
+up 152 3
+up 220 a

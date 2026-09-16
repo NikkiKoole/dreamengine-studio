@@ -3939,6 +3939,25 @@
     "teaches": []
   },
   {
+    "title": "ladder face",
+    "description": "A diode-ladder filter whose face is a living ribbon. Saw in, squelch out — the picture IS the machine. The product cart for scope + CPU-shader as rack identity. A saw through FILTER_DIODE (the TB-303 diode ladder) feeds scope_read into a shadermath.h fragment: the hero is a waterfall of the real post-filter mix, coloured by cutoff and resonance, falling through a four-rung ladder. Knobs at rest still read as a ladder — a quiet drone keeps the ribbon breathing. Play the keybed and the ribbon fattens; twist RES and the cutoff ridge screams. Not shadelab (a lesson), not wavecandy (a meter), not cloudhold (that picture is the freeze-cloud). Compose only: scope_read + pset_rgb / pget_rgb + existing FILTER_DIODE. No new API. Drag CUT / RES. Play the keybed (touch, A-K white / W-E-T-Y-U black, Z/X octave, MIDI). SPACE toggles the idle drone (on by default — the face stays alive). 1/2/3 cutoff lo/mid/hi, 4/5/6 resonance dry/sung/scream. M autoplay riff.",
+    "file": "ladderface.cart.png",
+    "created": "2026-09-16",
+    "orientation": "portrait",
+    "kind": [
+      "instrument"
+    ],
+    "teaches": [
+      "subtractive-synth",
+      "self-oscillation"
+    ],
+    "collection": [
+      "device-face",
+      "responsive"
+    ],
+    "lineage": "Compound-blindspot §3 product cart: scope_read into a CPU shader so the rack's FACE is the machine. Diode-ladder ribbon (FILTER_DIODE cutoff/resonance as a living waterfall), not a teaching trilogy and not a HUD meter. pget_rgb on the live canvas — no second RGB buffer (cpu-shaders.md stand-in). Cloudhold already owns freeze-cloud identity. ADR-0015 / ADR-0022 / #31."
+  },
+  {
     "title": "lunar lander",
     "description": "Physics-based lander. Rotate and thrust your way onto the lit green pad slowly enough to survive. Levels get harder — pads get narrower. Left/right to rotate, up or Z to thrust.",
     "file": "lander.cart.png",

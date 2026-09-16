@@ -111,7 +111,7 @@ rack, a replay take, a road seed. Not a new filesystem. Not a Workbench.
 **Compose, don't grow.** Bless the envelope in cart-land. `?seed=` boot is
 already the cheap radio half; do not invent a 4th fidelity layer.
 
-### 3. Scope + CPU-shader as rack identity
+### 3. Scope + CPU-shader as rack identity — **SHIPPED 2026-09-16** as `ladderface`
 
 **The scene.** A rack's *face* is a living picture — `scope_read` into a CPU
 shader — so the instrument is recognisable with the knobs off. Not a teaching
@@ -121,14 +121,22 @@ trilogy, not a HUD meter.
 + `shadermath.h` ([`cpu-shaders.md`](cpu-shaders.md): `shadelab` → `caustics` →
 `raymarch`). Candy-style / [`acid-pets`](acid-pets.md) already treat a mascot as live readout.
 
-**The blind spot.** Shaders stayed a lesson; scopes stayed a diagnostic. The
-compound is identity: one honest picture that *is* the machine (a diode-ladder
-ribbon, a freeze-cloud, a goniometer that is the master).
+**Shipped.** [`ladderface`](../../tools/carts/ladderface.c) is the identity cart:
+a saw through `FILTER_DIODE`, the live mix into a waterfall ribbon
+(`scope_read` history + `pset_rgb` + `shadermath.h`). Four copper rungs
++ a cutoff ridge so a stranger can name the diode ladder from the picture.
+Quiet drone keeps the face alive at rest; the keybed is the instrument.
+Not `shadelab` (a lesson), not `wavecandy` (a meter), not `cloudhold` (that
+picture is the freeze-cloud). `pget_rgb` smears when the last-frame snapshot
+is live; the software-canvas path has no snapshot, so the picture is the
+scope ring (cart-land floats, not a second RGB buffer). Idea #5 stays parked.
+[#31](https://github.com/NikkiKoole/dreamengine-studio/issues/31) · live
+`https://mipolai.com/dreamengine/ladderface/` · Linux proof
+`bash tools/clips/ladderface/render-nr.sh`.
 
 **Compose, don't grow.** `pset_rgb` + `scope_read` + `shadermath.h` inside the
-rack that owns the sound. A second RGB buffer (below) is the only engine
-maybe; the first cart does not need it (`pget_rgb` on the live canvas is the
-stand-in `cpu-shaders.md` already uses).
+rack that owns the sound. A second RGB buffer (below) is still only a maybe
+for a later multipass lesson; this cart did not need it.
 
 ### 4. Lockstep radio jam
 
@@ -317,7 +325,7 @@ cart-land first; then the four-place `studio.h` ritual. Not a shopping list.
 | maybe | for | until then |
 |-------|-----|------------|
 | Shared clock | §5 (and [#19](https://github.com/NikkiKoole/dreamengine-studio/issues/19)) | a live `{bpm,t0,playing}` file + `--data`; `sync.h` already covers external follow |
-| 2nd RGB buffer | §3 multipass identity | `pget_rgb` on the live canvas; [`cpu-shaders.md`](cpu-shaders.md) idea #5 |
+| 2nd RGB buffer | §3 multipass teaching (not identity — `ladderface` shipped on `pget_rgb`) | `pget_rgb` on the live canvas; [`cpu-shaders.md`](cpu-shaders.md) idea #5 |
 | Cart-facing ghost inject | §7 | parse a `.rec` in the cart; harness `inject_input` stays a tool |
 | `de_out_path()` | §2 / [`cart-os.md`](cart-os.md) | write a known path by hand; mirror of shipped `de_data_path()` |
 

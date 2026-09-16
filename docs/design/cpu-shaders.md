@@ -73,6 +73,11 @@ single-canvas read-back is the pragmatic stand-in.
 
 ## Related
 
+- Identity, not a lesson: [`ladderface`](../../tools/carts/ladderface.c) ships the
+  compound-blindspot §3 picture — `scope_read` into this toolkit so a diode-ladder
+  rack is recognisable with the knobs off. The waterfall is a cart-land scope ring
+  (the software canvas has no `pget` snapshot); `pget_rgb` smears when one exists.
+  Idea #5 stays parked.
 - True-colour primitives: `pset_rgb`/`rectfill_rgb`/`pget_rgb`/`enable_pget`/`palette_hex`
   declared in [`runtime/studio.h`](../../runtime/studio.h); palette/colour rules in
   [`design/palette-and-color.md`](palette-and-color.md).

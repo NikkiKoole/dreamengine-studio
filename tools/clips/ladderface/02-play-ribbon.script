@@ -1,0 +1,17 @@
+# ladderface — play the keybed; the ribbon fattens with the saw.
+# Re-render: bash tools/clips/ladderface/render-nr.sh
+#        or: node tools/play.js ladderface script tools/clips/ladderface/02-play-ribbon.script \
+#               --headless --frames 240 --wav /opt/cursor/artifacts/ladderface-play-ribbon.wav
+# frames 240
+down 20 a
+up 50 a
+down 55 s
+up 80 s
+down 85 d
+up 110 d
+down 115 f
+up 160 f
+down 165 a
+down 175 d
+up 210 a
+up 220 d

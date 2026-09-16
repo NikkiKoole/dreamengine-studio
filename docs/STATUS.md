@@ -7,13 +7,27 @@
 > **here**, then fix the prose in the relevant design doc. If a design doc and this file
 > disagree, this file wins.
 
-_Last updated: 2026-09-16 — liveloop ships the capture-then-freeze live looper. See the top Shipped entry and [`design/audio-input-frontier.md`](design/audio-input-frontier.md)._
+_Last updated: 2026-09-16 — ladderface ships the diode-ladder ribbon. See the top Shipped entry and [`design/compound-blindspots.md`](design/compound-blindspots.md) §3._
 
 > **This line is a headline, not an entry.** It reached **9,064 characters** and was the only place in the file that recorded `FILTER_DIODE`, `filter-spec.js` and `rebirth-classic.md` — three shipped things, invisible because nobody reads a shipped feature out of a `_Last updated:_` line. They have a real entry now (2026-07-02, above `sprite-draw.js`). Keep this to one date, one sentence, one link; `status-check --check` fails past 900 chars.
 
 ---
 
 ## Shipped ✓
+
+- **LADDER FACE: SCOPE + CPU-SHADER AS RACK IDENTITY** (2026-09-16). Compound-blindspot
+  §3 was a living picture that never got a cart: shaders stayed a lesson,
+  scopes stayed a diagnostic. `ladderface` is the diode-ladder ribbon —
+  saw through `FILTER_DIODE`, `scope_read` into a `shadermath.h` waterfall
+  on the live canvas (`pset_rgb` / `pget_rgb`). Face still reads with knobs
+  at rest (quiet drone); play the keybed and the ribbon moves. No second
+  RGB buffer — the picture is a cart-land `scope_read` ring; `pget_rgb`
+  smears when the snapshot is live. Cloudhold already owns freeze-cloud
+  identity. Live URL plan: `https://mipolai.com/dreamengine/ladderface/`.
+  Linux proof: `bash tools/clips/ladderface/render-nr.sh`.
+  [`design/compound-blindspots.md`](design/compound-blindspots.md) §3 ·
+  [`design/cpu-shaders.md`](design/cpu-shaders.md) ·
+  [#31](https://github.com/NikkiKoole/dreamengine-studio/issues/31).
 
 - **LIVE LOOP: CAPTURE-THEN-FREEZE MIC LAYERS** (2026-09-16). Audio-input-frontier ★1
   was the loudest unmet mic wish: record → overdub → stacked layers on the ring

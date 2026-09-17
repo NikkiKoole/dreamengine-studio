@@ -93,6 +93,11 @@ asc-push signs a JWT from a `.p8`; YouTube needs **OAuth2 user consent**. One-ti
 
 Quota is documented in the header: ~10,000 units/day default, ~1,600 per upload → ~6/day.
 
+**Scopes** (since 2026-09-17): `youtube.upload` **and `youtube.readonly`** — the verification step
+below has to read back the video it just created. A token cached before that date still uploads
+normally but cannot verify, so it reports `UNVERIFIED` with the fix; one `--auth` re-consent
+migrates it. The read scope must also be listed on the Cloud console's consent screen.
+
 ## Metadata — derived, not hand-typed
 
 Like the store copy in ADR-0026, the video's title/description/tags are **artifacts of the
@@ -109,6 +114,30 @@ same script/agent split as the ASO composer.
 
 Own generated audio → **no Content ID / copyright risk**, so uploads are safe at scale.
 
+## Verification — report what YouTube DID, not what was asked
+
+**Built 2026-09-17.** `videos.insert` returns a perfectly good video id and URL for a
+`privacyStatus` it did **not** necessarily honour: the documented failure mode is that an unaudited
+API project has its uploads locked to private whatever the request said. A tool that prints the
+privacy it *requested* therefore cannot tell a published Short from an invisible one — and it was
+printing exactly that for two months.
+
+So `verifyStatus()` reads `videos.list part=status` after the upload and reports the applied value:
+
+- match → `✓ uploaded (public, confirmed by read-back)`
+- mismatch → `⚠ privacy is <actual> — you asked for <requested>`, the likely cause (the audit, which
+  is the same form that raises quota), and a **nonzero exit**
+- can't tell → `UNVERIFIED` plus the reason
+
+It is never fatal. By the time it runs the upload has already succeeded, so a failed *check* must
+not fail the *command* — it downgrades to `UNVERIFIED` and says what to do.
+
+**The lock does not apply here.** `chordwise` pushed with `--public` on 2026-09-17 came back
+`privacyStatus=public, uploadStatus=processed`
+([`youtube.com/shorts/SYcsvgKTyss`](https://youtube.com/shorts/SYcsvgKTyss)), confirmed through a
+second independent read. Note that the check earned its place by *confirming*, not catching — which
+is the point: without it the same run would have made the same claim on no evidence.
+
 ## Staging
 
 - **v0.1 — single clip upload. BUILT (2026-07-20).** Bake-if-needed → resumable upload → return
@@ -117,7 +146,10 @@ Own generated audio → **no Content ID / copyright risk**, so uploads are safe 
 - **v0.2 — Shorts as the default** + `--reel <app>` to push a composed app trailer. The >60s
   guard + `#Shorts` handling. **SHIPPED alongside v0.1 (2026-07-20)** — it fell out of the same
   code. The live path is proven: the OAuth client is set up (creds in `~/.youtube/`) and the
-  first real upload (tinyjam reel → an unlisted Short) returned a live URL.
+  first real uploads (**two** unlisted Shorts, 2026-07-20) returned live URLs.
+- **v0.2.1 — post-upload verification. BUILT (2026-09-17).** The tool reads the privacy back and
+  reports what YouTube applied (see Verification above). Cost: a second OAuth scope and a
+  re-consent. Same run proved `--public` works — no private lock on this project.
 - **v0.3 — scheduled drip.** NOT built. A launchd/cron runner (twin of
   [`reddit-gaps-drip.sh`](demand-discovery.md)) that pushes the newest committed clip on a
   cadence — a steady lever-#2 heartbeat without hand-work.
@@ -127,8 +159,10 @@ Own generated audio → **no Content ID / copyright risk**, so uploads are safe 
 - **Channel model** — one channel for the whole shelf, or per-app? v0.1 uploads to whatever
   channel the cached OAuth token authorizes (one account = one signed-in channel); per-app would
   need separate tokens or a brand-account selector. Start with one.
-- **Privacy default** — upload `unlisted` (review before going public) or straight to `public`?
-  Lean `unlisted` for v0.1 so a bad take never auto-publishes; `--public` to commit.
+- ~~**Privacy default**~~ — **ANSWERED 2026-09-17.** `unlisted` stays the default (a bad take must
+  never auto-publish) and `--public` is now *proven* to reach public, not merely to ask for it. The
+  open half was never the default but whether `--public` was honoured at all; it is, and the tool
+  now verifies each time rather than trusting it.
 - **Thumbnail** — YouTube auto-picks a frame; `store-shots.js` / `store-contact.js` already
   pick hero frames, so a later `--thumb` could set a crisp custom one.
 

@@ -816,8 +816,13 @@ _Last updated: 2026-09-16 — ladderface ships the diode-ladder ribbon. See the 
   **derived** from cart `de:meta` / the app `listing` — no hand-typed copy. OAuth2 creds live in
   `~/.youtube/` (`--auth` one-time browser consent), never git; `--dry-run` prints the plan,
   `--check` is the offline gate. YouTube first because it's the only short-video venue with a
-  usable official upload API (TikTok/Reels stay manual). PROVEN live (first real upload: the
-  tinyjam reel → an unlisted Short). Design: [`design/video-distribution.md`](design/video-distribution.md).
+  usable official upload API (TikTok/Reels stay manual). PROVEN live: two unlisted Shorts on
+  2026-07-20, and **`--public` confirmed 2026-09-17** (`chordwise` → `youtube.com/shorts/SYcsvgKTyss`,
+  read back as `privacyStatus=public`) — the unaudited-project private lock does **not** apply to this
+  API project. Since that run the tool **reads the privacy back** (`videos.list part=status`) and
+  reports what YouTube applied rather than what was asked; that needs `youtube.readonly` alongside
+  `youtube.upload`, so a token cached before 2026-09-17 uploads fine but reports `UNVERIFIED` until
+  `--auth` re-consents it. Design: [`design/video-distribution.md`](design/video-distribution.md).
 - **Live (libtcc) backend + hot reload** — a "run mode" toggle (settings) switches ▶ run from the clang static build to a persistent `-DDE_TCC` host that JIT-compiles the cart in-process via vendored `runtime/libtcc/`. Editing the code auto-reloads it (debounced, no Run press) without restarting the window; compile errors mark the line and keep the last good cart running. State survives reloads via **`de_state()`** — promoted to a first-class `studio.h` API and fronted by the starter cart's friendly `STATE { ... }; / S->field` sugar (clickable to help). arm64-macOS only; sprite/screen changes relaunch. Full record + rationale: [`design/cart-as-script.md`](design/cart-as-script.md).
 - 5-tab navbar (code · pixels · carts · docs · settings); in-app docs viewer renders
   this `docs/` set (with cross-links) in the Docs tab.

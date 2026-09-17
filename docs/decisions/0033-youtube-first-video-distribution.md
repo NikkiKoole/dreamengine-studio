@@ -55,7 +55,11 @@ Two sub-decisions fall out:
 ## Consequences / costs
 - **One-time setup:** a Google Cloud project with the Data API enabled + an OAuth consent
   screen. Uploading to your *own* channel works under test-user consent without full app
-  verification.
+  verification. *(Confirmed 2026-09-17, and it goes further than this bullet claimed: an
+  unverified/unaudited project can publish **public**, not just unlisted — `chordwise` with
+  `--public` read back as `privacyStatus=public`. The widely-reported private lock does not apply
+  here. The tool now verifies this per-upload rather than assuming it; see the design doc's
+  Verification section, which cost a second OAuth scope — `youtube.readonly` — and a re-consent.)*
 - **Quota:** the default free quota is ~10,000 units/day and an upload costs ~1,600 units →
   ~6 uploads/day. Ample for a solo shelf; documented so it isn't a surprise.
 - **Scope discipline:** resist mission-creep into a "post everywhere" tool. YouTube only;

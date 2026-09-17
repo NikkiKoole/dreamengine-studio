@@ -44,9 +44,18 @@
 //     categoryId   music kinds -> 10 (Music), else 20 (Gaming); config.categoryId overrides
 //   Own generated audio -> no Content ID / copyright risk, safe to upload at scale.
 //
+// VERIFY — after the upload the tool READS THE VIDEO BACK (videos.list part=status) and reports the
+//   privacy YouTube actually applied, not the one requested. This matters because an UNAUDITED API
+//   project has its uploads locked to private no matter what --public asks for, and the upload
+//   still returns a perfectly good id + URL: without the read-back the tool cheerfully reports a
+//   public Short that nobody can see. A mismatch prints the likely cause and exits nonzero.
+//   The check needs a read scope, so a token cached before OAUTH_SCOPE grew reports UNVERIFIED
+//   (with the fix: re-run --auth); it NEVER fails an upload that already succeeded.
+//
 // AUTH (one-time, ~5 min):  a Google Cloud project with the YouTube Data API v3 enabled + an
 //   OAuth consent screen (uploading to your OWN channel works under a test user, no full
-//   verification). Create an OAuth client of type "Desktop app", then:
+//   verification — but see VERIFY: unverified/unaudited is what locks uploads to private).
+//   Create an OAuth client of type "Desktop app", then:
 //     mkdir -p ~/.youtube && chmod 700 ~/.youtube
 //     echo '{"clientId":"…apps.googleusercontent.com","clientSecret":"…"}' > ~/.youtube/config.json
 //     chmod 600 ~/.youtube/config.json
@@ -70,10 +79,13 @@ const YT_DIR = path.join(os.homedir(), '.youtube')
 const CONFIG_PATH = path.join(YT_DIR, 'config.json')
 const TOKEN_PATH = path.join(YT_DIR, 'token.json')
 
-const OAUTH_SCOPE = 'https://www.googleapis.com/auth/youtube.upload'
+// upload + a READ scope: the read-back below (verifyStatus) needs to see the video it just made.
+// A token cached before this grew has upload only — the read-back degrades to UNVERIFIED and says so.
+const OAUTH_SCOPE = 'https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube.readonly'
 const TOKEN_URL = 'https://oauth2.googleapis.com/token'
 const AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth'
 const UPLOAD_URL = 'https://www.googleapis.com/upload/youtube/v3/videos'
+const API_URL = 'https://www.googleapis.com/youtube/v3/videos'
 const LOOPBACK_PORT = 8719 // must match a redirect URI registered on the OAuth client
 
 // YouTube snippet limits (the deterministic half; the agent owns the taste)
@@ -334,6 +346,24 @@ async function uploadVideo(token, file, meta) {
   return json.id
 }
 
+// ── post-upload verification ───────────────────────────────────────────────────────────────────
+// The API returns an id for a privacyStatus it did NOT necessarily honour: an UNAUDITED API
+// project has its uploads locked to private whatever the request asked for (the lock lifts with
+// the same YouTube API Services audit that raises the ~6-uploads/day quota). Reporting the
+// REQUESTED privacy is therefore a lie the tool cannot detect — hence this read-back.
+// Never fatal: the upload already succeeded, so a failed check reports UNVERIFIED, never throws.
+async function verifyStatus(token, id) {
+  try {
+    const res = await fetch(`${API_URL}?part=status&id=${encodeURIComponent(id)}`,
+      { headers: { Authorization: `Bearer ${token}` } })
+    if (res.status === 403) return { unverified: 'token lacks the read scope — re-run --auth to re-consent' }
+    if (!res.ok) return { unverified: `videos.list returned ${res.status}` }
+    const json = await res.json().catch(() => null)
+    const st = json?.items?.[0]?.status
+    return st || { unverified: 'video not visible to this token yet' }
+  } catch (e) { return { unverified: e.message } }
+}
+
 // ── offline self-test ────────────────────────────────────────────────────────────────────────
 function selfCheck() {
   let ok = true
@@ -428,5 +458,24 @@ function die(msg) { console.error('✗ ' + msg); process.exit(1) }
   const token = await accessToken(cfg)
   const id = await uploadVideo(token, shaped, meta)
   const url = meta.short ? `https://youtube.com/shorts/${id}` : `https://youtu.be/${id}`
-  console.log(`\n✓ uploaded (${meta.privacy}): ${url}`)
+
+  // report what YouTube DID, not what we asked for
+  const st = await verifyStatus(token, id)
+  if (st.unverified) {
+    console.log(`\n✓ uploaded — privacy UNVERIFIED (asked for ${meta.privacy}): ${url}`)
+    console.log(`  ${st.unverified}`)
+    console.log(`  Confirm in YouTube Studio before treating it as published.`)
+  } else if (st.privacyStatus !== meta.privacy) {
+    console.log(`\n⚠ uploaded, but privacy is ${st.privacyStatus} — you asked for ${meta.privacy}: ${url}`)
+    console.log(`  YouTube did not honour the request. The usual cause is an UNAUDITED API project,`)
+    console.log(`  which locks uploads to private; fix via the YouTube API Services audit (the same`)
+    console.log(`  form that raises quota), or flip this one by hand in YouTube Studio.`)
+    if (st.rejectionReason) console.log(`  rejectionReason: ${st.rejectionReason}`)
+    process.exitCode = 1
+  } else {
+    console.log(`\n✓ uploaded (${st.privacyStatus}, confirmed by read-back): ${url}`)
+  }
+  if (st.uploadStatus && !['uploaded', 'processed'].includes(st.uploadStatus)) {
+    console.log(`  uploadStatus: ${st.uploadStatus}${st.failureReason ? ` (${st.failureReason})` : ''}`)
+  }
 })().catch(e => { console.error('\n✗ ' + e.message); process.exit(1) })

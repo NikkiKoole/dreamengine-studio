@@ -122,6 +122,41 @@ Consequences section has now been held for eight weeks without maintenance.
 
 ---
 
+## Update — 2026-09-17: `--public` is answered, and it works
+
+The open question above ("has `--public` ever actually produced a public video?") is closed:
+**yes**. `chordwise/02-take` pushed with `--public` came back
+[`youtube.com/shorts/SYcsvgKTyss`](https://youtube.com/shorts/SYcsvgKTyss) reporting
+`privacyStatus=public, uploadStatus=processed`, confirmed by a second read through an independent
+script. **There is no private lock on this API project.** The consensus was wrong at the second
+level too — not just "you can't automate YouTube", but also "even if you can, an unaudited project
+can't publish publicly". Neither held.
+
+Three things the test surfaced that the note above could not have known:
+
+- **The read-back shipped and immediately earned its place — by confirming, not catching.** The
+  second open question ("should the tool report the actual privacy state?") is now built:
+  `verifyStatus()` reads `videos.list part=status` after the upload and reports what YouTube *did*.
+  Its first real run printed `✓ uploaded (public, confirmed by read-back)`. Had it been absent, the
+  same upload would have printed the same claim **on no evidence** — the tool could not previously
+  tell a honoured request from a silently downgraded one.
+- **It cost a scope and a re-consent.** Reading a video back needs more than `youtube.upload`, so
+  `OAUTH_SCOPE` grew `youtube.readonly` and the July token had to be re-granted. Worth recording as
+  a cost: verification is not free, and a token cached before the scope grew degrades to
+  `UNVERIFIED` rather than failing an upload that already succeeded.
+- **The ledger undercounts the channel.** `STATUS.md` records "first real upload: the tinyjam reel"
+  — the API shows **two** uploads on 2026-07-20 (`Tiny Acid Jam`, `Tiny Jam: Pocket Music Toys`),
+  both unlisted. A silent-ledger instance of exactly the shape note 029 describes, found by asking
+  an outside authority rather than by any check in this repo. The channel's one other public video
+  predates the tool by 13 months and was hand-uploaded, which is why it was *not* evidence either
+  way before the test.
+
+What this does **not** settle: quota (~6 uploads/day) is untouched by the result, and the audit is
+still what raises it. The lock everyone warns about turned out not to apply here; the ceiling that
+does bind was never the one in dispute.
+
+---
+
 ## Related notes
 
 - 011-tool-discovery

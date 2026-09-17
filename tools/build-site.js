@@ -16,6 +16,7 @@
 
 const fs   = require('fs')
 const path = require('path')
+const crypto = require('crypto')
 const { execFileSync } = require('child_process')
 const mk   = require('./make-cart.js')
 const { lint } = require('./mobile-lint.js')
@@ -40,12 +41,45 @@ function cHeader(symbol, buf) {
          `static const unsigned int  ${symbol}_LEN = ${buf.length};\n`
 }
 
-function newestMtime(files) {
-  let t = 0
-  for (const f of files) {
-    try { t = Math.max(t, fs.statSync(f).mtimeMs) } catch {}
+// ── "is this build current?" — CONTENT, never mtime, never the include list ──
+// This check was wrong twice, in two different directions, and both shipped a
+// stale wasm while printing "up to date":
+//
+//   MTIME. The freshness test used to be `mtime(wasm) > mtime(sources)`. But the
+//   wasm lives in site/, which is its OWN git checkout, and `git -C site pull`
+//   rewrites every published file with mtime = NOW. So pulling site/ (exactly
+//   what you must do when other agents have published behind you) makes every
+//   build look newer than the source you edited an hour ago. Publishing a fixed
+//   ladderface skipped the rebuild and pushed the OLD wasm; it was only caught
+//   because a sibling cart in the same command did compile.
+//
+//   THE INPUT LIST. It named studio.c/studio.h/sound.h and nothing else, so a
+//   change to any CART-LAND HEADER was invisible: ladderface includes keybed.h,
+//   ui.h, face.h and shadermath.h, and editing one of those would never have
+//   triggered a rebuild at all. That one is not even timing-dependent.
+//
+// So: hash the CONTENT of the cart, its config, every top-level runtime source
+// (superset of any include graph, ~4 MB = a few ms against an 8 s emcc run) and
+// every -D that reaches the compiler. Rebuild when the digest moves.
+// KNOWN GAP: the vendored libs (runtime/raylib-web, runtime/box2d) are NOT in
+// the digest. They change approximately never; pass --force after touching one.
+function runtimeSources() {
+  try {
+    return fs.readdirSync(RUNTIME)
+      .filter(f => f.endsWith('.h') || f.endsWith('.c') || f.endsWith('.js') || f.endsWith('.html'))
+      .sort()
+      .map(f => path.join(RUNTIME, f))
+  } catch { return [] }
+}
+
+function inputsDigest(files, params) {
+  const h = crypto.createHash('sha256')
+  for (const f of files.slice().sort()) {
+    h.update(f.replace(ROOT, ''))          // the NAME matters: a renamed header is a change
+    try { h.update(fs.readFileSync(f)) } catch { h.update('\0missing') }
   }
-  return t
+  h.update(JSON.stringify(params))
+  return h.digest('hex')
 }
 
 function esc(s) {
@@ -71,23 +105,30 @@ function buildCart(name, { force = false, worklet = false } = {}) {
   const kindWorklet = (meta?.kind || []).includes('instrument')
   const wantWorklet = worklet || (cfg.worklet !== false && (cfg.worklet === true || kindWorklet))
 
-  const inputs = [srcC, cfgFile,
-    path.join(RUNTIME, 'studio.c'), path.join(RUNTIME, 'studio.h'), path.join(RUNTIME, 'sound.h'),
-    path.join(RUNTIME, wantWorklet ? 'web_shell_worklet.html' : 'web_shell.html')]
-  if (wantWorklet) inputs.push(path.join(RUNTIME, 'coi-serviceworker.js'), path.join(RUNTIME, 'audio-worklet-stub.js'))
-  const checkWasm = path.join(outDir, wantWorklet ? 'worklet.wasm' : 'index.wasm')
-  if (!force && fs.existsSync(outHtml) && newestMtime([checkWasm]) > newestMtime(inputs)) {
-    console.log(`· ${name}: up to date`)
-    return true
-  }
-
   const SW = cfg.screenW ?? 320, SH = cfg.screenH ?? 200, SC = cfg.scale ?? 4
   const CW = cfg.cellW ?? 16, CH = cfg.cellH ?? 16
   const MW = cfg.mapW ?? 128, MH = cfg.mapH ?? 64
 
-  // per-cart workdir: only the generated asset headers live here
+  // per-cart workdir: the generated asset headers + the build stamp
   const work = path.join(ROOT, 'build', '.site', name)
   fs.mkdirSync(work, { recursive: true })
+
+  const inputs = [srcC, cfgFile, ...runtimeSources()]
+  const digest = inputsDigest(inputs, {
+    SW, SH, SC, CW, CH, MW, MH, wantWorklet,
+    touch: cfg.touchControls ? 1 : 0, renderEvery: cfg.renderEvery ?? 1,
+    title: (cartMeta(name)?.title || name),
+  })
+  // The stamp is LOCAL (build/ is gitignored), so a fresh clone rebuilds rather
+  // than trusting a published artifact about its own provenance. That is the
+  // safe direction: the failure mode is a wasted emcc run, not a stale publish.
+  const stampFile = path.join(work, 'inputs.sha')
+  const checkWasm = path.join(outDir, wantWorklet ? 'worklet.wasm' : 'index.wasm')
+  const stamped   = fs.existsSync(stampFile) ? fs.readFileSync(stampFile, 'utf8').trim() : null
+  if (!force && fs.existsSync(outHtml) && fs.existsSync(checkWasm) && stamped === digest) {
+    console.log(`· ${name}: up to date`)
+    return true
+  }
   fs.mkdirSync(outDir, { recursive: true })
 
   const spritesBuf = cfg.sprites ? mk.buildSpriteSheet(cfg.sprites, cfg.charMap) : Buffer.alloc(0)
@@ -155,6 +196,7 @@ function buildCart(name, { force = false, worklet = false } = {}) {
   }
 
   finishCart(name)
+  fs.writeFileSync(stampFile, digest + '\n')   // only after emcc + finishCart succeeded
 
   const wasmName = wantWorklet ? 'worklet.wasm' : 'index.wasm'
   const kb = Math.round(fs.statSync(path.join(outDir, wasmName)).size / 1024)

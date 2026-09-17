@@ -53,6 +53,7 @@ int main(int argc, char **argv) {
     const char *wav = (argc > 3) ? argv[3] : "/tmp/fm4op.wav";
     nev = 0;
     if (script && parse_script(script) != 0) { fprintf(stderr, "bad script\n"); return 1; }
+    // de:engine-owner — the headless render host owns its single engine, like tools/headless-nr.c
     DeInstance *in = de_instance_create(DE_RENDERER_SOFTWARE);
     short *pcm = malloc((size_t)frames * PER_FRAME * 2 * sizeof(short));
     if (!pcm) return 1;

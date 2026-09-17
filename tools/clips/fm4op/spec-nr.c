@@ -10,6 +10,7 @@
 #include <stdio.h>
 
 int main(void) {
+    // de:engine-owner — the headless spec host owns its single engine, like tools/headless-nr.c
     DeInstance *in = de_instance_create(DE_RENDERER_SOFTWARE);
     if (!in) { fprintf(stderr, "de_instance_create failed\n"); return 1; }
     spec();

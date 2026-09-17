@@ -83,6 +83,7 @@ int main(int argc, char **argv) {
     const char *ppm = (argc > 4) ? argv[4] : NULL;
     nev = 0;
     if (script && parse_script(script) != 0) { fprintf(stderr, "bad script\n"); return 1; }
+    // de:engine-owner — the headless render host owns its single engine, like tools/headless-nr.c
     DeInstance *in = de_instance_create(DE_RENDERER_SOFTWARE);
     de_mic_set_active(1);
     short *pcm = malloc((size_t)frames * PER_FRAME * 2 * sizeof(short));

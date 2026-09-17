@@ -4,7 +4,14 @@
 //
 //   node tools/build-site.js <name> [<name>...]   build cart(s), refresh gallery
 //   node tools/build-site.js --gallery            regenerate site/index.html only
+//   node tools/build-site.js --selfcheck          22 known answers for the FRESHNESS decision
+//                                                 (builds nothing: no emcc, no site/ repo, no net)
 //   options: --force   rebuild even if outputs look fresh
+//
+// The freshness decision is the one part of this tool that behaves like a GATE, and when it is
+// wrong it is silent: a green "· <cart>: up to date" over a stale wasm on a public site. It has
+// been wrong twice (see freshness() below), so it is pure, it is separated out, and --selfcheck
+// pins it — gated in repo-doctor as "selftest: web freshness".
 //
 // Each cart becomes site/<name>/index.html (+ .js/.wasm, fully self-contained:
 // sprites/map/font are compiled in) plus its .cart.png as thumbnail. The gallery
@@ -82,6 +89,23 @@ function inputsDigest(files, params) {
   return h.digest('hex')
 }
 
+// THE FRESHNESS DECISION, kept pure and out of buildCart so --selfcheck can put
+// known answers through the REAL function instead of a copy of it. Returns the
+// reason as well as the verdict, because "why did it rebuild" is the question
+// you actually have when a publish surprises you.
+//   { fresh: false, why: 'forced' | 'no-page' | 'no-wasm' | 'no-stamp' | 'inputs-changed' }
+//   { fresh: true,  why: 'stamp-matches' }
+function freshness({ force, outHtml, checkWasm, stampFile, digest }) {
+  if (force) return { fresh: false, why: 'forced' }
+  if (!fs.existsSync(outHtml))  return { fresh: false, why: 'no-page' }
+  if (!fs.existsSync(checkWasm)) return { fresh: false, why: 'no-wasm' }
+  let stamped = null
+  try { stamped = fs.readFileSync(stampFile, 'utf8').trim() } catch {}
+  if (stamped === null)   return { fresh: false, why: 'no-stamp' }
+  if (stamped !== digest) return { fresh: false, why: 'inputs-changed' }
+  return { fresh: true, why: 'stamp-matches' }
+}
+
 function esc(s) {
   return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;')
                         .replace(/>/g, '&gt;').replace(/"/g, '&quot;')
@@ -124,8 +148,7 @@ function buildCart(name, { force = false, worklet = false } = {}) {
   // safe direction: the failure mode is a wasted emcc run, not a stale publish.
   const stampFile = path.join(work, 'inputs.sha')
   const checkWasm = path.join(outDir, wantWorklet ? 'worklet.wasm' : 'index.wasm')
-  const stamped   = fs.existsSync(stampFile) ? fs.readFileSync(stampFile, 'utf8').trim() : null
-  if (!force && fs.existsSync(outHtml) && fs.existsSync(checkWasm) && stamped === digest) {
+  if (freshness({ force, outHtml, checkWasm, stampFile, digest }).fresh) {
     console.log(`· ${name}: up to date`)
     return true
   }
@@ -619,16 +642,125 @@ ${cards}
 }
 
 // ── main ──────────────────────────────────────────────────────
+// ── --selfcheck: known answers for the FRESHNESS DECISION ────────────────────
+// WHY THIS EXISTS: the decision this exercises shipped a stale wasm to the
+// public gallery on 2026-09-16 while printing "· ladderface: up to date", and
+// it was caught by luck (a sibling cart in the same command had no build, so it
+// compiled and the contrast was visible). The fix was verified by hand, once,
+// in a throwaway experiment. This freezes those answers so the trap cannot
+// come back quietly.
+//
+// Runs on synthetic files in a temp dir: no emcc, no network, no site/ repo.
+// It drives the REAL freshness() + inputsDigest(), not a restatement of them.
+function selfcheck() {
+  const os = require('os')
+  let pass = 0, fail = 0
+  const eq = (label, got, want) => {
+    if (got === want) { pass++; console.log(`  \x1b[32m✓\x1b[0m ${label}`) }
+    else { fail++; console.log(`  \x1b[31m✗\x1b[0m ${label} — got ${JSON.stringify(got)}, want ${JSON.stringify(want)}`) }
+  }
+
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'build-site-selfcheck-'))
+  const F = (n) => path.join(dir, n)
+  const write = (n, body) => { fs.writeFileSync(F(n), body); return F(n) }
+
+  const cart = write('cart.c', 'void draw(void){}\n')
+  const hdr  = write('keybed.h', '// a cart-land header\n')
+  const page = write('index.html', '<html>\n')
+  const wasm = write('worklet.wasm', 'BINARY')
+  const stampFile = F('inputs.sha')
+  const params = { SW: 200, SH: 320, wantWorklet: true }
+  const D = (files = [cart, hdr], pr = params) => inputsDigest(files, pr)
+
+  // ── the digest itself ──
+  eq('digest is stable across calls', D() === D(), true)
+  fs.writeFileSync(cart, 'void draw(void){ cls(0); }\n')
+  const afterCart = D()
+  eq('a CART edit moves the digest', afterCart !== D([hdr], params) && afterCart.length === 64, true)
+
+  // THE SECOND BUG: the old input list named studio.c/studio.h/sound.h only, so
+  // editing any cart-land header was invisible. Not timing-dependent — always wrong.
+  const beforeHdr = D()
+  fs.writeFileSync(hdr, '// a cart-land header, edited\n')
+  eq('a HEADER edit moves the digest (the always-wrong bug)', D() !== beforeHdr, true)
+
+  // a build PARAM reaching the compiler is part of the identity of the output
+  eq('a screen-size change moves the digest', D(undefined, { ...params, SW: 320 }) !== D(), true)
+  eq('the worklet flag moves the digest', D(undefined, { ...params, wantWorklet: false }) !== D(), true)
+  eq('a MISSING input still yields a digest', D([cart, F('gone.h')]).length, 64)
+  // the path is hashed too, so a rename is a change even at identical content
+  const renamed = write('ui.h', fs.readFileSync(hdr, 'utf8'))
+  eq('a RENAMED input at identical content moves the digest', D([cart, renamed]) !== D([cart, hdr]), true)
+
+  // ── the decision ──
+  const ask = (over = {}) => freshness({
+    force: false, outHtml: page, checkWasm: wasm, stampFile, digest: D(), ...over })
+
+  fs.writeFileSync(stampFile, D() + '\n')
+  eq('unchanged inputs → skip', ask().why, 'stamp-matches')
+  eq('  and it is fresh', ask().fresh, true)
+
+  // ── THE BUG THAT SHIPPED ──
+  // site/ is its own git checkout, so `git -C site pull` restamps every published
+  // file to NOW. Source edited hours earlier then looks older than its own stale
+  // build. mtime says fresh; content says rebuild. Content must win.
+  const old = new Date('2020-01-01T00:00:00Z'), now = new Date()
+  fs.writeFileSync(cart, 'void draw(void){ cls(7); }\n')   // a REAL change
+  fs.utimesSync(cart, old, old)                              // backdated, as an old edit
+  fs.utimesSync(stampFile, old, old)                         // the LOCAL stamp is old too
+  for (const f of [page, wasm]) fs.utimesSync(f, now, now)   // restamped, as a pull would
+  // State the premise, or the next two answers could pass by timestamp-resolution
+  // luck rather than by the logic. Caught in mutation testing: an mtime fast-path
+  // comparing wasm against the STAMP survived until the stamp was backdated too,
+  // because both were written in the same millisecond and `>` was false.
+  eq('  premise: every OUTPUT mtime is newer than every INPUT mtime',
+     Math.min(...[page, wasm].map(f => fs.statSync(f).mtimeMs)) >
+     Math.max(...[cart, hdr, stampFile].map(f => fs.statSync(f).mtimeMs)), true)
+  eq('source 6 years OLDER by mtime but changed → rebuild', ask().why, 'inputs-changed')
+
+  // re-stamping after the rebuild settles it again
+  fs.writeFileSync(stampFile, D() + '\n')
+  eq('re-stamped after that rebuild → skip again', ask().why, 'stamp-matches')
+
+  // ── fail-safe paths: each must rebuild, and say which one it was ──
+  eq('--force overrides a valid stamp', ask({ force: true }).why, 'forced')
+  eq('no stamp → rebuild (a fresh clone must not trust the artifact)',
+     ask({ stampFile: F('nope.sha') }).why, 'no-stamp')
+  eq('no wasm → rebuild', ask({ checkWasm: F('nope.wasm') }).why, 'no-wasm')
+  eq('no page → rebuild', ask({ outHtml: F('nope.html') }).why, 'no-page')
+  eq('an EMPTY stamp file → rebuild, not a match on ""',
+     (fs.writeFileSync(F('empty.sha'), ''), ask({ stampFile: F('empty.sha') }).why), 'inputs-changed')
+  eq('a TRUNCATED stamp → rebuild', (fs.writeFileSync(F('trunc.sha'), D().slice(0, 40)),
+     ask({ stampFile: F('trunc.sha') }).why), 'inputs-changed')
+  // order of precedence: a missing page is reported before a stamp mismatch, so
+  // the reason is the FIRST thing wrong rather than the last thing checked
+  eq('force beats every other reason', ask({ force: true, outHtml: F('nope.html') }).why, 'forced')
+
+  // ── the roster this is all built on ──
+  const rt = runtimeSources()
+  eq('runtimeSources() finds the engine', rt.some(f => f.endsWith('/studio.c')), true)
+  eq('  and the cart-land headers the old list missed',
+     ['keybed.h', 'ui.h', 'face.h', 'lay.h'].every(h => rt.some(f => f.endsWith('/' + h))), true)
+  eq('  and it is not empty', rt.length > 20, true)
+
+  fs.rmSync(dir, { recursive: true, force: true })
+  console.log(`build-site --selfcheck: ${pass}/${pass + fail} known answers correct`)
+  return fail === 0
+}
+
 const argv    = process.argv.slice(2)
 const force   = argv.includes('--force')
 const worklet = argv.includes('--worklet')   // AudioWorklet backend build → site/<name>-worklet/
 const names = argv.filter(a => !a.startsWith('--'))
+
+if (argv.includes('--selfcheck')) process.exit(selfcheck() ? 0 : 1)
 
 if (!argv.includes('--gallery') && !argv.includes('--reshell') && names.length === 0) {
   console.log('usage: node tools/build-site.js <name> [<name>...] [--force]')
   console.log('       node tools/build-site.js --gallery')
   console.log('       node tools/build-site.js --reshell          (re-apply the worklet loader shell to all built worklet carts, no recompile)')
   console.log('       node tools/build-site.js --finish <name>   (post-process an already-compiled site/<name>/)')
+  console.log('       node tools/build-site.js --selfcheck        (known answers for the freshness decision)')
   process.exit(1)
 }
 

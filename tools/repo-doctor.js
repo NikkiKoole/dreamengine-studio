@@ -80,6 +80,11 @@ const CHECKS = [
   { name: "selftest: aux params", tool: "lint-aux-params.js", args: ["--selfcheck"], gate: true },
   { name: "selftest: seam", tool: "lint-engine-seam.js", args: ["--selfcheck"], gate: true },
   { name: "selftest: pro seam", tool: "pro-check.js",     args: ["--selfcheck"], gate: true },
+  // The PUBLISH path's first control. build-site.js is a generator, not a linter, so it never
+  // appeared as a gap in gate-controls — but its freshness decision IS a gate, and when it was
+  // wrong it pushed a stale wasm to the public gallery while printing "up to date" (2026-09-16,
+  // ladderface). Builds nothing: the decision is pure, judged on synthetic files.
+  { name: "selftest: web freshness", tool: "build-site.js", args: ["--selfcheck"], gate: true },
   // The first AUDIO gate to join this row. It renders no cart: the pitch detector is pure, so it
   // is judged on synthetic tones with answers known from arithmetic. See its header for why an
   // audio gate needs one at all — the failure mode is going blind, not crying wolf.

@@ -1821,6 +1821,13 @@ Still open there: a named `noise2_seeded()` helper and/or documenting the idiom 
     *(This entry was 229 lines — 15% of the file — and titled "deliberately NOT queued" while the
     changelog above recorded two of its phases as shipped. A ledger row should not restate a 4,800-line
     pair of design docs; it should say where they are and whether the work is live.)*
+53. **Depth-tested triangles + a near-plane clip** *(accepted 2026-09-25, not built)*.
+    `trifill_z`/`tritex_z`/`sspr_z` + `depth_clear` + `nearclip`, software-rasterized on every
+    platform — the narrowed 3D line of [ADR-0036](decisions/0036-depth-tested-triangles-not-a-3d-engine.md),
+    chosen over a "fantasy PS1" engine after an audit of every 3D cart (sort ≤2.3% of draw except
+    polyroom; real errors in citydrive/dreamcad/polyroom; near-plane defects in three more). Next:
+    `trifill_z` + gates, proven by porting polyroom. Spec, evidence, rollout, gates:
+    [`design/depth-tested-triangles.md`](design/depth-tested-triangles.md).
 
 ---
 
@@ -1885,8 +1892,10 @@ Rationale lives in [`design/api-notes.md`](design/api-notes.md)'s "What to defer
   the full pattern, and `zelda`/`gta` test against their own data, not `mget`.
 - **DS structures** (lists/maps/grids) (2026-05-30), **memory arenas**, **PS1 z-sort/ordering table**,
   **tools-as-carts / VFS / fantasy-OS / peek-poke**, a **3D *engine*** (scene graph / mat4
-  stack / z-buffer / per-pixel depth) — out of scope. *(The small 3D leaf-helpers
-  `rot3`/`project3`/`zsort`/`quadfill` + `V3` ARE shipped — see below and [decision 0009].)*
+  stack / lighting / fog / meshes / GPU 3D) — out of scope. *(The small 3D leaf-helpers
+  `rot3`/`project3`/`zsort`/`quadfill` + `V3` ARE shipped — see below and [decision 0009]. And
+  since 2026-09-25 a per-pixel **depth test + near-plane clip** is accepted, not built — the one
+  exception, [decision 0036](decisions/0036-depth-tested-triangles-not-a-3d-engine.md).)*
 - **`hud()` and `game_over_screen()`** — one-call "draw a whole HUD / draw a whole game-over
   screen" helpers. **Cut** for the reason that a no-param convenience for a *look* makes every
   cart look the same: a shared `hud()` would give 572 carts one identical status bar, which is the

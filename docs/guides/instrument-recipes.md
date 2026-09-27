@@ -130,6 +130,26 @@ from `MODE_MODAL_EXCITE`). The `h/t/m` below are the **recommended** triple.
 > `https://mipolai.com/dreamengine/modal/`. From a machine that can publish:
 > `node tools/build-site.js modal` then the `site/` push in `tools/publish-cart.sh`.
 
+## INSTR_MME — the multi modulation engine
+
+All from **mme.c** (showcase). Base `A3 D0 S7 R220` (a held voice). `h` picks the MODEL
+(7 detents: aim at the detent centre, `(model + 0.5) / 7`), `t` = amount, `m` = flow;
+`fb / sh / pair / iv` are `MODE_MME_FEEDBACK / SHAPER / PAIR / INTERVAL`. Every model is trimmed
+to the same peak in the engine, so these differ in character, not level.
+
+| name | source cart | recipe | character |
+|---|---|---|---|
+| mme/ring bass | mme.c (showcase) | h0.07 t0.55 m0.15 · fb0.25 sh0 pair sin/sin iv0.5 | Diode ring on two sines: the analog path is a hard-railed square-ish growl; flow toward 1 softens it into the digital ring. |
+| mme/fold | mme.c | h0.21 t0.6 m0.5 · fb0.3 sh0.2 pair tri/sin iv0.5 | Wavefolder brass; amount is the fold gain. |
+| mme/vpm lead | mme.c | h0.5 t0.5 m0.5 · fb0.25 sh0 pair sin/sin iv0.5 | Phase modulation both ways, flow crossfades which oscillator is the carrier. The default patch. |
+| mme/sync | mme.c | h0.64 t0.8 m0.3 · fb0.2 sh0 pair saw/tri iv0.62 | Hard sync: amount is how hard B resets, flow is where in its cycle it lands. |
+| mme/logic | mme.c | h0.78 t0.7 m0.2 · fb0.4 sh0.3 pair sq/sq iv0.75 | 16-bit XOR of the two oscillators, flow toward 1 becomes a comparator. Chip-noise. |
+| mme/vocode pad | mme.c | h0.93 t0.6 m0.5 · fb0.15 sh0 pair sin/sq iv0.5 | B's band envelopes gate A through 20 bands; flow shifts the bank. The softest model. |
+
+> Feedback past ~0.65 is squared into deliberately ugly territory but never collapses: the
+> reinjected signal is DC-blocked. Press E in the cart to hear the same knobs on the cart-land
+> reference render the engine was written from.
+
 ## INSTR_MALLET — modal struck bar
 
 | name | source cart | recipe | character |

@@ -2793,6 +2793,171 @@ static inline float sound_modal_sample(Voice *v, float pitch_mul) {
     return dc * v->mo_norm * (1.0f + 1.6f * v->mo_bow);
 }
 
+// ── INSTR_MME: the multi modulation engine (choochootracker-borrow-list.md row 1) ────
+// Two oscillators through one of seven cross-modulation MODELS, then a saturate-into-fold
+// shaper, then a feedback path that reinjects only the AC part of the output. A tracker-sized
+// take on Mutable Warps' ring / fold / XOR / vocoder algorithms after Noise Engineering's
+// Loquelic Iteritas; ported from Choochootracker's mme_voice.cpp (MIT, paiheulevrai) through
+// the `mme` cart, which keeps the REFERENCE render (cart-land, sample-slot path) and the facts
+// measured on the way: upstream's fmodf fold is asymmetric and flattened a square pair to a
+// line (this fold is the symmetric floor-modulo one), and a folder at full feedback carries
+// ~0.2 of DC (hence the output blocker). Macros: harmonics = MODEL (7 detents), timbre =
+// AMOUNT (how hard the model bites), morph = FLOW (each model's second axis). Aux, read at
+// note-on: MODE_MME_FEEDBACK / SHAPER / PAIR / INTERVAL. Osc A rides v->phase, so glide, LFO
+// and pitch bend work by construction; osc B keeps its own phase at A × 2^(±2 oct).
+#define MME_NMODEL 7
+#define MME_NPAIR  5
+enum { MME_RING, MME_FOLD, MME_CROSS, MME_VPM, MME_SYNC, MME_LOGIC, MME_VOCODE };
+static const int MME_PAIR_A[MME_NPAIR] = { 0, 1, 2, 0, 3 };   // shapes: 0 sin · 1 tri · 2 saw · 3 square
+static const int MME_PAIR_B[MME_NPAIR] = { 0, 0, 1, 2, 3 };   // pairs: sin/sin tri/sin saw/tri sin/sq sq/sq
+// per-model output trim: the models differ by ~15 dB at the same knobs (ring's tanh rails vs
+// vocode's 0.18 band sum). Measured 2026-09-27 on a held A2 at the default macros so every
+// model lands near the engine's single-voice baseline (-14 dBFS peak, level-check).
+static const float MME_TRIM[MME_NMODEL] = { 2.05f, 1.48f, 1.40f, 1.37f, 1.38f, 1.90f, 2.15f };
+
+static inline int mme_model_of(float harm) { int m = (int)(clamp01(harm) * 6.999f); return m < 0 ? 0 : m > 6 ? 6 : m; }
+static inline int mme_pair_of(float x)     { int p = (int)(clamp01(x) * 4.999f);   return p < 0 ? 0 : p > 4 ? 4 : p; }
+
+static inline float mme_osc(float phase, int shape) {
+    phase -= floorf(phase);
+    switch (shape) {
+        case 1:  return 1.0f - 4.0f * fabsf(phase - 0.5f);
+        case 2:  return 2.0f * phase - 1.0f;
+        case 3:  return phase < 0.5f ? 1.0f : -1.0f;
+        default: return de_sin_turns(phase);
+    }
+}
+// Warps' diode ring-modulator model (MIT): a dead zone, then a square law.
+static inline float mme_diode(float x) {
+    float sign = x > 0.0f ? 1.0f : -1.0f;
+    float dead = fabsf(x) - 0.667f;
+    dead += fabsf(dead);
+    return 0.043247658f * dead * dead * sign;
+}
+// Triangle wavefolder, period 4, SYMMETRIC (floor modulo — see the header note on fmodf).
+static inline float mme_fold(float x) {
+    float t = x + 1.0f;
+    t -= 4.0f * floorf(t * 0.25f);
+    return fabsf(t - 2.0f) - 1.0f;
+}
+static inline float mme_shaper(float x, float amount) {
+    if (amount <= 0.0f) return x;
+    float sat  = de_tanhf(x * (1.0f + amount * 5.0f));
+    float fold = mme_fold(sat * (1.0f + amount * 3.0f));
+    float mix  = clamp01((amount - 0.55f) / 0.45f);
+    return sat + (fold - sat) * mix;
+}
+// vocoder band table: 20 bands 90 Hz .. 3.8 kHz, shifted by flow. powf ×20, so only when flow moves.
+static void sound_mme_voc_coeffs(Voice *v, float flow) {
+    for (int i = 0; i < SOUND_MME_BANDS; i++) {
+        float t  = (float)i / (float)(SOUND_MME_BANDS - 1);
+        float u  = clamp01(t + (flow - 0.5f) * 0.26f);
+        float hz = 90.0f * de_powf(42.0f, u);
+        float a  = SOUND_TWO_PI * hz / (float)SOUND_SAMPLE_RATE;
+        v->mme_a[i] = a < 0.0001f ? 0.0001f : a > 0.45f ? 0.45f : a;
+    }
+    v->mme_voc_flow = flow;
+}
+static void sound_mme_start(Voice *v) {
+    v->mme_phB = v->mme_prevA = 0.0f;
+    v->mme_fb = v->mme_fbdc = 0.0f;
+    v->mme_hp_x = v->mme_hp_y = 0.0f;
+    for (int i = 0; i < SOUND_MME_BANDS; i++)
+        v->mme_mlo[i] = v->mme_mhi[i] = v->mme_clo[i] = v->mme_chi[i] = v->mme_env[i] = v->mme_a[i] = 0.0f;
+    v->mme_voc_flow = -1.0f;                                   // force a band-table build on first use
+    v->mme_ratio = de_powf(2.0f, (clamp01(v->eng_p[MODE_MME_INTERVAL]) - 0.5f) * 4.0f);
+    int pair = mme_pair_of(v->eng_p[MODE_MME_PAIR]);
+    v->mme_sa = MME_PAIR_A[pair];
+    v->mme_sb = MME_PAIR_B[pair];
+    v->mme_on = true;
+}
+static inline float sound_mme_sample(Voice *v, float pitch_mul) {
+    if (!v->mme_on) return 0.0f;
+    const int   model  = mme_model_of(v->harm);
+    const float amount = clamp01(v->timb), flow = clamp01(v->mor);
+    const float fc  = clamp01(v->eng_p[MODE_MME_FEEDBACK]);
+    const float fbg = fc * fc * 2.5f;                          // civil below 2/3 of the knob, ugly past it
+    const float phA = v->phase;                                // turns, advanced by the mix loop
+    if (model == MME_SYNC && phA < v->mme_prevA)               // master wrapped: amount morphs B from
+        v->mme_phB += (flow - v->mme_phB) * amount;            // free-running to a hard reset at phase = flow
+    v->mme_prevA = phA;
+    const float inj = v->mme_fb * fbg;
+    float a = de_tanhf(mme_osc(phA, v->mme_sa) + inj * (0.35f + 0.75f * flow));
+    float b = de_tanhf(mme_osc(v->mme_phB, v->mme_sb) - inj * (1.10f - 0.50f * flow));
+    float s = 0.0f;
+    switch (model) {
+        case MME_RING: {
+            float analog  = de_tanhf((mme_diode(a + b * amount * 2.0f) + mme_diode(a - b * amount * 2.0f)) * 12.0f);
+            float digital = 4.0f * a * b * amount;
+            digital /= 1.0f + fabsf(digital);
+            s = analog + (digital - analog) * flow;
+            break;
+        }
+        case MME_FOLD:
+            s = mme_fold((a + b * (0.15f + amount) + a * b * 0.25f) * (0.02f + amount * 1.4f));
+            break;
+        case MME_CROSS: {
+            float ab = mme_osc(phA + (b + v->mme_fb) * amount * 0.28f, v->mme_sa);
+            float ba = mme_osc(v->mme_phB + (a + v->mme_fb) * amount * 0.28f, v->mme_sb);
+            s = ab + (ba - ab) * flow;
+            break;
+        }
+        case MME_VPM: {
+            float ab = mme_osc(phA + (b + v->mme_fb) * amount * 0.45f, v->mme_sa);
+            float ba = mme_osc(v->mme_phB + (a + v->mme_fb) * amount * 0.45f, v->mme_sb);
+            s = ab + (ba - ab) * flow;
+            break;
+        }
+        case MME_SYNC:
+            s = mme_osc(v->mme_phB, v->mme_sb) + a * (amount * 0.18f);
+            break;
+        case MME_LOGIC: {
+            int16_t ia = (int16_t)(int)(a * 32767.0f), ib = (int16_t)(int)(b * 32767.0f);
+            float x   = (float)(int16_t)(ia ^ ib) / 32768.0f;
+            float cmp = fabsf(a) > fabsf(b) ? a : b;
+            s = (a + b) * (1.0f - amount) * 0.5f + (x + (cmp - x) * flow) * amount;
+            break;
+        }
+        case MME_VOCODE: {
+            // 20-band envelope vocoder after Warps' filter bank: each band is the difference of
+            // two cascaded one-poles, the modulator (B) band's envelope gates the carrier (A) band.
+            if (fabsf(flow - v->mme_voc_flow) > 0.004f) sound_mme_voc_coeffs(v, flow);
+            const float mod = b * amount, car = a;
+            const float release = 0.003f + (1.0f - amount) * 0.08f;
+            float out = 0.0f;
+            for (int i = 0; i < SOUND_MME_BANDS; i++) {
+                float ba = v->mme_a[i];
+                v->mme_mlo[i] += ba * (mod - v->mme_mlo[i]);
+                v->mme_mhi[i] += ba * (v->mme_mlo[i] - v->mme_mhi[i]);
+                v->mme_clo[i] += ba * (car - v->mme_clo[i]);
+                v->mme_chi[i] += ba * (v->mme_clo[i] - v->mme_chi[i]);
+                float env  = fabsf(v->mme_mlo[i] - v->mme_mhi[i]);
+                float rate = env > v->mme_env[i] ? 0.18f : release;
+                v->mme_env[i] += rate * (env - v->mme_env[i]);
+                float g = v->mme_env[i] * 6.0f;
+                out += (v->mme_clo[i] - v->mme_chi[i]) * (g > 2.0f ? 2.0f : g);
+            }
+            s = out * 0.18f;
+            break;
+        }
+        default: break;
+    }
+    s = de_tanhf(s + inj * 1.2f);
+    s = mme_shaper(s, clamp01(v->eng_p[MODE_MME_SHAPER]));
+    // feedback: keep the turbulence, reinject only the AC part (a recursive DC offset turns a
+    // wild patch into silence or a flat line)
+    float raw = de_tanhf(v->mme_fb * (0.10f + fbg) + s * (0.45f + fc * 1.9f));
+    v->mme_fbdc += 0.025f * (raw - v->mme_fbdc);
+    v->mme_fb = (raw - v->mme_fbdc) * (0.72f + fc * 0.22f);
+    // output DC blocker, 10 Hz (1 - 2π·10/44100)
+    v->mme_hp_y = s - v->mme_hp_x + 0.99857f * v->mme_hp_y;
+    v->mme_hp_x = s;
+    // osc B advances here; A is the mix loop's
+    v->mme_phB += v->freq * pitch_mul * v->mme_ratio / (float)SOUND_SAMPLE_RATE;
+    v->mme_phB -= floorf(v->mme_phB);
+    return v->mme_hp_y * MME_TRIM[model];
+}
+
 // One FM sample (2-op + feedback — §8.8.3 in audio-notes). The carrier is v->phase, which
 // the mix loop already advances by freq*pitch_mul — so the whole pitch machinery works by
 // construction; only the modulator phase lives here. The second oscillator is INAUDIBLE
@@ -5109,6 +5274,7 @@ static inline float sound_engine_sample(Voice *v, float pitch_mul) {
         case INSTR_SAMPLE:   return sound_sample_sample(v, pitch_mul);
         case INSTR_MODAL:    return sound_modal_sample(v, pitch_mul);
         case INSTR_FM4:      return sound_fm4_sample(v, pitch_mul);
+        case INSTR_MME:      return sound_mme_sample(v, pitch_mul);
     }
     // fall-through: the modal Karplus-Strong string — any engine id not handled above.
     int alloc = v->ks_len;
@@ -5732,6 +5898,7 @@ static void sound_setup_note(Voice *v, int midi, int slot, int vol, int gate_sam
     v->br_on  = false;
     v->smp_on = false;
     v->mo_on  = false;
+    v->mme_on = false;
     v->fm_mph = v->fm_fb = v->fm_tph = 0.0f;   // FM needs no excitation, just deterministic phases
     if      (v->wave == INSTR_PLUCK)  sound_pluck_start(v);    // excite the string
     else if (v->wave == INSTR_MALLET) sound_mallet_start(v);   // strike the bar
@@ -5755,6 +5922,7 @@ static void sound_setup_note(Voice *v, int midi, int slot, int vol, int gate_sam
         v->smp_on = true;
     }
     else if (v->wave == INSTR_MODAL)  sound_modal_start(v);    // arm the filter bank + strike envelope
+    else if (v->wave == INSTR_MME)    sound_mme_start(v);      // zero osc B + the feedback / vocoder states, snapshot pair + interval
     else if (v->wave == INSTR_FM4)    sound_fm4_start(v);      // reset 4 phases + feedback average
     // TRIGGER POLICY (§L4). The engine hooks above have just ARMED this voice's onset transient; if the
     // slot declares itself single-triggering and another key on it is already down, take it back off.

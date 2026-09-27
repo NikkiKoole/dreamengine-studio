@@ -12,28 +12,30 @@
     "wavefolder",
     "vocoder"
   ],
-  "lineage": "Cart-first prototype of the #1 row in docs/design/choochootracker-borrow-list.md: Choochootracker's MME voice (chipnomad_lib/synth/mme_voice.cpp, MIT, itself a tracker-sized take on Mutable Warps' ring/fold/XOR/vocoder algorithms after Noise Engineering's Loquelic Iteritas). The engine has no per-sample hook for cart code, so each key press RENDERS the note in cart-land C and hands it to a PCM slot (sample_load + instrument_sample at root = the pressed note, so nothing is repitched). That is the prototype's trick, not its sound: once the mapping settles this becomes an INSTR_* engine and the cart keeps its panel.",
+  "lineage": "INSTR_MME showcase, and the cart it was prototyped in first: row 1 of docs/design/choochootracker-borrow-list.md, Choochootracker's MME voice (chipnomad_lib/synth/mme_voice.cpp, MIT, itself a tracker-sized take on Mutable Warps' ring/fold/XOR/vocoder algorithms after Noise Engineering's Loquelic Iteritas). The cart-first trick stays in as a tappable A/B: the engine has no per-sample hook for cart code, so the prototype RENDERED each note in cart-land C into a PCM slot (sample_load + instrument_sample at root = the pressed note). That render is now the REFERENCE the engine is judged against (E toggles ENGINE / SAMPLE on the same knobs), the way modal keeps both macro mappings live.",
   "homage": "Noise Engineering Loquelic Iteritas (the two-osc cross-modulation voice) by way of Mutable Instruments Warps (the diode ring mod + the filter-bank vocoder).",
   "description": {
-    "summary": "Two oscillators fighting through seven cross-modulation models: diode ring, fold, cross, VPM, sync, XOR logic, vocoder. Aggressive by design.",
-    "detail": "A prototype of the MME (Multi Modulation Engine) voice, played from a keybed. Two oscillators (five wave pairs, B tuned up to two octaves off A) run through one of seven models, then a saturate-into-fold shaper, then a feedback path that reinjects only the AC part of the output (a DC-blocked feedback state), so the wild settings stay turbulent instead of collapsing to silence or a flat line. Every key press renders the note in cart-land C into a PCM slot the sample engine plays back at root pitch: the sound is exact, the knobs re-render the next note rather than riding the held one. Autoplay walks a bass line while stepping the models so the panel is never silent.",
-    "controls": "A-K / W-P / click / touch / MIDI: keybed (Z/X octave) · 1-7 or LEFT/RIGHT: model · UP/DOWN: wave pair · drag the knobs (amount / flow / feedback / shaper / interval), wheel = fine · M: autoplay"
+    "summary": "Two oscillators fighting through seven cross-modulation models: diode ring, fold, cross, VPM, sync, XOR logic, vocoder. Aggressive by design. INSTR_MME showcase.",
+    "detail": "The MME (Multi Modulation Engine) voice, played from a keybed. Two oscillators (five wave pairs, B tuned up to two octaves off A) run through one of seven models, then a saturate-into-fold shaper, then a feedback path that reinjects only the AC part of the output (a DC-blocked feedback state), so the wild settings stay turbulent instead of collapsing to silence or a flat line. Model, amount and flow are the engine's three macros and ride a held note live; feedback, shaper, wave pair and interval are its aux params. E flips the same knobs onto the cart-land REFERENCE render (the prototype's sample-slot path) so engine and reference can be A/B'd by ear. Autoplay walks a bass line while stepping the models so the panel is never silent.",
+    "controls": "A-K / W-P / click / touch / MIDI: keybed (Z/X octave) · 1-7 or LEFT/RIGHT: model · UP/DOWN: wave pair · drag the knobs (amount / flow / feedback / shaper / interval), wheel = fine · E: ENGINE / SAMPLE reference · M: autoplay"
   },
   "todo": [
-    "ear-settle the macro mapping for the engine port (proposed: harmonics = model, timbre = amount, morph = flow, feedback on a MODE_ aux)",
-    "per-note peak normalisation hides how much louder ring is than vocode; the engine port needs a per-model trim table instead",
-    "a held note cannot ride a knob mid-note (sample-slot prototype); the engine port fixes that"
+    "ear-check the MME_TRIM per-model levels in sound.h against the SAMPLE reference (E): the reference is peak-normalised per note, the engine is trimmed per model",
+    "presets: a few named starting points (acid-ish ring bass, vocode pad, sync lead) once the ear settles"
   ]
 }
 de:meta */
-// mme — the Choochootracker MME voice, prototyped as a cart before it becomes an engine.
+// mme — INSTR_MME showcase, and the cart the engine was prototyped in first.
 //
-// Why a cart: the engine has no per-sample hook for cart code, but a cart CAN render its
-// own audio and hand it to a PCM slot. So a key press renders REN_SEC of the voice at the
-// pressed pitch into ren[], sample_load()s it into one of NV slots (round-robin), binds
-// the matching INSTR_SAMPLE instrument at root = that note (speed 1.0, no resampling) and
-// note_on()s it. The engine's ADSR still gates the release. Knob changes re-render the
-// NEXT note (and fire a short preview strike while you drag), they do not ride a held one.
+// Two paths on the same knobs, E flips between them (the modal cart's "both mappings stay
+// live" move, applied to engine-vs-reference):
+//   ENGINE  (default) one INSTR_MME slot; model/amount/flow are the three macros and ride a
+//           held note live, feedback/shaper/pair/interval go through instrument_mode.
+//   SAMPLE  the cart-first prototype: a key press renders REN_SEC of the voice at the pressed
+//           pitch into ren[] (mme_render below, the REFERENCE the engine was written from),
+//           sample_load()s it into one of NV slots and plays it through INSTR_SAMPLE at
+//           root = that note. Knobs re-render the NEXT note there. Kept so the engine can be
+//           judged against the render by ear, and so spec() has a pure function to test.
 //
 // The DSP is a straight port of mme_voice.cpp (MIT, paiheulevrai), in de_* math so a
 // spec() render is the same bits on every platform:
@@ -53,7 +55,7 @@ de:meta */
 //   · a single voice plays at -12 dBFS peak, in family with the engine's own baseline (-14).
 //
 // controls: keybed (A-K whites, W-P blacks, Z/X octave) · 1-7 / LEFT RIGHT model ·
-//           UP DOWN wave pair · knobs (drag, wheel) · M autoplay
+//           UP DOWN wave pair · knobs (drag, wheel) · E engine/sample · M autoplay
 
 #include "studio.h"
 #include "ui.h"
@@ -61,8 +63,9 @@ de:meta */
 #include <math.h>
 #include <string.h>
 
-#define I0       5                    // instrument slots I0..I0+NV-1, one per PCM slot
-#define NV       6                    // polyphony = PCM slots used (engine has 8)
+#define I_ENG    12                   // the INSTR_MME slot (engine path)
+#define I0       5                    // SAMPLE path: instrument slots I0..I0+NV-1, one per PCM slot
+#define NV       6                    // polyphony of the sample path = PCM slots used (engine has 8)
 #define SR       44100                // SOUND_SAMPLE_RATE — the rate sample_load() assumes
 #define REN_SEC  2.0f
 #define REN_N    (SR * 2)                // = SR * REN_SEC, kept an integer constant expression
@@ -83,8 +86,10 @@ typedef struct {
 
 static MmeParams P = { M_RING, 0, 0.5f, 0.55f, 0.5f, 0.25f, 0.0f };
 
+static bool  engine_path = true;           // E: ENGINE (INSTR_MME) vs SAMPLE (the reference render)
 static float ren[REN_N];
-static int   handle[128];                  // keybed notes: one live voice per MIDI note
+static int   handle[128];                  // keybed notes: one live voice per MIDI note (a slot, or on
+                                           // the engine path a note_on handle)
 static int   vhandle[NV];                  // the voice on each PCM slot (the walk repeats notes,
 static int   rr = 0;                       // round-robin PCM slot                 so it keys by SLOT)
 static bool  autoplay = true;
@@ -262,10 +267,27 @@ static void mme_render(float *out, int n, float hz, const MmeParams *p) {
 // ── voicing: one render per press, into a round-robin PCM slot ─────────────────
 static float midi_hz(int midi) { return 440.0f * de_powf(2.0f, (float)(midi - 69) / 12.0f); }
 
-// Render + load + start one voice; returns the PCM slot it took. The slot's previous
-// voice is released first so a reloaded buffer is never read by a live voice.
+// Push the panel into the INSTR_MME slot. Set-and-hold: called only when a knob moved.
+// Model + pair are detents: aim at the centre of the detent so a float never lands on an edge.
+static void apply_engine(void) {
+    instrument_harmonics(I_ENG, ((float)P.model + 0.5f) / (float)NMODEL);
+    instrument_timbre(I_ENG, P.amount);
+    instrument_morph(I_ENG, P.flow);
+    instrument_mode(I_ENG, MODE_MME_FEEDBACK, P.feedback);
+    instrument_mode(I_ENG, MODE_MME_SHAPER,   P.shaper);
+    instrument_mode(I_ENG, MODE_MME_PAIR,     ((float)P.pair + 0.5f) / (float)NPAIR);
+    instrument_mode(I_ENG, MODE_MME_INTERVAL, P.interval);
+}
+
+// Start one voice; returns a token release_slot() takes back: on the engine path the note_on
+// handle, on the sample path the PCM slot it took (its previous voice released first so a
+// reloaded buffer is never read by a live voice).
 static int play(int midi, int vel) {
     if (midi < 0 || midi > 127) return -1;
+    if (engine_path) {
+        kb_glow[midi] = 1.0f;
+        return note_on(midi, I_ENG, vel);
+    }
     int v = rr; rr = (rr + 1) % NV;
     if (vhandle[v] >= 0) { note_off(vhandle[v]); vhandle[v] = -1; }
     mme_render(ren, REN_N, midi_hz(midi), &P);
@@ -277,9 +299,22 @@ static int play(int midi, int vel) {
     return v;
 }
 static void release_slot(int v) {
+    if (engine_path) { if (v >= 0) note_off(v); return; }
     if (v < 0 || v >= NV || vhandle[v] < 0) return;
     note_off(vhandle[v]);
     vhandle[v] = -1;
+}
+
+static void all_off(void) {
+    for (int m = 0; m < 128; m++) if (handle[m] >= 0) { release_slot(handle[m]); handle[m] = -1; }
+    for (int k = 0; k < NV; k++) if (auto_v[k] >= 0) { release_slot(auto_v[k]); auto_v[k] = -1; auto_left[k] = 0; }
+    if (preview_v >= 0) { release_slot(preview_v); preview_v = -1; preview_left = 0; }
+}
+
+static void set_path(bool engine) {
+    all_off();                                 // tokens mean different things per path
+    engine_path = engine;
+    rr = 0;
 }
 
 // keybed: one voice per MIDI note (keybed.h refcounts sources, so a note is pressed once)
@@ -302,10 +337,12 @@ static void preview(void) {
 
 static void set_model(int m) {
     P.model = ((m % NMODEL) + NMODEL) % NMODEL;
+    apply_engine();
     dirty = true;
 }
 static void set_pair(int p) {
     P.pair = ((p % NPAIR) + NPAIR) % NPAIR;
+    apply_engine();
     dirty = true;
 }
 
@@ -319,6 +356,7 @@ static void walk_step(void) {
     P.amount   = 0.25f + 0.65f * u;
     P.flow     = 0.15f + 0.70f * (1.0f - u);
     P.feedback = 0.15f + 0.45f * u;
+    apply_engine();
     int k = apos % NV;
     if (auto_v[k] >= 0) release_slot(auto_v[k]);
     auto_v[k] = play(walk[i], 6); auto_left[k] = 28;
@@ -326,6 +364,8 @@ static void walk_step(void) {
 }
 
 void init(void) {
+    instrument(I_ENG, INSTR_MME, 3, 0, 7, 220);            // held voice: 3 ms declick, 220 ms release
+    apply_engine();
     for (int v = 0; v < NV; v++) {
         instrument(I0 + v, INSTR_SAMPLE, 3, 0, 7, 220);   // 3 ms declick, release gates the tail
         auto_left[v] = 0; auto_v[v] = -1; vhandle[v] = -1;
@@ -346,10 +386,14 @@ void update(void) {
     if (keyp(KEY_UP))    set_pair(P.pair + 1);
     if (keyp(KEY_DOWN))  set_pair(P.pair - 1);
     if (keyp('M')) autoplay = !autoplay;
+    if (keyp('E')) set_path(!engine_path);
 
     keybed_update();
 
-    if (dirty && !autoplay && frame() % 10 == 0) { dirty = false; preview(); }
+    // knob moves: the engine rides them live (set-and-hold, only on change); the sample path
+    // needs a fresh render, so it fires a short preview strike while you drag
+    if (dirty && engine_path) { dirty = false; apply_engine(); }
+    if (dirty && !engine_path && !autoplay && frame() % 10 == 0) { dirty = false; preview(); }
     if (preview_left > 0 && --preview_left == 0) { release_slot(preview_v); preview_v = -1; }
 
     for (int k = 0; k < NV; k++)
@@ -365,6 +409,7 @@ void update(void) {
     watch("fb", "%.2f", P.feedback);
     watch("shaper", "%.2f", P.shaper);
     watch("auto", "%d", autoplay ? 1 : 0);
+    watch("engine", "%d", engine_path ? 1 : 0);
 #endif
 }
 
@@ -377,6 +422,8 @@ void draw(void) {
     print("multi modulation engine", 38, 6, CLR_MEDIUM_GREY);
     print_right(autoplay ? "M auto: walk" : "M auto: off", SCREEN_W - 6, 6,
                 autoplay ? CLR_LIME_GREEN : CLR_DARK_GREY);
+    print_right(engine_path ? "E: ENGINE" : "E: SAMPLE ref", SCREEN_W - 92, 6,
+                engine_path ? CLR_LIGHT_YELLOW : CLR_PEACH);
 
     // model row
     for (int m = 0; m < NMODEL; m++) {
@@ -405,8 +452,8 @@ void draw(void) {
     }
     print("1-7 model  UP/DN pair  Z/X oct", 4, 96, CLR_DARK_GREY);
 
-    // last render, as a strip behind the keybed edge
-    if (last_render_n > 0) {
+    // last reference render, as a strip behind the keybed edge (sample path only)
+    if (!engine_path && last_render_n > 0) {
         int x0 = 190, w = 124, y0 = 91, hh = 10;
         for (int x = 0; x < w; x++) {
             int i0 = (int)((long)x * last_render_n / w), i1 = (int)((long)(x + 1) * last_render_n / w);
@@ -434,6 +481,11 @@ void spec(void) {
     autoplay = false;
     step(1);
     expect_eq(P.model, M_RING, "boots on the ring model");
+    expect(engine_path, "boots on the ENGINE path (INSTR_MME)");
+    spec_tap('E');
+    expect(!engine_path, "E flips to the SAMPLE reference path");
+    spec_tap('E');
+    expect(engine_path, "E flips back to the engine");
 
     // every model renders: finite, audible, and a different sound from every other model
     MmeParams q = { M_RING, 2, 0.5f, 0.6f, 0.5f, 0.3f, 0.2f };
@@ -497,10 +549,15 @@ void spec(void) {
     spec_tap('M');
     expect(autoplay, "M turns the walk on");
     // every() rides the audio clock, which step() does not run — drive the walk directly
+    set_path(false);
     last_render_n = 0;
     int m0 = P.model;
     for (int i = 0; i < 8; i++) walk_step();
-    expect(last_render_n == REN_N, "a walk step renders a full note");
+    expect(last_render_n == REN_N, "a walk step on the sample path renders a full note");
     expect(P.model != m0, "the next bar steps to another model");
+    set_path(true);
+    last_render_n = 0;
+    walk_step();
+    expect(last_render_n == 0, "a walk step on the engine path renders nothing in cart-land");
 }
 #endif

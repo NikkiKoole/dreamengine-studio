@@ -7,13 +7,24 @@
 > **here**, then fix the prose in the relevant design doc. If a design doc and this file
 > disagree, this file wins.
 
-_Last updated: 2026-09-16 — ladderface ships the diode-ladder ribbon. See the top Shipped entry and [`design/compound-blindspots.md`](design/compound-blindspots.md) §3._
+_Last updated: 2026-09-27 — INSTR_MME (the multi modulation engine) shipped, cart-first. See the top Shipped entry and [`design/choochootracker-borrow-list.md`](design/choochootracker-borrow-list.md)._
 
 > **This line is a headline, not an entry.** It reached **9,064 characters** and was the only place in the file that recorded `FILTER_DIODE`, `filter-spec.js` and `rebirth-classic.md` — three shipped things, invisible because nobody reads a shipped feature out of a `_Last updated:_` line. They have a real entry now (2026-07-02, above `sprite-draw.js`). Keep this to one date, one sentence, one link; `status-check --check` fails past 900 chars.
 
 ---
 
 ## Shipped ✓
+
+- **INSTR_MME: THE MULTI MODULATION ENGINE** (2026-09-27). Row 1 of the Choochootracker
+  borrow list, ported cart-first: two oscillators through seven cross-modulation models
+  (diode ring / fold / cross / VPM / sync / XOR logic / 20-band vocoder), a saturate-into-fold
+  shaper and an AC-only feedback path. Macros: harmonics = model (7 detents), timbre = amount,
+  morph = flow; `MODE_MME_FEEDBACK/SHAPER/PAIR/INTERVAL` on the aux channel. The `mme` cart
+  keeps the cart-land reference render as an E-toggled A/B (the modal cart's move), per-model
+  trims land every model at -14 dBFS peak, tune-check within 3.4¢. Found on the way: upstream's
+  fold was asymmetric (fmodf), and tune-check's frame budget had silently dropped the PIANO
+  differential pass since MODAL/FM4 landed (fixed: 4500 frames).
+  [`design/choochootracker-borrow-list.md`](design/choochootracker-borrow-list.md).
 
 - **LADDER FACE: SCOPE + CPU-SHADER AS RACK IDENTITY** (2026-09-16). Compound-blindspot
   §3 was a living picture that never got a cart: shaders stayed a lesson,

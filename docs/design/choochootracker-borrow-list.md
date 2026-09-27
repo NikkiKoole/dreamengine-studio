@@ -1,9 +1,10 @@
 # Choochootracker: what to borrow
 
 **STATUS: BUILDING (2026-09-27)** — a ranked borrow list read off one repo. Row 1, the MME voice,
-is ported as the `mme` CART (cart-first, per "How to port #1" below); the engine port waits on
-the ear. Each row names the upstream file, what it would become here, and why it made or missed
-the cut. Update the row (not this line) when something lands.
+is SHIPPED as `INSTR_MME` (ported cart-first the same day; the `mme` cart keeps the cart-land
+reference as an E-toggled A/B). Rows 2..7 are open. Each row names the upstream file, what it
+would become here, and why it made or missed the cut. Update the row (not this line) when
+something lands.
 
 Upstream: <https://github.com/paiheulevrai/Choochootracker> (MIT, `paiheulevrai`, 2026). A fork of
 the ChipNomad tracker for Anbernic handhelds: LSDJ-style tracker workflow, SDL2, C++. Every path
@@ -84,17 +85,23 @@ Three things the port MEASURED that a read of the upstream file does not show:
   steep phase-modulated slope against a quiet local step-rms, the tool's documented false-positive
   shape. Read the step dump before believing the count on this voice.
 
-## The engine port (next)
+## The engine port, as built (2026-09-27, same day)
 
-1. Take the cart's `mme_render()` as the reference: write the engine voice fresh inside
-   `sound.h` with the 3-macro surface (ADR-0017), then A/B a note against the cart's render.
-   Proposed map: harmonics = model (7 detents), timbre = amount, morph = flow; feedback, shaper,
-   wave pair and interval on `MODE_MME_*` aux params. Settle it on the cart's knobs first.
-2. `ab-render.js` on a probe cart to prove each of the seven models reaches the DSP (a model
-   switch that renders byte-identical audio is the bug that tool exists for).
-3. `tune-check.js --quiet` (it is pitched), `level-check.js` with a per-model trim table
-   (the cart's peak normalisation is the prototype's shortcut, not the answer), `click-check.js`
-   read as above.
-4. Register the aux params through `lint-aux-params.js` (five places must agree).
-5. The `mme` cart swaps its render-into-slot path for the engine slot and keeps its panel; recipe
-   into [`instrument-recipes.md`](../guides/instrument-recipes.md).
+`INSTR_MME` in `sound.h`, written from the cart's `mme_render()` with the 3-macro surface
+(ADR-0017): harmonics = model (7 detents), timbre = amount, morph = flow, all live on a held
+note; `MODE_MME_FEEDBACK / SHAPER / PAIR / INTERVAL` on the aux channel, read at note-on. Osc A
+rides the engine's own phase accumulator, so glide, LFO and pitch bend work by construction. The
+`mme` cart now plays the engine and keeps the sample-slot prototype behind E as the reference
+A/B, the way `modal` keeps both macro mappings live. Gates run: `lint-aux-params`, the 900-frame
+soundcheck, `spec` (59), `tune-check` (A2..A5 within 3.4¢), a per-model level sweep (the
+`MME_TRIM` table lands all seven at -14 dBFS peak, the engine's single-voice baseline).
+
+Two things the port found in the TOOLS, not the voice: tune-check's frame budget was still sized
+for 14 sweep entries, so the PIANO differential pass had been silently truncated since MODAL and
+FM4 landed (now 4500 frames, and the comment says to count `ENGINES[]`); and `level-check`'s
+baseline predates MODAL/FM4 and reads a pre-existing ORGAN/BOWED A5 drift it blames on its own
+measurement, so the new engine's rows are "new (no baseline)" until someone re-blesses it
+knowingly. Not blessed here: a `--save` would sweep that drift into the baseline.
+
+Still open on row 1: the ear pass on `MME_TRIM` against the reference, and a few named presets
+(the recipe table in [`instrument-recipes.md`](../guides/instrument-recipes.md) is the start).

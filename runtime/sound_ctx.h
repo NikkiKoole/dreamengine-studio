@@ -30,6 +30,7 @@
 #define SOUND_INSTR_SLOTS  48   // 0-4 = the raw waves; 5-47 cart-defined (rich patch carts like modrack want banks per wave + many macro engines). ~200B/slot
 #define SOUND_KS_MAX       1024   // Karplus-Strong delay line cap (~4KB/voice) — bottoms out around 43Hz / MIDI 29
 #define SOUND_MODAL_MAX    12     // INSTR_MODAL resonator budget (4 is the floor; MODE_MODAL_MODES spends this)
+#define SOUND_MME_BANDS    20     // INSTR_MME vocoder model: filter-bank width (Warps' 20)
 #define ORGAN_SCAN         64     // INSTR_ORGAN scanner-chorus delay taps (~1.5ms; borrows ks_buf's head — organ never uses the Karplus path)
 #define SOUND_BOW_BODIES   8      // pool size — a string-quartet cart wants 4 (2 violins/viola/cello); ~9KB each
 #define BOW_BODY_MAX       768    // longest line, in samples: DOUBLE BASS 16.67ms = 736 @ 44.1k, + headroom.
@@ -393,6 +394,18 @@ typedef struct {
     float  mo_norm;                     // equal-loudness scale across geometry / mode count
     float  mo_strike, mo_blow, mo_bow;  // live exciter mix (0..1 each, not a selector)
     bool   mo_on;                       // note-on init guard (engine id without a strike → silent)
+    // MME (INSTR_MME): two oscillators through seven cross-modulation models + AC-only feedback.
+    // Osc A rides v->phase; only osc B + the feedback / vocoder states live here (sound_mme_sample).
+    float  mme_phB, mme_prevA;          // osc B phase (turns) + A's last phase (the SYNC model watches A wrap)
+    float  mme_ratio;                   // B/A frequency ratio, from MODE_MME_INTERVAL at note-on (±2 oct)
+    int    mme_sa, mme_sb;              // wave shapes of A / B, from MODE_MME_PAIR at note-on
+    float  mme_fb, mme_fbdc;            // feedback state + its DC estimate (only the AC part is reinjected)
+    float  mme_hp_x, mme_hp_y;          // 10 Hz output DC blocker (a folder at full feedback carries ~0.2 DC)
+    float  mme_mlo[SOUND_MME_BANDS], mme_mhi[SOUND_MME_BANDS];   // vocoder: modulator band one-poles
+    float  mme_clo[SOUND_MME_BANDS], mme_chi[SOUND_MME_BANDS];   // vocoder: carrier band one-poles
+    float  mme_env[SOUND_MME_BANDS], mme_a[SOUND_MME_BANDS];     // vocoder: band envelopes + coefficients
+    float  mme_voc_flow;                // the flow the band table was built for (rebuilt when it moves)
+    bool   mme_on;                      // note-on init guard (engine id without a start → silent)
 } Voice;
 #define SOUND_HANDLE_BITS 5                      // slot field width — must hold SOUND_VOICES-1 (32 voices → 0..31 → 5 bits)
 #define SCOPE_LEN 2048

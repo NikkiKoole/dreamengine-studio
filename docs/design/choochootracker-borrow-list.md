@@ -1,8 +1,9 @@
 # Choochootracker: what to borrow
 
-**STATUS: PROPOSED (2026-09-27)** — a ranked borrow list read off one repo, nothing ported yet.
-Top of the list is the MME voice. Each row names the upstream file, what it would become here,
-and why it made or missed the cut. Update the row (not this line) when something lands.
+**STATUS: BUILDING (2026-09-27)** — a ranked borrow list read off one repo. Row 1, the MME voice,
+is ported as the `mme` CART (cart-first, per "How to port #1" below); the engine port waits on
+the ear. Each row names the upstream file, what it would become here, and why it made or missed
+the cut. Update the row (not this line) when something lands.
 
 Upstream: <https://github.com/paiheulevrai/Choochootracker> (MIT, `paiheulevrai`, 2026). A fork of
 the ChipNomad tracker for Anbernic handhelds: LSDJ-style tracker workflow, SDL2, C++. Every path
@@ -56,13 +57,44 @@ file under `plaits_alt/test/` carries a GPL header; it is a test, not shipped, a
 list. Borrow WITH attribution in the header of whatever we write, the way `BOW_BODY_HZ` credits
 STK.
 
-## How to port #1 (when it happens)
+## Row 1, as built: the `mme` cart (2026-09-27)
 
-1. Read `mme_voice.cpp` once, then write it fresh in C inside `sound.h` as an engine with the
-   3-macro surface (ADR-0017); do not transliterate the class.
+Cart first, engine later. The engine has no per-sample hook for cart code, but a cart can render
+its own audio and hand it to a PCM slot: every key press renders 2 s of the voice at the pressed
+pitch in cart-land C (`tools/carts/mme.c`), `sample_load()`s it into one of six slots
+(round-robin) and binds the matching `INSTR_SAMPLE` instrument at root = that note, so nothing is
+resampled. The engine's ADSR gates the release. Seven models, five wave pairs, five knobs, a
+keybed, an autoplay walk that steps the models, and a `spec()` of 55 assertions (every model
+finite + audible + a different sound from every other, every knob reaches the DSP, a patch renders
+byte-identical twice, max feedback stays turbulent and DC-free, the panel keys). Limits, by
+construction: a held note cannot ride a knob (the next note re-renders) and the per-note peak
+normalisation hides how much louder ring is than vocode.
+
+Three things the port MEASURED that a read of the upstream file does not show:
+
+- **Upstream's fold is asymmetric.** `fabsf(fmodf(x + 1, 4) - 2) - 1` keeps the sign of a
+  negative input, so negative lobes fold to large positive values and the shaper then pins both
+  halves of a square pair to the same rail: the fold model at the sq/sq pair rendered a FLAT LINE
+  at every feedback setting (ac rms 0.003). The cart uses the symmetric floor-modulo fold, which
+  is what a triangle folder means. Worth sending upstream.
+- **The feedback state is DC-blocked, the output is not.** A folder at full feedback carries about
+  0.2 of DC; the cart adds a 10 Hz output blocker so the sample engine does not thump it.
+- **click-check flags the cross/vpm models and is wrong to.** 64 events on a 4 s take, but the
+  largest sample step is 0.057 inside a smooth slope and the ring model has no step above 0.02: a
+  steep phase-modulated slope against a quiet local step-rms, the tool's documented false-positive
+  shape. Read the step dump before believing the count on this voice.
+
+## The engine port (next)
+
+1. Take the cart's `mme_render()` as the reference: write the engine voice fresh inside
+   `sound.h` with the 3-macro surface (ADR-0017), then A/B a note against the cart's render.
+   Proposed map: harmonics = model (7 detents), timbre = amount, morph = flow; feedback, shaper,
+   wave pair and interval on `MODE_MME_*` aux params. Settle it on the cart's knobs first.
 2. `ab-render.js` on a probe cart to prove each of the seven models reaches the DSP (a model
    switch that renders byte-identical audio is the bug that tool exists for).
-3. `tune-check.js --quiet` (it is pitched), `click-check.js` on a model sweep, `level-check.js`.
+3. `tune-check.js --quiet` (it is pitched), `level-check.js` with a per-model trim table
+   (the cart's peak normalisation is the prototype's shortcut, not the answer), `click-check.js`
+   read as above.
 4. Register the aux params through `lint-aux-params.js` (five places must agree).
-5. A cart that plays it, per the "ship a cart that exercises it" rule; recipe into
-   [`instrument-recipes.md`](../guides/instrument-recipes.md).
+5. The `mme` cart swaps its render-into-slot path for the engine slot and keeps its panel; recipe
+   into [`instrument-recipes.md`](../guides/instrument-recipes.md).

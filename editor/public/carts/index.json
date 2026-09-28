@@ -6771,6 +6771,22 @@
     "homage": "The Casio SK-1 (1985) — the toy sampling keyboard a generation played their own 'aaah' on, pitched across the keys."
   },
   {
+    "title": "sintered",
+    "description": "Six pads of wild synthetic percussion: a noise impact into two cross-modulating oscillators and a feedback tail, six models from knotted FM to comb-filtered clank. Every pad is its own patch: a model (knot / shard / burst / comb / logic / melt), a pitch, and six knobs. MOD sets how hard the two oscillators drive each other and the tail; A, B and C mean something different per model (the hint line under the knobs says what); MOTION shapes a short burst of movement at the start of the hit (left = a swell, right = a snap, centre = still); DECAY sets the length. Each pad renders its hit once when you change it and plays that buffer, so the knobs are exact and a pattern costs one voice per hit. Autoplay runs a pattern across all six pads. A S D F G H: the six pads (or tap them) · 1-6: select the pad the knobs edit · click a model button to change the selected pad's model · drag the knobs (wheel = fine) · LEFT/RIGHT knob, UP/DOWN adjust · M: autoplay",
+    "file": "sintered.cart.png",
+    "created": "2026-09-28",
+    "kind": [
+      "instrument",
+      "tech-demo"
+    ],
+    "teaches": [
+      "drum-synthesis",
+      "wavefolder"
+    ],
+    "lineage": "Row 5 of docs/design/choochootracker-borrow-list.md, cart-first: Choochootracker's Sintered voice (chipnomad_lib/synth/sintered_voice.cpp, MIT, paiheulevrai), 'MME for drums': a very short noise IMPACT excites two cross-modulating oscillators, and a smoothed, DC-blocked feedback tail keeps ringing. Six models (knot, shard, burst, comb, logic, melt). Each pad renders its hit in cart-land C once, when a knob changes, into a PCM slot the sample engine plays at root pitch. For a one-shot drum that is exact rather than a prototype's shortcut: Sintered resets its noise seed on every hit, so every hit of a patch is the same sound anyway.",
+    "homage": "Choochootracker's Sintered (2026), the MME idea aimed at percussion, after Noise Engineering's wild-percussion modules."
+  },
+  {
     "title": "skewlab",
     "description": "SKEWLAB - clean 1px road edges at any SKEW or CURVE; a petri dish for streetlab's skewed-junction kerb issues (missing outline, stray black pixels at the crossing, doubled edges) and the fix. Models a road as a UNION of capsule segments - two long crossing arms (skew) or many short chords along a fake-Perlin sine centreline (curve). Two draw methods: PER-PIECE casing (what streetlab does - each segment lays a 1px-proud kerb then asphalt, so at any overlap one piece's casing strands inside another's asphalt, giving interior strays + missing edges, worse with skew and far worse on a curve where every joint overlaps); and UNION 1px outline (the fix - fill the whole union once, then one coverage border = an asphalt pixel with a grass 4-neighbour, the same rule circ/poly already use). The union outline is generator-agnostic: it traces the boundary of whatever is filled, so straight, skew and curved/Perlin roads all render as one clean 1px kerb. Readouts: interior strays (0 for the union method) and sampled edge thickness (1px). Controls: Z method, C skew/curve, left/right angle or amplitude, up/down width, R reset.",
     "file": "skewlab.cart.png",

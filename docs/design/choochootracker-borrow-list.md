@@ -4,7 +4,8 @@
 is SHIPPED as `INSTR_MME` (ported cart-first the same day; the `mme` cart keeps the cart-land
 reference as an E-toggled A/B). Rows 2 and 3 are SHIPPED as `INSTR_METAL` (2026-09-28, cart-first
 in the `bogie` cart the same day, which now cycles engine / prototype / 808 on one set of pads).
-Rows 4..7 are open. Each row names the upstream file, what it
+Row 5 is BUILT as the `sintered` cart (2026-09-28, cart-only; engine decision after the ear).
+Row 7 turned out mostly shipped already (see its note). Rows 4 and 6 are open. Each row names the upstream file, what it
 would become here, and why it made or missed the cut. Update the row (not this line) when
 something lands.
 
@@ -84,6 +85,29 @@ its level was set by hand in the cart. The `bogie` cart cycles engine / slot-ban
 Its first real home, the same day: `morphdrum.h`'s `MD_HAT` (its seam comment had described exactly
 this engine since it was written). CHAR became the stagger direction there, 808 chord → 909
 lows-longest; the FM hat stays behind `MD_HAT_ENGINE` for the A/B. [`morphdrum.md`](morphdrum.md).
+
+## Row 5, as built: the `sintered` cart (2026-09-28)
+
+Six pads, each its own patch (model + pitch + mod / a / b / c / motion / decay), rendered in
+cart-land C into a PCM slot when a knob changes and played through `INSTR_SAMPLE` at root. For a
+one-shot drum that path is EXACT, not a prototype's shortcut: upstream reseeds Sintered's noise on
+every note-on, so every hit of a patch was always the same sound, and a pattern costs one voice per
+hit. Ported from `synth/sintered_voice.cpp` in `de_*` math with a symmetric floor-modulo fold (same
+fmodf issue as MME's, but only below -1: for small inputs upstream's fold is an inverted triangle and
+that shape is kept), a 10 Hz output DC blocker, a 5 ms end fade (upstream stopped at -48 dB, which
+is a step in a buffer) and per-hit peak normalisation. `spec()` = 60. A hit reads about -16.5 dBFS
+at vol 6, several dB under the 808 kit, because the sample path's level can only cut; the engine
+version would carry its own trim.
+
+The engine question after the ear: `INSTR_SINTER` (its own voice, knobs ride live) or a percussion
+excitation on `INSTR_MME`. They share the idea (two cross-modulating oscillators plus DC-blocked
+feedback) but not the code: Sintered's six models, its impact and its motion envelope have no MME
+counterpart, so "a mode on MME" would be a second voice behind one id. The honest shape is probably
+its own engine, if any of the six earn one.
+
+**Row 7, checked before building it:** acidcandy already carries probability, p-locks and trig
+conditions throughout, and morphbox has p-locks and probability. The one Choochootracker sequencer
+idea none of the racks has is PER-TRACK PLAYBACK SPEED. Row 7 is that feature now, nothing more.
 
 ## Kept out, and why
 

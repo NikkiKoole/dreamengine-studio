@@ -8,7 +8,7 @@
 //   shelf()              → ['acid303.h', 'ampcab.h', …]  cart-land library headers, sorted
 //   engineInternals()    → the allowlisted engine/platform/generated headers, with their reasons
 //   isShelf('ui.h')      → true
-//   privateModuleDirs()  → ['isoroom', 'lockup', 'tenement']  one cart's own modules, NOT shelf
+//   privateModuleDirs()  → ['isoroom', 'lockup', 'loficity', 'tenement']  one cart's own modules, NOT shelf
 //
 // WHY it got extracted: api-usage.js counted call sites in tools/carts/*.c only, so a studio.h
 // function called from a SHARED HEADER read as zero — and by 2026-08 four of the ten zeros were
@@ -63,7 +63,7 @@ const GENERATED_H = /(_data|_font|_baked|_state)\.h$/
 // Subdirectories of runtime/ holding ONE cart's private modules (CLAUDE.md: "NOT shelf"). They are
 // real call sites, but they belong to a cart that the cart scan already counts, so a caller that
 // reports per-corpus totals should keep them apart from the shared shelf.
-const PRIVATE_MODULE_DIRS = ['isoroom', 'lockup', 'tenement']
+const PRIVATE_MODULE_DIRS = ['isoroom', 'lockup', 'loficity', 'tenement']
 
 // Vendored or platform trees under runtime/ that are nobody's call site.
 const SKIP_DIRS = new Set(['box2d', 'libtcc', 'raylib-web'])

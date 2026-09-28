@@ -348,6 +348,8 @@ runtime/   studio.h (public API: constants + declarations), studio.c (Raylib imp
                       (12 modules wired, spec() 249/249).
                       Its ONE rule: nothing enumerates instances, everything matches on TAGS —
                       no place owns a recipe, nothing switches on an object kind. docs/design/tenement.md
+           loficity/  same pattern, NOT shelf: the `loficity` cart's port of Lofi Cities' arranger (arranger.h core,
+                      style_<id>.h per style, *_data.h/words.h GENERATED from their live objects). Bit-exact vs their planner.
            isoroom/   generated (tools/voxel-bake.js --emit-c), not hand-edited: the baked rotation
                       cell table for the `isoroom` probe. docs/design/iso-rooms.md
 editor/    electron/ (main.cjs compiles+runs carts; preload.cjs exposes window.studio.*),

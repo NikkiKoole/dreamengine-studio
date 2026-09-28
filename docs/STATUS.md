@@ -15,6 +15,13 @@ _Last updated: 2026-09-28 — INSTR_SINTER shipped (synthetic percussion), the t
 
 ## Shipped ✓
 
+- **LOFICITY: ALL NINE LOFI CITIES STYLES** (2026-09-28). `loficity` plays every style of loficities.com's
+  generative lofi (jazzhop, lofi piano, ambient, bossa nova, synth city pop, lofi house, chill guitar, sad
+  lofi, medieval) arranged line for line by their own planner, ported into `runtime/loficity/` (a private
+  cart module: core, one `style_<id>.h` each, data GENERATED from their live objects). Verified
+  bit-identical against their bundle run headless: 1,045,164 events over every style/energy/band/city.
+  The sound is ours, one casting per style on the modeled engines; spec() pins every style (28/28).
+
 - **SAMPLE-ACCURATE SCHEDULING: `audio_time()` + `schedule_at()`** (2026-09-28). A sequencer can now book
   a note at an ABSOLUTE time on the sound clock instead of a delay from now. `schedule_hit`'s delay counts
   from whichever audio callback drains the request, so on native (1024-sample buffers) notes sent in

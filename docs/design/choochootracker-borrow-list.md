@@ -81,8 +81,9 @@ across the cymbal's decay at morph 0.85 (0.33 → 0.44, centroid 8.2 → 8.8 kHz
 (0.30 → 0.20). With the noise on, the noise shapes the first ~100 ms and the bank the rest.
 Deliberately NOT in tune-check's sweep (mode 0 is at f0 × 1.18, the bank has no fundamental), so
 its level was set by hand in the cart. The `bogie` cart cycles engine / slot-bank prototype / 808.
-Next home: `morphdrum.h`'s `MD_HAT` seam, whose comment has described exactly this engine since
-it was written; switching it changes morphbox's shipped hat, so it is a decision, not a chore.
+Its first real home, the same day: `morphdrum.h`'s `MD_HAT` (its seam comment had described exactly
+this engine since it was written). CHAR became the stagger direction there, 808 chord → 909
+lows-longest; the FM hat stays behind `MD_HAT_ENGINE` for the A/B. [`morphdrum.md`](morphdrum.md).
 
 ## Kept out, and why
 

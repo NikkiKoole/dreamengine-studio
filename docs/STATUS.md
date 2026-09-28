@@ -7,13 +7,20 @@
 > **here**, then fix the prose in the relevant design doc. If a design doc and this file
 > disagree, this file wins.
 
-_Last updated: 2026-09-28 — INSTR_METAL (the six-square metal bank with per-mode lifetimes) shipped, cart-first, a day after INSTR_MME. See the top Shipped entry and [`design/choochootracker-borrow-list.md`](design/choochootracker-borrow-list.md)._
+_Last updated: 2026-09-28 — INSTR_METAL shipped and morphdrum's hat moved onto it the same day. See the top two Shipped entries, [`design/morphdrum.md`](design/morphdrum.md) and [`design/choochootracker-borrow-list.md`](design/choochootracker-borrow-list.md)._
 
 > **This line is a headline, not an entry.** It reached **9,064 characters** and was the only place in the file that recorded `FILTER_DIODE`, `filter-spec.js` and `rebirth-classic.md` — three shipped things, invisible because nobody reads a shipped feature out of a `_Last updated:_` line. They have a real entry now (2026-07-02, above `sprite-draw.js`). Keep this to one date, one sentence, one link; `status-check --check` fails past 900 chars.
 
 ---
 
 ## Shipped ✓
+
+- **MORPHDRUM'S HAT ON INSTR_METAL** (2026-09-28). The header's story settled the same day the
+  engine landed: morphdrum is the morphing knob panel over dedicated drum engines where one exists
+  (the hat, now one `INSTR_METAL` voice with CHAR = stagger direction, 808 chord → 909 lows-longest
+  cymbal) and generic primitives where none does yet (kick, snare). Same ten knobs; `morphbox`'s
+  shipped hat changed. The FM-clang hat stays behind `MD_HAT_ENGINE` for the A/B (ab-render, solo
+  hats: FM -7.2 dBFS, METAL -8.2). [`design/morphdrum.md`](design/morphdrum.md) → "Seam — the hat".
 
 - **INSTR_METAL: THE SIX-SQUARE METAL BANK WITH PER-MODE LIFETIMES** (2026-09-28). Rows 2 and 3
   of the Choochootracker borrow list, cart-first (the `bogie` cart, one day as six INSTR_SQUARE
@@ -1051,12 +1058,6 @@ Detail lives in the linked design doc in every case; that is where it was always
 
 
 ## Open — prioritized
-
-- **MORPHDRUM ON DEDICATED ENGINES?** (2026-09-28, parked). `morphdrum.h` builds its drums in cart-land
-  from generic primitives; `INSTR_METAL` is the first dedicated engine one of its voices (the hat)
-  could sit on. The question is the header's story, not the hat: stay a cart-land model, or become
-  the morphing panel over dedicated drum engines. Switching changes `morphbox`'s shipped hat.
-  [`design/morphdrum.md`](design/morphdrum.md) → "Seam — the hat".
 
 - **PATCH MATCHING — option D still waits** (2026-09-13). A, the bench, and B (ear-judged
   breeding on `patchbench`) are in. Skip C (realtime `record_grab` scoring). D — a scratch

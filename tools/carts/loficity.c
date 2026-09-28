@@ -4,25 +4,34 @@
   "title": "lofi city",
   "status": "active",
   "created": "2026-09-28",
-  "kind": ["toy", "instrument"],
-  "teaches": ["song-arrangement", "chord-voicing", "generative-melody", "swing-timing"],
+  "kind": [
+    "toy",
+    "instrument"
+  ],
+  "teaches": [
+    "song-arrangement",
+    "chord-voicing",
+    "generative-melody",
+    "swing-timing"
+  ],
   "homage": "Lofi Cities (loficities.com, Safa Elmali) - endless lofi composed live in the browser",
-  "lineage": "A study port of Lofi Cities' arranger, verified bit-identical against the site's own planner (300 seeds x 4 chained tracks, every energy/band/city: 643,600 events to 9 decimals). The arrangement is theirs, line for line; the SOUND is ours - EPIANO Rhodes, a BOWED-pizz upright, the morphdrum kit + METAL hat, a MODAL rim, MALLET vibes / PIPE flute leads. Sibling of lofi.c (the radio station), which it shares no voices with.",
+  "lineage": "A study port of Lofi Cities' arranger, all nine styles (jazzhop, lofi piano, ambient, bossa nova, synth city pop, lofi house, chill guitar, sad lofi, medieval), verified bit-identical against the site's own planner run headless in node (540 runs x 3 chained tracks x every style/energy/band/city: 1,045,164 events to 9 decimals). The arrangement is theirs, line for line (runtime/loficity/); the SOUND is ours - each style cast on our modeled engines. Sibling of lofi.c (the radio station), which it shares no voices with.",
   "todo": [
-    "The other eight Lofi Cities styles (lofi piano, ambient, bossa nova, synth city pop, lofi house, chill guitar, sad lofi, medieval) - each overrides progressions/grids/comps/voicing/bass/energy; the oracle harness can verify them the same way. Only jazzhop is ported.",
+    "Style change: the master eq (each style's overall gain) switches at once, so the OLD style's ringing tail swells or ducks for a moment (ambient -> bossa peaked -0.4 dBFS). A per-style gain that rides smoothly would need levels that can boost.",
+    "Voice nuances not yet cast: medieval's recorder grace notes (cuts/taps from medieval.mode), sad's horn lean + fall-off, house's per-note random vox vowel, synth/house lead legato by interval, ambient pad's per-note L/R pan.",
     "The 2-bar wow drift (their fx 'wow' events) is not ridden: tape() rebuilds its DSP. Per-track wow only.",
-    "The kit bus lowpass (their kit.lp, 5-9.5 kHz) is not applied; the master tone filter covers most of it.",
-    "Velocity is quantised to our 0..7 vol, so their +-8% humanise mostly vanishes; timing jitter survives intact."
+    "Velocity is quantised to our 0..7 vol, so their +-8% humanise mostly vanishes; timing jitter survives intact.",
+    "Ear pass per style: the casting and the per-style mix (STYLE_MIX) were set by measurement (per-part RMS vs jazzhop's proportions), not yet by listening."
   ],
   "description": {
-    "summary": "Endless generated lofi, arranged exactly the way Lofi Cities arranges it - played on our own engines.",
-    "detail": "Every track is one seed, and the seed plans everything the way loficities.com does: a key (each track moves to a related key - the fourth, the fifth, the relative major/minor), two jazzy progressions from their bank (A, and B or A with a ii-V turnaround), 1 or 2 bars per chord, a tempo/swing/snare-lag from the ENERGY table, a drum groove (boom, bounce, lazy, half, rim, shuf), a form (T1-T3, grown to 2.5-4 minutes) whose every section switches layers on and off - hats-only intros, drumless breaks, lead entering at the second A, an outro that holds the last chord. Per bar: fills at 4- and 8-bar boundaries, B-section open hats and ghost snares, the keys PUSHING the next chord onto the and-of-4, the bass walking the kicks with chromatic approaches, a motif lead inverted and shifted in B, and the master tone filter automated (the intro opening from 900 Hz, the break dipping, the outro closing). The screen is the arrangement made visible: the form strip with the playhead, what each part is doing in this section, the chord, fills and pushes as they happen, and what's up next.",
-    "controls": "N / SPACE next track . E energy (chill/balanced/upbeat, from the next track) . B band (full / no drums / chords only, from the next bar) . C city (the words the titles are made of) . H help"
+    "summary": "Endless generated lofi in all nine Lofi Cities styles, arranged exactly the way loficities.com arranges it - played on our own engines.",
+    "detail": "Every track is one seed, and the seed plans everything the way loficities.com does, for whichever of its nine styles you pick: a key (each track moves to a related key), two progressions from the style's bank, 1 or 2 bars per chord, a tempo/swing/snare-lag from the style's ENERGY table, a drum groove from the style's own grids, a form (T1-T3, grown to 2.5-4 minutes) whose every section switches layers on and off. Per bar: fills, B-section variations, the keys comping by the style's own cells (fingerpicking patterns, bossa batida, house stabs, piano rolls) and PUSHING the next chord, the style's own bass line (a piano left hand, a viol walk, a synth bass cell, a house cell), a motif lead, and the master tone automated (the intro opening from 900 Hz, the break dipping, the outro closing). Each style has its own band on our engines: Rhodes, felt grand, unison-saw pads + drone, nylon and electric guitars with held figures and ghost strums, a driven organ with a pump, a lute with courses over a bowed viol and a drone, a muted brass horn, recorders, FM bells, a morphing kit with style-specific percussion. The screen is the arrangement made visible: the form strip with the playhead, what each part is doing, the chord, fills and pushes, and what's up next.",
+    "controls": "S style (from the next track) . N / SPACE next track . E energy (chill/balanced/upbeat, next track) . B band (full / no drums / chords only, next bar) . C city (the words the titles are made of) . 1-5 fx off/on (tone . tape . bus . trem . vinyl) . H help"
   }
 }
 de:meta */
 // ── LOFI CITY ─────────────────────────────────────────────────────────────────
-// Lofi Cities' arranger, ported line for line, played on dreamengine's engines.
+// Lofi Cities' arranger (all nine styles), ported line for line, played on dreamengine's engines.
 //
 // The ARRANGEMENT half (planTrack / planBar / barHits / phrase / voice) is a port of
 // the site's own JavaScript — same RNG (their hash + rng, as uint32), the same five
@@ -38,9 +47,10 @@ de:meta */
 // a schedule_hit delay counts from whichever audio callback drains it, which swung notes by up to a
 // 23 ms buffer on native (gated by tools/schedule-check).
 //
-//   N / SPACE next   E energy   B band   C city   H help
+//   S style   N / SPACE next   E energy   B band   C city   1-5 fx   H help
 
 #define LOFI_SEED 0      // pin a seed (0 = a random one each boot)
+#define LOFI_STYLE -1    // pin the boot style (0..8 = jazzhop..medieval; -1 = jazzhop)
 #define LC_WOW 0.5f      // tape wow scale: 1 = their depth (+-3..12 cents at ~0.5 Hz), which read as seasick
 #define LC_FLUTTER 0.03f // tape flutter: ~1.6 cents at 6 Hz, their depth (0.12 was 4x that - an audible warble)
 #define LC_SAT 0.0f      // tape saturation: OFF. tape()'s curve is tanh(g*x)/tanh(g), normalised so full scale stays full
@@ -63,955 +73,34 @@ de:meta */
 #include <stdint.h>
 #include <math.h>
 
-// ── the title words (their CITY_WORDS / NOUNS / ADJS / TIMES / TEMPLATES, accents folded to ASCII 1:1) ──
-static const char *LC_NOUNS[] = { "lullaby", "daydream", "reverie", "echoes", "letters", "polaroids", "headlights", "streetlights", "reflections", "window seat", "slow dance", "night shift", "coffee", "cassettes", "raindrops", "soft focus", "old photographs", "paper moons", "radio static", "afterglow", "small talk", "notebooks", "warm static", "long walks", "missed calls", "pocket change", "quiet hours", "love letters", "city lights", "sleepwalking", "goodnights", "thoughts", "memories", "footsteps", "secrets", "window light", "tape hiss", "slow motion", "homework", "blue notes", "moonlight", "daydreams", "postcards", "lamplight", "rain songs", "night walks", "loose ends", "mixtapes", "late buses", "open windows", "paper boats", "half-light", "sketches", "tangerines", "umbrellas", "wishes", "waltz", "nocturne", "cigarettes", "fireflies" };
-static const char *LC_ADJS[] = { "sleepy", "velvet", "hazy", "quiet", "dusty", "faded", "soft", "slow", "warm", "blue", "lonely", "sleepless", "gentle", "grainy", "amber", "misty", "drowsy", "rainy", "humming", "flickering", "distant", "mellow", "tired", "golden", "pale", "silver", "wistful", "lazy", "secret", "little", "late", "empty", "hushed", "lost", "tender", "dreamy", "foggy", "mossy", "cozy", "moonlit", "neon", "rainy-day", "nostalgic", "unhurried", "pastel", "second-hand", "far-off", "dim", "lo-fi" };
-static const char *LC_TIMES[] = { "3am", "2am", "midnight", "after hours", "closing time", "the blue hour", "dawn", "before sunrise", "late night", "sunday night", "4am", "the small hours", "half past one", "nightfall", "last call" };
-static const struct { double w; const char *t; } LC_TPL[] = {
-    { 10, "{a} {n} in {p}" },
-    { 6, "{a} {c} in {p}" },
-    { 4, "{a} {n}, {p}" },
-    { 3, "{n} over {p}" },
-    { 2, "last {c}, {p}" },
-    { 2, "{a} {n}" },
-    { 2, "{a} {c}" },
-    { 1.5, "{p} at {t}" },
-    { 1, "{t}, {p}" },
-    { 1.5, "{c} at {t}" },
-    { 2, "{n} in {p}" },
-    { 1.5, "{p} {n}" },
-    { 2, "{c} & {n}" },
-    { 1.5, "the {a} {c}" },
-    { 1, "{c} in {R}" },
-    { 0.8, "{w} over {p}" },
-    { 0.8, "{w} on {p}" },
-    { 0.4, "{p} after dark" },
-    { 0.2, "walking {p}" },
-    { 0.2, "somewhere in {p}" },
-    { 1.5, "{P}" },
-    { 1.2, "{c}, {t}" },
-    { 0.6, "{Q}" },
-    { 1.5, "{n} from {p}" },
-    { 2, "{P} at {t}" },
-};
-#define LC_NCITY 16
-typedef struct { const char *id, *name; const char *p[16]; int np; const char *c[24]; int nc; const char *w[5]; int nw; } LcCity;
-static const LcCity LC_CITY[LC_NCITY] = {
-    { "paris", "Paris",
-      { "montmartre", "the seine", "saint-germain", "le marais", "pigalle", "belleville", "the left bank", "pont neuf", "the quais", "canal saint-martin", "ile saint-louis", "the latin quarter", "rue mouffetard", "batignolles", "bastille", "the tuileries" }, 16,
-      { "cafe", "accordion", "balcony", "zinc bar", "bookstall", "carousel", "pigeons", "lamplight", "chanson", "bistro", "street piano", "postcard", "croissant", "rooftops", "metro", "boat lights", "espresso", "cobblestones", "shutters", "violin" }, 20,
-      { "rain", "drizzle", "puddles", "wet stone", "grey skies" }, 5 },
-    { "tokyo", "Tokyo",
-      { "shinjuku", "shibuya", "koenji", "shimokitazawa", "golden gai", "akihabara", "nakameguro", "the yamanote", "ginza", "asakusa", "harajuku", "ebisu", "the sumida", "ikebukuro", "kichijoji", "yanaka" }, 16,
-      { "vending machine", "konbini", "neon", "umbrellas", "ramen stall", "capsule hotel", "izakaya", "cassette", "lanterns", "crosswalk", "arcade", "noodle bar", "last train", "paper cranes", "taxi lights", "rooftop", "canned coffee", "train window", "shrine bell", "city pop" }, 20,
-      { "neon rain", "rain", "drizzle", "wet asphalt", "puddles" }, 5 },
-    { "new-york", "New York",
-      { "brooklyn", "the bowery", "harlem", "soho", "the village", "queens", "coney island", "chinatown", "the high line", "tribeca", "williamsburg", "astoria", "the east river", "grand central", "little italy", "the lower east side" }, 16,
-      { "fire escape", "yellow cab", "bodega", "subway car", "steam vents", "diner", "jazz club", "water tower", "bagels", "streetlamp", "laundromat", "walk-up", "hot dog cart", "rooftop", "late train", "radiator", "crosswalk", "neon sign", "saxophone", "skyline" }, 20,
-      { "rain", "steam", "sleet", "city rain", "puddles" }, 5 },
-    { "london", "London",
-      { "soho", "camden", "the embankment", "brixton", "shoreditch", "hackney", "the thames", "notting hill", "peckham", "covent garden", "king's cross", "the southbank", "primrose hill", "whitechapel", "bermondsey", "waterloo" }, 16,
-      { "night bus", "pub", "phone box", "tube", "chip shop", "umbrella", "bookshop", "double-decker", "last orders", "record shop", "lamppost", "canal boat", "big clock", "tea", "cab lights", "bridges", "terraces", "pint glass", "underpass", "foxes" }, 20,
-      { "fog", "drizzle", "rain", "grey skies", "mist" }, 5 },
-    { "rio", "Rio de Janeiro",
-      { "copacabana", "ipanema", "lapa", "santa teresa", "leblon", "botafogo", "sugarloaf", "the lagoon", "urca", "tijuca", "flamengo", "arpoador", "corcovado", "gavea", "the boardwalk", "the favela" }, 16,
-      { "samba", "bossa nova", "cable car", "coconuts", "surfboard", "caipirinha", "hill lights", "mosaic", "tram", "hammock", "beach bar", "cavaquinho", "palms", "kiosk", "sandals", "guitar", "lighthouse", "kites", "mango", "swimsuits" }, 20,
-      { "warm rain", "sea breeze", "waves", "the tide", "salt air" }, 5 },
-    { "istanbul", "Istanbul",
-      { "the bosphorus", "galata", "karakoy", "kadikoy", "beyoglu", "balat", "uskudar", "eminonu", "the golden horn", "cihangir", "moda", "ortakoy", "sultanahmet", "the bazaar", "the old city", "the ferry pier" }, 16,
-      { "ferry", "simit", "tea glass", "minaret", "lanterns", "street cats", "hammam", "carpets", "tram", "gulls", "backgammon", "cay", "spice stall", "rooftop", "oud", "fishing lines", "bridge lights", "mosaic", "coffee cups", "call to prayer" }, 20,
-      { "sea breeze", "rain", "drizzle", "harbour mist", "the current" }, 5 },
-    { "hong-kong", "Hong Kong",
-      { "victoria harbour", "kowloon", "tsim sha tsui", "mong kok", "central", "wan chai", "sheung wan", "the peak", "yau ma tei", "sham shui po", "causeway bay", "lan kwai fong", "temple street", "the ferry pier", "north point", "jordan" }, 16,
-      { "harbour ferry", "neon signs", "junk boat", "dim sum", "milk tea", "egg tarts", "the peak tram", "mahjong", "bamboo poles", "laundry lines", "rooftops", "dai pai dong", "minibus", "ding ding tram", "light show", "harbour lights", "wonton noodles", "pineapple buns", "night market", "water tanks" }, 20,
-      { "drizzle", "harbour haze", "warm rain", "humid night", "sea mist" }, 5 },
-    { "sydney", "Sydney",
-      { "circular quay", "the rocks", "kirribilli", "farm cove", "bennelong point", "milsons point", "barangaroo", "darling harbour", "woolloomooloo", "mrs macquarie's chair", "the botanic garden", "manly", "the heads", "surry hills", "bondi", "luna park" }, 16,
-      { "jacaranda", "ferry", "harbour bridge", "opera house", "sails", "water taxi", "flying foxes", "possum", "agapanthus", "bridge climb", "train", "wharf", "park bench", "lamp post", "sandstone", "cockatoo", "lorikeet", "fig tree", "flat white", "channel marker" }, 20,
-      { "heat lightning", "summer storm", "humid air", "harbour breeze", "spring rain" }, 5 },
-    { "san-francisco", "San Francisco",
-      { "russian hill", "hyde street", "lombard street", "north beach", "the presidio", "fort point", "aquatic park", "the marina", "telegraph hill", "nob hill", "crissy field", "sausalito", "the embarcadero", "ocean beach", "the mission", "chinatown" }, 16,
-      { "cable car", "foghorn", "painted ladies", "bay window", "sea lions", "lighthouse", "container ship", "sailboat", "sourdough", "the bell", "orange towers", "steep streets", "tall ship", "turret", "streetlamp", "the pier", "headlands", "night ferry", "coffee", "rooftops" }, 20,
-      { "fog", "drizzle", "marine layer", "sea breeze", "mist" }, 5 },
-    { "hamburg", "Hamburg",
-      { "hafencity", "the speicherstadt", "st. pauli", "altona", "the elbe", "the reeperbahn", "ottensen", "the schanze", "the alster", "blankenese", "the fish market", "wilhelmsburg", "eppendorf", "kehrwieder", "the michel", "finkenwerder" }, 16,
-      { "container ship", "gantry crane", "harbour ferry", "barkasse", "foghorn", "gulls", "red brick", "copper roofs", "iron bridge", "bollard", "lifebuoy", "oilskin", "lantern", "harbour seal", "glass crown", "canal", "warehouse", "fish roll", "ship's bell", "deck lights" }, 20,
-      { "rain", "gusts", "squalls", "storm", "grey skies" }, 5 },
-    { "amsterdam", "Amsterdam",
-      { "the jordaan", "prinsengracht", "keizersgracht", "herengracht", "the westerkerk", "the nine streets", "de pijp", "bloemgracht", "brouwersgracht", "the amstel", "oud-west", "vondelpark", "haarlemmerdijk", "the ij", "noord", "leidseplein" }, 16,
-      { "houseboat", "canal bridge", "bridge lights", "brown cafe", "gables", "hoisting beam", "carillon", "bicycle bell", "cargo bike", "elm seeds", "grey heron", "canal lamps", "window plants", "moored boats", "steep stairs", "bollards", "lantern boat", "coots", "roof garden", "stroopwafel" }, 20,
-      { "clear skies", "spring night", "canal mist", "mild breeze", "moonlight" }, 5 },
-    { "dubai", "Dubai",
-      { "downtown", "the burj lake", "the fountain boardwalk", "sheikh zayed road", "al fahidi", "the creek", "deira", "bur dubai", "jumeirah", "business bay", "the souk", "karama", "satwa", "la mer", "the marina", "al seef" }, 16,
-      { "fountain jets", "silver spire", "aviation lights", "led facade", "abra", "metro train", "wind towers", "arcade lamps", "brass lanterns", "dallah", "cardamom coffee", "finjan cups", "dates", "karak tea", "sadu cushions", "shisha", "oud smoke", "date palms", "fairy lights", "street cat", "sand dunes", "camel caravan", "desert campfire" }, 23,
-      { "desert breeze", "winter night", "fountain mist", "fine sand", "crescent moon" }, 5 },
-    { "madrid", "Madrid",
-      { "gran via", "calle de alcala", "the metropolis", "plaza de callao", "red de san luis", "puerta del sol", "chueca", "malasana", "la latina", "lavapies", "plaza de espana", "cibeles", "barrio de las letras", "huertas", "plaza mayor", "el retiro" }, 16,
-      { "winged victory", "gold dome", "rooftop neon", "churros", "chocolate", "tinto de verano", "geraniums", "wrought-iron balcony", "persiana", "folding fan", "night bus", "white taxi", "street sweeper", "terrace cafe", "bell tower", "farolas", "cinema sign", "black cat", "poplar fluff", "string lights" }, 20,
-      { "warm night", "dry summer air", "poplar fluff", "honey moon", "city glow" }, 5 },
-    { "rome", "Rome",
-      { "monti", "via cavour", "via dei serpenti", "via panisperna", "piazza della madonna dei monti", "via degli annibaldi", "the colle oppio", "the celio", "the palatine", "the forum", "trastevere", "campo de' fiori", "the pantheon", "piazza navona", "testaccio", "the aventine" }, 16,
-      { "colosseum", "arches", "umbrella pines", "bell tower", "sampietrini", "nasone", "trattoria", "checked tablecloths", "candlelight", "string lights", "green shutters", "laundry line", "bougainvillea", "corner shrine", "scooter", "gelato", "street cats", "gulls", "scaffolding", "wine bar" }, 20,
-      { "shooting stars", "warm night", "august heat", "perseids", "summer breeze" }, 5 },
-    { "prague", "Prague",
-      { "mala strana", "the old town", "kampa", "petrin hill", "hradcany", "the vltava", "charles bridge", "josefov", "vinohrady", "zizkov", "letna", "smichov", "nove mesto", "wenceslas square", "old town square", "vysehrad" }, 16,
-      { "castle lights", "cathedral spires", "bridge statues", "old lamps", "weir foam", "swans", "paddle steamer", "red tram", "tram bell", "linden blossoms", "cobblestones", "copper domes", "trdelnik", "bridge towers", "metronome", "lattice tower", "river terrace", "embankment bench", "mosaic pavement", "tiled roofs" }, 20,
-      { "june night", "linden air", "river breeze", "clear skies", "moonlight" }, 5 },
-    { "munich", "Munich",
-      { "marienplatz", "the rathaus", "the frauenkirche", "the viktualienmarkt", "schwabing", "maxvorstadt", "haidhausen", "the glockenbach", "the englischer garten", "the isar", "odeonsplatz", "sendlinger tor", "kaufingerstrasse", "the tal", "giesing", "lehel" }, 16,
-      { "christmas market", "glockenspiel", "green domes", "mulled wine", "gingerbread hearts", "roasted chestnuts", "pretzels", "wooden stalls", "string lights", "christmas tree", "golden madonna", "lantern", "snowy roofs", "felt hat", "bobble hat", "dachshund", "carillon", "paper star", "candles", "town hall tower" }, 20,
-      { "snow", "snowfall", "december night", "frost", "soft flurries" }, 5 },
-};
-// ═════════════════════════════════════════════════════════════════════════════
-// THE ARRANGER — a line-for-line port of Lofi Cities' planner (js/audio/arrange.js,
-// engine.js planBar, rhythm.js, melody.js, harmony.js). Same RNG, same streams, same
-// draw ORDER, so a seed plans the same track they would: key, progression, form,
-// every layer switch, fill, push, bass approach and lead phrase. Nothing in this block
-// makes a sound — it turns a seed into timed events (seconds from the track's start).
-// ═════════════════════════════════════════════════════════════════════════════
-
-// ── core.js: hash + rng (mulberry-ish), all uint32 so JS's Math.imul maps 1:1 ──
-typedef struct { uint32_t s; } Rng;
-static double lc_hash(uint32_t a, uint32_t b, uint32_t c) {
-    uint32_t h = 2166136261u ^ (a * 374761393u);
-    h = (h ^ (h >> 13)) * 1274126177u;
-    h ^= b * 668265263u;
-    h = (h ^ (h >> 15)) * 2246822519u;
-    h ^= c * 3266489917u;
-    h = (h ^ (h >> 13)) * 3266489917u;
-    h ^= h >> 16;
-    return (double)h / 4294967296.0;
-}
-static double rn(Rng *r) {
-    r->s += 1831565813u;
-    uint32_t t = r->s;
-    t = (t ^ (t >> 15)) * (t | 1u);
-    t ^= t + (t ^ (t >> 7)) * (t | 61u);
-    return (double)(t ^ (t >> 14)) / 4294967296.0;
-}
-static Rng lc_stream(uint32_t seed, uint32_t k) { Rng r = { (uint32_t)floor(lc_hash(seed, k, 0) * 4294967296.0) }; return r; }
-static uint32_t lc_next_seed(uint32_t seed) { return (uint32_t)floor(lc_hash(seed, 7919, 0) * 4294967296.0); }
-static int rfloor(Rng *r, int n) { return (int)floor(rn(r) * n); }
-// rnd2 = +(a + r()*(b-a)).toFixed(d): printf rounds the exact binary value, as toFixed does
-static double rnd2(Rng *r, double a, double b, int d) {
-    char buf[64]; snprintf(buf, sizeof buf, "%.*f", d, a + rn(r) * (b - a));
-    return strtod(buf, NULL);
-}
-static int mod12(int n) { return ((n % 12) + 12) % 12; }
-static double clampd(double v, double a, double b) { return v < a ? a : v > b ? b : v; }
-
-// ── harmony.js ──
-enum { Q_MAJ7, Q_MAJ9, Q_6, Q_69, Q_M7, Q_M9, Q_M6, Q_M7B5, Q_7, Q_9, Q_13, Q_7B9, Q_7S9, Q_7SUS4, NQUAL };
-static const struct { const char *name; int n; int iv[6]; } QUAL[NQUAL] = {
-    { "maj7", 4, { 0, 4, 7, 11 } },      { "maj9", 5, { 0, 4, 7, 11, 14 } },
-    { "6",    4, { 0, 4, 7, 9 } },       { "69",   5, { 0, 4, 7, 9, 14 } },
-    { "m7",   4, { 0, 3, 7, 10 } },      { "m9",   5, { 0, 3, 7, 10, 14 } },
-    { "m6",   4, { 0, 3, 7, 9 } },       { "m7b5", 4, { 0, 3, 6, 10 } },
-    { "7",    4, { 0, 4, 7, 10 } },      { "9",    5, { 0, 4, 7, 10, 14 } },
-    { "13",   5, { 0, 4, 10, 14, 21 } }, { "7b9",  5, { 0, 4, 7, 10, 13 } },
-    { "7#9",  5, { 0, 4, 7, 10, 15 } },  { "7sus4",4, { 0, 5, 7, 10 } },
-};
-typedef struct { int root, q, beats; } ProgCh;
-typedef struct { const char *id; int n; ProgCh c[5]; } Prog;
-static const Prog PROG_MAJ[7] = {
-    { "M1", 4, { { 2, Q_M9, 4 }, { 7, Q_13, 4 }, { 0, Q_MAJ9, 4 }, { 0, Q_MAJ9, 4 } } },
-    { "M2", 4, { { 0, Q_MAJ7, 4 }, { 9, Q_M9, 4 }, { 2, Q_M9, 4 }, { 7, Q_13, 4 } } },
-    { "M3", 4, { { 5, Q_MAJ7, 4 }, { 4, Q_M7, 4 }, { 2, Q_M9, 4 }, { 0, Q_MAJ9, 4 } } },
-    { "M4", 4, { { 5, Q_MAJ7, 4 }, { 5, Q_M9, 4 }, { 4, Q_M7, 4 }, { 9, Q_M9, 4 } } },
-    { "M5", 5, { { 5, Q_MAJ9, 4 }, { 4, Q_7B9, 4 }, { 9, Q_M9, 4 }, { 7, Q_M9, 2 }, { 0, Q_13, 2 } } },
-    { "M6", 4, { { 0, Q_MAJ9, 4 }, { 0, Q_MAJ9, 4 }, { 5, Q_MAJ9, 4 }, { 5, Q_MAJ9, 4 } } },
-    { "M7", 4, { { 0, Q_MAJ9, 4 }, { 4, Q_M7, 4 }, { 5, Q_MAJ7, 4 }, { 5, Q_M6, 4 } } },
-};
-static const Prog PROG_MIN[6] = {
-    { "m1", 4, { { 0, Q_M9, 4 }, { 5, Q_M9, 4 }, { 10, Q_13, 4 }, { 3, Q_MAJ9, 4 } } },
-    { "m2", 4, { { 0, Q_M9, 4 }, { 0, Q_M9, 4 }, { 5, Q_9, 4 }, { 5, Q_9, 4 } } },
-    { "m3", 4, { { 8, Q_MAJ9, 4 }, { 10, Q_6, 4 }, { 0, Q_M9, 4 }, { 0, Q_M9, 4 } } },
-    { "m4", 4, { { 2, Q_M7B5, 4 }, { 7, Q_7B9, 4 }, { 0, Q_M9, 4 }, { 0, Q_M9, 4 } } },
-    { "m5", 4, { { 0, Q_M9, 4 }, { 3, Q_MAJ7, 4 }, { 8, Q_MAJ7, 4 }, { 7, Q_7S9, 4 } } },
-    { "m6", 5, { { 0, Q_M9, 4 }, { 8, Q_MAJ7, 4 }, { 5, Q_M9, 4 }, { 7, Q_7SUS4, 2 }, { 7, Q_7B9, 2 } } },
-};
-static const ProgCh TURN_MAJ[2] = { { 2, Q_M9, 2 }, { 7, Q_13, 2 } };
-static const ProgCh TURN_MIN[2] = { { 2, Q_M7B5, 2 }, { 7, Q_7B9, 2 } };
-static const char *NOTE_NAMES[12] = { "C", "Db", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B" };
-static const int PENTA[2][5] = { { 0, 3, 5, 7, 10 }, { 0, 2, 4, 7, 9 } };   // [major?]
-
-typedef struct { int tonic, major; } Key;
-typedef struct { int root, q; double start, beats; int onset, fin; } Chord;
-typedef struct { char id[12]; Chord c[12]; int n; double beats; } Expanded;
-
-static Expanded lc_expand(const Prog *p, int stretch, const ProgCh *turn) {
-    Expanded e; memset(&e, 0, sizeof e); snprintf(e.id, sizeof e.id, "%s", p->id);
-    double t = 0;
-    for (int i = 0; i < p->n; i++) {
-        Chord c = { p->c[i].root, p->c[i].q, t, (double)p->c[i].beats * stretch, 0, 0 };
-        e.c[e.n++] = c; t += c.beats;
-    }
-    if (turn) {
-        double cut = t - 4; int k = 0;
-        for (int i = 0; i < e.n; i++) if (e.c[i].start < cut) {
-            Chord c = e.c[i]; c.beats = fmin(c.beats, cut - c.start); e.c[k++] = c;
-        }
-        e.n = k; double s = cut;
-        for (int i = 0; i < 2; i++) { Chord c = { turn[i].root, turn[i].q, s, turn[i].beats, 0, 0 }; e.c[e.n++] = c; s += turn[i].beats; }
-    }
-    e.beats = t;
-    return e;
-}
-static Key related_key(Key prev, Rng *r) {
-    double u = rn(r);
-    if (u < 0.15) return prev;
-    if (u < 0.55) { Key k = { mod12(prev.tonic + (rn(r) < 0.5 ? 5 : 7)), prev.major }; return k; }
-    if (u < 0.75) {
-        if (prev.major) { Key k = { mod12(prev.tonic + 9), 0 }; return k; }
-        Key k = { mod12(prev.tonic + 3), 1 }; return k;
-    }
-    Key k; k.tonic = rfloor(r, 12); k.major = !(rn(r) < 0.55); return k;
-}
-static Key random_key(Rng *r) { Key k; k.tonic = rfloor(r, 12); k.major = !(rn(r) < 0.55); return k; }
-
-// spell: the chord's colour tones (root dropped), capped at 4, a 9th added when thin
-typedef struct { int root, n, iv[6]; } Spelled;
-static Spelled lc_spell(Key key, const Chord *c) {
-    Spelled s; s.root = mod12(key.tonic + c->root); s.n = 0;
-    int has7 = 0;
-    for (int i = 0; i < QUAL[c->q].n; i++) { int v = QUAL[c->q].iv[i]; if (v % 12 != 0) { s.iv[s.n++] = v; if (v == 7) has7 = 1; } }
-    if (s.n > 4 && has7) { int k = 0; for (int i = 0; i < s.n; i++) if (s.iv[i] != 7) s.iv[k++] = s.iv[i]; s.n = k; }
-    while (s.n > 4) s.n--;
-    if (s.n < 4) { int has2 = 0; for (int i = 0; i < s.n; i++) if (s.iv[i] % 12 == 2) has2 = 1; if (!has2) s.iv[s.n++] = 14; }
-    return s;
-}
-static void isort(int *a, int n) { for (int i = 1; i < n; i++) { int v = a[i], j = i - 1; while (j >= 0 && a[j] > v) { a[j + 1] = a[j]; j--; } a[j + 1] = v; } }
-typedef struct { int n, m[6]; } Voicing;
-static double vmean(const Voicing *v) { double s = 0; for (int i = 0; i < v->n; i++) s += v->m[i]; return s / v->n; }
-static double lead_cost(const Voicing *a, const Voicing *prev, int reg) {
-    double c = 0.5 * fabs(vmean(a) - 62 - (prev ? 0 : reg));
-    if (!prev) return c;
-    int n = a->n < prev->n ? a->n : prev->n;
-    for (int i = 0; i < n; i++) c += abs(a->m[i] - prev->m[i]);
-    return c + 2 * fmax(0, abs(a->m[a->n - 1] - prev->m[prev->n - 1]) - 4);
-}
-// voice: every close + drop-2 inversion in register, the cheapest by voice-leading cost
-static Voicing lc_voice(const Spelled *sp, const Voicing *prev, int reg) {
-    int pcs[6], n = 0;
-    for (int i = 0; i < sp->n; i++) { int p = sp->iv[i] % 12, dup = 0; for (int j = 0; j < n; j++) if (pcs[j] == p) dup = 1; if (!dup) pcs[n++] = p; }
-    isort(pcs, n);
-    int shapes[12][6], ns = 0;
-    for (int k = 0; k < n; k++) {
-        int cl[6], cn = 0;
-        for (int j = 0; j < n; j++) { int v = pcs[(k + j) % n]; while (cn && v <= cl[cn - 1]) v += 12; cl[cn++] = v; }
-        memcpy(shapes[ns++], cl, sizeof cl);
-        if (n >= 3) { int d2[6]; memcpy(d2, cl, sizeof cl); d2[n - 2] -= 12; isort(d2, n); memcpy(shapes[ns++], d2, sizeof d2); }
-    }
-    Voicing best = { 0 }; double bc = INFINITY; int any = 0;
-    for (int s = 0; s < ns; s++) for (int o = 1; o <= 6; o++) {
-        Voicing v; v.n = n;
-        for (int i = 0; i < n; i++) v.m[i] = sp->root + shapes[s][i] + 12 * o;
-        if (v.m[0] < 48 || v.m[0] > 60 || v.m[n - 1] > 76) continue;
-        int ok = 1; for (int i = 1; i < n; i++) if (v.m[i] - v.m[i - 1] < 3 && v.m[i - 1] < 52) ok = 0;
-        if (!ok) continue;
-        double k = lead_cost(&v, prev, reg);
-        if (!any || k < bc) { bc = k; best = v; any = 1; }
-    }
-    if (!any) {
-        best.n = sp->n;
-        for (int i = 0; i < sp->n; i++) best.m[i] = 48 + mod12(sp->root + sp->iv[i] - 48) + (sp->iv[i] >= 12 ? 12 : 0);
-        isort(best.m, best.n);
-    }
-    return best;
-}
-static int bass_note(int pc, int prev) {
-    int best = 33 + mod12(pc - 33), bd = 1 << 30;
-    for (int n = best; n <= 47; n += 12) { int d = abs(n - prev); if (d < bd) { bd = d; best = n; } }
-    return best;
-}
-
-// ── rhythm.js ──
-enum { V_KICK, V_SNARE, V_HAT, V_RIM, V_CLAP, V_SHAKER, V_TOM, V_BLOCK, NDRUMV };
-static const char LANE_CH[NDRUMV] = { 'K', 'S', 'H', 'R', 'C', 'X', 'T', 'W' };
-static const double VEL[NDRUMV] = { 0.92, 0.88, 0.8, 0.8, 0.85, 0.7, 0.85, 0.75 };
-static const double HAT_ACCENT[4] = { 1, 0.45, 0.7, 0.45 };
-typedef struct { int v, s, ghost, open; double acc, vel; } Hit;   // vel < 0 = unset
-typedef struct { const char *id, *name; const char *lane[NDRUMV]; } Grid;
-static const Grid GRIDS[6] = {
-    { "P1", "boom",   { "x.........x.....", "....x.......x...", "x.x.x.x.x.x.x.x.", 0 } },
-    { "P2", "bounce", { "x......x..x.....", "....x.......x...", "x.x.x.x.x.x.x.xx", 0 } },
-    { "P3", "lazy",   { "x.....x.........", "....x..g....x...", "x.x.x.x.x.x.x.o.", 0 } },
-    { "P4", "half",   { "x.....x...x.....", "........x.......", "x.x.x.x.x.x.x.x.", "............r..." } },
-    { "P5", "rim",    { "x.........x.....", 0, "x...x...x...x...", "....r.......r..." } },
-    { "P6", "shuf",   { "x..x......x.....", "....x..g....x.g.", "xxxxxxxxxxxxxxxx", 0 } },
-};
-enum { P1, P2, P3, P4, P5, P6 };
-typedef struct { Hit h[48]; int n; } Hits;
-static Hits parse_grid(const Grid *g) {
-    Hits o; o.n = 0;
-    for (int L = 0; L < NDRUMV; L++) {
-        const char *s = g->lane[L]; if (!s) continue;
-        for (int i = 0; s[i]; i++) {
-            char c = s[i]; if (c == '.') continue;
-            Hit h = { L, i, 0, 0, 0, -1 };
-            if (L == V_SNARE) h.ghost = c == 'g';
-            else if (L == V_HAT) h.open = c == 'o';
-            else if (c == 'g') h.ghost = 1;
-            if (c == 'a') h.acc = 1.2; else if (c == 's') h.acc = 0.55;
-            o.h[o.n++] = h;
-        }
-    }
-    return o;
-}
-// FILLS F1 roll · F2 stop · F3 kicks · F4 open — in this order (Object.keys)
-enum { F_NONE = -1, F1, F2, F3, F4 };
-static const char *FILL_NAME[4] = { "roll", "stop", "kicks", "open" };
-enum { COMP_HOLD, COMP_CHARLESTON, COMP_PULSE, NCOMP };
-static const char *COMP_NAME[NCOMP] = { "hold", "charleston", "pulse" };
-static const int COMPS[NCOMP][2][2] = { { { 0, 16 }, { -1, 0 } }, { { 0, 3 }, { 6, 10 } }, { { 0, 6 }, { 8, 8 } } };
-static const int COMPN[NCOMP] = { 1, 2, 2 };
-static double lc_swing(int step, double sd, double pct) { return step % 2 ? ((pct - 50) / 50) * sd : 0; }
-
-// ── melody.js ──
-static const int CELLS[8][5] = { { 0, 3, 6, 8 }, { 2, 4, 7 }, { 0, 6, 10, 12, 14 }, { 0, 2, 6, 8 }, { 3, 6, 10 }, { 0, 4, 6, 10 }, { 2, 6, 10, 12 }, { 0, 3, 8, 10 } };
-static const int CELLN[8] = { 4, 3, 5, 4, 3, 4, 4, 4 };
-static const int TAILS[6][2] = { { 0 }, { 16 }, { 16, 19 }, { 18 }, { 16, 22 }, { 20 } };
-static const int TAILN[6] = { 0, 1, 2, 1, 2, 1 };
-static const int ANSWERS[6][4] = { { 0, 4, 8 }, { 2, 6, 10 }, { 0, 3, 6, 10 }, { 4, 8 }, { 0, 6, 12 }, { 2, 4, 8, 12 } };
-static const int ANSN[6] = { 3, 3, 4, 2, 3, 4 };
-#define MEL_LO 67
-#define MEL_HI 84
-typedef struct { int n, steps[8], durs[8], contour[8]; double vel[8]; } Motif;
-static void mk_contour(Rng *r, int n, int *c) {
-    c[0] = 0; int dir = rn(r) < 0.5 ? 1 : -1, back = 0;
-    for (int i = 1; i < n; i++) {
-        int mv;
-        if (back) { mv = -back; back = 0; }
-        else if (rn(r) < 0.75) { int a = 1 + (int)floor(rn(r) * 2); mv = a * (rn(r) < 0.65 ? dir : -dir); }
-        else { mv = (2 + (int)floor(rn(r) * 2)) * dir; back = mv > 0 ? 1 : mv < 0 ? -1 : 0; }
-        c[i] = c[i - 1] + mv;
-        if (abs(c[i]) > 4) dir = c[i] > 0 ? -1 : 1;
-    }
-}
-static Motif make_motif(Rng *r) {
-    Motif m; int ci = rfloor(r, 8), n = 0;
-    for (int i = 0; i < CELLN[ci]; i++) m.steps[n++] = CELLS[ci][i];
-    int ti = rfloor(r, 6);
-    for (int i = 0; i < TAILN[ti]; i++) m.steps[n++] = TAILS[ti][i];
-    if (n > 6) n = 6;
-    while (n < 3) { m.steps[n] = m.steps[n - 1] + 4; n++; }
-    m.n = n;
-    int last = 4 + rfloor(r, 5);
-    for (int i = 0; i < n; i++) m.durs[i] = i < n - 1 ? (6 < m.steps[i + 1] - m.steps[i] ? 6 : m.steps[i + 1] - m.steps[i]) : last;
-    mk_contour(r, n, m.contour);
-    for (int i = 0; i < n; i++) m.vel[i] = i == 0 ? 0.78 : 0.62 + 0.1 * rn(r);
-    return m;
-}
-typedef struct { int s, d, midi; double v; } LNote;
-typedef struct { LNote n[16]; int cnt; } Phrase;
-typedef struct { int n, pc[6]; } Pcs;
-typedef Pcs (*ChordAtFn)(void *ctx, int s);
-typedef struct { int scale[40], n; } Scale;
-static int pcs_has(const Pcs *p, int pc) { for (int i = 0; i < p->n; i++) if (p->pc[i] == pc) return 1; return 0; }
-static int s_in(const Scale *S, int i) { return i >= 0 && i < S->n && S->scale[i] >= MEL_LO && S->scale[i] <= MEL_HI; }
-static int s_nearest(const Scale *S, double target, const Pcs *pcs) {
-    if (!isfinite(target)) target = 74;
-    int best = -1; double bd = INFINITY;
-    for (int i = 0; i < S->n; i++) {
-        if (!s_in(S, i) || (pcs && !pcs_has(pcs, mod12(S->scale[i])))) continue;
-        double d = fabs(S->scale[i] - target); if (d < bd) { bd = d; best = i; }
-    }
-    if (best >= 0) return best;
-    if (pcs) return s_nearest(S, target, NULL);
-    for (int i = 0; i < S->n; i++) if (S->scale[i] >= MEL_LO) return i;
-    return 0;
-}
-static int s_chord_tone(const Scale *S, int i, Pcs pcs) {
-    if (i >= 0 && i < S->n && pcs_has(&pcs, mod12(S->scale[i]))) return i;
-    static const int D[4] = { 1, -1, 2, -2 };
-    for (int k = 0; k < 4; k++) { int j = i + D[k]; if (j >= 0 && j < S->n && s_in(S, j) && pcs_has(&pcs, mod12(S->scale[j]))) return j; }
-    return i;
-}
-static int s_clamp(const Scale *S, double x) {
-    int i = (int)floor(x + 0.5);                       // Math.round
-    if (i < 0) i = 0; if (i > S->n - 1) i = S->n - 1;
-    while (i > 0 && S->scale[i] > MEL_HI) i--;
-    while (i < S->n - 1 && S->scale[i] < MEL_LO) i++;
-    return i;
-}
-typedef struct { int statement, inv, shift, hasPrev, prevLast, reg; } Variant;
-static Phrase lc_phrase(const Motif *mo, ChordAtFn chordAt, void *ctx, Key key, Rng *r, Variant va) {
-    Scale S; S.n = 0;
-    for (int m = 55; m <= 96; m++) for (int k = 0; k < 5; k++) if (mod12(key.tonic + PENTA[key.major][k]) == mod12(m)) { S.scale[S.n++] = m; break; }
-    struct { int s, d, i; double v; } nt[16]; int nn = 0;
-    int shift = va.shift, cont[8];
-    for (int i = 0; i < mo->n; i++) cont[i] = va.inv ? -mo->contour[i] : mo->contour[i];
-    double tgt = (va.hasPrev ? va.prevLast : 74 + va.reg) + (rn(r) * 4 - 2);
-    Pcs p0 = chordAt(ctx, shift);
-    int anchor = s_nearest(&S, tgt, &p0);
-    for (int i = 0; i < mo->n; i++) {
-        int s = mo->steps[i] + shift; if (s > 31) continue;
-        int idx = s_clamp(&S, anchor + cont[i]);
-        if (s % 16 == 0 || s % 16 == 8) idx = s_chord_tone(&S, idx, chordAt(ctx, s));
-        nt[nn].s = s; nt[nn].d = mo->durs[i]; nt[nn].i = idx; nt[nn].v = mo->vel[i]; nn++;
-    }
-    if (va.statement && va.statement % 3 == 0 && nn > 1) {
-        int L = nn - 1;
-        nt[L].i = s_clamp(&S, nt[L].i + (rn(r) < 0.5 ? 2 : -1));
-        nt[L].d = nt[L].d - 2 > 2 ? nt[L].d - 2 : 2;
-        int s2 = nt[L].s + nt[L].d + 1; if (s2 > 31) s2 = 31;
-        nt[nn].s = s2; nt[nn].d = 4; nt[nn].i = s_clamp(&S, s_chord_tone(&S, nt[L].i - 1, chordAt(ctx, 30))); nt[nn].v = 0.6; nn++;
-    }
-    int ai = rfloor(r, 6);
-    int cur = nn ? nt[nn - 1].i : anchor;
-    for (int k = 0; k < ANSN[ai]; k++) {
-        int c = ANSWERS[ai][k], s = 48 + c, mv;
-        if (rn(r) < 0.75) { int sg = rn(r) < 0.5 ? -1 : 1; mv = sg * (1 + (int)floor(rn(r) * 2)); }
-        else mv = rn(r) < 0.5 ? -3 : 3;
-        cur = s_clamp(&S, cur + mv);
-        if (k == ANSN[ai] - 1 || s % 16 == 0 || s % 16 == 8) cur = s_chord_tone(&S, cur, chordAt(ctx, s));
-        int d;
-        if (k < ANSN[ai] - 1) { d = ANSWERS[ai][k + 1] - c; if (d > 6) d = 6; }
-        else { int a = 63 - s, b = 4 + rfloor(r, 5); d = a < b ? a : b; }
-        nt[nn].s = s; nt[nn].d = d > 1 ? d : 1; nt[nn].i = cur; nt[nn].v = 0.58 + 0.12 * rn(r); nn++;
-    }
-    int lo = 1 << 30; for (int i = 0; i < nn; i++) if (S.scale[nt[i].i] < lo) lo = S.scale[nt[i].i];
-    Phrase ph; ph.cnt = 0;
-    for (int i = 0; i < nn; i++) {
-        int m = S.scale[nt[i].i];
-        while (m > lo + 12) m -= 12;
-        int found = 0; for (int j = 0; j < S.n; j++) if (S.scale[j] == m) found = 1;
-        if (!found) m = S.scale[s_nearest(&S, m, NULL)];
-        LNote x = { nt[i].s, nt[i].d, m, nt[i].v };
-        int j = ph.cnt++;                                   // stable insert by s
-        while (j > 0 && ph.n[j - 1].s > x.s) { ph.n[j] = ph.n[j - 1]; j--; }
-        ph.n[j] = x;
-    }
-    return ph;
-}
-
-// ── arrange.js: the ENERGY table (chill / balanced / upbeat) ──
-enum { EN_CHILL, EN_BALANCED, EN_UPBEAT, NENERGY };
-static const char *ENERGY_NAME[NENERGY] = { "chill", "balanced", "upbeat" };
-enum { BAND_FULL, BAND_NODRUMS, BAND_KEYS, NBAND };
-static const char *BAND_NAME[NBAND] = { "full band", "no drums", "chords only" };
-static const double GROOVES[4][6] = {                  // P1..P6 weights
-    { 0.8, 0.5, 1.4, 2.6, 1.2, 0.3 },                   // chill
-    { 1, 1, 1, 2.6, 0.5, 0.7 },                         // slow
-    { 1.3, 1.2, 1, 0.6, 0.5, 1 },                       // fast
-    { 1.4, 1.6, 0.6, 0.2, 0.2, 1.4 },                   // upbeat
-};
-static const int GROOVE_OF[NENERGY][2] = { { 0, 0 }, { 1, 2 }, { 3, 3 } };   // [< 74 bpm, >= 74]
-typedef struct {
-    double stretch; int bpm[2]; double swing[2], snareLag[2], drumLevel, kitLp[2], epLp[2], tremDepth[2], strum[2], epVel[2];
-    double hold[2], charleston[2], pulse[2], push, legato, lead, softLead, tone[2], wowCents[2], dust[2];
-    double introHats; int leadFrom; double hatsFirst, breakDrums, breakLead;
-} Energy;
-static const Energy EN[NENERGY] = {
-    { 0.5,  { 60, 72 }, { 56, 64 }, { 0.012, 0.022 }, 0.85, { 5000, 7500 }, { 2000, 3600 }, { 0.1, 0.22 }, { 0.015, 0.04 }, { 0.46, 0.58 },
-      { 0.7, 1.3 }, { 0.05, 0.4 }, { 0.05, 0.3 }, 0.12, 0.8, 0.5, 0.75, { 4200, 6800 }, { 6, 12 }, { 0.9, 1.6 }, 0.3, 2, 0.45, 0.35, 0.25 },
-    { 0.3,  { 68, 88 }, { 54, 62 }, { 0.008, 0.018 }, 1,    { 6000, 9000 }, { 2400, 4500 }, { 0.06, 0.18 }, { 0.01, 0.03 }, { 0.5, 0.62 },
-      { 0.3, 1 },   { 0.1, 0.8 },  { 0.1, 0.6 },  0.25, 0.6, 0.65, 0.6, { 5500, 9000 }, { 4, 10 }, { 0.6, 1.4 }, 0.5, 2, 0.3, 0.6, 0.4 },
-    { 0.15, { 80, 94 }, { 52, 58 }, { 0.004, 0.012 }, 1,    { 7000, 9500 }, { 3000, 5200 }, { 0.04, 0.12 }, { 0.008, 0.02 }, { 0.52, 0.64 },
-      { 0.1, 0.5 }, { 0.4, 1 },    { 0.4, 1 },    0.38, 0.35, 0.8, 0.45, { 7000, 10000 }, { 3, 7 }, { 0.5, 1.1 }, 0.7, 1, 0.15, 0.85, 0.55 },
-};
-enum { S_INTRO, S_A, S_B, S_BREAK, S_OUTRO };
-static const char *SEC_NAME[5] = { "intro", "A", "B", "break", "outro" };
-static const int FORMS[3][8][2] = {
-    { { S_INTRO, 4 }, { S_A, 8 }, { S_A, 8 }, { S_B, 8 }, { S_BREAK, 4 }, { S_A, 8 }, { S_B, 8 }, { S_OUTRO, 4 } },
-    { { S_INTRO, 2 }, { S_A, 8 }, { S_B, 8 }, { S_A, 8 }, { S_BREAK, 8 }, { S_B, 8 }, { S_A, 8 }, { S_OUTRO, 4 } },
-    { { S_INTRO, 4 }, { S_A, 16 }, { S_BREAK, 4 }, { S_B, 8 }, { S_A, 16 }, { S_OUTRO, 4 }, { -1, 0 } },
-};
-enum { EP_COMP, EP_INTRO, EP_WHOLE, EP_OUTRO };
-enum { BS_KICK, BS_LAST, BS_NONE, BS_WHOLE, BS_OUTRO };
-enum { DR_PATTERN, DR_HATS2, DR_NONE, DR_P5, DR_OUTRO };
-typedef struct { int ep, bass, drums, kit, lead, hatsFirst, dipLast; double level; } Layers;
-enum { PR_A, PR_B, PR_FINAL };
-typedef struct { int name, bars, prog; Layers L; } Section;
-
-typedef struct { double kickF0, kickF1, kickDecay, snareDecay, hatHP, hatClosed, lp; } Kit;
-#define MAXSEC 16
-typedef struct {
-    uint32_t seed, nextSeed;
-    int energy, band, city;
-    int bpm; double swing, snareLag;
-    Key key;
-    Expanded progA, progB; int chordBars;
-    int pattern; Kit kit; double drumLevel;
-    struct { double lp, tremRate, tremDepth, strum, vel, comp[NCOMP], push; } ep;
-    int legato; double bassFactor;
-    int hasLead, leadSoft; double leadPan; Motif motif;
-    double tone, wowCents, dust;
-    int reg, form;
-    Section sec[MAXSEC]; int nsec, bars;
-    double duration;
-    char title[40];
-} Plan;
-
-// ── the title generator (makeTitle) — the city's words + templates ──
-static const char *pick_s(Rng *r, const char **a, int n) { return a[rfloor(r, n)]; }
-static void make_title(Rng *r, int city, char *out, int cap) {
-    const LcCity *C = &LC_CITY[city];
-    int NN = sizeof LC_NOUNS / sizeof *LC_NOUNS, NA = sizeof LC_ADJS / sizeof *LC_ADJS, NT = sizeof LC_TIMES / sizeof *LC_TIMES;
-    int NTPL = sizeof LC_TPL / sizeof *LC_TPL; double total = 0; for (int i = 0; i < NTPL; i++) total += LC_TPL[i].w;
-    for (int attempt = 0; attempt < 16; attempt++) {
-        double u = rn(r) * total; const char *tpl = LC_TPL[0].t;
-        for (int i = 0; i < NTPL; i++) if ((u -= LC_TPL[i].w) < 0) { tpl = LC_TPL[i].t; break; }
-        char s[128]; int n = 0;
-        for (const char *p = tpl; *p && n < 120; p++) {
-            char tok[64] = { 0 };
-            if (p[0] == '{' && p[1] && p[2] == '}') {
-                const char *w;
-                switch (p[1]) {
-                case 'a': snprintf(tok, sizeof tok, "%s", pick_s(r, LC_ADJS, NA)); break;
-                case 'n': snprintf(tok, sizeof tok, "%s", pick_s(r, LC_NOUNS, NN)); break;
-                case 't': snprintf(tok, sizeof tok, "%s", pick_s(r, LC_TIMES, NT)); break;
-                case 'p': snprintf(tok, sizeof tok, "%s", C->p[rfloor(r, C->np)]); break;
-                case 'c': snprintf(tok, sizeof tok, "%s", C->c[rfloor(r, C->nc)]); break;
-                case 'w': snprintf(tok, sizeof tok, "%s", C->w[rfloor(r, C->nw)]); break;
-                case 'P': case 'Q':
-                    w = p[1] == 'P' ? C->p[rfloor(r, C->np)] : C->w[rfloor(r, C->nw)];
-                    { const char *a = pick_s(r, LC_ADJS, NA);
-                      if (!strncmp(w, "the ", 4)) snprintf(tok, sizeof tok, "the %s %s", a, w + 4);
-                      else snprintf(tok, sizeof tok, "%s %s", a, w); }
-                    break;
-                case 'R': w = C->w[rfloor(r, C->nw)];
-                    if (!strncmp(w, "the ", 4)) snprintf(tok, sizeof tok, "%s", w); else snprintf(tok, sizeof tok, "the %s", w);
-                    break;
-                }
-                for (int k = 0; tok[k] && n < 120; k++) s[n++] = tok[k];
-                p += 2;
-            } else s[n++] = *p;
-        }
-        s[n] = 0;
-        char *ll; while ((ll = strstr(s, "last last "))) memmove(ll, ll + 5, strlen(ll + 5) + 1);
-        for (char *q = s; *q; q++) if (*q >= 'A' && *q <= 'Z') *q += 32;
-        if ((int)strlen(s) <= 32) { snprintf(out, cap, "%s", s); return; }
-    }
-    snprintf(out, cap, "%.32s", C->p[rfloor(r, C->np)]);
-}
-
-static double pick_w(Rng *r, const double *w, int n, int *out) {
-    double sum = 0; for (int i = 0; i < n; i++) sum += w[i];
-    double u = rn(r) * sum;
-    for (int i = 0; i < n; i++) if ((u -= w[i]) < 0) { *out = i; return 0; }
-    *out = 0; return 0;
-}
-
-// planTrack — one seed → the whole track: key, harmony, groove, kit, keys, lead, form
-static Plan plan_track(uint32_t seed, const Key *prevKey, int energy, int band, int city) {
-    Plan P; memset(&P, 0, sizeof P);
-    P.seed = seed; P.energy = energy; P.band = band; P.city = city;
-    const Energy *E = &EN[energy];
-    Rng rH = lc_stream(seed, 1), rR = lc_stream(seed, 2), rM = lc_stream(seed, 3), rA = lc_stream(seed, 4), rT = lc_stream(seed, 5);
-    P.key = prevKey ? related_key(*prevKey, &rH) : random_key(&rH);
-    const Prog *bank = P.key.major ? PROG_MAJ : PROG_MIN; int nb = P.key.major ? 7 : 6;
-    int idA = rfloor(&rH, nb);
-    P.chordBars = rn(&rH) < E->stretch ? 2 : 1;
-    int idB = idA, turn = 0;
-    if (rn(&rH) < 0.6) {
-        int others[8], no = 0; for (int i = 0; i < nb; i++) if (i != idA) others[no++] = i;
-        int k = rfloor(&rH, no); idB = k < no ? others[k] : idA;
-    } else turn = 1;
-    P.progA = lc_expand(&bank[idA], P.chordBars, NULL);
-    P.progB = lc_expand(&bank[idB], P.chordBars, turn ? (P.key.major ? TURN_MAJ : TURN_MIN) : NULL);
-    if (turn) snprintf(P.progB.id, sizeof P.progB.id, "%s+ii-V", bank[idA].id);
-    P.bpm = E->bpm[0] + (int)floor(rn(&rR) * (E->bpm[1] - E->bpm[0] + 1));
-    P.swing = rnd2(&rR, E->swing[0], E->swing[1], 1);
-    P.snareLag = rnd2(&rR, E->snareLag[0], E->snareLag[1], 4);
-    pick_w(&rR, GROOVES[GROOVE_OF[energy][P.bpm < 74 ? 0 : 1]], 6, &P.pattern);
-    P.kit.kickF0 = rnd2(&rR, 150, 170, 1);
-    P.kit.kickF1 = rnd2(&rR, 46, 56, 1);
-    P.kit.kickDecay = rnd2(&rR, 0.11, 0.15, 3);
-    P.kit.snareDecay = rnd2(&rR, 0.05, 0.08, 3);
-    P.kit.hatHP = rnd2(&rR, 6000, 8500, 0);
-    P.kit.hatClosed = rnd2(&rR, 0.012, 0.02, 3);
-    P.kit.lp = rnd2(&rR, E->kitLp[0], E->kitLp[1], 0);
-    P.ep.lp = rnd2(&rA, E->epLp[0], E->epLp[1], 0);
-    P.ep.tremRate = rnd2(&rA, 3.5, 5.5, 2);
-    P.ep.tremDepth = rnd2(&rA, E->tremDepth[0], E->tremDepth[1], 3);
-    P.ep.strum = rnd2(&rA, E->strum[0], E->strum[1], 4);
-    P.ep.vel = rnd2(&rA, E->epVel[0], E->epVel[1], 3);
-    P.ep.comp[COMP_HOLD] = rnd2(&rA, E->hold[0], E->hold[1], 2);
-    P.ep.comp[COMP_CHARLESTON] = rnd2(&rA, E->charleston[0], E->charleston[1], 2);
-    P.ep.comp[COMP_PULSE] = rnd2(&rA, E->pulse[0], E->pulse[1], 2);
-    P.ep.push = E->push;
-    P.legato = rn(&rA) < E->legato;
-    P.bassFactor = P.legato ? 0.92 : 0.55;
-    if (rn(&rA) < E->lead) {
-        P.hasLead = 1;
-        P.leadSoft = rn(&rA) < E->softLead;
-        P.leadPan = rnd2(&rA, -0.3, 0.3, 2);
-        P.motif = make_motif(&rM);
-    }
-    P.tone = rnd2(&rA, E->tone[0], E->tone[1], 0);
-    P.wowCents = rnd2(&rA, E->wowCents[0], E->wowCents[1], 1);
-    P.dust = rnd2(&rA, E->dust[0], E->dust[1], 2);
-    { Rng r8 = lc_stream(seed, 8); P.reg = (int)floor(rn(&r8) * 11) - 5; }
-    double barDur = 240.0 / P.bpm;
-    P.form = rfloor(&rA, 3);
-    int nm[MAXSEC], nbar[MAXSEC], n = 0;
-    for (int i = 0; i < 8 && FORMS[P.form][i][0] >= 0; i++) { nm[n] = FORMS[P.form][i][0]; nbar[n] = FORMS[P.form][i][1]; n++; }
-#define TOTAL() ({ int t_ = 0; for (int q_ = 0; q_ < n; q_++) t_ += nbar[q_]; t_; })
-#define INSERT() do { nm[n + 1] = nm[n - 1]; nbar[n + 1] = nbar[n - 1]; nm[n - 1] = S_B; nbar[n - 1] = 8; nm[n] = S_A; nbar[n] = 8; n += 2; } while (0)
-    while (TOTAL() * barDur < 150 && n + 2 <= MAXSEC) INSERT();
-    if (rn(&rA) < 0.35 && (TOTAL() + 16) * barDur <= 240 && n + 2 <= MAXSEC) INSERT();
-    int aCount = 0;
-    for (int i = 0; i < n; i++) {
-        Layers L = { EP_COMP, BS_KICK, DR_PATTERN, 1, 0, 0, 0, 1 };
-        int s = nm[i];
-        if (s == S_INTRO) {
-            L.ep = EP_INTRO;
-            L.bass = rn(&rA) < 0.5 ? BS_LAST : BS_NONE;
-            L.drums = rn(&rA) < E->introHats ? DR_HATS2 : DR_NONE;
-        } else if (s == S_A) { aCount++; L.lead = P.hasLead && aCount >= E->leadFrom; }
-        else if (s == S_B) { L.lead = P.hasLead; L.hatsFirst = rn(&rA) < E->hatsFirst; }
-        else if (s == S_BREAK) {
-            L.ep = EP_WHOLE;
-            L.bass = rn(&rA) < 0.5 ? BS_WHOLE : BS_NONE;
-            L.drums = rn(&rA) < E->breakDrums ? DR_P5 : DR_NONE;
-            L.lead = P.hasLead && rn(&rA) < E->breakLead;
-        } else { L.ep = EP_OUTRO; L.bass = BS_OUTRO; L.drums = DR_OUTRO; }
-        if ((s == S_A || s == S_B) && i < n - 1) L.dipLast = rn(&rA) < 0.25;
-        P.sec[i].name = s; P.sec[i].bars = nbar[i];
-        P.sec[i].prog = s == S_B ? PR_B : s == S_OUTRO ? PR_FINAL : PR_A;
-        P.sec[i].L = L;
-    }
-    P.nsec = n; P.bars = TOTAL();
-#undef TOTAL
-#undef INSERT
-    P.duration = P.bars * barDur;
-    P.nextSeed = lc_next_seed(seed);
-    make_title(&rT, city, P.title, sizeof P.title);
-    (void)E->drumLevel; P.drumLevel = E->drumLevel;
-    return P;
-}
-// bandLayers — full band / no drums / chords only (keys lifted +3 dB)
-static Layers band_layers(Layers L, int band) {
-    if (band == BAND_NODRUMS) L.kit = 0;
-    else if (band == BAND_KEYS) { L.kit = 0; L.bass = BS_NONE; L.lead = 0; L.level = 1.41; }
-    return L;
-}
-
-// ── engine.js: the per-bar planner ──
-enum { K_FX, K_EP, K_BASS, K_KICK, K_SNARE, K_HAT, K_RIM, K_CLAP, K_SHAKER, K_TOM, K_BLOCK, K_LEAD };
-static const char *K_NAME[] = { "fx", "ep", "bass", "kick", "snare", "hat", "rim", "clap", "shaker", "tom", "block", "lead" };
-enum { FX_TONE_, FX_VINYL_, FX_DUST_, FX_WOW_, FX_LEVEL_ };
-static const char *FXN[] = { "tone", "vinyl", "dust", "wow", "level" };
-typedef struct {
-    double t; int k, bar;
-    int notes[6], nn; double vel, dur, strum, rel;
-    int midi, slide, glide, open, ghost;
-    int fx; double v, tau;
-} Ev;
-typedef struct { int si, sec, j, n, prog, prev; Layers L; } BarInfo;
-#define MAXBARS 96
-typedef struct {
-    BarInfo map[MAXBARS]; int nbars;
-    Rng rH, rR, rM, rU, rS;
-    Voicing prevVoicing; int hasPrevVoicing;
-    int prevBass, pushed, nextComp;
-    Phrase phrases[MAXSEC][4]; unsigned char hasPhrase[MAXSEC][4];
-    int statement, lastLead, hasLastLead;
-    int lastFill, lastComp, lastPush;            // for the display (not part of the port)
-} BarState;
-static const double VINYL_BOOST = 1.585;
-
-static void bar_state(const Plan *P, BarState *st) {
-    memset(st, 0, sizeof *st);
-    for (int si = 0; si < P->nsec; si++) {
-        Layers L = band_layers(P->sec[si].L, P->band);
-        for (int j = 0; j < P->sec[si].bars && st->nbars < MAXBARS; j++) {
-            BarInfo b = { si, P->sec[si].name, j, P->sec[si].bars, P->sec[si].prog, si ? P->sec[si - 1].name : -1, L };
-            st->map[st->nbars++] = b;
-        }
-    }
-    st->rH = lc_stream(P->seed, 11); st->rR = lc_stream(P->seed, 12); st->rM = lc_stream(P->seed, 13);
-    st->rU = lc_stream(P->seed, 16); st->rS = lc_stream(P->seed, 17);
-    st->prevBass = 40; st->pushed = -1; st->nextComp = -1; st->lastFill = F_NONE;
-}
-static int chords_in(const Expanded *pr, int j, Chord *out) {
-    double b0 = fmod(j * 4.0, pr->beats); int n = 0;
-    for (int i = 0; i < pr->n; i++) {
-        const Chord *c = &pr->c[i];
-        double s = fmax(c->start, b0), e = fmin(c->start + c->beats, b0 + 4);
-        if (e > s) { Chord o = { c->root, c->q, s - b0, e - s, c->start >= b0, 0 }; out[n++] = o; }
-    }
-    return n;
-}
-static int bar_chords(const Plan *P, const BarState *st, int i, Chord *out) {
-    const BarInfo *b = &st->map[i < st->nbars - 1 ? i : st->nbars - 1];
-    if (b->prog == PR_FINAL) {
-        if (b->j < 2) return chords_in(&P->progA, b->j, out);
-        int q = !P->key.major ? Q_M9 : (P->seed % 2 ? Q_MAJ9 : Q_69);
-        Chord c = { 0, q, 0, 4, b->j == 2, 1 }; out[0] = c; return 1;
-    }
-    return chords_in(b->prog == PR_B ? &P->progB : &P->progA, b->j, out);
-}
-static Pcs chord_pcs(const Plan *P, const Chord *c) {
-    Pcs p; p.n = QUAL[c->q].n;
-    for (int i = 0; i < p.n; i++) p.pc[i] = mod12(P->key.tonic + c->root + QUAL[c->q].iv[i]);
-    return p;
-}
-static int same_chord(const Chord *a, const Chord *b) { return a && b && a->root == b->root && a->q == b->q; }
-static int pick_comp(const double *w, Rng *r) {
-    double sum = 0; for (int i = 0; i < NCOMP; i++) sum += w[i];
-    double u = rn(r) * sum;
-    for (int i = 0; i < NCOMP; i++) if ((u -= w[i]) < 0) return i;
-    return NCOMP - 1;
-}
-
-// barHits — the drum grid for one bar, with its B-section variations and fills
-typedef struct { Hit h[64]; int n, stop, fill; } BarHits;
-static void hits_filter_not(BarHits *o, int (*keep)(const Hit *, int), int arg) {
-    int k = 0; for (int i = 0; i < o->n; i++) if (keep(&o->h[i], arg)) o->h[k++] = o->h[i]; o->n = k;
-}
-static int keep_hatshaker(const Hit *h, int a) { (void)a; return h->v == V_HAT || h->v == V_SHAKER; }
-static int keep_nokick(const Hit *h, int a) { (void)a; return h->v != V_KICK; }
-static int keep_not_hat15(const Hit *h, int a) { (void)a; return !(h->v == V_HAT && h->s == 15); }
-static int keep_not_v_ge12(const Hit *h, int v) { return !(h->v == v && h->s >= 12); }
-static int keep_before(const Hit *h, int s) { return h->s < s; }
-static int keep_not_hat_ge(const Hit *h, int s) { return !(h->v == V_HAT && h->s >= s); }
-static BarHits bar_hits(const Plan *P, const BarInfo *b, int drums, int hatsFirst, Rng *r) {
-    BarHits o; o.n = 0; o.stop = -1; o.fill = F_NONE;
-    int mode = drums;
-    if (mode == DR_NONE) return o;
-    if (mode == DR_HATS2 && b->j < b->n - 2) return o;
-    if (mode == DR_OUTRO && b->j >= 2) return o;
-    Hits g = parse_grid(&GRIDS[mode == DR_P5 ? P5 : P->pattern]);
-    double scale = (mode == DR_P5 ? 0.6 : 1) * P->drumLevel;
-    for (int i = 0; i < g.n; i++) o.h[o.n++] = g.h[i];
-    if (mode == DR_HATS2 || (hatsFirst && b->j == 0)) hits_filter_not(&o, keep_hatshaker, 0);
-    if (mode == DR_OUTRO) hits_filter_not(&o, keep_nokick, 0);
-    int groove = mode == DR_PATTERN || mode == DR_P5;
-    if (groove && b->j > 0 && rn(r) < 0.08) hits_filter_not(&o, keep_nokick, 0);
-    if (mode == DR_PATTERN && b->sec == S_B) {
-        if (b->j % 2 == 1) {
-            int f = -1; for (int i = 0; i < o.n; i++) if (o.h[i].v == V_HAT && o.h[i].s == 14) { f = i; break; }
-            if (f >= 0) o.h[f].open = 1;
-            else { Hit h = { V_HAT, 14, 0, 1, 0, -1 }; o.h[o.n++] = h; }
-            hits_filter_not(&o, keep_not_hat15, 0);
-        }
-        static const int SS[2] = { 7, 15 };
-        for (int q = 0; q < 2; q++) {
-            if (rn(r) < 0.3) {
-                int has = 0; for (int i = 0; i < o.n; i++) if (o.h[i].v == V_SNARE && o.h[i].s == SS[q]) has = 1;
-                if (!has) { Hit h = { V_SNARE, SS[q], 1, 0, 0, -1 }; o.h[o.n++] = h; }
-            }
-        }
-    }
-    if (groove && b->j < b->n) {
-        int pos = b->j + 1; double p = pos % 8 == 0 ? 0.5 : pos % 4 == 0 ? 0.2 : 0;
-        if (p && rn(r) < p) {
-            int id = rfloor(r, 4); o.fill = id;
-            if (id == F1) {
-                static const double ROLL[4][2] = { { 12, 0.9 }, { 13, 0.3 }, { 14, 0.45 }, { 15, 0.65 } };
-                hits_filter_not(&o, keep_not_v_ge12, V_SNARE);
-                for (int k = 0; k < 4; k++) { Hit h = { V_SNARE, (int)ROLL[k][0], 0, 0, 0, ROLL[k][1] }; o.h[o.n++] = h; }
-            }
-            if (id == F2) { hits_filter_not(&o, keep_before, 12); o.stop = 12; }
-            if (id == F3) {
-                static const int KS[2] = { 13, 15 };
-                for (int k = 0; k < 2; k++) {
-                    int has = 0; for (int i = 0; i < o.n; i++) if (o.h[i].v == V_KICK && o.h[i].s == KS[k]) has = 1;
-                    if (!has) { Hit h = { V_KICK, KS[k], 0, 0, 0, 0.7 }; o.h[o.n++] = h; }
-                }
-            }
-            if (id == F4) { hits_filter_not(&o, keep_not_hat_ge, 14); Hit h = { V_HAT, 14, 0, 1, 0, -1 }; o.h[o.n++] = h; }
-        }
-    }
-    for (int i = 0; i < o.n; i++) {
-        Hit *h = &o.h[i];
-        double v = h->vel >= 0 ? h->vel : VEL[h->v];
-        if (h->v == V_HAT) v *= h->open ? 0.95 : HAT_ACCENT[h->s % 4];
-        if (h->v == V_KICK && h->s != 0 && h->vel < 0) v *= 0.9;
-        if (h->acc) v *= h->acc;
-        if (h->ghost) v = 0.25 + 0.1 * rn(r);
-        h->vel = v * scale;
-    }
-    for (int i = 1; i < o.n; i++) { Hit x = o.h[i]; int j = i - 1; while (j >= 0 && o.h[j].s > x.s) { o.h[j + 1] = o.h[j]; j--; } o.h[j + 1] = x; }
-    return o;
-}
-
-typedef struct { const Plan *P; const BarState *st; int startBar; } LeadCtx;
-static Pcs lead_pcs_at(void *vctx, int s) {
-    LeadCtx *c = vctx; Chord cs[12];
-    int n = bar_chords(c->P, c->st, c->startBar + s / 16, cs);
-    double beat = (s % 16) / 4.0; int k = 0;
-    for (int i = 0; i < n; i++) if (beat >= cs[i].start && beat < cs[i].start + cs[i].beats) { k = i; break; }
-    return chord_pcs(c->P, &cs[k]);
-}
-
-static const double SIG[NDRUMV] = { 3e-3, 4e-3, 6e-3, 4e-3, 5e-3, 5e-3, 5e-3, 5e-3 };
-static int LAGGED(int v) { return v == V_SNARE || v == V_RIM || v == V_CLAP; }
-
-typedef struct { Ev e[160]; int n; } Evs;
-static Ev *push_ev(Evs *E, double t, int k, int bar) { Ev *x = &E->e[E->n++]; memset(x, 0, sizeof *x); x->t = t; x->k = k; x->bar = bar; return x; }
-typedef struct { const Plan *P; BarState *st; double bar0, sd; } BarCtx;
-static double gauss_(BarState *st) { return (rn(&st->rU) + rn(&st->rU) + rn(&st->rU) - 1.5) * 2; }
-static double at_(BarCtx *c, int s, double sigma, double lag) {
-    return fmax(0, c->bar0 + s * c->sd + lc_swing(s, c->sd, c->P->swing) + lag + gauss_(c->st) * sigma);
-}
-static double vh_(BarState *st, double v) { return clampd(v * (1 + (rn(&st->rU) * 2 - 1) * 0.08), 0.05, 1); }
-
-// planBar — every event of bar i: fx automation, keys comping (+ the push), drums, bass, lead
-static void plan_bar(const Plan *P, int i, BarState *st, Evs *out) {
-    out->n = 0;
-    const BarInfo *b = &st->map[i]; const Layers *L = &b->L;
-    double sd = 60.0 / P->bpm / 4, bar0 = i * 16 * sd, barDur = 16 * sd;
-    BarCtx cx = { P, st, bar0, sd };
-    Chord chords[12]; int nch = bar_chords(P, st, i, chords);
-    Chord nextC[12]; int nnext = i + 1 < st->nbars ? bar_chords(P, st, i + 1, nextC) : 0;
-#define FX(type, val, tau_, dt_) do { Ev *x_ = push_ev(out, bar0 + (dt_), K_FX, i); x_->fx = type; x_->v = val; x_->tau = tau_; } while (0)
-    if (i == 0) { FX(FX_DUST_, P->dust, 1, 0); FX(FX_WOW_, 1, 1, 0); FX(FX_VINYL_, VINYL_BOOST, 0.5, 0); FX(FX_TONE_, 900, 0.02, 0); }
-    else if (L->level != st->map[i - 1].L.level) FX(FX_LEVEL_, L->level, 0.4, 0);
-#define DRIFT() (P->tone * (1 + (rn(&st->rH) * 2 - 1) * 0.12))
-    if (b->sec == S_INTRO) FX(FX_TONE_, 900 * pow(P->tone / 900, (b->j + 1) / (double)b->n), barDur / 3, i == 0 ? 0.12 : 0);
-    else if (b->j == 0) {
-        if (b->sec == S_BREAK) FX(FX_TONE_, 1800, 0.4, 0);
-        else if (b->sec != S_OUTRO) { double d = DRIFT(); FX(FX_TONE_, d, b->prev == S_BREAK ? 0.8 : 0.3, 0); }
-        if (b->prev == S_INTRO) FX(FX_VINYL_, 1, 2, 0);
-    } else if (b->j % 4 == 0 && (b->sec == S_A || b->sec == S_B)) { double d = DRIFT(); FX(FX_TONE_, d, barDur, 0); }
-    if (b->j % 2 == 0) { double w = 0.6 + rn(&st->rH) * 0.8; FX(FX_WOW_, w, 1, 0); }
-    if (L->dipLast && b->j == b->n - 1) FX(FX_TONE_, 500, 0.25, 0);
-    if (b->sec == S_OUTRO && b->j == b->n - 2) { FX(FX_TONE_, 700, barDur * 0.6, 0); FX(FX_VINYL_, VINYL_BOOST, 1.5, 0); }
-#undef DRIFT
-#undef FX
-    // ── keys: the comp hits [step, len, chord, vel-scale, release] ──
-    struct { double s, len; Chord c; double vs, rel; } hits[16]; int nh = 0;
-#define HIT(s_, len_, c_, vs_, rel_) do { hits[nh].s = s_; hits[nh].len = len_; hits[nh].c = c_; hits[nh].vs = vs_; hits[nh].rel = rel_; nh++; } while (0)
-    double vel = P->ep.vel;
-    st->lastComp = -1; st->lastPush = 0;
-    if (L->ep == EP_INTRO || L->ep == EP_WHOLE) {
-        for (int k = 0; k < nch; k++) HIT(chords[k].start * 4, chords[k].beats * 4, chords[k], L->ep == EP_INTRO ? 0.85 : 0.8, 0.12);
-    } else if (L->ep == EP_OUTRO) {
-        if (b->j < 2) for (int k = 0; k < nch; k++) HIT(chords[k].start * 4, chords[k].beats * 4, chords[k], 0.9, 0.1);
-        else if (b->j == 2) HIT(0, (b->n - 2) * 16, chords[0], 0.85, 0.9);
-    } else if (nch > 1 || st->pushed == i) {
-        for (int k = 0; k < nch; k++) HIT(chords[k].start * 4, chords[k].beats * 4, chords[k], 1, 0.08);
-    } else {
-        int ci = pick_comp(P->ep.comp, &st->rH); st->lastComp = ci;
-        for (int k = 0; k < COMPN[ci]; k++) {
-            int s = COMPS[ci][k][0], len = COMPS[ci][k][1];
-            HIT(s, k == COMPN[ci] - 1 ? 16 - s : len, chords[0], k ? 0.9 : 1, 0.08);
-        }
-    }
-    if (st->pushed == i) { if (nh) { memmove(&hits[0], &hits[1], sizeof hits[0] * (nh - 1)); nh--; } st->pushed = -1; }
-    const Chord *last = &chords[nch - 1];
-    if (L->ep == EP_COMP && nnext && st->map[i + 1].L.ep == EP_COMP && !same_chord(last, &nextC[0]) && rn(&st->rH) < P->ep.push) {
-        if (nh && hits[nh - 1].s < 14) {
-            for (int k = 0; k < nh; k++) hits[k].len = fmin(hits[k].len, 14 - hits[k].s);
-            double len = 2 + nextC[0].beats * 4;
-            HIT(14, len, nextC[0], 0.95, 0.08);
-            st->pushed = i + 1; st->lastPush = 1;
-        }
-    }
-#undef HIT
-    for (int k = 0; k < nh; k++) {
-        Spelled sp = lc_spell(P->key, &hits[k].c);
-        Voicing v = lc_voice(&sp, st->hasPrevVoicing ? &st->prevVoicing : NULL, P->reg);
-        st->prevVoicing = v; st->hasPrevVoicing = 1;
-        double t = at_(&cx, (int)hits[k].s, 4e-3, 0);
-        Ev *x = push_ev(out, t, K_EP, i);
-        x->nn = v.n; memcpy(x->notes, v.m, sizeof v.m);
-        x->vel = vh_(st, vel * hits[k].vs);
-        x->dur = fmax(0.1, hits[k].len * sd - 0.03);
-        x->strum = P->ep.strum; x->rel = hits[k].rel;
-    }
-    // ── drums ──
-    BarHits dh = bar_hits(P, b, L->drums, L->hatsFirst, &st->rR);
-    st->lastFill = dh.fill;
-    for (int k = 0; k < dh.n; k++) {
-        const Hit *h = &dh.h[k];
-        double lag = LAGGED(h->v) ? P->snareLag : 0;
-        double t = at_(&cx, h->s, SIG[h->v], lag);
-        double vv = vh_(st, h->vel);
-        if (L->kit) { Ev *x = push_ev(out, t, K_KICK + h->v, i); x->vel = vv; x->open = h->open; x->ghost = h->ghost; }
-    }
-    // ── bass: on the kicks + the changes, an approach into the next chord ──
-    int bm = L->bass;
-    int bassOn = bm == BS_KICK || bm == BS_WHOLE || (bm == BS_LAST && b->j == b->n - 1) || (bm == BS_OUTRO && b->j < 3);
-    if (bassOn) {
-        int steps[40], ns = 0, changes[12], ncg = 0;
-        if (bm == BS_KICK) for (int k = 0; k < dh.n; k++) if (dh.h[k].v == V_KICK) steps[ns++] = dh.h[k].s;
-        for (int k = 0; k < nch; k++) changes[ncg++] = (int)(chords[k].start * 4);
-        for (int k = 0; k < ncg; k++) steps[ns++] = changes[k];
-        { int u[40], nu = 0; for (int k = 0; k < ns; k++) { int d = 0; for (int q = 0; q < nu; q++) if (u[q] == steps[k]) d = 1; if (!d) u[nu++] = steps[k]; }
-          isort(u, nu); memcpy(steps, u, sizeof(int) * nu); ns = nu; }
-        int approach = 0;
-        if (bm == BS_KICK && nnext && nextC[0].root != last->root && rn(&st->rR) < 0.5) {
-            int k2 = 0; for (int k = 0; k < ns; k++) if (steps[k] < 14) steps[k2++] = steps[k]; ns = k2;
-            steps[ns++] = 14; approach = 1;
-        }
-        if (dh.stop >= 0) { int k2 = 0; for (int k = 0; k < ns; k++) if (steps[k] < dh.stop) steps[k2++] = steps[k]; ns = k2; }
-        int endStep = dh.stop >= 0 ? dh.stop : 16;
-        for (int k = 0; k < ns; k++) {
-            int s = steps[k];
-            const Chord *c = &chords[nch - 1];
-            for (int q = 0; q < nch; q++) if (s >= chords[q].start * 4 && s < (chords[q].start + chords[q].beats) * 4) { c = &chords[q]; break; }
-            int rootPc = mod12(P->key.tonic + c->root);
-            int root = bass_note(rootPc, st->prevBass), m = root;
-            int isChange = 0; for (int q = 0; q < ncg; q++) if (changes[q] == s) isChange = 1;
-            if (approach && s == 14) {
-                int target = bass_note(mod12(P->key.tonic + nextC[0].root), root);
-                m = rn(&st->rR) < 0.6 ? target - 1 : target + 1;
-            } else if (!isChange && s % 8 != 0 && rn(&st->rR) < 0.25) {
-                m = rn(&st->rR) < 0.6 ? (root + 7 <= 50 ? root + 7 : root - 5) : (root + 12 <= 52 ? root + 12 : root);
-            }
-            int nextS = k + 1 < ns ? steps[k + 1] : endStep;
-            double dur = fmax(1, nextS - s) * sd * P->bassFactor;
-            double t = at_(&cx, s, 4e-3, 3e-3);
-            Ev *x = push_ev(out, t, K_BASS, i);
-            x->midi = m; x->vel = vh_(st, s == 0 ? 0.92 : 0.82); x->dur = dur;
-            x->slide = rn(&st->rR) < 0.15;
-            st->prevBass = root;
-        }
-    }
-    // ── lead: one motif, stated per 4-bar group, inverted + shifted in B, answered ──
-    if (P->hasLead && L->lead) {
-        int g = b->j / 4;
-        if (!st->hasPhrase[b->si][g]) {
-            int startBar = i - (b->j % 4);
-            int rest = g % 2 == 1 && rn(&st->rM) < 0.3;
-            Phrase ph; ph.cnt = 0;
-            if (!rest) {
-                LeadCtx lc = { P, st, startBar };
-                Variant va = { ++st->statement, b->sec == S_B, b->sec == S_B ? 2 : 0, st->hasLastLead, st->lastLead, P->reg };
-                ph = lc_phrase(&P->motif, lead_pcs_at, &lc, P->key, &st->rM, va);
-            }
-            if (ph.cnt) { st->lastLead = ph.n[ph.cnt - 1].midi; st->hasLastLead = 1; }
-            st->phrases[b->si][g] = ph; st->hasPhrase[b->si][g] = 1;
-        }
-        const Phrase *ph = &st->phrases[b->si][g]; int bj = b->j % 4;
-        for (int k = 0; k < ph->cnt; k++) {
-            const LNote *n = &ph->n[k];
-            if (n->s / 16 != bj) continue;
-            const LNote *p = k ? &ph->n[k - 1] : NULL;
-            int glide = p && n->s - (p->s + p->d) <= 1;
-            double t = at_(&cx, n->s % 16, 8e-3, 0);
-            Ev *x = push_ev(out, t, K_LEAD, i);
-            x->midi = n->midi; x->vel = vh_(st, n->v); x->dur = n->d * sd * 0.95; x->glide = glide;
-        }
-    }
-    // stable sort by time (JS Array.sort is stable)
-    for (int a = 1; a < out->n; a++) { Ev x = out->e[a]; int j = a - 1; while (j >= 0 && out->e[j].t > x.t) { out->e[j + 1] = out->e[j]; j--; } out->e[j + 1] = x; }
-}
+// ── the arranger: runtime/loficity/ (a private module, like lockup/): the port of their planner ──
+#include "loficity/arranger.h"
 
 #ifdef LC_DUMP
-static const char *PAT[6] = { "P1","P2","P3","P4","P5","P6" };
+// the oracle dump: every planned value + event of N chained tracks, in the canonical text the
+// verification compares against their own planner (clang -DLC_DUMP ... ; ./a.out seed energy band city n style)
+static int kvcmp(const void *a, const void *b) { return strcmp(((const KV *)a)->k, ((const KV *)b)->k); }
 static void pr_plan(const Plan *P) {
-    printf("PLAN seed=%u next=%u title=%s key=%d/%s bpm=%d swing=%.4f lag=%.4f pat=%s form=T%d bars=%d A=%s B=%s cb=%d lead=%d soft=%d pan=%.2f reg=%d tone=%.0f wow=%.1f dust=%.2f legato=%d\n",
-        P->seed, P->nextSeed, P->title, P->key.tonic, P->key.major ? "major" : "minor", P->bpm, P->swing, P->snareLag, PAT[P->pattern], P->form + 1, P->bars,
-        P->progA.id, P->progB.id, P->chordBars, P->hasLead, P->leadSoft, P->leadPan + 0.0 == 0 ? 0.0 : P->leadPan, P->reg, P->tone, P->wowCents, P->dust, P->legato);
-    printf("KIT %.1f %.1f %.3f %.3f %.0f %.3f %.0f EP %.0f %.2f %.3f %.4f %.3f %.2f %.2f %.2f\n", P->kit.kickF0, P->kit.kickF1, P->kit.kickDecay, P->kit.snareDecay, P->kit.hatHP, P->kit.hatClosed, P->kit.lp,
-        P->ep.lp, P->ep.tremRate, P->ep.tremDepth, P->ep.strum, P->ep.vel, P->ep.comp[0], P->ep.comp[1], P->ep.comp[2]);
-    printf("SECS");
+    const StyleDef *S = STYLES[P->style];
+    printf("PLAN seed=%u next=%u title=%s key=%d/%s bpm=%d swing=%.4f lag=%.4f pat=%s form=T%d bars=%d A=%s B=%s cb=%d lead=%d reg=%d tone=%.0f wow=%.1f dust=%.2f legato=%d drumLevel=%.4f\n",
+        P->seed, P->nextSeed, P->title, P->key.tonic, P->key.major ? "major" : "minor", P->bpm, P->swing, P->snareLag, S->grids[P->pattern].id, P->form + 1, P->bars,
+        P->progA.id, P->progB.id, P->chordBars, P->hasLead, P->reg, P->tone, P->wowCents, P->dust, P->legato, P->drumLevel);
+    printf("EP %.0f %.2f %.3f %.4f %.3f %.2f comp", P->ep.lp, P->ep.tremRate, P->ep.tremDepth, P->ep.strum, P->ep.vel, P->ep.push);
+    for (int i = 0; i < P->ep.ncomp; i++) printf(" %s=%.2f", S->comps ? S->comps[P->ep.compIdx[i]].id : (const char *[]){ "hold", "charleston", "pulse" }[i], P->ep.comp[i]);
+    printf("\nSECS");
     for (int i = 0; i < P->nsec; i++) { const Layers *L = &P->sec[i].L;
         printf(" %s%d[%d%d%d%d%d%d]", SEC_NAME[P->sec[i].name], P->sec[i].bars, L->ep, L->bass, L->drums, L->lead, L->hatsFirst, L->dipLast); }
     printf("\n");
+    KV kvs_[KV_MAX]; memcpy(kvs_, P->kv, sizeof(KV) * P->nkv); qsort(kvs_, P->nkv, sizeof(KV), kvcmp);
+    for (int i = 0; i < P->nkv; i++) { if (kvs_[i].isStr) printf("SP %s=%s\n", kvs_[i].k, kvs_[i].s); else printf("SP %s=%.6f\n", kvs_[i].k, kvs_[i].v + 0.0 == 0 ? 0.0 : kvs_[i].v); }
 }
 int main(int argc, char **argv) {
     uint32_t seed = (uint32_t)strtoul(argv[1], 0, 10);
     int energy = argc > 2 ? atoi(argv[2]) : 1, band = argc > 3 ? atoi(argv[3]) : 0, city = argc > 4 ? atoi(argv[4]) : 0;
-    int ntracks = argc > 5 ? atoi(argv[5]) : 1;
+    int ntracks = argc > 5 ? atoi(argv[5]) : 1, style = argc > 6 ? atoi(argv[6]) : 0;
     Key prev; int hasPrev = 0;
     for (int tr = 0; tr < ntracks; tr++) {
-        Plan P = plan_track(seed, hasPrev ? &prev : NULL, energy, band, city);
+        Plan P = plan_track(seed, hasPrev ? &prev : NULL, style, energy, band, city);
         pr_plan(&P);
         static BarState st; bar_state(&P, &st);
         static Evs ev;
@@ -1033,34 +122,74 @@ int main(int argc, char **argv) {
 #else
 
 // ═════════════════════════════════════════════════════════════════════════════
-// THE BAND — the planner's events played on our engines. This half is ours: where
-// Lofi Cities hand-builds Web Audio graphs (3-op FM Rhodes, a sine+triangle bass, a
-// noise-buffer kit), each part here is a modeled engine chosen fresh:
-//   keys  INSTR_EPIANO Rhodes, re-voiced per track from the plan (lowpass, the suitcase
-//         tremolo + autopan at the plan's rate/depth, strum, velocity)
-//   bass  INSTR_BOWED pizzicato through the double-bass body — a real upright
-//   kit   morphdrum.h kick + snare + INSTR_METAL hat, its knobs re-rolled per track from
-//         the plan's kit (kick sweep F0→F1 + decay, snare decay, hat highpass + length)
-//   rim   INSTR_MODAL — a struck bar, short and dull
-//   lead  "vibes" = INSTR_MALLET with the motor on · "soft" = INSTR_PIPE breathy flute
-//   mix   the plan's per-bar TONE automation rides the master lowpass (filter() is the one
-//         effect built to be ridden live); tape wow/sat + echo are set per track; a vinyl
-//         hiss bed + crackle ticks follow the plan's dust + vinyl swells.
+// THE BAND — the planner's events played on our engines. This half is ours: each of
+// the nine styles gets its own casting on modeled engines, fed by that style's own plan
+// values (their kit rolls, synth/house/guitar settings, the lead's timbre), plus the
+// few behaviours their voices perform INTERNALLY (the arranger does not plan them):
+//   held-chord figures re-plucked every half bar (bossa / guitar / lute), guitar ghost
+//   strums + pinches + up/down strums, lute COURSES (each note doubled), stab-vs-pad by
+//   note length (synth / house), piano rolls, sad's pad under the piano, ambient's ties
+//   and its thinned bell, the section-driven drones (ambient / medieval), house's
+//   section filter sweep + pump, synth's step-pitched tom runs.
+// Casting per style (sound notes from their voice modules, recast):
+//   jazzhop  EPIANO Rhodes + suitcase trem · BOWED-pizz upright · morphdrum · MALLET vibes / PIPE flute
+//   piano    PIANO felt grand (both hands + the melody) · brush kit
+//   ambient  unison-SAW pad + an octave shimmer · held SINE/TRI drone · SINE sub · FM bell · felt kit
+//   bossa    GUITAR nylon, thumb + fingers · BOWED-pizz upright · brush kit, MODAL clave, MEMBRANE surdo
+//   synth    SAW poly (stab + pad slots) + master chorus · SAW mono bass · SQUARE / FM-glass lead · clap, toms
+//   house    ORGAN (stab + pad) + section sweep + sidechain pump · SINE bass · VOICE vox / PLUCK · METAL ride
+//   guitar   GUITAR electric, driven + chorused + a spring tank · PLUCK finger bass · GUITAR lead
+//   sad      PIANO felt + a SAW pad, both through a slot TAPE warble · SINE sub · BRASS muted horn
+//   medieval GUITAR lute with courses · BOWED arco viol · SAW drone · PIPE recorder · MEMBRANE frame drums
+// Mix: the plan's per-bar TONE automation rides the master lowpass (filter() is built to
+// be ridden live); tape wow + echo are per track; a vinyl hiss bed + crackle ticks.
 // ═════════════════════════════════════════════════════════════════════════════
-#define I_EP     5    // keys, short release (comping)
-#define I_EPL    6    // keys, long release (the outro's held last chord)
-#define I_BASS   7    // upright, plucked
-#define I_BASSS  8    // upright, the slid-into note (a quick pitch scoop)
+// Every modulator a style sets on a slot is RECORDED, so a style change resets only what was
+// actually set: a blanket reset of all fifteen slots is ~330 engine calls, and one frame's request
+// queue holds 512 (it overflowed on boot). These macros share the functions' names; C does not
+// re-expand a macro inside its own expansion, so the inner call is the real function.
+static unsigned lc_dirty[48];
+#define LC_D(s, bit) (lc_dirty[(s) & 47] |= 1u << (bit))
+#define instrument_lfo(s, w, ...)    (LC_D(s, w),      instrument_lfo(s, w, __VA_ARGS__))
+#define instrument_env(s, w, ...)    (LC_D(s, 3 + (w)), instrument_env(s, w, __VA_ARGS__))
+#define instrument_drive(s, ...)     (LC_D(s, 6),      instrument_drive(s, __VA_ARGS__))
+#define instrument_echo(s, ...)      (LC_D(s, 7),      instrument_echo(s, __VA_ARGS__))
+#define instrument_reverb(s, ...)    (LC_D(s, 8),      instrument_reverb(s, __VA_ARGS__))
+#define instrument_glide(s, ...)     (LC_D(s, 9),      instrument_glide(s, __VA_ARGS__))
+#define instrument_tune(s, ...)      (LC_D(s, 10),     instrument_tune(s, __VA_ARGS__))
+#define instrument_unison(s, ...)    (LC_D(s, 11),     instrument_unison(s, __VA_ARGS__))
+#define instrument_pan(s, ...)       (LC_D(s, 12),     instrument_pan(s, __VA_ARGS__))
+#define instrument_level(s, ...)     (LC_D(s, 13),     instrument_level(s, __VA_ARGS__))
+#define instrument_filter(s, ...)    (LC_D(s, 14),     instrument_filter(s, __VA_ARGS__))
+#define instrument_mode(s, ...)      (LC_D(s, 15),     instrument_mode(s, __VA_ARGS__))
+#define instrument_tape(s, ...)      (LC_D(s, 16),     instrument_tape(s, __VA_ARGS__))
+#define instrument_chorus(s, ...)    (LC_D(s, 17),     instrument_chorus(s, __VA_ARGS__))
+#define instrument_eq(s, ...)        (LC_D(s, 18),     instrument_eq(s, __VA_ARGS__))
+#define I_KEYS   5    // keys, short release
+#define I_KEYSL  6    // keys, long release (held / outro chords)
+#define I_BASS   7
+#define I_BASSS  8    // the slid-into bass note (a pitch scoop / glide)
 #define I_RIM    9
-#define I_VIBES  10
-#define I_FLUTE  11
+#define I_LEAD   10
+#define I_LEAD2  11   // the lead's other timbre
 #define I_HISS   12
 #define I_CRK    13
+#define I_KEYS2  14   // a second keys layer: guitar thumb, lute course, pad shimmer
+#define I_KEYS2L 15   // ...its long-release / muted twin
+#define I_PAD    16   // the pad-length chord slot (synth / house) · sad's pad · the ghost strum
+#define I_DRONE  17
+#define I_CLAP   18
+#define I_SHAKER 19
 #define KIT_BASE 20   // morphdrum slots 20..29
+#define I_TOM    30
+#define I_BLOCK  31   // ride / tambourine / slap
+static const int STYLE_SLOTS[] = { I_KEYS, I_KEYSL, I_BASS, I_BASSS, I_RIM, I_LEAD, I_LEAD2, I_KEYS2, I_KEYS2L, I_PAD,
+                                   I_DRONE, I_CLAP, I_SHAKER, I_TOM, I_BLOCK };
+#define NSTYLE_SLOTS ((int)(sizeof STYLE_SLOTS / sizeof *STYLE_SLOTS))
 
 static MorphKit kit;
-static double clk = 0;                 // our clock, seconds (summed dt — see the header)
-static int    energySel = EN_BALANCED, bandSel = BAND_FULL, citySel = 1;   // tokyo
+static double clk = 0;                 // our clock, seconds: audio_time() (see the header)
+static int    energySel = EN_BALANCED, bandSel = BAND_FULL, citySel = 1, styleSel = S_JAZZHOP;   // tokyo
 static bool   showHelp = false;
 // FX TOGGLES (keys 1-5 / the buttons top-right): switch each master stage off to hear what it is doing.
 // Each re-applies ONLY when flipped (set-and-hold).
@@ -1074,100 +203,385 @@ typedef struct {
     Plan P; BarState st;
     double start;                      // clock time of bar 0
     int nextBar;
-    Ev q[384]; int nq;                 // planned, not yet dispatched (time-sorted)
+    Ev q[480]; int nq;                 // planned, not yet dispatched (time-sorted)
     bool live;
 } Track;
 static Track cur;
 static Plan  upNext[3];                // the queue: the next three tracks of the chain
 static double toneHz = 8000, toneTgt = 8000, toneTau = 0.05;
 static double vinylG = 1, vinylTgt = 1, vinylTau = 0.5, dustAmt = 1;
-static double epLevel = 0.71;
-static int    hissH = -1;
+static double keysLevel = 0.71, keysBase = 0.71;
+static int    hissH = -1, droneH[2] = { -1, -1 };
 static float  flash[12];               // per-kind hit flash for the display
 static int    fillShow = F_NONE; static float fillT = 0;
 static int    pushShow = 0; static float pushT = 0;
 static int    songCount = 0;
+static double lastLeadAt = -10;        // ambient's bell drops notes that crowd the previous one
+static double tieEnd[128];             // ambient pad ties: when each pitch's note ends
 
 static int v2vol(double v, double k) { int x = (int)lround(v * k); return x < 1 ? 1 : x > 7 ? 7 : x; }
 static double ftom(double f) { return 69 + 12 * log2(f / 440.0); }
 static float c01(double x) { return (float)(x < 0 ? 0 : x > 1 ? 1 : x); }
+static int is(const Plan *P, int s) { return P->style == s; }
+static double stepDur(const Plan *P) { return 60.0 / P->bpm / 4; }
 
 static void refresh_queue(void) {
     const Plan *prev = &cur.P;
-    for (int i = 0; i < 3; i++) { upNext[i] = plan_track(prev->nextSeed, &prev->key, energySel, bandSel, citySel); prev = &upNext[i]; }
+    for (int i = 0; i < 3; i++) { upNext[i] = plan_track(prev->nextSeed, &prev->key, styleSel, energySel, bandSel, citySel); prev = &upNext[i]; }
 }
 
-// per-track voicing — the planner's rolled kit/keys/lead parameters land on our engines
-static void voice_track(const Plan *P) {
-    // keys
-    for (int s = I_EP; s <= I_EPL; s++) {
-        instrument(s, INSTR_EPIANO, 2, 0, 7, s == I_EP ? 320 : 2600);
-        instrument_harmonics(s, 0.10f); instrument_timbre(s, 0.36f); instrument_morph(s, 0.18f);
-        instrument_filter(s, FILTER_LOW, (int)P->ep.lp, 0);
-        float tr = fxOn[FXT_TREM] ? LC_TREM : 0.0f;
-        instrument_lfo(s, 0, LFO_VOLUME, (float)P->ep.tremRate, (float)P->ep.tremDepth * tr);
-        instrument_lfo(s, 1, LFO_PAN, (float)P->ep.tremRate, 0.25f * tr);
-        instrument_reverb(s, 0.30f);
+// A slot keeps every modulator it ever had when it is redefined (the instrument() contract), and the
+// slots are reused across styles, so a style change wipes each one back to a plain voice first.
+static void slot_reset(int s) {
+    unsigned d = lc_dirty[s];
+    for (int w = 0; w < 3; w++) {
+        if (d & (1u << w))       (instrument_lfo)(s, w, LFO_PITCH, 1, 0);
+        if (d & (1u << (3 + w))) (instrument_env)(s, w, ENV_PITCH, 0, 0, 0);
     }
-    // kit: kick F0→F1 sweep + decay, snare decay, hat highpass + closed length
+    if (d & (1u << 6))  (instrument_drive)(s, 0);
+    if (d & (1u << 7))  (instrument_echo)(s, 0);
+    if (d & (1u << 8))  (instrument_reverb)(s, 0);
+    if (d & (1u << 9))  (instrument_glide)(s, 0);
+    if (d & (1u << 10)) (instrument_tune)(s, 0);
+    if (d & (1u << 11)) (instrument_unison)(s, 1, 0);
+    if (d & (1u << 12)) (instrument_pan)(s, 0);
+    if (d & (1u << 13)) (instrument_level)(s, 1);
+    if (d & (1u << 14)) (instrument_filter)(s, FILTER_OFF, 20000, 0);
+    if (d & (1u << 15)) for (int m = 0; m < 7; m++) (instrument_mode)(s, m, 0);
+    if (d & (1u << 16)) (instrument_tape)(s, 0, 0, 0);
+    if (d & (1u << 17)) (instrument_chorus)(s, 1, 0, 0);
+    if (d & (1u << 18)) (instrument_eq)(s, 0, 0, 0);
+    lc_dirty[s] = 0;
+}
+static void inst(int s, int wave, int a, int d, int sus, int r, float h, float t, float m) {
+    instrument(s, wave, a, d, sus, r); instrument_harmonics(s, h); instrument_timbre(s, t); instrument_morph(s, m);
+}
+
+// the kit's three morphdrum voices, from the style's own kit roll (every style replaces drums.kit)
+static void voice_kit(const Plan *P) {
+    double F0 = kv_has(P, "drums.kit.kickF0") ? kv(P, "drums.kit.kickF0") : 110, F1 = kv_has(P, "drums.kit.kickF1") ? kv(P, "drums.kit.kickF1") : 48;
+    double kd = kv_has(P, "drums.kit.kickDecay") ? kv(P, "drums.kit.kickDecay") : 0.18;
+    double sd = kv_has(P, "drums.kit.snareDecay") ? kv(P, "drums.kit.snareDecay") : kv_has(P, "drums.kit.brush") ? kv(P, "drums.kit.brush") : 0.1;
+    double hp = kv_has(P, "drums.kit.hatHP") ? kv(P, "drums.kit.hatHP") : 6000, hc = kv_has(P, "drums.kit.hatClosed") ? kv(P, "drums.kit.hatClosed") : 0.02;
+    if (is(P, S_AMBIENT)) { F0 = 95; F1 = 48; kd = 0.18; sd = 0.11; hp = 7000; hc = 0.025; }
+    int brush = is(P, S_PIANO) || is(P, S_BOSSA) || is(P, S_SAD) || is(P, S_AMBIENT);
     float *k = kit.p[MD_KICK];
-    k[MD_CHAR] = 0.2f; k[MD_LEVEL] = 1;
-    k[MD_TUNE]  = c01((ftom(P->kit.kickF1) - 19) / 33.0);
-    k[MD_PUNCH] = c01(12 * log2(P->kit.kickF0 / P->kit.kickF1) / 48.0);
-    k[MD_SNAP]  = c01((90 - 8) / 142.0);
-    k[MD_DECAY] = c01((P->kit.kickDecay * 4000 - 40) / 1060.0);
-    k[MD_CUT] = 0.36f; k[MD_CLICK] = 0.22f; k[MD_SUB] = 0.22f; k[MD_DRIVE] = 0.18f;
+    k[MD_CHAR] = is(P, S_HOUSE) ? 0.7f : 0.2f; k[MD_LEVEL] = 1;
+    k[MD_TUNE]  = c01((ftom(F1) - 19) / 33.0);
+    k[MD_PUNCH] = c01(12 * log2(F0 / F1) / 48.0);
+    k[MD_SNAP]  = c01(((is(P, S_HOUSE) ? kv(P, "drums.kit.kickSweep") * 3000 : 90) - 8) / 142.0);
+    k[MD_DECAY] = c01((kd * 4000 - 40) / 1060.0);
+    k[MD_CUT] = brush ? 0.30f : 0.36f; k[MD_CLICK] = brush ? 0.10f : 0.22f; k[MD_SUB] = 0.22f;
+    k[MD_DRIVE] = is(P, S_HOUSE) ? 0.45f : 0.18f;
     float *s = kit.p[MD_SNARE];
-    s[MD_CHAR] = 0.5f; s[MD_LEVEL] = 1; s[MD_TUNE] = 0.32f; s[MD_DECAY] = 0.45f; s[MD_PUNCH] = 0.25f;
-    s[MD_SNAP] = 0.8f; s[MD_TONE] = 0.62f; s[MD_CUT] = 0.45f; s[MD_DRIVE] = 0.1f;
-    s[MD_ODEC] = c01((P->kit.snareDecay * 4000 - 30) / 390.0);
+    s[MD_CHAR] = 0.5f; s[MD_LEVEL] = 1; s[MD_TUNE] = 0.32f; s[MD_DECAY] = brush ? 0.25f : 0.45f; s[MD_PUNCH] = 0.25f;
+    s[MD_SNAP] = 0.8f; s[MD_TONE] = brush ? 0.85f : 0.62f; s[MD_CUT] = brush ? 0.30f : 0.45f; s[MD_DRIVE] = 0.1f;
+    s[MD_ODEC] = c01((sd * (brush ? 3000 : 4000) - 30) / 390.0);
     float *h = kit.p[MD_HAT];
     h[MD_CHAR] = 0.2f; h[MD_LEVEL] = 1; h[MD_TUNE] = 0.53f; h[MD_TONE] = 0.25f; h[MD_SUB] = 0.6f; h[MD_RES] = 0.0f;
-    h[MD_CUT]   = c01(log2(P->kit.hatHP / 3000.0) / 2.0);
-    h[MD_DECAY] = c01((P->kit.hatClosed * 2500 - 10) / 210.0);   // their hat is a 12-20 ms tick: keep ours short
-    h[MD_ODEC]  = c01((0.12 * 4000 - 80) / 720.0);
+    h[MD_CUT]   = c01(log2(hp / 3000.0) / 2.0);
+    h[MD_DECAY] = c01((hc * 2500 - 10) / 210.0);                       // their hats are 12-35 ms ticks: keep ours short
+    h[MD_ODEC]  = c01(((is(P, S_HOUSE) ? kv(P, "drums.kit.openDecay") : 0.12) * 4000 - 80) / 720.0);
     morph_ride(&kit);
-    for (int s = MDS_HC; s <= MDS_HO; s++) instrument_level(kit.base + s, 0.55f);   // after the ride: morph_apply resets hat level
-    // lead
-    instrument_pan(I_VIBES, (float)P->leadPan); instrument_pan(I_FLUTE, (float)P->leadPan);
-    // the lead's own delay: 3 sixteenths, gentle feedback, darkened (their 3·stepDur / fb .3 / LP 2.5k)
-    int dms = (int)(3 * 60000.0 / P->bpm / 4); if (dms > 1900) dms = 1900;
-    echo(dms, 0.3f, 0.3f);
+    // (kit levels: set by the style MIX block at the end of voice_track — after the ride, which resets the hats)
+    // the percussion slots every style shares a shape of
+    inst(I_RIM, INSTR_MODAL, 0, 0, 7, 30, 0.55f, 0.70f, 0.04f);
+    instrument_level(I_RIM, 0.28f); instrument_filter(I_RIM, FILTER_HIGH, 300, 0); instrument_reverb(I_RIM, 0.30f); instrument_pan(I_RIM, -0.15f);
+    inst(I_SHAKER, INSTR_NOISE, 4, 40, 0, 20, 0.5f, 0.5f, 0.5f);
+    instrument_filter(I_SHAKER, FILTER_HIGH, is(P, S_SYNTH) ? (int)kv(P, "drums.perc.shaker.hp") : 5200, 1);
+    instrument_level(I_SHAKER, 0.35f); instrument_pan(I_SHAKER, 0.3f);
+    inst(I_CLAP, INSTR_NOISE, 0, 26, 0, 20, 0.5f, 0.5f, 0.5f);
+    instrument_filter(I_CLAP, FILTER_BAND, is(P, S_HOUSE) ? (int)kv(P, "drums.kit.clapF") : is(P, S_SYNTH) ? (int)kv(P, "drums.perc.clap.f") : 1300, 2);
+    instrument_level(I_CLAP, 0.45f); instrument_reverb(I_CLAP, 0.35f); instrument_pan(I_CLAP, -0.1f);
+    inst(I_TOM, INSTR_MEMBRANE, 0, 0, 7, 60, 0.15f, 0.25f, 0.2f);
+    instrument_level(I_TOM, 0.5f); instrument_pan(I_TOM, -0.2f); instrument_reverb(I_TOM, 0.15f);
+    if (is(P, S_HOUSE)) {        // the ride: the six-square bank on cymbal ratios
+        inst(I_BLOCK, INSTR_METAL, 0, 0, 7, 60, 0.85f, 0.4f, 0.2f);
+        instrument_mode(I_BLOCK, MODE_METAL_DECAY, (float)fmin(1, log2(kv(P, "drums.kit.rideDecay") / 0.02) / log2(100)));
+        instrument_filter(I_BLOCK, FILTER_HIGH, 4500, 0); instrument_level(I_BLOCK, 0.30f); instrument_pan(I_BLOCK, 0.25f);
+    } else if (is(P, S_MEDIEVAL)) {   // the tambourine: jingles
+        inst(I_BLOCK, INSTR_METAL, 0, 0, 7, 40, 0.95f, 0.65f, 0.8f);
+        instrument_mode(I_BLOCK, MODE_METAL_DECAY, 0.25f);
+        instrument_filter(I_BLOCK, FILTER_HIGH, 6500, 0); instrument_level(I_BLOCK, 0.28f); instrument_pan(I_BLOCK, 0.3f);
+    } else {                           // a woodblock
+        inst(I_BLOCK, INSTR_MODAL, 0, 0, 7, 30, 0.62f, 0.75f, 0.04f);
+        instrument_level(I_BLOCK, 0.28f); instrument_pan(I_BLOCK, 0.15f);
+    }
+    if (is(P, S_BOSSA)) { // the clave (rimF) + the surdo
+        inst(I_RIM, INSTR_MODAL, 0, 0, 7, 25, 0.62f, 0.55f, 0.04f); instrument_level(I_RIM, 0.30f); instrument_pan(I_RIM, -0.18f);
+        inst(I_TOM, INSTR_MEMBRANE, 0, 0, 7, 120, 0.1f, 0.15f, 0.35f); instrument_level(I_TOM, 0.55f);
+    }
+    if (is(P, S_MEDIEVAL)) { // the frame drum: doum (centre) on the tom slot, the slap on the clap slot
+        inst(I_TOM, INSTR_MEMBRANE, 0, 0, 7, 120, 0.35f, 0.10f, 0.0f); instrument_level(I_TOM, 0.7f); instrument_pan(I_TOM, 0);
+        inst(I_CLAP, INSTR_MEMBRANE, 0, 0, 7, 40, 0.55f, 0.90f, 0.0f); instrument_level(I_CLAP, 0.45f);
+        instrument_filter(I_CLAP, FILTER_OFF, 20000, 0); instrument_reverb(I_CLAP, 0.25f);
+    }
+}
+
+// per-style MIX: overall loudness goes on the master eq (the one stage that boosts); the balance inside a
+// style only CUTS. Measured per part, 40 s renders, seed 11 (2026-09-28), matched to jazzhop's proportions
+// (keys -26 · bass -32 · kit -29 dB RMS): e.g. sad's sub sat 10 dB OVER its piano, medieval's frame drums 13 dB under.
+static const struct { float masterDb, keys, bass, kit, leadDb, lead2Db; } STYLE_MIX[NSTYLE] = {
+    [S_JAZZHOP] = {  0.0f, 1.00f, 1.00f, 1.00f, 0.0f, 0.0f },
+    [S_PIANO]   = {  8.0f, 1.00f, 1.00f, 0.56f, 0.0f, 0.0f },
+    [S_AMBIENT] = { -8.0f, 1.00f, 0.60f, 1.00f, 8.0f, 8.0f },
+    [S_BOSSA]   = {  2.5f, 1.00f, 1.00f, 0.70f, 10.0f, -7.0f },
+    [S_SYNTH]   = { -3.0f, 0.65f, 1.00f, 1.00f, 6.0f, 9.0f },
+    [S_HOUSE]   = { -4.0f, 1.00f, 0.32f, 0.63f, 6.0f, 12.0f },
+    [S_GUITAR]  = {  6.0f, 1.00f, 1.00f, 0.56f, 5.0f, 5.0f },
+    [S_SAD]     = {  3.0f, 1.00f, 0.20f, 1.00f, 7.0f, 7.0f },
+    [S_MEDIEVAL]= {  4.5f, 1.00f, 0.50f, 1.00f, -11.0f, -11.0f },
+};
+static float styleDb = 0;
+static void apply_bus(void) {   // the BUS stage + the style's overall gain (both on the master eq)
+    if (fxOn[FXT_BUS]) { glue(0, LC_GLUE, 8, 160); eq(1.5f + styleDb, 2.5f + styleDb, 0.0f + styleDb); }
+    else { glue(0, 0, 8, 160); eq(styleDb, styleDb, styleDb); }
+}
+// per-track voicing — the planner's rolled parameters land on our engines, one casting per style
+static void voice_track(const Plan *P) {
+    static int lastStyle = -1;
+    if (P->style != lastStyle) {       // a new style: every style slot back to a plain voice first
+        for (int i = 0; i < NSTYLE_SLOTS; i++) slot_reset(STYLE_SLOTS[i]);
+        for (int i = 0; i < 2; i++) if (droneH[i] >= 0) { note_off(droneH[i]); droneH[i] = -1; }
+        lastStyle = P->style;
+    }
+    for (int i = 0; i < 128; i++) tieEnd[i] = -1;
+    double sdur = stepDur(P);
+    float tr = fxOn[FXT_TREM] ? LC_TREM : 0.0f;
+    float wet = 0.35f; int eMs = (int)fmin(1900, 3 * sdur * 1000); float eFb = 0.3f;
+    float spring = 0, chorusMix = 0, chorusRate = 1, chorusDepth = 0.3f, sc = 0; int scRel = 150;
+    keysBase = 0.71;
+    const char *lt = kvs(P, "lead.timbre"), *lv = kvs(P, "lead.voice");
+    switch (P->style) {
+    default:
+    case S_JAZZHOP:
+        for (int s = I_KEYS; s <= I_KEYSL; s++) {
+            inst(s, INSTR_EPIANO, 2, 0, 7, s == I_KEYS ? 320 : 2600, 0.10f, 0.36f, 0.18f);
+            instrument_filter(s, FILTER_LOW, (int)P->ep.lp, 0);
+            instrument_lfo(s, 0, LFO_VOLUME, (float)P->ep.tremRate, (float)P->ep.tremDepth * tr);
+            instrument_lfo(s, 1, LFO_PAN, (float)P->ep.tremRate, 0.25f * tr);
+            instrument_reverb(s, 0.30f);
+        }
+        goto upright;
+    case S_BOSSA:
+        for (int s = I_KEYS; s <= I_KEYS2L; s++) if (s == I_KEYS || s == I_KEYSL || s == I_KEYS2 || s == I_KEYS2L) {
+            int thumb = s == I_KEYS2 || s == I_KEYS2L, lng = s == I_KEYSL || s == I_KEYS2L;
+            inst(s, INSTR_GUITAR, 1, 0, 7, lng ? 1400 : 160, 0.45f, thumb ? 0.12f : 0.26f, 0.22f);
+            instrument_filter(s, FILTER_LOW, (int)P->ep.lp, 0); instrument_reverb(s, 0.28f);
+            instrument_pan(s, thumb ? -0.12f : 0.08f);
+        }
+        keysBase = 0.85;
+        upright:
+        for (int s = I_BASS; s <= I_BASSS; s++) {
+            inst(s, INSTR_BOWED, 3, 0, 7, 90, 0.62f, 0.30f, 0.45f);
+            instrument_mode(s, MODE_BOW_PIZZ, 1.0f); instrument_mode(s, MODE_BOW_BODY, 0.85f); instrument_mode(s, MODE_BOW_SIZE, BOW_SIZE_BASS);
+            instrument_filter(s, FILTER_LOW, is(P, S_BOSSA) ? (int)(kv(P, "bass.lp") * 1.8) : 950, 0);
+        }
+        instrument_env(I_BASSS, 0, ENV_PITCH, 0, 60, -1.0f);
+        if (is(P, S_BOSSA)) {
+            inst(I_LEAD, INSTR_GUITAR, 1, 0, 7, 700, 0.45f, 0.40f, 0.22f); instrument_filter(I_LEAD, FILTER_LOW, (int)(P->ep.lp * 1.15), 0);
+            inst(I_LEAD2, INSTR_PIPE, 30, 0, 5, 220, 0.0f, 0.40f, 0.62f); instrument_lfo(I_LEAD2, 0, LFO_PITCH, 4.8f, 0.11f); instrument_glide(I_LEAD2, 20);
+        } else {
+            inst(I_LEAD, INSTR_MALLET, 1, 0, 7, 1200, 0.22f, 0.45f, 0.85f); instrument_filter(I_LEAD, FILTER_LOW, 3200, 0);
+            inst(I_LEAD2, INSTR_PIPE, 14, 0, 5, 220, 0.0f, 0.34f, 0.68f); instrument_lfo(I_LEAD2, 0, LFO_PITCH, 5.0f, 0.10f); instrument_glide(I_LEAD2, 13);
+        }
+        break;
+    case S_PIANO: case S_SAD: {
+        double hammer = kv(P, "piano.hammer"), bright = kv(P, "piano.bright");
+        for (int s = I_KEYS; s <= I_KEYSL; s++) {
+            inst(s, INSTR_PIANO, 2, 0, 7, s == I_KEYS ? 450 : 2800, 0.04f, c01(0.22 * hammer), 0.55f);
+            instrument_filter(s, FILTER_LOW, (int)(P->ep.lp * bright), 0);
+            instrument_tune(s, (float)(kv(P, "piano.detune") * 0.01));
+            instrument_reverb(s, 0.32f);
+        }
+        keysBase = 0.9;
+        if (is(P, S_SAD)) {   // the pad under the piano, and the warble on both
+            inst(I_PAD, INSTR_SAW, (int)(kv(P, "sad.padAtk") * 1000), 0, 7, (int)(kv(P, "sad.padRel") * 1000), 0.5f, 0.5f, 0.5f);
+            instrument_unison(I_PAD, 2, (float)(kv(P, "sad.det") / 100));
+            instrument_filter(I_PAD, FILTER_LOW, (int)kv(P, "sad.padLp"), 0); instrument_level(I_PAD, (float)fmin(1, 0.28 * kv(P, "sad.pad")));
+            instrument_reverb(I_PAD, 0.5f);
+            float w = (float)fmin(0.6, kv(P, "sad.warble") / 25.0);
+            for (int s = I_KEYS; s <= I_KEYSL; s++) instrument_tape(s, w, 0, 0);
+            instrument_tape(I_PAD, w, 0, 0);
+            inst(I_BASS, INSTR_SINE, 45, 1400, 5, 250, 0.5f, 0.5f, 0.5f); instrument_filter(I_BASS, FILTER_LOW, 520, 0); instrument_glide(I_BASS, 35);
+            // the muted horn: brass through the cup-mute band, a wah on the attack, a slow vibrato
+            inst(I_LEAD, INSTR_BRASS, 12, 0, 5, 260, 0.15f, 0.45f, 0.40f);
+            instrument_filter(I_LEAD, FILTER_BAND, 1250, 2); instrument_env(I_LEAD, 0, ENV_CUTOFF, 12, 90, 600);
+            instrument_lfo(I_LEAD, 0, LFO_PITCH, 4.6f, (float)(kv(P, "sad.vib") / 100)); instrument_glide(I_LEAD, 40);
+            instrument_reverb(I_LEAD, 0.35f); instrument_echo(I_LEAD, 0.26f);
+            eMs = (int)fmin(1900, 4 * sdur * 1000);
+        }
+        break;
+    }
+    case S_AMBIENT: {
+        double atk = kv(P, "ep.pad.atk"), rel = kv(P, "ep.pad.rel");
+        for (int s = I_KEYS; s <= I_KEYSL; s++) {
+            inst(s, INSTR_SAW, (int)(atk * 1000), 0, 7, (int)((s == I_KEYS ? rel : fmax(rel, 3)) * 1000), 0.5f, 0.5f, 0.5f);
+            instrument_unison(s, 2, (float)(kv(P, "ep.pad.det") / 100));
+            instrument_filter(s, FILTER_LOW, (int)P->ep.lp, 0);
+            instrument_lfo(s, 0, LFO_CUTOFF, (float)kv(P, "ep.pad.lfo"), (float)(P->ep.lp * kv(P, "ep.pad.depth")));
+            instrument_reverb(s, 0.45f); instrument_echo(s, (float)kv(P, "ep.pad.wash"));
+        }
+        inst(I_KEYS2, INSTR_SINE, (int)(atk * 1000), 0, 7, (int)(rel * 1000), 0.5f, 0.5f, 0.5f);   // the octave shimmer
+        instrument_level(I_KEYS2, (float)fmin(1, kv(P, "ep.pad.shim") * 1.2)); instrument_lfo(I_KEYS2, 0, LFO_PAN, 0.11f, (float)kv(P, "ep.pad.width"));
+        instrument_reverb(I_KEYS2, 0.55f);
+        inst(I_DRONE, INSTR_SINE, 1500, 0, 7, 2500, 0.5f, 0.5f, 0.5f); instrument_filter(I_DRONE, FILTER_LOW, 700, 0);
+        instrument_lfo(I_DRONE, 0, LFO_VOLUME, 0.07f, 0.3f); instrument_level(I_DRONE, 0.5f); instrument_reverb(I_DRONE, 0.4f);
+        inst(I_BASS, INSTR_SINE, 120, 0, 7, 450, 0.5f, 0.5f, 0.5f); instrument_filter(I_BASS, FILTER_LOW, 420, 0); instrument_glide(I_BASS, 30);
+        instrument_level(I_BASS, 0.9f);
+        inst(I_BASSS, INSTR_SINE, 120, 0, 7, 450, 0.5f, 0.5f, 0.5f); instrument_filter(I_BASSS, FILTER_LOW, 420, 0); instrument_glide(I_BASSS, 30);
+        // the bell: FM on the 3.5 detent (vibes) or a rounder low ratio (soft)
+        inst(I_LEAD, INSTR_FM, 1, 1300, 0, 900, 0.55f, 0.40f, 0.10f); instrument_filter(I_LEAD, FILTER_LOW, 2800, 0);
+        inst(I_LEAD2, INSTR_FM, 1, 1300, 0, 900, 0.22f, 0.28f, 0.05f); instrument_filter(I_LEAD2, FILTER_LOW, 2800, 0);
+        for (int s = I_LEAD; s <= I_LEAD2; s++) { instrument_reverb(s, 0.5f); instrument_echo(s, 0.4f); }
+        eMs = (int)fmin(1900, 6 * sdur * 1000); eFb = 0.42f; keysBase = 0.8;
+        break;
+    }
+    case S_SYNTH: {
+        double cut = kv(P, "synth.cutoff"), env = kv(P, "synth.env");
+        inst(I_KEYS, INSTR_SAW, 2, 180, 3, 90, 0.5f, 0.5f, 0.5f);                            // the stab
+        inst(I_PAD, INSTR_SAW, (int)(kv(P, "synth.atk") * 1000), 0, 7, (int)(kv(P, "synth.rel") * 1000 + 200), 0.5f, 0.5f, 0.5f);
+        inst(I_KEYSL, INSTR_SAW, 40, 0, 7, 1800, 0.5f, 0.5f, 0.5f);
+        for (int s = I_KEYS; s <= I_PAD; s++) if (s == I_KEYS || s == I_KEYSL || s == I_PAD) {
+            instrument_unison(s, 2, (float)(kv(P, "synth.detune") / 100));
+            instrument_filter(s, FILTER_LOW, (int)(cut * 1.2), (int)fmin(4, kv(P, "synth.res")));
+            instrument_env(s, 0, ENV_CUTOFF, 0, s == I_KEYS ? 160 : 600, (float)fmin(6500 - cut, cut * env * (s == I_KEYS ? 1.0 : 0.4)));
+            instrument_reverb(s, 0.25f);
+        }
+        instrument_level(I_PAD, 0.8f);
+        chorusMix = 0.35f; chorusRate = (float)kv(P, "synth.chorus.rate"); chorusDepth = (float)fmin(1, kv(P, "synth.chorus.depth") * 300);
+        // the mono bass: a saw into a plucked lowpass, glide on a slide
+        for (int s = I_BASS; s <= I_BASSS; s++) {
+            inst(s, INSTR_SAW, 2, (int)(kv(P, "synth.bass.dec") * 3000), 4, 40, 0.5f, 0.5f, 0.5f);
+            instrument_unison(s, 2, (float)(0.02 + 0.1 * kv(P, "synth.bass.sq")));
+            instrument_filter(s, FILTER_LADDER, 400, (int)fmin(4, kv(P, "synth.bass.q")));
+            instrument_env(s, 0, ENV_CUTOFF, 0, (int)(kv(P, "synth.bass.dec") * 1000), (float)fmin(2200, 700 * kv(P, "synth.bass.env")));
+            instrument_level(s, 0.75f);
+        }
+        instrument_glide(I_BASSS, 30);
+        inst(I_LEAD, INSTR_SQUARE, 3, 0, 6, 80, 0.5f, 0.5f, 0.5f);                             // "square"
+        instrument_filter(I_LEAD, FILTER_LOW, 2000, 1); instrument_glide(I_LEAD, (int)(kv(P, "synth.lead.glide") * 1000));
+        instrument_lfo(I_LEAD, 0, LFO_PITCH, 5.3f, (float)(kv(P, "synth.lead.vib") / 100)); instrument_level(I_LEAD, 0.55f);
+        inst(I_LEAD2, INSTR_FM, 1, 1000, 0, 300, 0.55f, 0.55f, 0.08f); instrument_filter(I_LEAD2, FILTER_LOW, 4500, 0);   // "glass"
+        for (int s = I_LEAD; s <= I_LEAD2; s++) { instrument_reverb(s, 0.35f); instrument_echo(s, 0.35f); }
+        eFb = 0.32f; keysBase = 0.62;
+        break;
+    }
+    case S_HOUSE: {
+        double rel = kv(P, "house.chords.rel");
+        inst(I_KEYS, INSTR_ORGAN, 1, 140, 3, 50, 0.30f, 0.62f, 0.15f);                        // the stab
+        inst(I_PAD, INSTR_ORGAN, (int)(kv(P, "house.chords.atk") * 1000), 1600, 5, (int)(rel * 1000), 0.30f, 0.50f, 0.35f);
+        inst(I_KEYSL, INSTR_ORGAN, 60, 1600, 5, 1600, 0.30f, 0.50f, 0.35f);
+        for (int s = I_KEYS; s <= I_PAD; s++) if (s == I_KEYS || s == I_KEYSL || s == I_PAD) {
+            instrument_filter(s, FILTER_LOW, (int)P->ep.lp, (int)fmin(3, kv(P, "house.chords.q")));
+            instrument_reverb(s, 0.3f); instrument_echo(s, (float)kv(P, "house.chords.echo"));
+        }
+        instrument_env(I_KEYS, 0, ENV_CUTOFF, 0, (int)(kv(P, "house.chords.pluckTau") * 3000), (float)(P->ep.lp * kv(P, "house.chords.pluck") * 0.6));
+        for (int s = I_BASS; s <= I_BASSS; s++) {
+            inst(s, INSTR_SINE, 4, 300, 6, 28, 0.5f, 0.5f, 0.5f);
+            instrument_unison(s, 2, (float)(0.05 * kv(P, "house.bass.tri")));
+            instrument_drive(s, c01((kv(P, "house.bass.drive") - 1) * 0.35));
+            instrument_filter(s, FILTER_LOW, (int)kv(P, "house.bass.lp"), 0);
+            instrument_env(s, 0, ENV_CUTOFF, 0, 240, (float)kv(P, "house.bass.lp"));
+        }
+        instrument_glide(I_BASSS, 25);
+        inst(I_LEAD, INSTR_VOICE, 30, 0, 6, 180, 0.62f, 0.55f, 0.45f);                        // "vox"
+        instrument_lfo(I_LEAD, 0, LFO_PITCH, 5.2f, (float)(kv(P, "house.lead.vib") / 100)); instrument_glide(I_LEAD, (int)(kv(P, "house.lead.glide") * 1000));
+        inst(I_LEAD2, INSTR_PLUCK, 1, 0, 7, 320, 0.45f, 0.55f, 0.3f);                           // "pluck"
+        for (int s = I_LEAD; s <= I_LEAD2; s++) { instrument_reverb(s, 0.38f); instrument_echo(s, 0.3f); }
+        sc = c01(1 - pow(10, -kv(P, "house.pump.chordDb") / 20)); scRel = (int)(kv(P, "house.pump.rec") * 1000 + 60);
+        keysBase = 0.6;
+        break;
+    }
+    case S_GUITAR: {
+        for (int s = I_KEYS; s <= I_KEYS2L; s++) if (s == I_KEYS || s == I_KEYSL || s == I_KEYS2 || s == I_KEYS2L) {
+            int thumb = s == I_KEYS2, mute = s == I_KEYS2L;
+            inst(s, INSTR_GUITAR, 1, 0, 7, s == I_KEYSL ? 1600 : mute ? 30 : 260, 0.12f, thumb ? 0.35f : 0.62f, mute ? 0.9f : 0.12f);
+            instrument_drive(s, c01((kv(P, "gtr.drive") - 1) * 0.3));
+            instrument_filter(s, FILTER_LOW, (int)P->ep.lp, 1);
+            instrument_pan(s, (float)(kv(P, "gtr.pan") + (thumb ? -0.17 : 0.1)));
+            instrument_reverb(s, 0.2f);
+        }
+        chorusMix = 0.3f; chorusRate = (float)kv(P, "gtr.chorus.rate"); chorusDepth = (float)fmin(1, kv(P, "gtr.chorus.cents") / 20);
+        spring = (float)fmin(1, kv(P, "gtr.spring") * 5);
+        for (int s = I_BASS; s <= I_BASSS; s++) {      // the finger bass: a low plucked string, a growl band
+            inst(s, INSTR_PLUCK, 1, 0, 7, 120, 0.72f, 0.35f, 0.25f);
+            instrument_filter(s, FILTER_LOW, (int)(kv(P, "bass.lp") * 1.4), 1);
+            instrument_env(s, 0, ENV_CUTOFF, 0, 110, (float)(kv(P, "bass.lp") * 1.8));
+        }
+        instrument_env(I_BASSS, 1, ENV_PITCH, 0, 30, -1.0f);
+        int bright = !strcmp(lt, "bright");
+        inst(I_LEAD, INSTR_GUITAR, 1, 0, 7, 120, 0.12f, bright ? 0.7f : 0.45f, 0.1f);
+        instrument_drive(I_LEAD, c01((kv(P, "gtr.drive") - 1) * 0.3)); instrument_filter(I_LEAD, FILTER_LOW, bright ? 4200 : 2800, 0);
+        instrument_lfo(I_LEAD, 0, LFO_PITCH, 5.2f, 0.11f); instrument_glide(I_LEAD, 25);
+        instrument_reverb(I_LEAD, 0.3f); instrument_echo(I_LEAD, 0.28f);
+        eFb = 0.25f; keysBase = 0.75;
+        break;
+    }
+    case S_MEDIEVAL: {
+        for (int s = I_KEYS; s <= I_KEYS2L; s++) if (s == I_KEYS || s == I_KEYSL || s == I_KEYS2 || s == I_KEYS2L) {
+            int course = s == I_KEYS2 || s == I_KEYS2L;
+            inst(s, INSTR_GUITAR, 1, 0, 7, (s == I_KEYSL || s == I_KEYS2L) ? 1500 : 200, 0.55f, 0.30f, 0.20f);
+            instrument_filter(s, FILTER_LOW, (int)P->ep.lp, 0); instrument_reverb(s, 0.30f);
+            if (course) { instrument_tune(s, 0.07f); instrument_level(s, 0.65f); }
+        }
+        // the viol: BOWED arco, cello-sized, a slow bow and a small vibrato
+        inst(I_BASS, INSTR_BOWED, 45, 0, 6, 110, 0.55f, 0.35f, 0.40f);
+        instrument_mode(I_BASS, MODE_BOW_BODY, 0.85f); instrument_mode(I_BASS, MODE_BOW_SIZE, BOW_SIZE_CELLO);
+        instrument_filter(I_BASS, FILTER_LOW, (int)kv(P, "viol.lp"), 0); instrument_lfo(I_BASS, 0, LFO_PITCH, 5.2f, 0.05f);
+        instrument_level(I_BASS, 0.8f);
+        inst(I_BASSS, INSTR_BOWED, 45, 0, 6, 110, 0.55f, 0.35f, 0.40f);
+        instrument_mode(I_BASSS, MODE_BOW_BODY, 0.85f); instrument_mode(I_BASSS, MODE_BOW_SIZE, BOW_SIZE_CELLO);
+        instrument_filter(I_BASSS, FILTER_LOW, (int)kv(P, "viol.lp"), 0);
+        inst(I_DRONE, INSTR_SAW, 1200, 0, 7, 2500, 0.5f, 0.5f, 0.5f); instrument_filter(I_DRONE, FILTER_LOW, 480, 0);
+        instrument_lfo(I_DRONE, 0, LFO_VOLUME, 0.09f, 0.25f); instrument_level(I_DRONE, 0.45f);
+        // recorder (brighter, faster chiff) / wooden flute (darker, breathier)
+        inst(I_LEAD, INSTR_PIPE, 18, 0, 5, 160, 0.05f, 0.30f, 0.80f); instrument_lfo(I_LEAD, 0, LFO_PITCH, 5.0f, 0.09f);
+        inst(I_LEAD2, INSTR_PIPE, 34, 0, 5, 200, 0.0f, 0.50f, 0.55f); instrument_lfo(I_LEAD2, 0, LFO_PITCH, 4.5f, 0.12f);
+        for (int s = I_LEAD; s <= I_LEAD2; s++) { instrument_glide(s, 20); instrument_reverb(s, 0.35f); instrument_echo(s, 0.2f); }
+        eFb = 0.25f; keysBase = 0.8;
+        break;
+    }
+    }
+    (void)lv;
+    voice_kit(P);
+    for (int s = MDS_KICK; s <= MDS_KICKS; s++) sidechain_key(KIT_BASE + s, 0, sc > 0 ? 1.0f : 0.0f);
+    sidechain(0, 0, sc * 0.6f, 4, scRel);
+    reverb_spring(spring);
+    chorus(chorusRate, chorusDepth, chorusMix);
+    echo(eMs, eFb, 0.3f);
+    instrument_pan(I_LEAD, (float)P->leadPan); instrument_pan(I_LEAD2, (float)P->leadPan);
+    (void)wet;
     // tape: the plan's wow depth (cents) → our wow; saturation + flutter held
     float wow = (float)(P->wowCents / 25.0); if (wow > 0.6f) wow = 0.6f;
     curWow = wow * LC_WOW;
     if (fxOn[FXT_TAPE]) tape(curWow, LC_FLUTTER, LC_SAT);
     dustAmt = P->dust;
-    epLevel = 0.71 * band_layers(P->sec[0].L, P->band).level;
-    instrument_level(I_EP, (float)epLevel); instrument_level(I_EPL, (float)epLevel);
+    keysLevel = keysBase * band_layers(P->sec[0].L, P->band, style_of(P)->keysLevel).level;
+    keysBase *= STYLE_MIX[P->style].keys;
+    keysLevel = keysBase * band_layers(P->sec[0].L, P->band, style_of(P)->keysLevel).level;
+    for (int s = I_KEYS; s <= I_KEYSL; s++) instrument_level(s, (float)fmin(1, keysLevel));
+    float bm = STYLE_MIX[P->style].bass, km = STYLE_MIX[P->style].kit;
+    for (int s = I_BASS; s <= I_BASSS; s++) instrument_level(s, (is(P, S_SYNTH) ? 1.0f : is(P, S_AMBIENT) ? 0.9f : is(P, S_MEDIEVAL) ? 0.8f : 1.0f) * bm);
+    for (int s = MDS_KICK; s <= MDS_KICKS; s++) instrument_level(KIT_BASE + s, 0.55f * km);
+    instrument_level(KIT_BASE + MDS_SNB, 0.8f * km);
+    instrument_level(KIT_BASE + MDS_SNN, (is(P, S_PIANO) || is(P, S_BOSSA) || is(P, S_SAD) || is(P, S_AMBIENT) ? 0.40f : 0.45f) * km);
+    for (int q = MDS_HC; q <= MDS_HO; q++) instrument_level(kit.base + q, 0.55f * km);
+    if (is(P, S_MEDIEVAL)) { instrument_level(I_TOM, 1.0f); instrument_level(I_CLAP, 1.0f); instrument_level(I_BLOCK, 0.7f); }
+    // the lead, per timbre slot: a trim that BOOSTS goes on the slot's own eq (a private bus), a cut on its level
+    //   (lead vs keys, 90 s renders on seeds whose lead enters early; jazzhop's -4 dB is the reference)
+    float ld[2] = { STYLE_MIX[P->style].leadDb, STYLE_MIX[P->style].lead2Db };
+    for (int i = 0; i < 2; i++) {
+        int sl = i ? I_LEAD2 : I_LEAD;
+        if (ld[i] > 0) instrument_eq(sl, ld[i], ld[i], ld[i]);
+        else if (ld[i] < 0) instrument_level(sl, powf(10, ld[i] / 20));
+    }
+    if (styleDb != STYLE_MIX[P->style].masterDb) { styleDb = STYLE_MIX[P->style].masterDb; apply_bus(); }
+    lastLeadAt = -10;
 }
 
 static void setup_band(void) {
     morph_build(&kit, KIT_BASE);
-    instrument(I_BASS, INSTR_BOWED, 3, 0, 7, 90);
-    instrument(I_BASSS, INSTR_BOWED, 3, 0, 7, 90);
-    for (int s = I_BASS; s <= I_BASSS; s++) {
-        instrument_mode(s, MODE_BOW_PIZZ, 1.0f);
-        instrument_mode(s, MODE_BOW_BODY, 0.85f);
-        instrument_mode(s, MODE_BOW_SIZE, BOW_SIZE_BASS);
-        instrument_harmonics(s, 0.62f); instrument_timbre(s, 0.30f); instrument_morph(s, 0.45f);
-        instrument_filter(s, FILTER_LOW, 950, 0);
-        instrument_level(s, 1.0f);
-    }
-    instrument_env(I_BASSS, 0, ENV_PITCH, 0, 60, -1.0f);     // slide: start a semitone flat, scoop up
-    instrument(I_RIM, INSTR_MODAL, 0, 0, 7, 30);
-    instrument_harmonics(I_RIM, 0.55f); instrument_timbre(I_RIM, 0.70f); instrument_morph(I_RIM, 0.04f);
-    instrument_level(I_RIM, 0.28f);   // a MODAL strike is hot: alone it peaked at -0.3 dBFS
-    instrument_filter(I_RIM, FILTER_HIGH, 300, 0);
-    instrument_reverb(I_RIM, 0.30f); instrument_pan(I_RIM, -0.15f);
-    instrument(I_VIBES, INSTR_MALLET, 1, 0, 7, 1200);
-    instrument_harmonics(I_VIBES, 0.22f); instrument_timbre(I_VIBES, 0.45f); instrument_morph(I_VIBES, 0.85f);
-    instrument_filter(I_VIBES, FILTER_LOW, 3200, 0);
-    instrument(I_FLUTE, INSTR_PIPE, 14, 0, 5, 220);
-    instrument_harmonics(I_FLUTE, 0.0f); instrument_timbre(I_FLUTE, 0.34f); instrument_morph(I_FLUTE, 0.68f);
-    instrument_lfo(I_FLUTE, 0, LFO_PITCH, 5.0f, 0.10f);
-    instrument_glide(I_FLUTE, 13);
-    for (int s = I_VIBES; s <= I_FLUTE; s++) { instrument_reverb(s, 0.40f); instrument_echo(s, 0.35f); }
     instrument_reverb(KIT_BASE + MDS_SNB, 0.25f); instrument_reverb(KIT_BASE + MDS_SNN, 0.25f);
     instrument_reverb(KIT_BASE + MDS_HC, 0.08f); instrument_reverb(KIT_BASE + MDS_HO, 0.08f);
     instrument_pan(KIT_BASE + MDS_HC, 0.2f); instrument_pan(KIT_BASE + MDS_HO, 0.2f);
@@ -1176,7 +590,7 @@ static void setup_band(void) {
     instrument(I_CRK, INSTR_NOISE, 0, 5, 0, 3); instrument_filter(I_CRK, FILTER_BAND, 2600, 2); instrument_level(I_CRK, 0.60f);
     for (int s = MDS_KICK; s <= MDS_KICKS; s++) instrument_level(KIT_BASE + s, 0.55f);   // the kick sat 6 dB over the band
     reverb(0.52f, 0.55f);
-    instrument_level(KIT_BASE + MDS_SNN, 0.45f); instrument_level(KIT_BASE + MDS_SNB, 0.8f);         // snare + hat transients were the mix's peaks (crest 24 dB)
+    instrument_level(KIT_BASE + MDS_SNB, 0.8f);
     // the BUS stage (glue 0.25 + eq +1.5/+2.5 dB, the makeup their tape stage adds into a -3 dB limiter) is applied by apply_fx_toggle
 }
 
@@ -1184,8 +598,8 @@ static void apply_fx_toggle(int i) {
     switch (i) {
     case FXT_TONE:  if (fxOn[i]) lastTone = -1; else filter(FILTER_OFF, 0, 0); break;
     case FXT_TAPE:  if (fxOn[i]) tape(curWow, LC_FLUTTER, LC_SAT); else tape(0, 0, 0); break;
-    case FXT_BUS:   if (fxOn[i]) { glue(0, LC_GLUE, 8, 160); eq(1.5f, 2.5f, 0.0f); } else { glue(0, 0, 8, 160); eq(0, 0, 0); } break;
-    case FXT_TREM:  for (int s = I_EP; s <= I_EPL; s++) {
+    case FXT_BUS:   apply_bus(); break;
+    case FXT_TREM:  if (is(&cur.P, S_JAZZHOP)) for (int s = I_KEYS; s <= I_KEYSL; s++) {
                         float tr = fxOn[i] ? LC_TREM : 0.0f;
                         instrument_lfo(s, 0, LFO_VOLUME, (float)cur.P.ep.tremRate, (float)cur.P.ep.tremDepth * tr);
                         instrument_lfo(s, 1, LFO_PAN, (float)cur.P.ep.tremRate, 0.25f * tr);
@@ -1214,37 +628,163 @@ static void fire_hat(double d, double vel, int open) {
     schedule_at(d, r.midi, b + (open ? MDS_HO : MDS_HC), v, (open ? r.l2_dec : r.dec) * 6);
 }
 
+// one plucked/struck chord: strummed low→high over `spread` (or high→low for an up-strum),
+// the top +6-10%, each note capped at its own remaining length
+static void play_chord(int slot, double t, const int *m, int n, double vel, double dur, double spread, int up, double topBoost) {
+    for (int k = 0; k < n; k++) {
+        int idx = up ? n - 1 - k : k;
+        double dt = n > 1 ? k * spread / (n - 1) : 0;
+        double v = idx == n - 1 ? fmin(1, vel * topBoost) : vel;
+        schedule_at(t + dt, m[idx], slot, v2vol(v, 10.5), (int)(fmax(0.05, dur - dt) * 1000));
+    }
+}
+// the guitar family's HELD figure (bossa / guitar / lute): an intro/break/outro chord re-plucked every
+// half bar, alternating a roll with a pinch (thumb + the top) — what their held() renders itself
+static void held_figure(int slot, int thumbSlot, double t, const int *m, int n, double vel, double dur, double sd, int finalChord) {
+    if (finalChord) { play_chord(slot, t, m, n, vel, dur, 0.14, 0, 1.06); return; }
+    int reps = (int)fmin(4, floor(dur / (8 * sd) + 1e-6)); if (reps < 1) reps = 1;
+    for (int r = 0; r < reps; r++) {
+        double tr = t + r * 8 * sd, rem = dur - r * 8 * sd;
+        if (r % 2 == 0) play_chord(slot, tr, m, n, vel * (r ? 0.9 : 1), rem, fmin(0.1, fmax(0.05, 0.5 * sd)) * (n - 1), 0, 1.06);
+        else {
+            schedule_at(tr, m[0], thumbSlot, v2vol(vel * 0.8, 10.5), (int)(rem * 1000));
+            for (int k = n - 2; k < n; k++) if (k > 0) schedule_at(tr + 0.012 + 0.004 * k, m[k], slot, v2vol(vel * 0.66, 10.5), (int)(rem * 1000));
+        }
+    }
+}
+
+static int sec_at_bar(const Track *T, int bar) { return bar >= 0 && bar < T->st.nbars ? T->st.map[bar].sec : -1; }
+
 static void dispatch(Track *T, const Ev *e) {
-    double at = T->start + e->t;
-    double d = at;   // an ABSOLUTE audio_time(): schedule_at lands it on its sample (see the header)
+    const Plan *P = &T->P;
+    double d = T->start + e->t;   // an ABSOLUTE audio_time(): schedule_at lands it on its sample (see the header)
+    double sd = stepDur(P), durSteps = e->dur / sd;
     switch (e->k) {
     case K_EP: {
-        int slot = e->rel > 0.5 ? I_EPL : I_EP;
-        for (int k = 0; k < e->nn; k++) {
-            double dt = e->nn > 1 ? k * e->strum / (e->nn - 1) : 0;
-            double v = k == e->nn - 1 ? fmin(1, e->vel * 1.1) : e->vel;
-            schedule_at(d + dt, e->notes[k], slot, v2vol(v, 10.5), (int)((e->dur - dt) * 1000));
+        int lng = e->rel > 0.5, held = e->rel >= 0.095 && e->nn >= 3 && durSteps >= 7.5;
+        int slot = lng ? I_KEYSL : I_KEYS;
+        switch (P->style) {
+        case S_PIANO: case S_SAD: {
+            int roll = e->nn >= 3 && rnd_float() < kv(P, "piano.roll");
+            play_chord(slot, d, e->notes, e->nn, e->vel, e->dur, roll ? 0.06 + 0.05 * rnd_float() : e->strum, 0, 1.1);
+            if (is(P, S_SAD) && e->nn >= 3 && e->dur >= 1.5) {       // the pad under it: up to 3 chord tones in 48..67
+                int pm[3], np = 0;
+                for (int k = 0; k < e->nn && np < 3; k++) if (e->notes[k] >= 48 && e->notes[k] <= 67) pm[np++] = e->notes[k];
+                for (int k = 0; k < np; k++) schedule_at(d + 0.02, pm[k], I_PAD, v2vol(e->vel, 9), (int)(e->dur * 1000));
+            }
+            break;
+        }
+        case S_AMBIENT:
+            for (int k = 0; k < e->nn; k++) {
+                int m = e->notes[k]; double dt = e->nn > 1 ? k * e->strum / (e->nn - 1) : 0;
+                if (tieEnd[m] > d + dt && tieEnd[m] < d + dt + e->strum + 0.1) { tieEnd[m] = d + e->dur; continue; }   // a tie: let it ring on
+                double v = k == e->nn - 1 ? fmin(1, e->vel * 1.1) : e->vel;
+                schedule_at(d + dt, m, slot, v2vol(v, 10), (int)((e->dur - dt) * 1000));
+                if (k == e->nn - 1) schedule_at(d + dt, m + 12, I_KEYS2, v2vol(v * 0.6, 9), (int)((e->dur - dt) * 1000));
+                tieEnd[m] = d + e->dur;
+            }
+            break;
+        case S_SYNTH: case S_HOUSE:
+            if (!lng) slot = e->dur < 0.25 ? I_KEYS : I_PAD;          // their stab-vs-pad blend, split into two voices
+            play_chord(slot, d, e->notes, e->nn, e->vel, e->dur, e->strum, 0, 1.08);
+            break;
+        case S_BOSSA: case S_GUITAR: case S_MEDIEVAL: {
+            int thumbSlot = lng ? I_KEYS2L : I_KEYS2;
+            if (is(P, S_MEDIEVAL)) {                                  // the lute: every note a COURSE of two strings
+                if (held && !lng) { held_figure(slot, slot, d, e->notes, e->nn, e->vel, e->dur, sd, 0); held_figure(I_KEYS2, I_KEYS2, d + 0.001, e->notes, e->nn, e->vel * 0.6, e->dur, sd, 0); }
+                else {
+                    play_chord(slot, d, e->notes, e->nn, e->vel, e->dur, lng ? 0.13 : e->strum, 0, 1.06);
+                    int oc[8]; for (int k = 0; k < e->nn; k++) oc[k] = e->notes[k] < 55 ? e->notes[k] + 12 : e->notes[k];
+                    play_chord(lng ? I_KEYS2L : I_KEYS2, d + 0.0008, oc, e->nn, e->vel * 0.6, e->dur, lng ? 0.13 : e->strum, 0, 1.06);
+                }
+                break;
+            }
+            if (held) { held_figure(slot, thumbSlot, d, e->notes, e->nn, e->vel, e->dur, sd, lng); break; }
+            if (is(P, S_GUITAR) && e->vel < 0.28 && durSteps <= 1.3) {       // a muted ghost strum
+                for (int k = 0; k < e->nn; k++) schedule_at(d + k * 0.006, e->notes[k], I_KEYS2L, v2vol(e->vel * 1.4, 10.5), 30);
+                break;
+            }
+            if (e->nn <= 2) {                                          // a finger, or a pinch
+                for (int k = 0; k < e->nn; k++) schedule_at(d + k * 0.008, e->notes[k], e->notes[k] < 52 ? thumbSlot : slot, v2vol(e->vel * (k ? 0.92 : 1), 10.5), (int)(e->dur * 1000));
+                break;
+            }
+            int up = e->nn >= 2 && e->notes[0] > e->notes[e->nn - 1];   // listed top-first = an up-strum
+            if (up) { int tmp[8]; for (int k = 0; k < e->nn; k++) tmp[k] = e->notes[e->nn - 1 - k]; play_chord(slot, d, tmp, e->nn, e->vel * 0.85, e->dur, e->strum * 0.6, 1, 1.0); }
+            else {
+                schedule_at(d, e->notes[0], thumbSlot, v2vol(e->vel * 1.05, 10.5), (int)(e->dur * 1000));
+                play_chord(slot, d + e->strum / (e->nn - 1), e->notes + 1, e->nn - 1, e->vel, e->dur, e->strum * (e->nn - 2) / (e->nn - 1), 0, 1.06);
+            }
+            break;
+        }
+        default:
+            play_chord(slot, d, e->notes, e->nn, e->vel, e->dur, e->strum, 0, 1.1);
         }
         flash[K_EP] = 1; break;
     }
-    case K_BASS: schedule_at(d, e->midi, e->slide ? I_BASSS : I_BASS, v2vol(e->vel, 8.6), (int)(e->dur * 1000)); flash[K_BASS] = 1; break;
-    case K_KICK: fire_kick(d, e->vel); flash[K_KICK] = 1; break;
-    case K_SNARE: fire_snare(d, e->vel); flash[K_SNARE] = 1; break;
-    case K_HAT: fire_hat(d, e->vel, e->open); flash[K_HAT] = 1; break;
-    case K_RIM: schedule_at(d, 77, I_RIM, v2vol(e->vel, 7.6), 60); flash[K_RIM] = 1; break;
-    case K_LEAD:
-        if (T->P.hasLead) schedule_at(d, e->midi, T->P.leadSoft ? I_FLUTE : I_VIBES, v2vol(e->vel, 8.4), (int)(e->dur * 1000));
+    case K_BASS: {
+        if (is(P, S_PIANO)) { schedule_at(d, e->midi, I_KEYS, v2vol(e->vel, 10.5), (int)(e->dur * 1000)); flash[K_BASS] = 1; break; }   // the left hand
+        int s = e->slide ? I_BASSS : I_BASS;
+        schedule_at(d, e->midi, s, v2vol(e->vel, 8.6), (int)(e->dur * 1000)); flash[K_BASS] = 1; break;
+    }
+    case K_KICK:
+        if (is(P, S_MEDIEVAL)) { schedule_at(d, (int)lround(ftom(kv(P, "drums.kit.kickF0"))), I_TOM, v2vol(e->vel, 10), (int)(kv(P, "drums.kit.kickDecay") * 3000)); }
+        else fire_kick(d, e->vel);
+        flash[K_KICK] = 1; break;
+    case K_SNARE:
+        if (is(P, S_MEDIEVAL)) schedule_at(d, (int)lround(ftom(kv(P, "drums.kit.slapBP") / 3)), I_CLAP, v2vol(e->vel, 10), 80);
+        else fire_snare(d, e->vel);
+        flash[K_SNARE] = 1; break;
+    case K_HAT:
+        if (is(P, S_MEDIEVAL)) { for (int b = 0; b < (e->open ? 5 : 3); b++) schedule_at(d + b * (e->open ? 0.022 : 0.012), 84, I_BLOCK, v2vol(e->vel * (b ? 0.7 : 1), 7), e->open ? 160 : 60); }
+        else fire_hat(d, e->vel, e->open);
+        flash[K_HAT] = 1; break;
+    case K_RIM: {
+        int m = is(P, S_BOSSA) && kv_has(P, "drums.kit.rimF") ? (int)lround(ftom(kv(P, "drums.kit.rimF"))) :
+                is(P, S_GUITAR) ? (int)lround(ftom(kv(P, "drums.kit.rimF"))) + 12 : 77;
+        schedule_at(d, m, I_RIM, v2vol(e->vel, 7.6), 60); flash[K_RIM] = 1; break;
+    }
+    case K_CLAP:
+        for (int b = 0; b < 3; b++) schedule_at(d + b * 0.01, 60, I_CLAP, v2vol(e->vel * (b ? 0.8 : 1), 7.6), 8);
+        schedule_at(d + 0.03, 60, I_CLAP, v2vol(e->vel * 0.7, 7.6), is(P, S_HOUSE) ? (int)(kv(P, "drums.kit.clapTail") * 1000) : 60);
+        flash[K_SNARE] = 1; break;
+    case K_SHAKER: schedule_at(d, 60, I_SHAKER, v2vol(e->vel, 7.6), 40); flash[K_HAT] = 1; break;
+    case K_TOM: {
+        int step = (int)lround((e->t - e->bar * 16 * sd) / sd), m = 43;
+        if (is(P, S_SYNTH)) { int k = step - 10; if (k < 0) k = 0; m = (int)lround(ftom(240 * pow(2, -k / 5.0))); }   // a descending tom run
+        else if (is(P, S_BOSSA)) m = 43;
+        else if (is(P, S_MEDIEVAL)) m = 42;
+        schedule_at(d, m, I_TOM, v2vol(e->vel, 8), 200); flash[K_KICK] = 1; break;
+    }
+    case K_BLOCK: schedule_at(d, is(P, S_HOUSE) ? 64 : 80, I_BLOCK, v2vol(e->vel, 7.6), is(P, S_HOUSE) ? 400 : 40); flash[K_HAT] = 1; break;
+    case K_LEAD: {
+        if (!P->hasLead) break;
+        const char *lt = kvs(P, "lead.timbre"), *lv = kvs(P, "lead.voice");
+        int s = I_LEAD;
+        switch (P->style) {
+        case S_JAZZHOP: s = !strcmp(lt, "soft") ? I_LEAD2 : I_LEAD; break;
+        case S_BOSSA:   s = !strcmp(lt, "flute") ? I_LEAD2 : I_LEAD; break;
+        case S_AMBIENT: s = !strcmp(lt, "soft") ? I_LEAD2 : I_LEAD;
+            if (d - lastLeadAt < fmax(1.2, 5.5 * sd)) { flash[K_LEAD] = 1; return; }     // the bell drops notes that crowd the last
+            lastLeadAt = d; break;
+        case S_SYNTH:   s = !strcmp(lv, "glass") ? I_LEAD2 : I_LEAD; break;
+        case S_HOUSE:   s = !strcmp(lv, "pluck") ? I_LEAD2 : I_LEAD; break;
+        case S_MEDIEVAL: s = !strcmp(lt, "wood") ? I_LEAD2 : I_LEAD; break;
+        case S_PIANO:   s = I_KEYS; break;                                            // the right hand
+        default: break;
+        }
+        schedule_at(d, e->midi, s, v2vol(e->vel, s == I_KEYS ? 10.5 : 8.4), (int)(e->dur * 1000));
         flash[K_LEAD] = 1; break;
+    }
     case K_FX:
         switch (e->fx) {
         case FX_TONE_:  toneTgt = e->v; toneTau = e->tau; break;
         case FX_VINYL_: vinylTgt = e->v; vinylTau = e->tau; break;
         case FX_DUST_:  dustAmt = e->v; break;
         case FX_WOW_:   break;   // per-track only: tape() rebuilds its DSP, so the 2-bar wow drift is not ridden
-        case FX_LEVEL_: epLevel = 0.71 * e->v; instrument_level(I_EP, (float)epLevel); instrument_level(I_EPL, (float)epLevel); break;
+        case FX_LEVEL_: keysLevel = keysBase * e->v; for (int s = I_KEYS; s <= I_KEYSL; s++) instrument_level(s, (float)fmin(1, keysLevel)); break;
         }
         break;
-    default: break;   // clap/shaker/tom/block — the styles use them; jazzhop's grids don't
+    default: break;
     }
 }
 // the fx events land on the frame their time arrives (they are automation, not notes)
@@ -1263,13 +803,13 @@ static void build_track(const Plan *P, double t0) {
     songCount++;
 }
 static void start_seed(uint32_t seed, const Key *prevKey, double t0) {
-    Plan P = plan_track(seed, prevKey, energySel, bandSel, citySel);
+    Plan P = plan_track(seed, prevKey, styleSel, energySel, bandSel, citySel);
     build_track(&P, t0);
 }
 static void skip_next(void) {
     // their skip: fade out, dip the tone to 400 Hz, vinyl swell, the next intro at +0.6 s
     Plan nx = upNext[0];
-    note_off_all(); hissH = -1;
+    note_off_all(); hissH = -1; droneH[0] = droneH[1] = -1;
     toneTgt = 400; toneTau = 0.13; vinylTgt = VINYL_BOOST; vinylTau = 0.3;
     build_track(&nx, clk + 0.6);
 }
@@ -1296,9 +836,46 @@ static void advance(void) {
         if (nextStart < until + LOOK) { Plan nx = upNext[0]; build_track(&nx, nextStart); }
     }
 }
+// per-section automation their VOICES do (not planned events): the drones' level, house's filter sweep
+static void ride_sections(void) {
+    static int lastBar = -2, lastStyleR = -1;
+    const Plan *P = &cur.P;
+    double barDur = 16 * stepDur(P); int bar = (int)floor((clk - cur.start) / barDur);
+    if (bar == lastBar && P->style == lastStyleR) return;
+    lastBar = bar; lastStyleR = P->style;
+    int sec = sec_at_bar(&cur, bar < 0 ? 0 : bar);
+    const BarInfo *b = bar >= 0 && bar < cur.st.nbars ? &cur.st.map[bar] : NULL;
+    int wantDrone = is(P, S_AMBIENT) ? (int)kv(P, "ep.pad.drone") : is(P, S_MEDIEVAL) ? kv_has(P, "medieval.drone.0") : 0;   // [0,7] / [0] / null
+    if (wantDrone && droneH[0] < 0 && bar >= 0 && bar < P->bars) {
+        int root = is(P, S_AMBIENT) ? 48 + mod12(P->key.tonic - 48) : 36 + mod12(P->key.tonic);
+        droneH[0] = note_on(root, I_DRONE, 0);
+        if (is(P, S_AMBIENT) || kv_has(P, "medieval.drone.1")) droneH[1] = note_on(root + 7, I_DRONE, 0);
+    }
+    if (droneH[0] >= 0) {
+        double lvl = 1;
+        if (sec == S_INTRO && b) lvl = (b->j + 1.0) / b->n * (is(P, S_MEDIEVAL) ? 0.7 : 1);
+        else if (sec == S_BREAK) lvl = is(P, S_MEDIEVAL) ? 1.33 : 1.25;
+        else if (sec == S_OUTRO && b) lvl = fmax(0, 1 - (b->j - (is(P, S_MEDIEVAL) ? 1 : 0)) / (double)b->n);
+        if (bar >= P->bars) lvl = 0;
+        note_vol(droneH[0], (float)(3.5 * lvl));
+        if (droneH[1] >= 0) note_vol(droneH[1], (float)(3.5 * lvl * (is(P, S_AMBIENT) ? 0.3 : 0.6)));
+    }
+    if (is(P, S_HOUSE) && b) {                                    // the chord bus's section sweep
+        double f = 1;
+        switch (sec) {
+        case S_INTRO: f = 0.5 + 0.35 * (b->j + 1.0) / b->n; break;
+        case S_B:     f = kv(P, "house.chords.open"); break;
+        case S_BREAK: f = b->j < b->n / 2 ? 0.45 : 0.45 + (kv(P, "house.chords.build") - 0.45) * (b->j - b->n / 2 + 1.0) / (b->n - b->n / 2); break;
+        case S_OUTRO: f = 0.3; break;
+        default: f = 1;
+        }
+        int q = (int)fmin(3, kv(P, "house.chords.q"));
+        for (int s = I_KEYS; s <= I_PAD; s++) if (s == I_KEYS || s == I_KEYSL || s == I_PAD) instrument_filter(s, FILTER_LOW, (int)(P->ep.lp * f), q);
+    }
+}
 static void set_band(int band) {
     bandSel = band; cur.P.band = band;
-    for (int i = cur.nextBar; i < cur.st.nbars; i++) cur.st.map[i].L = band_layers(cur.P.sec[cur.st.map[i].si].L, band);
+    for (int i = cur.nextBar; i < cur.st.nbars; i++) cur.st.map[i].L = band_layers(cur.P.sec[cur.st.map[i].si].L, band, style_of(&cur.P)->keysLevel);
     refresh_queue();
 }
 
@@ -1313,7 +890,7 @@ static void chord_name(const Plan *P, const Chord *c, char *o, int n) {
 static const char *layer_ep(int m) { static const char *N[] = { "comp", "intro", "whole", "outro" }; return N[m]; }
 static const char *layer_bass(int m) { static const char *N[] = { "on kick", "last bar", "--", "whole", "outro" }; return N[m]; }
 static const char *layer_drums(const Plan *P, int m) {
-    switch (m) { case DR_PATTERN: return GRIDS[P->pattern].name; case DR_HATS2: return "hats in";
+    switch (m) { case DR_PATTERN: return style_of(P)->grids[P->pattern].name; case DR_HATS2: return "hats in";
     case DR_NONE: return "--"; case DR_P5: return "rim break"; default: return "outro"; }
 }
 
@@ -1323,6 +900,7 @@ void update(void) {
         setup_band();
         uint32_t seed = LOFI_SEED ? LOFI_SEED : (uint32_t)(rnd(1 << 30)) * 4u + (uint32_t)rnd(4);
         clk = 0;
+        if (LOFI_STYLE >= 0) styleSel = LOFI_STYLE;
         start_seed(seed, NULL, 0.15);
         apply_fx_toggle(FXT_BUS);
         booted = true;
@@ -1332,12 +910,14 @@ void update(void) {
     clk = audio_time();
     // ── input (their keys: N next · V vibe · C city) ──
     if (keyp('N') || keyp(KEY_SPACE)) skip_next();
+    if (keyp('S')) { styleSel = (styleSel + 1) % NSTYLE; refresh_queue(); }       // from the next track (theirs: the Vibe style)
     if (keyp('E')) { energySel = (energySel + 1) % NENERGY; refresh_queue(); }     // from the next track
     if (keyp('B')) set_band((bandSel + 1) % NBAND);                                  // from the next bar
     if (keyp('C')) { citySel = (citySel + 1) % LC_NCITY; refresh_queue(); }
     if (keyp('H')) showHelp = !showHelp;
     for (int i = 0; i < NFXT; i++) if (keyp('1' + i)) toggle_fx(i);
     advance();
+    ride_sections();
     // the master tone + vinyl, ridden like setTargetAtTime (first-order, per frame)
     double a = 1 - exp(-dt() / fmax(0.005, toneTau)); toneHz += (toneTgt - toneHz) * a;
     int th = (int)toneHz;
@@ -1355,6 +935,8 @@ void update(void) {
     watch("bar", "%d", bb);
     watch("section", "%s", bb >= 0 ? SEC_NAME[cur.st.map[bb].sec] : "-");
     watch("tone", "%d", (int)toneHz);
+    watch("style", "%s", STYLES[cur.P.style]->id);
+    watch("lead", "%s", cur.P.hasLead ? (kvs(&cur.P, "lead.voice")[0] ? kvs(&cur.P, "lead.voice") : kvs(&cur.P, "lead.timbre")) : "none");
 #endif
 }
 
@@ -1406,7 +988,9 @@ void draw(void) {
     print(str("%s  -  %s %s  -  %d bpm  -  swing %.0f%%", LC_CITY[P->city].name, NOTE_NAMES[P->key.tonic], P->key.major ? "major" : "minor", P->bpm, P->swing),
           8, 17, CLR_PEACH);
     print(str("A %s   B %s   %s", P->progA.id, P->progB.id, P->chordBars == 2 ? "2 bars/chord" : "1 bar/chord"), 8, 25, CLR_INDIGO);
-    print("style: jazzhop", 312 - text_width("style: jazzhop"), 25, CLR_DARK_ORANGE);
+    {   const char *sn = STYLES[P->style]->name;
+        const char *lab = styleSel != P->style ? str("%s  (next: %s)", sn, STYLES[styleSel]->name) : sn;
+        print(lab, 312 - text_width(lab), 25, CLR_DARK_ORANGE); }
     font(FONT_NORMAL);
 
     // ── the FORM strip — every section, sized by its bars, the playhead crawling through ──
@@ -1441,7 +1025,7 @@ void draw(void) {
             { "keys",  layer_ep(L->ep), K_EP, true },
             { "bass",  layer_bass(L->bass), K_BASS, L->bass != BS_NONE },
             { "drums", L->kit ? layer_drums(P, L->drums) : "off", K_KICK, L->kit && L->drums != DR_NONE },
-            { "lead",  !P->hasLead ? "none" : L->lead ? (P->leadSoft ? "flute" : "vibes") : "rest", K_LEAD, P->hasLead && L->lead },
+            { "lead",  !P->hasLead ? "none" : L->lead ? (!strcmp(kvs(P, "lead.timbre"), "soft") ? "flute" : "vibes") : "rest", K_LEAD, P->hasLead && L->lead },
         };
         for (int i = 0; i < 4; i++) {
             int cx = fx + i * 76;
@@ -1459,16 +1043,20 @@ void draw(void) {
         print(nm, fx, ly + 22, CLR_WHITE);
         font(FONT_SMALL);
         print(str("%s  %d/%d", SEC_NAME[b->sec], b->j + 1, b->n), fx + text_width(nm) + 40, ly + 24, CLR_PEACH);
-        if (fillT > 0) print(str("fill: %s", FILL_NAME[fillShow]), fx + 150, ly + 24, CLR_YELLOW);
+        if (fillT > 0) print(str("fill: %s", style_of(&cur.P)->fills[fillShow].id), fx + 150, ly + 24, CLR_YELLOW);
         if (pushT > 0) print("push!", fx + 230, ly + 24, CLR_PINK);
     }
 
     // ── the VIBE: energy (next track) · band (next bar) · city (titles) · next ──
     int by = 178; font(FONT_SMALL);
-    if (ui_button(8, by, 70, 14, str("E %s", ENERGY_NAME[energySel]))) { energySel = (energySel + 1) % NENERGY; refresh_queue(); }
-    if (ui_button(82, by, 78, 14, str("B %s", BAND_NAME[bandSel]))) set_band((bandSel + 1) % NBAND);
-    if (ui_button(164, by, 78, 14, str("C %s", LC_CITY[citySel].name))) { citySel = (citySel + 1) % LC_NCITY; refresh_queue(); }
-    if (ui_button(246, by, 66, 14, "N next >>")) skip_next();
+    {   // the VIBE row: style + energy (next track) · band (next bar) · city (titles) · next
+        const int bw = 58, gap = 3; int bx = 8;
+        if (ui_button(bx, by, bw, 14, str("S %s", STYLES[styleSel]->id))) { styleSel = (styleSel + 1) % NSTYLE; refresh_queue(); } bx += bw + gap;
+        if (ui_button(bx, by, bw, 14, str("E %s", ENERGY_NAME[energySel]))) { energySel = (energySel + 1) % NENERGY; refresh_queue(); } bx += bw + gap;
+        if (ui_button(bx, by, bw, 14, str("B %s", (const char *[]){ "full", "no drums", "chords" }[bandSel]))) set_band((bandSel + 1) % NBAND); bx += bw + gap;
+        if (ui_button(bx, by, bw, 14, str("C %s", LC_CITY[citySel].id))) { citySel = (citySel + 1) % LC_NCITY; refresh_queue(); } bx += bw + gap;
+        if (ui_button(bx, by, bw, 14, "N next >>")) skip_next();
+    }
     {   // the fx toggles, top-right: a struck-through label = that stage is OFF
         int bx = 312 - NFXT * 32 + 2;
         for (int i = 0; i < NFXT; i++, bx += 32) {
@@ -1485,6 +1073,7 @@ void draw(void) {
             "LOFI CITY - endless generated lofi, the Lofi Cities way",
             "",
             "N / SPACE   next track (their skip: tone dips, vinyl swells)",
+            "S           style (9, from the next track)",
             "E           energy chill / balanced / upbeat (next track)",
             "B           band full / no drums / chords only (next bar)",
             "C           city - the words the titles are made of",
@@ -1495,7 +1084,7 @@ void draw(void) {
             "2 progressions, a form (T1-T3), per-section layers,",
             "fills, pushes, bass approaches, a motif lead.",
         };
-        for (int i = 0; i < 11; i++) print(H[i], 46, 46 + i * 7, i == 0 ? CLR_PEACH : CLR_LIGHT_PEACH);
+        for (int i = 0; i < (int)(sizeof H / sizeof *H); i++) print(H[i], 46, 46 + i * 7, i == 0 ? CLR_PEACH : CLR_LIGHT_PEACH);
         font(FONT_NORMAL);
     }
     ui_end();
@@ -1505,7 +1094,7 @@ void draw(void) {
 // Known answers taken from the site's OWN planner (their bundle run headless in node,
 // 2026-09-28) — so a regression in the port shows up as a different track, not a vibe.
 void spec(void) {
-    Plan P = plan_track(12345, NULL, EN_BALANCED, BAND_FULL, 0);
+    Plan P = plan_track(12345, NULL, S_JAZZHOP, EN_BALANCED, BAND_FULL, 0);
     expect(!strcmp(P.title, "the quais city lights"), "seed 12345 in paris is 'the quais city lights'");
     expect_eq(P.key.tonic, 2, "seed 12345 is in D");
     expect_eq(P.key.major, 1, "... major");
@@ -1513,16 +1102,16 @@ void spec(void) {
     expect_eq(P.bars, 52, "52 bars long");
     expect_eq(P.form, 0, "form T1");
     expect(!strcmp(P.progA.id, "M1") && !strcmp(P.progB.id, "M1+ii-V"), "A = M1, B = M1 with the ii-V turnaround");
-    expect_eq(P.pattern, P6, "groove P6 (shuf)");
+    expect(!strcmp(style_of(&P)->grids[P.pattern].id, "P6"), "groove P6 (shuf)");
     expect_eq(P.nextSeed, 2748599489u, "the chain's next seed");
     BarState st; bar_state(&P, &st); Evs ev; int n = 0, eps = 0;
     for (int i = 0; i < P.bars; i++) { plan_bar(&P, i, &st, &ev); n += ev.n; for (int k = 0; k < ev.n; k++) eps += ev.e[k].k == K_EP; }
     expect_eq(n, 1264, "1264 events across the track");
     expect_eq(eps, 80, "80 keys hits");
     // a track WITH a lead, and the chain into the next (the related-key move)
-    Plan L = plan_track(999, NULL, EN_BALANCED, BAND_FULL, 1);
+    Plan L = plan_track(999, NULL, S_JAZZHOP, EN_BALANCED, BAND_FULL, 1);
     expect(!strcmp(L.title, "last noodle bar, shibuya"), "seed 999 in tokyo is 'last noodle bar, shibuya'");
-    expect(L.hasLead && !L.leadSoft, "... with a vibes lead");
+    expect(L.hasLead && !strcmp(kvs(&L, "lead.timbre"), "vibes"), "... with a vibes lead");
     BarState s2; bar_state(&L, &s2); int nl = 0, all = 0, firstBar = -1, firstMidi = -1;
     for (int i = 0; i < L.bars; i++) { plan_bar(&L, i, &s2, &ev); all += ev.n;
         for (int k = 0; k < ev.n; k++) if (ev.e[k].k == K_LEAD) { if (firstBar < 0) { firstBar = i; firstMidi = ev.e[k].midi; } nl++; } }
@@ -1530,9 +1119,24 @@ void spec(void) {
     expect_eq(nl, 37, "37 lead notes");
     expect_eq(firstBar, 10, "the lead enters at bar 10 (the second A)");
     expect_eq(firstMidi, 80, "on midi 80");
-    Plan N = plan_track(L.nextSeed, &L.key, EN_BALANCED, BAND_FULL, 1);
+    Plan N = plan_track(L.nextSeed, &L.key, S_JAZZHOP, EN_BALANCED, BAND_FULL, 1);
     expect(!strcmp(N.title, "lost ginza at midnight"), "the next track is 'lost ginza at midnight'");
     expect(N.key.tonic == 8 && N.key.major && N.bpm == 87, "in Ab major at 87 bpm");
+    // every style's arranger, pinned by the site's own answers for seed 12345 (paris, balanced, full band)
+    static const struct { int style; const char *title; int bpm, bars, events; } STY[] = {
+        { S_JAZZHOP, "the quais city lights", 78, 52, 1264 }, { S_PIANO, "the quais city lights", 71, 54, 919 },
+        { S_AMBIENT, "the quais city lights", 62, 52, 338 },  { S_BOSSA, "the quais city lights", 79, 52, 1841 },
+        { S_SYNTH, "the quais city lights", 85, 68, 1493 },   { S_HOUSE, "the quais city lights", 117, 84, 2094 },
+        { S_GUITAR, "the quais city lights", 77, 54, 1225 },  { S_SAD, "the quais city lights", 65, 52, 292 },
+        { S_MEDIEVAL, "the quais city lights", 75, 52, 780 },
+    };
+    for (int q = 0; q < (int)(sizeof STY / sizeof *STY); q++) {
+        Plan S_ = plan_track(12345, NULL, STY[q].style, EN_BALANCED, BAND_FULL, 0);
+        static BarState s3; bar_state(&S_, &s3); int all3 = 0;
+        for (int i = 0; i < S_.bars; i++) { plan_bar(&S_, i, &s3, &ev); all3 += ev.n; }
+        expect(!strcmp(S_.title, STY[q].title) && S_.bpm == STY[q].bpm && S_.bars == STY[q].bars && all3 == STY[q].events,
+               str("style %s: %d bpm, %d bars, %d events (got %d / %d / %d)", STYLES[STY[q].style]->id, STY[q].bpm, STY[q].bars, STY[q].events, S_.bpm, S_.bars, all3));
+    }
 }
 #endif
 #endif

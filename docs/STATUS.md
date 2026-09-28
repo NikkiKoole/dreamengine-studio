@@ -1052,6 +1052,12 @@ Detail lives in the linked design doc in every case; that is where it was always
 
 ## Open — prioritized
 
+- **MORPHDRUM ON DEDICATED ENGINES?** (2026-09-28, parked). `morphdrum.h` builds its drums in cart-land
+  from generic primitives; `INSTR_METAL` is the first dedicated engine one of its voices (the hat)
+  could sit on. The question is the header's story, not the hat: stay a cart-land model, or become
+  the morphing panel over dedicated drum engines. Switching changes `morphbox`'s shipped hat.
+  [`design/morphdrum.md`](design/morphdrum.md) → "Seam — the hat".
+
 - **PATCH MATCHING — option D still waits** (2026-09-13). A, the bench, and B (ear-judged
   breeding on `patchbench`) are in. Skip C (realtime `record_grab` scoring). D — a scratch
   engine instance a cart can render into — waits on the AUv3 multi-instance refactor, and is

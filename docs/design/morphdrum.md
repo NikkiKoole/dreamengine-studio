@@ -94,8 +94,25 @@ ringing metal source, so `morphdrum.h` models the hat as ONE `INSTR_FM` voice an
 morph / cutoff knobs — the honest continuum, *not* byte-equal to either machine's hat. The other two
 voices share their oscillator structure across the pair outright.
 
+**2026-09-28, the seam has an engine on the other side of it now.** Morphdrum builds every voice in
+cart-land out of GENERIC engine primitives (`INSTR_SINE` bodies, `INSTR_FM` for the hat, noise): that
+was the only way to make one parametric model per voice when it was written. `INSTR_METAL`
+([`choochootracker-borrow-list.md`](choochootracker-borrow-list.md) rows 2+3, the `bogie` cart) is the
+first DEDICATED engine one of these voices could sit on: the six-square bank with per-mode lifetimes,
+a tone macro that runs hat ratios → cymbal ratios, and a stagger knob whose middle IS the one-decay
+chord. Measured, the FM-clang hat here keeps one spectrum while it fades; the bank's moves. So the
+open question is not "is the bank better" (that is an ear pass in `bogie`, key 8) but the STORY of
+this header: does morphdrum stay a cart-land model built from generic parts, or does it become the
+place where dedicated drum engines get their morphing knob panel (the hat on `INSTR_METAL` first;
+CHARACTER would then drive stagger direction + tone, 808 = lows-longest metal bank, 909 = the FM
+clang it has today, and the continuum between them is real rather than a crossfade). Switching
+`MD_HAT` changes `morphbox`'s shipped hat, so it is a decision, parked here, not a chore.
+
 ## Open / next
 
+- **Dedicated engines behind the seams** (2026-09-28, parked, see "Seam — the hat"): morphdrum is
+  cart-only today; `INSTR_METAL` is the first engine a voice could move onto. Decide the story first
+  (cart-land model from generic parts, or the knob panel over dedicated drum engines), then the hat.
 - Widen any knob ranges that feel cramped once it's been played hard (ear-tuned, not measured).
 - A 4th/5th voice (CLAP, TOM) is a straightforward addition — the earlier 5-voice cut had them; they
   were dropped to give KICK/SNARE/HAT deep panels. Add back as their own parametric models if wanted.

@@ -19,6 +19,7 @@
   "todo": [
     "Style change: the master eq (each style's overall gain) switches at once, so the OLD style's ringing tail swells or ducks for a moment (ambient -> bossa peaked -0.4 dBFS). A per-style gain that rides smoothly would need levels that can boost.",
     "Voice nuances not yet cast: medieval's recorder grace notes (cuts/taps from medieval.mode), sad's horn lean + fall-off, house's per-note random vox vowel, synth/house lead legato by interval, ambient pad's per-note L/R pan.",
+    "VINYL is too heavy (heard 2026-09-28): the hiss bed (I_HISS level 0.30 x note_vol 2.2*vinylG) and the crackle ticks (9/s x dust x vinylG, level 0.60) sit well above theirs (their hiss 0.006, crackle 0.05 x dust). Tone both down, and make the intro/outro vinyl swell (VINYL_BOOST) gentler.",
     "The 2-bar wow drift (their fx 'wow' events) is not ridden: tape() rebuilds its DSP. Per-track wow only.",
     "Velocity is quantised to our 0..7 vol, so their +-8% humanise mostly vanishes; timing jitter survives intact.",
     "Ear pass per style: the casting and the per-style mix (STYLE_MIX) were set by measurement (per-part RMS vs jazzhop's proportions), not yet by listening."
@@ -57,6 +58,10 @@ de:meta */
                          // scale, so even 0.02 has +2.5 dB small-signal gain and bends the whole range: the drums drove it
                          // into squashing the Rhodes/bass on every hit (mix vs sum-of-parts residual -3.7 dB; at 0: -44 dB)
 #define LC_GLUE 0.25f    // bus compressor amount
+#define LC_PUMP 1.0f     // house's sidechain pump amount scale (A/B)
+#define LC_KSWEEP 1800   // house kick: their sweep TIME CONSTANT (s) -> our LINEAR pitch-env length (ms). x3000 held
+                         // the pitch up ~150 ms (a slide, not a thump); theirs is exponential, most of it in ~50 ms
+#define LC_HUMAN 1       // the humanize layer on at boot (toggle 6): grace notes, passing tones, bass walks, suspensions
 #define LC_TREM 0.5f     // the Rhodes suitcase tremolo + autopan, scaled from the plan's depth (1 = theirs; it read as
                          // a sine wobble on the whole mix because the keys are the loudest part)
 #ifndef LC_DUMP
@@ -183,8 +188,10 @@ static unsigned lc_dirty[48];
 #define KIT_BASE 20   // morphdrum slots 20..29
 #define I_TOM    30
 #define I_BLOCK  31   // ride / tambourine / slap
+#define I_NHAT   32   // house's hats: plain filtered NOISE, as theirs (the METAL bank rang a pitched chuff on every offbeat)
+#define I_NHATO  33
 static const int STYLE_SLOTS[] = { I_KEYS, I_KEYSL, I_BASS, I_BASSS, I_RIM, I_LEAD, I_LEAD2, I_KEYS2, I_KEYS2L, I_PAD,
-                                   I_DRONE, I_CLAP, I_SHAKER, I_TOM, I_BLOCK };
+                                   I_DRONE, I_CLAP, I_SHAKER, I_TOM, I_BLOCK, I_NHAT, I_NHATO };
 #define NSTYLE_SLOTS ((int)(sizeof STYLE_SLOTS / sizeof *STYLE_SLOTS))
 
 static MorphKit kit;
@@ -193,9 +200,9 @@ static int    energySel = EN_BALANCED, bandSel = BAND_FULL, citySel = 1, styleSe
 static bool   showHelp = false;
 // FX TOGGLES (keys 1-5 / the buttons top-right): switch each master stage off to hear what it is doing.
 // Each re-applies ONLY when flipped (set-and-hold).
-enum { FXT_TONE, FXT_TAPE, FXT_BUS, FXT_TREM, FXT_VINYL, NFXT };
-static const char *FXT_NAME[NFXT] = { "tone", "tape", "bus", "trem", "vinyl" };
-static bool  fxOn[NFXT] = { true, true, true, true, true };
+enum { FXT_TONE, FXT_TAPE, FXT_BUS, FXT_TREM, FXT_VINYL, FXT_HUMAN, NFXT };
+static const char *FXT_NAME[NFXT] = { "tone", "tape", "bus", "trem", "vinyl", "human" };
+static bool  fxOn[NFXT] = { true, true, true, true, true, LC_HUMAN };
 static float curWow = 0.3f;
 static int   lastTone = -1;
 
@@ -204,6 +211,7 @@ typedef struct {
     double start;                      // clock time of bar 0
     int nextBar;
     Ev q[480]; int nq;                 // planned, not yet dispatched (time-sorted)
+    Rng hr;                            // the HUMANIZE layer's own stream (never the planner's)
     bool live;
 } Track;
 static Track cur;
@@ -266,13 +274,13 @@ static void voice_kit(const Plan *P) {
     if (is(P, S_AMBIENT)) { F0 = 95; F1 = 48; kd = 0.18; sd = 0.11; hp = 7000; hc = 0.025; }
     int brush = is(P, S_PIANO) || is(P, S_BOSSA) || is(P, S_SAD) || is(P, S_AMBIENT);
     float *k = kit.p[MD_KICK];
-    k[MD_CHAR] = is(P, S_HOUSE) ? 0.7f : 0.2f; k[MD_LEVEL] = 1;
+    k[MD_CHAR] = is(P, S_HOUSE) ? 0.45f : 0.2f; k[MD_LEVEL] = 1;
     k[MD_TUNE]  = c01((ftom(F1) - 19) / 33.0);
     k[MD_PUNCH] = c01(12 * log2(F0 / F1) / 48.0);
-    k[MD_SNAP]  = c01(((is(P, S_HOUSE) ? kv(P, "drums.kit.kickSweep") * 3000 : 90) - 8) / 142.0);
+    k[MD_SNAP]  = c01(((is(P, S_HOUSE) ? kv(P, "drums.kit.kickSweep") * LC_KSWEEP : 90) - 8) / 142.0);
     k[MD_DECAY] = c01((kd * 4000 - 40) / 1060.0);
     k[MD_CUT] = brush ? 0.30f : 0.36f; k[MD_CLICK] = brush ? 0.10f : 0.22f; k[MD_SUB] = 0.22f;
-    k[MD_DRIVE] = is(P, S_HOUSE) ? 0.45f : 0.18f;
+    k[MD_DRIVE] = is(P, S_HOUSE) ? 0.28f : 0.18f;
     float *s = kit.p[MD_SNARE];
     s[MD_CHAR] = 0.5f; s[MD_LEVEL] = 1; s[MD_TUNE] = 0.32f; s[MD_DECAY] = brush ? 0.25f : 0.45f; s[MD_PUNCH] = 0.25f;
     s[MD_SNAP] = 0.8f; s[MD_TONE] = brush ? 0.85f : 0.62f; s[MD_CUT] = brush ? 0.30f : 0.45f; s[MD_DRIVE] = 0.1f;
@@ -281,7 +289,9 @@ static void voice_kit(const Plan *P) {
     h[MD_CHAR] = 0.2f; h[MD_LEVEL] = 1; h[MD_TUNE] = 0.53f; h[MD_TONE] = 0.25f; h[MD_SUB] = 0.6f; h[MD_RES] = 0.0f;
     h[MD_CUT]   = c01(log2(hp / 3000.0) / 2.0);
     h[MD_DECAY] = c01((hc * 2500 - 10) / 210.0);                       // their hats are 12-35 ms ticks: keep ours short
-    h[MD_ODEC]  = c01(((is(P, S_HOUSE) ? kv(P, "drums.kit.openDecay") : 0.12) * 4000 - 80) / 720.0);
+    // the OPEN hat: house plays one on EVERY offbeat with no closed hat to choke it, and x4000 rang each for
+    // >0.5 s into the next — boom-chuff boom-chuff, a steam train. Their open hat is a short exponential tick.
+    h[MD_ODEC]  = c01(((is(P, S_HOUSE) ? kv(P, "drums.kit.openDecay") * 1200 : 0.12 * 4000) - 80) / 720.0);
     morph_ride(&kit);
     // (kit levels: set by the style MIX block at the end of voice_track — after the ride, which resets the hats)
     // the percussion slots every style shares a shape of
@@ -295,6 +305,13 @@ static void voice_kit(const Plan *P) {
     instrument_level(I_CLAP, 0.45f); instrument_reverb(I_CLAP, 0.35f); instrument_pan(I_CLAP, -0.1f);
     inst(I_TOM, INSTR_MEMBRANE, 0, 0, 7, 60, 0.15f, 0.25f, 0.2f);
     instrument_level(I_TOM, 0.5f); instrument_pan(I_TOM, -0.2f); instrument_reverb(I_TOM, 0.15f);
+    if (is(P, S_HOUSE)) {        // the hats: white noise above hatHP, closed / open decay (their createHouseKit)
+        int hp = (int)kv(P, "drums.kit.hatHP");
+        inst(I_NHAT, INSTR_NOISE, 0, (int)(kv(P, "drums.kit.hatClosed") * 2300), 0, 20, 0.5f, 0.5f, 0.5f);
+        inst(I_NHATO, INSTR_NOISE, 0, (int)(kv(P, "drums.kit.openDecay") * 2300), 0, 60, 0.5f, 0.5f, 0.5f);
+        for (int q = I_NHAT; q <= I_NHATO; q++) { instrument_filter(q, FILTER_HIGH, hp, 1); instrument_pan(q, 0.2f); instrument_reverb(q, 0.08f); }
+        instrument_level(I_NHAT, 0.40f); instrument_level(I_NHATO, 0.34f);
+    }
     if (is(P, S_HOUSE)) {        // the ride: the six-square bank on cymbal ratios
         inst(I_BLOCK, INSTR_METAL, 0, 0, 7, 60, 0.85f, 0.4f, 0.2f);
         instrument_mode(I_BLOCK, MODE_METAL_DECAY, (float)fmin(1, log2(kv(P, "drums.kit.rideDecay") / 0.02) / log2(100)));
@@ -332,10 +349,13 @@ static const struct { float masterDb, keys, bass, kit, leadDb, lead2Db; } STYLE_
     [S_SAD]     = {  3.0f, 1.00f, 0.20f, 1.00f, 7.0f, 7.0f },
     [S_MEDIEVAL]= {  4.5f, 1.00f, 0.50f, 1.00f, -11.0f, -11.0f },
 };
-static float styleDb = 0;
+static float styleDb = 0, pumpAmt = 0; static int pumpRel = 150;
+// glue() and sidechain() on one bus are ONE gain stage (the engine's sc[bus]): whichever is set last wins, so
+// the bus glue silently disabled house's pump. A pumping style gets the pump INSTEAD of the glue.
 static void apply_bus(void) {   // the BUS stage + the style's overall gain (both on the master eq)
-    if (fxOn[FXT_BUS]) { glue(0, LC_GLUE, 8, 160); eq(1.5f + styleDb, 2.5f + styleDb, 0.0f + styleDb); }
-    else { glue(0, 0, 8, 160); eq(styleDb, styleDb, styleDb); }
+    if (pumpAmt > 0) sidechain(0, 0, pumpAmt, 4, pumpRel);
+    else glue(0, fxOn[FXT_BUS] ? LC_GLUE : 0, 8, 160);
+    if (fxOn[FXT_BUS]) eq(1.5f + styleDb, 2.5f + styleDb, 0.0f + styleDb); else eq(styleDb, styleDb, styleDb);
 }
 // per-track voicing — the planner's rolled parameters land on our engines, one casting per style
 static void voice_track(const Plan *P) {
@@ -546,7 +566,7 @@ static void voice_track(const Plan *P) {
     (void)lv;
     voice_kit(P);
     for (int s = MDS_KICK; s <= MDS_KICKS; s++) sidechain_key(KIT_BASE + s, 0, sc > 0 ? 1.0f : 0.0f);
-    sidechain(0, 0, sc * 0.6f, 4, scRel);
+    pumpAmt = sc * 0.6f * LC_PUMP; pumpRel = scRel;
     reverb_spring(spring);
     chorus(chorusRate, chorusDepth, chorusMix);
     echo(eMs, eFb, 0.3f);
@@ -576,7 +596,7 @@ static void voice_track(const Plan *P) {
         if (ld[i] > 0) instrument_eq(sl, ld[i], ld[i], ld[i]);
         else if (ld[i] < 0) instrument_level(sl, powf(10, ld[i] / 20));
     }
-    if (styleDb != STYLE_MIX[P->style].masterDb) { styleDb = STYLE_MIX[P->style].masterDb; apply_bus(); }
+    styleDb = STYLE_MIX[P->style].masterDb; apply_bus();   // every track: the pump / glue + the style gain
     lastLeadAt = -10;
 }
 
@@ -735,7 +755,8 @@ static void dispatch(Track *T, const Ev *e) {
         else fire_snare(d, e->vel);
         flash[K_SNARE] = 1; break;
     case K_HAT:
-        if (is(P, S_MEDIEVAL)) { for (int b = 0; b < (e->open ? 5 : 3); b++) schedule_at(d + b * (e->open ? 0.022 : 0.012), 84, I_BLOCK, v2vol(e->vel * (b ? 0.7 : 1), 7), e->open ? 160 : 60); }
+        if (is(P, S_HOUSE)) schedule_at(d, 60, e->open ? I_NHATO : I_NHAT, v2vol(e->vel, 7.6), e->open ? (int)(kv(P, "drums.kit.openDecay") * 4000) : 60);
+        else if (is(P, S_MEDIEVAL)) { for (int b = 0; b < (e->open ? 5 : 3); b++) schedule_at(d + b * (e->open ? 0.022 : 0.012), 84, I_BLOCK, v2vol(e->vel * (b ? 0.7 : 1), 7), e->open ? 160 : 60); }
         else fire_hat(d, e->vel, e->open);
         flash[K_HAT] = 1; break;
     case K_RIM: {
@@ -787,6 +808,96 @@ static void dispatch(Track *T, const Ev *e) {
     default: break;
     }
 }
+// ═══ HUMANIZE — OUR layer on top of their exact arranger (toggle 6 / "human") ═══
+// Their planner is strict: a lead that jumps straight to its target, a bass that lands on the root with at
+// most one approach note, keys that strike the chord as spelled. This adds what a player would: grace
+// notes flicking into the longer lead notes, a passing tone across a leap of a third, a bass WALK into the
+// next chord (their single approach note grown into two or three), and the odd keys suspension resolving a
+// 16th late. It runs on each bar's events AFTER the planner, on its own stream (seed, 101), so the planner —
+// and the oracle that verifies it bit-for-bit — never sees it. How much: a LOOSENESS per style x energy.
+static const float LOOSE[NSTYLE] = { [S_JAZZHOP] = 0.8f, [S_PIANO] = 0.6f, [S_AMBIENT] = 0.3f, [S_BOSSA] = 0.7f, [S_SYNTH] = 0.2f,
+                                     [S_HOUSE] = 0.15f, [S_GUITAR] = 0.6f, [S_SAD] = 0.5f, [S_MEDIEVAL] = 0.8f };
+static const float LOOSE_EN[NENERGY] = { 1.2f, 1.0f, 0.7f };
+static int in_scale(const Plan *P, int m) {
+    static const int MAJ[7] = { 0, 2, 4, 5, 7, 9, 11 }, MIN[7] = { 0, 2, 3, 5, 7, 8, 10 };
+    int pc = mod12(m - P->key.tonic);
+    for (int i = 0; i < 7; i++) if ((P->key.major ? MAJ : MIN)[i] == pc) return 1;
+    return 0;
+}
+static int scale_step(const Plan *P, int m, int dir) {   // the next in-key note above (dir +1) or below (-1)
+    for (int k = 1; k <= 2; k++) if (in_scale(P, m + dir * k)) return m + dir * k;
+    return m + dir;
+}
+static int ev_step(const Plan *P, const Ev *e) { return (int)lround((e->t - e->bar * 16 * stepDur(P)) / stepDur(P)); }
+static void add_ev(Evs *E, const Ev *x) { if (E->n < (int)(sizeof E->e / sizeof *E->e)) E->e[E->n++] = *x; }
+static int humN[4];   // what the layer added this session: grace · passing · walk · suspension (the trace shows it)
+static void humanize_bar(Track *T, int bar, Evs *E) {
+    const Plan *P = &T->P; Rng *r = &T->hr;
+    double loose = LOOSE[P->style] * LOOSE_EN[P->energy], sd = stepDur(P);
+    int n0 = E->n;
+    // ── the lead: grace notes into long notes, a passing tone across a third ──
+    for (int k = 0; k < n0; k++) {
+        Ev *e = &E->e[k]; if (e->k != K_LEAD) continue;
+        int nextK = -1; for (int q = k + 1; q < n0; q++) if (E->e[q].k == K_LEAD) { nextK = q; break; }
+        if (nextK >= 0) {                                           // a leap of a third, with room: fill it
+            Ev *nx = &E->e[nextK]; int iv = nx->midi - e->midi;
+            if (abs(iv) >= 3 && abs(iv) <= 4 && e->dur >= 2 * sd && rn(r) < 0.7 * loose) {
+                int pass = scale_step(P, e->midi, iv > 0 ? 1 : -1);
+                if (pass != nx->midi && pass != e->midi) {
+                    double half = e->dur / 2; Ev x = *e;
+                    e->dur = half; x.t = e->t + half; x.dur = fmin(half, nx->t - x.t); x.vel = e->vel * 0.8; x.midi = pass; x.glide = 1;
+                    if (x.dur > 0.04) { add_ev(E, &x); humN[1]++; }
+                    continue;
+                }
+            }
+        }
+        if (e->dur >= 0.3 && !e->glide && rn(r) < 0.6 * loose) {   // a cut or a tap: a quick neighbour into the note
+            int above = rn(r) < 0.62;
+            double g = fmin(0.07, fmax(0.04, 0.2 * e->dur));
+            Ev x = *e; x.t = e->t - g; x.dur = g * 0.9; x.vel = e->vel * 0.7; x.midi = scale_step(P, e->midi, above ? 1 : -1);
+            int clash = 0;                                          // never across the previous note
+            for (int q = 0; q < n0; q++) if (q != k && E->e[q].k == K_LEAD && E->e[q].t < e->t && E->e[q].t + E->e[q].dur > x.t) clash = 1;
+            if (!clash && x.t > 0) { add_ev(E, &x); humN[0]++; }
+        }
+    }
+    // ── the bass: a walk into the next chord ──
+    if (!is(P, S_HOUSE) && !is(P, S_SYNTH) && !is(P, S_AMBIENT) && !is(P, S_MEDIEVAL) && bar + 1 < T->st.nbars) {
+        Chord nc[14]; int nn = bar_chords(P, &T->st, bar + 1, nc);
+        int last = -1, prev = -1;
+        for (int k = 0; k < n0; k++) if (E->e[k].k == K_BASS) { prev = last; last = k; }
+        if (nn && last >= 0 && rn(r) < 0.8 * loose) {
+            Ev *L = &E->e[last]; int ls = ev_step(P, L);
+            int target = L->midi + ((mod12(P->key.tonic + nc[0].root) - mod12(L->midi) + 18) % 12 - 6);   // the nearest next root
+            if (ls >= 13 && prev >= 0 && ev_step(P, &E->e[prev]) <= 10) {   // their approach note on 14: add the step before it
+                Ev *Pv = &E->e[prev]; int mid = scale_step(P, Pv->midi, L->midi > Pv->midi ? 1 : -1);
+                if (mid != L->midi && mid != Pv->midi) {
+                    Ev x = *Pv; x.t = Pv->t + (12 - ev_step(P, Pv)) * sd; x.midi = mid; x.vel = Pv->vel * 0.8; x.dur = 2 * sd * P->bassFactor; x.slide = 0;
+                    Pv->dur = fmin(Pv->dur, x.t - Pv->t); add_ev(E, &x); humN[2]++;
+                }
+            } else if (ls <= 8 && L->t + L->dur > bar * 16 * sd + 12 * sd && abs(target - L->midi) >= 3) {   // a held root: walk 12 → 14
+                int dir = target > L->midi ? 1 : -1, a = scale_step(P, L->midi, dir), b2 = scale_step(P, a, dir);
+                if ((dir > 0 ? b2 < target : b2 > target)) {
+                    Ev x = *L; double t12 = bar * 16 * sd + 12 * sd;
+                    L->dur = t12 - L->t;
+                    x.t = t12; x.midi = a; x.vel = L->vel * 0.78; x.dur = 2 * sd * 0.9; x.slide = 0; add_ev(E, &x);
+                    x.t = t12 + 2 * sd; x.midi = b2; x.vel = L->vel * 0.72; add_ev(E, &x); humN[2]++;
+                }
+            }
+        }
+    }
+    // ── the keys: the odd suspension, the top note a step high then resolving a 16th late ──
+    for (int k = 0; k < n0; k++) {
+        Ev *e = &E->e[k]; if (e->k != K_EP || e->nn < 3 || e->rel > 0.09 || e->dur < 4 * sd) continue;
+        if (rn(r) >= 0.2 * loose) continue;
+        int top = e->notes[e->nn - 1], sus = scale_step(P, top, 1);
+        Ev x = *e; x.nn = 1; x.notes[0] = top; x.t = e->t + sd * (1 + (rn(r) < 0.5)); x.dur = e->dur - (x.t - e->t); x.vel = e->vel * 0.85; x.strum = 0;
+        e->notes[e->nn - 1] = sus;
+        if (x.dur > 0.1) { add_ev(E, &x); humN[3]++; }
+    }
+    // keep the bar time-sorted (stable)
+    for (int a = 1; a < E->n; a++) { Ev x = E->e[a]; int j = a - 1; while (j >= 0 && E->e[j].t > x.t) { E->e[j + 1] = E->e[j]; j--; } E->e[j + 1] = x; }
+}
+
 // the fx events land on the frame their time arrives (they are automation, not notes)
 static void insert_ev(Track *T, const Ev *e) {
     if (T->nq >= (int)(sizeof T->q / sizeof *T->q)) return;
@@ -797,6 +908,7 @@ static void insert_ev(Track *T, const Ev *e) {
 static void build_track(const Plan *P, double t0) {
     memset(&cur, 0, sizeof cur);
     cur.P = *P; bar_state(&cur.P, &cur.st);
+    cur.hr = lc_stream(cur.P.seed, 101);
     cur.start = t0; cur.live = true;
     voice_track(&cur.P);
     refresh_queue();
@@ -823,7 +935,8 @@ static void advance(void) {
         cur.nq = k; cur.start = clk + 0.1 - (bar + 1) * barDur;
     }
     while (cur.nextBar < cur.P.bars && cur.start + cur.nextBar * barDur < until + LOOK) {
-        static Evs ev; plan_bar(&cur.P, cur.nextBar++, &cur.st, &ev);
+        static Evs ev; int pb = cur.nextBar; plan_bar(&cur.P, cur.nextBar++, &cur.st, &ev);
+        if (fxOn[FXT_HUMAN]) humanize_bar(&cur, pb, &ev);
         for (int i = 0; i < ev.n; i++) insert_ev(&cur, &ev.e[i]);
         if (cur.st.lastFill != F_NONE) { fillShow = cur.st.lastFill; fillT = 1.6f; }
         if (cur.st.lastPush) { pushShow = 1; pushT = 1.2f; }
@@ -936,6 +1049,7 @@ void update(void) {
     watch("section", "%s", bb >= 0 ? SEC_NAME[cur.st.map[bb].sec] : "-");
     watch("tone", "%d", (int)toneHz);
     watch("style", "%s", STYLES[cur.P.style]->id);
+    watch("human", "grace %d pass %d walk %d sus %d", humN[0], humN[1], humN[2], humN[3]);
     watch("lead", "%s", cur.P.hasLead ? (kvs(&cur.P, "lead.voice")[0] ? kvs(&cur.P, "lead.voice") : kvs(&cur.P, "lead.timbre")) : "none");
 #endif
 }
@@ -1077,7 +1191,7 @@ void draw(void) {
             "E           energy chill / balanced / upbeat (next track)",
             "B           band full / no drums / chords only (next bar)",
             "C           city - the words the titles are made of",
-            "1-5         fx off/on: tone . tape . bus . trem . vinyl",
+            "1-6         off/on: tone . tape . bus . trem . vinyl . human",
             "H           this help",
             "",
             "each track = one seed: key (moves to a related key),",

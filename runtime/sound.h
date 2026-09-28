@@ -3040,6 +3040,144 @@ static inline float sound_metal_sample(Voice *v, float pitch_mul) {
     return v->metal_hp_y * METAL_TRIM;
 }
 
+// ── INSTR_SINTER: synthetic percussion, "MME for drums" (borrow-list row 5) ──────
+// Choochootracker's Sintered voice (synth/sintered_voice.cpp, MIT, paiheulevrai), ported
+// through the `sintered` cart (which keeps its cart-land render as the E-toggled reference).
+// A 1.5..7.5 ms noise IMPACT excites two oscillators: x at the note, y at 2^((a-.5)*5) of it,
+// y frequency-modulated by the feedback. One of six MODELS mangles them (knot = PM + a third
+// osc into a fold · shard = folded sum + feedback teeth · burst = coloured noise vs tone ·
+// comb = a 64-sample comb · logic = bitwise ops on the quantised pair · melt = FM-warped osc),
+// and the output feeds back through tanh, a DC estimate and a one-pole smoother, so the tail
+// keeps moving instead of just decaying. A MOTION envelope pushes two or three params for the
+// first few ms (left = a swell, right = a snap, centre = still). The voice has its OWN length
+// (.018 + decay² × the model's tail, 0.42..1.10 s) and its own exp(-5.5 t/dur) envelope, so
+// give it a hit() longer than that. Upstream reseeds its noise per note-on and so does this:
+// every hit of a patch is the same sound. Macros: harmonics = MODEL (6 detents), timbre = MOD
+// (drive / depth, the bite), morph = C (each model's fold / drive / comb feedback). Aux at
+// note-on: MODE_SINTER_A / _B / _MOTION / _DECAY. Changes from upstream, both measured-first:
+// the fold is the symmetric floor-modulo one (upstream's fmodf fold goes wrong below -1), and
+// a 10 Hz output DC blocker + 5 ms end fade replace the hard stop at -48 dB.
+#define SINTER_NMODEL 6
+enum { SN_KNOT, SN_SHARD, SN_BURST, SN_COMB, SN_LOGIC, SN_MELT };
+static const float SN_TAIL[SINTER_NMODEL]       = { 0.85f, 0.70f, 0.48f, 1.10f, 0.42f, 0.80f };
+static const float SN_IMPACT_MIX[SINTER_NMODEL] = { 0.22f, 0.18f, 0.72f, 0.38f, 0.24f, 0.16f };
+// per-model output trim: measured 2026-09-28 on single hits at the cart's default knobs so a
+// vol-6 hit peaks near -12 dBFS (between the 808's hat and cymbal) — a drum's peak, not a tone's
+static const float SN_TRIM[SINTER_NMODEL]       = { 2.28f, 2.25f, 2.16f, 3.06f, 2.32f, 2.17f };   // from -19.2/-19.1/-18.7/-21.7/-19.3/-18.7
+
+static inline int   sn_model_of(float harm) { int m = (int)(clamp01(harm) * 5.999f); return m < 0 ? 0 : m > 5 ? 5 : m; }
+static inline float sn_fold(float x) { float t = x + 1.0f; t -= 4.0f * floorf(t * 0.25f); return fabsf(t - 2.0f) - 1.0f; }
+static inline float sn_osc(Voice *v, float f, int slot) {
+    v->sn_ph[slot] += f / (float)SOUND_SAMPLE_RATE;
+    v->sn_ph[slot] -= floorf(v->sn_ph[slot]);
+    return de_sin_turns(v->sn_ph[slot]);
+}
+static inline float sn_rand(Voice *v) {
+    v->sn_rnd = v->sn_rnd * 1664525u + 1013904223u;
+    return ((float)(v->sn_rnd >> 8) * (1.0f / 8388608.0f)) - 1.0f;
+}
+static void sound_sinter_start(Voice *v) {
+    v->sn_ph[0] = v->sn_ph[1] = v->sn_ph[2] = 0.0f;
+    v->sn_rnd = 0x53494e54u;                                    // upstream's seed, every hit
+    v->sn_fb = v->sn_dc = v->sn_nlow = 0.0f;
+    for (int i = 0; i < 64; i++) v->sn_comb[i] = 0.0f;
+    v->sn_ci = 0; v->sn_i = 0;
+    v->sn_hp_x = v->sn_hp_y = 0.0f;
+    v->sn_a = clamp01(v->eng_p[MODE_SINTER_A]);
+    v->sn_b = clamp01(v->eng_p[MODE_SINTER_B]);
+    v->sn_motion = (clamp01(v->eng_p[MODE_SINTER_MOTION]) - 0.5f) * 2.0f;
+    v->sn_mtime = 0.008f + (1.0f - fabsf(v->sn_motion)) * 0.35f;
+    v->sn_model = sn_model_of(v->harm);
+    float d = clamp01(v->eng_p[MODE_SINTER_DECAY]);
+    v->sn_dur = 0.018f + d * d * SN_TAIL[v->sn_model];
+    v->sn_n = (int)(v->sn_dur * (float)SOUND_SAMPLE_RATE);
+    v->sn_on = true;
+}
+static inline float sound_sinter_sample(Voice *v, float pitch_mul) {
+    if (!v->sn_on || v->sn_i >= v->sn_n) return 0.0f;
+    const float sr = (float)SOUND_SAMPLE_RATE;
+    const int   model = sn_model_of(v->harm);
+    const float hz = v->freq * pitch_mul;
+    const float age = (float)v->sn_i / sr;
+    const float baseMod = clamp01(v->timb);
+    float movement = 0.0f;
+    if (fabsf(v->sn_motion) > 0.004f) {
+        float x = age / v->sn_mtime;
+        movement = v->sn_motion < 0.0f ? (x < 1.0f ? de_sin_turns(0.5f * x) : 0.0f) : de_expf(-6.0f * x);
+    }
+    float mod = baseMod, a = v->sn_a, b = v->sn_b, c = clamp01(v->mor);
+    switch (model) {
+        case SN_KNOT:  mod = clamp01(mod + movement * 0.65f); c = clamp01(c + movement * 0.55f); break;
+        case SN_SHARD: b = clamp01(b + movement * 0.65f); c = clamp01(c + movement * 0.55f); break;
+        case SN_BURST: a = clamp01(a + movement * 0.70f); b = clamp01(b + movement * 0.55f); c = clamp01(c + movement * 0.35f); break;
+        case SN_COMB:  b = clamp01(b + movement * 0.45f); c = clamp01(c + movement * 0.55f); break;
+        case SN_LOGIC: a = clamp01(a + movement * 0.60f); c = clamp01(c + movement * 0.70f); break;
+        case SN_MELT:  b = clamp01(b + movement * 0.70f); c = clamp01(c + movement * 0.60f); break;
+        default: break;
+    }
+    float nz = sn_rand(v);
+    v->sn_nlow += (nz - v->sn_nlow) * (0.01f + b * 0.25f);
+    float bright = nz - v->sn_nlow, s = 0.0f;
+    float f2 = hz * de_powf(2.0f, (a - 0.5f) * 5.0f);
+    float x = sn_osc(v, hz, 0), y = sn_osc(v, f2 + v->sn_fb * hz * mod * 1.5f, 1);
+    switch (model) {
+        case SN_KNOT: {
+            float z = sn_osc(v, hz * de_powf(2.0f, (b - 0.5f) * 7.0f), 2);
+            s = de_sin_turns(v->sn_ph[0] + y * mod * 0.32f + z * mod * 0.18f);
+            s = s * (1.0f - c) + sn_fold(s * (1.0f + c * 14.0f)) * c;
+            break;
+        }
+        case SN_SHARD: {
+            float teeth = sn_fold((x + y * (1.0f + mod * 6.0f) + v->sn_fb * b * 4.0f) * (1.0f + c * 12.0f));
+            s = de_tanhf(teeth * (1.0f + c * 5.0f));
+            break;
+        }
+        case SN_BURST: {
+            float color = bright * (1.0f - b) + v->sn_nlow * b;
+            s = color * (a * (1.2f + mod * 0.8f)) + y * (1.0f - a) + v->sn_fb * mod * 1.5f;
+            s = sn_fold(s * (1.0f + c * 8.0f));
+            break;
+        }
+        case SN_COMB: {
+            int delay = 1 + (int)(a * 62.0f);
+            float tap = v->sn_comb[(v->sn_ci + 64 - delay) & 63];   // not `delayed`: sound_ctx.h macros that name
+            float excite = x + y * mod * 0.75f + bright * mod * 0.25f;
+            v->sn_comb[v->sn_ci] = de_tanhf((excite + tap * c * 1.35f) * (0.4f + mod * 1.6f));
+            v->sn_ci = (v->sn_ci + 1) & 63;
+            s = tap * (1.0f - b * 0.92f) + excite * 0.18f;
+            break;
+        }
+        case SN_LOGIC: {
+            int q = 2 + (int)(a * 126.0f), pattern = (int)(b * 3.99f);
+            int ia = (int)((x + 1.0f) * (float)q), ib = (int)((y + 1.0f) * (float)q);
+            int lg = pattern == 0 ? (ia ^ ib) : pattern == 1 ? (ia & ib) : pattern == 2 ? (ia | ib) : (ia > ib ? ia : ib);
+            s = ((float)(lg % (q * 2)) / (float)q - 1.0f) * mod + x * (1.0f - mod);
+            s = sn_fold(s * (1.0f + c * 15.0f));
+            break;
+        }
+        case SN_MELT: {
+            float warped = sn_osc(v, hz * (1.0f + y * mod * (3.0f + b * 24.0f) + v->sn_fb * b * 6.0f), 2);
+            s = de_tanhf(warped * (1.0f + c * 13.0f) + bright * mod * b);
+            break;
+        }
+        default: break;
+    }
+    float impact = bright * de_expf(-age / (0.0015f + 0.006f * (1.0f - b)));
+    s += impact * SN_IMPACT_MIX[model] * (0.25f + 0.75f * mod);
+    float raw = de_tanhf(s + v->sn_fb * (0.2f + mod * 1.4f));
+    v->sn_dc += 0.02f * (raw - v->sn_dc);
+    float target = (raw - v->sn_dc) * (0.12f + baseMod * 0.82f);
+    v->sn_fb += (target - v->sn_fb) * (0.025f + 0.10f * (1.0f - c));
+    float amp = de_expf(-5.5f * age / v->sn_dur);
+    float out = de_tanhf(de_tanhf(s) * amp);
+    v->sn_hp_y = out - v->sn_hp_x + 0.99857f * v->sn_hp_y;     // 10 Hz DC blocker
+    v->sn_hp_x = out;
+    const int fade = SOUND_SAMPLE_RATE / 200;                   // 5 ms end fade
+    float e = v->sn_i > v->sn_n - fade ? (float)(v->sn_n - v->sn_i) / (float)fade : 1.0f;
+    v->sn_i++;
+    return v->sn_hp_y * e * SN_TRIM[model];
+}
+
 // One FM sample (2-op + feedback — §8.8.3 in audio-notes). The carrier is v->phase, which
 // the mix loop already advances by freq*pitch_mul — so the whole pitch machinery works by
 // construction; only the modulator phase lives here. The second oscillator is INAUDIBLE
@@ -5363,6 +5501,7 @@ static inline float sound_engine_sample(Voice *v, float pitch_mul) {
         case INSTR_FM4:      return sound_fm4_sample(v, pitch_mul);
         case INSTR_MME:      return sound_mme_sample(v, pitch_mul);
         case INSTR_METAL:    return sound_metal_sample(v, pitch_mul);
+        case INSTR_SINTER:   return sound_sinter_sample(v, pitch_mul);
     }
     // fall-through: the modal Karplus-Strong string — any engine id not handled above.
     int alloc = v->ks_len;
@@ -5988,6 +6127,7 @@ static void sound_setup_note(Voice *v, int midi, int slot, int vol, int gate_sam
     v->mo_on  = false;
     v->mme_on = false;
     v->metal_on = false;
+    v->sn_on = false;
     v->fm_mph = v->fm_fb = v->fm_tph = 0.0f;   // FM needs no excitation, just deterministic phases
     if      (v->wave == INSTR_PLUCK)  sound_pluck_start(v);    // excite the string
     else if (v->wave == INSTR_MALLET) sound_mallet_start(v);   // strike the bar
@@ -6013,6 +6153,7 @@ static void sound_setup_note(Voice *v, int midi, int slot, int vol, int gate_sam
     else if (v->wave == INSTR_MODAL)  sound_modal_start(v);    // arm the filter bank + strike envelope
     else if (v->wave == INSTR_MME)    sound_mme_start(v);      // zero osc B + the feedback / vocoder states, snapshot pair + interval
     else if (v->wave == INSTR_METAL)  sound_metal_start(v);    // arm the six lifetimes + the noise envelope
+    else if (v->wave == INSTR_SINTER) sound_sinter_start(v);   // reseed the noise, size the hit, snapshot a/b/motion/decay
     else if (v->wave == INSTR_FM4)    sound_fm4_start(v);      // reset 4 phases + feedback average
     // TRIGGER POLICY (§L4). The engine hooks above have just ARMED this voice's onset transient; if the
     // slot declares itself single-triggering and another key on it is already down, take it back off.

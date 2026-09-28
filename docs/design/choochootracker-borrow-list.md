@@ -4,7 +4,7 @@
 is SHIPPED as `INSTR_MME` (ported cart-first the same day; the `mme` cart keeps the cart-land
 reference as an E-toggled A/B). Rows 2 and 3 are SHIPPED as `INSTR_METAL` (2026-09-28, cart-first
 in the `bogie` cart the same day, which now cycles engine / prototype / 808 on one set of pads).
-Row 5 is BUILT as the `sintered` cart (2026-09-28, cart-only; engine decision after the ear).
+Row 5 is SHIPPED as `INSTR_SINTER` (2026-09-28, cart-first in the `sintered` cart the same day).
 Row 7 turned out mostly shipped already (see its note). Rows 4 and 6 are open. Each row names the upstream file, what it
 would become here, and why it made or missed the cut. Update the row (not this line) when
 something lands.
@@ -99,11 +99,17 @@ is a step in a buffer) and per-hit peak normalisation. `spec()` = 60. A hit read
 at vol 6, several dB under the 808 kit, because the sample path's level can only cut; the engine
 version would carry its own trim.
 
-The engine question after the ear: `INSTR_SINTER` (its own voice, knobs ride live) or a percussion
-excitation on `INSTR_MME`. They share the idea (two cross-modulating oscillators plus DC-blocked
-feedback) but not the code: Sintered's six models, its impact and its motion envelope have no MME
-counterpart, so "a mode on MME" would be a second voice behind one id. The honest shape is probably
-its own engine, if any of the six earn one.
+**The engine, same day: `INSTR_SINTER`.** Its own voice rather than a mode on MME: they share the
+idea but not the code (Sintered's six models, impact and motion envelope have no MME counterpart, so
+a mode would have been a second voice behind one id). Macros: harmonics = model (6 detents), timbre
+= MOD, morph = C, live on a ringing hit; A / B / MOTION / DECAY on the aux channel. It keeps
+upstream's own LCG, reseeded per note-on, so a hit is as repeatable as the render was. Per-model
+trims (`SN_TRIM`) put every default pad at -12.0 dBFS; unlike the render, the engine does NOT
+normalise per hit, so MOD and C driving into tanh move the level, as they should on an instrument.
+One trap met on the way: a local named `delayed` in the comb model was silently rewritten by
+`sound_ctx.h`, which `#define`s every per-instance engine static by name (`delayed` is one). The
+local is `tap` now; any new engine local wants a name that is not an engine static.
+The `sintered` cart plays the engine and keeps the render behind E.
 
 **Row 7, checked before building it:** acidcandy already carries probability, p-locks and trig
 conditions throughout, and morphbox has p-locks and probability. The one Choochootracker sequencer

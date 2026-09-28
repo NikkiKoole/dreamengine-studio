@@ -12,20 +12,21 @@
     "drum-synthesis",
     "wavefolder"
   ],
-  "lineage": "Row 5 of docs/design/choochootracker-borrow-list.md, cart-first: Choochootracker's Sintered voice (chipnomad_lib/synth/sintered_voice.cpp, MIT, paiheulevrai), 'MME for drums': a very short noise IMPACT excites two cross-modulating oscillators, and a smoothed, DC-blocked feedback tail keeps ringing. Six models (knot, shard, burst, comb, logic, melt). Each pad renders its hit in cart-land C once, when a knob changes, into a PCM slot the sample engine plays at root pitch. For a one-shot drum that is exact rather than a prototype's shortcut: Sintered resets its noise seed on every hit, so every hit of a patch is the same sound anyway.",
+  "lineage": "INSTR_SINTER showcase, and the cart it was prototyped in first. Row 5 of docs/design/choochootracker-borrow-list.md: Choochootracker's Sintered voice (chipnomad_lib/synth/sintered_voice.cpp, MIT, paiheulevrai), 'MME for drums': a very short noise IMPACT excites two cross-modulating oscillators, and a smoothed, DC-blocked feedback tail keeps ringing. Six models (knot, shard, burst, comb, logic, melt). Each pad renders its hit in cart-land C once, when a knob changes, into a PCM slot the sample engine plays at root pitch. For a one-shot drum that is exact rather than a prototype's shortcut: Sintered resets its noise seed on every hit, so every hit of a patch is the same sound anyway. That render is kept as the REFERENCE behind E; the default path plays the engine, whose three macros (model / mod / c) ride a ringing hit live.",
   "homage": "Choochootracker's Sintered (2026), the MME idea aimed at percussion, after Noise Engineering's wild-percussion modules.",
   "description": {
     "summary": "Six pads of wild synthetic percussion: a noise impact into two cross-modulating oscillators and a feedback tail, six models from knotted FM to comb-filtered clank.",
-    "detail": "Every pad is its own patch: a model (knot / shard / burst / comb / logic / melt), a pitch, and six knobs. MOD sets how hard the two oscillators drive each other and the tail; A, B and C mean something different per model (the hint line under the knobs says what); MOTION shapes a short burst of movement at the start of the hit (left = a swell, right = a snap, centre = still); DECAY sets the length. Each pad renders its hit once when you change it and plays that buffer, so the knobs are exact and a pattern costs one voice per hit. Autoplay runs a pattern across all six pads.",
-    "controls": "A S D F G H: the six pads (or tap them) · 1-6: select the pad the knobs edit · click a model button to change the selected pad's model · drag the knobs (wheel = fine) · LEFT/RIGHT knob, UP/DOWN adjust · M: autoplay"
+    "detail": "Every pad is its own patch: a model (knot / shard / burst / comb / logic / melt), a pitch, and six knobs. MOD sets how hard the two oscillators drive each other and the tail; A, B and C mean something different per model (the hint line under the knobs says what); MOTION shapes a short burst of movement at the start of the hit (left = a swell, right = a snap, centre = still); DECAY sets the length. Each pad renders its hit once when you change it and plays that buffer, so the knobs are exact and a pattern costs one voice per hit. Autoplay runs a pattern across all six pads. The pads play INSTR_SINTER by default; E flips them onto the cart-land render the engine was written from, so the two can be A/B'd on the same knobs.",
+    "controls": "A S D F G H: the six pads (or tap them) · 1-6: select the pad the knobs edit · click a model button to change the selected pad's model · drag the knobs (wheel = fine) · LEFT/RIGHT knob, UP/DOWN adjust · E: ENGINE / RENDER reference · M: autoplay"
   },
   "todo": [
-    "ear pass: which models earn an engine; then decide INSTR_SINTER (one voice per hit, the knobs ride live) vs a percussion mode on INSTR_MME (shared oscillator + feedback core, different excitation)",
-    "presets per pad beyond the six defaults"
+    "presets per pad beyond the six defaults",
+    "the render path peak-normalises every hit, the engine trims per model (SN_TRIM in sound.h): knob-dependent level spread is real on the engine, audible when A/B-ing with E"
   ]
 }
 de:meta */
-// sintered — the Choochootracker Sintered percussion voice, cart-first.
+// sintered — INSTR_SINTER showcase, and the cart it was prototyped in first. The pads play the
+// engine; E flips them onto the cart-land render below, kept as the reference it was ported from.
 //
 // Sintered is "MME for drums": a 1.5..7 ms noise IMPACT excites two oscillators (x at the
 // note, y at 2^((a-.5)*5) of it, y frequency-modulated by the feedback), one of six models
@@ -55,7 +56,8 @@ de:meta */
 
 #define SR      44100
 #define NPAD    6
-#define I0      5                        // instrument slots 5..10, one per pad (INSTR_SAMPLE)
+#define I0      5                        // RENDER path: instrument slots 5..10, one per pad (INSTR_SAMPLE)
+#define IE      11                       // ENGINE path: instrument slots 11..16, one INSTR_SINTER per pad
 #define REN_MAX (SR * 12 / 10)           // 1.2 s: the longest tail is .018 + 1.10 s (comb, decay 1)
 
 enum { M_KNOT, M_SHARD, M_BURST, M_COMB, M_LOGIC, M_MELT, NMODEL };
@@ -95,6 +97,7 @@ static float glow[NPAD];
 static int   sel = 0, ksel = K_MOD;
 static bool  autoplay = true;
 static int   pstep = 0;
+static bool  engine_path = true;         // E: INSTR_SINTER (default) vs the cart-land render
 
 // ── the voice (pure: spec'd below) ──────────────────────────────────────────────
 static float clamp01f(float x) { return x < 0.0f ? 0.0f : (x > 1.0f ? 1.0f : x); }
@@ -217,6 +220,7 @@ static int sin_render(float *out, int nmax, float hz, const Patch *p) {
 }
 
 // ── voicing: render on change, a hit is a sample playback at root ────────────────
+static void apply_engine(int v);
 static void apply(int v) {
     int m = pad_midi(&pad[v]);
     ren_n[v] = sin_render(ren[v], REN_MAX, midi_hz(m), &pad[v]);
@@ -224,12 +228,26 @@ static void apply(int v) {
     instrument(I0 + v, INSTR_SAMPLE, 0, 0, 7, 20);
     instrument_sample(I0 + v, v, m);                              // root = the pad's note: speed 1.0
     instrument_level(I0 + v, 1.00f);                              // unity: a peak-normalised hit at vol 6 reads ~-16.5 dBFS (measured)
+    apply_engine(v);
     dirty[v] = false;
+}
+// the ENGINE path: one INSTR_SINTER slot per pad; model / mod / c are the macros, the rest aux
+static void apply_engine(int v) {
+    const Patch *p = &pad[v];
+    int s = IE + v;
+    instrument(s, INSTR_SINTER, 0, 0, 7, 20);                     // the voice ends itself; the ADSR passes it
+    instrument_harmonics(s, ((float)p->model + 0.5f) / (float)NMODEL);
+    instrument_timbre(s, p->k[K_MOD]);
+    instrument_morph(s, p->k[K_C]);
+    instrument_mode(s, MODE_SINTER_A,      p->k[K_A]);
+    instrument_mode(s, MODE_SINTER_B,      p->k[K_B]);
+    instrument_mode(s, MODE_SINTER_MOTION, p->k[K_MOTION]);
+    instrument_mode(s, MODE_SINTER_DECAY,  p->k[K_DECAY]);
 }
 static void fire(int v, int delay, int vol) {
     glow[v] = 1.0f;
-    int ms = (int)((float)ren_n[v] * 1000.0f / (float)SR) + 30;
-    schedule_hit(delay, pad_midi(&pad[v]), I0 + v, vol, ms);
+    int ms = (int)((float)ren_n[v] * 1000.0f / (float)SR) + 30;  // same length on both paths
+    schedule_hit(delay, pad_midi(&pad[v]), (engine_path ? IE : I0) + v, vol, ms);
 }
 static void set_model(int v, int m) { pad[v].model = ((m % NMODEL) + NMODEL) % NMODEL; dirty[v] = true; }
 
@@ -258,6 +276,7 @@ void update(void) {
         if (keyp('1' + v)) sel = v;
     }
     if (keyp('M')) autoplay = !autoplay;
+    if (keyp('E')) engine_path = !engine_path;
     if (keyp(KEY_LEFT))  ksel = (ksel + NKNOB - 1) % NKNOB;
     if (keyp(KEY_RIGHT)) ksel = (ksel + 1) % NKNOB;
     if (key(KEY_UP) || key(KEY_DOWN)) {
@@ -276,6 +295,7 @@ void update(void) {
     watch("mod", "%.2f", pad[sel].k[K_MOD]);
     watch("decay", "%.2f", pad[sel].k[K_DECAY]);
     watch("auto", "%d", autoplay ? 1 : 0);
+    watch("engine", "%d", engine_path ? 1 : 0);
 #endif
 }
 
@@ -284,8 +304,9 @@ void draw(void) {
     ui_begin();
     print("SINTERED", 6, 4, CLR_LIGHT_YELLOW);
     font(FONT_SMALL);
-    print("impact into cross-mod + feedback tail", 76, 6, CLR_MEDIUM_GREY);
+    print("impact + cross-mod + tail", 76, 6, CLR_MEDIUM_GREY);
     print_right(autoplay ? "M auto: on" : "M auto: off", SCREEN_W - 6, 6, autoplay ? CLR_LIME_GREEN : CLR_DARK_GREY);
+    print_right(engine_path ? "E: ENGINE" : "E: RENDER", SCREEN_W - 62, 6, engine_path ? CLR_LIGHT_YELLOW : CLR_PEACH);
 
     // pads
     for (int v = 0; v < NPAD; v++) {
@@ -332,7 +353,7 @@ void draw(void) {
         }
     }
 
-    print("A S D F G H pads  1-6 select  M auto  LEFT/RIGHT knob  UP/DOWN adjust", 6, SCREEN_H - 9, CLR_DARK_GREY);
+    print("A S D F G H pads  1-6 select  E engine/render  M auto  LEFT/RIGHT UP/DOWN", 6, SCREEN_H - 9, CLR_DARK_GREY);
     font(FONT_NORMAL);
     ui_end();
 }
@@ -350,6 +371,11 @@ void spec(void) {
     autoplay = false;
     step(1);
     for (int v = 0; v < NPAD; v++) expect(ren_n[v] > 64, str("pad %d rendered at init", v + 1));
+    expect(engine_path, "boots on the ENGINE path (INSTR_SINTER)");
+    spec_tap('E');
+    expect(!engine_path, "E flips to the RENDER reference");
+    spec_tap('E');
+    expect(engine_path, "E flips back to the engine");
 
     // the fold is symmetric (upstream's fmodf fold is not)
     {

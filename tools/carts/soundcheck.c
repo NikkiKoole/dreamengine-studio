@@ -128,6 +128,9 @@ void init(void) {
     instrument(20, INSTR_FM4, 2, 400, 3, 600);   // slot 20 = four-op FM
     instrument(19, INSTR_MME, 3, 0, 7, 220);     // slot 19 = the multi modulation engine (held)
     instrument(18, INSTR_METAL, 0, 0, 7, 30);    // slot 18 = the six-square metal bank (hat)
+    instrument(17, INSTR_SINTER, 0, 0, 7, 20);   // slot 17 = synthetic percussion (knot model)
+    instrument_harmonics(17, 0.08f);
+    instrument_mode(17, MODE_SINTER_DECAY, 0.4f);
     instrument_mode(18, MODE_METAL_DECAY, 0.3f);
     instrument_morph(18, 0.85f);                 // Bogie's upward stagger
     instrument_harmonics(19, 0.07f);             // ring model
@@ -183,6 +186,7 @@ void update(void) {
         hit(69, 21, 6, 800);  // exercise the modal bank (slot 21) — struck, so a hit not a hold
         note_on(45, 19, 5);   // exercise the MME voice's held path (slot 19)
         hit(57, 18, 6, 600);  // exercise the metal bank (slot 18) — the lifetimes end it
+        hit(36, 17, 6, 400);  // exercise the sintered voice (slot 17) — its own length ends it
         hit(57, 20, 6, 700);  // exercise four-op FM (slot 20)
     } else if (s == 21 && held >= 0) {
         label = "live: pitch/cutoff/res/duty/lfo/env/macros";

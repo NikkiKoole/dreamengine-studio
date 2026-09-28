@@ -107,7 +107,7 @@ a physical downstroke (low to high) now sweeps *up* the screen, exactly as tab i
 drawbar sines · `EPIANO` = Rhodes/Wurli/Clav · `FM` = 2-op DX bell/bass · `PD` = Casio
 CZ phase-distortion · `MEMBRANE` = struck drumhead · `REED`/`PIPE` = blown reed/flute ·
 `GUITAR`/`PIANO`/`BOWED` = bodied string / struck stiff string / bowed string · `BRASS` =
-lip-reed brass (trumpet→tuba, the slide horn) · `MME` = two oscillators through seven cross-modulation models (ring / fold / cross / VPM / sync / logic / vocoder) · `METAL` = the six-square metal bank with per-mode lifetimes (hats / cymbals / bells, a stagger-direction knob) · `MODAL` = exciter into resonator (strike /
+lip-reed brass (trumpet→tuba, the slide horn) · `MME` = two oscillators through seven cross-modulation models (ring / fold / cross / VPM / sync / logic / vocoder) · `METAL` = the six-square metal bank with per-mode lifetimes (hats / cymbals / bells, a stagger-direction knob) · `SINTER` = synthetic percussion, a noise impact into cross-modulating oscillators + a feedback tail (six models) · `MODAL` = exciter into resonator (strike /
 blow / bow a filter bank; engine-reach §7.1) · `USER0..3` = your own drawn
 single-cycle wave (`wave_set`). The raw chiptune waves (`SINE`/`SAW`/`SQUARE`/`TRI`/`NOISE`)
 are still there for everything else. Full engine catalog + what's unbuilt:
@@ -234,7 +234,7 @@ cleanest examples of "here's what this engine sounds like."
 | **modal** (`modal`) | `INSTR_MODAL` | Exciter into resonator — a bank of tuned **filters** you strike / blow / bow into (engine-reach §7.1). Live A/B of the two three-macro mappings (recommended vs Elements). Six hardware-named presets. |
 | **mme** (`mme`) | `INSTR_MME` | The multi modulation engine — two oscillators fighting through seven cross-modulation models (diode ring / fold / cross / VPM / sync / XOR logic / vocoder). E toggles the engine against the cart-land reference render it was ported from (the sample-slot prototype). |
 | **bogie** (`bogie`) | `INSTR_METAL` (+ `INSTR_MME` cowbell, `tr808.h`) | The six-square metal bank with per-mode lifetimes: hat / open hat / cymbal / cowbell on four pads, key 8 cycling the engine, the six-slot prototype it was written from, and the shipped 808, so all three answer one gesture. The stagger knob is the point. |
-| **sintered** (`sintered`) | `INSTR_SAMPLE` (cart-land render) | Six pads of wild synthetic percussion from Choochootracker's Sintered: a noise impact into two cross-modulating oscillators and a DC-blocked feedback tail, six models. Each pad renders its hit into a PCM slot on change, which is exact for a one-shot. The worked example of cart-land DSP through `sample_load` for drums. |
+| **sintered** (`sintered`) | `INSTR_SINTER` (+ its cart-land render behind E) | Six pads of wild synthetic percussion from Choochootracker's Sintered: a noise impact into two cross-modulating oscillators and a DC-blocked feedback tail, six models. E flips the pads onto the cart-land render the engine was ported from (rendered into PCM slots on change, exact for a one-shot), which is also the worked example of cart-land DSP through `sample_load` for drums. |
 | **mallet** (`mallet`) | `INSTR_MALLET` | Struck bar simulation. |
 | **organ** (`organ`) | `INSTR_ORGAN` | Nine drawbar sines per key. |
 | **epiano** (`epiano`) | `INSTR_EPIANO` | Rhodes / Wurlitzer / Clavinet in one. |

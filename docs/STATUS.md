@@ -7,13 +7,22 @@
 > **here**, then fix the prose in the relevant design doc. If a design doc and this file
 > disagree, this file wins.
 
-_Last updated: 2026-09-28 — INSTR_METAL shipped and morphdrum's hat moved onto it the same day. See the top two Shipped entries, [`design/morphdrum.md`](design/morphdrum.md) and [`design/choochootracker-borrow-list.md`](design/choochootracker-borrow-list.md)._
+_Last updated: 2026-09-28 — INSTR_SINTER shipped (synthetic percussion), the third Choochootracker engine in two days. See the top Shipped entry and [`design/choochootracker-borrow-list.md`](design/choochootracker-borrow-list.md)._
 
 > **This line is a headline, not an entry.** It reached **9,064 characters** and was the only place in the file that recorded `FILTER_DIODE`, `filter-spec.js` and `rebirth-classic.md` — three shipped things, invisible because nobody reads a shipped feature out of a `_Last updated:_` line. They have a real entry now (2026-07-02, above `sprite-draw.js`). Keep this to one date, one sentence, one link; `status-check --check` fails past 900 chars.
 
 ---
 
 ## Shipped ✓
+
+- **INSTR_SINTER: SYNTHETIC PERCUSSION** (2026-09-28). Row 5 of the Choochootracker borrow list,
+  cart-first in the `sintered` cart the same day: a 1.5..7.5 ms noise impact into two
+  cross-modulating oscillators and a DC-blocked, smoothed feedback tail, six models (knot / shard /
+  burst / comb / logic / melt). Macros: harmonics = model, timbre = MOD (the bite), morph = C (fold /
+  drive / comb feedback), live on a ringing hit; `MODE_SINTER_A/B/MOTION/DECAY` on the aux channel.
+  Its own length and envelope, noise reseeded per hit like upstream (every hit of a patch is the same
+  sound). Per-model trims put every default pad at -12.0 dBFS. The cart plays the engine and keeps
+  its cart-land render behind E as the reference. [`design/choochootracker-borrow-list.md`](design/choochootracker-borrow-list.md).
 
 - **MORPHDRUM'S HAT ON INSTR_METAL** (2026-09-28). The header's story settled the same day the
   engine landed: morphdrum is the morphing knob panel over dedicated drum engines where one exists

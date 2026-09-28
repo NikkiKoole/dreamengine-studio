@@ -130,6 +130,23 @@ from `MODE_MODAL_EXCITE`). The `h/t/m` below are the **recommended** triple.
 > `https://mipolai.com/dreamengine/modal/`. From a machine that can publish:
 > `node tools/build-site.js modal` then the `site/` push in `tools/publish-cart.sh`.
 
+## INSTR_SINTER — synthetic percussion
+
+All from **sintered.c** (showcase). Base `A0 D0 S7 R20` and a hit() longer than the voice's own
+length (`.018 + decay² × tail`; the cart uses its render length + 30 ms). `h` picks the MODEL (aim at
+the detent centre, `(model + 0.5) / 6`), `t` = MOD, `m` = C; `a / b / mo / dec` are
+`MODE_SINTER_A / B / MOTION / DECAY`. Trimmed per model to -12 dBFS at these defaults; knobs move
+the level on purpose (MOD and C drive into tanh).
+
+| name | source cart | recipe | character |
+|---|---|---|---|
+| sinter/knot kick | sintered.c (showcase) | h0.08 t0.55 m0.20 · a0.35 b0.30 mo0.85 dec0.40 · note 36 | Phase-modulated sine that snaps at the start; low fold keeps it a kick. |
+| sinter/shard snare | sintered.c | h0.25 t0.45 m0.35 · a0.62 b0.40 mo0.70 dec0.30 · note 51 | Folded two-osc sum with feedback teeth: a crunchy, pitched snare. |
+| sinter/burst hat | sintered.c | h0.42 t0.40 m0.15 · a0.85 b0.10 mo0.80 dec0.18 · note 72 | Mostly bright noise; `a` toward 0 turns it into tone. |
+| sinter/comb clank | sintered.c | h0.58 t0.50 m0.70 · a0.30 b0.30 mo0.65 dec0.35 · note 48 | A short comb line fed by both oscillators: metallic, resonant, the longest tail. |
+| sinter/logic blip | sintered.c | h0.75 t0.60 m0.25 · a0.40 b0.10 mo0.50 dec0.20 · note 66 | XOR of the quantised pair, chip-bitcrush percussion; `b` picks the op. |
+| sinter/melt tom | sintered.c | h0.92 t0.45 m0.40 · a0.45 b0.35 mo0.30 dec0.45 · note 42 | FM-warped oscillator with a slow swell: a bending, liquid tom. |
+
 ## INSTR_METAL — the six-square metal bank
 
 All from **bogie.c** (showcase). Base `A0 D0 S7 R30` and a hit() longer than the longest

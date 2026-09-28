@@ -2793,6 +2793,391 @@ static inline float sound_modal_sample(Voice *v, float pitch_mul) {
     return dc * v->mo_norm * (1.0f + 1.6f * v->mo_bow);
 }
 
+// ── INSTR_MME: the multi modulation engine (choochootracker-borrow-list.md row 1) ────
+// Two oscillators through one of seven cross-modulation MODELS, then a saturate-into-fold
+// shaper, then a feedback path that reinjects only the AC part of the output. A tracker-sized
+// take on Mutable Warps' ring / fold / XOR / vocoder algorithms after Noise Engineering's
+// Loquelic Iteritas; ported from Choochootracker's mme_voice.cpp (MIT, paiheulevrai) through
+// the `mme` cart, which keeps the REFERENCE render (cart-land, sample-slot path) and the facts
+// measured on the way: upstream's fmodf fold is asymmetric and flattened a square pair to a
+// line (this fold is the symmetric floor-modulo one), and a folder at full feedback carries
+// ~0.2 of DC (hence the output blocker). Macros: harmonics = MODEL (7 detents), timbre =
+// AMOUNT (how hard the model bites), morph = FLOW (each model's second axis). Aux, read at
+// note-on: MODE_MME_FEEDBACK / SHAPER / PAIR / INTERVAL. Osc A rides v->phase, so glide, LFO
+// and pitch bend work by construction; osc B keeps its own phase at A × 2^(±2 oct).
+#define MME_NMODEL 7
+#define MME_NPAIR  5
+enum { MME_RING, MME_FOLD, MME_CROSS, MME_VPM, MME_SYNC, MME_LOGIC, MME_VOCODE };
+static const int MME_PAIR_A[MME_NPAIR] = { 0, 1, 2, 0, 3 };   // shapes: 0 sin · 1 tri · 2 saw · 3 square
+static const int MME_PAIR_B[MME_NPAIR] = { 0, 0, 1, 2, 3 };   // pairs: sin/sin tri/sin saw/tri sin/sq sq/sq
+// per-model output trim: the models differ by ~15 dB at the same knobs (ring's tanh rails vs
+// vocode's 0.18 band sum). Measured 2026-09-27 on a held A2 at the default macros so every
+// model lands near the engine's single-voice baseline (-14 dBFS peak, level-check).
+static const float MME_TRIM[MME_NMODEL] = { 2.05f, 1.48f, 1.40f, 1.37f, 1.38f, 1.90f, 2.15f };
+
+static inline int mme_model_of(float harm) { int m = (int)(clamp01(harm) * 6.999f); return m < 0 ? 0 : m > 6 ? 6 : m; }
+static inline int mme_pair_of(float x)     { int p = (int)(clamp01(x) * 4.999f);   return p < 0 ? 0 : p > 4 ? 4 : p; }
+
+static inline float mme_osc(float phase, int shape) {
+    phase -= floorf(phase);
+    switch (shape) {
+        case 1:  return 1.0f - 4.0f * fabsf(phase - 0.5f);
+        case 2:  return 2.0f * phase - 1.0f;
+        case 3:  return phase < 0.5f ? 1.0f : -1.0f;
+        default: return de_sin_turns(phase);
+    }
+}
+// Warps' diode ring-modulator model (MIT): a dead zone, then a square law.
+static inline float mme_diode(float x) {
+    float sign = x > 0.0f ? 1.0f : -1.0f;
+    float dead = fabsf(x) - 0.667f;
+    dead += fabsf(dead);
+    return 0.043247658f * dead * dead * sign;
+}
+// Triangle wavefolder, period 4, SYMMETRIC (floor modulo — see the header note on fmodf).
+static inline float mme_fold(float x) {
+    float t = x + 1.0f;
+    t -= 4.0f * floorf(t * 0.25f);
+    return fabsf(t - 2.0f) - 1.0f;
+}
+static inline float mme_shaper(float x, float amount) {
+    if (amount <= 0.0f) return x;
+    float sat  = de_tanhf(x * (1.0f + amount * 5.0f));
+    float fold = mme_fold(sat * (1.0f + amount * 3.0f));
+    float mix  = clamp01((amount - 0.55f) / 0.45f);
+    return sat + (fold - sat) * mix;
+}
+// vocoder band table: 20 bands 90 Hz .. 3.8 kHz, shifted by flow. powf ×20, so only when flow moves.
+static void sound_mme_voc_coeffs(Voice *v, float flow) {
+    for (int i = 0; i < SOUND_MME_BANDS; i++) {
+        float t  = (float)i / (float)(SOUND_MME_BANDS - 1);
+        float u  = clamp01(t + (flow - 0.5f) * 0.26f);
+        float hz = 90.0f * de_powf(42.0f, u);
+        float a  = SOUND_TWO_PI * hz / (float)SOUND_SAMPLE_RATE;
+        v->mme_a[i] = a < 0.0001f ? 0.0001f : a > 0.45f ? 0.45f : a;
+    }
+    v->mme_voc_flow = flow;
+}
+static void sound_mme_start(Voice *v) {
+    v->mme_phB = v->mme_prevA = 0.0f;
+    v->mme_fb = v->mme_fbdc = 0.0f;
+    v->mme_hp_x = v->mme_hp_y = 0.0f;
+    for (int i = 0; i < SOUND_MME_BANDS; i++)
+        v->mme_mlo[i] = v->mme_mhi[i] = v->mme_clo[i] = v->mme_chi[i] = v->mme_env[i] = v->mme_a[i] = 0.0f;
+    v->mme_voc_flow = -1.0f;                                   // force a band-table build on first use
+    v->mme_ratio = de_powf(2.0f, (clamp01(v->eng_p[MODE_MME_INTERVAL]) - 0.5f) * 4.0f);
+    int pair = mme_pair_of(v->eng_p[MODE_MME_PAIR]);
+    v->mme_sa = MME_PAIR_A[pair];
+    v->mme_sb = MME_PAIR_B[pair];
+    v->mme_on = true;
+}
+static inline float sound_mme_sample(Voice *v, float pitch_mul) {
+    if (!v->mme_on) return 0.0f;
+    const int   model  = mme_model_of(v->harm);
+    const float amount = clamp01(v->timb), flow = clamp01(v->mor);
+    const float fc  = clamp01(v->eng_p[MODE_MME_FEEDBACK]);
+    const float fbg = fc * fc * 2.5f;                          // civil below 2/3 of the knob, ugly past it
+    const float phA = v->phase;                                // turns, advanced by the mix loop
+    if (model == MME_SYNC && phA < v->mme_prevA)               // master wrapped: amount morphs B from
+        v->mme_phB += (flow - v->mme_phB) * amount;            // free-running to a hard reset at phase = flow
+    v->mme_prevA = phA;
+    const float inj = v->mme_fb * fbg;
+    float a = de_tanhf(mme_osc(phA, v->mme_sa) + inj * (0.35f + 0.75f * flow));
+    float b = de_tanhf(mme_osc(v->mme_phB, v->mme_sb) - inj * (1.10f - 0.50f * flow));
+    float s = 0.0f;
+    switch (model) {
+        case MME_RING: {
+            float analog  = de_tanhf((mme_diode(a + b * amount * 2.0f) + mme_diode(a - b * amount * 2.0f)) * 12.0f);
+            float digital = 4.0f * a * b * amount;
+            digital /= 1.0f + fabsf(digital);
+            s = analog + (digital - analog) * flow;
+            break;
+        }
+        case MME_FOLD:
+            s = mme_fold((a + b * (0.15f + amount) + a * b * 0.25f) * (0.02f + amount * 1.4f));
+            break;
+        case MME_CROSS: {
+            float ab = mme_osc(phA + (b + v->mme_fb) * amount * 0.28f, v->mme_sa);
+            float ba = mme_osc(v->mme_phB + (a + v->mme_fb) * amount * 0.28f, v->mme_sb);
+            s = ab + (ba - ab) * flow;
+            break;
+        }
+        case MME_VPM: {
+            float ab = mme_osc(phA + (b + v->mme_fb) * amount * 0.45f, v->mme_sa);
+            float ba = mme_osc(v->mme_phB + (a + v->mme_fb) * amount * 0.45f, v->mme_sb);
+            s = ab + (ba - ab) * flow;
+            break;
+        }
+        case MME_SYNC:
+            s = mme_osc(v->mme_phB, v->mme_sb) + a * (amount * 0.18f);
+            break;
+        case MME_LOGIC: {
+            int16_t ia = (int16_t)(int)(a * 32767.0f), ib = (int16_t)(int)(b * 32767.0f);
+            float x   = (float)(int16_t)(ia ^ ib) / 32768.0f;
+            float cmp = fabsf(a) > fabsf(b) ? a : b;
+            s = (a + b) * (1.0f - amount) * 0.5f + (x + (cmp - x) * flow) * amount;
+            break;
+        }
+        case MME_VOCODE: {
+            // 20-band envelope vocoder after Warps' filter bank: each band is the difference of
+            // two cascaded one-poles, the modulator (B) band's envelope gates the carrier (A) band.
+            if (fabsf(flow - v->mme_voc_flow) > 0.004f) sound_mme_voc_coeffs(v, flow);
+            const float mod = b * amount, car = a;
+            const float release = 0.003f + (1.0f - amount) * 0.08f;
+            float out = 0.0f;
+            for (int i = 0; i < SOUND_MME_BANDS; i++) {
+                float ba = v->mme_a[i];
+                v->mme_mlo[i] += ba * (mod - v->mme_mlo[i]);
+                v->mme_mhi[i] += ba * (v->mme_mlo[i] - v->mme_mhi[i]);
+                v->mme_clo[i] += ba * (car - v->mme_clo[i]);
+                v->mme_chi[i] += ba * (v->mme_clo[i] - v->mme_chi[i]);
+                float env  = fabsf(v->mme_mlo[i] - v->mme_mhi[i]);
+                float rate = env > v->mme_env[i] ? 0.18f : release;
+                v->mme_env[i] += rate * (env - v->mme_env[i]);
+                float g = v->mme_env[i] * 6.0f;
+                out += (v->mme_clo[i] - v->mme_chi[i]) * (g > 2.0f ? 2.0f : g);
+            }
+            s = out * 0.18f;
+            break;
+        }
+        default: break;
+    }
+    s = de_tanhf(s + inj * 1.2f);
+    s = mme_shaper(s, clamp01(v->eng_p[MODE_MME_SHAPER]));
+    // feedback: keep the turbulence, reinject only the AC part (a recursive DC offset turns a
+    // wild patch into silence or a flat line)
+    float raw = de_tanhf(v->mme_fb * (0.10f + fbg) + s * (0.45f + fc * 1.9f));
+    v->mme_fbdc += 0.025f * (raw - v->mme_fbdc);
+    v->mme_fb = (raw - v->mme_fbdc) * (0.72f + fc * 0.22f);
+    // output DC blocker, 10 Hz (1 - 2π·10/44100)
+    v->mme_hp_y = s - v->mme_hp_x + 0.99857f * v->mme_hp_y;
+    v->mme_hp_x = s;
+    // osc B advances here; A is the mix loop's
+    v->mme_phB += v->freq * pitch_mul * v->mme_ratio / (float)SOUND_SAMPLE_RATE;
+    v->mme_phB -= floorf(v->mme_phB);
+    return v->mme_hp_y * MME_TRIM[model];
+}
+
+// ── INSTR_METAL: the six-square metal bank with per-mode LIFETIMES (borrow-list rows 2+3) ──
+// An 808 hat is six square oscillators at inharmonic ratios; tr808.h fires them on one slot
+// with one decay, so its ring-out is a square-wave CHORD fading (measured: brightness flat in
+// every window of the decay). Choochootracker's Bogie gives every mode its OWN lifetime, so
+// the spectrum MOVES while it decays, the spectral migration a real cymbal does. This engine
+// is that bank as ONE voice per hit (the `bogie` cart's six-slot prototype cost seven voices
+// a hit and could only ramp linearly): six naive squares, each with its own exponential
+// envelope, plus Bogie's bright noise (white minus a one-pole), through a DC blocker.
+// Macros: harmonics = TONE (hat ratios → cymbal ratios, and the noise colour with it),
+// timbre = NOISE mix (0 = pure bank, 1 = pure bright noise), morph = STAGGER DIRECTION,
+// bipolar: 0 = the LOWS live longest (the 808 cymbal's band decays, tail darkens), 0.5 = one
+// lifetime for all (the chord), 1 = the HIGHS live longest (Bogie, tail brightens). Aux at
+// note-on: MODE_METAL_DECAY (the base lifetime, 20 ms .. 2 s) and MODE_METAL_SPREAD (the
+// ratio spread, Bogie's FM). Pitch: mode o sits at f0 × ratio_o, so a hat wants A2..A4 and
+// the slot's own ENV_PITCH gives it the onset sweep. Attribution: Bogie (paiheulevrai, MIT).
+#define METAL_NMODE SOUND_METAL_MODES
+static const float METAL_HAT_R[METAL_NMODE] = { 1.18f, 1.56f, 2.17f, 2.87f, 3.73f, 4.61f };
+static const float METAL_CYM_R[METAL_NMODE] = { 1.31f, 1.79f, 2.41f, 3.16f, 4.07f, 5.23f };
+// output trim, measured 2026-09-28 in the bogie cart against tr808.h at the same vol: a hat hit
+// is a short transient, so it is trimmed to the 808 hat's PEAK (-8.3 dBFS for the open hat at
+// vol 6), which sits above the sustained-tone baseline level-check uses (-14); a drum's peak
+// is not a tone's. Cart-side instrument_level() only cuts, so the engine carries the hot end
+#define METAL_TRIM 2.4f
+
+// per-mode decay coefficients from the base lifetime (aux, note-on) and the stagger (morph, live):
+// mode o's lifetime = tau × 2^(((o/5) − 0.5) × dir × 3), so at full stagger the two end modes
+// differ by 8× (Bogie's hat: 25 vs 125 ms, 5×; its cymbal 100 vs 475 ms, ~5×)
+static void sound_metal_coeffs(Voice *v) {
+    const float sr  = (float)SOUND_SAMPLE_RATE;
+    float tau = 0.02f * de_powf(100.0f, clamp01(v->eng_p[MODE_METAL_DECAY]));   // 20 ms .. 2 s
+    float dir = (clamp01(v->mor) - 0.5f) * 2.0f;
+    for (int o = 0; o < METAL_NMODE; o++) {
+        float k = ((float)o / (float)(METAL_NMODE - 1) - 0.5f) * dir * 3.0f;
+        float t = tau * de_exp2f(k);
+        v->metal_c[o] = de_expf(-1.0f / (t * sr));
+    }
+    v->metal_nc = de_expf(-1.0f / (tau * sr));
+    v->metal_mor_cache = v->mor;
+}
+static void sound_metal_start(Voice *v) {
+    // the 808's oscillators free-run, so a hit catches them at unrelated phases; six squares all
+    // starting at 0 sum to a +1 spike (measured: a 28 dB crest, the peak was the click). Spread
+    // them on the golden ratio: deterministic, and no two modes share an edge
+    for (int o = 0; o < METAL_NMODE; o++) { v->metal_ph[o] = (float)o * 0.6180340f - floorf((float)o * 0.6180340f); v->metal_env[o] = 1.0f; }
+    v->metal_nenv = 1.0f;
+    v->metal_nlp = 0.0f;
+    v->metal_hp_x = v->metal_hp_y = 0.0f;
+    v->metal_spread = clamp01(v->eng_p[MODE_METAL_SPREAD]);
+    sound_metal_coeffs(v);
+    v->metal_on = true;
+}
+static inline float sound_metal_sample(Voice *v, float pitch_mul) {
+    if (!v->metal_on) return 0.0f;
+    const float sr  = (float)SOUND_SAMPLE_RATE, nyq = 0.45f * (float)SOUND_SAMPLE_RATE;
+    if (fabsf(v->mor - v->metal_mor_cache) > 0.004f) sound_metal_coeffs(v);
+    const float tone = clamp01(v->harm), nmix = clamp01(v->timb);
+    const float f0 = v->freq * pitch_mul;
+    float metal = 0.0f;
+    for (int o = 0; o < METAL_NMODE; o++) {
+        float r = METAL_HAT_R[o] + (METAL_CYM_R[o] - METAL_HAT_R[o]) * tone
+                + v->metal_spread * (float)(o + 1) * 0.20f;
+        float f = f0 * r;
+        if (f < nyq) {
+            v->metal_ph[o] += f / sr;
+            if (v->metal_ph[o] >= 1.0f) v->metal_ph[o] -= 1.0f;
+            metal += (v->metal_ph[o] < 0.5f ? 1.0f : -1.0f) * v->metal_env[o];
+        }
+        v->metal_env[o] *= v->metal_c[o];
+    }
+    metal *= 1.0f / (float)METAL_NMODE;
+    // Bogie's bright noise: white minus its one-pole (coefficient .015 + tone·.25), on the global lifetime
+    float n = voice_white(v);
+    v->metal_nlp += (0.015f + tone * 0.25f) * (n - v->metal_nlp);
+    float bright = (n - v->metal_nlp) * v->metal_nenv;
+    v->metal_nenv *= v->metal_nc;
+    float s = metal * (1.0f - nmix) + bright * nmix * 1.25f;
+    // output DC blocker, 10 Hz (six free-running squares plus asymmetric noise carry an offset)
+    v->metal_hp_y = s - v->metal_hp_x + 0.99857f * v->metal_hp_y;
+    v->metal_hp_x = s;
+    return v->metal_hp_y * METAL_TRIM;
+}
+
+// ── INSTR_SINTER: synthetic percussion, "MME for drums" (borrow-list row 5) ──────
+// Choochootracker's Sintered voice (synth/sintered_voice.cpp, MIT, paiheulevrai), ported
+// through the `sintered` cart (which keeps its cart-land render as the E-toggled reference).
+// A 1.5..7.5 ms noise IMPACT excites two oscillators: x at the note, y at 2^((a-.5)*5) of it,
+// y frequency-modulated by the feedback. One of six MODELS mangles them (knot = PM + a third
+// osc into a fold · shard = folded sum + feedback teeth · burst = coloured noise vs tone ·
+// comb = a 64-sample comb · logic = bitwise ops on the quantised pair · melt = FM-warped osc),
+// and the output feeds back through tanh, a DC estimate and a one-pole smoother, so the tail
+// keeps moving instead of just decaying. A MOTION envelope pushes two or three params for the
+// first few ms (left = a swell, right = a snap, centre = still). The voice has its OWN length
+// (.018 + decay² × the model's tail, 0.42..1.10 s) and its own exp(-5.5 t/dur) envelope, so
+// give it a hit() longer than that. Upstream reseeds its noise per note-on and so does this:
+// every hit of a patch is the same sound. Macros: harmonics = MODEL (6 detents), timbre = MOD
+// (drive / depth, the bite), morph = C (each model's fold / drive / comb feedback). Aux at
+// note-on: MODE_SINTER_A / _B / _MOTION / _DECAY. Changes from upstream, both measured-first:
+// the fold is the symmetric floor-modulo one (upstream's fmodf fold goes wrong below -1), and
+// a 10 Hz output DC blocker + 5 ms end fade replace the hard stop at -48 dB.
+#define SINTER_NMODEL 6
+enum { SN_KNOT, SN_SHARD, SN_BURST, SN_COMB, SN_LOGIC, SN_MELT };
+static const float SN_TAIL[SINTER_NMODEL]       = { 0.85f, 0.70f, 0.48f, 1.10f, 0.42f, 0.80f };
+static const float SN_IMPACT_MIX[SINTER_NMODEL] = { 0.22f, 0.18f, 0.72f, 0.38f, 0.24f, 0.16f };
+// per-model output trim: measured 2026-09-28 on single hits at the cart's default knobs so a
+// vol-6 hit peaks near -12 dBFS (between the 808's hat and cymbal) — a drum's peak, not a tone's
+static const float SN_TRIM[SINTER_NMODEL]       = { 2.28f, 2.25f, 2.16f, 3.06f, 2.32f, 2.17f };   // from -19.2/-19.1/-18.7/-21.7/-19.3/-18.7
+
+static inline int   sn_model_of(float harm) { int m = (int)(clamp01(harm) * 5.999f); return m < 0 ? 0 : m > 5 ? 5 : m; }
+static inline float sn_fold(float x) { float t = x + 1.0f; t -= 4.0f * floorf(t * 0.25f); return fabsf(t - 2.0f) - 1.0f; }
+static inline float sn_osc(Voice *v, float f, int slot) {
+    v->sn_ph[slot] += f / (float)SOUND_SAMPLE_RATE;
+    v->sn_ph[slot] -= floorf(v->sn_ph[slot]);
+    return de_sin_turns(v->sn_ph[slot]);
+}
+static inline float sn_rand(Voice *v) {
+    v->sn_rnd = v->sn_rnd * 1664525u + 1013904223u;
+    return ((float)(v->sn_rnd >> 8) * (1.0f / 8388608.0f)) - 1.0f;
+}
+static void sound_sinter_start(Voice *v) {
+    v->sn_ph[0] = v->sn_ph[1] = v->sn_ph[2] = 0.0f;
+    v->sn_rnd = 0x53494e54u;                                    // upstream's seed, every hit
+    v->sn_fb = v->sn_dc = v->sn_nlow = 0.0f;
+    for (int i = 0; i < 64; i++) v->sn_comb[i] = 0.0f;
+    v->sn_ci = 0; v->sn_i = 0;
+    v->sn_hp_x = v->sn_hp_y = 0.0f;
+    v->sn_a = clamp01(v->eng_p[MODE_SINTER_A]);
+    v->sn_b = clamp01(v->eng_p[MODE_SINTER_B]);
+    v->sn_motion = (clamp01(v->eng_p[MODE_SINTER_MOTION]) - 0.5f) * 2.0f;
+    v->sn_mtime = 0.008f + (1.0f - fabsf(v->sn_motion)) * 0.35f;
+    v->sn_model = sn_model_of(v->harm);
+    float d = clamp01(v->eng_p[MODE_SINTER_DECAY]);
+    v->sn_dur = 0.018f + d * d * SN_TAIL[v->sn_model];
+    v->sn_n = (int)(v->sn_dur * (float)SOUND_SAMPLE_RATE);
+    v->sn_on = true;
+}
+static inline float sound_sinter_sample(Voice *v, float pitch_mul) {
+    if (!v->sn_on || v->sn_i >= v->sn_n) return 0.0f;
+    const float sr = (float)SOUND_SAMPLE_RATE;
+    const int   model = sn_model_of(v->harm);
+    const float hz = v->freq * pitch_mul;
+    const float age = (float)v->sn_i / sr;
+    const float baseMod = clamp01(v->timb);
+    float movement = 0.0f;
+    if (fabsf(v->sn_motion) > 0.004f) {
+        float x = age / v->sn_mtime;
+        movement = v->sn_motion < 0.0f ? (x < 1.0f ? de_sin_turns(0.5f * x) : 0.0f) : de_expf(-6.0f * x);
+    }
+    float mod = baseMod, a = v->sn_a, b = v->sn_b, c = clamp01(v->mor);
+    switch (model) {
+        case SN_KNOT:  mod = clamp01(mod + movement * 0.65f); c = clamp01(c + movement * 0.55f); break;
+        case SN_SHARD: b = clamp01(b + movement * 0.65f); c = clamp01(c + movement * 0.55f); break;
+        case SN_BURST: a = clamp01(a + movement * 0.70f); b = clamp01(b + movement * 0.55f); c = clamp01(c + movement * 0.35f); break;
+        case SN_COMB:  b = clamp01(b + movement * 0.45f); c = clamp01(c + movement * 0.55f); break;
+        case SN_LOGIC: a = clamp01(a + movement * 0.60f); c = clamp01(c + movement * 0.70f); break;
+        case SN_MELT:  b = clamp01(b + movement * 0.70f); c = clamp01(c + movement * 0.60f); break;
+        default: break;
+    }
+    float nz = sn_rand(v);
+    v->sn_nlow += (nz - v->sn_nlow) * (0.01f + b * 0.25f);
+    float bright = nz - v->sn_nlow, s = 0.0f;
+    float f2 = hz * de_powf(2.0f, (a - 0.5f) * 5.0f);
+    float x = sn_osc(v, hz, 0), y = sn_osc(v, f2 + v->sn_fb * hz * mod * 1.5f, 1);
+    switch (model) {
+        case SN_KNOT: {
+            float z = sn_osc(v, hz * de_powf(2.0f, (b - 0.5f) * 7.0f), 2);
+            s = de_sin_turns(v->sn_ph[0] + y * mod * 0.32f + z * mod * 0.18f);
+            s = s * (1.0f - c) + sn_fold(s * (1.0f + c * 14.0f)) * c;
+            break;
+        }
+        case SN_SHARD: {
+            float teeth = sn_fold((x + y * (1.0f + mod * 6.0f) + v->sn_fb * b * 4.0f) * (1.0f + c * 12.0f));
+            s = de_tanhf(teeth * (1.0f + c * 5.0f));
+            break;
+        }
+        case SN_BURST: {
+            float color = bright * (1.0f - b) + v->sn_nlow * b;
+            s = color * (a * (1.2f + mod * 0.8f)) + y * (1.0f - a) + v->sn_fb * mod * 1.5f;
+            s = sn_fold(s * (1.0f + c * 8.0f));
+            break;
+        }
+        case SN_COMB: {
+            int delay = 1 + (int)(a * 62.0f);
+            float tap = v->sn_comb[(v->sn_ci + 64 - delay) & 63];   // not `delayed`: sound_ctx.h macros that name
+            float excite = x + y * mod * 0.75f + bright * mod * 0.25f;
+            v->sn_comb[v->sn_ci] = de_tanhf((excite + tap * c * 1.35f) * (0.4f + mod * 1.6f));
+            v->sn_ci = (v->sn_ci + 1) & 63;
+            s = tap * (1.0f - b * 0.92f) + excite * 0.18f;
+            break;
+        }
+        case SN_LOGIC: {
+            int q = 2 + (int)(a * 126.0f), pattern = (int)(b * 3.99f);
+            int ia = (int)((x + 1.0f) * (float)q), ib = (int)((y + 1.0f) * (float)q);
+            int lg = pattern == 0 ? (ia ^ ib) : pattern == 1 ? (ia & ib) : pattern == 2 ? (ia | ib) : (ia > ib ? ia : ib);
+            s = ((float)(lg % (q * 2)) / (float)q - 1.0f) * mod + x * (1.0f - mod);
+            s = sn_fold(s * (1.0f + c * 15.0f));
+            break;
+        }
+        case SN_MELT: {
+            float warped = sn_osc(v, hz * (1.0f + y * mod * (3.0f + b * 24.0f) + v->sn_fb * b * 6.0f), 2);
+            s = de_tanhf(warped * (1.0f + c * 13.0f) + bright * mod * b);
+            break;
+        }
+        default: break;
+    }
+    float impact = bright * de_expf(-age / (0.0015f + 0.006f * (1.0f - b)));
+    s += impact * SN_IMPACT_MIX[model] * (0.25f + 0.75f * mod);
+    float raw = de_tanhf(s + v->sn_fb * (0.2f + mod * 1.4f));
+    v->sn_dc += 0.02f * (raw - v->sn_dc);
+    float target = (raw - v->sn_dc) * (0.12f + baseMod * 0.82f);
+    v->sn_fb += (target - v->sn_fb) * (0.025f + 0.10f * (1.0f - c));
+    float amp = de_expf(-5.5f * age / v->sn_dur);
+    float out = de_tanhf(de_tanhf(s) * amp);
+    v->sn_hp_y = out - v->sn_hp_x + 0.99857f * v->sn_hp_y;     // 10 Hz DC blocker
+    v->sn_hp_x = out;
+    const int fade = SOUND_SAMPLE_RATE / 200;                   // 5 ms end fade
+    float e = v->sn_i > v->sn_n - fade ? (float)(v->sn_n - v->sn_i) / (float)fade : 1.0f;
+    v->sn_i++;
+    return v->sn_hp_y * e * SN_TRIM[model];
+}
+
 // One FM sample (2-op + feedback — §8.8.3 in audio-notes). The carrier is v->phase, which
 // the mix loop already advances by freq*pitch_mul — so the whole pitch machinery works by
 // construction; only the modulator phase lives here. The second oscillator is INAUDIBLE
@@ -2934,6 +3319,7 @@ static void fm4_pick(const Voice *v, int *alg, float *ratio, float *level) {
 }
 
 static void sound_fm4_start(Voice *v) {
+    v->fm4_dc_x = v->fm4_dc_y = 0.0f;
     for (int i = 0; i < 4; i++) v->fm4_ph[i] = 0.0f;
     v->fm4_fb = v->fm4_fb_z = v->fm4_lp = 0.0f;
     v->fm4_on = true;
@@ -2995,7 +3381,11 @@ static inline float sound_fm4_sample(Voice *v, float pitch_mul) {
 
     // hardware 16 kHz admission that FM aliases. one-pole, ~0.90 at 44.1 kHz
     v->fm4_lp += 0.90f * (mix - v->fm4_lp);
-    return v->fm4_lp;
+    // output DC blocker, 10 Hz (1 - 2π·10/44100): dc-check found -31 dBFS of DC at A5 once its
+    // sweep reached this engine (2026-09-28); the same blocker MODAL / MME / EPIANO carry
+    v->fm4_dc_y = v->fm4_lp - v->fm4_dc_x + 0.99857f * v->fm4_dc_y;
+    v->fm4_dc_x = v->fm4_lp;
+    return v->fm4_dc_y;
 }
 
 // One PD (Casio CZ phase-distortion) sample — buffer-free, NO note-on init (phase rides
@@ -5109,6 +5499,9 @@ static inline float sound_engine_sample(Voice *v, float pitch_mul) {
         case INSTR_SAMPLE:   return sound_sample_sample(v, pitch_mul);
         case INSTR_MODAL:    return sound_modal_sample(v, pitch_mul);
         case INSTR_FM4:      return sound_fm4_sample(v, pitch_mul);
+        case INSTR_MME:      return sound_mme_sample(v, pitch_mul);
+        case INSTR_METAL:    return sound_metal_sample(v, pitch_mul);
+        case INSTR_SINTER:   return sound_sinter_sample(v, pitch_mul);
     }
     // fall-through: the modal Karplus-Strong string — any engine id not handled above.
     int alloc = v->ks_len;
@@ -5732,6 +6125,9 @@ static void sound_setup_note(Voice *v, int midi, int slot, int vol, int gate_sam
     v->br_on  = false;
     v->smp_on = false;
     v->mo_on  = false;
+    v->mme_on = false;
+    v->metal_on = false;
+    v->sn_on = false;
     v->fm_mph = v->fm_fb = v->fm_tph = 0.0f;   // FM needs no excitation, just deterministic phases
     if      (v->wave == INSTR_PLUCK)  sound_pluck_start(v);    // excite the string
     else if (v->wave == INSTR_MALLET) sound_mallet_start(v);   // strike the bar
@@ -5755,6 +6151,9 @@ static void sound_setup_note(Voice *v, int midi, int slot, int vol, int gate_sam
         v->smp_on = true;
     }
     else if (v->wave == INSTR_MODAL)  sound_modal_start(v);    // arm the filter bank + strike envelope
+    else if (v->wave == INSTR_MME)    sound_mme_start(v);      // zero osc B + the feedback / vocoder states, snapshot pair + interval
+    else if (v->wave == INSTR_METAL)  sound_metal_start(v);    // arm the six lifetimes + the noise envelope
+    else if (v->wave == INSTR_SINTER) sound_sinter_start(v);   // reseed the noise, size the hit, snapshot a/b/motion/decay
     else if (v->wave == INSTR_FM4)    sound_fm4_start(v);      // reset 4 phases + feedback average
     // TRIGGER POLICY (§L4). The engine hooks above have just ARMED this voice's onset transient; if the
     // slot declares itself single-triggering and another key on it is already down, take it back off.

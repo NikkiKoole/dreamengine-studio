@@ -1001,6 +1001,22 @@
     "genre": "word"
   },
   {
+    "title": "bogie",
+    "description": "A hat, an open hat, a cymbal and a cowbell from the six-square metal bank with staggered lifetimes (INSTR_METAL), next to the slot-bank prototype and the 808 versions. Four pads, three kits. ENGINE: each hat and the cymbal is one INSTR_METAL voice, six square oscillators at inharmonic ratios each dying at its own rate, so the spectrum moves as the sound decays the way a real cymbal's does; the STAGGER knob is the direction (lows live longest like the 808 cymbal, one lifetime = the chord, highs live longest like Bogie). BANKS: the prototype it was written from, six INSTR_SQUARE slots per bank with per-slot linear decays. 808: the shipped tr808.h hat, open hat, cymbal and cowbell. The cowbell is two squares a sixth apart with a third oscillator cross-modulating them (FM knob): classic at zero, metallic when turned up, the MME engine's cross model. Key 8 cycles the kits on the same pads so all three can be judged by ear on one gesture. Each pad has its own knob set (tone / sweep / noise / fm / decay / hpf / stagger). A S D F: closed hat, open hat, cymbal, cowbell (or tap the pads) · 1-4: select the pad the knobs edit · drag the knobs (wheel = fine) · LEFT/RIGHT knob, UP/DOWN adjust · 8: ENGINE / BANKS / 808 · M: autoplay pattern",
+    "file": "bogie.cart.png",
+    "created": "2026-09-28",
+    "kind": [
+      "instrument",
+      "tech-demo"
+    ],
+    "teaches": [
+      "drum-synthesis",
+      "additive-synth"
+    ],
+    "lineage": "INSTR_METAL showcase, and the cart it was prototyped in first. Rows 2 and 3 of docs/design/choochootracker-borrow-list.md: Choochootracker's Bogie drum synth (chipnomad_lib/synth/drum_synth_voice.cpp, MIT) hat + cymbal METAL BANK, six square oscillators at inharmonic ratios each with a DIFFERENT lifetime, so the bank never settles into a pitched square-wave chord as it rings out (our tr808.h hat fires two bank members on ONE slot with ONE decay, which is exactly the chord). Plus its cowbell cross-modulation, which is an INSTR_MME patch (a square pair through the cross model). Three kits on one set of pads, key 8 cycles them: ENGINE (one INSTR_METAL voice per hit, exponential lifetimes, the STAGGER knob = morph), BANKS (the six-INSTR_SQUARE-slots prototype the engine was written from) and 808 (the shipped tr808.h hat / cymbal / cowbell). The cowbell is the same MME slot on the first two kits.",
+    "homage": "Choochootracker's Bogie (2026) after the TR-808's six-oscillator metal bank; the cowbell after the 808's two-square circuit with a third oscillator cross-modulating it."
+  },
+  {
     "title": "boids",
     "description": "A flock with no leader, from three little rules. Each boid watches only nearby neighbours and obeys: separation (steer away from anyone too close), alignment (match the flock heading), cohesion (drift toward the flock centre). Nobody is in charge yet the swarm moves like one organism — emergence. Steer the predator with the arrows and watch the flock part and regroup around it.",
     "file": "boids.cart.png",
@@ -4574,6 +4590,22 @@
     "lineage": "docs/design/teaching-gaps.md Gap type 3 flagged 8 instrument_* per-slot effect variants as zero-cart -- undersold, not under-taught. groovebox.c owns the SUMMED-BUS family (many voices, one shared rack) and pedalboard.c/combo.c own the SERIAL-chain family (one guitar, many pedals); this is the third sibling -- the PER-INSTRUMENT family, where each voice gets its OWN private effect and the rest of the mix stays untouched. Also retrofits ampcab.h (previously only combo/pedalboard/afrobeat/wba) onto a sixth track, and clears strum_notes (an explicit voicing, not a CHORD_* type) on the guitar's re-strum."
   },
   {
+    "title": "mme",
+    "description": "Two oscillators fighting through seven cross-modulation models: diode ring, fold, cross, VPM, sync, XOR logic, vocoder. Aggressive by design. INSTR_MME showcase. The MME (Multi Modulation Engine) voice, played from a keybed. Two oscillators (five wave pairs, B tuned up to two octaves off A) run through one of seven models, then a saturate-into-fold shaper, then a feedback path that reinjects only the AC part of the output (a DC-blocked feedback state), so the wild settings stay turbulent instead of collapsing to silence or a flat line. Model, amount and flow are the engine's three macros and ride a held note live; feedback, shaper, wave pair and interval are its aux params. E flips the same knobs onto the cart-land REFERENCE render (the prototype's sample-slot path) so engine and reference can be A/B'd by ear. Autoplay walks a bass line while stepping the models so the panel is never silent. A-K / W-P / click / touch / MIDI: keybed (Z/X octave) · 1-7 or LEFT/RIGHT: model · UP/DOWN: wave pair · drag the knobs (amount / flow / feedback / shaper / interval), wheel = fine · E: ENGINE / SAMPLE reference · M: autoplay",
+    "file": "mme.cart.png",
+    "created": "2026-09-27",
+    "kind": [
+      "instrument",
+      "tech-demo"
+    ],
+    "teaches": [
+      "wavefolder",
+      "vocoder"
+    ],
+    "lineage": "INSTR_MME showcase, and the cart it was prototyped in first: row 1 of docs/design/choochootracker-borrow-list.md, Choochootracker's MME voice (chipnomad_lib/synth/mme_voice.cpp, MIT, itself a tracker-sized take on Mutable Warps' ring/fold/XOR/vocoder algorithms after Noise Engineering's Loquelic Iteritas). The cart-first trick stays in as a tappable A/B: the engine has no per-sample hook for cart code, so the prototype RENDERED each note in cart-land C into a PCM slot (sample_load + instrument_sample at root = the pressed note). That render is now the REFERENCE the engine is judged against (E toggles ENGINE / SAMPLE on the same knobs), the way modal keeps both macro mappings live.",
+    "homage": "Noise Engineering Loquelic Iteritas (the two-osc cross-modulation voice) by way of Mutable Instruments Warps (the diode ring mod + the filter-bank vocoder)."
+  },
+  {
     "title": "modal",
     "description": "Exciter into resonator — strike, blow, or bow a bank of tuned filters. INSTR_MODAL showcase: a filter bank you put energy into, so one engine covers struck bars, breath/chiff, and additive-ish pads. Eight pentatonic bars plus the three engine macros. Two mappings stay live — tap A/B (or B) to reinterpret the SAME three knobs (recommended: geometry / material / exciter vs Elements: geometry / brightness / damping). That fork is meant to be opposite personalities, not a subtle EQ. 0 loads the hearable-fork gesture (bowed ring vs short strike). Named presets (marimba, glass bowl, steel drum, tube, bowed glass, breath) still voice themselves when you re-pick them. Autoplay walks a scale while sweeping the macros. Tap or sweep the bars (multitouch) · A S D F G H J K strike · 1..6 presets · 0 hearable A/B fork · tap A/B (or B) to swap mapping (same knobs) · drag the sliders · M autoplay (scale + macros) · SPACE gliss",
     "file": "modal.cart.png",
@@ -6739,6 +6771,22 @@
     "homage": "The Casio SK-1 (1985) — the toy sampling keyboard a generation played their own 'aaah' on, pitched across the keys."
   },
   {
+    "title": "sintered",
+    "description": "Six pads of wild synthetic percussion: a noise impact into two cross-modulating oscillators and a feedback tail, six models from knotted FM to comb-filtered clank. Every pad is its own patch: a model (knot / shard / burst / comb / logic / melt), a pitch, and six knobs. MOD sets how hard the two oscillators drive each other and the tail; A, B and C mean something different per model (the hint line under the knobs says what); MOTION shapes a short burst of movement at the start of the hit (left = a swell, right = a snap, centre = still); DECAY sets the length. Each pad renders its hit once when you change it and plays that buffer, so the knobs are exact and a pattern costs one voice per hit. Autoplay runs a pattern across all six pads. The pads play INSTR_SINTER by default; E flips them onto the cart-land render the engine was written from, so the two can be A/B'd on the same knobs. A S D F G H: the six pads (or tap them) · 1-6: select the pad the knobs edit · click a model button to change the selected pad's model · drag the knobs (wheel = fine) · LEFT/RIGHT knob, UP/DOWN adjust · E: ENGINE / RENDER reference · M: autoplay",
+    "file": "sintered.cart.png",
+    "created": "2026-09-28",
+    "kind": [
+      "instrument",
+      "tech-demo"
+    ],
+    "teaches": [
+      "drum-synthesis",
+      "wavefolder"
+    ],
+    "lineage": "INSTR_SINTER showcase, and the cart it was prototyped in first. Row 5 of docs/design/choochootracker-borrow-list.md: Choochootracker's Sintered voice (chipnomad_lib/synth/sintered_voice.cpp, MIT, paiheulevrai), 'MME for drums': a very short noise IMPACT excites two cross-modulating oscillators, and a smoothed, DC-blocked feedback tail keeps ringing. Six models (knot, shard, burst, comb, logic, melt). Each pad renders its hit in cart-land C once, when a knob changes, into a PCM slot the sample engine plays at root pitch. For a one-shot drum that is exact rather than a prototype's shortcut: Sintered resets its noise seed on every hit, so every hit of a patch is the same sound anyway. That render is kept as the REFERENCE behind E; the default path plays the engine, whose three macros (model / mod / c) ride a ringing hit live.",
+    "homage": "Choochootracker's Sintered (2026), the MME idea aimed at percussion, after Noise Engineering's wild-percussion modules."
+  },
+  {
     "title": "skewlab",
     "description": "SKEWLAB - clean 1px road edges at any SKEW or CURVE; a petri dish for streetlab's skewed-junction kerb issues (missing outline, stray black pixels at the crossing, doubled edges) and the fix. Models a road as a UNION of capsule segments - two long crossing arms (skew) or many short chords along a fake-Perlin sine centreline (curve). Two draw methods: PER-PIECE casing (what streetlab does - each segment lays a 1px-proud kerb then asphalt, so at any overlap one piece's casing strands inside another's asphalt, giving interior strays + missing edges, worse with skew and far worse on a curve where every joint overlaps); and UNION 1px outline (the fix - fill the whole union once, then one coverage border = an asphalt pixel with a grass 4-neighbour, the same rule circ/poly already use). The union outline is generator-agnostic: it traces the boundary of whatever is filled, so straight, skew and curved/Perlin roads all render as one clean 1px kerb. Readouts: interior strays (0 for the union method) and sampled edge thickness (1px). Controls: Z method, C skew/curve, left/right angle or amplitude, up/down width, R reset.",
     "file": "skewlab.cart.png",
@@ -6769,6 +6817,22 @@
     "lineage": "Raiden/1943/Tyrian-style vertical shmup; tilemap scroll with two stacked map() draws for seamless looping, scripted wave timeline, and pal()-recolored enemy squadron variants are the main structural novelties over a generic entity-pool shooter.",
     "genre": "shooter",
     "homage": "Raiden (1990)"
+  },
+  {
+    "title": "slipstep",
+    "description": "Five loops, each with its own length and its own speed, drifting apart and coming back together. A readout counts the bars until they all line up again. Every track is a short step loop with two chips: LEN (3..16 steps) and SPEED (1/2, 2/3, 3/4, 1, 5/4, 4/3, 3/2, 2). A track at 3/2 plays three steps in the time the others play two; a 7-step loop against 16-step ones lands its downbeat somewhere new every bar. Step times come from the audio beat clock and each track's exact ratio, queued a few ms ahead, so an odd ratio stays sample-accurate instead of snapping to frames. The footer says how many bars until every track is back on its own first step at the same moment (the least common multiple of the track periods), which is the thing a polymeter is always walking toward. Tap cells to edit, tap a name to mute. SPACE: play / stop · R: resync (all tracks back to step 1 on the next 16th) · 1-5: select a track · LEFT/RIGHT: its speed · UP/DOWN: its length · M: mute it · tap a cell to toggle a step, tap the LEN / SPEED chips to step them, tap a name to mute",
+    "file": "slipstep.cart.png",
+    "created": "2026-09-28",
+    "kind": [
+      "instrument",
+      "tech-demo"
+    ],
+    "teaches": [
+      "polymeter",
+      "step-sequencer"
+    ],
+    "lineage": "Row 7 of docs/design/choochootracker-borrow-list.md: Choochootracker's per-track playback speed (after Nerdseq and Elektron), the one sequencer idea from that repo our racks did not already have (acidcandy + morphbox carry probability, p-locks and trig conditions). Five loops, each with its own LENGTH (polymeter) and its own SPEED RATIO (polyrhythm), so the patterns drift apart and meet again. Voiced on the three engines the same borrow list produced: INSTR_SINTER kick + snare, INSTR_METAL hat, INSTR_MME bass, plus an INSTR_PLUCK lead.",
+    "homage": "Nerdseq and the Elektron boxes' per-track scale, by way of Choochootracker (2026); Steve Reich's phase pieces for the listening."
   },
   {
     "title": "sloop",
@@ -7006,6 +7070,22 @@
       "positional-audio"
     ],
     "lineage": "Tech demo for the engine's spatial-audio API (v1 per-voice + v2 emitter buses); novel in demonstrating full-bus Doppler through a shimmer reverb tail alongside per-voice positioning and listener velocity."
+  },
+  {
+    "title": "specimens",
+    "description": "A cabinet of twenty-four synthesis techniques the rest of the console does not have, from oscillators falling into sync and a cellular automaton to a talking-chip lattice, a DX7 and a modem, each drawn live by the same process that makes its sound. Pick a specimen, play the keyboard. FLOCK: seven detuned oscillators pull on each other; turn COUPLING up and watch the dots clump as they fall into sync, the arrow in the middle is how synchronised they are. RULES: an elementary cellular automaton evolves once per cycle and its row IS the waveform; the picture is its spacetime diagram. SCANNED: a ring of 32 masses on springs, struck at note-on, read as a wavetable; you see the ring ringing. GENDY: a wave made of random breakpoints that take a random walk every cycle. ATTRACTOR: a three-way chaotic flow, drawn as its orbit. BYTEBEAT: a one-line integer formula as an oscillator, drawn as the byte stream. PULSAR: a burst of formant in each cycle, then silence. TERRAIN: a circular orbit scanning a 2-D surface (drawn as a heat map); the height under the dot is the sample. SPIRAL: a short complex delay loop that shifts the spectrum on every lap, drawn in the I/Q plane. LOCKSTEP: a phase-locked loop, a follower oscillator chasing the note at a ratio, with its phase error. VOSIM: bell-windowed formant pulses. GLISSON: grains that chirp up or down, drawn as pitch over time. UNDERTOW: the note plus undertones at 1/2 .. 1/6, drawn as six lanes that line up. LOOPBACK: a loop that multiplies the tone by its own echo. SIDEBAND: a closed-form sum of sidebands, drawn as its spectrum. MORSE: a telegraph sending WHAT HATH GOD WROUGHT over a noisy line, the letter on air lit. CLOCKED: noise that re-seeds every few clocks, so it loops into a pitch. TAPFIELD: a shift register with feedback taps, clocked by the note. LPC: the talking chips' 10-pole lattice filter singing vowels, drawn as its reflection coefficients and the spectral envelope they make. PHISEM: Perry Cook's shakers, from maracas to coins in a mug, drawn as shake energy and audible collisions. SERGE: a formant envelope retriggered every cycle. QPSK: a modem's carrier keyed by pairs of bits, drawn as its constellation. PARTICLE: noise hits that retune three resonators. SIX-OP: DX7 FM, drawn as the algorithm's operators lit by their envelopes. Each has four knobs named for what they do in THAT specimen. A note renders its sound (up to 6 s) when you press it; the knobs apply to the next note and fire a short preview while you drag. keybed: A-K whites, W-P blacks, Z/X octave, click/touch/MIDI · TAB or the four rows of tabs: pick a specimen · drag the four knobs (wheel = fine) · M: autoplay",
+    "file": "specimens.cart.png",
+    "created": "2026-09-28",
+    "kind": [
+      "instrument",
+      "tech-demo"
+    ],
+    "teaches": [
+      "cellular-automata",
+      "sonification"
+    ],
+    "lineage": "Row 6 of docs/design/choochootracker-borrow-list.md: twenty-four synthesis techniques the repo had no version of, ported to cart-land C from Lyle Mills' Plaits-Alt fork (plaits_alt/dsp/engine2, MIT, 2026, vendored by Choochootracker): phase_flock (Kuramoto-coupled oscillators), rulefield (a 1-D cellular automaton read as a wavecycle), scanned (scanned synthesis: a mass-spring ring read as a wavetable), gendy (Xenakis' dynamic stochastic synthesis), attractor (a Thomas cyclically symmetric chaotic flow), bytebeat (Bees-in-the-Trees' four formulas), pulsar (Roads' pulsar synthesis), wave_terrain (an orbit over a 2-D surface), spectral_spiral (frequency-shift feedback), lockstep (a phase-locked loop), vosim (Kaegi and Tempelaars' VOSIM, via Braids), glisson (chirping grains), undertow (a subharmonic ladder), loopback (feedback AM), sideband (discrete-summation-formula synthesis), question_mark (Braids' Morse transmitter, here sending Samuel Morse's own public-domain first telegram instead of upstream's Pynchon passage), Braids' clocked noise (CLKN, re-seeded so it loops), tapfield (an LFSR as an oscillator), LPC (Plaits' 10-pole speech lattice, driven by frames computed from Peterson & Barney's published vowel formants and a Rosenberg glottal pulse, because upstream's words and excitation come from TI ROMs), PhISEM (Perry Cook's shakers, all sixteen of STK's), a Serge-style formant oscillator (Dylan Bolink's Freshets port of Tides 2), QPSK (Braids' modem model), particle noise (Braids' PRTC) and six-operator FM on the DX7's 32 algorithms (topologies ported verbatim, our own six patches, since upstream plays a firmware-supplied SysEx bank). Each note renders in cart-land into a PCM slot (the mme / sintered route) and the render also records the algorithm's STATE sixty times a second, so the picture is the process making the sound you hear, not an animation beside it.",
+    "homage": "Lyle Mills' Plaits-Alt (2026) on Emilie Gillet's Plaits; Iannis Xenakis (GENDYN), Yoshiki Kuramoto, Stephen Wolfram's elementary automata, Bill Verplank / Max Mathews / Rob Shaw (scanned synthesis), Rene Thomas, and the bytebeat scene."
   },
   {
     "title": "splatoon",

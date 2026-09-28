@@ -25,10 +25,18 @@
 //   morph_fire(&k, MD_KICK, 0, 0);                         // (voice, velocity-boost, delay-ms)
 //   // bind a knob: ui_knob(..., &k.p[MD_KICK][MD_DECAY]);
 //
-// SEAM — the hat: an 808 hat is a 6-square metal bank, a 909 hat is FM-clang. Both are
-// one bright, highpassed, ringing metal source, so this models it as ONE FM voice and
-// gives it timbre/morph knobs (not byte-equal to either machine's hat — the honest
-// continuum). The other two voices share their oscillator structure across the pair.
+// THE HAT SITS ON A DEDICATED ENGINE NOW (2026-09-28). An 808 hat is a six-square metal bank
+// through a highpass with ONE decay (a chord fading: measured, its brightness never changes
+// across the tail); a 909 hat was a SAMPLED real cymbal, a bank of modes whose highs die
+// first. Same structure, different lifetimes — so the hat is one INSTR_METAL voice and CHAR
+// is the stagger DIRECTION: 808 = one lifetime for all six (the chord) → 909 = the lows live
+// longest (the tail darkens like a real cymbal's). TONE runs the ratio table hat → cymbal,
+// METL is bank-vs-noise, TUNE moves the bank's base (the 808's members sit at 205..800 Hz).
+// The FM-clang hat this header shipped with stays reachable behind MD_HAT_ENGINE for the
+// ear pass (`ab-render --file runtime/morphdrum.h --set MD_HAT_ENGINE=INSTR_METAL,INSTR_FM`).
+// This is the header's story settled: a morphing knob panel over dedicated drum engines where
+// one exists, generic primitives where none does yet (kick + snare still are). bogie = the
+// engine's own demo. The other two voices share their oscillator structure across the pair.
 
 #ifndef MORPHDRUM_H
 #define MORPHDRUM_H
@@ -87,6 +95,12 @@ static const float MD_DEF[MD_NV][MD_NPARAM] = {
 #define MD_L(a, b, t)  ((a) + ((b) - (a)) * (t))
 #define MD_UPR_BODY 0.85f   // UPRIGHT bowed-body blend (audit §M2); 0 = the bare string. A named define so
                             // `ab-render --file runtime/morphdrum.h --set MD_UPR_BODY=0.85f,0.0f` can A/B it
+#define MD_HAT_ENGINE INSTR_METAL   // the hat's engine: INSTR_METAL (the six-square bank, 2026-09-28) or INSTR_FM (the
+                            // clang it shipped with, kept for the A/B). Same knob panel either way
+#define MD_HAT_METAL_LEVEL 1.00f    // the FM hat it replaces read -7.2 dBFS peak on morphbox's own pattern (solo hat slots,
+                            // ab-render 2026-09-28); INSTR_METAL at unity reads -8.2, and instrument_level only cuts
+// INSTR_METAL's base lifetime is a log knob (20 ms .. 2 s); a decay in ms lands on it here
+static float md_lifetime(int ms) { float d = de_log2f((float)ms / 20.0f) / de_log2f(100.0f); return d < 0.0f ? 0.0f : d > 1.0f ? 1.0f : d; }
 static int md_lin(float p, int lo, int hi) { int v = lo + (int)(p * (hi - lo) + 0.5f); return v; }
 static int md_exp(float p, float lo, float oct) { return (int)(lo * de_powf(2.0f, p * oct)); }
 static int md_vol(float p) { int v = (int)(p * 7.0f + 0.5f); return v < 0 ? 0 : v > 7 ? 7 : v; }
@@ -143,16 +157,26 @@ static void md__resolve(const MorphKit *k, int v, MDRes *r) {
         r->l1_cut = md_lin(ch, 1800, 1400);                 // CHAR: noise mode (crisp 808 → fat 909)
         break;
     case MD_HAT:
-        r->osc  = INSTR_FM; r->filt = FILTER_HIGH;
-        r->midi = md_lin(p[MD_TUNE], 80, 110);
+        r->osc  = MD_HAT_ENGINE; r->filt = FILTER_HIGH;
         r->dec  = md_lin(p[MD_DECAY], 10, 220);             // closed decay
         r->drv  = p[MD_DRIVE];
         r->cut  = md_exp(p[MD_CUT], 3000, 2.0f);            // 3000..12000
         r->res  = md_lin(p[MD_RES], 0, 12);
-        r->timbre = p[MD_TONE];
-        r->morph  = p[MD_SUB];                               // "METL"
-        r->harm   = MD_L(0.40f, 0.70f, ch);                 // CHAR: metal floor (square-ish 808 → clang 909)
         r->l2_dec = md_lin(p[MD_ODEC], 80, 800);            // open decay
+        if (r->osc == INSTR_FM) {                            // the clang hat this header shipped with
+            r->midi = md_lin(p[MD_TUNE], 80, 110);
+            r->timbre = p[MD_TONE];
+            r->morph  = p[MD_SUB];                           // "METL"
+            r->harm   = MD_L(0.40f, 0.70f, ch);             // CHAR: metal floor (square-ish 808 → clang 909)
+        } else {                                             // INSTR_METAL: the six-square bank with lifetimes
+            r->midi = md_lin(p[MD_TUNE], 52, 76);            // the note IS the bank's base (mode 0 at f0 × 1.18);
+                                                             // the 808's members sit at 205..800 Hz
+            r->harm   = p[MD_TONE] * 0.55f + ch * 0.35f;     // TONE: hat → cymbal ratios (+ brighter noise); CHAR nudges
+                                                             // the 909 end toward cymbal ratios (its hats were sampled cymbals)
+            r->timbre = MD_L(0.55f, 0.15f, p[MD_SUB]);       // METL: noise → bank
+            r->morph  = MD_L(0.50f, 0.22f, ch);              // CHAR = stagger DIRECTION: 808 one lifetime (the chord, measured on
+                                                             // tr808.h) → 909 lows live longest (a real cymbal: the highs die first)
+        }
         break;
     case MD_PLUCK: {  // a MELODIC voice — CHAR morphs dark↔bright material (not 808↔909)
         r->osc  = INSTR_PLUCK; r->filt = FILTER_LOW;
@@ -213,18 +237,28 @@ static void morph_apply(MorphKit *k, int v) {
         instrument_filter(b + MDS_SNN, FILTER_HIGH, r.l1_cut, 2);
         break;
     case MD_HAT:
-        instrument(b + MDS_HC, INSTR_FM, 0, r.dec, 0, 12);
-        instrument_harmonics(b + MDS_HC, r.harm);
-        instrument_timbre(b + MDS_HC, r.timbre);
-        instrument_morph(b + MDS_HC, r.morph);
-        instrument_filter(b + MDS_HC, FILTER_HIGH, r.cut, r.res);
-        instrument_drive(b + MDS_HC, r.drv);
-        instrument(b + MDS_HO, INSTR_FM, 0, r.l2_dec, 0, 90);
-        instrument_harmonics(b + MDS_HO, r.harm);
-        instrument_timbre(b + MDS_HO, r.timbre);
-        instrument_morph(b + MDS_HO, r.morph);
-        instrument_filter(b + MDS_HO, FILTER_HIGH, r.cut, r.res);
-        instrument_drive(b + MDS_HO, r.drv);
+        if (r.osc == INSTR_FM) {
+            instrument(b + MDS_HC, INSTR_FM, 0, r.dec, 0, 12);
+            instrument(b + MDS_HO, INSTR_FM, 0, r.l2_dec, 0, 90);
+            instrument_level(b + MDS_HC, 1.0f);
+            instrument_level(b + MDS_HO, 1.0f);
+        } else {                                             // the lifetimes end the note; the ADSR just passes it
+            instrument(b + MDS_HC, INSTR_METAL, 0, 0, 7, 25);
+            instrument(b + MDS_HO, INSTR_METAL, 0, 0, 7, 40);
+            instrument_mode(b + MDS_HC, MODE_METAL_DECAY, md_lifetime(r.dec));
+            instrument_mode(b + MDS_HO, MODE_METAL_DECAY, md_lifetime(r.l2_dec));
+            instrument_mode(b + MDS_HC, MODE_METAL_SPREAD, 0.15f);
+            instrument_mode(b + MDS_HO, MODE_METAL_SPREAD, 0.15f);
+            instrument_level(b + MDS_HC, MD_HAT_METAL_LEVEL);
+            instrument_level(b + MDS_HO, MD_HAT_METAL_LEVEL);
+        }
+        for (int s = MDS_HC; s <= MDS_HO; s++) {
+            instrument_harmonics(b + s, r.harm);
+            instrument_timbre(b + s, r.timbre);
+            instrument_morph(b + s, r.morph);
+            instrument_filter(b + s, FILTER_HIGH, r.cut, r.res);
+            instrument_drive(b + s, r.drv);
+        }
         instrument_choke(b + MDS_HC, b + MDS_HO);            // closed chokes open
         break;
     case MD_PLUCK: {
@@ -306,8 +340,9 @@ static void morph_fire(MorphKit *k, int v, int boost, int delay) {
         schedule_hit(delay, 60,          b + MDS_SNN, snpy, r.l1_dec);
         break;
     }
-    case MD_HAT:   // the CLOSED hat; open hat = morph_fire_open()
-        schedule_hit(delay, r.midi, b + MDS_HC, vol, r.dec);
+    case MD_HAT:   // the CLOSED hat; open hat = morph_fire_open(). On INSTR_METAL the gate only has to
+                   // outlast the lifetimes (stagger stretches the longest mode to ~2x the base)
+        schedule_hit(delay, r.midi, b + MDS_HC, vol, r.osc == INSTR_FM ? r.dec : r.dec * 6);
         break;
     case MD_PLUCK:  // the melodic voice — one plucked note at its pentatonic pitch
         schedule_hit(delay, r.midi, b + MDS_PLK, vol, r.dec);
@@ -332,7 +367,7 @@ static void morph_fire(MorphKit *k, int v, int boost, int delay) {
 static void morph_fire_open(MorphKit *k, int boost, int delay) {
     int b = k->base; MDRes r; md__resolve(k, MD_HAT, &r);
     int vol = r.vol + boost; if (vol < 0) vol = 0; if (vol > 7) vol = 7;
-    schedule_hit(delay, r.midi, b + MDS_HO, vol, r.l2_dec);
+    schedule_hit(delay, r.midi, b + MDS_HO, vol, r.osc == INSTR_FM ? r.l2_dec : r.l2_dec * 6);
 }
 
 #endif // MORPHDRUM_H

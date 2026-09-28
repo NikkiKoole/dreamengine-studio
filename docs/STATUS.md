@@ -7,13 +7,51 @@
 > **here**, then fix the prose in the relevant design doc. If a design doc and this file
 > disagree, this file wins.
 
-_Last updated: 2026-09-16 — ladderface ships the diode-ladder ribbon. See the top Shipped entry and [`design/compound-blindspots.md`](design/compound-blindspots.md) §3._
+_Last updated: 2026-09-28 — INSTR_SINTER shipped (synthetic percussion), the third Choochootracker engine in two days. See the top Shipped entry and [`design/choochootracker-borrow-list.md`](design/choochootracker-borrow-list.md)._
 
 > **This line is a headline, not an entry.** It reached **9,064 characters** and was the only place in the file that recorded `FILTER_DIODE`, `filter-spec.js` and `rebirth-classic.md` — three shipped things, invisible because nobody reads a shipped feature out of a `_Last updated:_` line. They have a real entry now (2026-07-02, above `sprite-draw.js`). Keep this to one date, one sentence, one link; `status-check --check` fails past 900 chars.
 
 ---
 
 ## Shipped ✓
+
+- **INSTR_SINTER: SYNTHETIC PERCUSSION** (2026-09-28). Row 5 of the Choochootracker borrow list,
+  cart-first in the `sintered` cart the same day: a 1.5..7.5 ms noise impact into two
+  cross-modulating oscillators and a DC-blocked, smoothed feedback tail, six models (knot / shard /
+  burst / comb / logic / melt). Macros: harmonics = model, timbre = MOD (the bite), morph = C (fold /
+  drive / comb feedback), live on a ringing hit; `MODE_SINTER_A/B/MOTION/DECAY` on the aux channel.
+  Its own length and envelope, noise reseeded per hit like upstream (every hit of a patch is the same
+  sound). Per-model trims put every default pad at -12.0 dBFS. The cart plays the engine and keeps
+  its cart-land render behind E as the reference. [`design/choochootracker-borrow-list.md`](design/choochootracker-borrow-list.md).
+
+- **MORPHDRUM'S HAT ON INSTR_METAL** (2026-09-28). The header's story settled the same day the
+  engine landed: morphdrum is the morphing knob panel over dedicated drum engines where one exists
+  (the hat, now one `INSTR_METAL` voice with CHAR = stagger direction, 808 chord → 909 lows-longest
+  cymbal) and generic primitives where none does yet (kick, snare). Same ten knobs; `morphbox`'s
+  shipped hat changed. The FM-clang hat stays behind `MD_HAT_ENGINE` for the A/B (ab-render, solo
+  hats: FM -7.2 dBFS, METAL -8.2). [`design/morphdrum.md`](design/morphdrum.md) → "Seam — the hat".
+
+- **INSTR_METAL: THE SIX-SQUARE METAL BANK WITH PER-MODE LIFETIMES** (2026-09-28). Rows 2 and 3
+  of the Choochootracker borrow list, cart-first (the `bogie` cart, one day as six INSTR_SQUARE
+  slots per bank, then the engine): six squares at Bogie's inharmonic ratios, each with its OWN
+  exponential lifetime, plus bright noise, one voice per hit. Macros: harmonics = tone (hat →
+  cymbal ratios), timbre = noise mix, morph = STAGGER DIRECTION (lows-longest / one lifetime /
+  highs-longest); `MODE_METAL_DECAY/SPREAD` on the aux channel. Measured with wav-envelope: the
+  shipped tr808.h hat's brightness is FLAT across its decay (a chord fading); the bank's moves,
+  and the knob picks which way. The cowbell (row 3) is an INSTR_MME patch. `bogie` cycles
+  engine / slot-bank prototype / 808 on one set of pads. `morphdrum.h`'s hat seam is the
+  intended next home. [`design/choochootracker-borrow-list.md`](design/choochootracker-borrow-list.md).
+
+- **INSTR_MME: THE MULTI MODULATION ENGINE** (2026-09-27). Row 1 of the Choochootracker
+  borrow list, ported cart-first: two oscillators through seven cross-modulation models
+  (diode ring / fold / cross / VPM / sync / XOR logic / 20-band vocoder), a saturate-into-fold
+  shaper and an AC-only feedback path. Macros: harmonics = model (7 detents), timbre = amount,
+  morph = flow; `MODE_MME_FEEDBACK/SHAPER/PAIR/INTERVAL` on the aux channel. The `mme` cart
+  keeps the cart-land reference render as an E-toggled A/B (the modal cart's move), per-model
+  trims land every model at -14 dBFS peak, tune-check within 3.4¢. Found on the way: upstream's
+  fold was asymmetric (fmodf), and tune-check's frame budget had silently dropped the PIANO
+  differential pass since MODAL/FM4 landed (fixed: 4500 frames).
+  [`design/choochootracker-borrow-list.md`](design/choochootracker-borrow-list.md).
 
 - **LADDER FACE: SCOPE + CPU-SHADER AS RACK IDENTITY** (2026-09-16). Compound-blindspot
   §3 was a living picture that never got a cart: shaders stayed a lesson,

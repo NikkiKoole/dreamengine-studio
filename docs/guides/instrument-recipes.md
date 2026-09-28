@@ -130,6 +130,67 @@ from `MODE_MODAL_EXCITE`). The `h/t/m` below are the **recommended** triple.
 > `https://mipolai.com/dreamengine/modal/`. From a machine that can publish:
 > `node tools/build-site.js modal` then the `site/` push in `tools/publish-cart.sh`.
 
+## INSTR_SINTER — synthetic percussion
+
+All from **sintered.c** (showcase). Base `A0 D0 S7 R20` and a hit() longer than the voice's own
+length (`.018 + decay² × tail`; the cart uses its render length + 30 ms). `h` picks the MODEL (aim at
+the detent centre, `(model + 0.5) / 6`), `t` = MOD, `m` = C; `a / b / mo / dec` are
+`MODE_SINTER_A / B / MOTION / DECAY`. Trimmed per model to -12 dBFS at these defaults; knobs move
+the level on purpose (MOD and C drive into tanh).
+
+| name | source cart | recipe | character |
+|---|---|---|---|
+| sinter/knot kick | sintered.c (showcase) | h0.08 t0.55 m0.20 · a0.35 b0.30 mo0.85 dec0.40 · note 36 | Phase-modulated sine that snaps at the start; low fold keeps it a kick. |
+| sinter/shard snare | sintered.c | h0.25 t0.45 m0.35 · a0.62 b0.40 mo0.70 dec0.30 · note 51 | Folded two-osc sum with feedback teeth: a crunchy, pitched snare. |
+| sinter/burst hat | sintered.c | h0.42 t0.40 m0.15 · a0.85 b0.10 mo0.80 dec0.18 · note 72 | Mostly bright noise; `a` toward 0 turns it into tone. |
+| sinter/comb clank | sintered.c | h0.58 t0.50 m0.70 · a0.30 b0.30 mo0.65 dec0.35 · note 48 | A short comb line fed by both oscillators: metallic, resonant, the longest tail. |
+| sinter/logic blip | sintered.c | h0.75 t0.60 m0.25 · a0.40 b0.10 mo0.50 dec0.20 · note 66 | XOR of the quantised pair, chip-bitcrush percussion; `b` picks the op. |
+| sinter/melt tom | sintered.c | h0.92 t0.45 m0.40 · a0.45 b0.35 mo0.30 dec0.45 · note 42 | FM-warped oscillator with a slow swell: a bending, liquid tom. |
+
+## INSTR_METAL — the six-square metal bank
+
+All from **bogie.c** (showcase). Base `A0 D0 S7 R30` and a hit() longer than the longest
+lifetime (the lifetimes end the note, the ADSR just passes it). `h` = tone (0 hat ratios → 1
+cymbal ratios, noise brighter with it), `t` = noise mix, `m` = STAGGER direction (0 lows live
+longest = the 808 cymbal, 0.5 one lifetime = the chord, 1 highs live longest = Bogie);
+`dec / spr` = `MODE_METAL_DECAY / SPREAD`. Mode 0 sits at f0 × 1.18, so the note IS the bank's
+base: a hat wants ~A3..C4, a cymbal ~C4..E4. Put the onset sweep on `instrument_env(ENV_PITCH)`
+and any highpass on `instrument_filter`.
+
+| name | source cart | recipe | character |
+|---|---|---|---|
+| metal/closed hat | bogie.c (showcase) | h0.45 t0.55 m0.85 · dec0.20 spr0.20 · note 57..60, hit 150 ms · pitch env +1.4 st over 80 ms · HPF 700 Hz | The 808 closed hat with lifetimes: at this short a decay the six modes nearly share one, so it is a 40 ms chord with bright noise on top. |
+| metal/open hat | bogie.c | h0.45 t0.55 m0.85 · dec0.55 spr0.20 · note 57..60, hit 600 ms | The row-2 sound: the lows die first and the tail brightens. Choke it from the closed hat (instrument_choke). |
+| metal/cymbal | bogie.c | h0.50 t0.45 m0.85 · dec0.70 spr0.25 · note 62..66, hit 1500 ms | Bogie's cymbal, tail brightening. |
+| metal/808 cymbal | bogie.c | same, m0.15 | Same bank, stagger flipped: the lows carry the tail and it darkens, Synth Secrets' description of the real 808 cymbal's band decays. |
+| metal/chord | bogie.c | same, m0.50 | One lifetime for all six: what tr808.h's hat is today. Keep it as the control when judging the other two. |
+| metal/bell | bogie.c | h0.9 t0.05 m0.3 · dec0.9 spr0.6 · note 72, hit 3 s | Not a drum: cymbal ratios spread wide, almost no noise, a long slow-darkening ring. |
+
+> Measured on single hits (wav-envelope, 60 ms windows): with noise at 0 the bank's brightness
+> RISES across the decay at m0.85 (0.33 → 0.44) and FALLS at m0.15 (0.30 → 0.20); with noise on,
+> the noise (on the base lifetime) shapes the first ~100 ms and the bank the rest. The shipped
+> tr808.h open hat reads the same brightness in every window.
+
+## INSTR_MME — the multi modulation engine
+
+All from **mme.c** (showcase). Base `A3 D0 S7 R220` (a held voice). `h` picks the MODEL
+(7 detents: aim at the detent centre, `(model + 0.5) / 7`), `t` = amount, `m` = flow;
+`fb / sh / pair / iv` are `MODE_MME_FEEDBACK / SHAPER / PAIR / INTERVAL`. Every model is trimmed
+to the same peak in the engine, so these differ in character, not level.
+
+| name | source cart | recipe | character |
+|---|---|---|---|
+| mme/ring bass | mme.c (showcase) | h0.07 t0.55 m0.15 · fb0.25 sh0 pair sin/sin iv0.5 | Diode ring on two sines: the analog path is a hard-railed square-ish growl; flow toward 1 softens it into the digital ring. |
+| mme/fold | mme.c | h0.21 t0.6 m0.5 · fb0.3 sh0.2 pair tri/sin iv0.5 | Wavefolder brass; amount is the fold gain. |
+| mme/vpm lead | mme.c | h0.5 t0.5 m0.5 · fb0.25 sh0 pair sin/sin iv0.5 | Phase modulation both ways, flow crossfades which oscillator is the carrier. The default patch. |
+| mme/sync | mme.c | h0.64 t0.8 m0.3 · fb0.2 sh0 pair saw/tri iv0.62 | Hard sync: amount is how hard B resets, flow is where in its cycle it lands. |
+| mme/logic | mme.c | h0.78 t0.7 m0.2 · fb0.4 sh0.3 pair sq/sq iv0.75 | 16-bit XOR of the two oscillators, flow toward 1 becomes a comparator. Chip-noise. |
+| mme/vocode pad | mme.c | h0.93 t0.6 m0.5 · fb0.15 sh0 pair sin/sq iv0.5 | B's band envelopes gate A through 20 bands; flow shifts the bank. The softest model. |
+
+> Feedback past ~0.65 is squared into deliberately ugly territory but never collapses: the
+> reinjected signal is DC-blocked. Press E in the cart to hear the same knobs on the cart-land
+> reference render the engine was written from.
+
 ## INSTR_MALLET — modal struck bar
 
 | name | source cart | recipe | character |

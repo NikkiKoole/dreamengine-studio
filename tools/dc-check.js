@@ -56,6 +56,7 @@ const ENGINE_NAMES = {
   22: 'MEMBRANE drum', 23: 'REED clarinet/sax', 24: 'VOICE formant',
   25: 'PIPE flute', 26: 'GUITAR plucked+body', 27: 'PIANO stiff-string',
   28: 'BOWED violin/cello', 29: 'BRASS lip-reed',
+  31: 'MODAL exciter→resonator', 32: 'FM4 four-op', 33: 'MME multi-modulation',
 }
 
 const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
@@ -114,7 +115,7 @@ function renderSweep() {
   const wav = path.join(dir, 'sweep.wav'), trace = path.join(dir, 'sweep.trace.jsonl')
   const r = spawnSync('node',
     [path.join('tools', 'play.js'), 'tunecheck', 'run', '--headless',
-     '--frames', '3400', '--trace', trace, '--wav', wav],
+     '--frames', '4500', '--trace', trace, '--wav', wav],   // 17 sweep entries × 4 pitches × 62 frames = 4216 (was 3400: FM4 + MME fell off the end, same trap as tune-check)
     { cwd: ROOT, encoding: 'utf8' })
   if (r.status !== 0) {
     process.stderr.write((r.stdout || '') + (r.stderr || ''))

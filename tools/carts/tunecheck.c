@@ -22,12 +22,14 @@
 #define PERIOD      (NOTE_FRAMES + GAP_FRAMES)
 
 // the non-standard / pitched engines worth tuning-checking. SINE = control.
-// (NOISE is unpitched; MEMBRANE is an inharmonic drum; VOICE is formant-shaped —
-//  all three are deliberately left out of the default tuning sweep.)
+// (NOISE is unpitched; MEMBRANE is an inharmonic drum; VOICE is formant-shaped; METAL is a
+//  six-square bank whose lowest mode sits at f0 × 1.18; SINTER is a one-shot percussion voice
+//  with its own length — all five are deliberately left out of the default tuning sweep. METAL's
+//  and SINTER's levels are measured by hand in their showcase carts (bogie, sintered), not here.)
 static const int ENGINES[] = {
     INSTR_SINE,   INSTR_PLUCK,  INSTR_MALLET, INSTR_FM,    INSTR_ORGAN,
     INSTR_EPIANO, INSTR_PD,     INSTR_REED,   INSTR_PIPE,  INSTR_GUITAR,
-    INSTR_PIANO,  INSTR_BOWED,  INSTR_BRASS, INSTR_MODAL, INSTR_FM4,
+    INSTR_PIANO,  INSTR_BOWED,  INSTR_BRASS, INSTR_MODAL, INSTR_FM4,   INSTR_MME,
     INSTR_PIANO,   // ← the DIFFERENTIAL pass; see ET_ENTRY. Keep this LAST.
 };
 #define NENG ((int)(sizeof(ENGINES) / sizeof(ENGINES[0])))

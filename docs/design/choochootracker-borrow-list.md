@@ -6,7 +6,8 @@ reference as an E-toggled A/B). Rows 2 and 3 are SHIPPED as `INSTR_METAL` (2026-
 in the `bogie` cart the same day, which now cycles engine / prototype / 808 on one set of pads).
 Row 5 is SHIPPED as `INSTR_SINTER` (2026-09-28, cart-first in the `sintered` cart the same day).
 Row 7 turned out mostly shipped already; its one missing piece, per-track speed, is BUILT as the
-`slipstep` cart (2026-09-28). Rows 4 and 6 are open. Each row names the upstream file, what it
+`slipstep` cart (2026-09-28). Row 6 is BUILT as the `specimens` cart (six algorithmic engines).
+Row 4 is open. Each row names the upstream file, what it
 would become here, and why it made or missed the cut. Update the row (not this line) when
 something lands.
 
@@ -127,6 +128,31 @@ window), the 3/2 hat included. The footer counts the bars until every track is b
 together, the LCM of the rational periods (`lcm(numerators) / gcd(denominators)`); the default five
 meet every 105 bars. `spec()` = 26. The same chip on acidcandy is its own design pass (its steps are
 p-locked, so a slowed track must still read its locks per step), noted in the cart's todo.
+
+## Row 6, as built: the `specimens` cart (2026-09-28)
+
+Reading the Plaits-Alt headers split the ~60 engines in two: about half are Braids ports (CSAW,
+FOLD, VOWL, VOSIM, the Braids kick/snare/cymbal/bell/pluck…), which our own engines mostly cover, and
+half are ALGORITHMIC originals by Lyle Mills, sounds made by a process you could watch. `specimens`
+ports six of the second kind to cart-land C from `plaits_alt/dsp/engine2/*_engine.cc` (MIT):
+**phase_flock** (seven Kuramoto-coupled oscillators), **rulefield** (a 1-D cellular automaton whose row
+is the wavecycle), **scanned** (a 32-mass spring ring read as a wavetable), **gendy** (Xenakis' dynamic
+stochastic synthesis), **attractor** (a Thomas cyclically symmetric chaotic flow) and **bytebeat** (the
+four Bees-in-the-Trees formulas). Each note renders into a PCM slot (the mme / sintered route) and the
+render also writes a snapshot of the algorithm's STATE sixty times a second; the picture draws the
+snapshot at the playback moment, so what you see is the process making what you hear, not an
+animation beside it. Four knobs per specimen, named for what they do in that one.
+
+`spec()` = 73, and it asserts the physics each picture claims, not only that sound comes out: full
+coupling brings the flock to sync (order parameter r = 1.00), rule 90 is the XOR of the neighbours and
+rule 204 the identity, a damped scanned ring keeps 4% of its energy against 225% undamped (measured on
+the masses, since that knob is damping AND a wavefolder upstream and the fold raises the output),
+chaos widens the attractor's orbit (0.01 → 0.66), bytebeat's 8-bit read is Braids' two's complement.
+Every knob of every specimen is asserted to reach the sound. Changes from upstream: a per-note LCG for
+gendy's `Random::GetFloat()` (repeatable per pitch), scanned always triggered, and every render ends in
+a DC blocker, 3/40 ms fades and peak normalisation. A full 6 s render costs 1.5..10 ms here (the
+attractor is the dearest), inside one frame on a Mac; a phone may hitch on a key press. Next
+candidates for a page: spectral_spiral, undertow, lockstep, tapfield, pulsar.
 
 ## Kept out, and why
 

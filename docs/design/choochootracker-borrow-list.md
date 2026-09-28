@@ -5,7 +5,8 @@ is SHIPPED as `INSTR_MME` (ported cart-first the same day; the `mme` cart keeps 
 reference as an E-toggled A/B). Rows 2 and 3 are SHIPPED as `INSTR_METAL` (2026-09-28, cart-first
 in the `bogie` cart the same day, which now cycles engine / prototype / 808 on one set of pads).
 Row 5 is SHIPPED as `INSTR_SINTER` (2026-09-28, cart-first in the `sintered` cart the same day).
-Row 7 turned out mostly shipped already (see its note). Rows 4 and 6 are open. Each row names the upstream file, what it
+Row 7 turned out mostly shipped already; its one missing piece, per-track speed, is BUILT as the
+`slipstep` cart (2026-09-28). Rows 4 and 6 are open. Each row names the upstream file, what it
 would become here, and why it made or missed the cut. Update the row (not this line) when
 something lands.
 
@@ -114,6 +115,18 @@ The `sintered` cart plays the engine and keeps the render behind E.
 **Row 7, checked before building it:** acidcandy already carries probability, p-locks and trig
 conditions throughout, and morphbox has p-locks and probability. The one Choochootracker sequencer
 idea none of the racks has is PER-TRACK PLAYBACK SPEED. Row 7 is that feature now, nothing more.
+
+**Built as `slipstep` (2026-09-28):** five loops, each with its own LENGTH (3..16, polymeter) and
+SPEED ratio (1/2 2/3 3/4 1 5/4 4/3 3/2 2, polyrhythm), voiced on the three new engines (SINTER kick +
+snare, METAL hat, MME bass) plus a pluck lead. Timing is the point: each track keeps an anchor and
+its k-th step lands at `t0 + k × step × den/num` exactly, read against the audio beat clock and
+queued 40 ms ahead with `schedule_hit`, so an odd ratio never snaps to a frame. A speed or length
+change re-anchors at the next pending step (no skip, no double). Measured on soloed renders with an
+energy-rise onset detector: every gap lands on its own track's grid within 1 ms (the detector's
+window), the 3/2 hat included. The footer counts the bars until every track is back on step 1
+together, the LCM of the rational periods (`lcm(numerators) / gcd(denominators)`); the default five
+meet every 105 bars. `spec()` = 26. The same chip on acidcandy is its own design pass (its steps are
+p-locked, so a slowed track must still read its locks per step), noted in the cart's todo.
 
 ## Kept out, and why
 

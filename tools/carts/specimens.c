@@ -121,12 +121,12 @@ static float K[NSPEC][4] = {
     { 0.45f, 0.35f, 0.20f, 0.40f },
     { 0.10f, 0.60f, 0.45f, 0.55f },
     { 0.55f, 0.35f, 0.75f, 0.70f },
-    { 0.40f, 0.35f, 0.30f, 0.40f },
+    { 0.36f, 0.35f, 0.30f, 0.40f },   // lockstep: 0.36 = the 1/1 detent (0.40 was 4/3, a fourth up)
     { 0.55f, 0.45f, 0.45f, 0.55f },
     { 0.35f, 0.55f, 0.80f, 0.60f },
     { 0.40f, 0.35f, 0.60f, 0.50f },
-    { 0.35f, 0.55f, 0.30f, 0.50f },
-    { 0.25f, 0.85f, 0.40f, 0.50f },
+    { 0.26f, 0.55f, 0.30f, 0.50f },   // loopback: ratio 1 (0.35 was 1.42, inharmonic)
+    { 0.55f, 0.85f, 0.40f, 0.50f },   // sideband: spacing 1 (0.25 was 0.31, inharmonic)
     { 0.40f, 0.95f, 0.50f, 0.40f },
     { 0.30f, 0.85f, 0.35f, 1.00f },
     { 0.30f, 0.40f, 0.10f, 0.30f },
@@ -764,10 +764,22 @@ static int render_under(float *out, int n, float f, const float *k, Snap *sn, in
     return n;
 }
 
+// SOFT DETENTS for a continuous ratio knob: inside ±zone of a musical ratio the knob sits
+// exactly on it (so the default and an easy grab are in tune), between detents it still sweeps
+// the clangy in-between values upstream exposes. Added here, not upstream (2026-09-28: at the old
+// defaults LOOPBACK ran at 1.42x and SIDEBAND at 0.31x, and both sounded out of tune).
+static float detent(float raw, const float *stops, int ns, float zone) {
+    for (int i = 0; i < ns; i++) if (fabsf(raw - stops[i]) < zone) return stops[i];
+    return raw;
+}
+static const float RATIO_STOPS[] = { 0.5f, 1.0f, 1.5f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f, 7.0f, 8.0f };
+static float loop_ratio(float k0) { return detent(0.5f + 7.5f * k0 * k0, RATIO_STOPS, 10, 0.12f); }
+static float side_spacing(float k0) { return detent(0.125f + 2.875f * k0 * k0, RATIO_STOPS, 5, 0.08f); }
+
 // ── LOOPBACK (loopback_engine.cc): feedback amplitude modulation ────────────────
 static int render_loop(float *out, int n, float f, const float *k, Snap *sn, int *nsn) {
     f = fminf(0.24f, f);
-    const float ratio = 0.5f + 7.5f * k[0] * k[0], depth = 0.98f * k[1] * k[1];
+    const float ratio = loop_ratio(k[0]), depth = 0.98f * k[1] * k[1];
     const float morph = 0.5f * k[2], pol = 2.0f * k[3] - 1.0f, nrm = 1.0f / (1.0f + depth);
     float cph = 0.0f, fph = 0.0f, fbs = 0.0f, fbo = 0.0f;
     int ns = 0; Cap cap = { 0, -1, 0 }; int st = period_stride(f);
@@ -802,7 +814,7 @@ static float dsf(float cs, float cc, float bs, float bc, float bph, const Dsf *p
 static int sb_guard(float cf, float sf, int req, float dir) { while (req > 1 && fabsf(cf + dir * (float)(req - 1) * sf) > 0.24f) req--; return req; }
 static void sb_params(const float *k, float f, float *cf, float *sfq, Dsf *up, Dsf *lo) {
     *cf = fminf(0.24f, f);
-    float spacing = 0.125f + 2.875f * k[0] * k[0];
+    float spacing = side_spacing(k[0]);
     *sfq = *cf * spacing;
     int req = 1 + (int)(23.999f * k[2]);
     float br = 0.08f + 0.88f * k[1] * k[1], asym = 0.3f * (2.0f * k[3] - 1.0f);
@@ -1295,7 +1307,7 @@ static void draw_loop(int x0, int y0, int w, int h, const Snap *s) {
     int ey = y0 + h - 22, cw2 = w / 32;                                // the fed-back envelope, first half of the cycle,
     line(x0, ey, x0 + w, ey, CLR_DARKER_GREY);                         // drawn around 1.0 (no modulation = a flat line)
     for (int i = 1; i < 32; i++) line(x0 + (i - 1) * cw2, ey - (int)((s->v[31 + i] - 1.0f) * 30.0f), x0 + i * cw2, ey - (int)((s->v[32 + i] - 1.0f) * 30.0f), CLR_LIME_GREEN);
-    font(FONT_TINY); print("the tone (orange) and its echo-made envelope", x0 + 4, y0 + h - 7, CLR_WHITE); font(FONT_NORMAL);
+    font(FONT_TINY); print(str("the tone and its echo-made envelope, ratio %.2fx", loop_ratio(K[SP_LOOP][0])), x0 + 4, y0 + h - 7, CLR_WHITE); font(FONT_NORMAL);
 }
 static void draw_side(int x0, int y0, int w, int h) {
     // the spectrum the closed form sums: the carrier and its sidebands, each rolloff^k down
@@ -1309,7 +1321,7 @@ static void draw_side(int x0, int y0, int w, int h) {
         rectfill(x, base - bh, 2, bh, kk == 0 ? CLR_LIGHT_YELLOW : CLR_ORANGE);
     }
     line(x0, base, x0 + w, base, CLR_DARKER_GREY);
-    font(FONT_TINY); print(str("%d partials, rolloff %.2f: what the formula sums", up.count, up.r), x0 + 4, y0 + h - 7, CLR_WHITE); font(FONT_NORMAL);
+    font(FONT_TINY); print(str("%d partials %.2fx apart, rolloff %.2f", up.count, side_spacing(K[SP_SIDE][0]), up.r), x0 + 4, y0 + h - 7, CLR_WHITE); font(FONT_NORMAL);
 }
 static void draw_morse(int x0, int y0, int w, int h, int idx) {
     int ty = y0 + 30;                                                  // the tape: key down = a mark
@@ -1602,6 +1614,25 @@ void spec(void) {
         for (; steps < (1L << 10); steps++) { lf_clock(&l, 0.0f); if (!l.state) break; if (l.state == s0) { back = 1; break; } }
         expect(l.state != 0, "TAPFIELD: the register never reaches the all-zero lockup");
         expect(back, str("TAPFIELD: a 9-bit register returns to its start state (after %ld clocks)", steps + 1));
+    }
+
+    {   // IN TUNE (2026-09-28): at their defaults LOCKSTEP, LOOPBACK and SIDEBAND must repeat at the
+        // played note's period, i.e. sound the key you press. f = 441 Hz is a period of 100 samples.
+        const float f = 441.0f / SR;
+        static float tt[SR];
+        int who[3] = { SP_LOCK, SP_LOOP, SP_SIDE };
+        for (int j = 0; j < 3; j++) {
+            int sp = who[j];
+            switch (sp) { case SP_LOCK: render_lock(tt, SR, f, K[sp], ss, &nsn); break;
+                          case SP_LOOP: render_loop(tt, SR, f, K[sp], ss, &nsn); break;
+                          default:      render_side(tt, SR, f, K[sp], ss, &nsn); break; }
+            double d = 0, e = 0; for (int i = SR / 2; i < SR - 100; i++) { d += fabsf(tt[i] - tt[i + 100]); e += fabsf(tt[i]); }
+            expect(d < e * 0.01, str("%s: at its defaults it repeats at the note's period (in tune; mismatch %.2g%%)", SPNAME[sp], 100.0 * d / fmax(e, 1e-9)));
+        }
+        expect_eq(lock_index(K[SP_LOCK]), 5, "LOCKSTEP: the default ratio is 1/1");
+        expect(loop_ratio(0.26f) == 1.0f && loop_ratio(0.365f) == 1.5f && loop_ratio(0.447f) == 2.0f, "LOOPBACK: the ratio knob snaps onto 1, 3/2 and 2");
+        expect(fabsf(loop_ratio(0.33f) - (0.5f + 7.5f * 0.33f * 0.33f)) < 1e-6f, "LOOPBACK: and still sweeps the in-between values");
+        expect(side_spacing(0.55f) == 1.0f, "SIDEBAND: the default spacing is exactly 1 (a harmonic series)");
     }
 
     // the panel

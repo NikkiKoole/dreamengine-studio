@@ -172,7 +172,17 @@ same machine sends Samuel Morse's own public-domain first telegram, WHAT HATH GO
 digital-filter oscillators (`z_filter`) are left out, because upstream is a fixed-point reproduction
 with its own A/B suite and a float port would be an approximation under Braids' name. Found on the
 way: SIDEBAND's COUNT knob is nearly inaudible at a fast rolloff (partial 10 is 2e-5 down), which is
-the maths, not the port, so its default rolloff is slow. `spec()` = 315 across the eighteen.
+the maths, not the port, so its default rolloff is slow. `spec()` = 322 across the eighteen.
+
+**Tuning pass (2026-09-28, the maker's ear):** LOCKSTEP, LOOPBACK and SIDEBAND sounded out of tune,
+and all three for the same reason: their pitch knobs are continuous ratios and the defaults sat on
+non-harmonic ones (LOCKSTEP's 4/3 detent, a fourth above the key; LOOPBACK's feedback at 1.42x, AM
+sidebands at 0.42x / 2.42x; SIDEBAND's partials 0.305x apart). Defaults now sit on 1/1, 1x and 1x,
+and LOOPBACK's ratio and SIDEBAND's spacing got SOFT DETENTS (½, 1, 3/2, 2, 3 …, ours, not upstream)
+so an easy grab lands in tune while the clangy in-between values stay reachable. The spec now asserts
+each one repeats at the played note's period at its defaults (mismatch under 0.001%). LOCKSTEP keeps
+its lock-in glide (0.61 → 1.00 of target in ~0.23 s at the default bandwidth): that is the PLL
+catching up, and the bandwidth knob shortens it.
 
 Changes from upstream: per-note LCGs for `Random::GetFloat()` (gendy, glisson: repeatable per
 pitch), scanned always triggered, terrain at 1× instead of 2× oversampling (22.5 ms per 6 s render

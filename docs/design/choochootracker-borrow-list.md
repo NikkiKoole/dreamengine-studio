@@ -6,7 +6,7 @@ reference as an E-toggled A/B). Rows 2 and 3 are SHIPPED as `INSTR_METAL` (2026-
 in the `bogie` cart the same day, which now cycles engine / prototype / 808 on one set of pads).
 Row 5 is SHIPPED as `INSTR_SINTER` (2026-09-28, cart-first in the `sintered` cart the same day).
 Row 7 turned out mostly shipped already; its one missing piece, per-track speed, is BUILT as the
-`slipstep` cart (2026-09-28). Row 6 is BUILT as the `specimens` cart (six algorithmic engines).
+`slipstep` cart (2026-09-28). Row 6 is BUILT as the `specimens` cart (twelve algorithmic techniques).
 Row 4 is open. Each row names the upstream file, what it
 would become here, and why it made or missed the cut. Update the row (not this line) when
 something lands.
@@ -132,27 +132,41 @@ p-locked, so a slowed track must still read its locks per step), noted in the ca
 ## Row 6, as built: the `specimens` cart (2026-09-28)
 
 Reading the Plaits-Alt headers split the ~60 engines in two: about half are Braids ports (CSAW,
-FOLD, VOWL, VOSIM, the Braids kick/snare/cymbal/bell/pluck…), which our own engines mostly cover, and
-half are ALGORITHMIC originals by Lyle Mills, sounds made by a process you could watch. `specimens`
-ports six of the second kind to cart-land C from `plaits_alt/dsp/engine2/*_engine.cc` (MIT):
-**phase_flock** (seven Kuramoto-coupled oscillators), **rulefield** (a 1-D cellular automaton whose row
-is the wavecycle), **scanned** (a 32-mass spring ring read as a wavetable), **gendy** (Xenakis' dynamic
-stochastic synthesis), **attractor** (a Thomas cyclically symmetric chaotic flow) and **bytebeat** (the
-four Bees-in-the-Trees formulas). Each note renders into a PCM slot (the mme / sintered route) and the
-render also writes a snapshot of the algorithm's STATE sixty times a second; the picture draws the
-snapshot at the playback moment, so what you see is the process making what you hear, not an
-animation beside it. Four knobs per specimen, named for what they do in that one.
+FOLD, VOWL, the Braids kick/snare/cymbal/bell/pluck…), which our own engines mostly cover, and half
+are ALGORITHMIC originals by Lyle Mills, sounds made by a process you could watch. `specimens` ports
+TWELVE techniques the repo had no version of (checked by grep, and every hit read) to cart-land C
+from `plaits_alt/dsp/engine2/*_engine.cc` (MIT), on two rows of tabs:
 
-`spec()` = 73, and it asserts the physics each picture claims, not only that sound comes out: full
-coupling brings the flock to sync (order parameter r = 1.00), rule 90 is the XOR of the neighbours and
-rule 204 the identity, a damped scanned ring keeps 4% of its energy against 225% undamped (measured on
-the masses, since that knob is damping AND a wavefolder upstream and the fold raises the output),
-chaos widens the attractor's orbit (0.01 → 0.66), bytebeat's 8-bit read is Braids' two's complement.
-Every knob of every specimen is asserted to reach the sound. Changes from upstream: a per-note LCG for
-gendy's `Random::GetFloat()` (repeatable per pitch), scanned always triggered, and every render ends in
-a DC blocker, 3/40 ms fades and peak normalisation. A full 6 s render costs 1.5..10 ms here (the
-attractor is the dearest), inside one frame on a Mac; a phone may hitch on a key press. Next
-candidates for a page: spectral_spiral, undertow, lockstep, tapfield, pulsar.
+- **first six:** phase_flock (seven Kuramoto-coupled oscillators), rulefield (a 1-D cellular
+  automaton whose row is the wavecycle), scanned (a 32-mass spring ring read as a wavetable), gendy
+  (Xenakis' dynamic stochastic synthesis), attractor (a Thomas cyclically symmetric flow), bytebeat.
+- **second six:** pulsar (Roads' pulsar synthesis), wave_terrain (an orbit over a 2-D surface, the
+  five analytic terrains), spectral_spiral (frequency-shift feedback round a 32-sample complex loop),
+  lockstep (a phase-locked loop chasing the note at a ratio), vosim (Kaegi/Tempelaars via Braids,
+  with Braids' bell window table) and glisson (chirping grains).
+
+Each note renders into a PCM slot (the mme / sintered route) and also writes a snapshot of the
+algorithm's STATE sixty times a second; the picture draws the snapshot at the playback moment, so
+what you see is the process making what you hear. Waveform pictures (pulsar, vosim) start their
+capture on a cycle so they hold still.
+
+`spec()` = 175, and it asserts the physics each picture claims, not only that sound comes out:
+full coupling syncs the flock (r = 1.00), rule 90 is XOR and 204 the identity, a damped scanned ring
+keeps 4% of its energy vs 225% (measured on the masses: that knob is damping AND a wavefolder
+upstream, and the fold raises the output), chaos widens the attractor's orbit (0.01 → 0.66), a short
+pulsar duty is 94% silence vs 5%, a stationary spiral loop is periodic and a shifting one is not,
+the PLL locks to zero phase error with its follower at 1.0000× while a narrow loop is still at
+0.59×, VOSIM's pedestal comes back out (mean -0.004), glisson's knob picks the chirp direction.
+Every knob of every specimen is asserted to reach the sound.
+
+Changes from upstream: per-note LCGs for `Random::GetFloat()` (gendy, glisson: repeatable per
+pitch), scanned always triggered, terrain at 1× instead of 2× oversampling (22.5 ms per 6 s render
+at 2×, over a frame; now 11.6), and every render ends in a DC blocker, 3/40 ms fades and peak
+normalisation. **Plaits-Alt's `vowel_fof` is left out on purpose:** despite the name it is five
+resonant filters on a saw, the same idea as `INSTR_VOICE`, so glisson took its tab. A full 6 s
+render costs 2..13.5 ms here (lockstep the dearest), inside one frame on a Mac. Still unported and
+absent: undertow, tapfield, phase_weave, loopback, sideband (DSF), question_mark (Morse), Braids'
+digital filters, twin-peaks / clocked / particle noise.
 
 ## Kept out, and why
 

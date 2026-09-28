@@ -171,6 +171,15 @@ swing. The genuine fix decouples the audio clock from the buffer cadence → Aud
    audio callback actually produced**, not `frame_dt`. Then the beat position is
    rock-steady regardless of frame jitter, which de-jitters `every()`/`beat_just_advanced`
    *and* tightens the radios' look-ahead math. Bigger change; the real fix for #2.
+2b. **SHIPPED (2026-09-28) — book on the SAMPLE clock: `audio_time()` + `schedule_at()`.** Fix #2's goal
+   reached without touching `beat_accum`: the audio thread counts the samples it renders (`snd_sample_clock`,
+   per instance) and `schedule_at(t, …)` stamps an ABSOLUTE target sample (`SR_NOTE_AT`), turned into a
+   countdown from the buffer that drains it. So the §"buffer size IS the swing" origin-snap is gone for
+   notes booked this way, on NATIVE too (1024-sample buffers: a `schedule_hit` sequencer swung by up to
+   23 ms there, which `loficity` made audible). Gate: `bash tools/schedule-check/run.sh` drives the real
+   engine with frames at 60 Hz and audio in fixed 1024 blocks (the `--wav` harness locks audio to frames
+   and cannot see this) — 0 samples of click-gap error, against 785 for the old way as the negative
+   control. `beat()`/`every()` and the radios are unchanged; porting `radio.h`'s clock to it is next.
 3. **Cart-level — schedule ahead.** Carts on the frame-triggered path adopt the
    `radio.h` pattern (or a future shared helper) and trigger via
    `schedule`/`schedule_hit`/`strum` instead of `hit()` on the beat. Infrastructure

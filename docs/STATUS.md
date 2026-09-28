@@ -15,6 +15,15 @@ _Last updated: 2026-09-28 — INSTR_SINTER shipped (synthetic percussion), the t
 
 ## Shipped ✓
 
+- **SAMPLE-ACCURATE SCHEDULING: `audio_time()` + `schedule_at()`** (2026-09-28). A sequencer can now book
+  a note at an ABSOLUTE time on the sound clock instead of a delay from now. `schedule_hit`'s delay counts
+  from whichever audio callback drains the request, so on native (1024-sample buffers) notes sent in
+  different frames landed up to 23 ms off: heard as `loficity`'s bar entries dragging unevenly.
+  `SR_NOTE_AT` carries the target sample and the drain converts it to a countdown from its own buffer.
+  Gated by `tools/schedule-check` (probe `schedcheck`, frames at 60 Hz + audio in 1024 blocks): 0 samples
+  of error, vs 785 samples for the old way as its negative control. Radios still use `schedule_hit`.
+  [`design/audio-timing.md`](design/audio-timing.md) fix #2b.
+
 - **INSTR_SINTER: SYNTHETIC PERCUSSION** (2026-09-28). Row 5 of the Choochootracker borrow list,
   cart-first in the `sintered` cart the same day: a 1.5..7.5 ms noise impact into two
   cross-modulating oscillators and a DC-blocked, smoothed feedback tail, six models (knot / shard /

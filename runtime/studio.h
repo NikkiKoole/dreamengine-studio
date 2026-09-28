@@ -917,6 +917,8 @@ void strum_notes(const int *midis, int n, int instr, int vol, int delay_ms);  //
 // musical timing
 void  schedule(int delay_ms, int midi, int instr, int vol);  // play a note in the future
 void  schedule_hit(int delay_ms, int midi, int instr, int vol, int dur_ms);  // schedule() + hit() in one: a custom-length note at a sample-accurate future time. THE tool for fast sfx/arp steps — no frame-rate jitter
+double audio_time(void);                                      // seconds of sound the engine has actually played so far — the clock notes are placed on. pair it with schedule_at
+void  schedule_at(double t, int midi, int instr, int vol, int dur_ms);  // play a note at audio_time() t exactly — for a sequencer that books notes ahead (a groove stays tight; a delay from now can land up to 23ms off)
 void  bpm(int rate);                                          // set tempo (default 120)
 int   beat(void);                                             // current beat counter (advances based on bpm)
 float beat_pos(void);                                         // fractional position within current beat: 0.0 → 1.0

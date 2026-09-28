@@ -4156,6 +4156,24 @@
     "homage": "Lo-fi hip-hop (Nujabes / J Dilla)"
   },
   {
+    "title": "lofi city",
+    "description": "Endless generated lofi, arranged exactly the way Lofi Cities arranges it - played on our own engines. Every track is one seed, and the seed plans everything the way loficities.com does: a key (each track moves to a related key - the fourth, the fifth, the relative major/minor), two jazzy progressions from their bank (A, and B or A with a ii-V turnaround), 1 or 2 bars per chord, a tempo/swing/snare-lag from the ENERGY table, a drum groove (boom, bounce, lazy, half, rim, shuf), a form (T1-T3, grown to 2.5-4 minutes) whose every section switches layers on and off - hats-only intros, drumless breaks, lead entering at the second A, an outro that holds the last chord. Per bar: fills at 4- and 8-bar boundaries, B-section open hats and ghost snares, the keys PUSHING the next chord onto the and-of-4, the bass walking the kicks with chromatic approaches, a motif lead inverted and shifted in B, and the master tone filter automated (the intro opening from 900 Hz, the break dipping, the outro closing). The screen is the arrangement made visible: the form strip with the playhead, what each part is doing in this section, the chord, fills and pushes as they happen, and what's up next. N / SPACE next track . E energy (chill/balanced/upbeat, from the next track) . B band (full / no drums / chords only, from the next bar) . C city (the words the titles are made of) . H help",
+    "file": "loficity.cart.png",
+    "created": "2026-09-28",
+    "kind": [
+      "toy",
+      "instrument"
+    ],
+    "teaches": [
+      "song-arrangement",
+      "chord-voicing",
+      "generative-melody",
+      "swing-timing"
+    ],
+    "lineage": "A study port of Lofi Cities' arranger, verified bit-identical against the site's own planner (300 seeds x 4 chained tracks, every energy/band/city: 643,600 events to 9 decimals). The arrangement is theirs, line for line; the SOUND is ours - EPIANO Rhodes, a BOWED-pizz upright, the morphdrum kit + METAL hat, a MODAL rim, MALLET vibes / PIPE flute leads. Sibling of lofi.c (the radio station), which it shares no voices with.",
+    "homage": "Lofi Cities (loficities.com, Safa Elmali) - endless lofi composed live in the browser"
+  },
+  {
     "title": "logic",
     "description": "A redstone-lite logic sandbox. Place switches, wires and gates on a grid and watch signal flow tick by tick. Build a blinker from a NOT gate wired into itself, an SR latch from two NORs, a half-adder from XOR + AND; clocks, repeaters and pulse-stretchers handle timing. Opens with four live demo circuits already running. The digital signal layer ported from navkit's mechanisms experiment — first of a planned family (pipes, belts, gears). Mouse: click a palette tool, left-click the grid to place, right-click to erase; pick the HAND to flip switches / hold buttons / cycle a clock's period. Keyboard: arrows move the cursor, Z place, X erase, C use, R rotates a gate's facing, number/letter keys pick tools, SPACE runs/pauses, . single-steps, [ ] change speed.",
     "file": "logic.cart.png",
@@ -6560,6 +6578,19 @@
       "scale-quantize",
       "analog-voice-modeling"
     ]
+  },
+  {
+    "title": "schedule clock probe",
+    "description": "Books a short click every 0.25 s and nothing else, so the spacing between clicks in the render IS the scheduling error. Built two ways: SC_MODE=1 books on the sound clock with schedule_at(audio_time() + ...), which must land every click exactly 11025 samples apart; SC_MODE=0 is the NEGATIVE CONTROL, the old way - a delay from a frame clock through schedule_hit - which must show the swing of an audio buffer, or the gate cannot tell a working scheduler from a broken one. Driven by `bash tools/schedule-check/run.sh`; not meant to be played.",
+    "file": "schedcheck.cart.png",
+    "created": "2026-09-28",
+    "kind": [
+      "tech-demo"
+    ],
+    "teaches": [
+      "step-sequencer"
+    ],
+    "lineage": "Measurement probe for schedule_at() / audio_time() (docs/design/audio-timing.md): the notes a sequencer books must land on their samples however the frames and the audio callbacks interleave. Driven by tools/schedule-check/run.sh, not played by hand. Born from loficity, whose grooves wobbled on native playback."
   },
   {
     "title": "seinelaan 31",

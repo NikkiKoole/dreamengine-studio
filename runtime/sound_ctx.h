@@ -684,6 +684,10 @@ typedef enum {
     SR_STATE_RESTORE = 146,   // (no payload) — session-state restore: reset + replay ctx_log[ctx_active]
     SR_REVERB_PLATE = 147,    // a=amount*1000 — PLATE voicing on the reverb (reverb_plate): dense + bright + low-cut + decorrelated L/R
     SR_REVERB_PLATE_WIDTH = 148, // a=x*1000 — how far apart the plate's two pickups sit (reverb_plate_width), live
+    SR_NOTE_AT = 149,         // a=midi, b=instr, c=vol, delay_samples=ABSOLUTE target sample (low 31 bits of
+                              // snd_sample_clock), dur_samples — schedule_at(). Turned into an ordinary SR_NOTE
+                              // countdown AT DRAIN, measured from the buffer being drained, so its onset
+                              // cannot snap to a callback boundary the way schedule_hit's does (audio-timing.md)
 } SoundReqKind;
 typedef struct { SoundReqKind kind; int a, b, c; int delay_samples; int dur_samples; int e0, e1, e2; } SoundReq;
 #define SOUND_REQ_QUEUE   512   // generous: live held-voice control pushes many setters/frame, and a patch cart's
@@ -963,6 +967,8 @@ typedef struct {
     atomic_int req_tail;
     SoundReq delayed[SOUND_DELAYED_MAX];
     int delayed_count;
+    atomic_llong snd_sample_clock;   // samples this instance has RENDERED (advanced once per callback, never reset):
+                                     // the sample-accurate clock behind audio_time() / schedule_at()
     SoundReq ctx_log[SOUND_CART_CTX][SOUND_CTX_LOG];
     int ctx_log_n[SOUND_CART_CTX];
     int ctx_active;
@@ -1359,6 +1365,7 @@ static _Thread_local DeSound *de_snd = &de_snd_default;
 #define req_tail             (de_snd->req_tail)
 #define delayed              (de_snd->delayed)
 #define delayed_count        (de_snd->delayed_count)
+#define snd_sample_clock     (de_snd->snd_sample_clock)
 #define ctx_log              (de_snd->ctx_log)
 #define ctx_log_n            (de_snd->ctx_log_n)
 #define ctx_active           (de_snd->ctx_active)

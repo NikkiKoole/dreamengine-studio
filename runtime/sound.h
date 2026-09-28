@@ -1961,7 +1961,7 @@ static bool sound_req_is_event(SoundReq r) {
         case SR_NOTE_ENV: case SR_NOTE_MACRO: case SR_NOTE_DRIVE: case SR_NOTE_ECHO:
         case SR_NOTE_FOLLOW: case SR_NOTE_PAN: case SR_NOTE_REVERB: case SR_NOTE_DRIVE_MODE:
         case SR_NOTE_POS: case SR_NOTE_MOTION: case SR_HIT_AT: case SR_NOTE_SYNC:
-        case SR_NOTE_RETRIG: case SR_NOTE_GLIDE_SCALE: case SR_CART_SWITCH:
+        case SR_NOTE_RETRIG: case SR_NOTE_GLIDE_SCALE: case SR_CART_SWITCH: case SR_NOTE_AT:
         case SR_STATE_RESTORE:   // must NOT be recorded: it replays the very log it would land in
             return true;
         case SR_LFO_SHAPE: return r.c < 0;   // c<0 = live held note (handle in e0/e1); c>=0 = instrument-slot config
@@ -6295,6 +6295,7 @@ static void sound_fire_req(SoundReq r) {
             sound_set_step(v, sfx_bank[n].steps[0], sfx_bank[n].step_dur);
         }
     } break;
+    case SR_NOTE_AT:   // never arrives here in practice (the drain turns it into an SR_NOTE countdown); play it now if it does
     case SR_NOTE: {
         int gate = r.dur_samples > 0 ? r.dur_samples : SOUND_SAMPLE_RATE / 4;
         sound_choke_group(r.b);
@@ -7238,6 +7239,18 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
         SoundReq r = req_queue[tail];
         atomic_store_explicit(&req_tail, (tail + 1) % SOUND_REQ_QUEUE, memory_order_release);  // free the slot for the producer
         if (!sound_req_is_event(r)) sound_ctx_record(r);   // cart-context config log (de_switch_cart)
+        if (r.kind == SR_NOTE_AT) {
+            // schedule_at(): an ABSOLUTE target sample. Convert it to a countdown from THIS buffer's first
+            // sample, so the onset is independent of which callback happens to drain it (schedule_hit's
+            // delay counts from the drain, which is the 0..one-buffer swing in audio-timing.md). Wrap-safe
+            // 31-bit difference (~13.5 h of audio); a target already in the past fires now.
+            int now31 = (int)(atomic_load_explicit(&snd_sample_clock, memory_order_relaxed) & 0x7FFFFFFF);
+            long long d = (long long)r.delay_samples - now31;
+            if (d >  0x40000000LL) d -= 0x80000000LL;
+            if (d < -0x40000000LL) d += 0x80000000LL;
+            r.kind = SR_NOTE;
+            r.delay_samples = d > 0 ? (int)d : 0;
+        }
         if (r.delay_samples <= 0) {
             sound_fire_req(r);
         } else if (delayed_count < SOUND_DELAYED_MAX) {
@@ -7681,6 +7694,10 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
             rec_total++;
         }
     }
+    // the sample clock (audio_time / schedule_at): advanced once per rendered buffer. The audio thread is
+    // the only writer; RELEASE so a main-thread reader never sees a clock ahead of the audio it names.
+    atomic_store_explicit(&snd_sample_clock,
+        atomic_load_explicit(&snd_sample_clock, memory_order_relaxed) + (long long)frames, memory_order_release);
 }
 
 // copy the latest `n` mono output samples (oldest first, newest last) into `dst`.
@@ -9183,6 +9200,24 @@ void schedule_hit(int delay_ms, int midi, int instr, int vol, int dur_ms) {
     if (ds  < 0) ds  = 0;
     if (dur < 1) dur = 1;
     sound_push_req(SR_NOTE, midi, instr, vol, ds, dur);
+}
+
+// THE SAMPLE CLOCK — seconds of audio this instance has rendered. It advances in whole buffers (so read
+// frame to frame it steps ~23 ms on native), but it is the clock the notes are actually PLAYED on: a
+// schedule_at() time on it lands on its exact sample however the frames and the callbacks interleave.
+double audio_time(void) {
+    return (double)atomic_load_explicit(&snd_sample_clock, memory_order_acquire) / (double)SOUND_SAMPLE_RATE;
+}
+
+// schedule_hit at an ABSOLUTE audio_time(), not a delay from now. Stamped here, converted at the drain
+// (see SR_NOTE_AT), so the onset does not inherit the 0..one-buffer swing of a delay counted from
+// whichever callback drains it. A time already past fires at once. Book it at least a buffer ahead.
+void schedule_at(double t, int midi, int instr, int vol, int dur_ms) {
+    long long target = (long long)(t * (double)SOUND_SAMPLE_RATE + 0.5);
+    if (target < 0) target = 0;
+    int dur = ms_samp(dur_ms);
+    if (dur < 1) dur = 1;
+    sound_push_req(SR_NOTE_AT, midi, instr, vol, (int)(target & 0x7FFFFFFF), dur);
 }
 
 void bpm(int rate) {

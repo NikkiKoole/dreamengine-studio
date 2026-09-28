@@ -594,6 +594,8 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
                              --selfcheck (31 answers) judges the ANALYSER and builds nothing, so it runs
                              anywhere; --bypass rebuilds the wasm side with -ffast-math and requires the gate
                              to go RED (16/16 engines diverge) — the only proof the comparison reaches the DSP
+             schedule-check/ the gate for `schedule_at()`/`audio_time()` (`bash tools/schedule-check/run.sh`): frames at 60 Hz +
+                             audio in 1024 blocks (what `--wav` can't show); booked clicks must land 0 samples off; old way = control
              insert-latency.js  how long a sample takes from `de_audio_input()` to the OUTPUT — the number
                              that decides whether a cart can be an INSERT EFFECT (auv3-plugin-types.md §4.1's
                              first caveat: the mic ring was built for ANALYSIS, latency unmeasured). Feeds

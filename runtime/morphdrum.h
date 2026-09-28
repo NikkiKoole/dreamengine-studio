@@ -26,6 +26,8 @@
 //   // bind a knob: ui_knob(..., &k.p[MD_KICK][MD_DECAY]);
 //
 // SEAM — the hat: an 808 hat is a 6-square metal bank, a 909 hat is FM-clang. Both are
+// (2026-09-28: INSTR_METAL now IS that six-square bank with per-mode lifetimes + a stagger knob;
+//  switching MD_HAT onto it changes morphbox's shipped hat, so it waits for a decision. bogie = demo)
 // one bright, highpassed, ringing metal source, so this models it as ONE FM voice and
 // gives it timbre/morph knobs (not byte-equal to either machine's hat — the honest
 // continuum). The other two voices share their oscillator structure across the pair.

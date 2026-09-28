@@ -31,6 +31,7 @@
 #define SOUND_KS_MAX       1024   // Karplus-Strong delay line cap (~4KB/voice) — bottoms out around 43Hz / MIDI 29
 #define SOUND_MODAL_MAX    12     // INSTR_MODAL resonator budget (4 is the floor; MODE_MODAL_MODES spends this)
 #define SOUND_MME_BANDS    20     // INSTR_MME vocoder model: filter-bank width (Warps' 20)
+#define SOUND_METAL_MODES  6      // INSTR_METAL: the six-square bank (the 808's six oscillators)
 #define ORGAN_SCAN         64     // INSTR_ORGAN scanner-chorus delay taps (~1.5ms; borrows ks_buf's head — organ never uses the Karplus path)
 #define SOUND_BOW_BODIES   8      // pool size — a string-quartet cart wants 4 (2 violins/viola/cello); ~9KB each
 #define BOW_BODY_MAX       768    // longest line, in samples: DOUBLE BASS 16.67ms = 736 @ 44.1k, + headroom.
@@ -408,6 +409,16 @@ typedef struct {
     float  mme_env[SOUND_MME_BANDS], mme_a[SOUND_MME_BANDS];     // vocoder: band envelopes + coefficients
     float  mme_voc_flow;                // the flow the band table was built for (rebuilt when it moves)
     bool   mme_on;                      // note-on init guard (engine id without a start → silent)
+    // METAL (INSTR_METAL): six squares with their OWN exponential lifetimes + a bright-noise layer.
+    float  metal_ph[SOUND_METAL_MODES];   // per-mode phase (turns)
+    float  metal_env[SOUND_METAL_MODES];  // per-mode envelope 1 → 0
+    float  metal_c[SOUND_METAL_MODES];    // per-sample decay coefficient per mode (the STAGGER lives here)
+    float  metal_nenv, metal_nc;        // noise envelope + its coefficient (the global lifetime)
+    float  metal_nlp;                   // one-pole state the bright noise is white MINUS
+    float  metal_spread;                // MODE_METAL_SPREAD at note-on
+    float  metal_mor_cache;             // the morph the coefficients were built for (rebuilt when it moves)
+    float  metal_hp_x, metal_hp_y;      // 10 Hz output DC blocker
+    bool   metal_on;                    // note-on init guard
 } Voice;
 #define SOUND_HANDLE_BITS 5                      // slot field width — must hold SOUND_VOICES-1 (32 voices → 0..31 → 5 bits)
 #define SCOPE_LEN 2048

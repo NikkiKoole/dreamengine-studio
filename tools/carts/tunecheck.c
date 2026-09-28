@@ -22,8 +22,9 @@
 #define PERIOD      (NOTE_FRAMES + GAP_FRAMES)
 
 // the non-standard / pitched engines worth tuning-checking. SINE = control.
-// (NOISE is unpitched; MEMBRANE is an inharmonic drum; VOICE is formant-shaped —
-//  all three are deliberately left out of the default tuning sweep.)
+// (NOISE is unpitched; MEMBRANE is an inharmonic drum; VOICE is formant-shaped; METAL is a
+//  six-square bank whose lowest mode sits at f0 × 1.18 — all four are deliberately left out of
+//  the default tuning sweep. METAL's level is measured by hand in the bogie cart, not here.)
 static const int ENGINES[] = {
     INSTR_SINE,   INSTR_PLUCK,  INSTR_MALLET, INSTR_FM,    INSTR_ORGAN,
     INSTR_EPIANO, INSTR_PD,     INSTR_REED,   INSTR_PIPE,  INSTR_GUITAR,

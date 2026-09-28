@@ -7,13 +7,24 @@
 > **here**, then fix the prose in the relevant design doc. If a design doc and this file
 > disagree, this file wins.
 
-_Last updated: 2026-09-27 — INSTR_MME (the multi modulation engine) shipped, cart-first. See the top Shipped entry and [`design/choochootracker-borrow-list.md`](design/choochootracker-borrow-list.md)._
+_Last updated: 2026-09-28 — INSTR_METAL (the six-square metal bank with per-mode lifetimes) shipped, cart-first, a day after INSTR_MME. See the top Shipped entry and [`design/choochootracker-borrow-list.md`](design/choochootracker-borrow-list.md)._
 
 > **This line is a headline, not an entry.** It reached **9,064 characters** and was the only place in the file that recorded `FILTER_DIODE`, `filter-spec.js` and `rebirth-classic.md` — three shipped things, invisible because nobody reads a shipped feature out of a `_Last updated:_` line. They have a real entry now (2026-07-02, above `sprite-draw.js`). Keep this to one date, one sentence, one link; `status-check --check` fails past 900 chars.
 
 ---
 
 ## Shipped ✓
+
+- **INSTR_METAL: THE SIX-SQUARE METAL BANK WITH PER-MODE LIFETIMES** (2026-09-28). Rows 2 and 3
+  of the Choochootracker borrow list, cart-first (the `bogie` cart, one day as six INSTR_SQUARE
+  slots per bank, then the engine): six squares at Bogie's inharmonic ratios, each with its OWN
+  exponential lifetime, plus bright noise, one voice per hit. Macros: harmonics = tone (hat →
+  cymbal ratios), timbre = noise mix, morph = STAGGER DIRECTION (lows-longest / one lifetime /
+  highs-longest); `MODE_METAL_DECAY/SPREAD` on the aux channel. Measured with wav-envelope: the
+  shipped tr808.h hat's brightness is FLAT across its decay (a chord fading); the bank's moves,
+  and the knob picks which way. The cowbell (row 3) is an INSTR_MME patch. `bogie` cycles
+  engine / slot-bank prototype / 808 on one set of pads. `morphdrum.h`'s hat seam is the
+  intended next home. [`design/choochootracker-borrow-list.md`](design/choochootracker-borrow-list.md).
 
 - **INSTR_MME: THE MULTI MODULATION ENGINE** (2026-09-27). Row 1 of the Choochootracker
   borrow list, ported cart-first: two oscillators through seven cross-modulation models

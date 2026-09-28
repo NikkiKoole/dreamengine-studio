@@ -12,22 +12,28 @@
     "drum-synthesis",
     "additive-synth"
   ],
-  "lineage": "Rows 2 and 3 of docs/design/choochootracker-borrow-list.md, cart-first: Choochootracker's Bogie drum synth (chipnomad_lib/synth/drum_synth_voice.cpp, MIT) hat + cymbal METAL BANK, six square oscillators at inharmonic ratios each with a DIFFERENT decay, so the bank never settles into a pitched square-wave chord as it rings out (our tr808.h hat fires two bank members on ONE slot with ONE decay, which is exactly the chord). Plus its cowbell cross-modulation, which turns out to be an INSTR_MME patch (a square pair through the cross model). Built from stock engine pieces: six INSTR_SQUARE slots per bank with per-slot decays, a highpassed INSTR_NOISE, one INSTR_MME. The shipped tr808.h hat / cymbal / cowbell sit behind a toggle as the reference.",
+  "lineage": "INSTR_METAL showcase, and the cart it was prototyped in first. Rows 2 and 3 of docs/design/choochootracker-borrow-list.md: Choochootracker's Bogie drum synth (chipnomad_lib/synth/drum_synth_voice.cpp, MIT) hat + cymbal METAL BANK, six square oscillators at inharmonic ratios each with a DIFFERENT lifetime, so the bank never settles into a pitched square-wave chord as it rings out (our tr808.h hat fires two bank members on ONE slot with ONE decay, which is exactly the chord). Plus its cowbell cross-modulation, which is an INSTR_MME patch (a square pair through the cross model). Three kits on one set of pads, key 8 cycles them: ENGINE (one INSTR_METAL voice per hit, exponential lifetimes, the STAGGER knob = morph), BANKS (the six-INSTR_SQUARE-slots prototype the engine was written from) and 808 (the shipped tr808.h hat / cymbal / cowbell). The cowbell is the same MME slot on the first two kits.",
   "homage": "Choochootracker's Bogie (2026) after the TR-808's six-oscillator metal bank; the cowbell after the 808's two-square circuit with a third oscillator cross-modulating it.",
   "description": {
-    "summary": "A hat, an open hat, a cymbal and a cowbell built from six-square metal banks with staggered decays, next to the 808 versions for comparison.",
-    "detail": "Four pads. The hats and cymbal are six square oscillators at inharmonic ratios, each on its own slot with its own decay (25..125 ms for the hat, 100..475 ms for the cymbal, both stretched by TONE and the DECAY knob), plus a highpassed noise layer. Because the modes die at different rates the spectrum moves as the sound decays, the way a real cymbal's does; a bank with one decay stays a chord. The cowbell is two squares a sixth apart with a third oscillator cross-modulating them (FM knob): classic at zero, metallic when turned up, and it is the MME engine's cross model doing it. Press 8 to route the same pads to the shipped 808 hat, open hat, cymbal and cowbell from tr808.h, so the two can be judged by ear on the same gesture. Each pad has its own knob set (tone / sweep / noise / fm / decay / hpf).",
-    "controls": "A S D F: closed hat, open hat, cymbal, cowbell (or tap the pads) · 1-4: select the pad the knobs edit · drag the knobs (wheel = fine) · LEFT/RIGHT knob, UP/DOWN adjust · 8: BOGIE / 808 reference · M: autoplay pattern"
+    "summary": "A hat, an open hat, a cymbal and a cowbell from the six-square metal bank with staggered lifetimes (INSTR_METAL), next to the slot-bank prototype and the 808 versions.",
+    "detail": "Four pads, three kits. ENGINE: each hat and the cymbal is one INSTR_METAL voice, six square oscillators at inharmonic ratios each dying at its own rate, so the spectrum moves as the sound decays the way a real cymbal's does; the STAGGER knob is the direction (lows live longest like the 808 cymbal, one lifetime = the chord, highs live longest like Bogie). BANKS: the prototype it was written from, six INSTR_SQUARE slots per bank with per-slot linear decays. 808: the shipped tr808.h hat, open hat, cymbal and cowbell. The cowbell is two squares a sixth apart with a third oscillator cross-modulating them (FM knob): classic at zero, metallic when turned up, the MME engine's cross model. Key 8 cycles the kits on the same pads so all three can be judged by ear on one gesture. Each pad has its own knob set (tone / sweep / noise / fm / decay / hpf / stagger).",
+    "controls": "A S D F: closed hat, open hat, cymbal, cowbell (or tap the pads) · 1-4: select the pad the knobs edit · drag the knobs (wheel = fine) · LEFT/RIGHT knob, UP/DOWN adjust · 8: ENGINE / BANKS / 808 · M: autoplay pattern"
   },
   "todo": [
-    "ear pass: does the staggered bank beat the 808 hat on its own terms (press 8 back and forth); then decide whether it becomes an INSTR_METAL engine (one voice per hit, exponential per-mode decays) or a tr808.h/morphdrum.h option",
-    "the amp ADSR decay is LINEAR (sound_adsr_gated); each mode's exponential time constant is mapped to a 3.5x ramp here, the engine version should decay exponentially",
-    "stagger DIRECTION: Bogie's top modes live longest (tail brightens); the 808 cymbal's lows do (tail darkens). Worth a knob, measured either way with wav-envelope",
-    "a hat hit costs 7 voices (6 modes + noise) against the engine's 32; fine for a kit cart, not for a busy rack"
+    "ear pass across the three kits (8): does INSTR_METAL beat the 808 hat on its own terms, and which STAGGER direction wins for the cymbal",
+    "morphdrum.h's hat seam has been waiting for exactly this engine: switch its MD_HAT to INSTR_METAL once the ear settles (changes morphbox's shipped hat, so it is a decision, not a chore)"
   ]
 }
 de:meta */
-// bogie — the Choochootracker Bogie metal bank, prototyped from stock engine pieces.
+// bogie — INSTR_METAL showcase, and the cart the engine was prototyped in first.
+//
+// Three kits on one set of pads, key 8 cycles them:
+//   ENGINE  one INSTR_METAL voice per hit: six squares with exponential per-mode lifetimes,
+//           tone/noise/stagger as the three macros, decay + spread on the aux channel.
+//   BANKS   the prototype: six INSTR_SQUARE slots per bank with per-slot LINEAR decays (the
+//           engine was written from this, and it stays as the reference for the ramp vs
+//           exponential question).
+//   808     the shipped tr808.h hat / open hat / cymbal / cowbell.
 //
 // What row 2 is about: an 808 hat is a six-square metal bank. tr808.h fires two members of
 // that bank on ONE slot with ONE decay, so the ring-out is a two-note square chord. Bogie
@@ -60,7 +66,7 @@ de:meta */
 //     six lifetimes collapse to within a few ms of each other (25..30 ms): the stagger is an
 //     open-hat / cymbal property, and Bogie's closed hat is a chord too, just a 60 ms one.
 //
-// controls: A S D F pads · 1-4 select · knobs · LEFT/RIGHT + UP/DOWN · 8 kit · M autoplay
+// controls: A S D F pads · 1-4 select · knobs · LEFT/RIGHT + UP/DOWN · 8 kit (3) · M autoplay
 
 #include "studio.h"
 #include "ui.h"
@@ -71,8 +77,12 @@ enum { V_CH, V_OH, V_CY, V_CB, NVOICE };
 static const char *VNAME[NVOICE] = { "CL HAT", "OP HAT", "CYMBAL", "COWBELL" };
 static const char VKEY[NVOICE] = { 'A', 'S', 'D', 'F' };
 
-enum { K_TONE, K_SWEEP, K_NOISE, K_FM, K_DECAY, K_HPF, NKNOB };
-static const char *KNAME[NKNOB] = { "tone", "sweep", "noise", "fm", "decay", "hpf" };
+enum { K_TONE, K_SWEEP, K_NOISE, K_FM, K_DECAY, K_HPF, K_STAGGER, NKNOB };
+static const char *KNAME[NKNOB] = { "tone", "sweep", "noise", "fm", "decay", "hpf", "stagger" };
+
+enum { KIT_ENGINE, KIT_BANKS, KIT_808, NKIT };
+static const char *KIT_NAME[NKIT] = { "8: ENGINE", "8: BANKS", "8: 808 REF" };
+static const char *KIT_NOTE[NKIT] = { "pads -> INSTR_METAL, one voice a hit", "pads -> the six-slot banks", "pads -> tr808.h hat/cym/cowbell" };
 
 #define NMODE    6
 #define S_HC     5                     // closed-hat bank 5..10
@@ -81,6 +91,7 @@ static const char *KNAME[NKNOB] = { "tone", "sweep", "noise", "fm", "decay", "hp
 #define S_NZ     23                    // noise: 23 ch, 24 oh, 25 cy
 #define S_CB     26                    // cowbell: one INSTR_MME slot
 #define S_808    27                    // tr808.h bank 27..42
+#define S_MT     43                    // INSTR_METAL: 43 ch, 44 oh, 45 cy
 
 static const float HAT_R[NMODE] = { 1.18f, 1.56f, 2.17f, 2.87f, 3.73f, 4.61f };
 static const float CYM_R[NMODE] = { 1.31f, 1.79f, 2.41f, 3.16f, 4.07f, 5.23f };
@@ -92,13 +103,13 @@ static const float CYM_R[NMODE] = { 1.31f, 1.79f, 2.41f, 3.16f, 4.07f, 5.23f };
 static const float TRIM[NVOICE] = { 0.84f, 1.00f, 0.35f, 0.63f };
 
 static float P[NVOICE][NKNOB] = {
-    { 0.45f, 0.10f, 0.55f, 0.20f, 0.18f, 0.35f },   // closed hat
-    { 0.45f, 0.10f, 0.55f, 0.20f, 0.62f, 0.35f },   // open hat
-    { 0.50f, 0.05f, 0.45f, 0.25f, 0.70f, 0.20f },   // cymbal
-    { 0.50f, 0.15f, 0.00f, 0.00f, 0.45f, 0.00f },   // cowbell (noise unused)
+    { 0.45f, 0.10f, 0.55f, 0.20f, 0.18f, 0.35f, 0.85f },   // closed hat
+    { 0.45f, 0.10f, 0.55f, 0.20f, 0.62f, 0.35f, 0.85f },   // open hat
+    { 0.50f, 0.05f, 0.45f, 0.25f, 0.70f, 0.20f, 0.85f },   // cymbal
+    { 0.50f, 0.15f, 0.00f, 0.00f, 0.45f, 0.00f, 0.50f },   // cowbell (noise/hpf/stagger unused)
 };
 static int   sel = V_CH, ksel = K_TONE;
-static bool  ref808 = false;           // 8: route the pads to tr808.h
+static int   kit = KIT_ENGINE;         // 8 cycles ENGINE → BANKS → 808
 static bool  autoplay = true;
 static int   pstep = 0;
 static float glow[NVOICE];
@@ -186,15 +197,51 @@ static void apply_cowbell(void) {
     cb_midi = 73;                                                  // 554 Hz, the 808's lower square
 }
 
-static void apply(int v) { if (v == V_CB) apply_cowbell(); else apply_bank(v); dirty[v] = false; }
+// the ENGINE kit: one INSTR_METAL slot per pad. tone → harmonics, noise → timbre, stagger →
+// morph (live), decay → MODE_METAL_DECAY, fm → MODE_METAL_SPREAD; sweep + hpf stay the slot's
+// own ENV_PITCH + filter, same as the banks. Trim: measured against the 808 (see METAL_TRIM in
+// sound.h for the engine's own baseline; this is the per-pad balance on top of it).
+static const float MT_TRIM[3] = { 0.75f, 1.0f, 0.34f };            // measured: closed hat -11.5, open -8.3, cymbal -16.6 dBFS (the 808's)
+static void apply_metal(int v) {
+    int cym = (v == V_CY), s = S_MT + v;
+    const float *p = P[v];
+    instrument(s, INSTR_METAL, 0, 0, 7, 30);                      // the lifetimes end the note; the ADSR just passes it
+    instrument_harmonics(s, p[K_TONE]);
+    instrument_timbre(s, p[K_NOISE]);
+    instrument_morph(s, p[K_STAGGER]);
+    // Bogie's duration → the base lifetime: dur/5.5 combined with mode 0's own tau, on the
+    // engine's log knob (20 ms .. 2 s): decay = log100(tau / 0.02)
+    float tau = mode_tau_s(cym, 0, p[K_TONE], p[K_DECAY]);
+    float d = de_log2f(tau / 0.02f) / de_log2f(100.0f);
+    instrument_mode(s, MODE_METAL_DECAY, clamp(d, 0.0f, 1.0f));
+    instrument_mode(s, MODE_METAL_SPREAD, p[K_FM]);
+    instrument_level(s, MT_TRIM[v]);
+    instrument_env(s, 0, ENV_PITCH, 0, sweep_ms(p[K_TONE]), sweep_semis(cym, p[K_SWEEP]));
+    instrument_filter(s, p[K_HPF] > 0.01f ? FILTER_HIGH : FILTER_OFF, hpf_hz(p[K_HPF]), 1);
+}
+static int metal_midi(int v) {                                    // mode 0 = f0 × 1.18: aim the bank's BASE at Bogie's
+    int cym = (v == V_CY);
+    int m = (int)(hz2midi(bank_base_hz(cym, P[v][K_TONE])) + 0.5f);
+    return m < 1 ? 1 : m > 110 ? 110 : m;
+}
+static int metal_ms(int v) {                                      // a gate longer than the longest lifetime
+    int cym = (v == V_CY);
+    return tau_to_ms(mode_tau_s(cym, NMODE - 1, P[v][K_TONE], P[v][K_DECAY])) * 3;
+}
+
+static void apply(int v) {
+    if (v == V_CB) apply_cowbell(); else { apply_bank(v); apply_metal(v); }
+    dirty[v] = false;
+}
 
 // ── fire ────────────────────────────────────────────────────────────────────────
 static const int TR_ROLE[NVOICE] = { TR_CH, TR_OH, TR_CY, TR_CB };
 
 static void fire(int v, int delay) {
     glow[v] = 1.0f;
-    if (ref808) { tr808_fire(S_808, TR_ROLE[v], 0, delay, kt, kd, kc); return; }
+    if (kit == KIT_808) { tr808_fire(S_808, TR_ROLE[v], 0, delay, kt, kd, kc); return; }
     if (v == V_CB) { schedule_hit(delay, cb_midi, S_CB, 6, cb_ms); return; }
+    if (kit == KIT_ENGINE) { schedule_hit(delay, metal_midi(v), S_MT + v, 6, metal_ms(v)); return; }
     int s0 = bank_slot(v);
     for (int o = 0; o < NMODE; o++) schedule_hit(delay, bank_midi[v][o], s0 + o, 6, bank_ms[v][o]);
     int nv = (int)(P[v][K_NOISE] * 7.0f + 0.5f);
@@ -202,13 +249,14 @@ static void fire(int v, int delay) {
 }
 
 static void select_pad(int v) { sel = v; }
-static void set_ref(bool r) { ref808 = r; }
+static void set_kit(int k) { kit = ((k % NKIT) + NKIT) % NKIT; }
 
 void init(void) {
     for (int v = 0; v < TR_NV; v++) kt[v] = kd[v] = kc[v] = 0.5f;
     tr808_build(S_808);
     instrument_choke(S_HC, S_HO);                                  // closed hat chokes the open bank's
     for (int o = 1; o < NMODE; o++) instrument_choke(S_HC, S_HO + o);   // every mode (one voice, many slots)
+    instrument_choke(S_MT + V_CH, S_MT + V_OH);                    // and on the engine kit: one voice each
     for (int v = 0; v < NVOICE; v++) { apply(v); glow[v] = 0.0f; }
     bpm(112);
 }
@@ -231,7 +279,7 @@ void update(void) {
         if (keyp(VKEY[v])) { fire(v, 0); autoplay = false; }
         if (keyp('1' + v)) select_pad(v);
     }
-    if (keyp('8')) set_ref(!ref808);
+    if (keyp('8')) set_kit(kit + 1);
     if (keyp('M')) autoplay = !autoplay;
     if (keyp(KEY_LEFT))  ksel = (ksel + NKNOB - 1) % NKNOB;
     if (keyp(KEY_RIGHT)) ksel = (ksel + 1) % NKNOB;
@@ -246,7 +294,7 @@ void update(void) {
 
 #ifdef DE_TRACE
     watch("sel", "%d", sel);
-    watch("ref808", "%d", ref808 ? 1 : 0);
+    watch("kit", "%d", kit);
     watch("tone", "%.2f", P[sel][K_TONE]);
     watch("decay", "%.2f", P[sel][K_DECAY]);
     watch("fm", "%.2f", P[sel][K_FM]);
@@ -263,8 +311,8 @@ void draw(void) {
     print_right(autoplay ? "M auto: on" : "M auto: off", SCREEN_W - 6, 6, autoplay ? CLR_LIME_GREEN : CLR_DARK_GREY);
 
     // kit toggle
-    if (ui_button(6, 16, 96, 14, ref808 ? "8: 808 REF" : "8: BOGIE")) set_ref(!ref808);
-    print(ref808 ? "pads -> tr808.h hat/cym/cowbell" : "pads -> the banks", 108, 20, ref808 ? CLR_PEACH : CLR_MEDIUM_GREY);
+    if (ui_button(6, 16, 96, 14, KIT_NAME[kit])) set_kit(kit + 1);
+    print(KIT_NOTE[kit], 108, 20, kit == KIT_ENGINE ? CLR_LIGHT_YELLOW : kit == KIT_808 ? CLR_PEACH : CLR_MEDIUM_GREY);
 
     // pads
     for (int v = 0; v < NVOICE; v++) {
@@ -281,8 +329,9 @@ void draw(void) {
     // knobs for the selected pad
     print(str("knobs: %s", VNAME[sel]), 6, 84, CLR_YELLOW);
     for (int k = 0; k < NKNOB; k++) {
-        int x = 30 + k * 52, y = 112;
-        bool dead = (sel == V_CB && (k == K_NOISE || k == K_HPF));
+        int x = 26 + k * 45, y = 112;
+        bool dead = (sel == V_CB && (k == K_NOISE || k == K_HPF || k == K_STAGGER))
+                 || (k == K_STAGGER && kit != KIT_ENGINE);
         float before = P[sel][k];
         if (ui_knob(&P[sel][k], x, y, KNAME[k])) { if (!dead && P[sel][k] != before) dirty[sel] = true; }
         if (k == ksel) print("^", x - 2, y + 22, CLR_YELLOW);
@@ -290,7 +339,11 @@ void draw(void) {
     }
 
     // the stagger, drawn: each mode's decay as a bar (the thing this cart exists to hear)
-    if (sel != V_CB) {
+    if (sel != V_CB && kit == KIT_ENGINE) {
+        float dir = (P[sel][K_STAGGER] - 0.5f) * 2.0f;
+        print(dir > 0.05f ? "stagger: highs live longest (Bogie)" : dir < -0.05f ? "stagger: lows live longest (808 cymbal)" : "stagger: one lifetime (the chord)", 6, 146, CLR_MEDIUM_GREY);
+        print(str("base lifetime %.0f ms, spread %.2f", mode_tau_s(sel == V_CY, 0, P[sel][K_TONE], P[sel][K_DECAY]) * 1000.0f, P[sel][K_FM]), 6, 156, CLR_DARK_GREY);
+    } else if (sel != V_CB) {
         print("mode lifetimes (ms)", 6, 146, CLR_MEDIUM_GREY);
         for (int o = 0; o < NMODE; o++) {
             int ms = bank_ms[sel][o];
@@ -306,7 +359,7 @@ void draw(void) {
     }
 
     font(FONT_TINY);
-    print("A S D F pads  1-4 select  8 kit  M auto  LEFT/RIGHT knob  UP/DOWN adjust", 6, SCREEN_H - 9, CLR_DARK_GREY);
+    print("A S D F pads  1-4 select  8 kit (engine/banks/808)  M auto  LEFT/RIGHT UP/DOWN", 6, SCREEN_H - 9, CLR_DARK_GREY);
     font(FONT_NORMAL);
     ui_end();
 }
@@ -316,7 +369,7 @@ void draw(void) {
 void spec(void) {
     autoplay = false;
     step(1);
-    expect(!ref808, "boots on the Bogie banks, not the 808 reference");
+    expect_eq(kit, KIT_ENGINE, "boots on the ENGINE kit (INSTR_METAL)");
     expect_eq(sel, V_CH, "boots editing the closed hat");
 
     // the point of row 2: every mode outlives the one below it, on both banks, at every tone
@@ -364,9 +417,13 @@ void spec(void) {
     spec_tap('3');
     expect_eq(sel, V_CY, "key 3 selects the cymbal");
     spec_tap('8');
-    expect(ref808, "8 routes the pads to the 808 reference");
+    expect_eq(kit, KIT_BANKS, "8 steps to the six-slot banks");
     spec_tap('8');
-    expect(!ref808, "8 again brings the banks back");
+    expect_eq(kit, KIT_808, "8 again steps to the 808 reference");
+    spec_tap('8');
+    expect_eq(kit, KIT_ENGINE, "8 wraps back to the engine");
+    expect(metal_ms(V_CY) > metal_ms(V_CH), "engine gate: the cymbal's outlives the closed hat's");
+    expect(metal_midi(V_CY) > metal_midi(V_CH), "engine base note: the cymbal bank sits above the hat bank");
     spec_tap(KEY_RIGHT);
     expect_eq(ksel, K_SWEEP, "RIGHT moves to the sweep knob");
     float before = P[V_CY][K_SWEEP], other = P[V_CH][K_SWEEP];

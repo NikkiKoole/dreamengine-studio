@@ -2958,6 +2958,88 @@ static inline float sound_mme_sample(Voice *v, float pitch_mul) {
     return v->mme_hp_y * MME_TRIM[model];
 }
 
+// ── INSTR_METAL: the six-square metal bank with per-mode LIFETIMES (borrow-list rows 2+3) ──
+// An 808 hat is six square oscillators at inharmonic ratios; tr808.h fires them on one slot
+// with one decay, so its ring-out is a square-wave CHORD fading (measured: brightness flat in
+// every window of the decay). Choochootracker's Bogie gives every mode its OWN lifetime, so
+// the spectrum MOVES while it decays, the spectral migration a real cymbal does. This engine
+// is that bank as ONE voice per hit (the `bogie` cart's six-slot prototype cost seven voices
+// a hit and could only ramp linearly): six naive squares, each with its own exponential
+// envelope, plus Bogie's bright noise (white minus a one-pole), through a DC blocker.
+// Macros: harmonics = TONE (hat ratios → cymbal ratios, and the noise colour with it),
+// timbre = NOISE mix (0 = pure bank, 1 = pure bright noise), morph = STAGGER DIRECTION,
+// bipolar: 0 = the LOWS live longest (the 808 cymbal's band decays, tail darkens), 0.5 = one
+// lifetime for all (the chord), 1 = the HIGHS live longest (Bogie, tail brightens). Aux at
+// note-on: MODE_METAL_DECAY (the base lifetime, 20 ms .. 2 s) and MODE_METAL_SPREAD (the
+// ratio spread, Bogie's FM). Pitch: mode o sits at f0 × ratio_o, so a hat wants A2..A4 and
+// the slot's own ENV_PITCH gives it the onset sweep. Attribution: Bogie (paiheulevrai, MIT).
+#define METAL_NMODE SOUND_METAL_MODES
+static const float METAL_HAT_R[METAL_NMODE] = { 1.18f, 1.56f, 2.17f, 2.87f, 3.73f, 4.61f };
+static const float METAL_CYM_R[METAL_NMODE] = { 1.31f, 1.79f, 2.41f, 3.16f, 4.07f, 5.23f };
+// output trim, measured 2026-09-28 in the bogie cart against tr808.h at the same vol: a hat hit
+// is a short transient, so it is trimmed to the 808 hat's PEAK (-8.3 dBFS for the open hat at
+// vol 6), which sits above the sustained-tone baseline level-check uses (-14); a drum's peak
+// is not a tone's. Cart-side instrument_level() only cuts, so the engine carries the hot end
+#define METAL_TRIM 2.4f
+
+// per-mode decay coefficients from the base lifetime (aux, note-on) and the stagger (morph, live):
+// mode o's lifetime = tau × 2^(((o/5) − 0.5) × dir × 3), so at full stagger the two end modes
+// differ by 8× (Bogie's hat: 25 vs 125 ms, 5×; its cymbal 100 vs 475 ms, ~5×)
+static void sound_metal_coeffs(Voice *v) {
+    const float sr  = (float)SOUND_SAMPLE_RATE;
+    float tau = 0.02f * de_powf(100.0f, clamp01(v->eng_p[MODE_METAL_DECAY]));   // 20 ms .. 2 s
+    float dir = (clamp01(v->mor) - 0.5f) * 2.0f;
+    for (int o = 0; o < METAL_NMODE; o++) {
+        float k = ((float)o / (float)(METAL_NMODE - 1) - 0.5f) * dir * 3.0f;
+        float t = tau * de_exp2f(k);
+        v->metal_c[o] = de_expf(-1.0f / (t * sr));
+    }
+    v->metal_nc = de_expf(-1.0f / (tau * sr));
+    v->metal_mor_cache = v->mor;
+}
+static void sound_metal_start(Voice *v) {
+    // the 808's oscillators free-run, so a hit catches them at unrelated phases; six squares all
+    // starting at 0 sum to a +1 spike (measured: a 28 dB crest, the peak was the click). Spread
+    // them on the golden ratio: deterministic, and no two modes share an edge
+    for (int o = 0; o < METAL_NMODE; o++) { v->metal_ph[o] = (float)o * 0.6180340f - floorf((float)o * 0.6180340f); v->metal_env[o] = 1.0f; }
+    v->metal_nenv = 1.0f;
+    v->metal_nlp = 0.0f;
+    v->metal_hp_x = v->metal_hp_y = 0.0f;
+    v->metal_spread = clamp01(v->eng_p[MODE_METAL_SPREAD]);
+    sound_metal_coeffs(v);
+    v->metal_on = true;
+}
+static inline float sound_metal_sample(Voice *v, float pitch_mul) {
+    if (!v->metal_on) return 0.0f;
+    const float sr  = (float)SOUND_SAMPLE_RATE, nyq = 0.45f * (float)SOUND_SAMPLE_RATE;
+    if (fabsf(v->mor - v->metal_mor_cache) > 0.004f) sound_metal_coeffs(v);
+    const float tone = clamp01(v->harm), nmix = clamp01(v->timb);
+    const float f0 = v->freq * pitch_mul;
+    float metal = 0.0f;
+    for (int o = 0; o < METAL_NMODE; o++) {
+        float r = METAL_HAT_R[o] + (METAL_CYM_R[o] - METAL_HAT_R[o]) * tone
+                + v->metal_spread * (float)(o + 1) * 0.20f;
+        float f = f0 * r;
+        if (f < nyq) {
+            v->metal_ph[o] += f / sr;
+            if (v->metal_ph[o] >= 1.0f) v->metal_ph[o] -= 1.0f;
+            metal += (v->metal_ph[o] < 0.5f ? 1.0f : -1.0f) * v->metal_env[o];
+        }
+        v->metal_env[o] *= v->metal_c[o];
+    }
+    metal *= 1.0f / (float)METAL_NMODE;
+    // Bogie's bright noise: white minus its one-pole (coefficient .015 + tone·.25), on the global lifetime
+    float n = voice_white(v);
+    v->metal_nlp += (0.015f + tone * 0.25f) * (n - v->metal_nlp);
+    float bright = (n - v->metal_nlp) * v->metal_nenv;
+    v->metal_nenv *= v->metal_nc;
+    float s = metal * (1.0f - nmix) + bright * nmix * 1.25f;
+    // output DC blocker, 10 Hz (six free-running squares plus asymmetric noise carry an offset)
+    v->metal_hp_y = s - v->metal_hp_x + 0.99857f * v->metal_hp_y;
+    v->metal_hp_x = s;
+    return v->metal_hp_y * METAL_TRIM;
+}
+
 // One FM sample (2-op + feedback — §8.8.3 in audio-notes). The carrier is v->phase, which
 // the mix loop already advances by freq*pitch_mul — so the whole pitch machinery works by
 // construction; only the modulator phase lives here. The second oscillator is INAUDIBLE
@@ -5280,6 +5362,7 @@ static inline float sound_engine_sample(Voice *v, float pitch_mul) {
         case INSTR_MODAL:    return sound_modal_sample(v, pitch_mul);
         case INSTR_FM4:      return sound_fm4_sample(v, pitch_mul);
         case INSTR_MME:      return sound_mme_sample(v, pitch_mul);
+        case INSTR_METAL:    return sound_metal_sample(v, pitch_mul);
     }
     // fall-through: the modal Karplus-Strong string — any engine id not handled above.
     int alloc = v->ks_len;
@@ -5904,6 +5987,7 @@ static void sound_setup_note(Voice *v, int midi, int slot, int vol, int gate_sam
     v->smp_on = false;
     v->mo_on  = false;
     v->mme_on = false;
+    v->metal_on = false;
     v->fm_mph = v->fm_fb = v->fm_tph = 0.0f;   // FM needs no excitation, just deterministic phases
     if      (v->wave == INSTR_PLUCK)  sound_pluck_start(v);    // excite the string
     else if (v->wave == INSTR_MALLET) sound_mallet_start(v);   // strike the bar
@@ -5928,6 +6012,7 @@ static void sound_setup_note(Voice *v, int midi, int slot, int vol, int gate_sam
     }
     else if (v->wave == INSTR_MODAL)  sound_modal_start(v);    // arm the filter bank + strike envelope
     else if (v->wave == INSTR_MME)    sound_mme_start(v);      // zero osc B + the feedback / vocoder states, snapshot pair + interval
+    else if (v->wave == INSTR_METAL)  sound_metal_start(v);    // arm the six lifetimes + the noise envelope
     else if (v->wave == INSTR_FM4)    sound_fm4_start(v);      // reset 4 phases + feedback average
     // TRIGGER POLICY (§L4). The engine hooks above have just ARMED this voice's onset transient; if the
     // slot declares itself single-triggering and another key on it is already down, take it back off.

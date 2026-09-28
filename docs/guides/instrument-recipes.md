@@ -130,6 +130,30 @@ from `MODE_MODAL_EXCITE`). The `h/t/m` below are the **recommended** triple.
 > `https://mipolai.com/dreamengine/modal/`. From a machine that can publish:
 > `node tools/build-site.js modal` then the `site/` push in `tools/publish-cart.sh`.
 
+## INSTR_METAL — the six-square metal bank
+
+All from **bogie.c** (showcase). Base `A0 D0 S7 R30` and a hit() longer than the longest
+lifetime (the lifetimes end the note, the ADSR just passes it). `h` = tone (0 hat ratios → 1
+cymbal ratios, noise brighter with it), `t` = noise mix, `m` = STAGGER direction (0 lows live
+longest = the 808 cymbal, 0.5 one lifetime = the chord, 1 highs live longest = Bogie);
+`dec / spr` = `MODE_METAL_DECAY / SPREAD`. Mode 0 sits at f0 × 1.18, so the note IS the bank's
+base: a hat wants ~A3..C4, a cymbal ~C4..E4. Put the onset sweep on `instrument_env(ENV_PITCH)`
+and any highpass on `instrument_filter`.
+
+| name | source cart | recipe | character |
+|---|---|---|---|
+| metal/closed hat | bogie.c (showcase) | h0.45 t0.55 m0.85 · dec0.20 spr0.20 · note 57..60, hit 150 ms · pitch env +1.4 st over 80 ms · HPF 700 Hz | The 808 closed hat with lifetimes: at this short a decay the six modes nearly share one, so it is a 40 ms chord with bright noise on top. |
+| metal/open hat | bogie.c | h0.45 t0.55 m0.85 · dec0.55 spr0.20 · note 57..60, hit 600 ms | The row-2 sound: the lows die first and the tail brightens. Choke it from the closed hat (instrument_choke). |
+| metal/cymbal | bogie.c | h0.50 t0.45 m0.85 · dec0.70 spr0.25 · note 62..66, hit 1500 ms | Bogie's cymbal, tail brightening. |
+| metal/808 cymbal | bogie.c | same, m0.15 | Same bank, stagger flipped: the lows carry the tail and it darkens, Synth Secrets' description of the real 808 cymbal's band decays. |
+| metal/chord | bogie.c | same, m0.50 | One lifetime for all six: what tr808.h's hat is today. Keep it as the control when judging the other two. |
+| metal/bell | bogie.c | h0.9 t0.05 m0.3 · dec0.9 spr0.6 · note 72, hit 3 s | Not a drum: cymbal ratios spread wide, almost no noise, a long slow-darkening ring. |
+
+> Measured on single hits (wav-envelope, 60 ms windows): with noise at 0 the bank's brightness
+> RISES across the decay at m0.85 (0.33 → 0.44) and FALLS at m0.15 (0.30 → 0.20); with noise on,
+> the noise (on the base lifetime) shapes the first ~100 ms and the bank the rest. The shipped
+> tr808.h open hat reads the same brightness in every window.
+
 ## INSTR_MME — the multi modulation engine
 
 All from **mme.c** (showcase). Base `A3 D0 S7 R220` (a held voice). `h` picks the MODEL

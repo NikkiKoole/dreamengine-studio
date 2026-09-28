@@ -2,9 +2,9 @@
 
 **STATUS: BUILDING (2026-09-27)** — a ranked borrow list read off one repo. Row 1, the MME voice,
 is SHIPPED as `INSTR_MME` (ported cart-first the same day; the `mme` cart keeps the cart-land
-reference as an E-toggled A/B). Rows 2 and 3 are BUILT as the `bogie` cart (2026-09-28,
-cart-only, the 808 behind a toggle as the reference; the engine/header decision waits on the
-ear). Rows 4..7 are open. Each row names the upstream file, what it
+reference as an E-toggled A/B). Rows 2 and 3 are SHIPPED as `INSTR_METAL` (2026-09-28, cart-first
+in the `bogie` cart the same day, which now cycles engine / prototype / 808 on one set of pads).
+Rows 4..7 are open. Each row names the upstream file, what it
 would become here, and why it made or missed the cut. Update the row (not this line) when
 something lands.
 
@@ -60,12 +60,29 @@ What `wav-envelope` MEASURED on single hits, the reason this row exists:
   `exp(-5.5 t/dur)` envelope dominates and the six lifetimes collapse to 25..30 ms. The stagger is
   an open-hat / cymbal property.
 
-Two approximations the engine version would remove: the engine amp decay is a LINEAR ramp
-(`sound_adsr_gated`), so each exponential time constant is a 3.5× ramp here (2.5× cut the cymbal
-short, measured); and a hat hit costs seven voices. If the ear prefers the bank, the honest next
-step is an `INSTR_METAL` engine (one voice per hit, exponential per-mode decays, a stagger
-direction knob) that `morphdrum.h`'s hat seam has been waiting for; if it prefers the 808, the
-finding still stands as a `tr808.h` option (per-member gate lengths on the cymbal bands).
+Two approximations the prototype carries: the engine amp decay is a LINEAR ramp
+(`sound_adsr_gated`), so each exponential time constant is a 3.5× ramp there (2.5× cut the cymbal
+short, measured); and a hat hit costs seven voices. Both are why it became an engine the same day.
+
+## Rows 2 and 3, the engine: `INSTR_METAL` (2026-09-28)
+
+One voice per hit in `sound.h`: six naive squares at Bogie's ratios (hat table → cymbal table on
+harmonics), each with its own exponential envelope, plus Bogie's bright noise on the base
+lifetime, through a DC blocker. Initial phases sit on the golden ratio (free-running oscillators
+caught at unrelated phases; six squares starting at 0 sum to a spike). Macros: harmonics = tone,
+timbre = noise mix, morph = STAGGER DIRECTION, bipolar with the chord at 0.5: 0 = the lows live
+longest (Synth Secrets' 808 cymbal), 1 = the highs do (Bogie). `MODE_METAL_DECAY` (20 ms..2 s,
+log) and `MODE_METAL_SPREAD` on the aux channel. Trimmed to the 808 hat's PEAK at the same vol,
+which is hotter than level-check's sustained-tone baseline; a drum's peak is not a tone's, and
+`instrument_level()` can only cut.
+
+Measured on the engine with the noise at zero, the knob does what it says: brightness rises
+across the cymbal's decay at morph 0.85 (0.33 → 0.44, centroid 8.2 → 8.8 kHz) and falls at 0.15
+(0.30 → 0.20). With the noise on, the noise shapes the first ~100 ms and the bank the rest.
+Deliberately NOT in tune-check's sweep (mode 0 is at f0 × 1.18, the bank has no fundamental), so
+its level was set by hand in the cart. The `bogie` cart cycles engine / slot-bank prototype / 808.
+Next home: `morphdrum.h`'s `MD_HAT` seam, whose comment has described exactly this engine since
+it was written; switching it changes morphbox's shipped hat, so it is a decision, not a chore.
 
 ## Kept out, and why
 

@@ -1001,6 +1001,22 @@
     "genre": "word"
   },
   {
+    "title": "bogie",
+    "description": "A hat, an open hat, a cymbal and a cowbell built from six-square metal banks with staggered decays, next to the 808 versions for comparison. Four pads. The hats and cymbal are six square oscillators at inharmonic ratios, each on its own slot with its own decay (25..125 ms for the hat, 100..475 ms for the cymbal, both stretched by TONE and the DECAY knob), plus a highpassed noise layer. Because the modes die at different rates the spectrum moves as the sound decays, the way a real cymbal's does; a bank with one decay stays a chord. The cowbell is two squares a sixth apart with a third oscillator cross-modulating them (FM knob): classic at zero, metallic when turned up, and it is the MME engine's cross model doing it. Press 8 to route the same pads to the shipped 808 hat, open hat, cymbal and cowbell from tr808.h, so the two can be judged by ear on the same gesture. Each pad has its own knob set (tone / sweep / noise / fm / decay / hpf). A S D F: closed hat, open hat, cymbal, cowbell (or tap the pads) · 1-4: select the pad the knobs edit · drag the knobs (wheel = fine) · LEFT/RIGHT knob, UP/DOWN adjust · 8: BOGIE / 808 reference · M: autoplay pattern",
+    "file": "bogie.cart.png",
+    "created": "2026-09-28",
+    "kind": [
+      "instrument",
+      "tech-demo"
+    ],
+    "teaches": [
+      "drum-synthesis",
+      "additive-synth"
+    ],
+    "lineage": "Rows 2 and 3 of docs/design/choochootracker-borrow-list.md, cart-first: Choochootracker's Bogie drum synth (chipnomad_lib/synth/drum_synth_voice.cpp, MIT) hat + cymbal METAL BANK, six square oscillators at inharmonic ratios each with a DIFFERENT decay, so the bank never settles into a pitched square-wave chord as it rings out (our tr808.h hat fires two bank members on ONE slot with ONE decay, which is exactly the chord). Plus its cowbell cross-modulation, which turns out to be an INSTR_MME patch (a square pair through the cross model). Built from stock engine pieces: six INSTR_SQUARE slots per bank with per-slot decays, a highpassed INSTR_NOISE, one INSTR_MME. The shipped tr808.h hat / cymbal / cowbell sit behind a toggle as the reference.",
+    "homage": "Choochootracker's Bogie (2026) after the TR-808's six-oscillator metal bank; the cowbell after the 808's two-square circuit with a third oscillator cross-modulating it."
+  },
+  {
     "title": "boids",
     "description": "A flock with no leader, from three little rules. Each boid watches only nearby neighbours and obeys: separation (steer away from anyone too close), alignment (match the flock heading), cohesion (drift toward the flock centre). Nobody is in charge yet the swarm moves like one organism — emergence. Steer the predator with the arrows and watch the flock part and regroup around it.",
     "file": "boids.cart.png",

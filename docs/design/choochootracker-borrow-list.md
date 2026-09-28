@@ -2,7 +2,9 @@
 
 **STATUS: BUILDING (2026-09-27)** — a ranked borrow list read off one repo. Row 1, the MME voice,
 is SHIPPED as `INSTR_MME` (ported cart-first the same day; the `mme` cart keeps the cart-land
-reference as an E-toggled A/B). Rows 2..7 are open. Each row names the upstream file, what it
+reference as an E-toggled A/B). Rows 2 and 3 are BUILT as the `bogie` cart (2026-09-28,
+cart-only, the 808 behind a toggle as the reference; the engine/header decision waits on the
+ear). Rows 4..7 are open. Each row names the upstream file, what it
 would become here, and why it made or missed the cut. Update the row (not this line) when
 something lands.
 
@@ -32,6 +34,38 @@ C-portable voices, plus their engine roster as a menu of ideas.
 | 5 | **Sintered** (six percussive models: knot, shard, burst, comb, logic, melt) | [`synth/sintered_voice.cpp`](https://github.com/paiheulevrai/Choochootracker/blob/main/chipnomad_lib/synth/sintered_voice.cpp) (110 lines) | recipes for a "wild percussion" kit, or MME's drum face once #1 exists | same family as MME. The reusable recipe is the excitation: a 1.5..7 ms noise impact into a smoothed, DC-blocked feedback tail, with a per-model `motion` envelope that pushes the knobs for the first few ms. Idea-level; the models themselves are one-liners |
 | 6 | **Plaits-Alt engine roster as a MENU** | [`external/mutable/plaits_alt/dsp/engine2/`](https://github.com/paiheulevrai/Choochootracker/tree/main/chipnomad_lib/external/mutable/plaits_alt/dsp/engine2) (Lyle Mills, 2026, MIT) | nothing to port; a shortlist for future `INSTR_*` work | names things we do NOT have: gendy (dynamic stochastic), bytebeat, wave terrain, VOSIM, pulsar, FOF vowel, LPC speech, phase flock, tapfield, glisson, rulefield. Each is algorithmically small and hand-portable if a cart ever wants one. Read the header comments (they say what OUT and AUX are per engine), not the code |
 | 7 | **Sequencer ideas** (not engines) | `playback_fx_*.cpp`, the manual | acidcandy / groovebox carts | P-locks via track FX columns, probability + modulo trig conditions, per-track playback speed, mod sources that target other modulations, decoupled (free-running) tables. These are the Elektron/Nerdseq features our racks keep reaching for |
+
+## Rows 2 and 3, as built: the `bogie` cart (2026-09-28)
+
+Cart-only, from stock engine pieces, no engine work: each hat and the cymbal is six
+`INSTR_SQUARE` slots at Bogie's inharmonic ratios, each with its OWN decay (per-slot ADSR),
+plus one highpassed `INSTR_NOISE`; the cowbell is one `INSTR_MME` slot, because Bogie's cowbell
+cross-modulation (a third oscillator modulating two fixed squares) IS the MME cross model on a
+square pair, through the 808's 2.6 kHz bandpass. `tr808.h` is built alongside and key 8 routes
+the same four pads to its hat / open hat / cymbal / cowbell, so both kits answer one gesture.
+Per-pad trims put each pad within 0.5 dB of the 808's peak. `spec()` = 33 assertions on the bank
+maths (the stagger holds on both banks at every tone, FM spreads the top mode more than the
+bottom, the cowbell's ratio range sits inside MME's interval knob, the panel).
+
+What `wav-envelope` MEASURED on single hits, the reason this row exists:
+
+- **The 808 open hat is a chord.** Its brightness is flat for the whole decay (3.97 in every
+  60 ms window, centroid pinned at 19 kHz): one spectrum, fading. Bogie's open hat and cymbal
+  MOVE, brightness 1.1 → 2.3 across the tail, because the six modes die at different rates.
+- **Bogie staggers upward.** Its top modes get the longest lifetimes (`.025 + o*.020`), so the
+  lows die first and the tail BRIGHTENS. Synth Secrets' 808 cymbal does the opposite (the low band
+  carries the long decay, the highs die first). A stagger-direction knob is the obvious next
+  experiment; the cart ports Bogie's direction as-is.
+- **The closed hat is a chord in Bogie too**, a 60 ms one: at its short DECAY the global
+  `exp(-5.5 t/dur)` envelope dominates and the six lifetimes collapse to 25..30 ms. The stagger is
+  an open-hat / cymbal property.
+
+Two approximations the engine version would remove: the engine amp decay is a LINEAR ramp
+(`sound_adsr_gated`), so each exponential time constant is a 3.5× ramp here (2.5× cut the cymbal
+short, measured); and a hat hit costs seven voices. If the ear prefers the bank, the honest next
+step is an `INSTR_METAL` engine (one voice per hit, exponential per-mode decays, a stagger
+direction knob) that `morphdrum.h`'s hat seam has been waiting for; if it prefers the 808, the
+finding still stands as a `tr808.h` option (per-member gate lengths on the cymbal bands).
 
 ## Kept out, and why
 

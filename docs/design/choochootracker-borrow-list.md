@@ -6,7 +6,7 @@ reference as an E-toggled A/B). Rows 2 and 3 are SHIPPED as `INSTR_METAL` (2026-
 in the `bogie` cart the same day, which now cycles engine / prototype / 808 on one set of pads).
 Row 5 is SHIPPED as `INSTR_SINTER` (2026-09-28, cart-first in the `sintered` cart the same day).
 Row 7 turned out mostly shipped already; its one missing piece, per-track speed, is BUILT as the
-`slipstep` cart (2026-09-28). Row 6 is BUILT as the `specimens` cart (twelve algorithmic techniques).
+`slipstep` cart (2026-09-28). Row 6 is BUILT as the `specimens` cart (eighteen techniques on three rows of tabs).
 Row 4 is open. Each row names the upstream file, what it
 would become here, and why it made or missed the cut. Update the row (not this line) when
 something lands.
@@ -134,7 +134,7 @@ p-locked, so a slowed track must still read its locks per step), noted in the ca
 Reading the Plaits-Alt headers split the ~60 engines in two: about half are Braids ports (CSAW,
 FOLD, VOWL, the Braids kick/snare/cymbal/bell/pluck…), which our own engines mostly cover, and half
 are ALGORITHMIC originals by Lyle Mills, sounds made by a process you could watch. `specimens` ports
-TWELVE techniques the repo had no version of (checked by grep, and every hit read) to cart-land C
+EIGHTEEN techniques the repo had no version of (checked by grep, and every hit read) to cart-land C
 from `plaits_alt/dsp/engine2/*_engine.cc` (MIT), on two rows of tabs:
 
 - **first six:** phase_flock (seven Kuramoto-coupled oscillators), rulefield (a 1-D cellular
@@ -159,14 +159,29 @@ the PLL locks to zero phase error with its follower at 1.0000× while a narrow l
 0.59×, VOSIM's pedestal comes back out (mean -0.004), glisson's knob picks the chirp direction.
 Every knob of every specimen is asserted to reach the sound.
 
+**Third row (same day):** undertow (the note plus five undertones at exact or stretched divisors),
+loopback (feedback amplitude modulation), sideband (discrete-summation-formula synthesis), question_mark
+(Braids' Morse transmitter), Braids' clocked noise (CLKN) and tapfield (an LFSR as an oscillator).
+Checks: exact divisors repeat every lcm(1..6) = 60 anchor periods while a stretched lattice does not,
+zero loopback depth is a pure sine, the DSF closed form equals the explicit partial sum to 4e-7, the
+Morse encoder keys SOS as `... --- ...` with 1 / 3 / 7 gaps, clocked noise repeats (every 7 clocks at a
+short loop) and quantises to the requested levels, and the LFSR never reaches the all-zero lockup and
+returns to its start state. **Two deliberate departures:** the Morse table upstream encodes a passage
+from Pynchon's *The Crying of Lot 49*, and this repo does not carry that text in any encoding, so the
+same machine sends Samuel Morse's own public-domain first telegram, WHAT HATH GOD WROUGHT; and Braids'
+digital-filter oscillators (`z_filter`) are left out, because upstream is a fixed-point reproduction
+with its own A/B suite and a float port would be an approximation under Braids' name. Found on the
+way: SIDEBAND's COUNT knob is nearly inaudible at a fast rolloff (partial 10 is 2e-5 down), which is
+the maths, not the port, so its default rolloff is slow. `spec()` = 315 across the eighteen.
+
 Changes from upstream: per-note LCGs for `Random::GetFloat()` (gendy, glisson: repeatable per
 pitch), scanned always triggered, terrain at 1× instead of 2× oversampling (22.5 ms per 6 s render
-at 2×, over a frame; now 11.6), and every render ends in a DC blocker, 3/40 ms fades and peak
-normalisation. **Plaits-Alt's `vowel_fof` is left out on purpose:** despite the name it is five
-resonant filters on a saw, the same idea as `INSTR_VOICE`, so glisson took its tab. A full 6 s
-render costs 2..13.5 ms here (lockstep the dearest), inside one frame on a Mac. Still unported and
-absent: undertow, tapfield, phase_weave, loopback, sideband (DSF), question_mark (Morse), Braids'
-digital filters, twin-peaks / clocked / particle noise.
+at 2×, over a frame; now 11.6), CLOCKED's seed and clock-rate knobs are ours, and every render ends in
+a DC blocker, 3/40 ms fades and peak normalisation. **Plaits-Alt's `vowel_fof` is left out on
+purpose:** despite the name it is five resonant filters on a saw, the same idea as `INSTR_VOICE`, so
+glisson took its tab. A full 6 s render costs 1.4..13.5 ms here (lockstep the dearest), inside one
+frame on a Mac. Still unported and absent: phase_weave, Braids' particle (PRTC) and twin-peaks (TWNQ)
+noise.
 
 ## Kept out, and why
 

@@ -12,20 +12,20 @@
     "cellular-automata",
     "sonification"
   ],
-  "lineage": "Row 6 of docs/design/choochootracker-borrow-list.md: twelve synthesis techniques the repo had no version of, ported to cart-land C from Lyle Mills' Plaits-Alt fork (plaits_alt/dsp/engine2, MIT, 2026, vendored by Choochootracker): phase_flock (Kuramoto-coupled oscillators), rulefield (a 1-D cellular automaton read as a wavecycle), scanned (scanned synthesis: a mass-spring ring read as a wavetable), gendy (Xenakis' dynamic stochastic synthesis), attractor (a Thomas cyclically symmetric chaotic flow), bytebeat (Bees-in-the-Trees' four formulas), pulsar (Roads' pulsar synthesis), wave_terrain (an orbit over a 2-D surface), spectral_spiral (frequency-shift feedback), lockstep (a phase-locked loop), vosim (Kaegi and Tempelaars' VOSIM, via Braids) and glisson (chirping grains). Each note renders in cart-land into a PCM slot (the mme / sintered route) and the render also records the algorithm's STATE sixty times a second, so the picture is the process making the sound you hear, not an animation beside it.",
+  "lineage": "Row 6 of docs/design/choochootracker-borrow-list.md: eighteen synthesis techniques the repo had no version of, ported to cart-land C from Lyle Mills' Plaits-Alt fork (plaits_alt/dsp/engine2, MIT, 2026, vendored by Choochootracker): phase_flock (Kuramoto-coupled oscillators), rulefield (a 1-D cellular automaton read as a wavecycle), scanned (scanned synthesis: a mass-spring ring read as a wavetable), gendy (Xenakis' dynamic stochastic synthesis), attractor (a Thomas cyclically symmetric chaotic flow), bytebeat (Bees-in-the-Trees' four formulas), pulsar (Roads' pulsar synthesis), wave_terrain (an orbit over a 2-D surface), spectral_spiral (frequency-shift feedback), lockstep (a phase-locked loop), vosim (Kaegi and Tempelaars' VOSIM, via Braids), glisson (chirping grains), undertow (a subharmonic ladder), loopback (feedback AM), sideband (discrete-summation-formula synthesis), question_mark (Braids' Morse transmitter, here sending Samuel Morse's own public-domain first telegram instead of upstream's Pynchon passage), Braids' clocked noise (CLKN, re-seeded so it loops) and tapfield (an LFSR as an oscillator). Each note renders in cart-land into a PCM slot (the mme / sintered route) and the render also records the algorithm's STATE sixty times a second, so the picture is the process making the sound you hear, not an animation beside it.",
   "homage": "Lyle Mills' Plaits-Alt (2026) on Emilie Gillet's Plaits; Iannis Xenakis (GENDYN), Yoshiki Kuramoto, Stephen Wolfram's elementary automata, Bill Verplank / Max Mathews / Rob Shaw (scanned synthesis), Rene Thomas, and the bytebeat scene.",
   "description": {
-    "summary": "A cabinet of twelve synthesis techniques the rest of the console does not have (oscillators falling into sync, a cellular automaton, a vibrating string network, Xenakis' random breakpoints, a chaotic attractor, bytebeat, pulsars, a wave terrain, a frequency-shift spiral, a phase-locked loop, VOSIM, chirping grains) each drawn live by the same process that makes its sound.",
-    "detail": "Pick a specimen, play the keyboard. FLOCK: seven detuned oscillators pull on each other; turn COUPLING up and watch the dots clump as they fall into sync, the arrow in the middle is how synchronised they are. RULES: an elementary cellular automaton evolves once per cycle and its row IS the waveform; the picture is its spacetime diagram. SCANNED: a ring of 32 masses on springs, struck at note-on, read as a wavetable; you see the ring ringing. GENDY: a wave made of random breakpoints that take a random walk every cycle. ATTRACTOR: a three-way chaotic flow, drawn as its orbit. BYTEBEAT: a one-line integer formula as an oscillator, drawn as the byte stream. PULSAR: a burst of formant in each cycle, then silence. TERRAIN: a circular orbit scanning a 2-D surface (drawn as a heat map); the height under the dot is the sample. SPIRAL: a short complex delay loop that shifts the spectrum on every lap, drawn in the I/Q plane. LOCKSTEP: a phase-locked loop, a follower oscillator chasing the note at a ratio, with its phase error. VOSIM: bell-windowed formant pulses. GLISSON: grains that chirp up or down, drawn as pitch over time. Each has four knobs named for what they do in THAT specimen. A note renders its sound (up to 6 s) when you press it; the knobs apply to the next note and fire a short preview while you drag.",
+    "summary": "A cabinet of eighteen synthesis techniques the rest of the console does not have, from oscillators falling into sync and a cellular automaton to a Morse transmitter and a shift register, each drawn live by the same process that makes its sound.",
+    "detail": "Pick a specimen, play the keyboard. FLOCK: seven detuned oscillators pull on each other; turn COUPLING up and watch the dots clump as they fall into sync, the arrow in the middle is how synchronised they are. RULES: an elementary cellular automaton evolves once per cycle and its row IS the waveform; the picture is its spacetime diagram. SCANNED: a ring of 32 masses on springs, struck at note-on, read as a wavetable; you see the ring ringing. GENDY: a wave made of random breakpoints that take a random walk every cycle. ATTRACTOR: a three-way chaotic flow, drawn as its orbit. BYTEBEAT: a one-line integer formula as an oscillator, drawn as the byte stream. PULSAR: a burst of formant in each cycle, then silence. TERRAIN: a circular orbit scanning a 2-D surface (drawn as a heat map); the height under the dot is the sample. SPIRAL: a short complex delay loop that shifts the spectrum on every lap, drawn in the I/Q plane. LOCKSTEP: a phase-locked loop, a follower oscillator chasing the note at a ratio, with its phase error. VOSIM: bell-windowed formant pulses. GLISSON: grains that chirp up or down, drawn as pitch over time. UNDERTOW: the note plus undertones at 1/2 .. 1/6, drawn as six lanes that line up. LOOPBACK: a loop that multiplies the tone by its own echo. SIDEBAND: a closed-form sum of sidebands, drawn as its spectrum. MORSE: a telegraph sending WHAT HATH GOD WROUGHT over a noisy line, the letter on air lit. CLOCKED: noise that re-seeds every few clocks, so it loops into a pitch. TAPFIELD: a shift register with feedback taps, clocked by the note. Each has four knobs named for what they do in THAT specimen. A note renders its sound (up to 6 s) when you press it; the knobs apply to the next note and fire a short preview while you drag.",
     "controls": "keybed: A-K whites, W-P blacks, Z/X octave, click/touch/MIDI · TAB or the two rows of tabs: pick a specimen · drag the four knobs (wheel = fine) · M: autoplay"
   },
   "todo": [
     "ear pass: which specimens earn an INSTR_* engine (then the knobs ride a held note live, and the 6 s render cap goes away)",
-    "still unported, and absent from the repo: undertow (subharmonics), tapfield, phase_weave, loopback (feedback AM), sideband (DSF), question_mark (a Morse transmitter), Braids' digital filters, twin-peaks / clocked / particle noise"
+    "still unported, and absent from the repo: phase_weave, Braids' particle noise (PRTC) and twin-peaks noise (TWNQ). Braids' digital filters (z_filter) are left out on purpose: upstream is a fixed-point reproduction with its own A/B suite, and a float port would be an approximation under Braids' name"
   ]
 }
 de:meta */
-// specimens — twelve synthesis techniques from Plaits-Alt, each drawn by its own state.
+// specimens — eighteen synthesis techniques from Plaits-Alt, each drawn by its own state.
 //
 // THE ROUTE (same as mme / sintered): a key press renders the note in cart-land C into a
 // shared buffer, sample_load()s it into one of NV PCM slots (round-robin) and plays it through
@@ -42,6 +42,9 @@ de:meta */
 //   · scanned is always triggered (its "unpatched = driven by noise" mode has no gate here)
 //   · terrain runs 1x, not 2x oversampled (22.5 ms per 6 s render at 2x, over one frame), and
 //     only its five analytic terrains (the other three read Plaits' wavetable ROM)
+//   · MORSE sends Samuel Morse's own public-domain telegram; upstream's table encodes a Pynchon
+//     passage, which is not reproduced here in any form. The transmitter machine is Braids'.
+//   · CLOCKED's SEED and CLOCK knobs are ours (upstream: the LCG at strike, always 8x)
 //   · Plaits-Alt's "vowel_fof" is NOT here: it is five resonant filters on a saw, the same idea
 //     as INSTR_VOICE, so GLISSON took its tab
 //
@@ -63,9 +66,11 @@ de:meta */
 #define NSNAP       (REN_N / SNAP_EVERY + 2)
 
 enum { SP_FLOCK, SP_RULES, SP_SCAN, SP_GENDY, SP_ATTR, SP_BYTE,
-       SP_PULSAR, SP_TERRAIN, SP_SPIRAL, SP_LOCK, SP_VOSIM, SP_GLISSON, NSPEC };
+       SP_PULSAR, SP_TERRAIN, SP_SPIRAL, SP_LOCK, SP_VOSIM, SP_GLISSON,
+       SP_UNDER, SP_LOOP, SP_SIDE, SP_MORSE, SP_CLOCK, SP_TAP, NSPEC };
 static const char *SPNAME[NSPEC] = { "FLOCK", "RULES", "SCANNED", "GENDY", "ATTRACT", "BYTEBEAT",
-                                     "PULSAR", "TERRAIN", "SPIRAL", "LOCKSTEP", "VOSIM", "GLISSON" };
+                                     "PULSAR", "TERRAIN", "SPIRAL", "LOCKSTEP", "VOSIM", "GLISSON",
+                                     "UNDERTOW", "LOOPBACK", "SIDEBAND", "MORSE", "CLOCKED", "TAPFIELD" };
 static const char *KLABEL[NSPEC][4] = {
     { "spread",  "couple", "2-flock", "lag"    },
     { "rule",    "edges",  "evolve",  "smooth" },
@@ -79,6 +84,12 @@ static const char *KLABEL[NSPEC][4] = {
     { "ratio",   "bandwidth","saw det","damping"},
     { "formant2","formant1","pulse",  "share"  },
     { "scatter", "grains", "up-down", "length" },
+    { "register","colour", "anchor",  "stretch"},
+    { "ratio",   "depth",  "self-fm", "polarity"},
+    { "spacing", "rolloff","count",   "tilt"   },
+    { "colour",  "speed",  "bed",     "grit"   },
+    { "seed",    "loop",   "levels",  "clock"  },
+    { "topology","decode", "corrupt", "slew"   },
 };
 static const char *CAPTION[NSPEC] = {
     "seven detuned oscillators pulling each other into sync",
@@ -93,6 +104,12 @@ static const char *CAPTION[NSPEC] = {
     "a phase-locked loop: a follower chasing the note at a ratio",
     "VOSIM: bell-windowed formant pulses, one per cycle",
     "glissons: grains that chirp up or down as they play",
+    "undertones: the note, and slower copies at 1/2, 1/3 .. 1/6",
+    "feedback AM: a loop that multiplies the tone by its own echo",
+    "DSF: a closed-form sum of sidebands (COUNT matters when the rolloff is slow)",
+    "Braids' Morse transmitter, sending WHAT HATH GOD WROUGHT",
+    "clocked noise that re-seeds, so it loops: frozen noise as a pitch",
+    "a linear-feedback shift register, clocked by the note, as a wave",
 };
 static float K[NSPEC][4] = {
     { 0.45f, 0.30f, 0.00f, 0.50f },
@@ -107,6 +124,12 @@ static float K[NSPEC][4] = {
     { 0.40f, 0.35f, 0.30f, 0.40f },
     { 0.55f, 0.45f, 0.45f, 0.55f },
     { 0.35f, 0.55f, 0.80f, 0.60f },
+    { 0.40f, 0.35f, 0.60f, 0.50f },
+    { 0.35f, 0.55f, 0.30f, 0.50f },
+    { 0.25f, 0.85f, 0.40f, 0.50f },
+    { 0.40f, 0.95f, 0.50f, 0.40f },
+    { 0.30f, 0.85f, 0.35f, 1.00f },
+    { 0.30f, 0.40f, 0.10f, 0.30f },
 };
 
 // ── the snapshot a render leaves behind, once per frame ─────────────────────────
@@ -689,6 +712,286 @@ static int render_glisson(float *out, int n, float f, const float *k, Snap *sn, 
     return n;
 }
 
+// ── UNDERTOW (undertow_engine.cc): the note and five undertones ─────────────────
+#define NUV 6
+static const float UV_REG[5][NUV] = {
+    { 0.80f, 0.70f, 0.00f, 0.22f, 0.00f, 0.00f },
+    { 0.42f, 0.82f, 0.08f, 0.58f, 0.00f, 0.34f },
+    { 0.34f, 0.12f, 0.82f, 0.08f, 0.66f, 0.00f },
+    { 0.30f, 0.72f, 0.58f, 0.48f, 0.38f, 0.28f },
+    { 0.28f, 0.24f, 0.34f, 0.62f, 0.54f, 0.86f },
+};
+static float polyblep(float ph, float dt) {
+    if (ph < dt) { float t = ph / dt; return t + t - t * t - 1.0f; }
+    if (ph > 1.0f - dt) { float t = (ph - 1.0f) / dt; return t * t + t + t + 1.0f; }
+    return 0.0f;
+}
+// triangle → saw (colour < 0.5) → pulse (colour > 0.5), band-limited edges
+static float uv_wave(float ph, float dt, float colour) {
+    if (colour < 0.5f) {
+        float tri = 1.0f - 4.0f * fabsf(ph - 0.5f), saw = 2.0f * ph - 1.0f - polyblep(ph, dt);
+        return tri + (saw - tri) * colour * 2.0f;
+    }
+    float mix = colour * 2.0f - 1.0f, pw = fmaxf(0.5f - 0.36f * colour * colour, 2.0f * dt);
+    float saw = 2.0f * ph - 1.0f - polyblep(ph, dt);
+    float q = ph - pw; if (q < 0.0f) q += 1.0f;
+    float pulse = (ph < pw ? 1.0f : -1.0f) + polyblep(ph, dt) - polyblep(q, dt);
+    return saw + (pulse - saw) * mix;
+}
+static void uv_setup(const float *k, float f, float *amp, float *fr) {
+    float r = clampf(k[0], 0.0f, 1.0f) * 4.0f; int ri = (int)r; if (ri > 3) { ri = 3; r = 4.0f; } float rf = r - (float)ri;
+    float sum = 0.0f;
+    for (int i = 0; i < NUV; i++) {
+        float reg = UV_REG[ri][i] + (UV_REG[ri + 1][i] - UV_REG[ri][i]) * rf;
+        float bal = i == 0 ? 1.45f - 0.65f * k[2] : 0.32f + 1.08f * k[2];
+        amp[i] = reg * bal; sum += fabsf(amp[i]);
+    }
+    for (int i = 0; i < NUV; i++) amp[i] *= sum > 0.0f ? 0.86f / sum : 0.0f;
+    const float stretch = (k[3] - 0.5f) * 0.18f, af = clampf(f, 1e-6f, 0.24f);
+    for (int v = 0; v < NUV; v++) { float d = (float)(v + 1), dist = d - 1.0f; fr[v] = af / (d + stretch * dist * dist / (float)(NUV - 1)); }
+}
+static int render_under(float *out, int n, float f, const float *k, Snap *sn, int *nsn) {
+    float amp[NUV], fr[NUV], ph[NUV] = { 0 };
+    uv_setup(k, f, amp, fr);
+    int ns = 0;
+    for (int t = 0; t < n; t++) {
+        float acc = 0.0f;
+        for (int v = 0; v < NUV; v++) { ph[v] += fr[v]; if (ph[v] >= 1.0f) ph[v] -= 1.0f; acc += uv_wave(ph[v], fr[v], k[1]) * amp[v]; }
+        out[t] = acc;
+        if (t % SNAP_EVERY == 0 && ns < NSNAP) { for (int v = 0; v < NUV; v++) { sn[ns].v[v] = ph[v]; sn[ns].v[8 + v] = amp[v]; } ns++; }
+    }
+    *nsn = ns;
+    return n;
+}
+
+// ── LOOPBACK (loopback_engine.cc): feedback amplitude modulation ────────────────
+static int render_loop(float *out, int n, float f, const float *k, Snap *sn, int *nsn) {
+    f = fminf(0.24f, f);
+    const float ratio = 0.5f + 7.5f * k[0] * k[0], depth = 0.98f * k[1] * k[1];
+    const float morph = 0.5f * k[2], pol = 2.0f * k[3] - 1.0f, nrm = 1.0f / (1.0f + depth);
+    float cph = 0.0f, fph = 0.0f, fbs = 0.0f, fbo = 0.0f;
+    int ns = 0; Cap cap = { 0, -1, 0 }; int st = period_stride(f);
+    for (int t = 0; t < n; t++) {
+        cph += f; int wrapped = 0; if (cph >= 1.0f) { cph -= 1.0f; wrapped = 1; }
+        fph += clampf(f * ratio, -0.24f, 0.24f); if (fph >= 1.0f) fph -= 1.0f;
+        float carrier = de_sin_turns(cph);
+        float mp = fph + morph * fbo; mp -= floorf(mp);
+        float fc = de_sin_turns(mp); fbo = fc;
+        float mag = fabsf(fbs), sh = pol < 0.0f ? fbs + (-mag - fbs) * -pol : fbs + (mag - fbs) * pol;
+        float env = (1.0f + depth * sh) * nrm;
+        fbs = clampf(fc * env, -1.0f, 1.0f);
+        out[t] = 0.9f * carrier * env;
+        if (ns < NSNAP && cap.pts >= 0 && cap.pts < 32) sn[ns].v[32 + cap.pts] = env;   // the envelope, beside the wave
+        cap_step(&cap, sn, &ns, t, wrapped, st, out[t]);
+    }
+    *nsn = ns;
+    return n;
+}
+
+// ── SIDEBAND (sideband_engine.cc): discrete-summation-formula synthesis ─────────
+typedef struct { float r, rn, wsum; int count; } Dsf;
+static Dsf dsf_prep(float r, int count) { Dsf d = { r, 1.0f, 0.0f, count }; for (int i = 0; i < count; i++) d.rn *= r; d.wsum = (1.0f - d.rn) / (1.0f - r); return d; }
+static float dsf(float cs, float cc, float bs, float bc, float bph, const Dsf *p, float dir) {
+    float sbs = dir * bs, nph = bph * (float)p->count; nph -= floorf(nph);
+    float ns_ = dir * de_sin_turns(nph), nc = de_sin_turns(nph + 0.25f);
+    float den = fmaxf(1e-5f, 1.0f - 2.0f * p->r * bc + p->r * p->r);
+    float a = 1.0f - p->rn * nc, c = 1.0f - p->r * bc, d = p->r * sbs;
+    float re = (a * c + p->rn * ns_ * d) / den, im = (a * d - p->rn * ns_ * c) / den;
+    return (cs * re + cc * im) / p->wsum;
+}
+static int sb_guard(float cf, float sf, int req, float dir) { while (req > 1 && fabsf(cf + dir * (float)(req - 1) * sf) > 0.24f) req--; return req; }
+static void sb_params(const float *k, float f, float *cf, float *sfq, Dsf *up, Dsf *lo) {
+    *cf = fminf(0.24f, f);
+    float spacing = 0.125f + 2.875f * k[0] * k[0];
+    *sfq = *cf * spacing;
+    int req = 1 + (int)(23.999f * k[2]);
+    float br = 0.08f + 0.88f * k[1] * k[1], asym = 0.3f * (2.0f * k[3] - 1.0f);
+    *up = dsf_prep(fminf(0.96f, br * (1.0f + asym)), sb_guard(*cf, *sfq, req, 1.0f));
+    *lo = dsf_prep(fminf(0.96f, br * (1.0f - asym)), sb_guard(*cf, *sfq, req, -1.0f));
+}
+static int render_side(float *out, int n, float f, const float *k, Snap *sn, int *nsn) {
+    float cf, sfq; Dsf up, lo; sb_params(k, f, &cf, &sfq, &up, &lo);
+    float cph = 0.0f, bph = 0.0f; int ns = 0;
+    for (int t = 0; t < n; t++) {
+        cph += cf; cph -= floorf(cph); bph += sfq; bph -= floorf(bph);
+        float cs = de_sin_turns(cph), cc = de_sin_turns(cph + 0.25f), bs = de_sin_turns(bph), bc = de_sin_turns(bph + 0.25f);
+        out[t] = 0.86f * dsf(cs, cc, bs, bc, bph, &up, 1.0f);   // OUT is the upper sidebands, as upstream
+        if (t % SNAP_EVERY == 0 && ns < NSNAP) { sn[ns].r = (float)up.count; ns++; }
+    }
+    (void)lo;
+    *nsn = ns;
+    return n;
+}
+
+// ── MORSE (question_mark_engine.cc's transmitter, a public-domain message) ─────
+// Braids keys a sine from a packed table of a Pynchon passage; that TEXT is not reproduced here.
+// The machine is the same: marks and spaces alternate, 1 / 3 ticks for dit / dah, 1 / 3 / 7 for
+// the gaps, a 100-tick terminator, then the message repeats. The message is Samuel Morse's own.
+static const char *MORSE_MSG = "WHAT HATH GOD WROUGHT";
+static const char *MORSE_TAB[26] = { ".-", "-...", "-.-.", "-..", ".", "..-.", "--.", "....", "..", ".---", "-.-", ".-..", "--",
+    "-.", "---", ".--.", "--.-", ".-.", "...", "-", "..-", "...-", ".--", "-..-", "-.--", "--.." };
+#define MORSE_MAX 256
+static int16_t ms_dur[MORSE_MAX];            // alternating mark, space, mark… (ticks)
+static int16_t ms_chr[MORSE_MAX];            // which message character each element belongs to
+static int     ms_len = 0;
+static int morse_encode(const char *msg, int16_t *dur, int16_t *chr, int max) {
+    int n = 0;
+    for (int ci = 0; msg[ci] && n < max - 2; ci++) {
+        char c = msg[ci];
+        if (c == ' ') { if (n > 0) dur[n - 1] = 7; continue; }                          // a word gap widens the last space
+        const char *code = MORSE_TAB[(c - 'A') % 26];
+        for (int j = 0; code[j] && n < max - 2; j++) {
+            dur[n] = code[j] == '-' ? 3 : 1; chr[n] = (int16_t)ci; n++;             // the mark
+            dur[n] = code[j + 1] ? 1 : 3; chr[n] = (int16_t)ci; n++;                // the gap after it
+        }
+    }
+    if (n > 0) { dur[n - 1] = 100; }                                                // the terminator
+    return n;
+}
+static int render_morse(float *out, int n, float f, const float *k, Snap *sn, int *nsn) {
+    if (!ms_len) ms_len = morse_encode(MORSE_MSG, ms_dur, ms_chr, MORSE_MAX);
+    const int32_t timbre = (int32_t)clampf(k[1] * 32767.0f, 0.0f, 32767.0f), color = (int32_t)clampf(k[0] * 32767.0f, 0.0f, 32767.0f);
+    const uint32_t dit = (uint32_t)(3600 + ((32767 - timbre) >> 2));
+    const int32_t floor_ = 1024 + (color >> 3);
+    const int32_t bed = (int32_t)(apply_macro(1.0f, 0.0f, 2.5f, k[2]) * 32768.0f);
+    const int32_t grit = (int32_t)((float)color * apply_macro(1.0f, 0.0f, 2.0f, k[3]));
+    const uint32_t inc = (uint32_t)(fminf(f, 0.49f) * 0.5f * 4294967296.0f);
+    uint32_t phase = 0, rng = 0x21u, tick = 0; int32_t seed = 32767;
+    int sym = -1, left = 10, key = 0; float dc = 0.0f;
+    int ns = 0;
+    for (int t = 0; t < n; t++) {
+        int32_t acc = 0;
+        for (int j = 0; j < 2; j++) {
+            phase += inc;
+            int32_t tone = key ? (int32_t)(de_sin_turns((float)phase * (1.0f / 4294967296.0f)) * 32767.0f) * 3 / 4 : 0;
+            if (++tick > dit) {
+                tick = 0;
+                if (--left <= 0) {
+                    sym++; if (sym >= ms_len) sym = 0;
+                    key = !(sym & 1);                                   // even elements are marks
+                    left = ms_dur[sym];
+                    phase = 1u << 30;
+                }
+            }
+            rng = rng * 1664525u + 1013904223u; seed += (int32_t)(int16_t)(rng >> 16) >> 2;
+            int32_t inten = seed >> 8; if (inten < 0) inten = -inten;
+            if (inten < floor_) inten = floor_; if (inten > 16000) inten = 16000;
+            rng = rng * 1664525u + 1013904223u;
+            int32_t nz = ((int32_t)(int16_t)(rng >> 16) * inten) >> 15;
+            nz = (int32_t)((float)nz * de_sin_turns((float)(phase >> 22) / 1024.0f));
+            nz = (int32_t)(((int64_t)nz * bed) >> 15);
+            int32_t smp = tone + nz; smp = smp > 32767 ? 32767 : smp < -32768 ? -32768 : smp;
+            int32_t dist = (smp * smp) >> 14;
+            smp += (int32_t)(((int64_t)dist * grit) >> 15); smp = smp > 32767 ? 32767 : smp < -32768 ? -32768 : smp;
+            acc += smp;
+        }
+        float raw = (float)acc * (0.5f / 32768.0f);
+        dc += 0.0002f * (raw - dc);
+        out[t] = raw - dc;
+        if (t % SNAP_EVERY == 0 && ns < NSNAP) { sn[ns].row = (uint32_t)key; sn[ns].r = (float)(sym >= 0 ? ms_chr[sym] : -1); ns++; }
+    }
+    *nsn = ns;
+    return n;
+}
+
+// ── CLOCKED (noise_bank_engine.cc, Braids CLKN) ─────────────────────────────────
+// The clock runs at 8x the note (three doublings, stopping short of Nyquist). Every clock tick
+// steps an LCG and holds its value, quantised; every `loop` ticks the LCG is RESET to its seed,
+// so the "noise" is a frozen pattern that repeats: a pitched buzz. Two knobs are ours: SEED picks
+// which frozen pattern (upstream uses whatever the LCG held at the strike) and CLOCK picks the
+// number of doublings (upstream: always three).
+typedef struct { uint32_t clk, inc, cyc, cinc, rng, seed, div; int16_t held; } Clk;
+static uint32_t clk_seed(float knob) { uint32_t s = 0x2545f491u ^ ((uint32_t)(knob * 4095.0f) * 0x9e3779b9u); s ^= s << 13; s ^= s >> 17; s ^= s << 5; return s | 1u; }
+static void clk_init(Clk *c, float f, const float *k) {
+    float inc = clampf(f * 0.5f, 0.0f, 0.4999f);
+    uint32_t b = (uint32_t)(inc * 4294967296.0f);
+    int shifts = (int)(k[3] * 3.999f);
+    for (int i = 0; i < shifts; i++) if (b < (1u << 31)) b <<= 1;
+    c->inc = b;
+    float cnote = (clampf(k[1] * 32767.0f, 0.0f, 32767.0f) - 16384.0f) / 128.0f;
+    float cyc = clampf(midi_hz_f(cnote) / 48000.0f, 0.0f, 0.4999f);          // upstream reads it against 48 kHz
+    c->cinc = (uint32_t)(cyc * 4294967296.0f);
+    uint32_t steps = 1u + ((uint32_t)clampf(k[2] * 32767.0f, 0.0f, 32767.0f) >> 10); if (steps == 1u) steps = 2u;
+    c->div = 65536u / steps;
+    c->seed = clk_seed(k[0]); c->rng = c->seed; c->clk = 0; c->cyc = 0; c->held = 0;
+}
+static int clk_substep(Clk *c) {                                             // 1 when a new value was clocked
+    c->clk += c->inc;
+    if (c->clk >= c->inc) return 0;
+    c->rng = c->rng * 1664525u + 1013904223u;
+    c->cyc += c->cinc;
+    if (c->cyc < c->cinc) { c->rng = c->seed; c->cyc = c->cinc; }          // the loop: back to the seed
+    uint16_t smp = (uint16_t)c->rng;
+    smp -= smp % c->div; smp += c->div >> 1;
+    c->held = (int16_t)smp;
+    c->clk = c->inc;
+    return 1;
+}
+static int render_clock(float *out, int n, float f, const float *k, Snap *sn, int *nsn) {
+    Clk c; clk_init(&c, f, k);
+    float ring[64]; int rp = 0; memset(ring, 0, sizeof ring);
+    int ns = 0;
+    for (int t = 0; t < n; t++) {
+        float acc = 0.0f;
+        for (int s2 = 0; s2 < 2; s2++) {
+            if (clk_substep(&c)) { ring[rp] = (float)c.held / 32768.0f; rp = (rp + 1) & 63; }
+            acc += (float)c.held / 32768.0f;
+        }
+        out[t] = acc * 0.5f;
+        if (t % SNAP_EVERY == 0 && ns < NSNAP) { for (int i = 0; i < 64; i++) sn[ns].v[i] = ring[(rp + i) & 63]; sn[ns].r = (float)(c.div); ns++; }
+    }
+    *nsn = ns;
+    return n;
+}
+
+// ── TAPFIELD (tapfield_engine.cc): an LFSR clocked by the note ──────────────────
+typedef struct { uint32_t state, taps, wmask, count; int len, fam; float corr; } Lfsr;
+static void lf_topo(Lfsr *l, float h) {
+    int sel = (int)(h * 63.999f); if (sel < 0) sel = 0; if (sel > 63) sel = 63;
+    l->len = 9 + (sel & 15); l->fam = sel >> 4;
+    l->wmask = (1u << l->len) - 1u;
+    int span = l->len - 2;
+    int ta = 1 + (l->len + 3 * l->fam) % span, tb = 1 + (l->len / 2 + 5 * l->fam + 1) % span, tc = 1 + (l->len / 3 + 7 * l->fam + 3) % span;
+    l->taps = (1u << (l->len - 1)) | (1u << ta) | (1u << tb) | (1u << tc);
+    uint32_t sd = 0x6d2b79f5u ^ (uint32_t)(l->len * 0x45d9f3b) ^ (uint32_t)(l->fam * 0x119de1f3);
+    sd ^= sd << 13; sd ^= sd >> 17; sd ^= sd << 5;
+    l->state = sd & l->wmask; if (!l->state) l->state = (1u << (l->len - 1)) | 1u;
+    l->count = 0; l->corr = 0.0f;
+}
+static void lf_clock(Lfsr *l, float corrupt) {
+    uint32_t carry = l->state & 1u;
+    l->state >>= 1; if (carry) l->state ^= l->taps; l->state &= l->wmask;
+    l->count++;
+    l->corr += 0.45f * corrupt * corrupt;
+    if (l->corr >= 1.0f) { l->corr -= 1.0f; uint32_t fo = l->state ^ (l->state >> 7) ^ (l->count * 0x9e37u); l->state ^= 1u << (fo % (uint32_t)l->len); }
+    if (!l->state) l->state = (1u << (l->len - 1)) | 1u;
+}
+static float lf_decode(const Lfsr *l, float tim) {
+    uint32_t gray = l->state ^ (l->state >> 1); float v = 0.0f, ws = 0.0f;
+    for (int i = 0; i < 8; i++) {
+        int bit = i * (l->len - 1) / 7;
+        float d = (l->state & (1u << bit)) ? 1.0f : -1.0f, g = (gray & (1u << bit)) ? 1.0f : -1.0f;
+        float bv = d + (g - d) * tim, w = 1.0f + ((float)(1u << i) - 1.0f) * tim * tim;
+        v += bv * w; ws += w;
+    }
+    return v / ws;
+}
+static int render_tap(float *out, int n, float f, const float *k, Snap *sn, int *nsn) {
+    Lfsr l; lf_topo(&l, k[0]);
+    float target = lf_decode(&l, k[1]), val = 0.0f, cph = 0.0f;
+    float oms = 1.0f - k[3], slew = 0.0025f + 0.9975f * oms * oms * oms;
+    int ns = 0;
+    for (int t = 0; t < n; t++) {
+        cph += fminf(0.45f, 4.0f * f);
+        if (cph >= 1.0f) { cph -= 1.0f; lf_clock(&l, k[2]); target = lf_decode(&l, k[1]); }
+        val += slew * (target - val);
+        out[t] = 0.9f * val;
+        if (t % SNAP_EVERY == 0 && ns < NSNAP) { sn[ns].row = l.state; sn[ns].v[0] = (float)l.len; sn[ns].v[1] = (float)l.taps; ns++; }
+    }
+    *nsn = ns;
+    return n;
+}
+
 // ── one render, any specimen ────────────────────────────────────────────────────
 
 static int render_spec(int sp, float *out, int n, int midi, Snap *sn, int *nsn) {
@@ -706,7 +1009,13 @@ static int render_spec(int sp, float *out, int n, int midi, Snap *sn, int *nsn) 
         case SP_SPIRAL:  render_spiral(out, n, f, k, sn, nsn); break;
         case SP_LOCK:    render_lock(out, n, f, k, sn, nsn); break;
         case SP_VOSIM:   render_vosim(out, n, f, k, sn, nsn); break;
-        default:         render_glisson(out, n, f, k, sn, nsn, 0x7f4a7c15u ^ ((uint32_t)midi * 104729u)); break;
+        case SP_GLISSON: render_glisson(out, n, f, k, sn, nsn, 0x7f4a7c15u ^ ((uint32_t)midi * 104729u)); break;
+        case SP_UNDER:   render_under(out, n, f, k, sn, nsn); break;
+        case SP_LOOP:    render_loop(out, n, f, k, sn, nsn); break;
+        case SP_SIDE:    render_side(out, n, f, k, sn, nsn); break;
+        case SP_MORSE:   render_morse(out, n, f, k, sn, nsn); break;
+        case SP_CLOCK:   render_clock(out, n, f, k, sn, nsn); break;
+        default:         render_tap(out, n, f, k, sn, nsn); break;
     }
     // DC blocker, fades, peak-normalise
     float hx = 0.0f, hy = 0.0f, pk = 0.0f;
@@ -957,6 +1266,88 @@ static void draw_glisson(int x0, int y0, int w, int h, int idx) {
     font(FONT_TINY); print(str("%d grains, pitch over time", (int)snaps[idx].row), x0 + 4, y0 + h - 7, CLR_WHITE); font(FONT_NORMAL);
 }
 
+static void draw_under(int x0, int y0, int w, int h, const Snap *s) {
+    // six lanes, one per voice, drawn across one period of the deepest undertone, so you see
+    // 1/2, 1/3 … line up; the dot is where each voice is now, its brightness its level
+    const int lanes = NUV, lh = (h - 4) / lanes;
+    float colour = K[SP_UNDER][1];
+    for (int v = 0; v < lanes; v++) {
+        int ly = y0 + 2 + v * lh, mid = ly + lh / 2, amp = lh / 2 - 1;
+        float a = s->v[8 + v];
+        int col = a > 0.15f ? CLR_ORANGE : a > 0.04f ? CLR_BROWN : CLR_DARKER_GREY;
+        int prev = mid;
+        for (int x = 0; x < w - 30; x++) {
+            float ph = (float)x / (float)(w - 30) * 6.0f / (float)(v + 1); ph -= floorf(ph);
+            int yy = mid - (int)(uv_wave(ph, 0.01f, colour) * (float)amp);
+            if (x) line(x0 + 26 + x - 1, prev, x0 + 26 + x, yy, col);
+            prev = yy;
+        }
+        font(FONT_TINY); print(v ? str("1/%d", v + 1) : "note", x0 + 2, mid - 2, col); font(FONT_NORMAL);
+        float p = s->v[v] * (float)(v + 1) / 6.0f; p -= floorf(p);
+        circfill(x0 + 26 + (int)(p * (float)(w - 30)), mid, 1, CLR_LIGHT_YELLOW);
+    }
+}
+static void draw_loop(int x0, int y0, int w, int h, const Snap *s) {
+    int mid = y0 + 26, amp = 22, cw = w / 64;
+    float pk = 1e-3f; for (int i = 0; i < 64; i++) pk = fmaxf(pk, fabsf(s->v[i]));
+    line(x0, mid, x0 + w, mid, CLR_DARKER_GREY);
+    for (int i = 1; i < 64; i++) line(x0 + (i - 1) * cw, mid - (int)(s->v[i - 1] / pk * (float)amp), x0 + i * cw, mid - (int)(s->v[i] / pk * (float)amp), CLR_ORANGE);
+    int ey = y0 + h - 22, cw2 = w / 32;                                // the fed-back envelope, first half of the cycle,
+    line(x0, ey, x0 + w, ey, CLR_DARKER_GREY);                         // drawn around 1.0 (no modulation = a flat line)
+    for (int i = 1; i < 32; i++) line(x0 + (i - 1) * cw2, ey - (int)((s->v[31 + i] - 1.0f) * 30.0f), x0 + i * cw2, ey - (int)((s->v[32 + i] - 1.0f) * 30.0f), CLR_LIME_GREEN);
+    font(FONT_TINY); print("the tone (orange) and its echo-made envelope", x0 + 4, y0 + h - 7, CLR_WHITE); font(FONT_NORMAL);
+}
+static void draw_side(int x0, int y0, int w, int h) {
+    // the spectrum the closed form sums: the carrier and its sidebands, each rolloff^k down
+    float cf, sfq; Dsf up, lo; sb_params(K[SP_SIDE], 110.0f / SR, &cf, &sfq, &up, &lo);
+    int base = y0 + h - 10;
+    float fmax = cf + 24.0f * sfq;
+    for (int kk = 0; kk < up.count; kk++) {
+        float fr = cf + (float)kk * sfq, a = 1.0f; for (int j = 0; j < kk; j++) a *= up.r;
+        int x = x0 + 4 + (int)(fr / fmax * (float)(w - 8));
+        int bh = (int)(a * (float)(h - 20));
+        rectfill(x, base - bh, 2, bh, kk == 0 ? CLR_LIGHT_YELLOW : CLR_ORANGE);
+    }
+    line(x0, base, x0 + w, base, CLR_DARKER_GREY);
+    font(FONT_TINY); print(str("%d partials, rolloff %.2f: what the formula sums", up.count, up.r), x0 + 4, y0 + h - 7, CLR_WHITE); font(FONT_NORMAL);
+}
+static void draw_morse(int x0, int y0, int w, int h, int idx) {
+    int ty = y0 + 30;                                                  // the tape: key down = a mark
+    for (int i = 0; i < w / 2; i++) { int si = idx - (w / 2 - 1 - i); if (si < 0) continue;
+        if (snaps[si].row) rectfill(x0 + i * 2, ty, 2, 10, CLR_ORANGE); }
+    line(x0, ty + 11, x0 + w, ty + 11, CLR_DARKER_GREY);
+    int cur = (int)snaps[idx].r, len = (int)strlen(MORSE_MSG);         // the message, the letter on air lit
+    int cx = x0 + (w - len * 8) / 2;
+    for (int i = 0; i < len; i++) {
+        char ch[2] = { MORSE_MSG[i], 0 };
+        print(ch, cx + i * 8, y0 + 56, i == cur ? CLR_LIGHT_YELLOW : i < cur ? CLR_BROWN : CLR_DARK_GREY);
+    }
+    if (cur >= 0 && cur < len && MORSE_MSG[cur] != ' ') {
+        font(FONT_SMALL); print(MORSE_TAB[(MORSE_MSG[cur] - 'A') % 26], cx + cur * 8 - 2, y0 + 68, CLR_PEACH); font(FONT_NORMAL);
+    }
+    font(FONT_TINY); print("Samuel Morse, 24 May 1844, Washington to Baltimore", x0 + 4, y0 + 6, CLR_MEDIUM_GREY); font(FONT_NORMAL);
+}
+static void draw_clock(int x0, int y0, int w, int h, const Snap *s) {
+    int base = y0 + h - 12, cw = w / 64, levels = (int)(65536.0f / fmaxf(s->r, 1.0f));
+    for (int i = 0; i < 64; i++) {
+        int bh = (int)((s->v[i] + 1.0f) * 0.5f * (float)(h - 22));
+        rectfill(x0 + i * cw, base - bh, cw - 1, bh, i == 63 ? CLR_LIGHT_YELLOW : CLR_ORANGE);
+    }
+    font(FONT_TINY); print(str("the last 64 clocked values, %d levels", levels), x0 + 4, y0 + h - 7, CLR_WHITE); font(FONT_NORMAL);
+}
+static void draw_tap(int x0, int y0, int w, int h, int idx) {
+    int len = (int)snaps[idx].v[0]; if (len < 9) len = 9; if (len > 24) len = 24;
+    uint32_t taps = (uint32_t)snaps[idx].v[1];
+    int cw = (w - 8) / 24, rows = (h - 18) / 3;
+    for (int b = 0; b < len; b++) if (taps & (1u << b)) rectfill(x0 + 4 + (len - 1 - b) * cw, y0 + 2, cw - 1, 3, CLR_LIME_GREEN);   // the taps
+    for (int r = 0; r < rows; r++) {                                   // the register, one row per frame
+        int si = idx - (rows - 1 - r); if (si < 0) continue;
+        uint32_t st = snaps[si].row;
+        for (int b = 0; b < len; b++) if (st & (1u << b)) rectfill(x0 + 4 + (len - 1 - b) * cw, y0 + 8 + r * 3, cw - 1, 2, r == rows - 1 ? CLR_LIGHT_YELLOW : CLR_ORANGE);
+    }
+    font(FONT_TINY); print(str("%d-bit register, taps in green", len), x0 + 4, y0 + h - 7, CLR_WHITE); font(FONT_NORMAL);
+}
+
 void draw(void) {
     cls(CLR_BROWNISH_BLACK);
     ui_begin();
@@ -964,13 +1355,13 @@ void draw(void) {
     font(FONT_SMALL);
     print_right(autoplay ? "M auto: on" : "M auto: off", SCREEN_W - 6, 5, autoplay ? CLR_LIME_GREEN : CLR_DARK_GREY);
     for (int s = 0; s < NSPEC; s++) {
-        int x = 4 + (s % 6) * 52, y = 13 + (s / 6) * 13, w = 50, h = 11;
+        int x = 4 + (s % 6) * 52, y = 12 + (s / 6) * 11, w = 50, h = 10;
         if (s == cur) rectfill(x - 1, y - 1, w + 2, h + 2, CLR_ORANGE);
         if (ui_button(x, y, w, h, SPNAME[s])) { set_spec(s); autoplay = false; }
     }
 
     // the picture, at the playback moment of the last note (or its last frame when it ended)
-    const int px = 4, py = 41, pw = 220, ph = 94;
+    const int px = 4, py = 47, pw = 220, ph = 88;
     rectfill(px, py, pw, ph, CLR_BLACK);
     rect(px - 1, py - 1, pw + 2, ph + 2, CLR_DARKER_GREY);
     if (nsnap > 0) {
@@ -988,7 +1379,13 @@ void draw(void) {
             case SP_SPIRAL:  draw_spiral(px, py, pw, ph, idx); break;
             case SP_LOCK:    draw_lock(px, py, pw, ph, idx); break;
             case SP_VOSIM:   draw_period(px, py, pw, ph, &snaps[idx], CLR_PEACH, "one cycle: the windowed formant pulse"); break;
-            default:         draw_glisson(px, py, pw, ph, idx); break;
+            case SP_GLISSON: draw_glisson(px, py, pw, ph, idx); break;
+            case SP_UNDER:   draw_under(px, py, pw, ph, &snaps[idx]); break;
+            case SP_LOOP:    draw_loop(px, py, pw, ph, &snaps[idx]); break;
+            case SP_SIDE:    draw_side(px, py, pw, ph); break;
+            case SP_MORSE:   draw_morse(px, py, pw, ph, idx); break;
+            case SP_CLOCK:   draw_clock(px, py, pw, ph, &snaps[idx]); break;
+            default:         draw_tap(px, py, pw, ph, idx); break;
         }
         clip(0, 0, SCREEN_W, SCREEN_H);
     }
@@ -999,7 +1396,7 @@ void draw(void) {
     // four knobs, named for this specimen
     font(FONT_SMALL);
     for (int k = 0; k < 4; k++) {
-        int kx = 246 + (k & 1) * 44, ky = 56 + (k >> 1) * 46;
+        int kx = 246 + (k & 1) * 44, ky = 62 + (k >> 1) * 42;
         float before = K[cur][k];
         if (ui_knob(&K[cur][k], kx, ky, KLABEL[cur][k]) && K[cur][k] != before) dirty = true;
     }
@@ -1145,6 +1542,66 @@ void spec(void) {
         int up = g.r1 > g.r0;
         gl_start(&g, &rn, 10.0f, -1.0f, 500.0f, 0.0f);
         expect(up && g.r1 < g.r0, "GLISSON: up-down picks the chirp's direction");
+    }
+
+    {   // UNDERTOW: with no stretch the six voices are exact divisors, so the mix repeats every
+        // lcm(1..6) = 60 anchor periods; stretch breaks the lattice and the repeat
+        float ku[4] = { 0.75f, 0.2f, 0.6f, 0.5f };
+        const float f = 441.0f / SR;                                  // anchor period 100 samples, full period 6000
+        static float u[SR]; render_under(u, SR, f, ku, ss, &nsn);
+        double d0 = 0; for (int i = 20000; i < 26000; i++) d0 += fabsf(u[i] - u[i + 6000]);
+        ku[3] = 1.0f; render_under(u, SR, f, ku, ss, &nsn);
+        double d1 = 0; for (int i = 20000; i < 26000; i++) d1 += fabsf(u[i] - u[i + 6000]);
+        expect(d0 < 1.0 && d1 > d0 * 20.0, str("UNDERTOW: exact divisors repeat every 60 periods, a stretched lattice does not (%.3g vs %.3g)", d0, d1));
+    }
+    {   // LOOPBACK: with no depth the loop is out of the signal: a plain sine at the note
+        float kl[4] = { 0.35f, 0.0f, 0.3f, 0.5f };
+        render_loop(sb[0], SPN, 110.0f / SR, kl, ss, &nsn);
+        double e = 0; float ph = 0; for (int i = 0; i < SPN; i++) { ph += 110.0f / SR; ph -= floorf(ph); e += fabsf(sb[0][i] - 0.9f * de_sin_turns(ph)); }
+        expect(e / SPN < 1e-3, str("LOOPBACK: zero depth is a pure sine (err %.2g)", e / SPN));
+    }
+    {   // SIDEBAND: one partial is the carrier alone; the closed form equals the explicit sum
+        float kq[4] = { 0.25f, 0.55f, 0.0f, 0.5f };
+        float cf, sfq; Dsf up, lo; sb_params(kq, 110.0f / SR, &cf, &sfq, &up, &lo);
+        expect_eq(up.count, 1, "SIDEBAND: count 0 asks for one partial");
+        kq[2] = 0.3f; sb_params(kq, 110.0f / SR, &cf, &sfq, &up, &lo);
+        double worst = 0; float cph = 0, bph = 0;
+        for (int i = 0; i < 2000; i++) {
+            cph += cf; cph -= floorf(cph); bph += sfq; bph -= floorf(bph);
+            float got = dsf(de_sin_turns(cph), de_sin_turns(cph + 0.25f), de_sin_turns(bph), de_sin_turns(bph + 0.25f), bph, &up, 1.0f);
+            double want = 0, a = 1; for (int kk = 0; kk < up.count; kk++) { want += a * sin(6.283185307 * (cph + kk * bph)); a *= up.r; }
+            want /= up.wsum; worst = fmax(worst, fabs(got - want));
+        }
+        expect(worst < 2e-3, str("SIDEBAND: the closed form equals the explicit sum of %d partials (worst %.2g)", up.count, worst));
+    }
+    {   // MORSE: the encoder is International Morse, and it keys what the message says
+        int16_t d[64], c[64];
+        int nn = morse_encode("SOS", d, c, 64);
+        static const int16_t want[18] = { 1,1, 1,1, 1,3, 3,1, 3,1, 3,3, 1,1, 1,1, 1,100 };
+        expect(nn == 18 && memcmp(d, want, sizeof want) == 0, "MORSE: SOS is ... --- ... with 1/3 gaps and the terminator");
+        nn = morse_encode("E T", d, c, 64);
+        expect(nn == 4 && d[1] == 7 && d[2] == 3, "MORSE: a space is a 7-tick word gap");
+        if (!ms_len) ms_len = morse_encode(MORSE_MSG, ms_dur, ms_chr, MORSE_MAX);
+        int marks = 0; for (int i = 0; i < ms_len; i += 2) marks++;
+        expect_eq(marks, 50, "MORSE: WHAT HATH GOD WROUGHT is 50 dits and dahs (10 + 11 + 9 + 20)");
+    }
+    {   // CLOCKED: the noise loops (the re-seed), and LEVELS quantises it
+        float kc[4] = { 0.3f, 0.95f, 0.1f, 0.0f };
+        Clk c; clk_init(&c, 220.0f / SR, kc);
+        int16_t seq[4000]; int got = 0;
+        while (got < 4000) if (clk_substep(&c)) seq[got++] = c.held;
+        int period = 0;
+        for (int p = 1; p < 1500 && !period; p++) { int ok = 1; for (int i = 500; i < 2500; i++) if (seq[i] != seq[i + p]) { ok = 0; break; } if (ok) period = p; }
+        expect(period > 0, str("CLOCKED: the re-seeded noise repeats (every %d clocks)", period));
+        int distinct = 0; int16_t seen[64]; for (int i = 0; i < 4000 && distinct < 64; i++) { int n2 = 0; for (int j = 0; j < distinct; j++) if (seen[j] == seq[i]) n2 = 1; if (!n2) seen[distinct++] = seq[i]; }
+        expect(distinct <= 4, str("CLOCKED: a low LEVELS setting leaves only a few values (%d)", distinct));
+    }
+    {   // TAPFIELD: an uncorrupted LFSR never sticks at zero and comes back to where it started
+        Lfsr l; lf_topo(&l, 0.0f);
+        uint32_t s0 = l.state; int back = 0; long steps = 0;
+        for (; steps < (1L << 10); steps++) { lf_clock(&l, 0.0f); if (!l.state) break; if (l.state == s0) { back = 1; break; } }
+        expect(l.state != 0, "TAPFIELD: the register never reaches the all-zero lockup");
+        expect(back, str("TAPFIELD: a 9-bit register returns to its start state (after %ld clocks)", steps + 1));
     }
 
     // the panel

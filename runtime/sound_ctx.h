@@ -193,6 +193,8 @@ typedef struct {
     // average + a 16 kHz output one-pole (FM aliases by construction; the hardware
     // admits this). Buffer-free — tens of floats, no delay line. See sound_fm4_sample.
     float  fm4_ph[4], fm4_fb, fm4_fb_z, fm4_lp;
+    float  fm4_dc_x, fm4_dc_y;     // 10 Hz output DC blocker (dc-check read -31 dBFS at A5 before it: PM through a
+                                   // one-pole leaves a per-algorithm offset the other engines' blockers already remove)
     bool   fm4_on;                 // note-on init guard (engine id without a start → silent)
     // tonewheel organ state (INSTR_ORGAN): 9 additive drawbar sines (buffer-free), plus a
     // key-click burst, a percussion ping, and the scanner chorus — whose short delay line

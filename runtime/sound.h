@@ -3099,6 +3099,7 @@ static void fm4_pick(const Voice *v, int *alg, float *ratio, float *level) {
 }
 
 static void sound_fm4_start(Voice *v) {
+    v->fm4_dc_x = v->fm4_dc_y = 0.0f;
     for (int i = 0; i < 4; i++) v->fm4_ph[i] = 0.0f;
     v->fm4_fb = v->fm4_fb_z = v->fm4_lp = 0.0f;
     v->fm4_on = true;
@@ -3160,7 +3161,11 @@ static inline float sound_fm4_sample(Voice *v, float pitch_mul) {
 
     // hardware 16 kHz admission that FM aliases. one-pole, ~0.90 at 44.1 kHz
     v->fm4_lp += 0.90f * (mix - v->fm4_lp);
-    return v->fm4_lp;
+    // output DC blocker, 10 Hz (1 - 2π·10/44100): dc-check found -31 dBFS of DC at A5 once its
+    // sweep reached this engine (2026-09-28); the same blocker MODAL / MME / EPIANO carry
+    v->fm4_dc_y = v->fm4_lp - v->fm4_dc_x + 0.99857f * v->fm4_dc_y;
+    v->fm4_dc_x = v->fm4_lp;
+    return v->fm4_dc_y;
 }
 
 // One PD (Casio CZ phase-distortion) sample — buffer-free, NO note-on init (phase rides

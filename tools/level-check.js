@@ -182,7 +182,10 @@ function renderSweep(keep) {
   // that counted 13 entries, so the sweep had been quietly stopping one note short of the end since
   // the pass was added: the ET A5 note was never rendered and never missed. Same fix, same number,
   // same reasoning as tune-check.js — the two renderSweep()s must not drift apart again.
-  runPlay('tunecheck', 3700, wav, trace)
+  // 2026-09-28: 3700 covered 14 entries and the roster is 17 (MODAL, FM4, MME + the differential
+  // pass), so the sweep truncated again and read a phantom ORGAN/BOWED A5 drift off uneven windows.
+  // 17 × 4 × 62 = 4216. Count ENGINES[] in tools/carts/tunecheck.c when adding an engine.
+  runPlay('tunecheck', 4500, wav, trace)
   return { wav, trace, dir }
 }
 

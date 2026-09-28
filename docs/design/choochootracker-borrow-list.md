@@ -96,12 +96,13 @@ A/B, the way `modal` keeps both macro mappings live. Gates run: `lint-aux-params
 soundcheck, `spec` (59), `tune-check` (A2..A5 within 3.4¢), a per-model level sweep (the
 `MME_TRIM` table lands all seven at -14 dBFS peak, the engine's single-voice baseline).
 
-Two things the port found in the TOOLS, not the voice: tune-check's frame budget was still sized
-for 14 sweep entries, so the PIANO differential pass had been silently truncated since MODAL and
-FM4 landed (now 4500 frames, and the comment says to count `ENGINES[]`); and `level-check`'s
-baseline predates MODAL/FM4 and reads a pre-existing ORGAN/BOWED A5 drift it blames on its own
-measurement, so the new engine's rows are "new (no baseline)" until someone re-blesses it
-knowingly. Not blessed here: a `--save` would sweep that drift into the baseline.
+Three things the port found in the TOOLS, not the voice, all fixed the next day: tune-check,
+dc-check and level-check each carried a hardcoded frame budget sized for 14 sweep entries, so
+everything past MODAL had been silently truncated (the PIANO differential pass, FM4, MME; now
+4500 frames each, and the comments say to count `ENGINES[]`). The first full dc-check sweep found
+`INSTR_FM4` at -31 dBFS of DC at A5, which a 10 Hz output blocker (the one MODAL/MME/EPIANO carry)
+took to -62. The level baseline is re-blessed at 68 notes: the one real drift it absorbed, BOWED
+A5 +2.1 dB peak, is the 2026-08-25 bow-friction fix landing after the 2026-08-15 baseline.
 
 Still open on row 1: the ear pass on `MME_TRIM` against the reference, and a few named presets
 (the recipe table in [`instrument-recipes.md`](../guides/instrument-recipes.md) is the start).

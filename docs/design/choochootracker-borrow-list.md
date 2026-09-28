@@ -6,7 +6,7 @@ reference as an E-toggled A/B). Rows 2 and 3 are SHIPPED as `INSTR_METAL` (2026-
 in the `bogie` cart the same day, which now cycles engine / prototype / 808 on one set of pads).
 Row 5 is SHIPPED as `INSTR_SINTER` (2026-09-28, cart-first in the `sintered` cart the same day).
 Row 7 turned out mostly shipped already; its one missing piece, per-track speed, is BUILT as the
-`slipstep` cart (2026-09-28). Row 6 is BUILT as the `specimens` cart (eighteen techniques on three rows of tabs).
+`slipstep` cart (2026-09-28). Row 6 is BUILT as the `specimens` cart (twenty-four techniques on four rows of tabs).
 Row 4 is open. Each row names the upstream file, what it
 would become here, and why it made or missed the cut. Update the row (not this line) when
 something lands.
@@ -183,6 +183,25 @@ so an easy grab lands in tune while the clangy in-between values stay reachable.
 each one repeats at the played note's period at its defaults (mismatch under 0.001%). LOCKSTEP keeps
 its lock-in glide (0.61 → 1.00 of target in ~0.23 s at the default bandwidth): that is the PLL
 catching up, and the bandwidth knob shortens it.
+
+**Fourth row (same day):** LPC (Plaits' 10-pole speech lattice), PhISEM (STK's Shakers, all sixteen,
+ratchets and water drops included), a Serge-style formant oscillator (Freshets / Tides 2), QPSK
+(Braids' modem model), particle noise (Braids' PRTC) and six-operator FM on the DX7's 32 algorithms.
+**Provenance decided three of these ports:** Plaits' LPC words are "LPC10 encoded words extracted
+from various TI ROMs" and its excitation is the TMS5220 chirp table, so neither comes here; the
+lattice is Plaits', its frames are computed from Peterson & Barney's (1952) published average vowel
+formants by the step-down recursion, and the excitation is a Rosenberg glottal pulse. Six-op upstream
+plays a firmware-supplied DX7 SysEx bank; the 32 algorithm topologies are ported verbatim (Plaits'
+opcode table, macros evaluated) and the six patches are this cart's own. PRTC's two Braids resonator
+tables are replaced by computing each resonator from its pitch. Checks: every LPC frame is stable and
+a whispered /i/ carries 16.6 / 22.2 dB more energy at F1 / F2 than in the valley between (the proof
+the coefficient sign convention matches the lattice), a struck maraca decays and a shaken one keeps
+rattling, the Serge formant repeats at the note's period at any formant, a QPSK frame sends preamble /
+sync A / sync B in order, particle density is the event rate (69 vs 4 hits), every DX7 algorithm has
+a carrier and one feedback operator, and the all-carrier organ repeats at twice the note's period.
+Six-op first cost 23.3 ms per 6 s render (six exp and six sine calls a sample); a one-multiply
+envelope (asserted equal to the closed form within 5e-5) and Plaits' own interpolated sine-table
+read brought it to 10.9. `spec()` = 501 across twenty-four specimens on four rows of tabs.
 
 Changes from upstream: per-note LCGs for `Random::GetFloat()` (gendy, glisson: repeatable per
 pitch), scanned always triggered, terrain at 1× instead of 2× oversampling (22.5 ms per 6 s render

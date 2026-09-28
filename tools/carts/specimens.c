@@ -12,20 +12,20 @@
     "cellular-automata",
     "sonification"
   ],
-  "lineage": "Row 6 of docs/design/choochootracker-borrow-list.md: eighteen synthesis techniques the repo had no version of, ported to cart-land C from Lyle Mills' Plaits-Alt fork (plaits_alt/dsp/engine2, MIT, 2026, vendored by Choochootracker): phase_flock (Kuramoto-coupled oscillators), rulefield (a 1-D cellular automaton read as a wavecycle), scanned (scanned synthesis: a mass-spring ring read as a wavetable), gendy (Xenakis' dynamic stochastic synthesis), attractor (a Thomas cyclically symmetric chaotic flow), bytebeat (Bees-in-the-Trees' four formulas), pulsar (Roads' pulsar synthesis), wave_terrain (an orbit over a 2-D surface), spectral_spiral (frequency-shift feedback), lockstep (a phase-locked loop), vosim (Kaegi and Tempelaars' VOSIM, via Braids), glisson (chirping grains), undertow (a subharmonic ladder), loopback (feedback AM), sideband (discrete-summation-formula synthesis), question_mark (Braids' Morse transmitter, here sending Samuel Morse's own public-domain first telegram instead of upstream's Pynchon passage), Braids' clocked noise (CLKN, re-seeded so it loops) and tapfield (an LFSR as an oscillator). Each note renders in cart-land into a PCM slot (the mme / sintered route) and the render also records the algorithm's STATE sixty times a second, so the picture is the process making the sound you hear, not an animation beside it.",
+  "lineage": "Row 6 of docs/design/choochootracker-borrow-list.md: twenty-four synthesis techniques the repo had no version of, ported to cart-land C from Lyle Mills' Plaits-Alt fork (plaits_alt/dsp/engine2, MIT, 2026, vendored by Choochootracker): phase_flock (Kuramoto-coupled oscillators), rulefield (a 1-D cellular automaton read as a wavecycle), scanned (scanned synthesis: a mass-spring ring read as a wavetable), gendy (Xenakis' dynamic stochastic synthesis), attractor (a Thomas cyclically symmetric chaotic flow), bytebeat (Bees-in-the-Trees' four formulas), pulsar (Roads' pulsar synthesis), wave_terrain (an orbit over a 2-D surface), spectral_spiral (frequency-shift feedback), lockstep (a phase-locked loop), vosim (Kaegi and Tempelaars' VOSIM, via Braids), glisson (chirping grains), undertow (a subharmonic ladder), loopback (feedback AM), sideband (discrete-summation-formula synthesis), question_mark (Braids' Morse transmitter, here sending Samuel Morse's own public-domain first telegram instead of upstream's Pynchon passage), Braids' clocked noise (CLKN, re-seeded so it loops), tapfield (an LFSR as an oscillator), LPC (Plaits' 10-pole speech lattice, driven by frames computed from Peterson & Barney's published vowel formants and a Rosenberg glottal pulse, because upstream's words and excitation come from TI ROMs), PhISEM (Perry Cook's shakers, all sixteen of STK's), a Serge-style formant oscillator (Dylan Bolink's Freshets port of Tides 2), QPSK (Braids' modem model), particle noise (Braids' PRTC) and six-operator FM on the DX7's 32 algorithms (topologies ported verbatim, our own six patches, since upstream plays a firmware-supplied SysEx bank). Each note renders in cart-land into a PCM slot (the mme / sintered route) and the render also records the algorithm's STATE sixty times a second, so the picture is the process making the sound you hear, not an animation beside it.",
   "homage": "Lyle Mills' Plaits-Alt (2026) on Emilie Gillet's Plaits; Iannis Xenakis (GENDYN), Yoshiki Kuramoto, Stephen Wolfram's elementary automata, Bill Verplank / Max Mathews / Rob Shaw (scanned synthesis), Rene Thomas, and the bytebeat scene.",
   "description": {
-    "summary": "A cabinet of eighteen synthesis techniques the rest of the console does not have, from oscillators falling into sync and a cellular automaton to a Morse transmitter and a shift register, each drawn live by the same process that makes its sound.",
-    "detail": "Pick a specimen, play the keyboard. FLOCK: seven detuned oscillators pull on each other; turn COUPLING up and watch the dots clump as they fall into sync, the arrow in the middle is how synchronised they are. RULES: an elementary cellular automaton evolves once per cycle and its row IS the waveform; the picture is its spacetime diagram. SCANNED: a ring of 32 masses on springs, struck at note-on, read as a wavetable; you see the ring ringing. GENDY: a wave made of random breakpoints that take a random walk every cycle. ATTRACTOR: a three-way chaotic flow, drawn as its orbit. BYTEBEAT: a one-line integer formula as an oscillator, drawn as the byte stream. PULSAR: a burst of formant in each cycle, then silence. TERRAIN: a circular orbit scanning a 2-D surface (drawn as a heat map); the height under the dot is the sample. SPIRAL: a short complex delay loop that shifts the spectrum on every lap, drawn in the I/Q plane. LOCKSTEP: a phase-locked loop, a follower oscillator chasing the note at a ratio, with its phase error. VOSIM: bell-windowed formant pulses. GLISSON: grains that chirp up or down, drawn as pitch over time. UNDERTOW: the note plus undertones at 1/2 .. 1/6, drawn as six lanes that line up. LOOPBACK: a loop that multiplies the tone by its own echo. SIDEBAND: a closed-form sum of sidebands, drawn as its spectrum. MORSE: a telegraph sending WHAT HATH GOD WROUGHT over a noisy line, the letter on air lit. CLOCKED: noise that re-seeds every few clocks, so it loops into a pitch. TAPFIELD: a shift register with feedback taps, clocked by the note. Each has four knobs named for what they do in THAT specimen. A note renders its sound (up to 6 s) when you press it; the knobs apply to the next note and fire a short preview while you drag.",
-    "controls": "keybed: A-K whites, W-P blacks, Z/X octave, click/touch/MIDI · TAB or the two rows of tabs: pick a specimen · drag the four knobs (wheel = fine) · M: autoplay"
+    "summary": "A cabinet of twenty-four synthesis techniques the rest of the console does not have, from oscillators falling into sync and a cellular automaton to a talking-chip lattice, a DX7 and a modem, each drawn live by the same process that makes its sound.",
+    "detail": "Pick a specimen, play the keyboard. FLOCK: seven detuned oscillators pull on each other; turn COUPLING up and watch the dots clump as they fall into sync, the arrow in the middle is how synchronised they are. RULES: an elementary cellular automaton evolves once per cycle and its row IS the waveform; the picture is its spacetime diagram. SCANNED: a ring of 32 masses on springs, struck at note-on, read as a wavetable; you see the ring ringing. GENDY: a wave made of random breakpoints that take a random walk every cycle. ATTRACTOR: a three-way chaotic flow, drawn as its orbit. BYTEBEAT: a one-line integer formula as an oscillator, drawn as the byte stream. PULSAR: a burst of formant in each cycle, then silence. TERRAIN: a circular orbit scanning a 2-D surface (drawn as a heat map); the height under the dot is the sample. SPIRAL: a short complex delay loop that shifts the spectrum on every lap, drawn in the I/Q plane. LOCKSTEP: a phase-locked loop, a follower oscillator chasing the note at a ratio, with its phase error. VOSIM: bell-windowed formant pulses. GLISSON: grains that chirp up or down, drawn as pitch over time. UNDERTOW: the note plus undertones at 1/2 .. 1/6, drawn as six lanes that line up. LOOPBACK: a loop that multiplies the tone by its own echo. SIDEBAND: a closed-form sum of sidebands, drawn as its spectrum. MORSE: a telegraph sending WHAT HATH GOD WROUGHT over a noisy line, the letter on air lit. CLOCKED: noise that re-seeds every few clocks, so it loops into a pitch. TAPFIELD: a shift register with feedback taps, clocked by the note. LPC: the talking chips' 10-pole lattice filter singing vowels, drawn as its reflection coefficients and the spectral envelope they make. PHISEM: Perry Cook's shakers, from maracas to coins in a mug, drawn as shake energy and audible collisions. SERGE: a formant envelope retriggered every cycle. QPSK: a modem's carrier keyed by pairs of bits, drawn as its constellation. PARTICLE: noise hits that retune three resonators. SIX-OP: DX7 FM, drawn as the algorithm's operators lit by their envelopes. Each has four knobs named for what they do in THAT specimen. A note renders its sound (up to 6 s) when you press it; the knobs apply to the next note and fire a short preview while you drag.",
+    "controls": "keybed: A-K whites, W-P blacks, Z/X octave, click/touch/MIDI · TAB or the four rows of tabs: pick a specimen · drag the four knobs (wheel = fine) · M: autoplay"
   },
   "todo": [
     "ear pass: which specimens earn an INSTR_* engine (then the knobs ride a held note live, and the 6 s render cap goes away)",
-    "still unported, and absent from the repo: phase_weave, Braids' particle noise (PRTC) and twin-peaks noise (TWNQ). Braids' digital filters (z_filter) are left out on purpose: upstream is a fixed-point reproduction with its own A/B suite, and a float port would be an approximation under Braids' name"
+    "still unported, and absent from the repo: phase_weave, Braids' CSAW and TOY, helix and wavetable_chord (unread). Left out on purpose: Braids' digital filters and twin-peaks noise (fixed-point/table reproductions upstream), vowel_fof (the same idea as INSTR_VOICE)"
   ]
 }
 de:meta */
-// specimens — eighteen synthesis techniques from Plaits-Alt, each drawn by its own state.
+// specimens — twenty-four synthesis techniques from Plaits-Alt, each drawn by its own state.
 //
 // THE ROUTE (same as mme / sintered): a key press renders the note in cart-land C into a
 // shared buffer, sample_load()s it into one of NV PCM slots (round-robin) and plays it through
@@ -45,6 +45,10 @@ de:meta */
 //   · MORSE sends Samuel Morse's own public-domain telegram; upstream's table encodes a Pynchon
 //     passage, which is not reproduced here in any form. The transmitter machine is Braids'.
 //   · CLOCKED's SEED and CLOCK knobs are ours (upstream: the LCG at strike, always 8x)
+//   · LPC: no TI ROM data comes here (upstream's words are "extracted from various TI ROMs" and
+//     its excitation is the TMS5220 chirp table); frames are computed from published formants
+//   · SIX-OP: no DX7 SysEx bank comes here; the 32 algorithm topologies do, and six own patches
+//   · PARTICLE computes each resonator from its pitch instead of reading Braids' two tables
 //   · Plaits-Alt's "vowel_fof" is NOT here: it is five resonant filters on a saw, the same idea
 //     as INSTR_VOICE, so GLISSON took its tab
 //
@@ -67,10 +71,12 @@ de:meta */
 
 enum { SP_FLOCK, SP_RULES, SP_SCAN, SP_GENDY, SP_ATTR, SP_BYTE,
        SP_PULSAR, SP_TERRAIN, SP_SPIRAL, SP_LOCK, SP_VOSIM, SP_GLISSON,
-       SP_UNDER, SP_LOOP, SP_SIDE, SP_MORSE, SP_CLOCK, SP_TAP, NSPEC };
+       SP_UNDER, SP_LOOP, SP_SIDE, SP_MORSE, SP_CLOCK, SP_TAP,
+       SP_LPC, SP_PHISEM, SP_SERGE, SP_QPSK, SP_PARTICLE, SP_SIXOP, NSPEC };
 static const char *SPNAME[NSPEC] = { "FLOCK", "RULES", "SCANNED", "GENDY", "ATTRACT", "BYTEBEAT",
                                      "PULSAR", "TERRAIN", "SPIRAL", "LOCKSTEP", "VOSIM", "GLISSON",
-                                     "UNDERTOW", "LOOPBACK", "SIDEBAND", "MORSE", "CLOCKED", "TAPFIELD" };
+                                     "UNDERTOW", "LOOPBACK", "SIDEBAND", "MORSE", "CLOCKED", "TAPFIELD",
+                                     "LPC", "PHISEM", "SERGE", "QPSK", "PARTICLE", "SIX-OP" };
 static const char *KLABEL[NSPEC][4] = {
     { "spread",  "couple", "2-flock", "lag"    },
     { "rule",    "edges",  "evolve",  "smooth" },
@@ -90,6 +96,12 @@ static const char *KLABEL[NSPEC][4] = {
     { "colour",  "speed",  "bed",     "grit"   },
     { "seed",    "loop",   "levels",  "clock"  },
     { "topology","decode", "corrupt", "slew"   },
+    { "vowel",   "whisper","glide",   "rate"   },
+    { "object",  "shake",  "decay",   "count"  },
+    { "formant", "smooth", "width",   "shape"  },
+    { "frame",   "baud",   "shaping", "payload"},
+    { "jitter",  "density","chord",   "decay"  },
+    { "patch",   "depth",  "time",    "feedback"},
 };
 static const char *CAPTION[NSPEC] = {
     "seven detuned oscillators pulling each other into sync",
@@ -110,6 +122,12 @@ static const char *CAPTION[NSPEC] = {
     "Braids' Morse transmitter, sending WHAT HATH GOD WROUGHT",
     "clocked noise that re-seeds, so it loops: frozen noise as a pitch",
     "a linear-feedback shift register, clocked by the note, as a wave",
+    "LPC: a 10-pole lattice filter, the talking chip's voice, singing vowels",
+    "PhISEM: the statistics of many small objects colliding in a shaker",
+    "a Serge-style formant oscillator: an envelope retriggered every cycle",
+    "QPSK: a modem's carrier keyed by pairs of bits",
+    "particles: noise hits that retune three resonators at random",
+    "six-operator FM on the DX7's 32 algorithms, with our own patches",
 };
 static float K[NSPEC][4] = {
     { 0.45f, 0.30f, 0.00f, 0.50f },
@@ -130,6 +148,12 @@ static float K[NSPEC][4] = {
     { 0.40f, 0.95f, 0.50f, 0.40f },
     { 0.30f, 0.85f, 0.35f, 1.00f },
     { 0.30f, 0.40f, 0.10f, 0.30f },
+    { 0.00f, 0.15f, 0.45f, 0.50f },
+    { 0.00f, 0.00f, 0.50f, 0.30f },
+    { 0.62f, 0.30f, 0.30f, 0.50f },
+    { 0.40f, 0.60f, 0.30f, 0.50f },
+    { 0.40f, 0.30f, 0.35f, 0.60f },
+    { 0.00f, 0.50f, 0.50f, 0.30f },
 };
 
 // ── the snapshot a render leaves behind, once per frame ─────────────────────────
@@ -1004,6 +1028,438 @@ static int render_tap(float *out, int n, float f, const float *k, Snap *sn, int 
     return n;
 }
 
+// ── LPC (lpc_speech_synth.cc's lattice, our own frames) ─────────────────────────
+// Plaits' LPC engine plays words "extracted from various TI ROMs" and excites them with the
+// TMS5220's chirp table. Neither comes here: the frames are computed from Peterson & Barney's
+// (1952) published average male formant frequencies (measurements, not a recording), turned into
+// reflection coefficients by the step-down recursion, and the excitation is a Rosenberg glottal
+// pulse. The 10-pole lattice itself is Plaits'. It runs at a low rate (8 kHz by default, the
+// talking-chip rate) and is held up to 44.1 kHz, which is part of the sound.
+#define LPC_P 10
+static const float LPC_F[5][5] = {                                  // i, e, a, o, u: F1..F5 (Hz)
+    { 270.0f, 2290.0f, 3010.0f, 3300.0f, 3750.0f },
+    { 530.0f, 1840.0f, 2480.0f, 3300.0f, 3750.0f },
+    { 730.0f, 1090.0f, 2440.0f, 3300.0f, 3750.0f },
+    { 570.0f,  840.0f, 2410.0f, 3300.0f, 3750.0f },
+    { 300.0f,  870.0f, 2240.0f, 3300.0f, 3750.0f },
+};
+static const float LPC_BW[5] = { 60.0f, 90.0f, 120.0f, 150.0f, 200.0f };
+static const char *LPC_VOWEL = "IEAOU";
+// formants → A(z) = Π (1 - 2 r cosθ z⁻¹ + r² z⁻²) → reflection coefficients (step-down)
+static int lpc_frame(float vpos, float fs, float *kref) {
+    float x = clampf(vpos, 0.0f, 1.0f) * 4.0f; int vi = (int)x; if (vi > 3) vi = 3; float vf = x - (float)vi;
+    double a[LPC_P + 1] = { 1.0 };
+    int ord = 0;
+    for (int j = 0; j < 5; j++) {
+        float F = LPC_F[vi][j] + (LPC_F[vi + 1][j] - LPC_F[vi][j]) * vf;
+        if (F > 0.46f * fs) continue;                               // above this lattice's Nyquist
+        double r = exp(-3.14159265 * LPC_BW[j] / fs), th = 6.28318531 * F / fs;
+        double c1 = -2.0 * r * cos(th), c2 = r * r, b[LPC_P + 1] = { 0 };
+        for (int i = 0; i <= ord; i++) { b[i] += a[i]; b[i + 1] += c1 * a[i]; b[i + 2] += c2 * a[i]; }
+        ord += 2; for (int i = 0; i <= ord; i++) a[i] = b[i];
+    }
+    for (int i = 0; i < LPC_P; i++) kref[i] = 0.0f;
+    for (int m = ord; m >= 1; m--) {                                // step-down: k_m = a_m[m]
+        double km = a[m], d = 1.0 - km * km, t[LPC_P + 1];
+        kref[m - 1] = (float)km;
+        if (d <= 1e-9) break;
+        for (int i = 0; i <= m; i++) t[i] = a[i];
+        for (int i = 1; i < m; i++) a[i] = (t[i] - km * t[m - i]) / d;
+    }
+    return ord;
+}
+static float rosenberg(float ph) {                                  // glottal flow: open 40%, close 16%
+    const float tp = 0.40f, tn = 0.16f;
+    if (ph < tp) return 0.5f * (1.0f - de_cos_turns(0.5f * ph / tp));
+    if (ph < tp + tn) return de_cos_turns(0.25f * (ph - tp) / tn);
+    return 0.0f;
+}
+static int render_lpc(float *out, int n, float f, const float *k, Snap *sn, int *nsn, uint32_t seed) {
+    Rng rn = { seed };
+    const float fs = 4000.0f * de_powf(2.0f, k[3] * 2.0f);          // rate: 4 kHz .. 16 kHz, 8 kHz at centre
+    const float hz = f * (float)SR, fl = hz / fs;
+    float kref[LPC_P], sst[LPC_P] = { 0 }, ph = 0.0f, prev_g = 0.0f, lat = 0.0f, lat_prev = 0.0f, lph = 0.0f;
+    const float glide = k[2] * k[2] * 1.2f;                         // vowels per second, walking i-e-a-o-u-o-a-e
+    float vpos = k[0], vdir = 1.0f;
+    lpc_frame(vpos, fs, kref);
+    int ns = 0;
+    for (int t = 0; t < n; t++) {
+        lph += fs / (float)SR;
+        while (lph >= 1.0f) {                                       // one lattice step at the low rate
+            lph -= 1.0f;
+            if (glide > 0.0f) {                                     // walk the vowels, bouncing at the ends
+                vpos += vdir * glide / fs;
+                if (vpos > 1.0f) { vpos = 1.0f; vdir = -1.0f; } else if (vpos < 0.0f) { vpos = 0.0f; vdir = 1.0f; }
+            }
+            ph += fl; if (ph >= 1.0f) ph -= 1.0f;
+            float g = rosenberg(ph), voiced = (g - prev_g) * 6.0f;  // the radiated derivative
+            prev_g = g;
+            float noise = 2.0f * rng01(&rn) - 1.0f;
+            float e[LPC_P + 1];
+            e[LPC_P] = voiced * (1.0f - k[1]) + noise * k[1] * 0.3f;
+            for (int m = LPC_P - 1; m >= 0; m--) e[m] = e[m + 1] - kref[m] * sst[m];
+            e[0] = clampf(e[0], -2.0f, 2.0f);
+            for (int m = LPC_P - 1; m >= 1; m--) sst[m] = sst[m - 1] + kref[m - 1] * e[m - 1];
+            sst[0] = e[0];
+            lat_prev = lat; lat = e[0];
+        }
+        out[t] = lat_prev + (lat - lat_prev) * lph;
+        if (glide > 0.0f && (t & 255) == 0) lpc_frame(vpos, fs, kref);   // a new frame every 5.8 ms (the chip: 25 ms)
+        if (t % SNAP_EVERY == 0 && ns < NSNAP) { for (int i = 0; i < LPC_P; i++) sn[ns].v[i] = kref[i]; sn[ns].r = vpos; sn[ns].mx = fs; ns++; }
+    }
+    *nsn = ns;
+    return n;
+}
+
+// ── PHISEM (shakers_engine.cc: STK's Shakers, Perry Cook) ───────────────────────
+// STK tuned every constant at 44.1 kHz, which is this console's rate, so no rate correction.
+typedef struct { const char *name; int nres; const float *F, *R, *G; float objects, sys_decay, snd_decay, gain, decay_scale, vary; uint8_t vmask; float b0, b1, b2; uint8_t mech; float ratchet, makeup; } Shaker;
+static const float kMaracaF[] = { 3200.0f }, kMaracaR[] = { 0.96f }, kMaracaG[] = { 1.0f };
+static const float kCabasaF[] = { 3000.0f }, kCabasaR[] = { 0.7f }, kCabasaG[] = { 1.0f };
+static const float kSekereF[] = { 5500.0f }, kSekereR[] = { 0.6f }, kSekereG[] = { 1.0f };
+static const float kTambF[] = { 2300.0f, 5600.0f, 8100.0f }, kTambR[] = { 0.96f, 0.99f, 0.99f }, kTambG[] = { 0.1f, 0.8f, 1.0f };
+static const float kSleighF[] = { 2500.0f, 5300.0f, 6500.0f, 8300.0f, 9800.0f }, kSleighR[] = { 0.99f, 0.99f, 0.99f, 0.99f, 0.99f }, kSleighG[] = { 1.0f, 1.0f, 1.0f, 0.5f, 0.3f };
+static const float kBambooF[] = { 2800.0f, 2240.0f, 3360.0f }, kBambooR[] = { 0.995f, 0.995f, 0.995f }, kBambooG[] = { 1.0f, 1.0f, 1.0f };
+static const float kAngF[] = { 1046.6f, 1174.8f, 1397.0f, 1568.0f, 1760.0f, 2093.3f, 2350.0f }, kAngR[] = { 0.996f, 0.996f, 0.996f, 0.996f, 0.996f, 0.996f, 0.996f }, kAngG[] = { 1, 1, 1, 1, 1, 1, 1 };
+static const float kCokeF[] = { 370.0f, 1025.0f, 1424.0f, 2149.0f, 3596.0f }, kCokeR[] = { 0.99f, 0.992f, 0.992f, 0.992f, 0.992f }, kCokeG[] = { 1.0f, 1.8f, 1.8f, 1.8f, 1.8f };
+static const float kStixF[] = { 5500.0f }, kStixR[] = { 0.6f }, kStixG[] = { 1.0f };
+static const float kCrunchF[] = { 800.0f }, kCrunchR[] = { 0.95f }, kCrunchG[] = { 1.0f };
+static const float kBigF[] = { 6460.0f }, kBigR[] = { 0.932f }, kBigG[] = { 1.0f };
+static const float kLittleF[] = { 9000.0f }, kLittleR[] = { 0.843f }, kLittleG[] = { 1.0f };
+static const float kMugF[] = { 2123.0f, 4518.0f, 8856.0f, 10753.0f, 1708.0f, 8863.0f, 9045.0f }, kMugR[] = { 0.997f, 0.997f, 0.997f, 0.997f, 0.9995f, 0.9995f, 0.9995f }, kMugG[] = { 1.0f, 0.8f, 0.6f, 0.4f, 1.0f, 0.8f, 0.5f };
+static const float kWaterF[] = { 450.0f, 600.0f, 750.0f }, kWaterR[] = { 0.9985f, 0.9985f, 0.9985f }, kWaterG[] = { 1.0f, 1.0f, 1.0f };
+static const float kGuiroF[] = { 2500.0f, 4000.0f }, kGuiroR[] = { 0.97f, 0.97f }, kGuiroG[] = { 1.0f, 1.0f };
+static const float kWrenchF[] = { 3200.0f, 8000.0f }, kWrenchR[] = { 0.99f, 0.992f }, kWrenchG[] = { 1.0f, 1.0f };
+#define NSHAKER 16
+static const Shaker SHAKERS[NSHAKER] = {
+    { "maraca",       1, kMaracaF, kMaracaR, kMaracaG,   25.0f, 0.999f,   0.95f, 4.0f, 0.97f, 0.0f,  0x00,  1.0f, -1.0f,  0.0f, 0, 0.0f,     1.788f },
+    { "cabasa",       1, kCabasaF, kCabasaR, kCabasaG,  512.0f, 0.997f,   0.96f, 8.0f, 0.97f, 0.0f,  0x00,  1.0f, -1.0f,  0.0f, 0, 0.0f,     0.248f },
+    { "sekere",       1, kSekereF, kSekereR, kSekereG,   64.0f, 0.999f,   0.96f, 4.0f, 0.94f, 0.0f,  0x00,  1.0f,  0.0f, -1.0f, 0, 0.0f,     0.237f },
+    { "tambourine",   3, kTambF,   kTambR,   kTambG,     32.0f, 0.9985f,  0.95f, 1.0f, 0.95f, 0.05f, 0x06,  1.0f,  0.0f, -1.0f, 0, 0.0f,     6.705f },
+    { "sleigh bells", 5, kSleighF, kSleighR, kSleighG,   32.0f, 0.9994f,  0.97f, 1.0f, 0.9f,  0.03f, 0x1f,  1.0f,  0.0f, -1.0f, 0, 0.0f,     2.564f },
+    { "bamboo",       3, kBambooF, kBambooR, kBambooG,    1.2f, 0.9999f,  0.9f,  0.4f, 0.7f,  0.2f,  0x07,  1.0f,  0.0f,  0.0f, 0, 0.0f,     8.183f },
+    { "angklung",     7, kAngF,    kAngR,    kAngG,       1.2f, 0.9999f,  0.95f, 0.5f, 0.7f,  0.0f,  0x00,  1.0f,  0.0f, -1.0f, 0, 0.0f,     9.049f },
+    { "coke can",     5, kCokeF,   kCokeR,   kCokeG,     48.0f, 0.999f,   0.97f, 0.5f, 0.95f, 0.0f,  0x00,  1.0f,  0.0f, -1.0f, 0, 0.0f,     2.654f },
+    { "sticks",       1, kStixF,   kStixR,   kStixG,      2.0f, 0.998f,   0.96f, 6.0f, 0.96f, 0.0f,  0x00,  1.0f,  0.0f, -1.0f, 0, 0.0f,     0.493f },
+    { "crunch",       1, kCrunchF, kCrunchR, kCrunchG,    7.0f, 0.99806f, 0.95f, 4.0f, 0.96f, 0.0f,  0x00,  1.0f, -1.0f,  0.0f, 0, 0.0f,     2.33f  },
+    { "big rocks",    1, kBigF,    kBigR,    kBigG,      23.0f, 0.9965f,  0.98f, 4.0f, 0.95f, 0.11f, 0x01,  1.0f,  0.0f, -1.0f, 0, 0.0f,     0.991f },
+    { "little rocks", 1, kLittleF, kLittleR, kLittleG, 1600.0f, 0.99586f, 0.98f, 4.0f, 0.95f, 0.18f, 0x01,  1.0f,  0.0f, -1.0f, 0, 0.0f,     0.843f },
+    { "coins in a mug",7,kMugF,    kMugR,    kMugG,       3.0f, 0.9995f,  0.97f, 0.8f, 0.95f, 0.0f,  0x00,  1.0f,  0.0f, -1.0f, 0, 0.0f,     10.062f },
+    { "water drops",  3, kWaterF,  kWaterR,  kWaterG,    10.0f, 0.996f,   0.95f, 1.0f, 0.8f,  0.0f,  0x00, -1.0f,  0.0f,  1.0f, 2, 0.0f,     50.0f  },
+    { "guiro",        2, kGuiroF,  kGuiroR,  kGuiroG,   128.0f, 0.999f,   0.95f, 0.4f, 0.95f, 0.0f,  0x00,  1.0f,  0.0f, -1.0f, 1, 0.0001f,  9.51f  },
+    { "wrench",       2, kWrenchF, kWrenchR, kWrenchG,  128.0f, 0.999f,   0.95f, 0.4f, 0.95f, 0.0f,  0x00,  1.0f,  0.0f, -1.0f, 1, 0.00015f, 17.74f },
+};
+static int shaker_of(float h) { int i = (int)(h * (float)NSHAKER); return i < 0 ? 0 : i >= NSHAKER ? NSHAKER - 1 : i; }
+static float sh_noise(Rng *g) { return 2.0f * rng01(g) - 1.0f; }
+static int render_phisem(float *out, int n, float f, const float *k, Snap *sn, int *nsn, uint32_t seed) {
+    Rng rn = { seed };
+    const Shaker *p = &SHAKERS[shaker_of(k[0])];
+    float fr[7], rad[7], nrm[7], gn[7], wf[7], a1[7], a2[7], y1[7] = { 0 }, y2[7] = { 0 };
+    const float nratio = f * (float)SR / 261.6256f;                 // transpose around MIDI 60
+    for (int i = 0; i < p->nres; i++) {
+        fr[i] = p->F[i]; rad[i] = p->R[i]; nrm[i] = 1.0f - rad[i] * rad[i]; gn[i] = p->mech == 2 ? 0.0f : p->G[i]; wf[i] = p->F[i];
+        float ff = clampf(fr[i] * nratio, 1.0f, 0.49f * (float)SR);
+        a1[i] = -2.0f * rad[i] * de_cos_turns(ff / (float)SR); a2[i] = rad[i] * rad[i];
+    }
+    const float objs = 2.0f * k[3] * p->objects + 1.1f;
+    const float cgain = de_logf(objs) * p->gain / objs;
+    float sdec = p->sys_decay + 2.0f * (k[2] - 0.5f) * p->decay_scale * (1.0f - p->sys_decay); sdec = clampf(sdec, 0.0f, 0.99999f);
+    const float shake_rate = k[1] * k[1] * 0.02f;                   // the key is held for the whole note: keep shaking
+    float energy = 0.0f, level = 0.0f, ratchet = 0.0f, rdelta = p->ratchet, ex1 = 0.0f, ex2 = 0.0f;
+    if (p->mech == 1) { ratchet = 8.0f; rdelta = p->ratchet * (1.0f + 8.0f * k[1]); } else energy = 1.0f;   // the strike
+    int ns = 0, hits = 0;
+    for (int t = 0; t < n; t++) {
+        float input = 0.0f;
+        if (p->mech == 1) {
+            if (shake_rate > 0.0f && ratchet < 1.0f) { ratchet = 1.0f; rdelta = p->ratchet * (1.0f + 8.0f * k[1]); }
+            if (ratchet > 0.0f) {
+                energy -= rdelta + 0.002f * energy;
+                if (energy < 0.0f) { energy = 1.0f; ratchet -= 1.0f; }
+                if (rng01(&rn) * 1024.0f < objs) { level += energy * energy; if (energy > 0.02f) hits++; }
+                input = level * sh_noise(&rn) * energy;
+            }
+        } else {
+            energy += shake_rate * 0.1f; if (energy > 1.0f) energy = 1.0f; if (energy < 1e-8f) energy = 0.0f;
+            energy *= sdec;
+            if (p->mech == 2) {
+                if (rng01(&rn) * 32767.0f < objs) {
+                    level = energy; if (energy > 0.02f) hits++;
+                    int j = (int)(rng01(&rn) * 3.0f) % 3;
+                    for (int q = 0; q < 3; q++) { int sl = (j + q) % 3; if (gn[sl] == 0.0f) { wf[sl] = p->F[1] * (0.75f + 0.25f * (float)sl + 0.25f * sh_noise(&rn)); gn[sl] = fabsf(sh_noise(&rn)); break; } }
+                }
+                for (int q = 0; q < p->nres; q++) {
+                    gn[q] *= rad[q];
+                    if (gn[q] > 0.001f) { wf[q] *= 1.0001f; float ff = clampf(wf[q] * nratio, 1.0f, 0.49f * (float)SR); a1[q] = -2.0f * rad[q] * de_cos_turns(ff / (float)SR); }
+                    else gn[q] = 0.0f;
+                }
+                input = level;
+            } else if (rng01(&rn) * 1024.0f < objs) {
+                level += energy; input = level; if (energy > 0.02f) hits++;   // only AUDIBLE collisions count in the picture
+                if (p->vary > 0.0f)
+                    for (int q = 0; q < p->nres; q++) if (p->vmask & (1 << q)) {
+                        float ff = clampf(fr[q] * nratio * (1.0f + p->vary * sh_noise(&rn)), 1.0f, 0.49f * (float)SR);
+                        a1[q] = -2.0f * rad[q] * de_cos_turns(ff / (float)SR);
+                    }
+            }
+        }
+        level *= p->snd_decay;
+        float sum = 0.0f;
+        for (int q = 0; q < p->nres; q++) {
+            float y = input * gn[q] * cgain * nrm[q] - a1[q] * y1[q] - a2[q] * y2[q];
+            y2[q] = y1[q]; y1[q] = y; sum += y;
+        }
+        float eq = (p->b0 * sum + p->b1 * ex1 + p->b2 * ex2) * p->makeup;
+        ex2 = ex1; ex1 = sum;
+        out[t] = softclip(eq);
+        if (t % SNAP_EVERY == 0 && ns < NSNAP) { sn[ns].v[0] = energy; sn[ns].v[1] = level; sn[ns].v[2] = (float)hits; sn[ns].row = (uint32_t)shaker_of(k[0]); hits = 0; ns++; }
+    }
+    *nsn = ns;
+    return n;
+}
+
+// ── SERGE (freshets_formant_engine.cc, Dylan Bolink, after Tides 2) ─────────────
+// The five transfer curves are computed from Plaits' lookup_tables.py formulas (inverse_tan,
+// inverse_sin, linear, and Tides' sin and bump) rather than copied as tables.
+#define WS_N 128
+static float ws_tab[5][WS_N + 2];
+static float fold_tab[516];
+static int   ws_ready = 0;
+static void ws_build(void) {
+    if (ws_ready) return;
+    double tmax = 0; for (int i = 0; i <= WS_N; i++) { double x = (double)i / WS_N, tn = atan(8.0 * cos(3.14159265 * x)); if (tn > tmax) tmax = tn; }
+    for (int i = 0; i <= WS_N; i++) {
+        double x = (double)i / WS_N, fc = fmin(1.0, 4.0 - 4.0 * x);
+        ws_tab[0][i] = (float)(acos(tan(tmax * (1.0 - 2.0 * x)) / 8.0) / 3.14159265);
+        ws_tab[1][i] = (float)(acos(1.0 - 2.0 * x) / 3.14159265);
+        ws_tab[2][i] = (float)x;
+        ws_tab[3][i] = (float)((1.0 - cos(3.14159265 * x)) / 2.0);
+        ws_tab[4][i] = (float)((1.0 - cos(3.14159265 * x * 1.5)) * (1.0 - cos(3.14159265 * fc)) / 4.5);
+    }
+    for (int s2 = 0; s2 < 5; s2++) ws_tab[s2][WS_N + 1] = ws_tab[s2][WS_N];
+    double mx = 0; double tmp[516];
+    for (int i = 0; i < 516; i++) { double x = (double)(i < 515 ? i : 514) / 256.0 - 1.0, w = exp(-x * x * 4); w *= w; tmp[i] = sin(8 * 3.14159265 * x) * w + atan(3 * x) * (1 - w); if (fabs(tmp[i]) > mx) mx = fabs(tmp[i]); }
+    for (int i = 0; i < 516; i++) fold_tab[i] = (float)(tmp[i] / mx);
+    ws_ready = 1;
+}
+static float center_detent(float x) { if (x < 0.49f) return x * 1.02040816f; if (x > 0.51f) return (x - 0.02f) * 1.02040816f; return 0.5f; }
+static void serge_retrigger(float *env, float pw) { if (*env >= pw) { float lv = *env < 1.0f ? 1.0f - (*env - pw) / (1.0f - pw) : 0.0f; *env = lv * pw; } }
+static int render_serge(float *out, int n, float f, const float *k, Snap *sn, int *nsn) {
+    ws_build();
+    const float ratio = semis((center_detent(k[0]) - 0.5f) * 96.0f), smooth = k[1];
+    const float fold = fmaxf(2.0f * (smooth - 0.5f), 0.0f), pw = clampf(k[2], 0.05f, 0.95f);
+    float shape = apply_macro(2.0f, 0.0f, 3.9999f, k[3]); int si = (int)shape; float sf = shape - (float)si;
+    f = clampf(f, 0.0f, 0.25f);
+    float lpr = fminf(smooth * 2.0f, 1.0f); lpr = lpr * lpr * lpr;
+    const float lpc = f * 0.5f + (1.0f - f * 0.5f) * lpr;
+    float dph = 0.0f, env = 1.0f, l1 = 0.0f, l2 = 0.0f;
+    serge_retrigger(&env, pw);
+    int ns = 0; Cap cap = { 0, -1, 0 }; int st = period_stride(f);
+    for (int t = 0; t < n; t++) {
+        int wrapped = 0;
+        dph += f; if (dph >= 1.0f) { dph -= 1.0f; serge_retrigger(&env, pw); wrapped = 1; }
+        env += f * ratio; if (env > 1.0f) env = 1.0f;
+        float lvl = env < pw ? env / pw : env < 1.0f ? 1.0f - (env - pw) / (1.0f - pw) : 0.0f;
+        float wi = fminf((float)WS_N * lvl, (float)WS_N - 0.0001f); int w0 = (int)wi; float wfr = wi - (float)w0;
+        float xa = ws_tab[si][w0] + (ws_tab[si][w0 + 1] - ws_tab[si][w0]) * wfr;
+        float xb = ws_tab[si + 1][w0] + (ws_tab[si + 1][w0 + 1] - ws_tab[si + 1][w0]) * wfr;
+        float bip = 2.0f * (xa + (xb - xa) * sf) - 1.0f;
+        if (fold > 0.0f) {
+            float idx = clampf(0.5f + bip * (0.03f + 0.46f * fold), 0.0f, 1.0f) * 512.0f; int i0 = (int)idx; float fr2 = idx - (float)i0;
+            float fo = fold_tab[i0 + 1] + (fold_tab[i0 + 2] - fold_tab[i0 + 1]) * fr2;
+            bip = bip + (fo - bip) * fold;
+        }
+        l1 += lpc * (bip - l1); l2 += lpc * (l1 - l2);
+        out[t] = clampf(l2 * 0.5f, -1.0f, 1.0f);
+        cap_step(&cap, sn, &ns, t, wrapped, st, out[t]);
+    }
+    *nsn = ns;
+    return n;
+}
+
+// ── QPSK (digital_modulation_engine.cc, Braids' QPSK) ───────────────────────────
+typedef struct { float sph; int count; int filt; uint8_t byte; int section; } Qpsk;
+static void qpsk_symbol(Qpsk *q, int pre, int sa, int sb, int fe, int32_t payload) {
+    q->count++;
+    if (!(q->count & 3)) {
+        if (q->count >= fe) q->count = 0;
+        if (q->count < pre)     { q->byte = 0x00; q->section = 0; }
+        else if (q->count < sa) { q->byte = 0x99; q->section = 1; }
+        else if (q->count < sb) { q->byte = 0xcc; q->section = 2; }
+        else { q->filt = (q->filt * 3 + payload) >> 2; q->byte = (uint8_t)(q->filt >> 7); q->section = 3; }
+    } else q->byte >>= 2;
+}
+static float qpsk_i(int d) { return (d == 0 || d == 1) ? 1.0f : -1.0f; }
+static float qpsk_q(int d) { return (d == 0 || d == 3) ? 1.0f : -1.0f; }
+static int render_qpsk(float *out, int n, float f, const float *k, Snap *sn, int *nsn) {
+    const float note = 69.0f + 12.0f * de_log2f(f * (float)SR / 440.0f);
+    const float sinc = midi_hz_f(note - 12.0f - 32.0f * (1.0f - k[1])) / (float)SR;
+    const float frame = 32.0f * semis(k[0] * 61.05f), fsc = frame / 1088.0f;
+    const int pre = (int)(32.0f * fsc) + 1, sa = (int)(48.0f * fsc) + 1, sb = (int)(64.0f * fsc) + 1, fe = (int)frame + 1;
+    const int32_t payload = (int32_t)clampf(k[3] * 32767.0f, 0.0f, 32767.0f);
+    const float pole = k[2] * k[2] * 0.9995f, R = 23100.0f / 32768.0f;
+    Qpsk q = { 0.0f, 0, 0, 0, 0 }; float ph = 0.0f, si = 0.0f, sq = 0.0f;
+    int ns = 0;
+    for (int t = 0; t < n; t++) {
+        ph += f; if (ph >= 1.0f) ph -= 1.0f;
+        q.sph += sinc; if (q.sph >= 1.0f) { q.sph -= 1.0f; qpsk_symbol(&q, pre, sa, sb, fe, payload); }
+        int d = q.byte & 3;
+        si += (R * qpsk_i(d) - si) * (1.0f - pole); sq += (R * qpsk_q(d) - sq) * (1.0f - pole);
+        out[t] = si * de_sin_turns(ph) + sq * de_sin_turns(ph + 0.25f);
+        if (t % SNAP_EVERY == 0 && ns < NSNAP) { sn[ns].mx = si / R; sn[ns].my = sq / R; sn[ns].row = q.byte; sn[ns].r = (float)q.section; ns++; }
+    }
+    *nsn = ns;
+    return n;
+}
+
+// ── PARTICLE (particle_burst_engine.cc, Braids' PRTC) ───────────────────────────
+// Upstream reads each resonator's 2·cos(w) and excitation scale out of two Braids lookup tables,
+// with their integer quirks. Here each resonator is computed directly from its pitch at Braids'
+// pole radius (sqrt(32506/32768)); the event logic, the three intervals (12, 19, 15.125
+// semitones) and the jitter maths are upstream's. So this is PRTC's structure, not its exact
+// table-read timbre, and the pitches are exact at 44.1 kHz where the tables were Braids' own.
+static int render_particle(float *out, int n, float f, const float *k, Snap *sn, int *nsn, uint32_t seed) {
+    Rng rn = { seed };
+    const uint32_t density = (uint32_t)(1024.0f + k[1] * 32767.0f);
+    const float jitter = k[0] * 32767.0f, width = k[2] * 2.0f;
+    const float decay = apply_macro(64763.0f / 65536.0f, 0.90f, 0.9995f, k[3]);
+    const float note = 69.0f + 12.0f * de_log2f(f * (float)SR / 440.0f);
+    const float off[3] = { 12.0f * width, 19.0f * width, 15.125f * width };
+    float amp = 0.0f, y1[3] = { 0 }, y2[3] = { 0 }, c[3] = { 0 }, s[3] = { 0 }, pch[3] = { note, note, note };
+    const float r2 = 32506.0f / 32768.0f, r = sqrtf(r2);
+    int ns = 0, hits = 0;
+    for (int t = 0; t < n; t++) {
+        rn.s = rn.s * 1664525u + 1013904223u; uint32_t nz = rn.s;
+        if ((nz & 0x7fffffu) < density) {
+            amp = 1.0f; hits++;
+            float na = (float)((int32_t)(nz & 0x0fffu) - 0x800), nb = (float)((int32_t)((nz >> 15) & 0x1fffu) - 0x1000);
+            float jit[3] = { 3.0f * na * jitter / 131072.0f, na * jitter / 32768.0f, nb * jitter / 65536.0f };
+            for (int i = 0; i < 3; i++) {
+                pch[i] = note + off[i] + jit[i] / 128.0f;              // semitones
+                float w = 6.2831853f * midi_hz_f(pch[i]) / (float)SR;
+                if (w > 3.0f) w = 3.0f;
+                c[i] = 2.0f * r * de_cosf(w);                          // the 2-pole resonator at radius r
+                s[i] = (1.0f - r2) * 2.0f;                            // excitation scale (unity-ish peak gain)
+            }
+        }
+        float x = (float)(int16_t)(nz & 0xffffu) / 32768.0f * amp;
+        amp *= decay;
+        float sum = 0.0f;
+        for (int i = 0; i < 3; i++) { float y = clampf(x * s[i] + y1[i] * c[i] - y2[i] * r2, -1.0f, 1.0f); y2[i] = y1[i]; y1[i] = y; sum += y; }
+        out[t] = clampf(sum, -1.0f, 1.0f);
+        if (t % SNAP_EVERY == 0 && ns < NSNAP) { sn[ns].v[0] = pch[0]; sn[ns].v[1] = pch[1]; sn[ns].v[2] = pch[2]; sn[ns].v[3] = (float)hits; sn[ns].r = amp; hits = 0; ns++; }
+    }
+    *nsn = ns;
+    return n;
+}
+
+// ── SIX-OP (plaits_alt/dsp/fm: the DX7's 32 algorithms; our own patches) ────────
+// Plaits' six-op engine plays DX7 SysEx banks the firmware supplies; no bank comes here. The
+// algorithm TOPOLOGIES are ported verbatim (Plaits' opcode table: each byte says where an operator
+// reads its modulation and where it writes), and six patches are designed for this cart.
+static const uint8_t DX_OPCODES[32][6] = {   // plaits_alt/dsp/fm/algorithms.cc (MIT), macros evaluated; index 0 = op 6
+    { 0x71, 0x11, 0x11, 0x14, 0x01, 0x14 },   // algorithm 1
+    { 0x01, 0x11, 0x11, 0x14, 0x71, 0x14 },   // algorithm 2
+    { 0x71, 0x11, 0x14, 0x01, 0x11, 0x14 },   // algorithm 3
+    { 0x31, 0x11, 0x54, 0x01, 0x11, 0x14 },   // algorithm 4
+    { 0x71, 0x14, 0x01, 0x14, 0x01, 0x14 },   // algorithm 5
+    { 0x31, 0x54, 0x01, 0x14, 0x01, 0x14 },   // algorithm 6
+    { 0x71, 0x11, 0x05, 0x14, 0x01, 0x14 },   // algorithm 7
+    { 0x01, 0x11, 0x75, 0x14, 0x01, 0x14 },   // algorithm 8
+    { 0x01, 0x11, 0x05, 0x14, 0x71, 0x14 },   // algorithm 9
+    { 0x01, 0x05, 0x14, 0x71, 0x11, 0x14 },   // algorithm 10
+    { 0x71, 0x05, 0x14, 0x01, 0x11, 0x14 },   // algorithm 11
+    { 0x01, 0x05, 0x05, 0x14, 0x71, 0x14 },   // algorithm 12
+    { 0x71, 0x05, 0x05, 0x14, 0x01, 0x14 },   // algorithm 13
+    { 0x71, 0x05, 0x11, 0x14, 0x01, 0x14 },   // algorithm 14
+    { 0x01, 0x05, 0x11, 0x14, 0x71, 0x14 },   // algorithm 15
+    { 0x71, 0x11, 0x02, 0x25, 0x05, 0x14 },   // algorithm 16
+    { 0x01, 0x11, 0x02, 0x25, 0x75, 0x14 },   // algorithm 17
+    { 0x01, 0x11, 0x11, 0x75, 0x05, 0x14 },   // algorithm 18
+    { 0x71, 0x14, 0x14, 0x01, 0x11, 0x14 },   // algorithm 19
+    { 0x01, 0x05, 0x14, 0x71, 0x14, 0x14 },   // algorithm 20
+    { 0x01, 0x14, 0x14, 0x71, 0x14, 0x14 },   // algorithm 21
+    { 0x71, 0x14, 0x14, 0x14, 0x01, 0x14 },   // algorithm 22
+    { 0x71, 0x14, 0x14, 0x01, 0x14, 0x04 },   // algorithm 23
+    { 0x71, 0x14, 0x14, 0x14, 0x04, 0x04 },   // algorithm 24
+    { 0x71, 0x14, 0x14, 0x04, 0x04, 0x04 },   // algorithm 25
+    { 0x71, 0x05, 0x14, 0x01, 0x14, 0x04 },   // algorithm 26
+    { 0x01, 0x05, 0x14, 0x71, 0x14, 0x04 },   // algorithm 27
+    { 0x04, 0x71, 0x11, 0x14, 0x01, 0x14 },   // algorithm 28
+    { 0x71, 0x14, 0x01, 0x14, 0x04, 0x04 },   // algorithm 29
+    { 0x04, 0x71, 0x11, 0x14, 0x04, 0x04 },   // algorithm 30
+    { 0x71, 0x14, 0x04, 0x04, 0x04, 0x04 },   // algorithm 31
+    { 0x74, 0x04, 0x04, 0x04, 0x04, 0x04 },   // algorithm 32
+};
+#define DXF_SRC 0x40
+typedef struct { const char *name; int alg; float ratio[6], level[6], atk[6], dec[6], sus[6]; } DxPatch;   // op 1..6 order
+static const DxPatch DX_PATCHES[6] = {
+    { "tine",  5,  { 1.0f, 1.0f, 1.0f, 14.0f, 1.0f, 1.003f }, { 1.0f, 0.55f, 0.5f, 0.35f, 0.35f, 0.30f }, { 0.002f, 0.002f, 0.002f, 0.001f, 0.002f, 0.002f }, { 2.5f, 1.2f, 1.8f, 0.18f, 2.2f, 0.9f }, { 0.2f, 0.2f, 0.1f, 0.0f, 0.2f, 0.2f } },
+    { "bell",  5,  { 1.0f, 3.5f, 2.0f, 5.19f, 4.2f, 7.1f },   { 1.0f, 0.60f, 0.6f, 0.45f, 0.4f, 0.35f }, { 0.001f, 0.001f, 0.001f, 0.001f, 0.001f, 0.001f }, { 4.0f, 2.5f, 3.0f, 1.8f, 2.4f, 1.2f }, { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f } },
+    { "bass",  16, { 0.5f, 0.5f, 1.0f, 2.0f, 1.5f, 3.0f },    { 1.0f, 0.70f, 0.3f, 0.25f, 0.25f, 0.20f }, { 0.002f, 0.002f, 0.002f, 0.002f, 0.002f, 0.002f }, { 1.5f, 0.35f, 0.5f, 0.25f, 0.4f, 0.3f }, { 0.6f, 0.2f, 0.1f, 0.0f, 0.1f, 0.0f } },
+    { "brass", 22, { 1.0f, 1.0f, 1.0f, 1.002f, 2.0f, 1.0f },  { 1.0f, 0.60f, 0.7f, 0.7f, 0.4f, 0.5f }, { 0.06f, 0.08f, 0.06f, 0.06f, 0.07f, 0.09f }, { 0.8f, 0.6f, 0.8f, 0.8f, 0.8f, 0.5f }, { 0.8f, 0.6f, 0.8f, 0.8f, 0.7f, 0.6f } },
+    { "organ", 32, { 0.5f, 1.0f, 2.0f, 3.0f, 4.0f, 6.0f },    { 0.8f, 1.0f, 0.6f, 0.5f, 0.4f, 0.3f }, { 0.005f, 0.005f, 0.005f, 0.005f, 0.005f, 0.005f }, { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f }, { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f } },
+    { "clang", 1,  { 1.0f, 1.41f, 1.0f, 3.14f, 1.73f, 2.2f }, { 1.0f, 0.60f, 0.8f, 0.55f, 0.5f, 0.45f }, { 0.001f, 0.001f, 0.001f, 0.001f, 0.001f, 0.001f }, { 1.6f, 0.9f, 1.4f, 0.7f, 0.8f, 0.5f }, { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f } },
+};
+// a 1024-point sine table read with linear interpolation, as Plaits' FM operators do (lut_sine):
+// six de_sin_turns() a sample put a 6 s render at 17 ms, over one frame
+#define DX_SIN_N 1024
+static float dx_sin_tab[DX_SIN_N + 1];
+static int   dx_sin_ready = 0;
+static void dx_sin_build(void) { if (dx_sin_ready) return; for (int i = 0; i <= DX_SIN_N; i++) dx_sin_tab[i] = de_sin_turns((float)i / (float)DX_SIN_N); dx_sin_ready = 1; }
+static inline float dx_sin(float ph) {                              // any phase, in turns
+    ph -= floorf(ph);
+    float x = ph * (float)DX_SIN_N; int i = (int)x; float fr = x - (float)i;
+    return dx_sin_tab[i] + (dx_sin_tab[i + 1] - dx_sin_tab[i]) * fr;
+}
+static int dx_patch_of(float h) { int i = (int)(h * 5.999f); return i < 0 ? 0 : i > 5 ? 5 : i; }
+static int dx_is_carrier(int alg, int oi) { return (DX_OPCODES[alg][oi] & 0x03) == 0; }
+static float dx_env(float tsec, float a, float d, float sus) {   // the curve, in closed form (spec reference)
+    if (tsec < a) return tsec / a;
+    float x = (tsec - a) / d;
+    return sus + (1.0f - sus) * de_expf(-3.0f * x);
+}
+static int render_sixop(float *out, int n, float f, const float *k, Snap *sn, int *nsn) {
+    dx_sin_build();
+    const DxPatch *p = &DX_PATCHES[dx_patch_of(k[0])];
+    const int alg = p->alg - 1;
+    const float depth = k[1] * 2.0f, tscale = de_powf(4.0f, (k[2] - 0.5f) * 2.0f), fbk = k[3] * 0.4f;
+    float ph[6] = { 0 }, ratio[6], level[6], atk[6], dec[6], sus[6];
+    int ncar = 0;
+    for (int oi = 0; oi < 6; oi++) {                                // opcode index oi = operator 6 - oi
+        int op = 5 - oi;
+        ratio[oi] = p->ratio[op]; atk[oi] = p->atk[op] * tscale; dec[oi] = p->dec[op] * tscale; sus[oi] = p->sus[op];
+        level[oi] = p->level[op] * (dx_is_carrier(alg, oi) ? 1.0f : depth);
+        if (dx_is_carrier(alg, oi)) ncar++;
+    }
+    const float cnorm = 1.0f / sqrtf((float)(ncar > 0 ? ncar : 1));
+    float fb1 = 0.0f, fb2 = 0.0f;
+    // the envelope: a linear attack, then an exponential fall to sustain advanced by ONE multiply a
+    // sample (the same curve dx_env() evaluates, which cost 23 ms per 6 s render calling exp 6x/sample)
+    float fall[6], gmul[6];
+    int attack_n[6];
+    float inc[6];
+    for (int oi = 0; oi < 6; oi++) { attack_n[oi] = (int)(atk[oi] * (float)SR); if (attack_n[oi] < 1) attack_n[oi] = 1; fall[oi] = 1.0f; gmul[oi] = de_expf(-3.0f / (dec[oi] * (float)SR)); inc[oi] = fminf(f * ratio[oi], 0.45f); }
+    int ns = 0;
+    for (int t = 0; t < n; t++) {
+        float buf[4] = { 0, 0, 0, 0 }, env[6];
+        for (int oi = 0; oi < 6; oi++) {
+            uint8_t oc = DX_OPCODES[alg][oi];
+            int src = (oc >> 4) & 0x03, dst = oc & 0x03, add = oc & 0x04;
+            float mod = src == 3 ? (fb1 + fb2) * 0.5f * fbk : src ? buf[src] : 0.0f;
+            ph[oi] += inc[oi]; if (ph[oi] >= 1.0f) ph[oi] -= 1.0f;
+            if (t < attack_n[oi]) env[oi] = (float)t / (float)attack_n[oi];
+            else { env[oi] = sus[oi] + (1.0f - sus[oi]) * fall[oi]; fall[oi] *= gmul[oi]; }
+            float o = dx_sin(ph[oi] + mod) * level[oi] * env[oi];
+            if (oc & DXF_SRC) { fb2 = fb1; fb1 = o; }
+            if (add) buf[dst] += o; else buf[dst] = o;
+        }
+        out[t] = buf[0] * cnorm;
+        if (t % SNAP_EVERY == 0 && ns < NSNAP) { for (int oi = 0; oi < 6; oi++) sn[ns].v[oi] = env[oi] * fminf(level[oi], 1.0f); sn[ns].row = (uint32_t)alg; ns++; }
+    }
+    *nsn = ns;
+    return n;
+}
+
 // ── one render, any specimen ────────────────────────────────────────────────────
 
 static int render_spec(int sp, float *out, int n, int midi, Snap *sn, int *nsn) {
@@ -1027,7 +1483,13 @@ static int render_spec(int sp, float *out, int n, int midi, Snap *sn, int *nsn) 
         case SP_SIDE:    render_side(out, n, f, k, sn, nsn); break;
         case SP_MORSE:   render_morse(out, n, f, k, sn, nsn); break;
         case SP_CLOCK:   render_clock(out, n, f, k, sn, nsn); break;
-        default:         render_tap(out, n, f, k, sn, nsn); break;
+        case SP_TAP:     render_tap(out, n, f, k, sn, nsn); break;
+        case SP_LPC:     render_lpc(out, n, f, k, sn, nsn, 0x51d7348bu ^ ((uint32_t)midi * 2654435761u)); break;
+        case SP_PHISEM:  render_phisem(out, n, f, k, sn, nsn, 0x3c6ef372u ^ ((uint32_t)midi * 40503u)); break;
+        case SP_SERGE:   render_serge(out, n, f, k, sn, nsn); break;
+        case SP_QPSK:    render_qpsk(out, n, f, k, sn, nsn); break;
+        case SP_PARTICLE:render_particle(out, n, f, k, sn, nsn, 0xa54ff53au ^ ((uint32_t)midi * 69069u)); break;
+        default:         render_sixop(out, n, f, k, sn, nsn); break;
     }
     // DC blocker, fades, peak-normalise
     float hx = 0.0f, hy = 0.0f, pk = 0.0f;
@@ -1360,6 +1822,102 @@ static void draw_tap(int x0, int y0, int w, int h, int idx) {
     font(FONT_TINY); print(str("%d-bit register, taps in green", len), x0 + 4, y0 + h - 7, CLR_WHITE); font(FONT_NORMAL);
 }
 
+static void draw_lpc(int x0, int y0, int w, int h, const Snap *s) {
+    // left: the ten reflection coefficients; right: the spectral envelope they make, 1/|A(f)|
+    for (int i = 0; i < LPC_P; i++) {
+        int bx = x0 + 6 + i * 7, mid = y0 + h / 2, bh = (int)(s->v[i] * (float)(h / 2 - 10));
+        rectfill(bx, bh > 0 ? mid - bh : mid, 5, abs(bh) + 1, CLR_ORANGE);
+    }
+    line(x0 + 4, y0 + h / 2, x0 + 76, y0 + h / 2, CLR_DARKER_GREY);
+    double a[LPC_P + 1] = { 1.0 };                                   // step-up k → A(z)
+    for (int m = 1; m <= LPC_P; m++) { double km = s->v[m - 1], t2[LPC_P + 1]; for (int i = 0; i <= m; i++) t2[i] = a[i];
+        for (int i = 1; i < m; i++) a[i] = t2[i] + km * t2[m - i]; a[m] = km; }
+    int gx = x0 + 86, gw = w - 92, prev = 0;
+    float fs = s->mx > 0.0f ? s->mx : 8000.0f;
+    for (int xx = 0; xx < gw; xx++) {
+        double fr = 4000.0 * xx / gw, wv = 6.28318531 * fr / fs, re = 0, im = 0;
+        for (int i = 0; i <= LPC_P; i++) { re += a[i] * cos(wv * i); im -= a[i] * sin(wv * i); }
+        double db = -10.0 * log10(re * re + im * im + 1e-12);
+        int yy = y0 + h - 12 - (int)clampf((float)(db + 10.0) * 1.1f, 0.0f, (float)(h - 20));
+        if (xx) line(gx + xx - 1, prev, gx + xx, yy, CLR_LIGHT_YELLOW);
+        prev = yy;
+    }
+    font(FONT_TINY);
+    int vi = (int)(s->r * 4.0f + 0.5f); if (vi > 4) vi = 4;
+    print(str("vowel %c   %.0f Hz lattice", LPC_VOWEL[vi], fs), x0 + 4, y0 + h - 7, CLR_WHITE);
+    print("0 .. 4 kHz", gx + gw - 40, y0 + 3, CLR_DARK_GREY);
+    font(FONT_NORMAL);
+}
+static void draw_phisem(int x0, int y0, int w, int h, int idx) {
+    int base = y0 + h - 12;
+    for (int i = 0; i < w / 2; i++) {
+        int si = idx - (w / 2 - 1 - i); if (si < 0) continue;
+        const Snap *s = &snaps[si];
+        int ey = base - (int)(clampf(s->v[0], 0.0f, 1.0f) * (float)(h - 26));
+        int ly = base - (int)(clampf(s->v[1] * 0.25f, 0.0f, 1.0f) * (float)(h - 26));
+        pset(x0 + i * 2, ly, CLR_PEACH);
+        pset(x0 + i * 2, ey, CLR_LIME_GREEN);
+        for (int c2 = 0; c2 < (int)fminf(s->v[2], 12.0f); c2++) pset(x0 + i * 2, base - 2 - c2 * 3, CLR_ORANGE);   // collisions this frame
+    }
+    const Shaker *p = &SHAKERS[snaps[idx].row < NSHAKER ? snaps[idx].row : 0];
+    font(FONT_TINY);
+    print(str("%s: shake energy, sound level, audible hits", p->name), x0 + 4, y0 + h - 7, CLR_WHITE);
+    for (int q = 0; q < p->nres; q++) { float fr = p->F[q]; int x = x0 + 4 + (int)(de_log2f(fr / 200.0f) / 6.0f * (float)(w - 8)); line(x, y0 + 3, x, y0 + 8, CLR_PEACH); }
+    print("resonances", x0 + 4, y0 + 10, CLR_DARK_GREY);
+    font(FONT_NORMAL);
+}
+static void draw_qpsk(int x0, int y0, int w, int h, int idx) {
+    int cx = x0 + 50, cy = y0 + h / 2, rad = h / 2 - 12;
+    line(cx - rad, cy, cx + rad, cy, CLR_DARKER_GREY); line(cx, cy - rad, cx, cy + rad, CLR_DARKER_GREY);
+    for (int d = 0; d < 4; d++) circ(cx + (int)(qpsk_i(d) * rad * 0.7f), cy - (int)(qpsk_q(d) * rad * 0.7f), 3, CLR_BROWN);
+    for (int back = 20; back >= 0; back--) { int si = idx - back; if (si < 0) continue;
+        pset(cx + (int)(snaps[si].mx * rad * 0.7f), cy - (int)(snaps[si].my * rad * 0.7f), back ? CLR_ORANGE : CLR_LIGHT_YELLOW); }
+    circfill(cx + (int)(snaps[idx].mx * rad * 0.7f), cy - (int)(snaps[idx].my * rad * 0.7f), 2, CLR_LIGHT_YELLOW);
+    static const char *SEC[4] = { "preamble", "sync A", "sync B", "payload" };
+    int sec = (int)snaps[idx].r; if (sec < 0 || sec > 3) sec = 0;
+    font(FONT_TINY);
+    print("I/Q constellation", x0 + 4, y0 + 3, CLR_DARK_GREY);
+    print(str("byte 0x%02x", snaps[idx].row), x0 + 110, y0 + 20, CLR_WHITE);
+    print(SEC[sec], x0 + 110, y0 + 30, CLR_PEACH);
+    for (int b = 0; b < 4; b++) { int d = (snaps[idx].row >> (b * 2)) & 3; print(str("%d%d", d >> 1, d & 1), x0 + 110 + b * 14, y0 + 44, b == 0 ? CLR_LIGHT_YELLOW : CLR_BROWN); }
+    print("dibits, next first", x0 + 110, y0 + 52, CLR_DARK_GREY);
+    font(FONT_NORMAL);
+}
+static void draw_particle(int x0, int y0, int w, int h, int idx) {
+    float lo = 1e9f, hi = -1e9f;
+    for (int i = 0; i < w / 2; i++) { int si = idx - (w / 2 - 1 - i); if (si < 0) continue; for (int q = 0; q < 3; q++) { lo = fminf(lo, snaps[si].v[q]); hi = fmaxf(hi, snaps[si].v[q]); } }
+    if (hi - lo < 12.0f) { float m = (hi + lo) * 0.5f; lo = m - 6.0f; hi = m + 6.0f; }
+    static const int COL[3] = { CLR_ORANGE, CLR_PEACH, CLR_LIME_GREEN };
+    for (int i = 0; i < w / 2; i++) { int si = idx - (w / 2 - 1 - i); if (si < 0) continue;
+        for (int q = 0; q < 3; q++) { int py = y0 + h - 12 - (int)((snaps[si].v[q] - lo) / (hi - lo) * (float)(h - 20)); pset(x0 + i * 2, py, COL[q]); } }
+    font(FONT_TINY); print("three resonators, retuned by every particle", x0 + 4, y0 + h - 7, CLR_WHITE); font(FONT_NORMAL);
+}
+static void draw_sixop(int x0, int y0, int w, int h, const Snap *s) {
+    int alg = (int)s->row; if (alg < 0 || alg > 31) alg = 0;
+    // depth of each operator = hops to the output, derived from the opcodes (modulator oi feeds the
+    // next operator after it that reads its buffer)
+    int to[6], depth[6];
+    for (int oi = 0; oi < 6; oi++) {
+        to[oi] = -1; int dst = DX_OPCODES[alg][oi] & 3;
+        if (dst) for (int j = oi + 1; j < 6; j++) if (((DX_OPCODES[alg][j] >> 4) & 3) == dst) { to[oi] = j; break; }
+    }
+    for (int oi = 5; oi >= 0; oi--) depth[oi] = to[oi] < 0 ? 0 : depth[to[oi]] + 1;
+    int px[6], py[6], ncol[6] = { 0 };
+    for (int oi = 5; oi >= 0; oi--) { int d = depth[oi]; px[oi] = x0 + 16 + (5 - oi) * 32; py[oi] = y0 + h - 22 - d * 18; ncol[d]++; }
+    for (int oi = 0; oi < 6; oi++) if (to[oi] >= 0) line(px[oi] + 8, py[oi] + 12, px[to[oi]] + 8, py[to[oi]], CLR_DARK_GREY);
+    for (int oi = 0; oi < 6; oi++) if (DX_OPCODES[alg][oi] & DXF_SRC) circ(px[oi] + 8, py[oi] - 3, 3, CLR_LIME_GREEN);   // feedback
+    for (int oi = 0; oi < 6; oi++) {
+        float e = clampf(s->v[oi], 0.0f, 1.0f);
+        int col = e > 0.6f ? CLR_LIGHT_YELLOW : e > 0.3f ? CLR_ORANGE : e > 0.08f ? CLR_BROWN : CLR_DARKER_GREY;
+        rectfill(px[oi], py[oi], 17, 12, col);
+        rect(px[oi], py[oi], 17, 12, dx_is_carrier(alg, oi) ? CLR_WHITE : CLR_DARK_GREY);
+        font(FONT_TINY); print(str("%d", 6 - oi), px[oi] + 7, py[oi] + 4, CLR_BROWNISH_BLACK); font(FONT_NORMAL);
+    }
+    font(FONT_TINY);
+    print(str("%s: DX7 algorithm %d, carriers outlined", DX_PATCHES[dx_patch_of(K[SP_SIXOP][0])].name, alg + 1), x0 + 4, y0 + h - 7, CLR_WHITE);
+    font(FONT_NORMAL);
+}
+
 void draw(void) {
     cls(CLR_BROWNISH_BLACK);
     ui_begin();
@@ -1367,13 +1925,13 @@ void draw(void) {
     font(FONT_SMALL);
     print_right(autoplay ? "M auto: on" : "M auto: off", SCREEN_W - 6, 5, autoplay ? CLR_LIME_GREEN : CLR_DARK_GREY);
     for (int s = 0; s < NSPEC; s++) {
-        int x = 4 + (s % 6) * 52, y = 12 + (s / 6) * 11, w = 50, h = 10;
+        int x = 4 + (s % 6) * 52, y = 12 + (s / 6) * 10, w = 50, h = 9;
         if (s == cur) rectfill(x - 1, y - 1, w + 2, h + 2, CLR_ORANGE);
         if (ui_button(x, y, w, h, SPNAME[s])) { set_spec(s); autoplay = false; }
     }
 
     // the picture, at the playback moment of the last note (or its last frame when it ended)
-    const int px = 4, py = 47, pw = 220, ph = 88;
+    const int px = 4, py = 54, pw = 220, ph = 81;
     rectfill(px, py, pw, ph, CLR_BLACK);
     rect(px - 1, py - 1, pw + 2, ph + 2, CLR_DARKER_GREY);
     if (nsnap > 0) {
@@ -1397,7 +1955,13 @@ void draw(void) {
             case SP_SIDE:    draw_side(px, py, pw, ph); break;
             case SP_MORSE:   draw_morse(px, py, pw, ph, idx); break;
             case SP_CLOCK:   draw_clock(px, py, pw, ph, &snaps[idx]); break;
-            default:         draw_tap(px, py, pw, ph, idx); break;
+            case SP_TAP:     draw_tap(px, py, pw, ph, idx); break;
+            case SP_LPC:     draw_lpc(px, py, pw, ph, &snaps[idx]); break;
+            case SP_PHISEM:  draw_phisem(px, py, pw, ph, idx); break;
+            case SP_SERGE:   draw_period(px, py, pw, ph, &snaps[idx], CLR_PEACH, "one cycle: the retriggered formant envelope, shaped"); break;
+            case SP_QPSK:    draw_qpsk(px, py, pw, ph, idx); break;
+            case SP_PARTICLE:draw_particle(px, py, pw, ph, idx); break;
+            default:         draw_sixop(px, py, pw, ph, &snaps[idx]); break;
         }
         clip(0, 0, SCREEN_W, SCREEN_H);
     }
@@ -1408,7 +1972,7 @@ void draw(void) {
     // four knobs, named for this specimen
     font(FONT_SMALL);
     for (int k = 0; k < 4; k++) {
-        int kx = 246 + (k & 1) * 44, ky = 62 + (k >> 1) * 42;
+        int kx = 246 + (k & 1) * 44, ky = 68 + (k >> 1) * 40;
         float before = K[cur][k];
         if (ui_knob(&K[cur][k], kx, ky, KLABEL[cur][k]) && K[cur][k] != before) dirty = true;
     }
@@ -1633,6 +2197,66 @@ void spec(void) {
         expect(loop_ratio(0.26f) == 1.0f && loop_ratio(0.365f) == 1.5f && loop_ratio(0.447f) == 2.0f, "LOOPBACK: the ratio knob snaps onto 1, 3/2 and 2");
         expect(fabsf(loop_ratio(0.33f) - (0.5f + 7.5f * 0.33f * 0.33f)) < 1e-6f, "LOOPBACK: and still sweeps the in-between values");
         expect(side_spacing(0.55f) == 1.0f, "SIDEBAND: the default spacing is exactly 1 (a harmonic series)");
+    }
+
+    {   // LPC: the frames are stable (|k| < 1) and the lattice puts energy AT the formants
+        float kr[LPC_P]; int ok = 1;
+        for (int v = 0; v <= 8; v++) { lpc_frame((float)v / 8.0f, 8000.0f, kr); for (int i = 0; i < LPC_P; i++) if (!(fabsf(kr[i]) < 1.0f)) ok = 0; }
+        expect(ok, "LPC: every vowel frame is stable (all reflection coefficients inside the unit interval)");
+        float kl[4] = { 0.0f, 1.0f, 0.0f, 0.5f };                     // /i/, fully whispered (flat noise in)
+        static float lv[SR]; render_lpc(lv, SR, 110.0f / SR, kl, ss, &nsn, 7u);
+        double g1 = 0, gv = 0, g2 = 0;
+        for (int band = 0; band < 3; band++) {
+            double fr = band == 0 ? 270.0 : band == 1 ? 1200.0 : 2290.0, c = 2.0 * cos(6.28318531 * fr / SR), s1 = 0, s2 = 0;
+            for (int i = 0; i < SR; i++) { double s0 = lv[i] + c * s1 - s2; s2 = s1; s1 = s0; }
+            double pw2 = s1 * s1 + s2 * s2 - c * s1 * s2;
+            if (band == 0) g1 = pw2; else if (band == 1) gv = pw2; else g2 = pw2;
+        }
+        expect(g1 > gv * 4.0 && g2 > gv * 4.0, str("LPC: /i/ has energy at F1 270 and F2 2290 Hz, not in the 1200 Hz valley (%.1f / %.1f dB over it)", 10.0 * log10(g1 / gv), 10.0 * log10(g2 / gv)));
+    }
+    {   // PHISEM: a struck maraca dies away; holding the shake keeps it going
+        float km[4] = { 0.0f, 0.0f, 0.5f, 0.5f };
+        render_phisem(sb[0], SPN, 261.6f / SR, km, ss, &nsn, 3u);
+        double e0 = 0, e1 = 0; for (int i = 0; i < SPN / 4; i++) { e0 += sb[0][i] * sb[0][i]; e1 += sb[0][SPN - 1 - i] * sb[0][SPN - 1 - i]; }
+        km[1] = 1.0f; render_phisem(sb[1], SPN, 261.6f / SR, km, ss, &nsn, 3u);
+        double e2 = 0; for (int i = 0; i < SPN / 4; i++) e2 += sb[1][SPN - 1 - i] * sb[1][SPN - 1 - i];
+        expect(e1 < e0 * 0.1, "PHISEM: a struck maraca decays");
+        expect(e2 > e1 * 10.0, "PHISEM: and keeps rattling while shaken");
+        expect_eq(NSHAKER, 16, "PHISEM: all sixteen of STK's shakers, guiro/wrench ratchets and water drops included");
+    }
+    {   // SERGE: the formant resets every cycle, so it is periodic at the note (in tune) at any formant
+        float kq[4] = { 0.5f, 0.3f, 0.3f, 0.5f };
+        expect(center_detent(0.5f) == 0.5f && semis((center_detent(0.5f) - 0.5f) * 96.0f) == 1.0f, "SERGE: the formant knob's centre detent is ratio 1");
+        kq[0] = 0.8f; static float sv[SR]; render_serge(sv, SR, 441.0f / SR, kq, ss, &nsn);
+        double d = 0, e = 0; for (int i = SR / 2; i < SR - 100; i++) { d += fabsf(sv[i] - sv[i + 100]); e += fabsf(sv[i]); }
+        expect(d < e * 0.01, str("SERGE: a high formant still repeats at the note's period (mismatch %.2g%%)", 100.0 * d / fmax(e, 1e-9)));
+    }
+    {   // QPSK: Gray-free Braids constellation, and the frame is preamble 0x00, sync 0x99 then 0xcc
+        expect(qpsk_i(0) > 0 && qpsk_q(0) > 0 && qpsk_i(2) < 0 && qpsk_q(2) < 0, "QPSK: dibit 0 is +I+Q and dibit 2 is -I-Q");
+        Qpsk q = { 0.0f, 0, 0, 0, 0 }; int seen = 0;
+        for (int i = 0; i < 200 && seen < 3; i++) { qpsk_symbol(&q, 9, 13, 17, 300, 32767); if (!(q.count & 3)) { if (seen == 0 && q.byte == 0x00) seen = 1; else if (seen == 1 && q.byte == 0x99) seen = 2; else if (seen == 2 && q.byte == 0xcc) seen = 3; } }
+        expect_eq(seen, 3, "QPSK: a frame sends preamble, sync A, sync B in order");
+    }
+    {   // PARTICLE: density is the event rate
+        float kp[4] = { 0.4f, 0.05f, 0.35f, 0.6f };
+        render_particle(sb[0], SPN, 220.0f / SR, kp, ss, &nsn, 5u); int h0 = 0; for (int i = 0; i < nsn; i++) h0 += (int)ss[i].v[3];
+        kp[1] = 0.9f; render_particle(sb[0], SPN, 220.0f / SR, kp, ss, &nsn, 5u); int h1 = 0; for (int i = 0; i < nsn; i++) h1 += (int)ss[i].v[3];
+        expect(h1 > h0 * 5, str("PARTICLE: density raises the particle rate (%d vs %d hits)", h1, h0));
+    }
+    {   // SIX-OP: every DX7 algorithm has a carrier and exactly one feedback operator; the all-carrier
+        // organ (algorithm 32) is additive, so at half-note ratios it repeats at TWICE the note's period
+        int ok = 1;
+        for (int a = 0; a < 32; a++) { int car = 0, fb = 0; for (int oi = 0; oi < 6; oi++) { if (dx_is_carrier(a, oi)) car++; if (DX_OPCODES[a][oi] & DXF_SRC) fb++; } if (car < 1 || fb != 1) ok = 0; }
+        expect(ok, "SIX-OP: all 32 algorithms have a carrier and one feedback operator");
+        int allc = 1; for (int oi = 0; oi < 6; oi++) if (!dx_is_carrier(31, oi)) allc = 0;
+        expect(allc, "SIX-OP: algorithm 32 is six carriers");
+        {   float g = de_expf(-3.0f / (0.5f * SR)), fl = 1.0f, worst = 0.0f; int an = (int)(0.01f * SR);
+            for (int t = an; t < SR; t++) { float inc = 0.3f + 0.7f * fl; fl *= g; worst = fmaxf(worst, fabsf(inc - dx_env((float)t / SR, 0.01f, 0.5f, 0.3f))); }
+            expect(worst < 1e-3f, str("SIX-OP: the one-multiply envelope is the closed-form curve (worst %.2g)", worst)); }
+        float ko[4] = { 4.5f / 6.0f, 0.5f, 0.5f, 0.0f };             // organ, no feedback
+        static float ov[SR]; render_sixop(ov, SR, 441.0f / SR, ko, ss, &nsn);
+        double d = 0, e = 0; for (int i = SR / 2; i < SR - 200; i++) { d += fabsf(ov[i] - ov[i + 200]); e += fabsf(ov[i]); }
+        expect(d < e * 0.01, str("SIX-OP: the organ patch repeats at 2x the note's period (its 0.5 ratio), mismatch %.2g%%", 100.0 * d / fmax(e, 1e-9)));
     }
 
     // the panel

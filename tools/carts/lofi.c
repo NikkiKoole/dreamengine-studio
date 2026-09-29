@@ -15,12 +15,12 @@
     "chord-voicing",
     "swing-timing"
   ],
-  "lineage": "The lo-fi/Nujabes/Dilla pole of jazzy hip-hop, distinct from lowend's boom-bap; novel in THE DRUNK POCKET - a dialable off-grid time feel (snare-late/lazy-kick/swing + humanize), the loose pocket lowend undersold. Reuses vapor's lo-fi rack. 2026-09-29: the first station on radio.h's sample-clock grid (rad_audio_*), and the phase-1 pilot of docs/design/radio-arranger-lessons.md: the song is PLANNED up front - a form with per-part roles, an A/B pair or a ii-V turnaround, pushes, fills, hats-first, tone dips and a tone ride, a song that ends into a related key - all on a derived stream, so pinned seeds keep their key/mood/loop/title. A/B it against loficity.",
+  "lineage": "The lo-fi/Nujabes/Dilla pole of jazzy hip-hop, distinct from lowend's boom-bap; novel in THE DRUNK POCKET - a dialable off-grid time feel (snare-late/lazy-kick/swing + humanize), the loose pocket lowend undersold. Reuses vapor's lo-fi rack. 2026-09-29: the first station on radio.h's sample-clock grid (rad_audio_*), and the phase-1 pilot of docs/design/radio-arranger-lessons.md: the song is PLANNED up front - a form with per-part roles, an A/B pair or a ii-V turnaround, pushes, fills, hats-first, tone dips and a tone ride, a song that ends into a related key - all on a derived stream, so pinned seeds keep their key/mood/loop/title. A/B it against loficity. Later that day the BAND was recast the way loficity casts jazzhop (tools/arrange-score.js --sound found the gap was the sound, not the notes): a clean tape instead of a saturated one that squashed the Rhodes under every hit, a pizzicato upright, a morphdrum kit + rim, vibes/flute on top, the Rhodes' suitcase tremolo, the mix balanced by measured stems, and the drag moved off the tune onto the backbeat.",
   "homage": "Lo-fi hip-hop (Nujabes / J Dilla)",
   "todo": [
     "NO WAY TO JAM: the player can only tune the dial, never play along. Add a solo.h scale-locked solo strip (J toggles it) - the strip locks to the station's current key/scale so anything you touch is in tune. Worked examples: air, polopan, jangle, jingle, citypop, dub."
   ],
-  "description": "Lo-fi jazzy hip-hop - the Nujabes / J Dilla / beats-to-study-to pole, dreamier and hazier than lowend's hard boom-bap (we ship that too). Lush extended Rhodes jazz (maj9/m11/13 loops) over a dusty SWUNG kit, wrapped in vinyl crackle + tape warmth. The headline brain is THE DRUNK POCKET - the off-grid feel: the snare drags LATE, the kick is lazy, the hats swing, with a little seeded humanize wobble - and it is ADJUSTABLE: a POCKET knob (LEFT/RIGHT) from tight (on the grid) -> loose -> behind -> drunk, defaulting to a tasteful moderate drag (never seasick unless you crank it); the loose feel lowend undersold, here done right and under the player's control. Every song is now PLANNED before it plays (the loficity lesson): a form - intro / A / B / break / outro - where each section gives the keys, bass, drums and dab their own role (held chords in the intro and break, hats coming in first, a whole-note bass, the dab only from the second A), an A loop and a B that is its own lofi move (IV-III7-vi, IV-iv-I, bVI-V-I...) or the A loop with a ii-V turnaround, 1 or 2 bars a chord and changes mid-bar, and the master tone opening through the intro and closing in the outro. Then every BAR is planned knowing the next one: the Rhodes picks a comp rhythm (held, charleston, pulses, a late stab, the and-of-3 lift - each mood has its taste) in four-voice rootless voicings with a strum, and PUSHES the next chord onto the and-of-4; the kit plays the song's groove (one of five, half-time for the slow ones) with open hats and ghost snares in B, fills before a change and the odd dropped-kick breath; the bass lands on the kicks and the changes and walks into the next root from a half-step; and the muted-horn / vibe lead grows the song's own dab cell into a PHRASE every four bars - stated, then answered, strong beats on chord tones, each phrase starting where the last ended, inverted in B. The song ends and the next moves to a related key; a form strip shows where you are. The lo-fi rack (set-and-hold, per mood) is tape wow/flutter + gentle echo + reverb + a held vinyl-crackle bed (reused from vapor). The seed rolls a MOOD: sleepy / dusty / rainy / sunny (each sets tempo, scale, the default pocket and the crackle). The window is a cozy night room: a rainy window, a breathing desk lamp, and a turntable whose platter spins with the tempo. SPACE next, R replay, [ ] history, LEFT/RIGHT pocket (tight..drunk), UP/DOWN tempo, T tone, B band (keys rhodes/wurli, bass upright/round, dab horn/vibe/off), M power, H help. Pin via LOFI_SEED."
+  "description": "Lo-fi jazzy hip-hop - the Nujabes / J Dilla / beats-to-study-to pole, dreamier and hazier than lowend's hard boom-bap (we ship that too). Lush extended Rhodes jazz (maj9/m11/13 loops) over a dusty SWUNG kit, wrapped in vinyl crackle + tape warmth. The headline brain is THE DRUNK POCKET - the off-grid feel: the snare drags LATE, the kick is lazy, the hats swing, with a little seeded humanize wobble - and it is ADJUSTABLE: a POCKET knob (LEFT/RIGHT) from tight (on the grid) -> loose -> behind -> drunk, defaulting to a tasteful moderate drag (never seasick unless you crank it); the loose feel lowend undersold, here done right and under the player's control. Every song is now PLANNED before it plays (the loficity lesson): a form - intro / A / B / break / outro - where each section gives the keys, bass, drums and dab their own role (held chords in the intro and break, hats coming in first, a whole-note bass, the dab only from the second A), an A loop and a B that is its own lofi move (IV-III7-vi, IV-iv-I, bVI-V-I...) or the A loop with a ii-V turnaround, 1 or 2 bars a chord and changes mid-bar, and the master tone opening through the intro and closing in the outro. Then every BAR is planned knowing the next one: the Rhodes picks a comp rhythm (held, charleston, pulses, a late stab, the and-of-3 lift - each mood has its taste) in four-voice rootless voicings with a strum, and PUSHES the next chord onto the and-of-4; the kit plays the song's groove (one of five, half-time for the slow ones) with open hats and ghost snares in B, fills before a change and the odd dropped-kick breath; the bass lands on the kicks and the changes and walks into the next root from a half-step; and the vibes / flute / muted-horn lead grows the song's own dab cell into a PHRASE every four bars - stated, then answered, strong beats on chord tones, each phrase starting where the last ended, inverted in B. The song ends and the next moves to a related key; a form strip shows where you are. The band: a Rhodes with its suitcase tremolo and autopan, a pizzicato upright (a bowed-string model, plucked), a modeled drum kit with a rim click and accented hats, vibes or a flute on top. The lo-fi rack (set-and-hold, per mood) is a CLEAN tape (a light wow, a little flutter, no saturation) + a big soft room + an echo + a gentle bus glue. The seed rolls a MOOD: sleepy / dusty / rainy / sunny (each sets tempo, scale, the default pocket and the crackle). The window is a cozy night room: a rainy window, a breathing desk lamp, and a turntable whose platter spins with the tempo. SPACE next, R replay, [ ] history, LEFT/RIGHT pocket (tight..drunk), UP/DOWN tempo, T tone, B band (keys rhodes/wurli, bass upright/round, lead vibes/flute/horn/off), M power, H help. Pin via LOFI_SEED."
 }
 de:meta */
 // ── LOFI FM — lo-fi jazzy hip-hop ─────────────────────────────────────────────
@@ -33,7 +33,8 @@ de:meta */
 //   • THE DRUNK POCKET — the off-grid feel: the snare drags LATE, the kick is lazy,
 //     the hats swing, with a little seeded humanize wobble. ADJUSTABLE: a POCKET knob
 //     (tight -> drunk), default moderate — never seasick unless you crank it. The loose
-//     feel lowend undersold, here done right and under the player's control.
+//     feel lowend undersold, here done right and under the player's control. Only the BACKBEAT drags:
+//     the keys and the lead stay near the grid (dragging them read as sluggish, not laid back).
 //   • THE ARRANGEMENT — a song planned up front (form, A/B harmony, per-part roles), then each
 //     BAR planned knowing the next: comp rhythms + the push, groove + fills, a kick-locked bass,
 //     a lead phrase grown from the dab cell. (docs/design/radio-arranger-lessons.md)
@@ -46,6 +47,7 @@ de:meta */
 
 #include "studio.h"
 #include "radio.h"
+#include "morphdrum.h"
 #include <stdio.h>
 #include <math.h>
 #include <string.h>
@@ -53,13 +55,20 @@ de:meta */
 #define LOFI_SEED 0
 
 // ── slots ───────────────────────────────────────────────────────────────────
-#define I_EP   5    // Rhodes (the harmonic core)
-#define I_BASS 6    // round / upright bass
-#define I_DAB  7    // muted-horn / vibe sampled dab
-#define I_KICK 8
+// The BAND is cast the way loficity casts its jazzhop style (2026-09-29): a Rhodes with the suitcase
+// tremolo on a short + a long slot, a pizzicato upright (BOWED), a morphdrum kit + a modal rim, vibes or a
+// flute on top, and a clean tape (no saturation, a light wow, a little flutter). The arrangement said
+// the notes were comparable; the sound was what still separated the two (radio-arranger-lessons.md §6).
+#define I_EP   5    // Rhodes (the harmonic core), short release: the comp
+#define I_BASS 6    // pizzicato upright / round sine
+#define I_DAB  7    // the lead: vibes / flute / muted horn
+#define I_KICK 8    // (event tags only: the kit's voices live on KIT_BASE)
 #define I_SNR  9
 #define I_HAT  10
-#define I_VINYL 11  // held vinyl-crackle bed
+#define I_VINYL 11  // held vinyl-crackle bed (unused: it read as hard hiss)
+#define I_RIM  12   // a modal rim click (the grooves' 'r' strokes)
+#define I_EPL  13   // the Rhodes again, long release: held chords
+#define KIT_BASE 20 // morphdrum slots 20..29
 
 // ── chord qualities (the four-voice rootless voicings, QV4, live with the arrangement below) ──
 enum { Q_MAJ9, Q_MIN9, Q_DOM9, Q_MAJ7, Q_MIN7, NQ };
@@ -85,10 +94,13 @@ typedef struct {
 } MoodDef;
 static const MoodDef MOOD[NMO] = {
     //  name      tlo tsp sc pk  rev   wow   sat   efb   ems
-    { "sleepy",   72,  8, 0, 2, 0.50f,0.34f,0.34f,0.26f, 400 },
-    { "dusty",    82,  8, 1, 2, 0.48f,0.30f,0.42f,0.22f, 340 },
-    { "rainy",    78,  8, 2, 1, 0.52f,0.36f,0.30f,0.32f, 440 },
-    { "sunny",    88, 10, 0, 1, 0.44f,0.24f,0.26f,0.18f, 300 },
+    // wow + sat were 0.24-0.36 / 0.26-0.42 (with flutter at 0.6x the wow): the tape squashed the Rhodes
+    // under every drum hit and warbled the pitch. loficity measured the same curve: even sat 0.02 squashes
+    // (tape() is normalised, so it adds small-signal gain), and flutter 0.12 already warbles. Now theirs.
+    { "sleepy",   72,  8, 0, 2, 0.54f,0.09f,0.00f,0.30f, 400 },
+    { "dusty",    82,  8, 1, 2, 0.52f,0.07f,0.00f,0.28f, 340 },
+    { "rainy",    78,  8, 2, 1, 0.56f,0.10f,0.00f,0.32f, 440 },
+    { "sunny",    88, 10, 0, 1, 0.50f,0.05f,0.00f,0.26f, 300 },
 };
 // the POCKET dial — drag scale 0 (on the grid) .. 1.0 (deep Dilla)
 static const float POCKETV[4] = { 0.0f, 0.45f, 0.75f, 1.0f };
@@ -113,7 +125,7 @@ static RadioClock clk = { -1, 0, 160.0 };
 
 static int   tempo     = 82;
 static int   pocketSel = 1;        // LEFT/RIGHT — THE feel dial (default moderate)
-static int   toneSel   = 1;
+static int   toneSel   = 2;       // "clear" (1.0x): the old "warm" default took 22% off every filter
 static bool  radioOn   = true;
 static bool  showHelp  = false;
 static int   songCount = 0;
@@ -123,6 +135,12 @@ static int   bassLast = 40, vinylH = -1;
 static char  nowChord[4][8]; static int nowN = 1, nowIdx = 0;
 
 static void apply_fx(void);
+static void voice_song(void);                  // the per-song sound rolls (below): Rhodes tone + tremolo, master tone
+static void apply_tone(void);
+static struct { int epLp; float tremRate, tremDepth; double tone; } snd = { 3200, 4.5f, 0.1f, 7000 };
+static void fire_kick(double t, int v);        // the kit's layered voices (below)
+static void fire_snare(double t, int v);
+static void fire_hat(double t, int v, int open);
 static void apply_chair(int idx);
 static void plan_song(unsigned seed);   // the arrangement (below): planned at new_song
 static void plan_reset(void);           // ...and the bar planner's per-song state
@@ -155,7 +173,7 @@ static void new_song(double pos, unsigned seed) {
     bpm(tempo);
     apply_fx();
     songBase = (long)pos + 4;
-    plan_song(sng.seed); plan_reset();
+    plan_song(sng.seed); plan_reset(); voice_song();
     epInit = false; bassLast = 40;
     songCount++;
 }
@@ -309,7 +327,7 @@ static void plan_song(unsigned seed) {
     // the band's taste for this song
     do arr.groove = arnd(NGROOVE); while (arr.groove == 4 && tempo >= 82);   // half-time only for the slow ones
     arr.legato = arnd(100) < 45;
-    arr.strum  = 6 + arnd(14);
+    arr.strum  = 3 + arnd(8);    // ms per voice: a 9-30 ms roll over four notes (loficity: 10-30)
     for (int i = 0; i < NCP; i++) arr.compW[i] = COMPW[sng.mood][i] + arnd(3);
     int aCount = 0;
     for (int i = 0; i < n; i++) {
@@ -374,7 +392,8 @@ typedef struct { int s, len, v, top; BCh c; } KHit;
 static void key_hit(const KHit *h) {
     lead_to4(root_pc((Ch){ h->c.off, h->c.q }), QV4[h->c.q], 52, 76);
     int dur = (int)(h->len * stepMs) - 30; if (dur < 100) dur = 100;
-    for (int k = h->top ? 2 : 0; k < 4; k++) ev(h->s, LN_EP, (k - (h->top ? 2 : 0)) * arr.strum, gvEP[k], I_EP, h->v, dur);
+    int slot = h->len >= 16 ? I_EPL : I_EP, v = h->v + 2 > 7 ? 7 : h->v + 2;   // a Rhodes played this soft never barks
+    for (int k = h->top ? 2 : 0; k < 4; k++) ev(h->s, LN_EP, (k - (h->top ? 2 : 0)) * arr.strum, gvEP[k], slot, k == 3 && v < 7 ? v + 1 : v, dur);
 }
 
 // the lead's pitch ladder: the key's MAJOR pentatonic, in the dab's register. Always major, whatever the
@@ -477,12 +496,12 @@ static void plan_bar(long bar) {
                 char sn = g->s[s];
                 if (fill == FL_ROLL && s >= 12) { static const int V[4] = { 2, 3, 3, 5 }; ev(s, LN_SNR, 0, 60, I_SNR, V[s - 12], 90); }
                 else if (sn == 'x') ev(s, LN_SNR, 0, 60, I_SNR, 5, 120);
-                else if (sn == 'g') ev(s, LN_SNR, 0, 60, I_SNR, 1, 60);
-                else if (sn == 'r') ev(s, LN_SNR, 0, 72, I_SNR, 2, 40);
-                else if (bvar && (s == 7 || s == 15) && arnd(100) < 30) ev(s, LN_SNR, 0, 60, I_SNR, 1, 60);   // B's ghost notes
+                else if (sn == 'g') ev(s, LN_SNR, 0, 60, I_SNR, 2, 60);
+                else if (sn == 'r') ev(s, LN_SNR, 0, 72, I_RIM, 5, 30);                  // a rim click, not a thin snare
+                else if (bvar && (s == 7 || s == 15) && arnd(100) < 30) ev(s, LN_SNR, 0, 60, I_SNR, 2, 60);   // B's ghost notes
             }
-            if (openBar && s == 14) ev(s, LN_HAT, 0, 90, I_HAT, 3, 160);          // an open hat into the next bar
-            else if (g->h[s] == 'x' && !(openBar && s == 15)) ev(s, LN_HAT, 0, 90, I_HAT, s % 4 == 0 ? 2 : 1, 26);
+            if (openBar && s == 14) ev(s, LN_HAT, 0, 90, I_HAT, 4, 160);          // an open hat into the next bar
+            else if (g->h[s] == 'x' && !(openBar && s == 15)) ev(s, LN_HAT, 0, 90, I_HAT, s % 4 == 0 ? 4 : s % 2 == 0 ? 3 : 2, 26);   // an accent shape, not a flat tick
         }
         if (fill == FL_PICKUP && !noKick) { ev(13, LN_KICK, 0, 34, I_KICK, 4, 90); ev(15, LN_KICK, 0, 34, I_KICK, 4, 90); kicks[nk++] = 13; kicks[nk++] = 15; }
     }
@@ -539,7 +558,7 @@ static void plan_bar(long bar) {
             }
             int nxs = k + 1 < ns ? st[k + 1] : stop;
             int dur = (int)((nxs - s) * stepMs * (bm == BA_WHOLE ? 0.95 : arr.legato ? 0.9 : 0.55));
-            ev(s, LN_BASS, 0, m, I_BASS, s == 0 ? 5 : 4, dur);
+            ev(s, LN_BASS, 0, m, I_BASS, s == 0 ? 6 : 5, dur);
         }
     }
 
@@ -550,12 +569,12 @@ static void plan_bar(long bar) {
         if (phr.gbar != gbar) build_phrase(gbar);
         int bj = j % 4;
         for (int k = 0; k < phr.n; k++) if (phr.s[k] / 16 == bj)
-            ev(phr.s[k] % 16, LN_LEAD, 0, ladder[phr.li[k]], I_DAB, phr.v[k], (int)(phr.d[k] * stepMs * 0.9));
+            ev(phr.s[k] % 16, LN_LEAD, 0, ladder[phr.li[k]], I_DAB, phr.v[k] + 3 > 7 ? 7 : phr.v[k] + 3, (int)(phr.d[k] * stepMs * 0.9));
     }
 }
 
 // ── the step player — books the planned bar; THE DRUNK POCKET lives in the booking offsets ──
-static double toneTgt = 8000, toneTau = 0.3, toneHz = 8000;   // the master tone the plan rides
+static double toneTgt = 8000, toneTau = 0.3, toneHz = 8000;   // the master tone the plan rides (around snd.tone)
 static double hum(double sigma) { return ((rnd(1001) + rnd(1001) + rnd(1001)) / 1000.0 - 1.5) * 2 * sigma; }
 static void play_step(long abs, double pos) {
     long s = abs - songBase;
@@ -570,106 +589,171 @@ static void play_step(long abs, double pos) {
 
     // ── the master tone, ridden by the plan ──
     if (step == 0) {
-        if (S->name == SC_INTRO) { toneTgt = 900 * pow(8000 / 900.0, (j + 1) / (double)S->bars); toneTau = 240.0 / tempo / 3; }
+        if (S->name == SC_INTRO) { toneTgt = 900 * pow(snd.tone / 900.0, (j + 1) / (double)S->bars); toneTau = 240.0 / tempo / 3; }
         else if (S->name == SC_BREAK && j == 0) { toneTgt = 1800; toneTau = 0.4; }
         else if (S->name == SC_OUTRO && j == S->bars - 2) { toneTgt = 700; toneTau = 240.0 / tempo * 0.6; }
-        else if (j == 0 && S->name != SC_OUTRO) { toneTgt = 8000; toneTau = arr.s[arr.sec[bar] > 0 ? arr.sec[bar] - 1 : 0].name == SC_BREAK ? 0.8 : 0.3; }
-        else if (j % 4 == 0 && (S->name == SC_A || S->name == SC_B)) { toneTgt = 8000 * (0.88 + rnd(25) * 0.01); toneTau = 240.0 / tempo; }   // a slow drift
+        else if (j == 0 && S->name != SC_OUTRO) { toneTgt = snd.tone; toneTau = arr.s[arr.sec[bar] > 0 ? arr.sec[bar] - 1 : 0].name == SC_BREAK ? 0.8 : 0.3; }
+        else if (j % 4 == 0 && (S->name == SC_A || S->name == SC_B)) { toneTgt = snd.tone * (0.88 + rnd(25) * 0.01); toneTau = 240.0 / tempo; }   // a slow drift
         if (S->r.dipLast && lastBar) { toneTgt = 500; toneTau = 0.25; }
     }
 
     // the pocket: drag amounts in ms, scaled by the knob (live: applied as the bar is booked)
     float pk = POCKETV[pocketSel];
     int swing  = (step % 2) ? (int)(pk * stepMs * 0.30f) : 0;                              // every offbeat swung
+    // Only the BACKBEAT drags (loficity's snareLag, 8-18 ms). The tune stays near the grid: dragging the keys
+    // + lead (+34 / +37 ms before, vs +21 / +4 there) made the whole song sound sluggish rather than laid back.
     int drag[6] = {
-        (int)(pk * stepMs * 0.06f),                                                        // kick lazy
-        (int)(pk * stepMs * 0.24f) + (pk > 0 ? rnd((int)(pk * 14) + 1) : 0),               // snare LATE
+        (int)(pk * stepMs * 0.02f),                                                        // kick, a hair lazy
+        (int)(pk * stepMs * 0.16f) + (pk > 0 ? rnd((int)(pk * 8) + 1) : 0),                // snare LATE
         rnd(2),                                                                            // hats on the swing
-        (int)(pk * stepMs * 0.12f) + (pk > 0 ? rnd((int)(pk * 10) + 1) : 0),               // keys behind
-        (int)(pk * stepMs * 0.08f) + 4,                                                    // bass gently behind
-        (int)(pk * stepMs * 0.12f) + 14 + rnd(8),                                          // the lead laid way back
+        (int)(pk * stepMs * 0.03f),                                                        // keys, near the grid
+        3,                                                                                 // bass, 3 ms (theirs)
+        (int)(pk * stepMs * 0.02f),                                                        // the lead, near the grid
     };
-    static const double SIG[6] = { 1.5, 3, 2.5, 3, 2.5, 7 };                               // humanize, ms per part
+    static const double SIG[6] = { 1.5, 3, 2.5, 4, 4, 8 };                                 // humanize, ms per part (theirs)
     static const float VU[6] = { 1.0f, 0.9f, 0.1f, 0.35f, 0.8f, 0.7f };
     for (int i = 0; i < bev.n; i++) {
         const BEv *e = &bev.e[i];
         if (e->step != step) continue;
-        if (e->lane == LN_LEAD && band.c[chDab].sel == 2) continue;   // the dab chair switched off
+        if (e->lane == LN_LEAD && band.c[chDab].sel == 3) continue;   // the lead chair switched off
         int off = drag[e->lane] + swing + e->off + (int)hum(SIG[e->lane]);
-        rad_hit(&clk, abs, off, e->midi, e->instr, e->vol, e->dur);
+        double t = rad_step_time(&clk, abs) + off * 0.001;
+        if (e->lane == LN_KICK) fire_kick(t, e->vol);                  // the kit's layered voices
+        else if (e->lane == LN_SNR && e->instr == I_SNR) fire_snare(t, e->vol);
+        else if (e->lane == LN_HAT) fire_hat(t, e->vol, e->dur >= 100);
+        else schedule_at(t, e->midi, e->instr, e->vol, e->dur);
         vu += VU[e->lane];
     }
 }
 
 // ── the lo-fi rack — SET-AND-HOLD (per song/mood) ────────────────────────────
+// loficity's bus: a big soft room, a clean tape (wow only, sat OFF, flutter 0.03), the echo on the lead's
+// send, a gentle glue and the +1.5/+2.5 dB makeup their tape stage adds. No master chorus.
+#define LOFI_FLUTTER 0.03f
 static void apply_fx(void) {
     const MoodDef *m = &MOOD[sng.mood];
-    reverb(m->rev, 0.42f);
-    tape(m->wow, m->wow * 0.6f, m->sat);
-    echo(m->echoMs, m->echoFb, 0.45f);
-    chorus(0.5f, 0.28f, 0.22f);              // a little Rhodes width
+    reverb(m->rev, 0.55f);
+    tape(m->wow, LOFI_FLUTTER, m->sat);
+    echo(m->echoMs, m->echoFb, 0.3f);
+    chorus(1.0f, 0.3f, 0.0f);
+    glue(0, 0.25f, 8, 160);
+    eq(1.5f, 2.5f, 0.0f);
 }
 
 // ── one-time setup ────────────────────────────────────────────────────────
+static void inst(int s, int wave, int a, int d, int sus, int r, float h, float t, float m) {
+    instrument(s, wave, a, d, sus, r); instrument_harmonics(s, h); instrument_timbre(s, t); instrument_morph(s, m);
+}
+static void voice_keys(int sel) {             // the Rhodes (or a Wurli) on the comp + the held slot
+    for (int s = I_EP; s <= I_EPL; s += I_EPL - I_EP) {
+        if (sel == 0) inst(s, INSTR_EPIANO, 2, 0, 7, s == I_EP ? 320 : 2600, 0.10f, 0.36f, 0.18f);
+        else          inst(s, INSTR_EPIANO, 2, 0, 7, s == I_EP ? 280 : 2200, 0.50f, 0.42f, 0.22f);
+        instrument_reverb(s, 0.30f); instrument_level(s, 0.60f); instrument_pan(s, -0.08f);
+    }
+}
+static void voice_bass(int sel) {
+    if (sel == 0) {                            // the pizzicato upright: a plucked bowed-string model
+        inst(I_BASS, INSTR_BOWED, 3, 0, 7, 90, 0.62f, 0.30f, 0.45f);
+        instrument_mode(I_BASS, MODE_BOW_PIZZ, 1.0f); instrument_mode(I_BASS, MODE_BOW_BODY, 0.85f);
+        instrument_mode(I_BASS, MODE_BOW_SIZE, BOW_SIZE_BASS);
+        instrument_filter(I_BASS, FILTER_LOW, 950, 0);
+    } else {                                   // round: a sine with a soft release
+        inst(I_BASS, INSTR_SINE, 4, 300, 5, 200, 0.5f, 0.5f, 0.5f);
+        for (int m = 0; m < 7; m++) instrument_mode(I_BASS, m, 0);
+        instrument_filter(I_BASS, FILTER_LOW, 520, 0);
+    }
+    instrument_level(I_BASS, 1.0f); instrument_eq(I_BASS, 2.0f, 2.0f, 2.0f);   // measured: 4 dB under loficity's balance
+}
+static void voice_lead(int sel) {
+    instrument_lfo(I_DAB, 0, LFO_PITCH, 5.0f, 0.0f); instrument_glide(I_DAB, 0); instrument_echo(I_DAB, 0.0f);
+    if (sel == 0) {                            // vibes
+        inst(I_DAB, INSTR_MALLET, 1, 0, 7, 1200, 0.22f, 0.45f, 0.85f); instrument_filter(I_DAB, FILTER_LOW, 3200, 0);
+    } else if (sel == 1) {                     // a breathy flute with a slow vibrato
+        inst(I_DAB, INSTR_PIPE, 14, 0, 5, 220, 0.0f, 0.34f, 0.68f); instrument_filter(I_DAB, FILTER_LOW, 6000, 0);
+        instrument_lfo(I_DAB, 0, LFO_PITCH, 5.0f, 0.10f); instrument_glide(I_DAB, 13);
+    } else if (sel == 2) {                     // the old muted horn, filtered + echoed
+        inst(I_DAB, INSTR_REED, 2, 0, 4, 900, 0.78f, 0.28f, 0.5f); instrument_filter(I_DAB, FILTER_LOW, 2000, 1);
+        instrument_echo(I_DAB, 0.16f);
+    }
+    instrument_reverb(I_DAB, 0.35f); instrument_pan(I_DAB, 0.16f); instrument_level(I_DAB, 0.8f);
+}
+// the kit: loficity's jazzhop voicing of the morphing drum bank (its "balanced" kit roll, mid-range values)
+static MorphKit kit;
+static void voice_kit(void) {
+    const double F0 = 160, F1 = 51, kd = 0.13, sd = 0.065, hp = 7250, hc = 0.016;
+    float *k = kit.p[MD_KICK];
+    k[MD_CHAR] = 0.2f; k[MD_LEVEL] = 1;
+    k[MD_TUNE]  = (float)fmin(1, fmax(0, (69 + 12 * log2(F1 / 440.0) - 19) / 33.0));
+    k[MD_PUNCH] = (float)fmin(1, 12 * log2(F0 / F1) / 48.0);
+    k[MD_SNAP]  = (90 - 8) / 142.0f; k[MD_DECAY] = (float)((kd * 4000 - 40) / 1060.0);
+    k[MD_CUT] = 0.36f; k[MD_CLICK] = 0.22f; k[MD_SUB] = 0.22f; k[MD_DRIVE] = 0.18f;
+    float *n = kit.p[MD_SNARE];
+    n[MD_CHAR] = 0.5f; n[MD_LEVEL] = 1; n[MD_TUNE] = 0.32f; n[MD_DECAY] = 0.45f; n[MD_PUNCH] = 0.25f;
+    n[MD_SNAP] = 0.8f; n[MD_TONE] = 0.62f; n[MD_CUT] = 0.45f; n[MD_DRIVE] = 0.1f; n[MD_ODEC] = (float)((sd * 4000 - 30) / 390.0);
+    float *h = kit.p[MD_HAT];
+    h[MD_CHAR] = 0.2f; h[MD_LEVEL] = 1; h[MD_TUNE] = 0.53f; h[MD_TONE] = 0.25f; h[MD_SUB] = 0.6f; h[MD_RES] = 0.0f;
+    h[MD_CUT] = (float)(log2(hp / 3000.0) / 2.0); h[MD_DECAY] = (float)((hc * 2500 - 10) / 210.0);
+    h[MD_ODEC] = (float)((0.12 * 4000 - 80) / 720.0);
+    morph_ride(&kit);
+    for (int s = MDS_KICK; s <= MDS_KICKS; s++) instrument_level(KIT_BASE + s, 0.55f);
+    instrument_level(KIT_BASE + MDS_SNB, 0.8f); instrument_level(KIT_BASE + MDS_SNN, 0.45f);
+    for (int s = MDS_HC; s <= MDS_HO; s++) { instrument_level(KIT_BASE + s, 0.55f); instrument_pan(KIT_BASE + s, 0.2f); instrument_reverb(KIT_BASE + s, 0.08f); }
+    instrument_reverb(KIT_BASE + MDS_SNB, 0.25f); instrument_reverb(KIT_BASE + MDS_SNN, 0.25f);
+    inst(I_RIM, INSTR_MODAL, 0, 0, 7, 30, 0.55f, 0.70f, 0.04f);
+    instrument_level(I_RIM, 0.28f); instrument_filter(I_RIM, FILTER_HIGH, 300, 0); instrument_reverb(I_RIM, 0.30f); instrument_pan(I_RIM, -0.15f);
+}
+// the kit's layered voices at a planned volume (morph_fire only takes a coarse boost), on the sample clock
+static void fire_kick(double t, int v) {
+    MDRes r; md__resolve(&kit, MD_KICK, &r); int b = kit.base;
+    schedule_at(t, r.midi, b + MDS_KICK, v, r.dec);
+    if (r.l1_vol) schedule_at(t, 60, b + MDS_KICKC, (r.l1_vol * v + 6) / 7, r.l1_dec);
+    if (r.l2_vol) schedule_at(t, r.midi - 12, b + MDS_KICKS, (r.l2_vol * v + 6) / 7, r.l2_dec);
+}
+static void fire_snare(double t, int v) {
+    MDRes r; md__resolve(&kit, MD_SNARE, &r); int b = kit.base;
+    int body = (int)lround((1 - r.tone) * v * 1.5); if (body > 7) body = 7;
+    if (body) { schedule_at(t, r.midi, b + MDS_SNB, body, r.dec); schedule_at(t, r.midi + 10, b + MDS_SNB, body, r.dec); }
+    schedule_at(t, 60, b + MDS_SNN, v ? v : 1, r.l1_dec);
+}
+static void fire_hat(double t, int v, int open) {
+    MDRes r; md__resolve(&kit, MD_HAT, &r);
+    schedule_at(t, r.midi, kit.base + (open ? MDS_HO : MDS_HC), v, (open ? r.l2_dec : r.dec) * 6);
+}
+
 static void setup_instruments(void) {
     chKeys = rad_chair(&band, "keys", "rhodes", "wurli", NULL, NULL);
     chBass = rad_chair(&band, "bass", "upright", "round", NULL, NULL);
-    chDab  = rad_chair(&band, "dab",  "horn", "vibe", "off", NULL);
-
-    instrument(I_EP, INSTR_EPIANO, 2, 0, 6, 1000);
-    instrument_harmonics(I_EP, 0.15f); instrument_timbre(I_EP, 0.30f); instrument_morph(I_EP, 0.22f);
-    instrument_filter(I_EP, FILTER_LOW, 1900, 1);
-    instrument_chorus(I_EP, 0.6f, 0.28f, 0.26f);
-    instrument_pan(I_EP, -0.12f);
-
-    instrument(I_BASS, INSTR_TRI, 3, 280, 5, 150);          // upright-ish (chair → round sine)
-    instrument_filter(I_BASS, FILTER_LOW, 560, 1);
-    instrument_env(I_BASS, 0, ENV_PITCH, 0, 16, 3);
-
-    instrument(I_DAB, INSTR_REED, 2, 0, 4, 900);            // muted horn (chair → vibe)
-    instrument_harmonics(I_DAB, 0.78f); instrument_timbre(I_DAB, 0.28f); instrument_morph(I_DAB, 0.5f);
-    instrument_filter(I_DAB, FILTER_LOW, 2000, 1);
-    instrument_pan(I_DAB, 0.16f);
-
-    instrument(I_KICK, INSTR_SINE, 0, 150, 0, 70); instrument_filter(I_KICK, FILTER_LOW, 220, 2);
-    instrument_env(I_KICK, 0, ENV_PITCH, 0, 44, 12);
-    instrument(I_SNR, INSTR_NOISE, 1, 0, 0, 130); instrument_filter(I_SNR, FILTER_BAND, 1300, 3);  // fat, dark
-    instrument(I_HAT, INSTR_NOISE, 0, 22, 0, 16); instrument_filter(I_HAT, FILTER_HIGH, 6400, 2);
-
-    instrument_reverb(I_EP, 0.26f); instrument_reverb(I_DAB, 0.40f); instrument_reverb(I_SNR, 0.22f);
-    instrument_echo(I_DAB, 0.16f);
-
-    instrument(I_VINYL, INSTR_NOISE, 200, 400, 6, 600);     // a FAINT thin tape-hiss floor
-    instrument_filter(I_VINYL, FILTER_HIGH, 7200, 2);       // high-pass = airy hiss, not midrange rain
-
+    chDab  = rad_chair(&band, "lead", "vibes", "flute", "horn", "off");
+    morph_build(&kit, KIT_BASE);
+    voice_kit(); voice_keys(0); voice_bass(0); voice_lead(0);
     for (int i = 0; i < band.n; i++) if (band.c[i].sel) apply_chair(i);
 }
 
 static void apply_chair(int idx) {
     int sel = band.c[idx].sel;
-    if (idx == chKeys) {
-        if (sel == 0) { instrument_harmonics(I_EP, 0.15f); instrument_timbre(I_EP, 0.30f); }   // Rhodes
-        else          { instrument_harmonics(I_EP, 0.50f); instrument_timbre(I_EP, 0.42f); }   // Wurli
-    } else if (idx == chBass) {
-        if (sel == 0) { instrument(I_BASS, INSTR_TRI, 3, 280, 5, 150); instrument_env(I_BASS, 0, ENV_PITCH, 0, 16, 3); }
-        else          { instrument(I_BASS, INSTR_SINE, 4, 300, 5, 200); }
-        instrument_filter(I_BASS, FILTER_LOW, 560, 1);
-    } else if (idx == chDab) {
-        if (sel == 0) { instrument(I_DAB, INSTR_REED, 2, 0, 4, 900);                            // horn
-                        instrument_harmonics(I_DAB, 0.78f); instrument_timbre(I_DAB, 0.28f); instrument_morph(I_DAB, 0.5f); }
-        else if (sel == 1) { instrument(I_DAB, INSTR_MALLET, 1, 0, 7, 900);                     // vibe
-                        instrument_harmonics(I_DAB, 0.30f); instrument_timbre(I_DAB, 0.5f); instrument_morph(I_DAB, 0.6f); }
-        instrument_filter(I_DAB, FILTER_LOW, 2000, 1);
-        instrument_reverb(I_DAB, 0.40f); instrument_echo(I_DAB, 0.16f);
-        // sel 2 = off — gated at play time
+    if (idx == chKeys) { voice_keys(sel); voice_song(); }
+    else if (idx == chBass) voice_bass(sel);
+    else if (idx == chDab && sel < 3) voice_lead(sel);          // sel 3 = off, gated at play time
+}
+
+// per SONG, from a derived stream (the seed rule): the Rhodes' tone + its suitcase tremolo + autopan, and the
+// master tone the plan rides. loficity's balanced jazzhop ranges: ep lp 2400-4500, trem 3.5-5.5 Hz at
+// 0.06-0.18 depth (scaled 0.5: at full depth it reads as a wobble on the whole mix), tone 5500-9000.
+static void voice_song(void) {
+    arr_seed(sng.seed, 7);
+    snd.epLp = 2400 + arnd(2101); snd.tremRate = 3.5f + arnd(201) * 0.01f; snd.tremDepth = 0.06f + arnd(121) * 0.001f;
+    snd.tone = 5500 + arnd(3501);
+    apply_tone();
+    for (int s = I_EP; s <= I_EPL; s += I_EPL - I_EP) {
+        instrument_lfo(s, 0, LFO_VOLUME, snd.tremRate, snd.tremDepth * 0.5f);
+        instrument_lfo(s, 1, LFO_PAN, snd.tremRate, 0.25f * 0.5f);
     }
 }
 
 static void apply_tone(void) {
     float tm = RAD_TONEMUL[toneSel];
-    instrument_filter(I_EP,  FILTER_LOW, (int)(1900 * tm), 1);
-    instrument_filter(I_DAB, FILTER_LOW, (int)(2000 * tm), 1);
-    instrument_filter(I_HAT, FILTER_HIGH, (int)(6400 * tm), 2);
+    for (int s = I_EP; s <= I_EPL; s += I_EPL - I_EP) instrument_filter(s, FILTER_LOW, (int)(snd.epLp * tm), 0);
+    if (band.c[chDab].sel == 0) instrument_filter(I_DAB, FILTER_LOW, (int)(3200 * tm), 0);
 }
 
 // ── update ──────────────────────────────────────────────────────────────────

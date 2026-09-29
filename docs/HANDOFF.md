@@ -56,6 +56,12 @@ a broken doc link or `#section`).
 > voice-trace events (`87600093`): `node tools/arrange-score.js lofi loficity`. First reading: the
 > skeleton matches; the gap is a fragmented lead, a tune dragged too late, a thin snare.
 >
+> **✅ SOUND PASS (same day):** the owner still heard "miles away"; the gap was the SOUND, which notes cannot
+> show. `arrange-score.js --sound` (music-mix crest/centroid + per-part stem balance) found a saturated tape,
+> a mix an octave dark, a bass 4 dB low; lofi's band is now cast like loficity's jazzhop (morphdrum, bowed
+> upright, trem Rhodes, clean tape, drag on the backbeat only). Numbers + traps: [§6](design/radio-arranger-lessons.md#6-the-sound-was-the-bigger-gap-2026-09-29-second-pass).
+> Ear pass pending. Still open from §5: the fragmented lead (phrase 1.4 notes vs 2.5).
+>
 > **Resume at:** [the strategy + the first scorecard reading](design/radio-arranger-lessons.md#5-the-strategy-make-lofi-as-good-as-loficity-in-a-way-we-can-repeat)
 > — next is `lofi` rebuilt on a shared arranger core, lead phrasing first; re-score after each change.
 > The maker judges by ear; bake before handing over. **Hot files:** `tools/carts/lofi.c`, `runtime/radio.h`.

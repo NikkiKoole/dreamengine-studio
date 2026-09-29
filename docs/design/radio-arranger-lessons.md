@@ -1,6 +1,6 @@
 # What loficity's arranger teaches the radio stations
 
-STATUS: BUILDING (2026-09-29): phases 0, 1 (song + bar planner) and 3's first customer landed on `lofi.c`. Next: the owner's A/B against loficity, then phase 0 for the other 38 stations and phase 2's second customer.
+STATUS: BUILDING (2026-09-29): phases 0, 1 (song + bar planner) and 3's first customer landed on `lofi.c`, and its band was recast on loficity's jazzhop sound (§6, found by `arrange-score.js --sound`). Next: the owner's A/B against loficity, then phase 0 for the other 38 stations and phase 2's second customer.
 
 `loficity` (2026-09-28) is a line-for-line port of Lofi Cities' arranger
 ([`runtime/loficity/arranger.h`](../../runtime/loficity/arranger.h), played by
@@ -282,3 +282,46 @@ voicing size and per-part repetition are all within a few percent of loficity. T
   (vol sd 0.52 vs 1.11: no accent shape).
 - keys register 64 vs 59 (ours sit higher), bass clash 28% vs 18% (more chromatic approaches than theirs).
 - lead clash 1.1% vs 6.3%: fine; the wrong-scale bug is gone, and theirs carries more passing tension.
+
+## 6. The sound was the bigger gap (2026-09-29, second pass)
+
+After §5's first reading the notes matched and the owner still heard lofi as "miles away" from
+loficity's jazzhop. The scorecard could not see why: it reads notes. Rendering both and measuring the
+WAVs found the gap in the half no note carries, so `arrange-score.js` grew a **`--sound`** half (the
+music mix plus one stem per part, each stem measured only while it sounds) and lofi's band was recast
+the way loficity casts jazzhop. What was wrong, biggest first:
+
+1. **The tape squashed the band.** lofi ran `tape()` at saturation 0.26-0.42 and flutter 0.14-0.22.
+   loficity had measured that even 0.02 saturation squashes the Rhodes and bass under every drum hit
+   (`tape()` is normalised, so it adds small-signal gain) and that flutter 0.12 already warbles. Crest
+   15.3 dB vs 17.6. Now sat 0, flutter 0.03, a light wow.
+2. **An octave darker, and muddy.** Mix centroid 1156 Hz vs 2378, and 37% of windows bass-dominated vs
+   5%: a triangle bass, a sine kick, the keys lowpassed at 1900 Hz, and the T knob defaulting to "warm"
+   (0.78x on every filter). Now the Rhodes' lowpass is a per-song roll in loficity's range (2400-4500)
+   and the knob defaults to "clear".
+3. **Older instruments.** A sine kick + bandpassed-noise snare + noise hat became the morphdrum kit on
+   loficity's jazzhop voicing with a modal rim and accented hats (vol sd was 0.52 vs 1.11); the triangle
+   bass became the pizzicato upright (`INSTR_BOWED`); the Rhodes gained its suitcase tremolo + autopan
+   and a long-release slot for held chords, and is now played hard enough to bark (vol +2); the lead chair
+   is vibes / flute / the old horn.
+4. **No measured balance.** Stems vs the keys, while sounding: bass -10.6 dB vs loficity's -6.2, kit
+   -3.5 vs -1.9. Now -4.4 to -4.8 and -1.9 to -2.8 across seeds; the lead sits at -2.7 to -3.7, at
+   loficity's own documented jazzhop reference (-4).
+5. **The drag was on the tune.** Keys and lead were booked +34 / +37 ms late. Now only the backbeat
+   drags (snare 30.8 ms vs 29.0) and the keys and lead sit near the grid.
+
+After (seed 2, 3 min, music mix): crest 17.1 vs 17.1 dB, bass-heavy windows 14% vs 17%, per-part
+centroids within a few hundred Hz. **Ear pass pending.**
+
+**Traps the sound half had to learn** (each printed a wrong conclusion first):
+
+- loficity's **vinyl hiss** sits in every window and lifts any mix it is in (0.1% bass-heavy vs our
+  17.6% on hiss alone), so the mix row is the MUSIC only: every stem except a noise bed.
+- A **stem's plain rms** is also a measure of how much the part plays: our lead entered later, so it
+  read 7 dB quiet. Balance is measured on windows where the stem sounds (over -60 dBFS).
+- **Per-seed casting**: loficity picks vibes or a flute per track, and seed 2's first track has no lead
+  at all. A lead comparison has to check which voice played (the trace's `lead` watch).
+
+**For the other stations**: run `arrange-score.js <station> <ref> --sound` before any arranger work.
+If the sound half is far off, fix the tape, the balance and the casting first; it is cheaper than an
+arranger and it was most of the gap here.

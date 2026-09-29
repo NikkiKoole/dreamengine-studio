@@ -26,8 +26,8 @@
   ],
   "description": {
     "summary": "Endless generated lofi in all nine Lofi Cities styles, arranged exactly the way loficities.com arranges it - played on our own engines.",
-    "detail": "Every track is one seed, and the seed plans everything the way loficities.com does, for whichever of its nine styles you pick: a key (each track moves to a related key), two progressions from the style's bank, 1 or 2 bars per chord, a tempo/swing/snare-lag from the style's ENERGY table, a drum groove from the style's own grids, a form (T1-T3, grown to 2.5-4 minutes) whose every section switches layers on and off. Per bar: fills, B-section variations, the keys comping by the style's own cells (fingerpicking patterns, bossa batida, house stabs, piano rolls) and PUSHING the next chord, the style's own bass line (a piano left hand, a viol walk, a synth bass cell, a house cell), a motif lead, and the master tone automated (the intro opening from 900 Hz, the break dipping, the outro closing). Each style has its own band on our engines: Rhodes, felt grand, unison-saw pads + drone, nylon and electric guitars with held figures and ghost strums, a driven organ with a pump, a lute with courses over a bowed viol and a drone, a muted brass horn, recorders, FM bells, a morphing kit with style-specific percussion. The screen is the arrangement made visible: the form strip with the playhead, what each part is doing, the chord, fills and pushes, and what's up next.",
-    "controls": "S style (from the next track) . N / SPACE next track . E energy (chill/balanced/upbeat, next track) . B band (full / no drums / chords only, next bar) . C city (the words the titles are made of) . 1-5 fx off/on (tone . tape . bus . trem . vinyl) . H help"
+    "detail": "Every track is one seed, and the seed plans everything the way loficities.com does, for whichever of its nine styles you pick: a key (each track moves to a related key), two progressions from the style's bank, 1 or 2 bars per chord, a tempo/swing/snare-lag from the style's ENERGY table, a drum groove from the style's own grids, a form (T1-T3, grown to 2.5-4 minutes) whose every section switches layers on and off. Per bar: fills, B-section variations, the keys comping by the style's own cells (fingerpicking patterns, bossa batida, house stabs, piano rolls) and PUSHING the next chord, the style's own bass line (a piano left hand, a viol walk, a synth bass cell, a house cell), a motif lead, and the master tone automated (the intro opening from 900 Hz, the break dipping, the outro closing). Each style has its own band on our engines: Rhodes, felt grand, unison-saw pads + drone, nylon and electric guitars with held figures and ghost strums, a driven organ with a pump, a lute with courses over a bowed viol and a drone, a muted brass horn, recorders, FM bells, a morphing kit with style-specific percussion. A band panel (I) gives each style four chairs - keys, bass, lead, drums - each cycling the style's own casting, two or three juicy alternatives (a Wurli, a 303 acid bass, a muted trumpet, a hurdy-gurdy, an 808 or 909 kit, a cajon...) and off, level-matched by measurement. The screen is the arrangement made visible: the form strip with the playhead, what each part is doing, the chord, fills and pushes, and what's up next.",
+    "controls": "S style (from the next track) . I the band: per part (keys / bass / lead / drums) swap the instrument or mute it, from the next bar, remembered per style . N / SPACE next track . E energy (chill/balanced/upbeat, next track) . B band (full / no drums / chords only, next bar) . C city (the words the titles are made of) . 1-6 off/on: tone . tape . bus . trem . vinyl . human . H help"
   }
 }
 de:meta */
@@ -48,10 +48,17 @@ de:meta */
 // a schedule_hit delay counts from whichever audio callback drains it, which swung notes by up to a
 // 23 ms buffer on native (gated by tools/schedule-check).
 //
-//   S style   N / SPACE next   E energy   B band   C city   1-5 fx   H help
+//   S style   I band (swap/mute parts)   N / SPACE next   E energy   B band   C city   1-6 fx   H help
 
+#ifndef LOFI_SEED
 #define LOFI_SEED 0      // pin a seed (0 = a random one each boot)
+#endif
+#ifndef LOFI_STYLE
 #define LOFI_STYLE -1    // pin the boot style (0..8 = jazzhop..medieval; -1 = jazzhop)
+#endif
+#ifndef LC_FORCE
+#define LC_FORCE -1      // test pin: chair*10 + candidate for the boot style, and the saved picks IGNORED (99 = ignore only)
+#endif
 #define LC_WOW 0.5f      // tape wow scale: 1 = their depth (+-3..12 cents at ~0.5 Hz), which read as seasick
 #define LC_FLUTTER 0.03f // tape flutter: ~1.6 cents at 6 Hz, their depth (0.12 was 4x that - an audible warble)
 #define LC_SAT 0.0f      // tape saturation: OFF. tape()'s curve is tanh(g*x)/tanh(g), normalised so full scale stays full
@@ -266,6 +273,172 @@ static void inst(int s, int wave, int a, int d, int sus, int r, float h, float t
 }
 
 // the kit's three morphdrum voices, from the style's own kit roll (every style replaces drums.kit)
+// ═══ THE BAND PANEL (I) — per-style CHAIRS, like the radios' band: each part cycles between the style's own
+// casting (candidate 0), a couple of alternatives, and OFF. Only the SOUND changes — the arranger plays the
+// same notes into whichever instrument sits in the chair. A change lands at the next bar; picks are saved.
+enum { CH_KEYS, CH_BASS, CH_LEAD, CH_DRUMS, NCHAIR };
+static const char *CHAIR_NAME[NCHAIR] = { "keys", "bass", "lead", "drums" };
+enum { CK_DEF = 0, CK_OFF,
+       CK_WURLI, CK_FELT, CK_BRIGHTUP, CK_CELESTA, CK_RHODES, CK_STRINGS, CK_GLASS, CK_NYLON, CK_VIBESK,
+       CK_PDPAD, CK_FM4GLASS, CK_HOUSEPNO, CK_SUPERSAW, CK_12STR, CK_MUSICBOX, CK_HARP, CK_HURDY,
+       CB_UPRIGHT, CB_ROUND, CB_FMRH, CB_FRETLESS, CB_PDRESO, CB_808, CB_ACID, CB_FM,
+       CL_MUTEDTP, CL_TENOR, CL_VIBES, CL_CLARINET, CL_CELESTA, CL_PANPIPE, CL_OOH, CL_SUPERSAW, CL_MME,
+       CL_FLUTE, CL_ORGAN, CL_CELLO, CL_SHAWM,
+       CD_BRUSH, CD_808, CD_909, CD_CAJON, NCK };
+typedef struct { const char *name; int kind; } Cand;
+typedef struct { int n; Cand c[4]; } Chair;
+#define C4(...) { 4, { __VA_ARGS__ } }   // variadic: each candidate is a braced {name, kind}, whose comma a
+#define C3(...) { 3, { __VA_ARGS__ } }   // plain macro argument list would split
+#define C2(...) { 2, { __VA_ARGS__ } }
+static const Chair CHAIRS[NSTYLE][NCHAIR] = {
+    [S_JAZZHOP] = { C4({"Rhodes",0},{"Wurli",CK_WURLI},{"felt piano",CK_FELT},{"off",CK_OFF}),
+                    C4({"upright",0},{"round sine",CB_ROUND},{"FM rhodes-bass",CB_FMRH},{"off",CK_OFF}),
+                    C4({"vibes / flute",0},{"muted trumpet",CL_MUTEDTP},{"tenor sax",CL_TENOR},{"off",CK_OFF}),
+                    C4({"dusty",0},{"brushes",CD_BRUSH},{"808",CD_808},{"off",CK_OFF}) },
+    [S_PIANO]   = { C4({"felt grand",0},{"bright upright",CK_BRIGHTUP},{"celesta",CK_CELESTA},{"off",CK_OFF}),
+                    C3({"left hand",0},{"upright",CB_UPRIGHT},{"off",CK_OFF}),
+                    C4({"right hand",0},{"vibes",CL_VIBES},{"clarinet",CL_CLARINET},{"off",CK_OFF}),
+                    C2({"brushes",0},{"off",CK_OFF}) },
+    [S_AMBIENT] = { C4({"saw pad",0},{"string machine",CK_STRINGS},{"bowed glass",CK_GLASS},{"off",CK_OFF}),
+                    C2({"sub",0},{"off",CK_OFF}),
+                    C4({"FM bell",0},{"celesta",CL_CELESTA},{"pan pipe",CL_PANPIPE},{"off",CK_OFF}),
+                    C2({"felt",0},{"off",CK_OFF}) },
+    [S_BOSSA]   = { C4({"nylon",0},{"Rhodes",CK_RHODES},{"vibes",CK_VIBESK},{"off",CK_OFF}),
+                    C3({"upright",0},{"fretless",CB_FRETLESS},{"off",CK_OFF}),
+                    C4({"nylon / flute",0},{"muted trumpet",CL_MUTEDTP},{"ooh voice",CL_OOH},{"off",CK_OFF}),
+                    C3({"brushes",0},{"cajon",CD_CAJON},{"off",CK_OFF}) },
+    [S_SYNTH]   = { C4({"poly saw",0},{"CZ pad",CK_PDPAD},{"FM4 glass",CK_FM4GLASS},{"off",CK_OFF}),
+                    C4({"saw mono",0},{"resonant PD",CB_PDRESO},{"808 sub",CB_808},{"off",CK_OFF}),
+                    C4({"square / glass",0},{"supersaw",CL_SUPERSAW},{"MME",CL_MME},{"off",CK_OFF}),
+                    C4({"city",0},{"808",CD_808},{"909",CD_909},{"off",CK_OFF}) },
+    [S_HOUSE]   = { C4({"organ",0},{"house piano",CK_HOUSEPNO},{"supersaw",CK_SUPERSAW},{"off",CK_OFF}),
+                    C4({"sine",0},{"303 acid",CB_ACID},{"FM",CB_FM},{"off",CK_OFF}),
+                    C3({"vox / pluck",0},{"flute",CL_FLUTE},{"off",CK_OFF}),
+                    C3({"house",0},{"909",CD_909},{"off",CK_OFF}) },
+    [S_GUITAR]  = { C4({"electric",0},{"nylon",CK_NYLON},{"12-string",CK_12STR},{"off",CK_OFF}),
+                    C3({"finger",0},{"upright",CB_UPRIGHT},{"off",CK_OFF}),
+                    C3({"electric",0},{"organ",CL_ORGAN},{"off",CK_OFF}),
+                    C3({"dust",0},{"brushes",CD_BRUSH},{"off",CK_OFF}) },
+    [S_SAD]     = { C4({"felt piano",0},{"Rhodes",CK_RHODES},{"music box",CK_MUSICBOX},{"off",CK_OFF}),
+                    C3({"sub",0},{"upright",CB_UPRIGHT},{"off",CK_OFF}),
+                    C4({"muted horn",0},{"cello",CL_CELLO},{"clarinet",CL_CLARINET},{"off",CK_OFF}),
+                    C2({"hush",0},{"off",CK_OFF}) },
+    [S_MEDIEVAL]= { C4({"lute",0},{"harp",CK_HARP},{"hurdy-gurdy",CK_HURDY},{"off",CK_OFF}),
+                    C2({"viol",0},{"off",CK_OFF}),
+                    C4({"recorder / wood",0},{"shawm",CL_SHAWM},{"pan pipe",CL_PANPIPE},{"off",CK_OFF}),
+                    C2({"frame drums",0},{"off",CK_OFF}) },
+};
+// level trims per alternative, dB vs the style's own casting in that chair: stem RMS of the chair alone, 40 s,
+// seeds whose lead enters early (2026-09-28). Per STYLE, not per instrument: the muted trumpet needs +11 in jazzhop
+// and +8 in bossa because the chair's default differs. Piano's bass/lead defaults play on its keys slot, so those
+// trims target jazzhop's proportions (bass keys-7, lead keys-4); sad's lead window was silent, so its two are estimates.
+// A boost goes on the slot's eq (a private bus), a cut on its level; boosts cap at +12.
+static const float TRIM[NSTYLE][NCHAIR][4] = {
+    [S_JAZZHOP] = { { 0, 0.0f, 12.0f, 0 }, { 0, -12.2f, -8.8f, 0 }, { 0, 11.0f, -6.1f, 0 }, { 0, 0.3f, -1.1f, 0 } },
+    [S_PIANO]   = { { 0, 3.5f, -3.8f, 0 }, { 0, -3.6f, 0, 0 },      { 0, -6.5f, -9.1f, 0 }, { 0 } },
+    [S_AMBIENT] = { { 0, -2.1f, -0.1f, 0 }, { 0 },                  { 0, 12.0f, 8.0f, 0 },  { 0 } },
+    [S_BOSSA]   = { { 0, -7.4f, -6.8f, 0 }, { 0, -10.1f, 0, 0 },    { 0, 8.2f, -6.0f, 0 },  { 0, 3.3f, 0, 0 } },
+    [S_SYNTH]   = { { 0, -3.2f, 7.0f, 0 }, { 0, 4.7f, -2.0f, 0 },   { 0, 5.0f, 8.2f, 0 },   { 0, -0.9f, -0.5f, 0 } },
+    [S_HOUSE]   = { { 0, 12.0f, -2.5f, 0 }, { 0, 1.2f, -4.5f, 0 },  { 0, -3.1f, 0, 0 },     { 0, 0.7f, 0, 0 } },
+    [S_GUITAR]  = { { 0, -0.8f, 3.1f, 0 }, { 0, 1.4f, 0, 0 },       { 0, -3.5f, 0, 0 },     { 0, 0.3f, 0, 0 } },
+    [S_SAD]     = { { 0, -1.5f, 12.0f, 0 }, { 0, 6.0f, 0, 0 },      { 0, -3.0f, -7.3f, 0 }, { 0 } },
+    [S_MEDIEVAL]= { { 0, -0.5f, -14.0f, 0 }, { 0 },                 { 0, -13.4f, -10.3f, 0 }, { 0 } },
+};
+static int chairSel[NSTYLE][NCHAIR];
+static float chair_trim(const Plan *P, int ch) { return TRIM[P->style][ch][chairSel[P->style][ch] & 3]; }
+static int chairDirty = 0;          // a change waiting for the next bar
+static bool showBand = false; static int bandRow = 0;
+static int ckind(const Plan *P, int ch) { const Chair *c = &CHAIRS[P->style][ch]; int i = chairSel[P->style][ch]; return i < c->n ? c->c[i].kind : 0; }
+static int guitarish(int k) { return k == CK_NYLON || k == CK_12STR || k == CK_HARP; }
+static void chairs_load(void) {
+    for (int st = 0; st < NSTYLE; st++) for (int c = 0; c < NCHAIR; c++) {
+        char key[16]; snprintf(key, sizeof key, "ch%d%d", st, c);
+        int v = load_int(key, 0); chairSel[st][c] = v >= 0 && v < CHAIRS[st][c].n ? v : 0;
+    }
+}
+static void chair_cycle(int style, int c, int dir) {
+    int n = CHAIRS[style][c].n; chairSel[style][c] = (chairSel[style][c] + dir + n) % n;
+    char key[16]; snprintf(key, sizeof key, "ch%d%d", style, c); save_int(key, chairSel[style][c]);
+    if (style == cur.P.style) chairDirty = 1;
+}
+static void cast_keys(int k, const Plan *P) {
+    for (int s = I_KEYS; s <= I_KEYSL; s++) {
+        int lng = s == I_KEYSL;
+        switch (k) {
+        case CK_WURLI:    inst(s, INSTR_EPIANO, 4, 0, 6, lng ? 2600 : 320, 0.55f, 0.40f, 0.30f); break;
+        case CK_RHODES:   inst(s, INSTR_EPIANO, 2, 0, 7, lng ? 2600 : 320, 0.10f, 0.36f, 0.18f); break;
+        case CK_FELT:     inst(s, INSTR_PIANO, 2, 0, 7, lng ? 2800 : 450, 0.04f, 0.20f, 0.55f); break;
+        case CK_BRIGHTUP: inst(s, INSTR_PIANO, 2, 0, 7, lng ? 2400 : 380, 0.22f, 0.62f, 0.30f); break;
+        case CK_HOUSEPNO: inst(s, INSTR_PIANO, 1, 0, 7, lng ? 1400 : 180, 0.22f, 0.85f, 0.25f); break;
+        case CK_CELESTA:  inst(s, INSTR_MALLET, 1, 500, 2, lng ? 1200 : 400, 0.50f, 0.55f, 0.45f); break;
+        case CK_MUSICBOX: inst(s, INSTR_MALLET, 0, 700, 0, 500, 0.72f, 0.75f, 0.30f); instrument_tune(s, 12); break;
+        case CK_VIBESK:   inst(s, INSTR_MALLET, 1, 0, 7, lng ? 1600 : 900, 0.25f, 0.50f, 0.85f); instrument_filter(s, FILTER_LOW, 3000, 0); break;
+        case CK_STRINGS:  inst(s, INSTR_SAW, 250, 0, 7, lng ? 2500 : 900, 0.5f, 0.5f, 0.5f); instrument_unison(s, 3, 0.15f);
+                          instrument_filter(s, FILTER_LOW, 3200, 0); instrument_lfo(s, 0, LFO_PITCH, 5.0f, 0.03f); break;
+        case CK_GLASS:    inst(s, INSTR_MODAL, 120, 0, 7, lng ? 2500 : 1500, 0.88f, 0.18f, 0.92f); break;
+        case CK_PDPAD:    inst(s, INSTR_PD, 300, 0, 7, lng ? 2000 : 1200, 0.30f, 0.30f, 0.50f); instrument_filter(s, FILTER_LOW, 2500, 0); break;
+        case CK_FM4GLASS: inst(s, INSTR_FM4, 2, 900, 3, lng ? 1500 : 600, 0.86f, 0.40f, 0.10f); break;
+        case CK_SUPERSAW: inst(s, INSTR_SAW, 2, 200, 4, lng ? 900 : 150, 0.5f, 0.5f, 0.5f); instrument_unison(s, 7, 0.30f);
+                          instrument_filter(s, FILTER_LOW, 4000, 0); break;
+        case CK_NYLON:    inst(s, INSTR_GUITAR, 1, 0, 7, lng ? 1400 : 160, 0.45f, 0.26f, 0.22f); break;
+        case CK_12STR:    inst(s, INSTR_GUITAR, 1, 0, 7, lng ? 1600 : 260, 0.30f, 0.70f, 0.15f); instrument_unison(s, 2, 0.06f); break;
+        case CK_HARP:     inst(s, INSTR_GUITAR, 1, 0, 7, lng ? 2400 : 600, 0.00f, 0.45f, 0.05f); break;
+        case CK_HURDY:    inst(s, INSTR_BOWED, 60, 0, 6, lng ? 900 : 200, 0.30f, 0.65f, 0.60f);
+                          instrument_mode(s, MODE_BOW_BODY, 0.85f); instrument_mode(s, MODE_BOW_SIZE, BOW_SIZE_VIOLA); break;
+        }
+        if (k != CK_VIBESK && k != CK_STRINGS && k != CK_PDPAD && k != CK_SUPERSAW) instrument_filter(s, FILTER_LOW, (int)fmax(2500, P->ep.lp), 0);
+        instrument_reverb(s, 0.30f);
+    }
+}
+static void cast_bass(int k) {
+    for (int s = I_BASS; s <= I_BASSS; s++) {
+        switch (k) {
+        case CB_UPRIGHT:  inst(s, INSTR_BOWED, 3, 0, 7, 90, 0.62f, 0.30f, 0.45f);
+                          instrument_mode(s, MODE_BOW_PIZZ, 1.0f); instrument_mode(s, MODE_BOW_BODY, 0.85f); instrument_mode(s, MODE_BOW_SIZE, BOW_SIZE_BASS);
+                          instrument_filter(s, FILTER_LOW, 950, 0); break;
+        case CB_ROUND:    inst(s, INSTR_SINE, 4, 0, 6, 150, 0.5f, 0.5f, 0.5f); instrument_filter(s, FILTER_LOW, 600, 0); break;
+        case CB_FMRH:     inst(s, INSTR_FM, 1, 600, 3, 120, 0.10f, 0.35f, 0.10f); instrument_filter(s, FILTER_LOW, 1500, 0); break;
+        case CB_FRETLESS: inst(s, INSTR_TRI, 20, 0, 6, 150, 0.5f, 0.5f, 0.5f); instrument_filter(s, FILTER_LOW, 900, 0); instrument_glide(s, 60); break;
+        case CB_PDRESO:   inst(s, INSTR_PD, 2, 250, 3, 80, 0.94f, 0.55f, 0.40f); instrument_filter(s, FILTER_LOW, 1800, 0); break;
+        case CB_808:      inst(s, INSTR_SINE, 2, 900, 0, 200, 0.5f, 0.5f, 0.5f); instrument_env(s, 0, ENV_PITCH, 0, 40, 3.0f); break;
+        case CB_ACID:     inst(s, INSTR_SAW, 1, 200, 3, 60, 0.5f, 0.5f, 0.5f); instrument_filter(s, FILTER_DIODE, 600, 3);
+                          instrument_env(s, 0, ENV_CUTOFF, 0, 160, 1800); break;
+        case CB_FM:       inst(s, INSTR_FM, 1, 300, 3, 80, 0.30f, 0.50f, 0.20f); break;
+        }
+    }
+    instrument_env(I_BASSS, 1, ENV_PITCH, 0, 60, -1.0f);                      // the slid-into note scoops up
+    if (k == CB_ACID) instrument_glide(I_BASSS, 60);
+}
+static void cast_lead(int k, const Plan *P) {
+    for (int s = I_LEAD; s <= I_LEAD2; s++) {
+        switch (k) {
+        case CL_MUTEDTP:  inst(s, INSTR_BRASS, 1, 0, 4, 600, 0.15f, 0.55f, 0.42f); instrument_filter(s, FILTER_BAND, 1700, 2); break;
+        case CL_TENOR:    inst(s, INSTR_REED, 10, 0, 5, 200, 0.80f, 0.35f, 0.50f); instrument_filter(s, FILTER_LOW, 3000, 0); instrument_lfo(s, 0, LFO_PITCH, 5.2f, 0.12f); break;
+        case CL_VIBES:    inst(s, INSTR_MALLET, 1, 0, 7, 1100, 0.25f, 0.50f, 0.90f); break;
+        case CL_CLARINET: inst(s, INSTR_REED, 12, 0, 5, 200, 0.15f, 0.30f, 0.35f); break;
+        case CL_CELESTA:  inst(s, INSTR_MALLET, 1, 500, 2, 400, 0.50f, 0.55f, 0.45f); break;
+        case CL_PANPIPE:  inst(s, INSTR_PIPE, 20, 0, 5, 200, 0.0f, 0.55f, 0.40f); instrument_lfo(s, 0, LFO_PITCH, 5.0f, 0.08f); break;
+        case CL_OOH:      inst(s, INSTR_VOICE, 60, 0, 6, 250, 0.12f, 0.60f, 0.40f); instrument_lfo(s, 0, LFO_PITCH, 5.4f, 0.3f); break;
+        case CL_SUPERSAW: inst(s, INSTR_SAW, 5, 0, 6, 200, 0.5f, 0.5f, 0.5f); instrument_unison(s, 7, 0.25f); instrument_filter(s, FILTER_LOW, 5000, 0); break;
+        case CL_MME:      inst(s, INSTR_MME, 5, 0, 5, 200, 0.30f, 0.45f, 0.50f); instrument_filter(s, FILTER_LOW, 4000, 0); break;
+        case CL_FLUTE:    inst(s, INSTR_PIPE, 14, 0, 5, 220, 0.0f, 0.34f, 0.68f); instrument_lfo(s, 0, LFO_PITCH, 5.0f, 0.10f); instrument_glide(s, 13); break;
+        case CL_ORGAN:    inst(s, INSTR_ORGAN, 1, 0, 7, 200, 0.44f, 0.55f, 0.75f); break;
+        case CL_CELLO:    inst(s, INSTR_BOWED, 80, 0, 6, 300, 0.50f, 0.40f, 0.50f); instrument_mode(s, MODE_BOW_BODY, 0.85f);
+                          instrument_mode(s, MODE_BOW_SIZE, BOW_SIZE_CELLO); instrument_lfo(s, 0, LFO_PITCH, 5.0f, 0.10f); break;
+        case CL_SHAWM:    inst(s, INSTR_REED, 8, 0, 5, 150, 0.05f, 0.95f, 0.60f); break;
+        }
+        instrument_reverb(s, 0.35f); instrument_echo(s, 0.3f); instrument_pan(s, (float)P->leadPan);
+    }
+}
+// the chairs' alternatives go on AFTER the style's own casting: wipe the chair's slots (the default left its
+// modulators there), then cast the pick
+static void apply_chairs(const Plan *P) {
+    int k = ckind(P, CH_KEYS), b = ckind(P, CH_BASS), l = ckind(P, CH_LEAD);
+    if (k > CK_OFF) { slot_reset(I_KEYS); slot_reset(I_KEYSL); cast_keys(k, P); }
+    if (b > CK_OFF) { slot_reset(I_BASS); slot_reset(I_BASSS); cast_bass(b); }
+    if (l > CK_OFF) { slot_reset(I_LEAD); slot_reset(I_LEAD2); cast_lead(l, P); }
+}
+
 static void voice_kit(const Plan *P) {
     double F0 = kv_has(P, "drums.kit.kickF0") ? kv(P, "drums.kit.kickF0") : 110, F1 = kv_has(P, "drums.kit.kickF1") ? kv(P, "drums.kit.kickF1") : 48;
     double kd = kv_has(P, "drums.kit.kickDecay") ? kv(P, "drums.kit.kickDecay") : 0.18;
@@ -292,6 +465,15 @@ static void voice_kit(const Plan *P) {
     // the OPEN hat: house plays one on EVERY offbeat with no closed hat to choke it, and x4000 rang each for
     // >0.5 s into the next — boom-chuff boom-chuff, a steam train. Their open hat is a short exponential tick.
     h[MD_ODEC]  = c01(((is(P, S_HOUSE) ? kv(P, "drums.kit.openDecay") * 1200 : 0.12 * 4000) - 80) / 720.0);
+    switch (ckind(P, CH_DRUMS)) {      // the drums chair: brushes / 808 / 909 re-voice the morphing kit
+    case CD_BRUSH: k[MD_CUT] = 0.30f; k[MD_CLICK] = 0.10f; k[MD_DRIVE] = 0.1f; s[MD_DECAY] = 0.25f; s[MD_TONE] = 0.85f; s[MD_CUT] = 0.30f; break;
+    case CD_808:   k[MD_CHAR] = 0; s[MD_CHAR] = 0; h[MD_CHAR] = 0; k[MD_DECAY] = 0.62f; k[MD_TUNE] = 0.30f; k[MD_PUNCH] = 0.45f; k[MD_CLICK] = 0.08f;
+                   k[MD_DRIVE] = 0.15f; s[MD_TONE] = 0.55f; break;
+    case CD_909:   k[MD_CHAR] = 1; s[MD_CHAR] = 1; h[MD_CHAR] = 1; k[MD_DECAY] = 0.32f; k[MD_PUNCH] = 0.6f; k[MD_CLICK] = 0.40f;
+                   k[MD_DRIVE] = 0.30f; s[MD_TONE] = 0.65f; break;
+    case CD_CAJON: inst(I_TOM, INSTR_MEMBRANE, 0, 0, 7, 120, 0.25f, 0.08f, 0.0f); instrument_level(I_TOM, 1.0f);
+                   inst(I_CLAP, INSTR_MEMBRANE, 0, 0, 7, 50, 0.45f, 0.92f, 0.0f); instrument_filter(I_CLAP, FILTER_OFF, 20000, 0); instrument_level(I_CLAP, 0.85f); break;
+    }
     morph_ride(&kit);
     // (kit levels: set by the style MIX block at the end of voice_track — after the ride, which resets the hats)
     // the percussion slots every style shares a shape of
@@ -564,6 +746,7 @@ static void voice_track(const Plan *P) {
     }
     }
     (void)lv;
+    apply_chairs(P);
     voice_kit(P);
     for (int s = MDS_KICK; s <= MDS_KICKS; s++) sidechain_key(KIT_BASE + s, 0, sc > 0 ? 1.0f : 0.0f);
     pumpAmt = sc * 0.6f * LC_PUMP; pumpRel = scRel;
@@ -591,10 +774,23 @@ static void voice_track(const Plan *P) {
     // the lead, per timbre slot: a trim that BOOSTS goes on the slot's own eq (a private bus), a cut on its level
     //   (lead vs keys, 90 s renders on seeds whose lead enters early; jazzhop's -4 dB is the reference)
     float ld[2] = { STYLE_MIX[P->style].leadDb, STYLE_MIX[P->style].lead2Db };
-    for (int i = 0; i < 2; i++) {
+    for (int i = 0; i < 2 && ckind(P, CH_LEAD) <= CK_OFF; i++) {
         int sl = i ? I_LEAD2 : I_LEAD;
         if (ld[i] > 0) instrument_eq(sl, ld[i], ld[i], ld[i]);
         else if (ld[i] < 0) instrument_level(sl, powf(10, ld[i] / 20));
+    }
+    {   // the chairs' levels: an alternative sits at a measured trim, not the style's own balance
+        int k = ckind(P, CH_KEYS), b = ckind(P, CH_BASS), l = ckind(P, CH_LEAD);
+        if (k > CK_OFF) { float t = chair_trim(P, CH_KEYS);
+                          keysBase = 0.8 * (t < 0 ? powf(10, t / 20) : 1); keysLevel = keysBase * band_layers(P->sec[0].L, P->band, style_of(P)->keysLevel).level;
+                          for (int q = I_KEYS; q <= I_KEYSL; q++) { instrument_level(q, (float)fmin(1, keysLevel)); if (t > 0) instrument_eq(q, t, t, t); } }
+        if (b > CK_OFF) { float t = chair_trim(P, CH_BASS);
+                          for (int q = I_BASS; q <= I_BASSS; q++) { instrument_level(q, 0.8f * (t < 0 ? powf(10, t / 20) : 1)); if (t > 0) instrument_eq(q, t, t, t); } }
+        if (l > CK_OFF) for (int q = I_LEAD; q <= I_LEAD2; q++) {
+            float t = chair_trim(P, CH_LEAD);
+            if (t > 0) instrument_eq(q, t, t, t);
+            instrument_level(q, t < 0 ? powf(10, t / 20) : 1);
+        }
     }
     styleDb = STYLE_MIX[P->style].masterDb; apply_bus();   // every track: the pump / glue + the style gain
     lastLeadAt = -10;
@@ -682,7 +878,13 @@ static void dispatch(Track *T, const Ev *e) {
     switch (e->k) {
     case K_EP: {
         int lng = e->rel > 0.5, held = e->rel >= 0.095 && e->nn >= 3 && durSteps >= 7.5;
-        int slot = lng ? I_KEYSL : I_KEYS;
+        int slot = lng ? I_KEYSL : I_KEYS, kc = ckind(P, CH_KEYS);
+        if (kc == CK_OFF) break;
+        if (kc > CK_OFF) {                                             // an alternative in the keys chair
+            if (guitarish(kc) && held) held_figure(slot, slot, d, e->notes, e->nn, e->vel, e->dur, sd, lng);
+            else play_chord(slot, d, e->notes, e->nn, e->vel, e->dur, guitarish(kc) ? e->strum : e->strum, 0, 1.08);
+            flash[K_EP] = 1; break;
+        }
         switch (P->style) {
         case S_PIANO: case S_SAD: {
             int roll = e->nn >= 3 && rnd_float() < kv(P, "piano.roll");
@@ -742,21 +944,32 @@ static void dispatch(Track *T, const Ev *e) {
         flash[K_EP] = 1; break;
     }
     case K_BASS: {
-        if (is(P, S_PIANO)) { schedule_at(d, e->midi, I_KEYS, v2vol(e->vel, 10.5), (int)(e->dur * 1000)); flash[K_BASS] = 1; break; }   // the left hand
+        int bk = ckind(P, CH_BASS);
+        if (bk == CK_OFF) break;
+        if (is(P, S_PIANO) && bk == CK_DEF) { schedule_at(d, e->midi, I_KEYS, v2vol(e->vel, 10.5), (int)(e->dur * 1000)); flash[K_BASS] = 1; break; }   // the left hand
         int s = e->slide ? I_BASSS : I_BASS;
         schedule_at(d, e->midi, s, v2vol(e->vel, 8.6), (int)(e->dur * 1000)); flash[K_BASS] = 1; break;
     }
+    case K_KICK: case K_SNARE: case K_HAT: case K_RIM: case K_CLAP: case K_SHAKER: case K_TOM: case K_BLOCK:
+        if (ckind(P, CH_DRUMS) == CK_OFF) break;
+        if (ckind(P, CH_DRUMS) == CD_CAJON && e->k <= K_HAT) {         // the cajon: bass tone, slap, and the rest as a shaker
+            if (e->k == K_KICK) schedule_at(d, 40, I_TOM, v2vol(e->vel, 9), 200);
+            else if (e->k == K_SNARE) schedule_at(d, 62, I_CLAP, v2vol(e->vel, 9), 80);
+            else schedule_at(d, 60, I_SHAKER, v2vol(e->vel * 0.8, 7.6), 40);
+            flash[K_KICK] = 1; break;
+        }
+        switch (e->k) {
     case K_KICK:
-        if (is(P, S_MEDIEVAL)) { schedule_at(d, (int)lround(ftom(kv(P, "drums.kit.kickF0"))), I_TOM, v2vol(e->vel, 10), (int)(kv(P, "drums.kit.kickDecay") * 3000)); }
+        if (is(P, S_MEDIEVAL) && ckind(P, CH_DRUMS) == CK_DEF) { schedule_at(d, (int)lround(ftom(kv(P, "drums.kit.kickF0"))), I_TOM, v2vol(e->vel, 10), (int)(kv(P, "drums.kit.kickDecay") * 3000)); }
         else fire_kick(d, e->vel);
         flash[K_KICK] = 1; break;
     case K_SNARE:
-        if (is(P, S_MEDIEVAL)) schedule_at(d, (int)lround(ftom(kv(P, "drums.kit.slapBP") / 3)), I_CLAP, v2vol(e->vel, 10), 80);
+        if (is(P, S_MEDIEVAL) && ckind(P, CH_DRUMS) == CK_DEF) schedule_at(d, (int)lround(ftom(kv(P, "drums.kit.slapBP") / 3)), I_CLAP, v2vol(e->vel, 10), 80);
         else fire_snare(d, e->vel);
         flash[K_SNARE] = 1; break;
     case K_HAT:
-        if (is(P, S_HOUSE)) schedule_at(d, 60, e->open ? I_NHATO : I_NHAT, v2vol(e->vel, 7.6), e->open ? (int)(kv(P, "drums.kit.openDecay") * 4000) : 60);
-        else if (is(P, S_MEDIEVAL)) { for (int b = 0; b < (e->open ? 5 : 3); b++) schedule_at(d + b * (e->open ? 0.022 : 0.012), 84, I_BLOCK, v2vol(e->vel * (b ? 0.7 : 1), 7), e->open ? 160 : 60); }
+        if (is(P, S_HOUSE) && ckind(P, CH_DRUMS) == CK_DEF) schedule_at(d, 60, e->open ? I_NHATO : I_NHAT, v2vol(e->vel, 7.6), e->open ? (int)(kv(P, "drums.kit.openDecay") * 4000) : 60);
+        else if (is(P, S_MEDIEVAL) && ckind(P, CH_DRUMS) == CK_DEF) { for (int b = 0; b < (e->open ? 5 : 3); b++) schedule_at(d + b * (e->open ? 0.022 : 0.012), 84, I_BLOCK, v2vol(e->vel * (b ? 0.7 : 1), 7), e->open ? 160 : 60); }
         else fire_hat(d, e->vel, e->open);
         flash[K_HAT] = 1; break;
     case K_RIM: {
@@ -777,11 +990,14 @@ static void dispatch(Track *T, const Ev *e) {
         schedule_at(d, m, I_TOM, v2vol(e->vel, 8), 200); flash[K_KICK] = 1; break;
     }
     case K_BLOCK: schedule_at(d, is(P, S_HOUSE) ? 64 : 80, I_BLOCK, v2vol(e->vel, 7.6), is(P, S_HOUSE) ? 400 : 40); flash[K_HAT] = 1; break;
+        }
+        break;
     case K_LEAD: {
         if (!P->hasLead) break;
         const char *lt = kvs(P, "lead.timbre"), *lv = kvs(P, "lead.voice");
-        int s = I_LEAD;
-        switch (P->style) {
+        int s = I_LEAD, lk = ckind(P, CH_LEAD);
+        if (lk == CK_OFF) break;
+        if (lk == CK_DEF) switch (P->style) {
         case S_JAZZHOP: s = !strcmp(lt, "soft") ? I_LEAD2 : I_LEAD; break;
         case S_BOSSA:   s = !strcmp(lt, "flute") ? I_LEAD2 : I_LEAD; break;
         case S_AMBIENT: s = !strcmp(lt, "soft") ? I_LEAD2 : I_LEAD;
@@ -954,6 +1170,11 @@ static void ride_sections(void) {
     static int lastBar = -2, lastStyleR = -1;
     const Plan *P = &cur.P;
     double barDur = 16 * stepDur(P); int bar = (int)floor((clk - cur.start) / barDur);
+    if (chairDirty && bar != lastBar) {                           // a band-panel pick lands on the bar line
+        int ch[6] = { I_KEYS, I_KEYSL, I_BASS, I_BASSS, I_LEAD, I_LEAD2 };
+        for (int i = 0; i < 6; i++) slot_reset(ch[i]);
+        voice_track(&cur.P); chairDirty = 0;
+    }
     if (bar == lastBar && P->style == lastStyleR) return;
     lastBar = bar; lastStyleR = P->style;
     int sec = sec_at_bar(&cur, bar < 0 ? 0 : bar);
@@ -1011,6 +1232,8 @@ void update(void) {
     static bool booted = false;
     if (!booted) {
         setup_band();
+        if (LC_FORCE < 0) chairs_load();
+        else if (LC_FORCE != 99) chairSel[LOFI_STYLE >= 0 ? LOFI_STYLE : 0][LC_FORCE / 10] = LC_FORCE % 10;
         uint32_t seed = LOFI_SEED ? LOFI_SEED : (uint32_t)(rnd(1 << 30)) * 4u + (uint32_t)rnd(4);
         clk = 0;
         if (LOFI_STYLE >= 0) styleSel = LOFI_STYLE;
@@ -1028,6 +1251,13 @@ void update(void) {
     if (keyp('B')) set_band((bandSel + 1) % NBAND);                                  // from the next bar
     if (keyp('C')) { citySel = (citySel + 1) % LC_NCITY; refresh_queue(); }
     if (keyp('H')) showHelp = !showHelp;
+    if (keyp('I')) showBand = !showBand;
+    if (showBand) {                                                   // the band panel: rows = chairs, left/right = cycle
+        if (keyp(KEY_UP)) bandRow = (bandRow + NCHAIR - 1) % NCHAIR;
+        if (keyp(KEY_DOWN)) bandRow = (bandRow + 1) % NCHAIR;
+        if (keyp(KEY_LEFT)) chair_cycle(cur.P.style, bandRow, -1);
+        if (keyp(KEY_RIGHT)) chair_cycle(cur.P.style, bandRow, 1);
+    }
     for (int i = 0; i < NFXT; i++) if (keyp('1' + i)) toggle_fx(i);
     advance();
     ride_sections();
@@ -1180,6 +1410,24 @@ void draw(void) {
     }
     print(str("up next: %s  (%s %s)", upNext[0].title, NOTE_NAMES[upNext[0].key.tonic], upNext[0].key.major ? "maj" : "min"), 8, 168, CLR_INDIGO);
     font(FONT_NORMAL);
+    if (ui_button(8, 36, 40, 11, "I band")) showBand = !showBand;
+    if (showBand) {
+        const Plan *Pb = &cur.P; int x0 = 44, y0 = 54, w = 232, h = 20 + NCHAIR * 16 + 10;
+        rectfill(x0, y0, w, h, CLR_BROWNISH_BLACK); rect(x0, y0, w, h, CLR_PEACH);
+        font(FONT_SMALL);
+        print(str("THE BAND - %s%s", STYLES[Pb->style]->name, chairDirty ? "   (next bar)" : ""), x0 + 6, y0 + 5, CLR_PEACH);
+        for (int c = 0; c < NCHAIR; c++) {
+            int y = y0 + 18 + c * 16; const Chair *ch = &CHAIRS[Pb->style][c]; int sel = chairSel[Pb->style][c];
+            if (c == bandRow) rectfill(x0 + 3, y - 2, w - 6, 13, CLR_DARKER_PURPLE);
+            print(CHAIR_NAME[c], x0 + 8, y + 2, CLR_INDIGO);
+            if (ui_button(x0 + 50, y, 14, 10, "<")) { bandRow = c; chair_cycle(Pb->style, c, -1); }
+            print(ch->c[sel].name, x0 + 70, y + 2, ch->c[sel].kind == CK_OFF ? CLR_DARK_PURPLE : sel ? CLR_YELLOW : CLR_LIGHT_PEACH);
+            if (ui_button(x0 + w - 24, y, 14, 10, ">")) { bandRow = c; chair_cycle(Pb->style, c, 1); }
+            for (int q = 0; q < ch->n; q++) pset(x0 + 150 + q * 4, y + 5, q == sel ? CLR_PEACH : CLR_DARK_PURPLE);
+        }
+        print("up/down: part   left/right: instrument   I: close", x0 + 6, y0 + h - 8, CLR_DARK_PURPLE);
+        font(FONT_NORMAL);
+    }
     if (showHelp) {
         rectfill(40, 40, 240, 92, CLR_BROWNISH_BLACK); rect(40, 40, 240, 92, CLR_PEACH);
         font(FONT_SMALL);
@@ -1192,6 +1440,7 @@ void draw(void) {
             "B           band full / no drums / chords only (next bar)",
             "C           city - the words the titles are made of",
             "1-6         off/on: tone . tape . bus . trem . vinyl . human",
+            "I           the band: swap or mute keys/bass/lead/drums",
             "H           this help",
             "",
             "each track = one seed: key (moves to a related key),",

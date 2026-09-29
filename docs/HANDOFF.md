@@ -44,6 +44,22 @@ a broken doc link or `#section`).
 > What a reader needs to *choose* a lane is in the front-door output; what they need to *resume*
 > one is in the lane itself. A summary in between is a third copy, and it is the copy nobody
 > updates. If you find yourself writing one again, teach `handoff.js` to print it instead.
+> **▶ ACTIVE THREAD (2026-09-29) — RADIO ARRANGER: make `lofi` as good as `loficity`, as a METHOD the other 38 stations can reuse.**
+>
+> The maker's goal is not one good lofi station but a repeatable strategy: measure the gap to a
+> reference, copy loficity's ARCHITECTURE (one arranger core + a style table per station, with a real
+> major/minor key model), then tune by ear with a scorecard as guard rails.
+>
+> **✅ SHIPPED:** `lofi.c` plans the song (form, per-part roles, A/B harmony) AND every bar knowing the
+> next (comp rhythms + push, grooves + fills, kick-locked bass, a phrased lead), wrong-scale lead fixed
+> (`7372c450`) · [`tools/arrange-score.js`](../tools/arrange-score.js), the scorecard, on sample-stamped
+> voice-trace events (`87600093`): `node tools/arrange-score.js lofi loficity`. First reading: the
+> skeleton matches; the gap is a fragmented lead, a tune dragged too late, a thin snare.
+>
+> **Resume at:** [the strategy + the first scorecard reading](design/radio-arranger-lessons.md#5-the-strategy-make-lofi-as-good-as-loficity-in-a-way-we-can-repeat)
+> — next is `lofi` rebuilt on a shared arranger core, lead phrasing first; re-score after each change.
+> The maker judges by ear; bake before handing over. **Hot files:** `tools/carts/lofi.c`, `runtime/radio.h`.
+
 > **▶ ACTIVE THREAD (2026-08-27) — REFERENCE-MODEL COMPARISON: bowed FIXED, pipe investigated and CUT, brass still open.**
 >
 > Started from the maker saying [chrisjz/luthier](https://github.com/chrisjz/luthier) sounded better

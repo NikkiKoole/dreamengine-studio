@@ -1,6 +1,6 @@
 # What loficity's arranger teaches the radio stations
 
-STATUS: BUILDING (2026-09-29): phase 0 landed on `lofi.c` (the `radio.h` sample-clock grid + its gate); the other 38 stations migrate next, then the phase 1 arranger pilot.
+STATUS: BUILDING (2026-09-29): phases 0, 1 (song + bar planner) and 3's first customer landed on `lofi.c`. Next: the owner's A/B against loficity, then phase 0 for the other 38 stations and phase 2's second customer.
 
 `loficity` (2026-09-28) is a line-for-line port of Lofi Cities' arranger
 ([`runtime/loficity/arranger.h`](../../runtime/loficity/arranger.h), played by
@@ -226,8 +226,59 @@ station wants it.
   for today's path; `lofi.c`'s sequence of watch() states identical at seed 7, only the displayed chord flips ~6 frames
   later because the grid books 100 ms ahead instead of one step)
 - [ ] Phase 0: remaining 38 stations migrated (`build-all` + trace-unchanged per cart)
-- [ ] Phase 1: `lofi.c` form + layers + A/B progs + push/fill/dip + tone ride; baked + clip
+- [x] Phase 1: `lofi.c` form + layers + A/B progs + push/fill/dip + tone ride; baked + clip (2026-09-29: planned at
+  `new_song` on a derived stream `arr_seed(seed, k)`, so the seed rule holds: seed 7's song 1 keeps rainy / Bb / 80; one
+  full song runs intro A B break A B outro and ends into a related key; a form strip shows the plan. Owner A/B vs loficity next)
+- [x] Phase 1b: the BAR planner (2026-09-29, after the owner's verdict on phase 1: "the arrangement is crap"). Phase 1 had
+  planned the SONG but still played every bar from the old step player, so inside a section every bar was identical: two
+  Rhodes stabs, one beat, one bass note. Now `plan_bar()` plans each bar knowing the next: a comp rhythm per bar (5, a
+  per-mood taste) clipped to the chords, four-voice voicings + strum, the push; one of five grooves per song with B's open
+  hats / ghost snares, fills, dropped-kick bars; the bass on the kicks + changes with a half-step approach; B gets its own
+  progression bank (or A + ii-V), 1 or 2 bars a chord, mid-bar changes. The pocket is applied at booking, so the knob stays live.
 - [ ] Phase 2: second customer (`house` or `bossa`), shared blocks extracted
 - [ ] Phase 2: rollout to the no-form stations
-- [ ] Phase 3: seeded motif phrasing, first on `lofi.c`
+- [x] Phase 3 (first customer): `lofi.c`'s lead grows the song's own dab cell (the seed's `cellOn`/`cellDeg`) into a phrase per 4 bars: stated, answered, strong beats snapped to chord tones, register continuity, inverted + shifted in B, a pickup every third statement. Not yet shared (`motif.h` waits for a second customer)
 - [ ] Phase 4: shared humanise layer
+
+## 5. The strategy: make lofi as good as loficity, in a way we can repeat
+
+Set 2026-09-29 by the owner: the goal is not one good lofi station but a **method** that then lifts the
+other channels. Phase 1 taught why a one-off rewrite is not that method: it copied the plan's *outline*,
+kept the step player's bars, and a wrong-scale lead reached the owner's ears before any gate saw it.
+
+1. **Measure the gap: `tools/arrange-score.js`.** It reads the notes a cart actually played (the engine's
+   sample-stamped voice events, no cart changes) and scores what "sounds bad" is made of: lead clashes
+   against the sounding chord (the wrong-scale detector), per-part bar repetition and distinctness,
+   section contrast (notes and layers per 4-bar block), harmony rate and voicing size, phrasing, the
+   pocket per part, dynamics. Run a station next to its reference (`node tools/arrange-score.js lofi
+   loficity`); the gap becomes a list of numbers. The same scorecard runs on every station.
+2. **Copy loficity's architecture, not its numbers.** It is one arranger core plus a data table per style
+   (`arranger.h` + `style_*.h`). Ours: an arranger core on the shelf (phase 2's blocks, grown), with a
+   real **major/minor key model** so no station can play in the wrong scale again, and each station a
+   style table (progression banks per mode, comp rhythms, grooves, fills, energy) plus idiom hooks.
+3. **Tune by ear, with the scorecard as guard rails.** Loficity's numbers came from long listening and
+   there is no shortcut; the scorecard keeps the owner's ear on taste instead of on catching bugs.
+   Loop per station: scorecard pass → owner listens → adjust the table → repeat.
+4. **References.** loficity also ships house, bossa, piano, sad, synth, guitar, ambient and medieval
+   styles: stations in those genres get the same A/B. Elsewhere the blind brief + the scorecard.
+
+Order: scorecard (done) → `lofi` rebuilt as the first customer of the core, until its scorecard matches
+loficity's and the owner signs off → `house` (a loficity style to A/B) → the rest, alongside phase 0.
+
+**Reading the scorecard.** No column is "good" in isolation: the reference decides. A clash % near the
+reference's is fine (chromatic passing notes are music); 3× it is a scale bug. Repetition near 100% on
+keys means every bar is the same bar; near 0% on drums means no groove. The pocket is measured against
+the KICK (the grid's phase comes from it), so a late snare reads as late.
+
+**First reading (2026-09-29, `arrange-score.js lofi loficity`, seeds 1-3 × 6 min, after the lead-scale
+fix).** The skeleton now matches: song length, bars, block contrast, layers per block, chord-change rate,
+voicing size and per-part repetition are all within a few percent of loficity. The gap is in the details:
+
+- **the lead is fragmented**: phrases of 1.4 notes vs 2.5, range 0.9 semitones vs 2.4, stepwise 52% vs
+  73%. Our notes sit too far apart to join into lines (a gap of a beat ends a phrase). First thing to fix.
+- **the lead and keys sit far later**: lead +37 ms vs +4, keys +34 vs +21, keys spread 16 ms vs 8. The
+  pocket knob's defaults drag the melodic parts; loficity drags the snare and keeps the tune near the grid.
+- **half the snare activity** (2.4 vs 4.3 per bar: loficity has rims, ghosts and claps), and flat hats
+  (vol sd 0.52 vs 1.11: no accent shape).
+- keys register 64 vs 59 (ours sit higher), bass clash 28% vs 18% (more chromatic approaches than theirs).
+- lead clash 1.1% vs 6.3%: fine; the wrong-scale bug is gone, and theirs carries more passing tension.

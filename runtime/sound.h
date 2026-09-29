@@ -136,16 +136,22 @@ static int           wavcap_ch    = 1;           // 1 = mono downmix (the harnes
 // reuse/off). If the ring overflows (>SVE_RING events between frame drains) the oldest are
 // lost — 512 is far above any real music cart's per-frame churn.
 enum { SVE_ON = 0, SVE_OFF, SVE_REUSE, SVE_STEAL, SVE_CHOKE };
-typedef struct { int type, slot, midi, voice, victim; } SoundVoiceEvent;
+// `smp` = the exact SAMPLE the event happened on (the block's first sample + the mix loop's index), and
+// `vol`/`dur` = a note-on's volume + gate in samples (-1 elsewhere) — what tools/arrange-score.js reads to
+// score an ARRANGEMENT (clashes, repetition, pocket) from the notes a station actually played.
+typedef struct { int type, slot, midi, voice, victim, vol, dur; long long smp; } SoundVoiceEvent;
 #define SVE_RING 512
 static SoundVoiceEvent sve_ring[SVE_RING];
 static volatile unsigned sve_w = 0;   // audio-thread write cursor (monotonic)
 static unsigned          sve_r = 0;   // game-thread read cursor
-static void sve_push(int type, int slot, int midi, int voice, int victim) {
+static unsigned          sve_pos = 0; // the mix loop's sample index inside the current block (audio thread)
+static void sve_push_v(int type, int slot, int midi, int voice, int victim, int vol, int dur) {
     unsigned w = sve_w;
-    sve_ring[w & (SVE_RING - 1)] = (SoundVoiceEvent){ type, slot, midi, voice, victim };
+    long long smp = atomic_load_explicit(&snd_sample_clock, memory_order_relaxed) + sve_pos;
+    sve_ring[w & (SVE_RING - 1)] = (SoundVoiceEvent){ type, slot, midi, voice, victim, vol, dur, smp };
     sve_w = w + 1;   // publish the event only after its fields are stored
 }
+static void sve_push(int type, int slot, int midi, int voice, int victim) { sve_push_v(type, slot, midi, voice, victim, -1, -1); }
 // (2) SOLO mask: mute every voice whose instr_slot isn't in the mask, at the bus sum. The
 // voice still runs and still records its real last_out, so voice allocation/steal is
 // UNCHANGED — only the audible output is a stem. Set by --solo-slot; 0/inactive = no-op.
@@ -6301,7 +6307,7 @@ static void sound_fire_req(SoundReq r) {
         sound_choke_group(r.b);
         int vi = sound_find_voice();
 #ifdef DE_TRACE
-        sve_push(SVE_ON, r.b, r.a, vi, -1);   // fire-and-forget note() — victim -1 (no handle)
+        sve_push_v(SVE_ON, r.b, r.a, vi, -1, r.c, gate);   // fire-and-forget note() — victim -1 (no handle)
 #endif
         sound_setup_note(&voices[vi], r.a, r.b, r.c, gate);
     } break;
@@ -6322,7 +6328,7 @@ static void sound_fire_req(SoundReq r) {
             voices[vi].owner_gen  = gen;
             held_voice[slot] = vi;
 #ifdef DE_TRACE
-            sve_push(SVE_ON, r.b, r.a, vi, slot);   // held note_on — victim = handle slot
+            sve_push_v(SVE_ON, r.b, r.a, vi, slot, r.c, -1);   // held note_on — victim = handle slot
 #endif
         }
     } break;
@@ -7233,6 +7239,9 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
 #endif
 
     // 1) drain queued requests: fire immediate, hold delayed
+#ifdef DE_TRACE
+    sve_pos = 0;
+#endif
     for (;;) {
         int tail = atomic_load_explicit(&req_tail, memory_order_relaxed);          // consumer owns tail
         if (tail == atomic_load_explicit(&req_head, memory_order_acquire)) break;  // acquire pairs with the producer's release → the entry writes are visible
@@ -7267,6 +7276,9 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
     // the pen per sample keeps every schedule_hit offset intact; the pen is
     // tiny (<64) so the cost is noise.
     for (unsigned int i = 0; i < frames; i++) {
+#ifdef DE_TRACE
+        sve_pos = i;   // voice events stamped inside the loop land on their exact sample
+#endif
         float busL[SOUND_FX_BUSES] = {0.0f}, busR[SOUND_FX_BUSES] = {0.0f};   // per-insert-bus stereo accumulators (bus 0 = master)
         float echo_in   = 0.0f; // this sample's summed sends into the echo bus   (MONO — centered in v1)
         float reverb_in = 0.0f; // this sample's summed sends into the reverb bus (MONO — centered in v1)

@@ -645,6 +645,10 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
                              in sound.h mid-run compares two different builds (that happened). `--quiet` gates,
                              `--selfcheck` = 30 known answers on constructed WAV pairs (no cart, no engine),
                              mutation-tested. docs/design/analog-outboard-chain.md §4
+             arrange-score.js  the ARRANGEMENT scorecard: reads the notes a music cart PLAYED (DE_TRACE voice events,
+                             sample-stamped) and scores lead clashes (wrong scale), per-part bar repetition, section
+                             contrast, pocket, phrasing, harmony; side by side vs a reference (`lofi loficity`). Needs
+                             only a per-cart ROLE map. `--selfcheck`. docs/design/radio-arranger-lessons.md §5
              voice-trace.js  read a --trace run's voice-allocation events (on/off/reuse/steal/choke, naming the
                              victim) → why a voice stopped; twin of play.js --solo-slot (stem render). For "a solo got
                              cut off by another instrument". Design: docs/design/audio-voice-debugging.md

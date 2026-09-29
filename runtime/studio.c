@@ -1972,9 +1972,9 @@ static void harness_trace(int fno) {
         while (sve_r != sve_w) {
             SoundVoiceEvent e = sve_ring[sve_r & (SVE_RING - 1)];
             sve_r++;
-            fprintf(trace_file, "{\"vev\":\"%s\",\"f\":%d,\"slot\":%d,\"midi\":%d,\"voice\":%d,\"victim\":%d}\n",
+            fprintf(trace_file, "{\"vev\":\"%s\",\"f\":%d,\"slot\":%d,\"midi\":%d,\"voice\":%d,\"victim\":%d,\"smp\":%lld,\"vol\":%d,\"dur\":%d}\n",
                     (e.type >= 0 && e.type <= SVE_CHOKE) ? SVE_NAME[e.type] : "?",
-                    fno, e.slot, e.midi, e.voice, e.victim);
+                    fno, e.slot, e.midi, e.voice, e.victim, e.smp, e.vol, e.dur);
         }
     }
 #endif

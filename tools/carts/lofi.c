@@ -180,7 +180,7 @@ static int deg_midi(int deg, int lo, int hi) {
 static void play_step(long abs, double pos) {
     long s = abs - songBase;
     if (s < 0) return;
-    int  dly  = rad_step_dly(&clk, abs, pos);
+    (void)pos;
     int  step = (int)(s % 16);
     long bar  = s / 16;
     int  cs   = (int)(s % 32);
@@ -195,26 +195,26 @@ static void play_step(long abs, double pos) {
     int   swing  = (step % 2) ? (int)(pk * stepMs * 0.30f) : 0;                           // offbeat hats swung
 
     // ── THE DUSTY KIT — soft boom kick, fat lazy snare, swung hats ──
-    if (step == 0 || (step == 8 && bar % 2 == 0)) { schedule_hit(dly + kkDrag, 34, I_KICK, 6, 120); vu += 1.0f; }
-    if (step == 10 && chance(35)) schedule_hit(dly + kkDrag, 34, I_KICK, 4, 100);          // a ghost kick
-    if (step == 4 || step == 12)  { schedule_hit(dly + snDrag, 60, I_SNR, 5, 120); vu += 0.9f; }   // the dragged backbeat
+    if (step == 0 || (step == 8 && bar % 2 == 0)) { rad_hit(&clk, abs, kkDrag, 34, I_KICK, 6, 120); vu += 1.0f; }
+    if (step == 10 && chance(35)) rad_hit(&clk, abs, kkDrag, 34, I_KICK, 4, 100);          // a ghost kick
+    if (step == 4 || step == 12)  { rad_hit(&clk, abs, snDrag, 60, I_SNR, 5, 120); vu += 0.9f; }   // the dragged backbeat
     if (step % 2 == 0 || pk > 0.5f)
-        schedule_hit(dly + swing + rnd(2), 90, I_HAT, step % 4 == 0 ? 2 : 1, 26);
+        rad_hit(&clk, abs, swing + rnd(2), 90, I_HAT, step % 4 == 0 ? 2 : 1, 26);
 
     // ── RHODES — lush jazz comp, a touch behind, re-voiced on the change ──
     if (step == 0 || step == 8) {
         rad_lead_to(rt, QV[c.q], gvEP, 3, 54, 74, &epInit);
         for (int k = 0; k < 3; k++)
-            schedule_hit(dly + epDrag + k * 9 + rnd(3), gvEP[k], I_EP, step == 0 ? 4 : 3, (int)(stepMs * 7));
+            rad_hit(&clk, abs, epDrag + k * 9 + rnd(3), gvEP[k], I_EP, step == 0 ? 4 : 3, (int)(stepMs * 7));
         vu += 1.0f;
     }
 
     // ── BASS — round, walking, gently behind ──
     if (step == 0) { int n = bass_peek(rt, 31, 45); bassLast = n;
-        schedule_hit(dly + (int)(pk * stepMs * 0.08f) + 4, n, I_BASS, 5, (int)(stepMs * 6)); vu += 0.8f; }
+        rad_hit(&clk, abs, (int)(pk * stepMs * 0.08f) + 4, n, I_BASS, 5, (int)(stepMs * 6)); vu += 0.8f; }
     else if (step == 10 && chance(50)) {                                                   // a passing note
         int nb = bass_peek(root_pc(chord_at(bar + 1)), 31, 45);
-        schedule_hit(dly + 4, nb, I_BASS, 3, (int)(stepMs * 2));
+        rad_hit(&clk, abs, 4, nb, I_BASS, 3, (int)(stepMs * 2));
     }
 
     // ── THE SAMPLED DAB — sparse muted horn / vibe, filtered + reverbed, laid back ──
@@ -222,7 +222,7 @@ static void play_step(long abs, double pos) {
         if (sng.cellOn[i] == cs && chance(62)) {
             int gap = (i + 1 < sng.cellN) ? sng.cellOn[i + 1] - cs : 32 - cs;
             int dur = (int)(gap * stepMs * 0.7); if (dur > 1500) dur = 1500;
-            schedule_hit(dly + epDrag + 14 + rnd(8), deg_midi(sng.cellDeg[i], 64, 80), I_DAB, 3, dur);
+            rad_hit(&clk, abs, epDrag + 14 + rnd(8), deg_midi(sng.cellDeg[i], 64, 80), I_DAB, 3, dur);
             vu += 0.7f;
         }
 }
@@ -301,8 +301,8 @@ static void apply_tone(void) {
 // ── update ──────────────────────────────────────────────────────────────────
 void update(void) {
     static bool booted = false;
-    double pos = (double)beat() * 4.0 + beat_pos() * 4.0;
-    stepMs = 60000.0 / (tempo * 4);
+    // the step grid runs on the SAMPLE clock (radio.h rad_audio_*): every hit lands on its sample
+    double pos = rad_audio_pos(&clk, tempo);
 
     if (!booted) {
         setup_instruments();
@@ -324,7 +324,7 @@ void update(void) {
     if (chair >= 0) apply_chair(chair);
 
     if (radioOn) {
-        long st; while (rad_clock_step(&clk, pos, &st)) play_step(st, pos);
+        long st; while (rad_audio_step(&clk, &st)) play_step(st, pos);
         if (scheduled - songBase >= 64L * 16) fresh_song(pos);
         for (int i = 0; i < 4; i++) chord_label(nowChord[i], 8, LOOPS[sng.loop].c[i % loop_len()]);
         platter += dt() * (tempo / 60.0f) * 1.2f;       // the turntable spins with the tempo

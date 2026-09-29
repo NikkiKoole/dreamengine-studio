@@ -1,6 +1,6 @@
 # What loficity's arranger teaches the radio stations
 
-STATUS: READY (2026-09-29): audit done, plan specced, nothing built yet. Phase 0 (sample-clock timing) is the first build step.
+STATUS: BUILDING (2026-09-29): phase 0 landed on `lofi.c` (the `radio.h` sample-clock grid + its gate); the other 38 stations migrate next, then the phase 1 arranger pilot.
 
 `loficity` (2026-09-28) is a line-for-line port of Lofi Cities' arranger
 ([`runtime/loficity/arranger.h`](../../runtime/loficity/arranger.h), played by
@@ -221,7 +221,10 @@ station wants it.
 
 ## 4. Tracking
 
-- [ ] Phase 0: `rad_hit` / audio-time clock in `radio.h`; `lofi.c` migrated; gate probe
+- [x] Phase 0: `rad_hit` / audio-time clock in `radio.h`; `lofi.c` migrated; gate probe (2026-09-29: `rad_audio_pos` /
+  `rad_audio_step` / `rad_hit`; `tools/schedule-check` now runs `radclockcheck` through the chassis: 0 samples vs 785
+  for today's path; `lofi.c`'s sequence of watch() states identical at seed 7, only the displayed chord flips ~6 frames
+  later because the grid books 100 ms ahead instead of one step)
 - [ ] Phase 0: remaining 38 stations migrated (`build-all` + trace-unchanged per cart)
 - [ ] Phase 1: `lofi.c` form + layers + A/B progs + push/fill/dip + tone ride; baked + clip
 - [ ] Phase 2: second customer (`house` or `bossa`), shared blocks extracted

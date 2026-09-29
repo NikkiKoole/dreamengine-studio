@@ -154,6 +154,10 @@ typedef struct {
     long   scheduled;   // last absolute 16th-step scheduled (init: (long)pos at boot)
     long   songBase;    // absolute step the current song starts on
     double stepMs;      // 60000 / (tempo * 4) — refresh each frame for live tempo
+    // the SAMPLE-CLOCK grid (rad_audio_*, below) — zero-initialised, so the carts' positional
+    // `{ -1, 0, 160.0 }` initialisers still mean exactly what they did
+    double t0, a0, stepSec;   // audio_time() of grid step a0, and the step length in seconds
+    int    on;                // the grid has been anchored
 } RadioClock;
 
 static bool rad_clock_step(RadioClock *c, double pos, long *step_out) {
@@ -165,6 +169,42 @@ static bool rad_clock_step(RadioClock *c, double pos, long *step_out) {
 static int rad_step_dly(const RadioClock *c, long abs, double pos) {
     int dly = (int)(((double)abs - pos) * c->stepMs);
     return dly < 1 ? 1 : dly;
+}
+
+// ── the SAMPLE-CLOCK step grid (opt-in) — docs/design/radio-arranger-lessons.md, phase 0 ──
+// rad_clock_step / rad_step_dly count from beat(), which advances by the clamped FRAME dt, and a
+// schedule_hit delay counts from whichever audio callback drains it: up to a 23 ms buffer of
+// jitter per note on native (tools/schedule-check measured 785 samples). A station that opts in
+// anchors the SAME step grid on audio_time() and books every hit with schedule_at(), so a step
+// and its feel offset land on their sample. Composition is untouched: same steps, same calls.
+//   each frame:   double pos = rad_audio_pos(&clk, tempo);     // replaces beat()*4 + beat_pos()*4
+//                 long st; while (rad_audio_step(&clk, &st)) play_step(st, pos);
+//   in the step:  rad_hit(&clk, abs, off_ms, midi, instr, vol, dur_ms);   // was schedule_hit(dly + off_ms, …)
+#define RAD_LOOK_S 0.1        // book this far ahead (loficity's look-ahead)
+static double rad_step_time(const RadioClock *c, long abs) { return c->t0 + ((double)abs - c->a0) * c->stepSec; }
+// the grid position now, in (fractional) 16th steps. A tempo change REBASES the grid at the current
+// position, so it stays continuous: the steps already booked keep their times, the next ones follow
+// the new tempo. Also refreshes stepMs, so a cart reading it for durations needs no other change.
+static double rad_audio_pos(RadioClock *c, int tempo) {
+    double now = audio_time(), sp = 60.0 / ((double)tempo * 4.0);
+    if (!c->on) { c->on = 1; c->t0 = now; c->a0 = c->scheduled < 0 ? 0 : (double)c->scheduled; c->stepSec = sp; }
+    else if (sp != c->stepSec) { c->a0 = c->a0 + (now - c->t0) / c->stepSec; c->t0 = now; c->stepSec = sp; }
+    c->stepMs = sp * 1000.0;
+    return c->a0 + (now - c->t0) / c->stepSec;
+}
+// the next step to book, while it falls inside the look-ahead. After a stall (a step already more than
+// 50 ms late) the grid re-anchors a hair ahead instead of firing a burst of late notes.
+static bool rad_audio_step(RadioClock *c, long *step_out) {
+    double now = audio_time();
+    long next = c->scheduled + 1;
+    if (rad_step_time(c, next) < now - 0.05) { c->a0 = (double)next; c->t0 = now + 0.02; }
+    if (rad_step_time(c, next) >= now + RAD_LOOK_S) return false;
+    *step_out = c->scheduled = next;
+    return true;
+}
+// one hit on step `abs`, `off_ms` after it (swing, drag, a strum stagger — negative is early)
+static void rad_hit(const RadioClock *c, long abs, int off_ms, int midi, int instr, int vol, int dur_ms) {
+    schedule_at(rad_step_time(c, abs) + off_ms * 0.001, midi, instr, vol, dur_ms);
 }
 
 // ── the input block ───────────────────────────────────────────────────────

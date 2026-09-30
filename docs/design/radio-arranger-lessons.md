@@ -325,3 +325,25 @@ centroids within a few hundred Hz. **Ear pass pending.**
 **For the other stations**: run `arrange-score.js <station> <ref> --sound` before any arranger work.
 If the sound half is far off, fix the tape, the balance and the casting first; it is cheaper than an
 arranger and it was most of the gap here.
+
+### 6.1 The fragmented lead (2026-09-30)
+
+§5's "lead is fragmented" (1.4 notes a phrase vs 2.5) was the dab cell's RHYTHM: its onsets were 4-7
+sixteenths apart and each kept only 60% of the time, so every note stood alone (a gap of a beat ends a
+phrase). Now the motif is GROUPS, two to four notes a 16th or an 8th apart then a breath (`MOTIFS[]`,
+lofi's own cells), the cell's pitches (still `rad_srnd`, so a pinned seed keeps its melody's notes)
+anchoring each group, the notes inside a group moving by scale step, turning back at the end of a run,
+sometimes repeating. The answer's rhythms got the same grouping and move mostly by one step.
+
+| lead, 3 seeds × 6 min | before | after | loficity |
+|---|---|---|---|
+| phrase len (notes) | 1.43 | **2.47** | 2.47 |
+| range (semitones) | 0.97 | 2.25 | 2.40 |
+| step % (≤ 2 semitones) | 52.5 | 62.4 | 73.3 |
+| strong-beat chord tones % | 67.4 | 78.5 | 67.2 |
+
+**Step % is not the gap it looks like.** It counts semitones, and on a pentatonic ladder a minor third
+IS a step. The interval histograms: ours 62% ≤ 2 · 27% thirds · 11% leaps; loficity 71% · 6% · 23%, of
+which 12% are SEMITONES, the passing tones its humanize layer puts inside a third. Our line is the
+smoother of the two; what theirs has and ours lacks is passing tones, which is phase 4 (the humanize
+layer), not phrasing.

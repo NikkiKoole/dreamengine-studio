@@ -44,7 +44,7 @@ a broken doc link or `#section`).
 > What a reader needs to *choose* a lane is in the front-door output; what they need to *resume*
 > one is in the lane itself. A summary in between is a third copy, and it is the copy nobody
 > updates. If you find yourself writing one again, teach `handoff.js` to print it instead.
-> **▶ ACTIVE THREAD (2026-09-29) — RADIO ARRANGER: make `lofi` as good as `loficity`, as a METHOD the other 38 stations can reuse.**
+> **▶ ACTIVE THREAD (2026-09-30) — RADIO ARRANGER: make `lofi` as good as `loficity`, as a METHOD the other 38 stations can reuse.**
 >
 > The maker's goal is not one good lofi station but a repeatable strategy: measure the gap to a
 > reference, copy loficity's ARCHITECTURE (one arranger core + a style table per station, with a real
@@ -60,7 +60,8 @@ a broken doc link or `#section`).
 > show. `arrange-score.js --sound` (music-mix crest/centroid + per-part stem balance) found a saturated tape,
 > a mix an octave dark, a bass 4 dB low; lofi's band is now cast like loficity's jazzhop (morphdrum, bowed
 > upright, trem Rhodes, clean tape, drag on the backbeat only). Numbers + traps: [§6](design/radio-arranger-lessons.md#6-the-sound-was-the-bigger-gap-2026-09-29-second-pass).
-> Ear pass pending. Still open from §5: the fragmented lead (phrase 1.4 notes vs 2.5).
+> Ear pass pending. **The fragmented lead is fixed** (2026-09-30, [§6.1](design/radio-arranger-lessons.md#61-the-fragmented-lead-2026-09-30)):
+> grouped motif rhythms, phrase 2.47 notes = loficity's. Next candidate: passing tones (phase 4, humanize).
 >
 > **Resume at:** [the strategy + the first scorecard reading](design/radio-arranger-lessons.md#5-the-strategy-make-lofi-as-good-as-loficity-in-a-way-we-can-repeat)
 > — next is `lofi` rebuilt on a shared arranger core, lead phrasing first; re-score after each change.

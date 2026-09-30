@@ -428,8 +428,36 @@ static int snap_chord(int li, BCh c) {      // the nearest ladder step that is a
 }
 static struct { int n; unsigned char s[16], d[16], v[16]; signed char li[16]; long gbar; } phr = { .gbar = -1 };
 static int leadLast = -1, statement = 0;
-static const int ANS[5][5] = { { 0, 3, 6, 12, -1 }, { 2, 6, 8, -1 }, { 0, 4, 6, 10, 16 }, { 4, 8, 12, -1 }, { 0, 2, 6, 14, -1 } };
+// the answer's rhythms: grouped like the motif (they were a beat apart, so the answer broke into single notes too)
+static const int ANS[5][5] = { { 0, 2, 4, 10, -1 }, { 2, 4, 6, 12, -1 }, { 0, 2, 6, 8, 14 }, { 4, 6, 8, 12, -1 }, { 0, 3, 6, 8, -1 } };
 static void phr_add(int s, int li, int v) { if (phr.n < 16) { phr.s[phr.n] = (unsigned char)s; phr.li[phr.n] = (signed char)li; phr.v[phr.n] = (unsigned char)v; phr.d[phr.n] = 2; phr.n++; } }
+// THE MOTIF'S RHYTHM. The dab cell's own onsets were 4-7 sixteenths apart and each kept only 60% of the time,
+// so the lead was single notes a beat or two apart: 1.4 notes a phrase vs loficity's 2.5 (arrange-score).
+// A motif is GROUPS: two to four notes a 16th or an 8th apart, then a breath. The cell keeps its PITCHES
+// (rad_srnd: a pinned seed's melody), each anchoring one group; the rhythm and the inner steps come from a
+// derived stream. lofi's own cells, not loficity's table.
+static const struct { int n; unsigned char s[8], g[8]; } MOTIFS[] = {
+    { 5, { 0, 2, 4, 10, 12 },        { 0, 0, 0, 1, 1 } },          // three up, two answer
+    { 5, { 0, 3, 6, 8, 16 },         { 0, 0, 0, 0, 1 } },          // a four-note run, one long note
+    { 6, { 2, 4, 6, 12, 14, 20 },    { 0, 0, 0, 1, 1, 2 } },       // off the beat, three groups
+    { 6, { 0, 2, 3, 6, 14, 16 },     { 0, 0, 0, 0, 1, 1 } },       // a turn, then a pair
+    { 5, { 1, 4, 6, 8, 18 },         { 0, 0, 0, 0, 1 } },          // a pickup into the run
+    { 6, { 0, 4, 6, 8, 10, 22 },     { 0, 1, 1, 1, 1, 2 } },       // a stab, a run, a tail
+    { 5, { 4, 6, 8, 14, 16 },        { 0, 0, 0, 1, 1 } },          // late: the space first
+};
+#define NMOTIF ((int)(sizeof MOTIFS / sizeof *MOTIFS))
+static struct { int n; unsigned char s[8], g[8]; signed char dir[8]; } mot;
+static void plan_motif(void) {
+    arr_seed(sng.seed, 9);
+    int m = arnd(NMOTIF); mot.n = MOTIFS[m].n;
+    for (int i = 0; i < mot.n; i++) { mot.s[i] = MOTIFS[m].s[i]; mot.g[i] = MOTIFS[m].g[i]; mot.dir[i] = 0; }
+    for (int i = 1, run = 0, d = arnd(100) < 55 ? 1 : -1; i < mot.n; i++) {
+        if (mot.g[i] != mot.g[i - 1]) { run = 0; d = arnd(100) < 55 ? 1 : -1; continue; }   // a new group, a new direction
+        run++;
+        int u = arnd(100);                                                                   // a run turns back at its end,
+        mot.dir[i] = (signed char)(run >= 3 || u < 18 ? -d : u < 36 ? 0 : d);             // and sometimes repeats a note
+    }
+}
 // one phrase per four bars: the song's own dab cell STATED over two bars, then ANSWERED over two
 static void build_phrase(long gbar) {
     const Sect *S = &arr.s[arr.sec[gbar]];
@@ -439,13 +467,16 @@ static void build_phrase(long gbar) {
     statement++;
     int inv = S->name == SC_B, shift = S->name == SC_B ? 2 : 0;
     int li = ladder_near(leadLast > 0 ? leadLast : 70);              // start where the last phrase ended
-    for (int i = 0; i < sng.cellN; i++) {
-        int s = sng.cellOn[i] + shift; if (s >= 30) continue;
-        int d = sng.cellDeg[i] - sng.cellDeg[0]; if (inv) d = -d;
-        int x = li + d; if (x < 0) x = 0; if (x >= nLadder) x = nLadder - 1;
+    int x = li;
+    for (int i = 0; i < mot.n; i++) {
+        int s = mot.s[i] + shift; if (s >= 30) continue;
+        int g = mot.g[i], first = i == 0 || mot.g[i - 1] != g;
+        if (first) { int d = sng.cellDeg[g % sng.cellN] - sng.cellDeg[0]; x = li + (inv ? -d : d); }   // the cell's pitch anchors the group
+        else x += inv ? -mot.dir[i] : mot.dir[i];                                                        // inside a group: a scale step
+        if (x < 0) x = 1; if (x >= nLadder) x = nLadder - 2;
         BCh c = chord_at_step(gbar + s / 16, s % 16);
         if (s % 8 == 0 || is_avoid(ladder[x], c)) x = snap_chord(x, c);
-        phr_add(s, x, i == 0 ? 4 : 3);
+        phr_add(s, x, first ? 4 : 3);
     }
     int at = phr.n ? phr.li[phr.n - 1] : li;
     if (statement % 3 == 0 && at > 0) {                               // every third statement: a pickup
@@ -456,7 +487,7 @@ static void build_phrase(long gbar) {
     const int *A = ANS[arnd(5)]; int na = 0; while (na < 5 && A[na] >= 0) na++;
     for (int k = 0; k < na; k++) {
         int s = 32 + A[k];
-        at += arnd(100) < 60 ? -(1 + arnd(2)) : 1 + arnd(2);          // answers mostly fall
+        { int st = arnd(100) < 75 ? 1 : 2; at += arnd(100) < 60 ? -st : st; }   // answers mostly fall, mostly by step
         if (at < 0) at = 1; if (at >= nLadder) at = nLadder - 2;
         BCh c = chord_at_step(gbar + s / 16, s % 16);
         if (s % 8 == 0 || k == na - 1 || is_avoid(ladder[at], c)) at = snap_chord(at, c);
@@ -469,7 +500,7 @@ static void build_phrase(long gbar) {
     if (phr.n) leadLast = ladder[phr.li[phr.n - 1]];
 }
 
-static void plan_reset(void) { build_ladder(); phr.gbar = -1; bev.bar = -1; leadLast = -1; statement = 0; }
+static void plan_reset(void) { build_ladder(); plan_motif(); phr.gbar = -1; bev.bar = -1; leadLast = -1; statement = 0; }
 
 static void plan_bar(long bar) {
     bev.n = 0; bev.bar = bar;

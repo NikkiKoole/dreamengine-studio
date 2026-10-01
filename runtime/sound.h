@@ -803,6 +803,13 @@ static void flanger_process(int b, float *mixL, float *mixR) {
 #define TAPE_WOW_DEPTH   200.0f     // samples (±4.5ms)
 #define TAPE_FLUT_RATE   6.0f       // Hz — fast warble
 #define TAPE_FLUT_DEPTH  40.0f      // samples (±0.9ms)
+// WARBLE (tape_warble) — ported from CHOMPI's Warble.h (MIT, CHOMPI Club / Chase Bliss; chompi-harvest §2).
+// Not an LFO: every sample a coin is flipped, and on heads the tape head picks a NEW lag and a NEW glide
+// speed and slides there. So it sits still, sags, sits still — a worn cassette, not a machine. Theirs reaches
+// 880 samples @48k; ours stops at 440 so base + wow + flutter + warble still fit TAPE_BUF_LEN (1024).
+#define TAPE_WBL_DEPTH   440.0f     // samples of extra head lag at amount 1 (~10ms)
+#define TAPE_WBL_GLIDE   1.088e-4f  // max one-pole glide coef per event (their 1e-4 @48k, rescaled to 44.1k)
+#define TAPE_WBL_HOME    5.0e-5f    // glide coef back to 0 once warble is switched off
 
 static void tape_process(int b, int i, float *mixL, float *mixR) {
     float sat = tape_sat[b][i];
@@ -816,16 +823,47 @@ static void tape_process(int b, int i, float *mixL, float *mixR) {
     tape_bufL[b][i][widx] = L;                       // write the (saturated) signal to tape
     tape_bufR[b][i][widx] = R;
     tape_widx[b][i] = (widx + 1) % TAPE_BUF_LEN;
-    if (tape_wow[b][i] > 0.0f || tape_flut[b][i] > 0.0f) { // wow + flutter pitch warble (one shared transport)
+    float warb = tape_warb[b][i];
+    if (tape_wow[b][i] > 0.0f || tape_flut[b][i] > 0.0f || warb > 0.0f || tape_wbl_off[b][i] != 0.0f) { // wow + flutter pitch warble (one shared transport)
         tape_wph[b][i] += TAPE_WOW_RATE  / (float)SOUND_SAMPLE_RATE; if (tape_wph[b][i] >= 1.0f) tape_wph[b][i] -= 1.0f;
         tape_fph[b][i] += TAPE_FLUT_RATE / (float)SOUND_SAMPLE_RATE; if (tape_fph[b][i] >= 1.0f) tape_fph[b][i] -= 1.0f;
         float mod = de_sin_turns(tape_wph[b][i]) * tape_wow[b][i]  * TAPE_WOW_DEPTH
                   + de_sin_turns(tape_fph[b][i]) * tape_flut[b][i] * TAPE_FLUT_DEPTH;
-        float rp = (float)widx - TAPE_BASE_DELAY + mod;
-        while (rp < 0.0f) rp += TAPE_BUF_LEN;
-        while (rp >= TAPE_BUF_LEN) rp -= TAPE_BUF_LEN;
-        L = moddel_hermite(tape_bufL[b][i], TAPE_BUF_LEN, rp);   // shared transport → same read pos L/R
-        R = moddel_hermite(tape_bufR[b][i], TAPE_BUF_LEN, rp);
+        if (warb > 0.0f) {                          // warble: a random EVENT, ~0.1..30 per second by amount
+            uint32_t sd = tape_wbl_seed[b][i];
+            sd = (1103515245u * sd + 12345u) & 0x7FFFFFFFu;
+            if ((float)sd * 4.656612873e-10f < (warb * 30.0f + 0.1f) / (float)SOUND_SAMPLE_RATE) {
+                sd = (1103515245u * sd + 12345u) & 0x7FFFFFFFu;
+                tape_wbl_tgt[b][i]  = (float)sd * 4.656612873e-10f * warb * TAPE_WBL_DEPTH;
+                sd = (1103515245u * sd + 12345u) & 0x7FFFFFFFu;
+                tape_wbl_coef[b][i] = (float)sd * 4.656612873e-10f * TAPE_WBL_GLIDE;
+            }
+            tape_wbl_seed[b][i] = sd;
+            tape_wbl_off[b][i] += tape_wbl_coef[b][i] * (tape_wbl_tgt[b][i] - tape_wbl_off[b][i]);
+        } else if (tape_wbl_off[b][i] != 0.0f) {    // switched off: glide home, then drop out entirely
+            tape_wbl_off[b][i] -= TAPE_WBL_HOME * tape_wbl_off[b][i];
+            if (tape_wbl_off[b][i] < 0.01f) tape_wbl_off[b][i] = 0.0f;
+        }
+        float wo = tape_wbl_off[b][i];
+        if (tape_wow[b][i] > 0.0f || tape_flut[b][i] > 0.0f) {
+            float rp = (float)widx - TAPE_BASE_DELAY + mod;
+            if (wo != 0.0f) rp -= wo;                   // warble only ever adds lag
+            while (rp < 0.0f) rp += TAPE_BUF_LEN;
+            while (rp >= TAPE_BUF_LEN) rp -= TAPE_BUF_LEN;
+            L = moddel_hermite(tape_bufL[b][i], TAPE_BUF_LEN, rp);   // shared transport → same read pos L/R
+            R = moddel_hermite(tape_bufR[b][i], TAPE_BUF_LEN, rp);
+        } else {
+            // warble ALONE rides its own head with NO base lag: jumping to the 320-sample head would
+            // be a splice the moment it switched on (measured: 22x the local step, click-check).
+            // Below 2 samples of lag (hermite needs that much history) blend dry toward the
+            // 2-late read, so the lag grows from 0 continuously and lands back on 0 the same way.
+            float rp = (float)widx - (wo < 2.0f ? 2.0f : wo);
+            while (rp < 0.0f) rp += TAPE_BUF_LEN;
+            float rl = moddel_hermite(tape_bufL[b][i], TAPE_BUF_LEN, rp);
+            float rr = moddel_hermite(tape_bufR[b][i], TAPE_BUF_LEN, rp);
+            if (wo < 2.0f) { float a = wo * 0.5f; L += a * (rl - L); R += a * (rr - R); }
+            else { L = rl; R = rr; }
+        }
     }
     float k = 1.0f - 0.45f * sat;                   // HF rolloff: k=1 (transparent) → 0.55 (warm) as sat rises
     tape_lpL[b][i] += k * (L - tape_lpL[b][i]); L = tape_lpL[b][i];
@@ -856,6 +894,9 @@ static void fx_set_tape(int b, int i, float wow, float flut, float sat) {
     sat = clamp01(sat);
     tape_wow[b][i] = wow; tape_flut[b][i] = flut; tape_sat[b][i] = sat;
     tape_used[b][i] = true;
+}
+static void fx_set_tape_warble(int b, float amount) {   // a VOICE of tape(): changes nothing until tape() is on
+    tape_warb[b][0] = clamp01(amount);
 }
 
 // ── bitcrush — lo-fi quantizer: bit-depth reduction (floor to 2^bits levels) + sample-rate
@@ -1664,8 +1705,63 @@ static void _grain_spawn(GrainTank *gt) {
     g->envInc = 1.0f / grainSamples; g->amp = 1.0f; g->active = true;
 }
 
+// ── beat REPEAT (grains_repeat) — CHOMPI TEMPO's clock-locked freeze (MIT; chompi-harvest §3) ──
+// With repeat > 0 the tank stops being a cloud. Live: it captures and passes the signal through
+// untouched. Frozen: it loops the last `repeat` beats. The output at t is the input from t − k·L, so a
+// hit that landed on the beat repeats on the beat however late freeze was pressed. Two crossfades:
+// the SEAM (each pass's tail blends into the real audio that led INTO the loop start, so it is
+// continuous by construction), and a LENGTH change, crossfaded between two readers that are both
+// pure functions of rep_n, which is CHOMPI's trick (a slid read head would swoop the pitch).
+#define GREP_SEAM  1024   // max seam crossfade (samples; ≤ L/4)
+#define GREP_XF    1024   // length-change crossfade (~23 ms)
+#define GREP_FADE  256    // live ↔ loop fade (~6 ms)
+static inline int grep_wrap(int i) { while (i < 0) i += GRAIN_BUF_LEN; while (i >= GRAIN_BUF_LEN) i -= GRAIN_BUF_LEN; return i; }
+static inline float grep_tap(const GrainTank *gt, int L, unsigned int n) {
+    int X = L / 4; if (X > GREP_SEAM) X = GREP_SEAM;
+    int p = (int)(n % (unsigned int)L);
+    int i = grep_wrap(gt->rep_F - L + p);
+    float v = gt->buf[i];
+    if (X > 0 && p >= L - X) {                    // tail of the pass: equal-power blend into the pre-roll
+        float t = (float)(p - (L - X) + 1) / (float)X;
+        v = v * de_cos_turns(0.25f * t) + gt->buf[grep_wrap(i - L)] * de_sin_turns(0.25f * t);
+    }
+    return v;
+}
+static void grains_repeat_process(GrainTank *gt, float *mixL, float *mixR) {
+    float spb = 60.0f * (float)SOUND_SAMPLE_RATE / (float)(sound_bpm > 0 ? sound_bpm : 120);
+    int L = (int)(gt->repeat * spb + 0.5f);
+    if (L < 64) L = 64;
+    if (L > GRAIN_BUF_LEN - GREP_SEAM - 2) L = GRAIN_BUF_LEN - GREP_SEAM - 2;   // ~2.9 s: the ring is 3 s
+    if (gt->freeze && !gt->rep_was) {             // freeze edge: the loop is the last L samples, from here
+        gt->rep_F = gt->writePos; gt->rep_n = 0; gt->rep_len = L; gt->rep_xf = 0;
+    }
+    gt->rep_was = gt->freeze;
+    if (!gt->freeze) {                            // live: keep capturing (plain input, no feedback)
+        gt->buf[gt->writePos] = (*mixL + *mixR) * 0.5f;
+        gt->writePos = (gt->writePos + 1) % GRAIN_BUF_LEN;
+    }
+    float tgt = gt->freeze ? 1.0f : 0.0f;         // linear live↔loop fade
+    if (gt->rep_fade < tgt) { gt->rep_fade += 1.0f / GREP_FADE; if (gt->rep_fade > 1.0f) gt->rep_fade = 1.0f; }
+    if (gt->rep_fade > tgt) { gt->rep_fade -= 1.0f / GREP_FADE; if (gt->rep_fade < 0.0f) gt->rep_fade = 0.0f; }
+    if (gt->rep_fade <= 0.0f) return;             // fully live = untouched, bit-exact stereo
+    if (gt->freeze && gt->rep_xf == 0 && L != gt->rep_len) {   // new length: crossfade to a second reader
+        gt->rep_old = gt->rep_len; gt->rep_len = L; gt->rep_xf = GREP_XF;
+    }
+    float loop = grep_tap(gt, gt->rep_len, gt->rep_n);
+    if (gt->rep_xf > 0) {
+        float t = 1.0f - (float)gt->rep_xf / (float)GREP_XF;
+        loop = grep_tap(gt, gt->rep_old, gt->rep_n) * de_cos_turns(0.25f * t) + loop * de_sin_turns(0.25f * t);
+        gt->rep_xf--;
+    }
+    gt->rep_n++;
+    float w = gt->rep_fade * gt->mix;
+    *mixL = *mixL * (1.0f - w) + loop * w;
+    *mixR = *mixR * (1.0f - w) + loop * w;
+}
+
 // process one stereo sample on tank gt IN PLACE (mono core), navkit processGranularDelay
 static void grains_process(GrainTank *gt, float *mixL, float *mixR) {
+    if (gt->repeat > 0.0f) { grains_repeat_process(gt, mixL, mixR); return; }
     const float dt = 1.0f / (float)SOUND_SAMPLE_RATE;
     float input = (*mixL + *mixR) * 0.5f;
     if (!gt->freeze) {                                                 // write incoming + feedback into the capture ring
@@ -1701,6 +1797,7 @@ static void grains_reset(GrainTank *gt) {   // empty the capture buffer + kill g
     memset(gt->buf, 0, sizeof(gt->buf));
     memset(gt->grains, 0, sizeof(gt->grains));
     gt->writePos = 0; gt->spawnTimer = 0.0f; gt->lastOut = 0.0f;
+    gt->rep_fade = 0.0f; gt->rep_n = 0; gt->rep_xf = 0; gt->rep_was = false;
 }
 
 static void fx_set_grains(int b, float grain_ms, float density, float position, float scatter, float feedback, float mix) {
@@ -1734,6 +1831,15 @@ static void fx_set_grains_pitch(int b, float semitones, float spread, bool rever
     if (semitones < -24.0f) semitones = -24.0f; if (semitones > 24.0f) semitones = 24.0f;
     spread = clamp01(spread);
     gt->pitch = semitones; gt->pitch_spread = spread; gt->reverse = reverse;
+}
+
+// beat REPEAT mode: beats > 0 = on freeze, loop the last `beats` beats at bpm(); 0 = the normal cloud.
+// Like grains_pitch, modifies an EXISTING tank only (grains() first). Safe to change live while frozen.
+static void fx_set_grains_repeat(int b, float beats) {
+    int t = grain_tank_of[b];
+    if (t < 0) return;
+    if (beats < 0.0f) beats = 0.0f; if (beats > 16.0f) beats = 16.0f;
+    grain_pool[t].repeat = beats;
 }
 
 // ── shallow water — a filtered-random ("K-field") short delay + a Low Pass Gate (Fairfield) ─────
@@ -1995,7 +2101,7 @@ static CtxKey sound_ctx_key(SoundReqKind k) {
         case SR_BPM: case SR_VOCODER: case SR_VOCODER_MIC: case SR_VOCODER_UNVOICED: case SR_AUTOTUNE_MIC:
         case SR_ECHO_INS_BBD: case SR_REVERB_SPRING: case SR_REVERB_SPRING_TONE: case SR_DRIVE_VOICE:
         case SR_MULTIBAND: case SR_HARMONIZE_MIC: case SR_INPUT_MONITOR:
-        case SR_REVERB_PLATE: case SR_REVERB_PLATE_WIDTH:
+        case SR_REVERB_PLATE: case SR_REVERB_PLATE_WIDTH: case SR_TAPE_WARBLE: case SR_GRAINS_REPEAT:
             return CTXK_K;
         // a = slot / instance / bus / tank / target id
         case SR_INSTR: case SR_INSTR_DUTY: case SR_INSTR_LFO: case SR_INSTR_FILTER:
@@ -2013,6 +2119,7 @@ static CtxKey sound_ctx_key(SoundReqKind k) {
         case SR_GLUE: case SR_REVERB_BUS: case SR_FX_ORDER: case SR_VOICE_PARAM: case SR_INSTR_MULTIBAND:
         case SR_EQ_INST: case SR_CRUSH_INST: case SR_TAPE_INST: case SR_FILTER_INST: case SR_DRIVE_INST:
         case SR_INSTR_GLIDE: case SR_INSTR_GLIDE_SCALE: case SR_INSTR_TRIGGER:   // a=slot, like their neighbours
+        case SR_INSTR_TAPE_WARBLE: case SR_INSTR_GRAINS_REPEAT:
             return CTXK_KA;
         // a+b name the target
         case SR_WAVE_SET:                          // a=which table, b=start index (chunked writes)
@@ -6828,6 +6935,20 @@ static void sound_fire_req(SoundReq r) {
         int b = fx_instr_bus(r.a);
         if (b >= 1) fx_set_tape(b, 0, r.b / 1000.0f, r.c / 1000.0f, r.e0 / 1000.0f);
     } break;
+    case SR_TAPE_WARBLE: {  // master tape (bus 0): a=amount*1000
+        fx_set_tape_warble(0, r.a / 1000.0f);
+    } break;
+    case SR_INSTR_TAPE_WARBLE: { // per-instrument: a=slot, b=amount*1000
+        int b = fx_instr_bus(r.a);
+        if (b >= 1) fx_set_tape_warble(b, r.b / 1000.0f);
+    } break;
+    case SR_GRAINS_REPEAT: {     // master grain tank: a=beats*1000
+        fx_set_grains_repeat(0, r.a / 1000.0f);
+    } break;
+    case SR_INSTR_GRAINS_REPEAT: { // per-instrument: a=slot, b=beats*1000
+        int b = fx_instr_bus(r.a);
+        if (b >= 1) fx_set_grains_repeat(b, r.b / 1000.0f);
+    } break;
     case SR_WAH: {          // master auto-wah (bus 0): a=sens, b=res, c=mix (×1000)
         fx_set_wah(0, r.a / 1000.0f, r.b / 1000.0f, r.c / 1000.0f);
     } break;
@@ -8820,6 +8941,13 @@ void grains_pitch(float semitones, float spread, int reverse) {
 void instrument_grains_pitch(int slot, float semitones, float spread, int reverse) {
     sound_push_ctrl(SR_INSTR_GRAINS_PITCH, slot, (int)(semitones * 100.0f), (int)(spread * 1000.0f), reverse ? 1 : 0, 0, 0);
 }
+void grains_repeat(float beats) {
+    sound_push_ctrl(SR_GRAINS_REPEAT, (int)(beats * 1000.0f + 0.5f), 0, 0, 0, 0, 0);
+}
+void instrument_grains_repeat(int slot, float beats) {
+    if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
+    sound_push_ctrl(SR_INSTR_GRAINS_REPEAT, slot, (int)(beats * 1000.0f + 0.5f), 0, 0, 0, 0);
+}
 
 // ── reverb: ONE shared bus with per-slot sends (the first §8.10 effect; decisions/0015) ──
 
@@ -8969,6 +9097,13 @@ void tape_inst(int instance, float wow, float flutter, float saturation) {   // 
 void instrument_tape(int slot, float wow, float flutter, float saturation) {
     if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
     sound_push_ctrl(SR_INSTR_TAPE, slot, (int)(wow * 1000.0f), (int)(flutter * 1000.0f), (int)(saturation * 1000.0f), 0, 0);
+}
+void tape_warble(float amount) {
+    sound_push_ctrl(SR_TAPE_WARBLE, (int)(amount * 1000.0f), 0, 0, 0, 0, 0);
+}
+void instrument_tape_warble(int slot, float amount) {
+    if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
+    sound_push_ctrl(SR_INSTR_TAPE_WARBLE, slot, (int)(amount * 1000.0f), 0, 0, 0, 0);
 }
 
 // ── auto-wah: THE master auto-wah (envelope-following resonant bandpass — the funk quack) ──
@@ -9435,7 +9570,7 @@ static void sound_reset_state(void) {
     for (int i = 0; i < SOUND_REVERB_TANKS; i++) tank_bus[i] = 0;   // tank → aux bus, 0 = unallocated
     for (int b = 0; b < SOUND_FX_BUSES; b++)     bus_tank[b] = -1;  // bus → tank, -1 = not a reverb-bus
     for (int b = 0; b < SOUND_FX_BUSES; b++)     grain_tank_of[b] = -1;   // bus → grain tank, -1 = none
-    for (int t = 0; t < SOUND_GRAIN_TANKS; t++) { grains_reset(&grain_pool[t]); grain_pool[t].used = false; grain_pool[t].freeze = false; grain_pool[t].noiseSeed = 55555u; grain_pool[t].pitch = 0.0f; grain_pool[t].pitch_spread = 0.0f; grain_pool[t].reverse = false; }
+    for (int t = 0; t < SOUND_GRAIN_TANKS; t++) { grains_reset(&grain_pool[t]); grain_pool[t].used = false; grain_pool[t].freeze = false; grain_pool[t].noiseSeed = 55555u; grain_pool[t].pitch = 0.0f; grain_pool[t].pitch_spread = 0.0f; grain_pool[t].reverse = false; grain_pool[t].repeat = 0.0f; }
     grain_next = 0; grain_overflow = 0;
     drop_amount = 0.0f; drop_used = false; drop_env = 0.0f; drop_prev = 0.0f;   // dropout: dormant + deterministic seed
     drop_lpL = drop_lpR = 0.0f; drop_mod = (ModState){ .seed = 0x1F2E3D4Cu };
@@ -9478,6 +9613,8 @@ static void sound_reset_state(void) {
         for (int i = 0; i < TAPE_INST; i++) {
             tape_widx[b][i] = 0; tape_wph[b][i] = 0.0f; tape_fph[b][i] = 0.0f; tape_lpL[b][i] = 0.0f; tape_lpR[b][i] = 0.0f;
             tape_wow[b][i] = 0.3f; tape_flut[b][i] = 0.2f; tape_sat[b][i] = 0.4f; tape_used[b][i] = false;
+            tape_warb[b][i] = 0.0f; tape_wbl_off[b][i] = 0.0f; tape_wbl_tgt[b][i] = 0.0f; tape_wbl_coef[b][i] = 0.0f;
+            tape_wbl_seed[b][i] = 1u + (uint32_t)b * 7919u + (uint32_t)i * 104729u;
         }
         wah_env[b] = 0.0f; wah_ic1[b] = 0.0f; wah_ic2[b] = 0.0f;
         wah_sens[b] = 0.3f + 0.5f * 4.7f; wah_res[b] = 0.5f; wah_mix[b] = 0.7f; wah_used[b] = false;

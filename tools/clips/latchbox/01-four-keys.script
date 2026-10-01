@@ -1,0 +1,8 @@
+# latch box — boots with C E G B against XXX. (the gap drifts); lift B at 2s (3 notes = a plain 4-step
+# phrase), add it back at 4s, stutter 5-6.5s, then UP order
+# frames 720
+tap 120 J
+tap 240 J
+down 300 SPACE
+up 390 SPACE
+tap 480 1

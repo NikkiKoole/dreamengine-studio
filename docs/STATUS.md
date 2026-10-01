@@ -15,6 +15,20 @@ _Last updated: 2026-09-28 — INSTR_SINTER shipped (synthetic percussion), the t
 
 ## Shipped ✓
 
+- **TONNETZ: CHORDS AS PLACES (`runtime/tonnetz.h` + the `tonnetz` cart)** (2026-10-01). Ornament & Crime's
+  Harrington 1200 / Automatonnetz (MIT), ported. Every triad is a triangle; P/L/R flip it across an edge and
+  move exactly ONE voice by a semitone or a tone, so any walk sounds smooth. A mouse-first map (click/drag
+  neighbours, hover to see where a move goes), a 5×5 vector automaton that walks by itself, and a pad that
+  glides only the voice that moved. `tonnetz_selfcheck()` checks all 24 triads × 6 moves against O&C's own
+  table. [`design/open-source-audio-toys.md`](design/open-source-audio-toys.md) §2.2.
+
+- **CHOMPI HARVEST: `tape_warble` · `grains_repeat` · `patgen.h` · `latchbox`** (2026-10-01). What we took
+  from CHOMPI's MIT open-source release (most of its DSP we already had). `tape_warble()`: sparse random sags
+  on the tape head, not an LFO. `grains_repeat()`: a beat-locked repeat on the grain tank, the REPEAT half of
+  contemporary-rebirth Rung C. `runtime/patgen.h`: TEMPO's pattern generator, whose rests take a step but
+  not a note. `latchbox` shows all three. Probes `warbleprobe`/`repeatprobe`; the oracles caught a splice and
+  an LCG low-bit bug before ship. [`design/chompi-harvest.md`](design/chompi-harvest.md).
+
 - **LOFICITY: ALL NINE LOFI CITIES STYLES** (2026-09-28). `loficity` plays every style of loficities.com's
   generative lofi (jazzhop, lofi piano, ambient, bossa nova, synth city pop, lofi house, chill guitar, sad
   lofi, medieval) arranged line for line by their own planner, ported into `runtime/loficity/` (a private

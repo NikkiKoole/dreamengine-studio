@@ -184,6 +184,10 @@ runtime/   studio.h (public API: constants + declarations), studio.c (Raylib imp
                          each hand-rolled a different answer. Pure logic, no engine surface, no UI — so it
                          carries its OWN spec (mono_selfcheck, Part 18's four-priority table). sh101 drives
                          it (PRIO/TRIG on the panel); acidcandy's PTCH lens uses it for live-played 303 lines. NOT keybed.h (the widget) or solo.h (the radio strip)
+             patgen.h    LATCHED PATTERN GENERATOR (CHOMPI TEMPO, MIT): held keys → orders SEQ/UP/DOWN/PINGPONG/RANDOM ·
+                         rest masks that take a STEP not a NOTE (the gap drifts) · octave chance; pure logic + patgen_selfcheck. latchbox
+             tonnetz.h   CHORDS AS PLACES (O&C Harrington 1200/Automatonnetz, MIT): P/L/R/N/S/H moves that change ONE voice
+                         (returns which) · the triangle map · tz_jump · the 5×5 vector automaton; tonnetz_selfcheck. tonnetz cart
              solo.h      scale-locked solo strip the player drives over a radio (pairs radio.h)
              radio.h     radio-station chrome (chassis, seeded songs, draggable control knobs)
              improv.h    melodic improvisation for the radio stations (auto-solo)

@@ -321,6 +321,11 @@ by ear. The general point for
 "is it in tune", and a clean gate sheet plus a maker's ear beat a clean gate sheet alone.**
 
 ### Rung C · GAP 1 — a beat-synced buffer re-reader (halftime / beat repeat)
+> **REPEAT shipped 2026-10-01 as `grains_repeat(beats)`** — a mode of the grain tank rather than the
+> `beatfx()` insert below, because the tank already had the capture ring, freeze, mix and per-bus
+> routing ([chompi-harvest.md](chompi-harvest.md) §3, ported from CHOMPI TEMPO). It is grid-locked and
+> click-free (measured). HALFTIME / REVERSE / SCRATCH are still open, and are where `beatfx()` would
+> still earn its own insert.
 - **What is missing:** any way to manipulate *time* on the master without dragging pitch along.
   `varispeed` is a tape; `grains` is a texture.
 - **API shape:** `void beatfx(int mode, float bars, float mix);` where mode is

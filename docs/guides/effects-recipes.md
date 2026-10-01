@@ -147,6 +147,7 @@ already in-tree). 3 s buffer (navkit's is 5 s). **Showcase: `grains`** (the free
 | reverse-grain wash | `grains_pitch(0, 0.0f, 1)` | grains play backwards → the classic sucked-in, blooming reverse texture | `grains` |
 | detuned chord-cloud | `grains_pitch(0, 0.6f, 0)` | `spread` scatters each grain's pitch → from unison to a shimmering, chorused cloud with no transpose | `grains` |
 | falling cloud | sweep `grains_pitch(semis--, 0.2f, 0)` live | automate the transpose down for a tape-slow / vinyl-stop dive (true pitch-shift, window length fixed) | — |
+| beat repeat / stutter | `grains(100, 10, 1, 0, 0, 1.0f)` + `grains_repeat(0.25f)` + `grains_freeze(held)` | a tempo-locked roll of the last 1/16 (0.5 = 1/8, 1 = a beat); live it passes straight through, frozen it loops on the beat however late you hit it. Put `FX_GRAINS` LAST in `fx_order` so it repeats the echoes too | `latchbox` (STUTTER + LEN) |
 
 > **Stochastic, so A/B by character not samples.** `grains` scatters reads via a seeded LCG and
 > spawns on a timer; with the intentional 3 s (vs navkit 5 s) buffer the `position` math diverges, so
@@ -301,6 +302,12 @@ rolloff). Master or per-instrument. **Showcase: `tapeloop`.**
 | warm & drifting | `tape(0.22f, 0.11f, 0.34f)` | gentle vintage glue across the whole mix | `air`, `groovebox` (TAPE knob), `wba` |
 | clean & tight | `tape(0.10f, 0.08f, 0.24f)` | barely-there warmth, no audible pitch drift | `air` |
 | lo-fi just the drums | `instrument_tape(SL_DRUMS, 0.4f, 0.5f, 0.7f)` | wonky tape on the kit, synths stay clean | (per-instrument pattern) |
+| worn cassette (warble) | `tape(0.0f, 0.0f, 0.35f)` + `tape_warble(0.25f)` | no steady wobble: the pitch sits still, then SAGS at random moments and glides back. 0.1 = rare sags, 0.6 = seasick | `latchbox` (WARBLE knob) |
+| level-matched saturation | `tape(…, sat)` + `instrument_level(slot, tanhf(g)/g)`, g = 1 + 2·sat | ⚠ `tape()` saturation adds up to +9.5 dB to a quiet signal (chompi-harvest §7); this trim makes the knob change colour, not loudness | `latchbox` (TAPE knob) |
+
+> **`tape()` saturation is also a volume knob** (measured: +5.55 dB at the default 0.4, +9.51 dB at 1.0,
+> on a −28 dBFS sine). Its clipper is normalised for a full-scale PEAK. Compare saturation settings with
+> the level trim above, or you're comparing loudness. [chompi-harvest.md](../design/chompi-harvest.md) §7.
 
 ## auto-wah — `wah(sensitivity, resonance, mix)` · `instrument_wah(slot, …)` · LFO: `wah_lfo(rate, resonance, mix)` · `instrument_wah_lfo(slot, …)`
 

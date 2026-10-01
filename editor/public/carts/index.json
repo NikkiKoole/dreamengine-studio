@@ -4005,6 +4005,20 @@
     "homage": "Leisure Suit Larry (1987)"
   },
   {
+    "title": "latch box",
+    "description": "Four latched keys and a rest pattern that takes steps but not notes, so the line keeps changing shape. Tap pads to reshape it. Tap pads to latch notes. They play back on the clock in the order you pressed them (or UP / DOWN / PING-PONG / RANDOM). A REST pattern takes steps away without taking notes, so with four keys held against XXX. the gap drifts through the line and it takes sixteen steps to come round. Add or lift one key and the whole line reshapes. OCT gives each note a chance to jump an octave. Under it, a worn tape: TAPE drives it (level-compensated, so it gets darker, not louder), WARBLE makes the pitch sag at random moments. DELAY is one knob: feedback also sets the mix. STUTTER is a beat-locked repeat of the last 1/4, 1/8 or 1/16, on the beat however late you hit it. Tap pads to latch/unlatch (or A W S E D F T G Y H U J). Z/X octave. ORDER / REST / DIV cycle the pattern (1 / 2 / 3). Knobs: PITCH (snaps to fifths + octaves), OCT, TAPE, WARBLE, DELAY. STUTTER toggles the repeat (or hold SPACE); LEN picks its length (4). C clears.",
+    "file": "latchbox.cart.png",
+    "created": "2026-10-01",
+    "kind": [
+      "instrument"
+    ],
+    "teaches": [
+      "generative-sequencer",
+      "granular-synth"
+    ],
+    "lineage": "The demo for docs/design/chompi-harvest.md: what we took from CHOMPI's MIT open-source release (CHOMPI Club / Chase Bliss). TEMPO's pattern generator (runtime/patgen.h), TAPE's warble (tape_warble), TEMPO's clock-locked freeze (grains_repeat), TAPE's one-knob delay and snap-to-fifths pitch. Not a CHOMPI clone and not named like one: the name and artwork are not licensed."
+  },
+  {
     "title": "Lemmings",
     "description": "A one-screen tribute to DMA Design's 1991 classic. A trapdoor drops a stream of brainless green-haired lemmings that trudge right, fall off ledges, splat in the lava pit, and turn at walls with zero self-preservation. The terrain IS the physics: a destructible pixel buffer where diggers and bashers erase dirt and collision just reads it back. Arm a job from the bottom toolbar then click a lemming to assign it — DIG straight down, BUILD a diagonal bridge, BLOCK as a living wall that turns the herd around, or BASH sideways through dirt — and steer enough of them into the glowing HOME exit before you run out. Save 10 of 20 to win. Controls: click a job tile in the bottom bar to arm it, click on a lemming to assign the armed job, right-click or click the armed tile again to disarm, R to restart.",
     "file": "lemmings.cart.png",
@@ -6161,6 +6175,19 @@
     "lineage": "The eighth INSTR_* engine showcase — a bore-delay + pressure-valve self-oscillating reed model; the first held (not struck) waveguide engine in the library, adding mono-slide and live-expressive macros absent from pluck/mallet/membrane carts."
   },
   {
+    "title": "beat repeat probe",
+    "description": "At 120 bpm a plucked sine plays an 8th-note line of four pitches. At 4.117 s, deliberately 7 frames AFTER a hit, the tank freezes with grains_repeat(1) and the line stops, so everything heard from then on is the repeat. It must keep landing on the 8th-note grid anyway. At 6 s the repeat drops to half a beat while still frozen (a length change, crossfaded), at 8 s it unfreezes and the line comes back. Render it with `node tools/play.js repeatprobe script /dev/null --headless --frames 600 --wav out.wav`.",
+    "file": "repeatprobe.cart.png",
+    "created": "2026-10-01",
+    "kind": [
+      "tech-demo"
+    ],
+    "teaches": [
+      "granular-synth"
+    ],
+    "lineage": "Measurement probe for grains_repeat() (docs/design/chompi-harvest.md §3), CHOMPI TEMPO's clock-locked freeze. Rendered headless and read back by its onsets; not played by hand."
+  },
+  {
     "title": "respond",
     "description": "A cart-land prototype of a responsive-layout primitive set, before any of it touches the engine. Drag the yellow lower-right corner to resize a 'virtual screen' rectangle - everything inside it is positioned with four candidate layout functions (flex, fluid clamp/%, anchor+inset, aspect-ratio) so you can watch a real layout REFLOW live as the screen changes size: a top bar stays pinned and fluid-height (docked with split), a notification badge stays anchored to the corner, a 16:9 viewport letterboxes itself into what's LEFT after the title + footer bands are split off, and the button bar flips from a row to a stacked column when the width drops under a breakpoint (wide -> phone). The candidate set: flex (cell), fluid (clamp/%), anchor+inset (at), aspect, auto-wrap grid, split (dock a fixed band off an edge), and per-side pad (asymmetric safe-area insets). The idea: prove the toolkit in cart-land against a fake screen first, then graduate it to a runtime/lay.h header that takes the real screen rect. Drag the corner to resize; no other controls.",
     "file": "respond.cart.png",
@@ -7622,6 +7649,20 @@
     "lineage": "The OP-1 'tombola' module as a dreamengine cart (design/tombola.md). The FOURTH Box2D v3 cart (runtime/box2d/): a slowly rotating hexagonal drum full of note-balls under gravity — a note fires because a ball PHYSICALLY crosses the trigger line, never a hidden step sequencer. Balls on real rigid-body dynamics; the trigger is a b2 sensor; scale-quantised note wiring borrowed from `circlemachine`."
   },
   {
+    "title": "tonnetz",
+    "description": "Chords are places on a map. Click a neighbour and exactly one note moves, so every path sounds smooth. Or let a 5x5 grid of moves walk the map by itself. Every major and minor chord is a triangle on a grid of notes: up-pointing = major, down-pointing = minor. The lit triangle is the chord you hear. Its three edge-neighbours are the three Riemann moves: P (C to C minor), L (C to E minor), R (C to A minor), and each one moves exactly ONE note of the chord by a semitone or a tone. The pad glides only that voice, so you hear the one note travel while the other two hold. Click any neighbour, or drag a path across the map; click a far-away chord and it jumps there with the least motion it can. On the right is the AUTOMATON (after O&C's Automatonnetz): 25 cells, each holding a move. A cursor jumps across the grid by a vector you set, whole cells plus a fraction, wrapping around, and fires the move of each new cell it lands in, so a few clicks make a progression that wanders for minutes without repeating. The lanes at the bottom draw the three voices, so you can SEE which one moved. Map: hover to see a chord, click to go there, drag to walk a path. Keys P L R N S H = the moves, 0 = back to C. Automaton: left-click a cell = next move, right-click = previous, middle-click or D (hovering) = DICE (the cell re-rolls after it fires). DX / DY < > or the mouse wheel over them set the vector. SPACE = run/stop, RATE = how often it steps, ARP = arpeggiate the chord, X = random grid, C = clear grid.",
+    "file": "tonnetz.cart.png",
+    "created": "2026-10-01",
+    "kind": [
+      "instrument"
+    ],
+    "teaches": [
+      "generative-sequencer"
+    ],
+    "lineage": "docs/design/open-source-audio-toys.md §2.2. The moves, the O&C move table and the vector automaton live in runtime/tonnetz.h (ported, MIT notice kept); this cart is the map, the sound and the mouse. We had a Tonnetz LAYOUT (scalegrid's HEX mode) but not the MOVES.",
+    "homage": "Ornament & Crime's Harrington 1200 and Automatonnetz (Patrick Dowling, Tim Churches; MIT): neo-Riemannian Tonnetz moves on a Eurorack module, here as a map you click and a grid that plays itself."
+  },
+  {
     "title": "touchlab",
     "description": "Device test card for the touch API - pick it up the day a real touchscreen is available. Build for web, open the LAN url on the iPad/phone, and run down the 7-point checklist on screen: crosshair accuracy under CSS scaling, ten-finger tracking, touch_id stability while other fingers tap, tapp() single-fire drumming, lift detection (cart-side diff - the data a future touch_ended API would return), iOS audio unlock blips, and whether Safari gestures leak (pinch/double-tap/edge-swipe must not move the page). Verdicts go to docs/design/touch-notes.md section 5. On desktop the mouse is one finger (id -2), enough to smoke-test half the card.",
     "file": "touchlab.cart.png",
@@ -8234,6 +8275,17 @@
     ],
     "lineage": "The walkbox walking-bass sequencer re-imagined as a horizontal PIANO-ROLL: a note is a capsule (x=time, y=scale-degree) whose WIDTH is its length and which carries dedicated GRABBER handles you pick up in place — a top knob = bend, right edge = length/ring, a tip nub = slide to the next note, a bottom corner = scoop. Voice is the upright's INSTR_BOWED pizz (from walkbox). Grew out of the walkroll/walkgrab mockups.",
     "homage": "Roland TB-303 workflow x jazz double bass x a DAW piano-roll"
+  },
+  {
+    "title": "tape warble probe",
+    "description": "One sustained A440 sine through a transparent tape() (no wow, no flutter, no saturation), so the only thing that can move its pitch is the warble. 0-4 s warble off (the control: the pitch must be dead flat), 4-12 s tape_warble(0.5) (the pitch must sit still and then sag at random moments), 12-16 s off again (the head glides home, then flat). Render it with `node tools/play.js warbleprobe script /dev/null --headless --frames 960 --wav out.wav`.",
+    "file": "warbleprobe.cart.png",
+    "created": "2026-10-01",
+    "kind": [
+      "tech-demo"
+    ],
+    "teaches": [],
+    "lineage": "Measurement probe for tape_warble() (docs/design/chompi-harvest.md §2), ported from CHOMPI's Warble.h. Rendered headless and read back by its pitch track; not played by hand."
   },
   {
     "title": "Water Jar",

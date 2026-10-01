@@ -1952,6 +1952,29 @@ v1, document it on the panel.
     exact). `amount 0` stays dormant → byte-identical, proved by render diff: 0 differing samples over
     10 s against a build that never calls `glue` at all.
 
+39. **Tape WARBLE (`tape_warble` / `instrument_tape_warble`)** — **✓ SHIPPED 2026-10-01**, ported from CHOMPI
+    TAPE's `Warble.h` (MIT; [chompi-harvest.md](chompi-harvest.md) §2). A VOICE of `tape()`, not a new
+    insert: an extra term on the tape read head. Every sample a coin flip (≈0.1–30 events/s by amount)
+    may start an EVENT: a new head lag (0..440 samples × amount) and a new one-pole glide speed. So the
+    pitch sits still, sags, sits still, which neither `tape()`'s sine wow/flutter nor `shallow()`'s
+    continuous random walk produce. Per-instance LCG (theirs was a shared `static`). `SR_TAPE_WARBLE`=150 /
+    `SR_INSTR_TAPE_WARBLE`=151. **⚠ Found by the oracle:** with wow = flutter = 0 the tape read path is
+    OFF (zero lag), so switching warble on jumped to the 320-sample head in one sample, a splice at 22×
+    the local step (`click-check.js`). Warble-alone now rides its own head with no base lag and blends the
+    first 2 samples of lag in from dry, so it leaves and lands on 0 continuously. Measured (`warbleprobe`):
+    off 0.00¢ · 0.5 = ±17¢ in 33 sags over 8 s · click-check clean · 8 tape/grains carts byte-identical.
+
+40. **Beat REPEAT on the grain tank (`grains_repeat` / `instrument_grains_repeat`)** — **✓ SHIPPED
+    2026-10-01**, CHOMPI TEMPO's clock-locked freeze ([chompi-harvest.md](chompi-harvest.md) §3), and the
+    REPEAT half of [contemporary-rebirth.md](contemporary-rebirth.md) Rung C. A MODE of `FX_GRAINS`, not a
+    new insert: `beats > 0` makes the tank pass the signal through while live and loop the last `beats`
+    beats (at `bpm()`) while frozen. Output(t) = input(t − k·L), so it is grid-locked however late freeze
+    is pressed; the seam blends each pass's tail into the real audio that led into the loop start, and a
+    length change crossfades two readers that are pure functions of samples-since-freeze (no pitch swoop).
+    `SR_GRAINS_REPEAT`=152 / `SR_INSTR_GRAINS_REPEAT`=153. Measured (`repeatprobe`, frozen 117 ms late):
+    every frozen onset keeps the live line's grid phase; click-check finds nothing at freeze / length
+    change / thaw / seams. Mono (the tank is a mono core), no pitch, ≤ ~2.9 s.
+
 One-line version: **we built a very good modular synth and forgot to build the
 broken speaker it should play through.**
 

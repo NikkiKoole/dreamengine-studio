@@ -1,0 +1,6 @@
+# tonnetz — the automaton walks by itself; at ~4 s the mouse clicks a map neighbour, then edits a grid cell
+# frames 900
+move 200 150 80
+click 240 150 80
+click 420 300 60
+move 430 200 100

@@ -520,6 +520,11 @@ typedef struct {
     float  mix, feedback, grainSize, density, position, scatter;   // grainSize ms · density /s · position/scatter 0..1 · feedback 0..0.9
     float  pitch, pitch_spread;    // grain transpose: semitones -24..24 (0 = unchanged) + random per-grain detune 0..1
     bool   freeze, used, reverse;  // reverse = grains play backwards through the buffer
+    // beat REPEAT mode (grains_repeat, chompi-harvest §3): repeat > 0 = loop the last `repeat` beats on freeze
+    float  repeat, rep_fade;       // loop length in beats (0 = normal cloud) · live(0)..loop(1) fade
+    int    rep_F, rep_len, rep_old, rep_xf;   // freeze point · loop length (samples) · previous length · length-change xfade left
+    unsigned int rep_n;            // samples since freeze: both loop readers are pure functions of it
+    bool   rep_was;                // freeze seen last sample (edge detect)
 } GrainTank;
 #define SHW_BUF_LEN  (SOUND_SAMPLE_RATE / 16)   // ~62 ms — room for a drifting short delay
 #define N_INSERTS (FX_MULTIBAND + 1)           // array size / kind validation cap: pedals + FORMANT/FILTER/PAN/RINGMOD (default) + FX_REVERB/ECHO/GRAINS/DRIVE/SHALLOW/GATE/SQUASH (placed via fx_order). Chain length is capped separately by FX_ORDER_SLOTS.
@@ -688,6 +693,10 @@ typedef enum {
                               // snd_sample_clock), dur_samples — schedule_at(). Turned into an ordinary SR_NOTE
                               // countdown AT DRAIN, measured from the buffer being drained, so its onset
                               // cannot snap to a callback boundary the way schedule_hit's does (audio-timing.md)
+    SR_TAPE_WARBLE = 150,     // a=amount*1000 — master tape (bus 0) random-event WARBLE (tape_warble), chompi-harvest §2
+    SR_INSTR_TAPE_WARBLE = 151, // a=slot, b=amount*1000 — the same on one instrument's tape
+    SR_GRAINS_REPEAT = 152,   // a=beats*1000 — master grain tank becomes a beat-locked REPEAT (grains_repeat), chompi-harvest §3
+    SR_INSTR_GRAINS_REPEAT = 153, // a=slot, b=beats*1000 — the same on one instrument's grain tank
 } SoundReqKind;
 typedef struct { SoundReqKind kind; int a, b, c; int delay_samples; int dur_samples; int e0, e1, e2; } SoundReq;
 #define SOUND_REQ_QUEUE   512   // generous: live held-voice control pushes many setters/frame, and a patch cart's
@@ -793,6 +802,11 @@ typedef struct {
     float tape_flut[SOUND_FX_BUSES][TAPE_INST];
     float tape_sat[SOUND_FX_BUSES][TAPE_INST];
     bool tape_used[SOUND_FX_BUSES][TAPE_INST];
+    float tape_warb[SOUND_FX_BUSES][TAPE_INST];      // tape_warble amount 0..1 (0 = off; the tap glides home)
+    float tape_wbl_off[SOUND_FX_BUSES][TAPE_INST];   // current extra tape-head lag, samples
+    float tape_wbl_tgt[SOUND_FX_BUSES][TAPE_INST];   // where the current warble event is gliding to
+    float tape_wbl_coef[SOUND_FX_BUSES][TAPE_INST];  // that event's glide speed (one-pole)
+    uint32_t tape_wbl_seed[SOUND_FX_BUSES][TAPE_INST]; // per-instance LCG (deterministic, never shared)
     float crush_bits[SOUND_FX_BUSES][CRUSH_INST];
     float crush_rate[SOUND_FX_BUSES][CRUSH_INST];
     float crush_mix[SOUND_FX_BUSES][CRUSH_INST];
@@ -1191,6 +1205,11 @@ static _Thread_local DeSound *de_snd = &de_snd_default;
 #define tape_flut            (de_snd->tape_flut)
 #define tape_sat             (de_snd->tape_sat)
 #define tape_used            (de_snd->tape_used)
+#define tape_warb            (de_snd->tape_warb)
+#define tape_wbl_off         (de_snd->tape_wbl_off)
+#define tape_wbl_tgt         (de_snd->tape_wbl_tgt)
+#define tape_wbl_coef        (de_snd->tape_wbl_coef)
+#define tape_wbl_seed        (de_snd->tape_wbl_seed)
 #define crush_bits           (de_snd->crush_bits)
 #define crush_rate           (de_snd->crush_rate)
 #define crush_mix            (de_snd->crush_mix)

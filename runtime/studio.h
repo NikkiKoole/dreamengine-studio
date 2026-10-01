@@ -651,6 +651,8 @@ void grains_freeze(int on);             // freeze the master granular buffer: st
 void instrument_grains_freeze(int slot, int on);  // freeze one instrument's granular buffer (1/0)
 void grains_pitch(float semitones, float spread, int reverse);  // transpose the master grain cloud: semitones -24..24 (12 = octave up), spread 0..1 (random per-grain detune — a shimmer/chord cloud), reverse 1 = grains play backwards. Call grains() first. Sweep live for a falling/rising cloud
 void instrument_grains_pitch(int slot, float semitones, float spread, int reverse);  // transpose one instrument's grain cloud (same args + a slot)
+void grains_repeat(float beats);        // BEAT REPEAT: beats > 0 turns the grain tank into a stutter. Live = passes through untouched; grains_freeze(1) = loops the last `beats` beats at bpm(), locked to the beat however late you press (0.25 = a 16th roll, 1 = one beat, up to ~2.9 s). Change it while frozen = crossfades, no pitch swoop. 0 = back to the cloud. Call grains() first (its mix still applies)
+void instrument_grains_repeat(int slot, float beats);  // beat repeat on one instrument's grain tank (same args + a slot)
 
 // reverb — THE master reverb send: each slot chooses how much to send into it. A real room/hall
 // (a chord blooms into space), not repeating taps like echo. instrument_reverb() alone already
@@ -691,6 +693,8 @@ void instrument_flanger(int slot, float rate, float depth, float feedback, float
 void tape(float wow, float flutter, float saturation);                  // wow/flutter/sat 0..1 (0,0,0 = off). defaults 0.3/0.2/0.4
 void tape_inst(int instance, float wow, float flutter, float saturation); // tape on a 2nd master INSTANCE (0..1) — pair with FX_INST(FX_TAPE, instance)
 void instrument_tape(int slot, float wow, float flutter, float saturation);  // tape on just this slot
+void tape_warble(float amount);         // a WORN tape: instead of a steady wobble, the pitch sits still, then sags at random moments and glides back. amount 0..1 = how often and how deep (0 = off). A voice of tape(): call tape() first
+void instrument_tape_warble(int slot, float amount);  // warble on just this slot's tape (instrument_tape() first)
 
 // auto-wah — a resonant bandpass that OPENS with how hard you play (an envelope follower on the
 // summed signal): the funky talking-clavinet quack. Best on ONE rich/percussive instrument.

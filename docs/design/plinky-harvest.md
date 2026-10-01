@@ -81,6 +81,11 @@ Plinky's voice, the positive side of its shape knob. From `RunVoice()`:
   gate-only plonk.
 - **Phases reset and the noise reseeds at note-on.** Upstream free-runs. Ours renders a patch the same
   way every time.
+- **Every mip level is made zero-mean** (`dcFree()` in the generator). The noise-fold recipes are off centre
+  by construction (Plinky's fractal-noise term isn't zero-mean): GRIT1 averaged −0.177 of full scale, GRIT2
+  −0.118, so the voice carried −35 dBFS of DC between SAW and GRIT. `--selfcheck` now asserts every level is
+  within 1 LSB of zero, and that the RAW recipe is not (the control). The byte-identity check runs on the
+  raw port, before this step, so it still tests the port.
 - **The tables are const data, not built at boot.** A runtime build would call `sin()`, which rounds
   differently natively and in wasm ([determinism.md](determinism.md)), and would be shared mutable state
   for two plug-in instances.
@@ -92,7 +97,8 @@ Plinky's voice, the positive side of its shape knob. From `RunVoice()`:
 | `gen-wavescan.js --selfcheck` | saw byte-identical to Plinky's slot 0; sine within rounding of slot 1 (2 samples off by 1 LSB, their `cosf`); guard samples; centroid order; level 3 band-limited to −40 dB at harmonics 30-31, **and a raw saw FAILS the same test** (−26 dB): the negative control |
 | tune-check, default sweep | A2-A5 within +0.3¢ |
 | tune-check `--engine WAVESCAN --macros 0.45,0.6,0.8 --range 36-96` (spread + gate on) | C2-C7 within ±0.7¢ (+2.6¢ at C2): the recentred detune holds |
-| level-check | peak −15.1 dBFS = the library median exactly; every other engine Δ 0.0 (baseline blessed with the new row) |
+| level-check | peak −16.0 dBFS (−15.1 before the DC fix below, the library median); every other engine Δ 0.0 |
+| dc-check | **−110 dBFS** after the fix; it was **−35 dBFS (−0.0177), a FAIL**, caught after the first commit — see below |
 | soundcheck 900 frames | silent (slot 16 = scan 0.45, spread, full gate, res, noise, a fifth) |
 | aliasing probe: non-harmonic energy, saw position, gate off | **WAVESCAN −32 / −29 / −25 dB at A6 / A7 / C8; naive `INSTR_SAW` −13 / −10 / −10 dB.** 16-19 dB cleaner, not perfectly clean at the very top |
 | gate probe: centroid every 133 ms over a decaying note | GATE 1: 2751 → 2201 → 1765 → 1398 → 1065 → 779 Hz as the level falls −21 → −37 dB. GATE 0: 3361 … 3369 Hz, flat |

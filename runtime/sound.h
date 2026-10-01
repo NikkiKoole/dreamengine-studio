@@ -23,6 +23,7 @@
 #include <string.h>
 #include <stdatomic.h>   // lock-free SPSC request queue: main (producer) ↔ audio (consumer) thread
 #include "sound_ctx.h"   // GENERATED per-instance context (tools/ctx-gen.js)
+#include "wavescan_data.h"   // GENERATED const table bank for INSTR_WAVESCAN (tools/gen-wavescan.js) — read-only, shared
 #if defined(__SSE__) || defined(__x86_64__) || defined(__i386__)
 #include <xmmintrin.h>   // _mm_setcsr/_mm_getcsr — denormal flush-to-zero (FTZ/DAZ) on x86
 #endif
@@ -3291,6 +3292,89 @@ static inline float sound_sinter_sample(Voice *v, float pitch_mul) {
     return v->sn_hp_y * e * SN_TRIM[model];
 }
 
+// ── INSTR_WAVESCAN: Plinky's voice — a scanned table bank into a low-pass gate (plinky-harvest §3) ──
+// Ported from Plinky's RunVoice() (plinkysynth/plinky_public sw/Core/Src/plinky.c, MIT License,
+// Copyright (c) Alex Evans). Four oscillators read ONE bank of twelve band-limited single cycles
+// (runtime/wavescan_data.h, regenerated from Plinky's own recipes + mip pyramid by tools/gen-wavescan.js)
+// and `harmonics` SCANS it, crossfading the two neighbouring shapes — upstream's positive "shape" side.
+// Each oscillator picks the largest mip level no longer than its period, so nothing aliases. Then
+// upstream's 2-pole low-pass whose COEFFICIENT is the amp envelope: a low-pass gate, so a note gets
+// darker exactly as it gets quieter — the Buchla "plonk" that is most of Plinky's sound.
+// Macros: harmonics = SCAN (continuous, dark → bright) · timbre = SPREAD (upstream's microtune: the
+// four oscillators detune apart, 0 = one clean cycle) · morph = GATE (0 = no gate, a plain table osc,
+// exact · 1 = the cutoff IS the envelope). Aux at note-on: MODE_WAVESCAN_RES / _NOISE / _INTERVAL.
+// Changes from upstream, each on purpose:
+//  · the detune is RECENTRED (theirs sits −0.19 st flat at full microtune) so the voice stays in tune;
+//    each pair spreads ±0.125 st × timbre, upstream's 0.25 st per pair
+//  · four oscillators on the table path (upstream reads one per stereo side there, four only on its
+//    saw path), summed mono — the pan stage downstream owns stereo
+//  · our VCA still runs after the gate (the voice loop applies env), so morph 1 is VCA × LPG, a touch
+//    shorter than upstream's gate-only plonk. The coefficient is rescaled from their 31.25 kHz to ours
+//  · phases reset at note-on (upstream free-runs) and the noise reseeds, so a patch renders the same
+//    every time; the shipped Plinky tables are not used (see gen-wavescan.js for why)
+static void sound_wavescan_start(Voice *v) {
+    for (int i = 0; i < 4; i++) v->ws_ph[i] = 0.0f;
+    v->ws_y1 = v->ws_y2 = 0.0f;
+    v->ws_rnd = 0x504c4e4bu;
+    v->ws_interval = (clamp01(v->eng_p[MODE_WAVESCAN_INTERVAL]) - 0.5f) * 24.0f;
+    v->ws_iratio = v->ws_interval == 0.0f ? 1.0f : de_powf(2.0f, v->ws_interval * (1.0f / 12.0f));
+    v->ws_res = clamp01(v->eng_p[MODE_WAVESCAN_RES]) * 1.9f;
+    float nz = clamp01(v->eng_p[MODE_WAVESCAN_NOISE]);
+    v->ws_noise = nz * nz;                                     // upstream squares the noise knob
+    v->ws_on = true;
+}
+static inline float ws_read(int shape, int lvl, float ph, float n) {
+    const short *t = WAVESCAN_TABLE[shape] + WAVESCAN_LEVEL_OFF[lvl];
+    float x = ph * n;
+    int   i0 = (int)x;
+    float fr = x - (float)i0;
+    return (float)t[i0] + (float)(t[i0 + 1] - t[i0]) * fr;    // level ends in a guard sample: no wrap
+}
+static inline float sound_wavescan_sample(Voice *v, float pitch_mul) {
+    if (!v->ws_on) return 0.0f;
+    const float sr = (float)SOUND_SAMPLE_RATE;
+    float hz = v->freq * pitch_mul;
+    if (hz < 1.0f) hz = 1.0f;
+    float pos = clamp01(v->harm) * (float)(WAVESCAN_NSHAPE - 1);
+    int   sa = (int)pos; if (sa > WAVESCAN_NSHAPE - 2) sa = WAVESCAN_NSHAPE - 2;
+    float sf = pos - (float)sa;
+    float det = clamp01(v->timb) * 0.125f;                     // semitones, each side of the pair
+    float rup = det > 0.0f ? de_powf(2.0f, det * (1.0f / 12.0f)) : 1.0f;
+    float rat[4] = { 1.0f / rup, v->ws_iratio / rup, rup, v->ws_iratio * rup };   // 0/2 = the note, 1/3 = + interval
+    float sum = 0.0f;
+    for (int i = 0; i < 4; i++) {
+        float f  = hz * rat[i];
+        float period = sr / f;
+        int   lvl = 0; float n = (float)WAVESCAN_TOP;
+        while (n > period && lvl < WAVESCAN_LEVELS - 1) { n *= 0.5f; lvl++; }
+        float ph = v->ws_ph[i];
+        float a  = ws_read(sa, lvl, ph, n);
+        float s  = sf > 0.0f ? a + (ws_read(sa + 1, lvl, ph, n) - a) * sf : a;
+        sum += s;
+        ph += f / sr; ph -= floorf(ph);
+        v->ws_ph[i] = ph;
+    }
+    float out = sum * (0.25f / 16384.0f);
+    if (v->ws_noise > 0.0f) {
+        v->ws_rnd = v->ws_rnd * 1664525u + 1013904223u;
+        out += v->ws_noise * (((float)(v->ws_rnd >> 8) * (1.0f / 8388608.0f)) - 1.0f);
+    }
+    float gate = clamp01(v->mor);
+    if (gate <= 0.0f) return out;                              // no gate: the bare oscillators, exactly
+    // upstream: y1 += (in·drive − (y2−y1)·res − y1)·g ; y2 += (y1−y2)·g, with g = the envelope and a
+    // 0.999 leak, at 31.25 kHz. g's pole is carried to our rate (p^(31250/sr)), as is the leak.
+    float env = v->ws_env < 0.0f ? 0.0f : (v->ws_env > 1.0f ? 1.0f : v->ws_env);
+    float g = 1.0f - gate * (1.0f - env);
+    g = 1.0f - de_powf(1.0f - g, 31250.0f / sr);
+    const float leak = 0.99929f;                               // 0.999 at 31.25 kHz, carried to 44.1 kHz
+    float in = out * (2.0f / (v->ws_res + 2.0f));              // upstream's drive trim against resonance
+    v->ws_y1 += (in - (v->ws_y2 - v->ws_y1) * v->ws_res - v->ws_y1) * g;
+    v->ws_y1 *= leak;
+    v->ws_y2 += (v->ws_y1 - v->ws_y2) * g;
+    v->ws_y2 *= leak;
+    return v->ws_y2;
+}
+
 // One FM sample (2-op + feedback — §8.8.3 in audio-notes). The carrier is v->phase, which
 // the mix loop already advances by freq*pitch_mul — so the whole pitch machinery works by
 // construction; only the modulator phase lives here. The second oscillator is INAUDIBLE
@@ -5594,6 +5678,124 @@ static inline float sound_sample_sample(Voice *v, float pitch_mul) {
     return out;
 }
 
+// ── INSTR_GRAIN: a granular voice PER NOTE, Plinky's sampler (plinky-harvest §4.1) ──────────────────
+// Ported from the sampler branch of Plinky's RunVoice() (plinkysynth/plinky_public sw/Core/Src/plinky.c,
+// MIT License, Copyright (c) Alex Evans). Reads the buffer bound by instrument_sample() over the chop
+// region from instrument_sample_region(), read LIVE like INSTR_SAMPLE so a dragged chop moves sounding
+// notes. Each voice runs TWO grain chains; a chain holds an OLD grain and a NEW one and crossfades old
+// into new over one grain length (upstream's vol24 ramp, linear). When the fade ends the new grain
+// becomes the old one and a fresh grain starts at the playhead, so every grain lives two grain lengths
+// under a triangle window. Grain start = region + POSITION + the playhead + SCATTER (forward only, up to a
+// grain + 0.26 s, upstream's (grainsize + 8192) at 31.25 kHz). Grains read at the note's pitch (played
+// freq / root) × DETUNE (upward only, up to an octave, squared: upstream's gratejit²).
+// Macros: harmonics = POSITION in the region (live: ride note_harmonics per voice to SCRUB) · timbre = SIZE
+// (5 ms .. 1 s, exponential; 0.5 = 70 ms) · morph = SPEED of the playhead (0 = FROZEN, 0.5 = the original
+// speed, 1 = double). Aux at note-on: MODE_GRAIN_SCATTER / _DETUNE / _REVERSE. Changes from upstream:
+//  · SPEED is independent of PITCH. Upstream's playhead moves at rate × pitch × time-stretch, so time
+//    rides pitch like tape; ours keeps a sample's timing at any note, the classic granular promise.
+//    Consequence (asserted by the grainprobe cart, plinky-harvest §4.1): at SPEED 1× on the ROOT
+//    note with no scatter or detune, old and new grains read the SAME position, so the crossfade is
+//    invisible and the voice plays the region back as a plain loop
+//  · each grain starts (rate − speed) × one grain BEHIND the playhead, so it is centred on it rather than
+//    running ahead (measured: without it an octave up read 2.3× and the sweep wrapped 0.1 s early)
+//  · the second chain starts HALF a grain late, so the two chains' window dips never line up
+//    (upstream starts both together and leans on size jitter)
+//  · always loops inside the region (upstream: silent outside it unless the loop flag is set)
+//  · no size jitter and no sampler-side low-pass gate (upstream has both); mono sum of the two chains
+#define GR_SEAM 88.0                                          // ~2 ms: the fade either side of the loop seam
+static inline float gr_read(const SoundSample *s, double lo, double len, double p) {
+    double x = p - lo;
+    x -= floor(x / len) * len;                                // wrap into the region
+    // SEAM DECLICK: the region's end and start are rarely the same value (a grab is cut anywhere), so a
+    // grain reading across the wrap would jump. Fade to zero within GR_SEAM of either edge — a short dip
+    // that only a grain actually crossing the seam ever hears (INSTR_SAMPLE's one-shot declick, same width)
+    double d = x < len - x ? x : len - x;
+    float edge = d < GR_SEAM ? (float)(d / GR_SEAM) : 1.0f;
+    x += lo;
+    int   i0 = (int)x; if (i0 > s->len - 2) i0 = s->len - 2;
+    float fr = (float)(x - (double)i0);
+    return (s->data[i0] + (s->data[i0 + 1] - s->data[i0]) * fr) * edge;
+}
+static inline float gr_rand01(Voice *v) {
+    v->gr_rnd = v->gr_rnd * 1664525u + 1013904223u;
+    return (float)(v->gr_rnd >> 8) * (1.0f / 16777216.0f);
+}
+static inline float gr_size(Voice *v) {                       // grain length in samples, from timbre
+    return 0.005f * de_powf(200.0f, clamp01(v->timb)) * (float)SOUND_SAMPLE_RATE;
+}
+static void sound_grain_start(Voice *v) {
+    v->gr_rnd = 0x47524e4eu;
+    v->gr_scatter = clamp01(v->eng_p[MODE_GRAIN_SCATTER]);
+    v->gr_detune  = clamp01(v->eng_p[MODE_GRAIN_DETUNE]);
+    v->gr_rev     = v->eng_p[MODE_GRAIN_REVERSE] >= 0.5f;
+    v->gr_play = 0.0;
+    double lo = 0.0, len = 0.0;
+    if (v->smp_idx >= 0 && v->smp_idx < SOUND_SAMPLE_SLOTS && sound_samples[v->smp_idx].loaded) {
+        int n = sound_samples[v->smp_idx].len;
+        float endf = (v->smp_end_f > 0.0f && v->smp_end_f <= 1.0f) ? v->smp_end_f : 1.0f;
+        lo = (double)v->smp_start_f * (double)(n - 1);
+        len = (double)endf * (double)(n - 1) - lo;
+    }
+    double p0 = lo + (double)clamp01(v->harm) * (len > 0.0 ? len : 0.0);
+    float g = gr_size(v);
+    for (int c = 0; c < 2; c++) {
+        v->gr_pos[c][0] = v->gr_pos[c][1] = p0;
+        v->gr_jit[c] = 1.0f;
+        v->gr_dfade[c] = 1.0f / g;
+    }
+    v->gr_fade[0] = 1.0f;                                     // chain 0 starts a new grain after one length,
+    v->gr_fade[1] = 0.5f;                                     // chain 1 after half of one: the dips interleave
+    v->gr_on = true;
+}
+static inline float sound_grain_sample(Voice *v, float pitch_mul) {
+    if (!v->gr_on || v->smp_idx < 0 || v->smp_idx >= SOUND_SAMPLE_SLOTS) return 0.0f;
+    const SoundSample *s = &sound_samples[v->smp_idx];
+    if (!s->loaded || !s->data || s->len < 2) return 0.0f;
+    float startf = v->smp_start_f, endf = v->smp_end_f;       // the chop, read live (INSTR_SAMPLE's rule)
+    if (v->instr_slot >= 0 && v->instr_slot < SOUND_INSTR_SLOTS) {
+        startf = instr_bank[v->instr_slot].smp_start;
+        endf   = instr_bank[v->instr_slot].smp_end;
+    }
+    if (!(endf > 0.0f && endf <= 1.0f)) endf = 1.0f;
+    double lo = (double)startf * (double)(s->len - 1);
+    double len = (double)endf * (double)(s->len - 1) - lo;
+    if (len < 2.0) return 0.0f;
+    float root = v->smp_root < 1.0f ? 1.0f : v->smp_root;
+    float f = v->freq * pitch_mul; if (f < 1.0f) f = 1.0f;
+    float pitch = f / root;
+    float dir = v->gr_rev ? -1.0f : 1.0f;
+    float speed = clamp01(v->mor) * 2.0f;                     // SPEED: 0 frozen · 0.5 → 1× · 1 → 2×
+    float out = 0.0f;
+    for (int c = 0; c < 2; c++) {
+        float a = gr_read(s, lo, len, v->gr_pos[c][0]);
+        float b = gr_read(s, lo, len, v->gr_pos[c][1]);
+        float w = v->gr_fade[c];
+        out += a * w + b * (1.0f - w);
+        double step = (double)(dir * pitch * v->gr_jit[c]);
+        v->gr_pos[c][0] += step;
+        v->gr_pos[c][1] += step;
+        w -= v->gr_dfade[c];
+        if (w <= 0.0f) {                                      // the new grain becomes the old; start a fresh one
+            float g = gr_size(v);
+            double start = lo + (double)clamp01(v->harm) * len + v->gr_play;
+            if (v->gr_scatter > 0.0f)
+                start += (double)(dir * gr_rand01(v) * v->gr_scatter * (g + 0.26f * (float)SOUND_SAMPLE_RATE));
+            v->gr_jit[c] = v->gr_detune > 0.0f ? 1.0f + gr_rand01(v) * v->gr_detune * v->gr_detune : 1.0f;
+            // CENTRE the grain on the playhead: it outruns it by (rate − speed) per sample, and its window
+            // peaks one grain length in, so start it that far behind. Zero at 1× on the root (transparent).
+            start -= (double)(dir * (pitch * v->gr_jit[c] - speed) * g);
+            v->gr_pos[c][0] = v->gr_pos[c][1];
+            v->gr_pos[c][1] = start;
+            v->gr_dfade[c] = 1.0f / g;
+            w = 1.0f;
+        }
+        v->gr_fade[c] = w;
+    }
+    v->gr_play += (double)(dir * speed);
+    if (v->gr_play >= len) v->gr_play -= len; else if (v->gr_play < 0.0) v->gr_play += len;
+    return out * 0.5f;
+}
+
 static inline float sound_engine_sample(Voice *v, float pitch_mul) {
     switch (v->wave) {                                       // dense engine ids → jump table (was 13 sequential compares)
         case INSTR_MALLET:   return sound_mallet_sample(v, pitch_mul);
@@ -5615,6 +5817,8 @@ static inline float sound_engine_sample(Voice *v, float pitch_mul) {
         case INSTR_MME:      return sound_mme_sample(v, pitch_mul);
         case INSTR_METAL:    return sound_metal_sample(v, pitch_mul);
         case INSTR_SINTER:   return sound_sinter_sample(v, pitch_mul);
+        case INSTR_WAVESCAN: return sound_wavescan_sample(v, pitch_mul);
+        case INSTR_GRAIN:    return sound_grain_sample(v, pitch_mul);
     }
     // fall-through: the modal Karplus-Strong string — any engine id not handled above.
     int alloc = v->ks_len;
@@ -6241,6 +6445,8 @@ static void sound_setup_note(Voice *v, int midi, int slot, int vol, int gate_sam
     v->mme_on = false;
     v->metal_on = false;
     v->sn_on = false;
+    v->ws_on = false;
+    v->gr_on = false;
     v->fm_mph = v->fm_fb = v->fm_tph = 0.0f;   // FM needs no excitation, just deterministic phases
     if      (v->wave == INSTR_PLUCK)  sound_pluck_start(v);    // excite the string
     else if (v->wave == INSTR_MALLET) sound_mallet_start(v);   // strike the bar
@@ -6267,6 +6473,8 @@ static void sound_setup_note(Voice *v, int midi, int slot, int vol, int gate_sam
     else if (v->wave == INSTR_MME)    sound_mme_start(v);      // zero osc B + the feedback / vocoder states, snapshot pair + interval
     else if (v->wave == INSTR_METAL)  sound_metal_start(v);    // arm the six lifetimes + the noise envelope
     else if (v->wave == INSTR_SINTER) sound_sinter_start(v);   // reseed the noise, size the hit, snapshot a/b/motion/decay
+    else if (v->wave == INSTR_WAVESCAN) sound_wavescan_start(v); // zero the phases + gate, reseed the noise, snapshot res/noise/interval
+    else if (v->wave == INSTR_GRAIN)  sound_grain_start(v);    // both chains at POSITION, chain 1 half a grain behind, snapshot scatter/detune/reverse
     else if (v->wave == INSTR_FM4)    sound_fm4_start(v);      // reset 4 phases + feedback average
     // TRIGGER POLICY (§L4). The engine hooks above have just ARMED this voice's onset transient; if the
     // slot declares itself single-triggering and another key on it is already down, take it back off.
@@ -7552,6 +7760,7 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
                 if (harm_mod != 0.0f) v->harm = v->harm + harm_mod < 0 ? 0 : (v->harm + harm_mod > 1 ? 1 : v->harm + harm_mod);
                 if (timb_mod != 0.0f) v->timb = v->timb + timb_mod < 0 ? 0 : (v->timb + timb_mod > 1 ? 1 : v->timb + timb_mod);
                 if (mor_mod  != 0.0f) v->mor  = v->mor  + mor_mod  < 0 ? 0 : (v->mor  + mor_mod  > 1 ? 1 : v->mor  + mor_mod);
+                v->ws_env = env;   // INSTR_WAVESCAN's low-pass gate reads the amp envelope as its cutoff (unused by the others)
                 s = sound_engine_sample(v, pitch_mul);
                 v->harm = h0; v->timb = t0; v->mor = m0;
             } else if (v->uni_voices > 1) {
@@ -8626,6 +8835,19 @@ float instrument_playhead(int slot) {
             && v->smp_idx >= 0 && v->smp_idx < SOUND_SAMPLE_SLOTS) {
             SoundSample *s = &sound_samples[v->smp_idx];
             if (s->loaded && s->len > 1) return (float)(v->smp_pos / (double)(s->len - 1));
+        }
+        if (v->active && v->gr_on && v->wave == INSTR_GRAIN && v->instr_slot == slot   // INSTR_GRAIN: the PLAYHEAD
+            && v->smp_idx >= 0 && v->smp_idx < SOUND_SAMPLE_SLOTS) {                     // (POSITION + travel), not a grain
+            SoundSample *s = &sound_samples[v->smp_idx];
+            if (s->loaded && s->len > 1) {
+                double n = (double)(s->len - 1), lo = (double)instr_bank[slot].smp_start * n;
+                float endf = instr_bank[slot].smp_end; if (!(endf > 0.0f && endf <= 1.0f)) endf = 1.0f;
+                double len = (double)endf * n - lo;
+                if (len < 2.0) return -1.0f;
+                double x = (double)clamp01(v->harm) * len + v->gr_play;
+                x -= floor(x / len) * len;
+                return (float)((lo + x) / n);
+            }
         }
     }
     return -1.0f;

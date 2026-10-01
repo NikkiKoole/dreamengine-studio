@@ -3,8 +3,10 @@
 > **STATUS: RESEARCH (2026-10-01)** ‑ a reading list, not a plan. Candidates we could learn from, each
 > with its license **read from the repo itself** (copy vs study is a license question first) and what is
 > worth taking. The first harvest of this kind, CHOMPI, is done: [chompi-harvest.md](chompi-harvest.md).
-> O&C's Tonnetz moves (§2.2) are harvested (the `tonnetz` cart). Plinky (§2.1) is parked: too touch-heavy
-> for now (the maker wants mouse-friendly experiments first).
+> O&C's Tonnetz moves (§2.2) are harvested (the `tonnetz` cart). Plinky's two missing ENGINES (§2.1) are
+> harvested too, [plinky-harvest.md](plinky-harvest.md): `INSTR_WAVESCAN` + `INSTR_GRAIN`. Its touch-strip
+> SURFACE stays parked (the maker wants mouse-friendly experiments first); both demo carts also play by
+> mouse (one finger) and keys.
 
 The common thread: instruments where **you can't play a wrong note, or the instrument does the musical
 part for you**. Chordblossom (our homage to the Telepathic Instruments Orchid: you play chords, not notes)
@@ -22,7 +24,7 @@ is the house example. That's the north-star bar applied to music: legible and de
 
 ## 2 · Borrowable (MIT / Apache)
 
-### 2.1 Plinky — MIT software, C · **top pick**
+### 2.1 Plinky — MIT software, C · **top pick** · **ENGINES HARVESTED 2026-10-01**
 [github.com/plinkysynth/plinky_public](https://github.com/plinkysynth/plinky_public) · last push 2025-10.
 An 8-voice polysynth played on **8 touch strips**, everything locked to a scale. It also has a latch
 arpeggiator with probability, a granular sampler and wavetables. The repo's `LICENSE.md`: "the rest of the
@@ -31,6 +33,10 @@ software of plinky is licensed under the MIT License". The logo, panel and graph
 - **Why first:** same language as us, touch-first like our device faces, and made for anyone to play.
 - **Study:** how a strip's position and pressure become pitch and expression · the scale lock · the
   arp/sequencer probability (compare with `patgen.h`) · the grain engine (compare with `grains()`).
+- **Harvested:** [plinky-harvest.md](plinky-harvest.md). The scanned wavetable into a low-pass gate is
+  `INSTR_WAVESCAN` (`wavescan` cart), the per-note granular sampler is `INSTR_GRAIN` (`grainstrings`).
+  Found on the way: its shipped wavetable data is mostly WAVs of unknown origin, so we regenerated from
+  its recipes instead.
 
 ### 2.2 Ornament & Crime: Harrington 1200 + Automatonnetz — MIT, C++ · **HARVESTED 2026-10-01**
 
@@ -132,8 +138,9 @@ Measured 2026-10-01 from `card-profiles/wave-1.0/wavetable01..07.wav`:
 - **`tape()` saturation adds up to +9.5 dB** (chompi-harvest §7): needs the maker's call.
 
 ## 5 · Suggested order
-1. **Plinky:** clone and survey it like CHOMPI (most overlap with what we build).
+1. ~~**Plinky:** clone and survey it like CHOMPI~~ done: [plinky-harvest.md](plinky-harvest.md).
 2. **O&C Tonnetz moves:** small, clearly MIT, fills a real harmony gap → `harmony.h` / chordblossom.
-3. **A wavetable voice** using the CHOMPI tables (§4.1), if a cart wants one.
+3. **The CHOMPI tables (§4.1) as a second bank for `INSTR_WAVESCAN`**: the voice now exists, so this is
+   data + the same generator, not new DSP (plinky-harvest §4.4).
 4. **Piano Genie's trick** (relative buttons + scale snap) as a cart for absolute beginners.
 5. **Generative.fm** pieces as study material for the next radio station.

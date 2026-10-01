@@ -3265,6 +3265,19 @@
     "lineage": "A zero-engine-work SPIKE toward the PCM-sampler question (docs/design/mic-and-sampling.md): does 'chop what I just played' feel good? Built on grains()/grains_freeze()/grains_pitch() (grains.c is the showcase) + keybed.h (the shared polyphonic keybed epiano/moog/touchpiano carry) + an engine-select bank borrowed from motionbox's OSC page. Proves the FEEL of freeze-and-chop before committing to a real INSTR_SAMPLE voice + a mix-capture path."
   },
   {
+    "title": "grain voice probe",
+    "description": "A 0.5 s sine sweep (200 → 800 Hz) is loaded as sample 0 with A3 as its root. Five tests of 1.5 s each, separated by 0.25 s of silence: T0 plays it with INSTR_SAMPLE looping (the reference); T1 with INSTR_GRAIN at SPEED 1× on the root note (must match T0); T2 FROZEN in the middle of the sweep (the pitch must stop moving, near 500 Hz); T3 an octave up at 1× (twice the pitch, the SAME sweep timing); T4 with scatter + detune (must stay finite and click-free). Render it with `node tools/play.js grainprobe script /dev/null --headless --frames 500 --wav out.wav`.",
+    "file": "grainprobe.cart.png",
+    "created": "2026-10-01",
+    "kind": [
+      "tech-demo"
+    ],
+    "teaches": [
+      "granular-synth"
+    ],
+    "lineage": "Measurement probe for INSTR_GRAIN (docs/design/plinky-harvest.md §4.1), Plinky's per-note granular sampler. Rendered headless and read back by pitch and correlation; not played by hand."
+  },
+  {
     "title": "grain clouds",
     "description": "The showcase for grains() - a GRANULAR DELAY ported from navkit. It captures the live signal into a buffer, then sprays scattered, overlapping windowed GRAINS of the recent past back out as an evolving cloud (a Cosmos-style ambient texture). A soft pad chord feeds the cloud the whole time; the headline move is FREEZE (F or SPACE) - stop capturing and loop what's there forever, so you play a chord, freeze it into an infinite shimmering pad, then solo OVER your own frozen self. Six sliders ride the cloud live: SIZE (grain length), DENSITY (grains/sec, sparse to dense wash), POSITION (deep past to live edge), SCATTER (the random-spread 'evolving' knob), FEEDBACK (self-feeding cloud), MIX. Each dot on screen is a grain reading the buffer; the green bar is the capture head, which halts when frozen. Press 1..4 for chords (Cmaj7/Am7/Fmaj7/G), H for help. Built on grains() / grains_freeze() - reorderable as FX_GRAINS in the pedalboard. Part of the effects-bus / pedalboard family.",
     "file": "grains.cart.png",
@@ -3276,6 +3289,20 @@
       "granular-synth"
     ],
     "lineage": "Showcase for the grains() engine ported from navkit; novel: freeze mode halts the capture head so a chord loops as an infinite shimmering pad while live performance continues on top."
+  },
+  {
+    "title": "grain strings",
+    "description": "The console sings a chord, records itself, and hands you the recording on eight strings. Where you touch a string is where you are in the sound; drag to move through it. Each string plays the same recording at a different note of a pentatonic scale, so any fingers you hold make a chord. Height is time: the bottom of a string is the start of the sound, the top is the end, and the line on each string shows where its grains are coming from. Drag a finger up or down to scrub through the sound. SPEED sets how fast a held note travels on its own: all the way down and it FREEZES on one moment, so you can hold a single instant of a sung chord as long as you like. SIZE sets the grain length (short = buzzy, long = smooth), SCATTER smears the grains into a cloud, DETUNE scatters their pitch upward into a shimmer, REVERSE plays everything backward. RESAMPLE makes the console sing a new phrase; MIC records three seconds of you instead. Hold and drag on the strings (multi-touch), or A S D F G H J K at the middle of the sound. Knobs: SIZE SPEED SCATTER DETUNE. REVERSE, RESAMPLE, MIC (records 3 s).",
+    "file": "grainstrings.cart.png",
+    "created": "2026-10-01",
+    "kind": [
+      "instrument"
+    ],
+    "teaches": [
+      "granular-synth",
+      "scale-quantize"
+    ],
+    "lineage": "The demo for INSTR_GRAIN and docs/design/plinky-harvest.md §4.1: the sampler of Plinky (plinkysynth/plinky_public, MIT, Alex Evans), where each of eight touch strips plays a granular voice and your finger's place on the strip is your place in the sound. Not a Plinky clone and not named like one."
   },
   {
     "title": "Grenadier",
@@ -8335,6 +8362,20 @@
       "wavetable-drawing"
     ],
     "lineage": "A live waveform painter built around the engine's INSTR_USER0-3 slots; mellotron's tapeloop trick (wave_set for timbre construction) is its direct downstream."
+  },
+  {
+    "title": "wavescan",
+    "description": "Eight strings, a fifth apart, locked to a scale: you cannot play a wrong note. SCAN sweeps the wave from a pure sine to a buzz; GATE makes each note darken as it fades. Each column is a string and each pad on it is a note of C major, so any two fingers make a chord. Hold a pad to sound it, slide along the string to change the note. SCAN moves through twelve band-limited single cycles, drawn above the strings: sine, folded sines, FM, square, saw, noisy folds, a buzz, the two neighbours of the cursor crossfading. SPREAD detunes the voice's four oscillators apart. GATE is a low-pass gate: the filter's cutoff IS the volume envelope, so a note is bright when struck and darkens exactly as it fades, the wooden 'plonk' of west-coast synths. RES puts a peak on that cutoff, NOISE adds breath to the strike, INTERVAL stacks a second pair of oscillators a fifth or an octave away. It plays itself until you touch it; DEMO starts it again. Hold pads (multi-touch) or A S D F G H J K; Z/X move the keyboard row. Knobs: SCAN SPREAD GATE (live), RES NOISE INTERVAL (next note). DEMO toggles the self-play.",
+    "file": "wavescan.cart.png",
+    "created": "2026-10-01",
+    "kind": [
+      "instrument"
+    ],
+    "teaches": [
+      "west-coast-synthesis",
+      "scale-quantize"
+    ],
+    "lineage": "The demo for INSTR_WAVESCAN and docs/design/plinky-harvest.md: the voice of Plinky (plinkysynth/plinky_public, MIT, Alex Evans), an 8-voice touch-strip synth. Its scanned wavetable bank and its low-pass gate are ported; the strings-a-fifth-apart layout is its stride() algorithm. Not a Plinky clone and not named like one: the name and panel art are not ours to use."
   },
   {
     "title": "wba fm",

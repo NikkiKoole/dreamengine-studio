@@ -813,6 +813,13 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
                              that stamped every FR-2L rhythm with a 6-count beat, which would have played the
                              waltz wrong. Per-rhythm subdivisions live in a SUBDIV table, each entry citing the
                              doc section that states it; a rhythm the doc does not pin keeps its machine default
+             grain-check.js  the INSTR_GRAIN gate: renders the `grainprobe` cart (a sine SWEEP as the sample, since a sweep's
+                             pitch IS its position) and asserts 1× = plain playback (corr ≥ .99), FROZEN holds still, an
+                             octave up = 2.00× at the same timing, scatter/detune stay finite. T1's sweep is the control
+             gen-wavescan.js GENERATE runtime/wavescan_data.h, INSTR_WAVESCAN's 12-shape band-limited table bank, from
+                             Plinky's own wave recipes + windowed-sinc mip pyramid (MIT) — NOT its shipped table, whose slots
+                             2-15 are WAVs of unknown origin. --check gates staleness · --selfcheck = its saw byte-identical to
+                             Plinky's shipped one + a band-limit test with a raw-saw negative control · --report = centroids
              build-cart-index.js  GENERATE editor/public/carts/index.json from each cart's de:meta block
                              (cart owns its metadata; index.json is a derived view); --check gates staleness
              lint-carts.js   validate each cart's de:meta (tags/status/created/description) + assert

@@ -184,8 +184,9 @@ function renderSweep(keep) {
   // same reasoning as tune-check.js — the two renderSweep()s must not drift apart again.
   // 2026-09-28: 3700 covered 14 entries and the roster is 17 (MODAL, FM4, MME + the differential
   // pass), so the sweep truncated again and read a phantom ORGAN/BOWED A5 drift off uneven windows.
-  // 17 × 4 × 62 = 4216. Count ENGINES[] in tools/carts/tunecheck.c when adding an engine.
-  runPlay('tunecheck', 4500, wav, trace)
+  // 17 × 4 × 62 = 4216; WAVESCAN made it 18 × 4 × 62 = 4464 + one period of tail = 4600 (2026-10-01) — the next engine needs it
+  // raised. Count ENGINES[] in tools/carts/tunecheck.c when adding an engine.
+  runPlay('tunecheck', 4600, wav, trace)
   return { wav, trace, dir }
 }
 

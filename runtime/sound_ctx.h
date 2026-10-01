@@ -429,6 +429,23 @@ typedef struct {
     int    sn_model;                    // the model the hit's DURATION was sized for (model rides live)
     float  sn_hp_x, sn_hp_y;            // 10 Hz output DC blocker
     bool   sn_on;
+    // WAVESCAN (INSTR_WAVESCAN): Plinky's voice — four table oscillators scanning one bank + a low-pass gate.
+    float  ws_ph[4];                    // oscillator phases (turns); 0/2 at the note, 1/3 at the note + interval
+    float  ws_interval, ws_iratio;      // MODE_WAVESCAN_INTERVAL snapshot: semitones (0 = unison) + its frequency ratio
+    float  ws_res, ws_noise;            // LPG resonance (0..1.9) + noise level (squared, as upstream), note-on
+    float  ws_y1, ws_y2;                // the 2-pole low-pass gate state
+    float  ws_env;                      // this sample's amp-envelope level, handed in by the voice loop (the gate's cutoff)
+    uint32_t ws_rnd;                    // per-voice noise LCG, reseeded at note-on (deterministic)
+    bool   ws_on;
+    // GRAIN (INSTR_GRAIN): Plinky's sampler voice — two chains, each crossfading an OLD grain into a NEW one.
+    double gr_play;                     // the playhead, samples into the region (wraps); moves at SPEED, not at pitch
+    double gr_pos[2][2];                // [chain][0 = old, 1 = new] absolute read positions in the buffer
+    float  gr_jit[2];                   // per-chain pitch-jitter ratio, drawn when the chain's new grain starts
+    float  gr_fade[2], gr_dfade[2];     // weight of the OLD grain (1 → 0 across one grain) + its per-sample step
+    float  gr_scatter, gr_detune;       // MODE_GRAIN_SCATTER / _DETUNE snapshots (note-on)
+    bool   gr_rev;                      // MODE_GRAIN_REVERSE snapshot: grains AND the playhead run backward
+    uint32_t gr_rnd;                    // per-voice LCG, reseeded at note-on (deterministic)
+    bool   gr_on;
 } Voice;
 #define SOUND_HANDLE_BITS 5                      // slot field width — must hold SOUND_VOICES-1 (32 voices → 0..31 → 5 bits)
 #define SCOPE_LEN 2048

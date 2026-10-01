@@ -141,6 +141,7 @@ const ENGINE_NAMES = {
   25: 'PIPE flute', 26: 'GUITAR plucked+body', 27: 'PIANO stiff-string',
   28: 'BOWED violin/cello', 29: 'BRASS lip-reed',
   31: 'MODAL exciter→resonator', 32: 'FM4 four-op', 33: 'MME multi-modulation',
+  36: 'WAVESCAN table scan + LPG',
 }
 
 const midiToFreq = (m) => 440 * Math.pow(2, (m - 69) / 12)
@@ -303,13 +304,14 @@ function renderSweep(keep) {
   const dir = path.join(ROOT, 'build', '.tune')
   fs.mkdirSync(dir, { recursive: true })
   const wav = path.join(dir, 'sweep.wav'), trace = path.join(dir, 'sweep.trace.jsonl')
-  // 17 sweep entries (16 engines + PIANO's stretch-off differential pass) × 4 pitches × 62 frames
-  // = 4216. Over-run is harmless (the analyzer is trace-driven), but UNDER-run silently truncates
+  // 18 sweep entries (17 engines + PIANO's stretch-off differential pass) × 4 pitches × 62 frames
+  // = 4464, plus one whole period of tail (level-check refuses a sweep that ends inside one) → 4600.
+  // WAVESCAN made it 18 entries, 2026-10-01; the next engine needs this raised. Over-run is harmless (the analyzer is trace-driven), but UNDER-run silently truncates
   // the LAST entries — which is the differential pass, so keep this above NNOTES × PERIOD.
   // (Bit us: 3700 covered 14 entries; MODAL + FM4 pushed the roster to 16 and the differential
   // pass fell off the end unnoticed, and INSTR_MME would have too. Count ENGINES[] in
   // tools/carts/tunecheck.c when adding an engine.)
-  runPlay('tunecheck', 4500, wav, trace)
+  runPlay('tunecheck', 4600, wav, trace)
   return { wav, trace, dir }
 }
 
@@ -317,7 +319,7 @@ function renderSweep(keep) {
 const ENGINE_ID = {
   SQUARE: 0, SAW: 1, TRI: 2, NOISE: 3, SINE: 4, PLUCK: 16, MALLET: 17, FM: 18, ORGAN: 19,
   EPIANO: 20, PD: 21, MEMBRANE: 22, REED: 23, VOICE: 24, PIPE: 25, GUITAR: 26, PIANO: 27,
-  BOWED: 28, BRASS: 29, MODAL: 31, FM4: 32, MME: 33,
+  BOWED: 28, BRASS: 29, MODAL: 31, FM4: 32, MME: 33, WAVESCAN: 36,
 }
 
 function runPlay(cart, frames, wav, trace) {

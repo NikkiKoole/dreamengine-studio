@@ -7,13 +7,21 @@
 > **here**, then fix the prose in the relevant design doc. If a design doc and this file
 > disagree, this file wins.
 
-_Last updated: 2026-09-28 — INSTR_SINTER shipped (synthetic percussion), the third Choochootracker engine in two days. See the top Shipped entry and [`design/choochootracker-borrow-list.md`](design/choochootracker-borrow-list.md)._
+_Last updated: 2026-10-01 — Plinky harvest: INSTR_WAVESCAN + INSTR_GRAIN shipped. See the top Shipped entry and [`design/plinky-harvest.md`](design/plinky-harvest.md)._
 
 > **This line is a headline, not an entry.** It reached **9,064 characters** and was the only place in the file that recorded `FILTER_DIODE`, `filter-spec.js` and `rebirth-classic.md` — three shipped things, invisible because nobody reads a shipped feature out of a `_Last updated:_` line. They have a real entry now (2026-07-02, above `sprite-draw.js`). Keep this to one date, one sentence, one link; `status-check --check` fails past 900 chars.
 
 ---
 
 ## Shipped ✓
+
+- **PLINKY HARVEST: `INSTR_WAVESCAN` + `INSTR_GRAIN`** (2026-10-01). Plinky's two voices we lacked (MIT).
+  WAVESCAN: four oscillators SCAN a 12-cycle band-limited bank (regenerated from Plinky's recipes by
+  `tools/gen-wavescan.js`, since its shipped table is mostly WAVs of unknown origin) into a low-pass gate
+  whose cutoff is the envelope; ~17 dB less aliasing than the naive saw, in tune C2-C7. GRAIN: a granular
+  voice per note over an `instrument_sample()` buffer, POSITION/SIZE/SPEED + scatter/detune/reverse, pitch
+  independent of timing; at 1× it IS the sample (corr 0.996), an octave up is 2.000×. Carts `wavescan`,
+  `grainstrings`; gate `tools/grain-check.js`. [`design/plinky-harvest.md`](design/plinky-harvest.md).
 
 - **TONNETZ: CHORDS AS PLACES (`runtime/tonnetz.h` + the `tonnetz` cart)** (2026-10-01). Ornament & Crime's
   Harrington 1200 / Automatonnetz (MIT), ported. Every triad is a triangle; P/L/R flip it across an edge and

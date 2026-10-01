@@ -130,6 +130,39 @@ from `MODE_MODAL_EXCITE`). The `h/t/m` below are the **recommended** triple.
 > `https://mipolai.com/dreamengine/modal/`. From a machine that can publish:
 > `node tools/build-site.js modal` then the `site/` push in `tools/publish-cart.sh`.
 
+## INSTR_WAVESCAN — a scanned table bank into a low-pass gate
+
+From **wavescan.c** (showcase; [plinky-harvest](../design/plinky-harvest.md) §3). `h` = SCAN through the
+twelve cycles (continuous: shape k sits at `k / 11`, between two it crossfades), `t` = SPREAD (four
+oscillators ±0.125 st), `m` = GATE (cutoff follows the envelope). `res / nz / iv` are
+`MODE_WAVESCAN_RES / NOISE / INTERVAL` (`iv` = `0.5 + semitones / 24`). The gate only reads as a
+"plonk" when the ENVELOPE moves, so give it a real decay and a low sustain. Default macros peak at the
+library median (−15.1 dBFS).
+
+| name | source cart | recipe | character |
+|---|---|---|---|
+| wavescan/plonk | wavescan.c (showcase) | `A2 D420 S2 R520` · h0.40 t0.35 m0.85 · res0.25 nz0.15 iv0.5 | The cart's boot voice: between FM and square, bright on the strike and darkening as it fades. |
+| wavescan/glass fifths | wavescan.c | `A2 D420 S2 R520` · h0.18 t0.20 m1.0 · res0.5 iv0.792 (+5th) | Folded sines with a fifth stacked on: a resonant, bell-ish chord from one key. |
+| wavescan/buzz pad | wavescan.c | `A300 D0 S7 R900` · h0.95 t0.8 m0.0 · iv0.0 (−oct) | The noise-cycle end with the gate off: a wide, held, gritty drone with an octave under it. |
+| wavescan/sine pluck | wavescan.c (SCAN + SPREAD to 0) | `A2 D420 S2 R520` · h0.0 t0.0 m1.0 | A pure sine through the gate: the softest marimba-like plonk the engine makes. |
+
+## INSTR_GRAIN — a granular voice per note
+
+From **grainstrings.c** (showcase; [plinky-harvest](../design/plinky-harvest.md) §4.1). Needs a buffer:
+`instrument_sample(slot, sample_slot, root)` (+ `instrument_sample_region` for a chop). `h` = POSITION in
+the region (set it on the SLOT before `note_on`, then ride `note_harmonics(handle, x)` to scrub), `t` =
+SIZE (5 ms … 1 s; 0.5 = 70 ms), `m` = SPEED (0 frozen, 0.5 original, 1 double). `sc / dt / rev` are
+`MODE_GRAIN_SCATTER / DETUNE / REVERSE`. A soft attack (≥ 20 ms) hides the first grain's start. At `m0.5`,
+no scatter/detune, on the root note, it plays the region back as a plain loop (grain-check T1).
+
+| name | source cart | recipe | character |
+|---|---|---|---|
+| grain/drift | grainstrings.c (showcase) | `A40 D0 S7 R600` · t0.55 m0.12 · sc0.2 | The cart's default: big grains creeping slowly through a sung chord, a gentle smear. |
+| grain/freeze chord | grainstrings.c | `A40 D0 S7 R600` · h<any> t0.6 m0.0 | SPEED down: one instant held still; three strings = one moment of a voice as a chord. |
+| grain/shimmer | grainstrings.c | `A40 D0 S7 R600` · t0.45 m0.1 · sc0.5 dt0.45 | Scatter + upward detune: the sound breaks into a glittering cloud of upper pitches. |
+| grain/buzz | grainstrings.c | `A20 D0 S7 R300` · t0.05 m0.5 | Tiny grains (≈7 ms) at normal speed: the source turns into a pitched, reedy buzz. |
+| grain/backwards | grainstrings.c | `A40 D0 S7 R600` · t0.5 m0.5 · rev1 | Grains and playhead running backward: a sung phrase sucked back in. |
+
 ## INSTR_SINTER — synthetic percussion
 
 All from **sintered.c** (showcase). Base `A0 D0 S7 R20` and a hit() longer than the voice's own

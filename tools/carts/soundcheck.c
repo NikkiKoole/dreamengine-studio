@@ -131,6 +131,24 @@ void init(void) {
     instrument(17, INSTR_SINTER, 0, 0, 7, 20);   // slot 17 = synthetic percussion (knot model)
     instrument_harmonics(17, 0.08f);
     instrument_mode(17, MODE_SINTER_DECAY, 0.4f);
+    instrument(16, INSTR_WAVESCAN, 2, 300, 2, 500);   // slot 16 = Plinky's table scan + low-pass gate
+    instrument_harmonics(16, 0.45f);             // between square and saw: a crossfade, not a detent
+    instrument_timbre(16, 0.5f);                 // the four oscillators spread
+    instrument_morph(16, 1.0f);                  // the gate all the way
+    instrument_mode(16, MODE_WAVESCAN_RES, 0.4f);
+    instrument_mode(16, MODE_WAVESCAN_NOISE, 0.3f);
+    instrument_mode(16, MODE_WAVESCAN_INTERVAL, 0.5f + 7.0f / 24.0f);   // a fifth
+    {   // 0.1 s of a two-partial tone into sample slot 7, so the grain voice's reads really run
+        static float gbuf[4410];
+        for (int i = 0; i < 4410; i++) gbuf[i] = 0.4f * sinf(i * 0.0399f) + 0.2f * sinf(i * 0.1597f);
+        sample_load(7, gbuf, 4410);
+    }
+    instrument(15, INSTR_GRAIN, 5, 0, 7, 300);   // slot 15 = the per-note granular voice over sample 7
+    instrument_sample(15, 7, 60);
+    instrument_morph(15, 0.25f);                 // half speed
+    instrument_mode(15, MODE_GRAIN_SCATTER, 0.5f);
+    instrument_mode(15, MODE_GRAIN_DETUNE, 0.3f);
+    instrument_mode(15, MODE_GRAIN_REVERSE, 1.0f);
     instrument_mode(18, MODE_METAL_DECAY, 0.3f);
     instrument_morph(18, 0.85f);                 // Bogie's upward stagger
     instrument_harmonics(19, 0.07f);             // ring model
@@ -187,6 +205,8 @@ void update(void) {
         note_on(45, 19, 5);   // exercise the MME voice's held path (slot 19)
         hit(57, 18, 6, 600);  // exercise the metal bank (slot 18) — the lifetimes end it
         hit(36, 17, 6, 400);  // exercise the sintered voice (slot 17) — its own length ends it
+        hit(60, 16, 6, 700);  // exercise the wavescan voice (slot 16) — scan crossfade + the gate + noise + interval
+        hit(64, 15, 6, 700);  // exercise the grain voice (slot 15) — two chains, scatter, detune, reverse over sample 7
         hit(57, 20, 6, 700);  // exercise four-op FM (slot 20)
     } else if (s == 21 && held >= 0) {
         label = "live: pitch/cutoff/res/duty/lfo/env/macros";

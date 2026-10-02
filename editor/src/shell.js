@@ -1080,7 +1080,17 @@ async function extractCartChunksBrowser(bytes) {
   return result
 }
 
+// While a cart loads (fetch + decode + apply), ▶ run says so and can't be clicked — otherwise a click
+// in that window runs the PREVIOUS cart's buffer. Left alone if a compile already owns the button.
 async function loadCartFromUrl(url) {
+  const btn = document.getElementById('run-btn')
+  const owns = btn && !btn.disabled
+  const stop = owns ? busyDots(btn, 'loading', btn.textContent) : null
+  if (owns) btn.disabled = true
+  try { await loadCartFromUrlInner(url) }
+  finally { if (owns) { stop(); btn.disabled = false } }
+}
+async function loadCartFromUrlInner(url) {
   currentCartThumb = url   // the .cart.png thumbnail, shown in the share popover header
   const res = await fetch(url)
   const bytes = new Uint8Array(await res.arrayBuffer())

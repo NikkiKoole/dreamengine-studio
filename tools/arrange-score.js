@@ -51,6 +51,8 @@
 //   keys voices / reg      notes per keys hit, their mean MIDI register
 //   lead phrase len        notes per phrase (a gap ≥ 1 beat ends one) · range (semitones) · step %
 //                          (≤ 2 semitones) split as semitone % · third % (3-4) · leap % (≥ 5)
+//   rubs <a-b> /min        notes of two pitched parts SOUNDING TOGETHER a semitone or a b9 apart, per minute
+//                          (by REGISTER, unlike clash %: what the ear hears as dissonance — see countRubs)
 //   <part> pocket ms       mean offset from the 16th grid (+ = late) · <part> spread = its std
 //   swing ms               odd-16th onsets' extra delay over even ones (all parts)
 //   <part> vol sd          dynamics: std of note volume (the engine's 0–7 scale)
@@ -171,6 +173,32 @@ function soundingPcs(byPart, t, win) {
   return pcs
 }
 
+// RUBS BY REGISTER: pairs of notes SOUNDING TOGETHER (overlap > 10 ms) a semitone or a minor ninth apart, per
+// pitched part pair, per minute. The clash % rows judge pitch CLASSES against the chord, so they cannot see
+// WHERE notes sit: lofi's Rhodes stacked a 9th under the 3rd an octave up (a b9 inside the chord) and its lead
+// sat a semitone off the keys in the same octave, and both rows stayed green while the owner heard it as
+// "dissonance" (radio-arranger-lessons §6.3). A maj7 two octaves over the bass is NOT counted (that is the
+// chord), which is also why these rows replace bass clash % as the dissonance read. Notes without a known
+// duration (dur ≤ 0) are skipped.
+const RUB_PAIRS = ['keys-keys', 'keys-lead', 'bass-keys', 'bass-lead']
+function countRubs(byPart, minutes) {
+  const N = []
+  for (const p of PITCHED) for (const n of byPart[p]) if (n.dur > 0) N.push({ p, m: n.midi, s: n.s, e: n.s + n.dur })
+  N.sort((a, b) => a.s - b.s)
+  const c = {}; for (const k of RUB_PAIRS) c[k] = 0
+  const ovl = SR * 0.01
+  for (let i = 0; i < N.length; i++) for (let j = i - 1; j >= 0 && j > i - 80; j--) {
+    const a = N[i], b = N[j]
+    if (b.e <= a.s + ovl) continue
+    const d = Math.abs(a.m - b.m); if (d !== 1 && d !== 13) continue
+    const k = [a.p, b.p].sort().join('-'); if (k in c) c[k]++
+  }
+  const r = {}; let tot = 0
+  for (const k of RUB_PAIRS) { r[`rubs ${k} /min`] = minutes > 0 ? c[k] / minutes : NaN; tot += c[k] }
+  r['rubs total /min'] = minutes > 0 ? tot / minutes : NaN
+  return r
+}
+
 function scoreSong(notes, roleMap) {
   const byPart = {}; for (const p of PARTS) byPart[p] = []
   for (const n of notes) { const p = roleMap.get(n.slot); if (p) byPart[p].push(n) }
@@ -265,6 +293,7 @@ function scoreSong(notes, roleMap) {
   m['lead semitone %'] = ints.length ? 100 * ints.filter(x => x === 1).length / ints.length : NaN
   m['lead third %'] = ints.length ? 100 * ints.filter(x => x === 3 || x === 4).length / ints.length : NaN
   m['lead leap %'] = ints.length ? 100 * ints.filter(x => x >= 5).length / ints.length : NaN
+  Object.assign(m, countRubs(byPart, m.min))
   return m
 }
 
@@ -389,6 +418,7 @@ const ORDER = ['songs', 'bpm', 'grid fit', 'bars', 'min',
   'block contrast', 'layers/block', 'layers min-max', 'chord changes/bar', 'keys voices', 'keys register',
   ...PARTS.flatMap(p => [`${p} notes/bar`, `${p} repeat %`, `${p} distinct %`]),
   'lead phrase len', 'lead range', 'lead step %', 'lead semitone %', 'lead third %', 'lead leap %',
+  ...RUB_PAIRS.map(k => `rubs ${k} /min`), 'rubs total /min',
   'swing ms', ...PARTS.flatMap(p => [`${p} pocket ms`, `${p} spread ms`]),
   ...PARTS.map(p => `${p} vol sd`)]
 function fmt(v) { return typeof v === 'string' ? v : Number.isNaN(v) || v === undefined ? '–' : Math.abs(v) >= 100 ? v.toFixed(0) : Math.abs(v) >= 10 ? v.toFixed(1) : v.toFixed(2) }
@@ -437,6 +467,22 @@ function selfcheck() {
   ok(bb['lead clash %'] > 20, `minor-pent lead over maj7 clashes: ${bb['lead clash %']}`)
   ok(Math.abs(bb['snare pocket ms'] - 20) < 1.5, `a 20 ms late snare reads ~20: ${bb['snare pocket ms']}`)
   ok(bb['lead distinct %'] > 20 && bb['lead repeat %'] < 100, `a varying lead is not 100% repeat: ${bb['lead repeat %']}`)
+  // R: rubs by register. A b9 INSIDE the keys (C4 under Db5) is a rub; the same pitch classes 2 octaves
+  // apart (C3 under Db5, 25) are not; a lead a semitone off a held keys note rubs, one that starts after the
+  // keys note ENDED does not; a maj7 two octaves over the bass is the chord, not a rub.
+  const R = mk(16, (b, s, t, ns) => {
+    kit(b, s, t, ns)
+    if (s === 0) { ns.push({ slot: 5, midi: 60, vol: 4, dur: Math.round(8 * step), s: t }); ns.push({ slot: 5, midi: 73, vol: 4, dur: Math.round(8 * step), s: t }) }   // b9 inside the keys
+    if (s === 0) ns.push({ slot: 5, midi: 48, vol: 4, dur: Math.round(8 * step), s: t })            // C3 vs Db5 = 25: not a rub
+    if (s === 0) ns.push({ slot: 6, midi: 37, vol: 5, dur: Math.round(8 * step), s: t })            // Db2 vs C4 = 23 (a maj7): not a rub
+    if (s === 4) ns.push({ slot: 7, midi: 74, vol: 3, dur: Math.round(2 * step), s: t })            // D5 vs Db5 sounding: a rub
+    if (s === 10) ns.push({ slot: 7, midi: 61, vol: 3, dur: Math.round(2 * step), s: t })           // after the keys ended: none
+  })
+  const rr = scoreSong(R.sort((x, y) => x.s - y.s), roleMap), perMin = 16 / rr.min
+  ok(Math.abs(rr['rubs keys-keys /min'] - perMin) < 1e-6, `one b9 inside the keys a bar: ${rr['rubs keys-keys /min'].toFixed(2)} vs ${perMin.toFixed(2)}`)
+  ok(Math.abs(rr['rubs keys-lead /min'] - perMin) < 1e-6, `one keys-lead semitone a bar, none after the chord ends: ${rr['rubs keys-lead /min'].toFixed(2)}`)
+  ok(rr['rubs bass-keys /min'] === 0 && rr['rubs bass-lead /min'] === 0, `a maj7 / 2 octaves apart is not a rub: ${rr['rubs bass-keys /min']}`)
+  ok(a['rubs total /min'] > 0 && Math.abs(a['rubs total /min'] - 16 / a.min) < 1e-6, `fixture A's lead C5 over the keys' B3 IS a b9 (one a bar): ${a['rubs total /min'].toFixed(2)}`)
   // C: silence (no notes) must not score as a perfect song
   ok(scoreSong([], roleMap) === null, 'no notes → no score (not a perfect one)')
   // D: the SOUND analyser on signals with known answers (a broken analyser and a dull mix print alike)

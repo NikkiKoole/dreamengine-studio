@@ -15,7 +15,7 @@
     "chord-voicing",
     "swing-timing"
   ],
-  "lineage": "The lo-fi/Nujabes/Dilla pole of jazzy hip-hop, distinct from lowend's boom-bap; novel in THE DRUNK POCKET - a dialable off-grid time feel (snare-late/lazy-kick/swing + humanize), the loose pocket lowend undersold. Reuses vapor's lo-fi rack. 2026-09-29: the first station on radio.h's sample-clock grid (rad_audio_*), and the phase-1 pilot of docs/design/radio-arranger-lessons.md: the song is PLANNED up front - a form with per-part roles, an A/B pair or a ii-V turnaround, pushes, fills, hats-first, tone dips and a tone ride, a song that ends into a related key - all on a derived stream, so pinned seeds keep their key/mood/loop/title. A/B it against loficity. Later that day the BAND was recast the way loficity casts jazzhop (tools/arrange-score.js --sound found the gap was the sound, not the notes): a clean tape instead of a saturated one that squashed the Rhodes under every hit, a pizzicato upright, a morphdrum kit + rim, vibes/flute on top, the Rhodes' suitcase tremolo, the mix balanced by measured stems, and the drag moved off the tune onto the backbeat. 2026-10-02: passing tones (loficity's humanize move) fill the lead's thirds with the key's scale note, so the line has semitones.",
+  "lineage": "The lo-fi/Nujabes/Dilla pole of jazzy hip-hop, distinct from lowend's boom-bap; novel in THE DRUNK POCKET - a dialable off-grid time feel (snare-late/lazy-kick/swing + humanize), the loose pocket lowend undersold. Reuses vapor's lo-fi rack. 2026-09-29: the first station on radio.h's sample-clock grid (rad_audio_*), and the phase-1 pilot of docs/design/radio-arranger-lessons.md: the song is PLANNED up front - a form with per-part roles, an A/B pair or a ii-V turnaround, pushes, fills, hats-first, tone dips and a tone ride, a song that ends into a related key - all on a derived stream, so pinned seeds keep their key/mood/loop/title. A/B it against loficity. Later that day the BAND was recast the way loficity casts jazzhop (tools/arrange-score.js --sound found the gap was the sound, not the notes): a clean tape instead of a saturated one that squashed the Rhodes under every hit, a pizzicato upright, a morphdrum kit + rim, vibes/flute on top, the Rhodes' suitcase tremolo, the mix balanced by measured stems, and the drag moved off the tune onto the backbeat. 2026-10-02: passing tones (loficity's humanize move) fill the lead's thirds with the key's scale note, so the line has semitones. Same day: loficity's voicing (no b9 inside the chord), the lead up in its register, grace notes, and a song may have no lead at all (15%).",
   "homage": "Lo-fi hip-hop (Nujabes / J Dilla)",
   "todo": [
     "NO WAY TO JAM: the player can only tune the dial, never play along. Add a solo.h scale-locked solo strip (J toggles it) - the strip locks to the station's current key/scale so anything you touch is in tune. Worked examples: air, polopan, jangle, jingle, citypop, dub."
@@ -264,7 +264,7 @@ static const int PUSHODDS[NMO] = { 20, 30, 25, 35 };
 static struct {
     Sect s[MAXSECT]; int n, bars;
     Prog A, B;                              // A's loop; B's own move, or A with a ii-V turnaround
-    int turnB, groove, legato, strum, compW[NCP];
+    int turnB, groove, legato, strum, compW[NCP], hasLead;
     unsigned char sec[MAXBAR], j[MAXBAR], push[MAXBAR], fill[MAXBAR], comp[MAXBAR], drop[MAXBAR];
 } arr;
 static unsigned arr_rng = 1;
@@ -308,6 +308,9 @@ static int bar_chords(long bar, BCh *out) {
 static const Roles *arr_roles(long bar) { return &arr.s[arr.sec[bar_clamp(bar)]].r; }
 
 static void plan_song(unsigned seed) {
+    // does this song HAVE a tune? loficity rolls it per track (jazzhop: 85%); lofi always had one, so its lead
+    // sat in more bars than theirs. Its own stream (11), drawn before stream 1, so every other roll is unchanged.
+    arr_seed(seed, 11); arr.hasLead = arnd(100) < 85;
     arr_seed(seed, 1);
     int f = arnd(3), nm[MAXSECT], nb[MAXSECT], n = 0;
     for (int i = 0; i < 8 && FORMS[f][i][0] >= 0; i++) { nm[n] = FORMS[f][i][0]; nb[n] = FORMS[f][i][1]; n++; }
@@ -339,6 +342,7 @@ static void plan_song(unsigned seed) {
         case SC_BREAK: r.keys = KY_HOLD; r.bass = arnd(2) ? BA_WHOLE : BA_OFF; r.drums = arnd(100) < 50 ? DR_BREAK : DR_NONE; r.lead = arnd(100) < 40; break;
         default:       r.keys = KY_OUTRO; r.bass = BA_OUTRO; r.drums = DR_OUTRO; break;
         }
+        if (!arr.hasLead) r.lead = 0;
         if ((nm[i] == SC_A || nm[i] == SC_B) && i < n - 1) r.dipLast = arnd(100) < 25;
         arr.s[i].name = nm[i]; arr.s[i].bars = nb[i]; arr.s[i].r = r;
     }
@@ -444,7 +448,7 @@ static int snap_chord(int li, BCh c) {      // the nearest ladder step that is a
     }
     return li;
 }
-static struct { int n; unsigned char s[24], d[24], v[24], m[24]; signed char li[24]; long gbar; } phr = { .gbar = -1 };
+static struct { int n; unsigned char s[24], d[24], v[24], m[24], gm[24], gms[24]; signed char li[24]; long gbar; } phr = { .gbar = -1 };
 static int leadLast = -1, statement = 0;
 // the answer's rhythms: grouped like the motif (they were a beat apart, so the answer broke into single notes too)
 static const int ANS[5][5] = { { 0, 2, 4, 10, -1 }, { 2, 4, 6, 12, -1 }, { 0, 2, 6, 8, 14 }, { 4, 6, 8, 12, -1 }, { 0, 3, 6, 8, -1 } };
@@ -501,6 +505,24 @@ static void add_passing(long gbar) {
         phr.n++; k++;                                                 // step past the note just added
     }
 }
+// GRACE NOTES (phase 4, loficity's humanize_bar "cut or tap"): a long lead note (0.3 s or more) may get a quick
+// scale neighbour flicked in 40-70 ms BEFORE it (above 62% of the time, below otherwise), at 70% velocity,
+// never across the previous note's tail. The rest of loficity's semitones: a flick from the key's 4th into its
+// 3rd or its 7th up into the root is a semitone. Booked as a negative offset on the note's own step, which the
+// 100 ms look-ahead (RAD_LOOK_S) covers. Its own stream (8000 + bar); odds per mood.
+static const int GRACEP[NMO] = { 35, 45, 45, 50 };
+static int key_step(int m, int dir) { for (int k = 1; k <= 2; k++) if (in_key(m + dir * k)) return m + dir * k; return m + dir; }
+static void add_graces(long gbar) {
+    arr_seed(sng.seed, 8000 + (unsigned)gbar);
+    for (int k = 0; k < phr.n; k++) {
+        phr.gm[k] = 0;
+        double dur = phr.d[k] * stepMs * 0.9;
+        if (dur < 300 || arnd(100) >= GRACEP[sng.mood]) continue;
+        int g = (int)(dur * 0.2); if (g < 40) g = 40; if (g > 70) g = 70;
+        if (k && (phr.s[k - 1] + phr.d[k - 1] * 0.9) * stepMs > phr.s[k] * stepMs - g) continue;   // the last note still rings
+        phr.gm[k] = (unsigned char)key_step(phr.m[k], arnd(100) < 62 ? 1 : -1); phr.gms[k] = (unsigned char)g;
+    }
+}
 // one phrase per four bars: the song's own dab cell STATED over two bars, a bar to BREATHE, then ANSWERED in the
 // fourth (the answer used to start in bar 3, so a phrase filled 3.3 of its 4 bars vs loficity's 2.9)
 static void build_phrase(long gbar) {
@@ -542,6 +564,7 @@ static void build_phrase(long gbar) {
         int nx = k + 1 < phr.n ? phr.s[k + 1] : 64, g = nx - phr.s[k];
         phr.d[k] = (unsigned char)(k + 1 < phr.n ? (g > 6 ? 6 : g) : (g > 10 ? 10 : g));
     }
+    add_graces(gbar);
     if (phr.n) leadLast = phr.m[phr.n - 1];
 }
 
@@ -644,8 +667,11 @@ static void plan_bar(long bar) {
         long gbar = bar - j % 4;
         if (phr.gbar != gbar) build_phrase(gbar);
         int bj = j % 4;
-        for (int k = 0; k < phr.n; k++) if (phr.s[k] / 16 == bj)
-            ev(phr.s[k] % 16, LN_LEAD, 0, phr.m[k], I_DAB, phr.v[k] + 3 > 7 ? 7 : phr.v[k] + 3, (int)(phr.d[k] * stepMs * 0.9));
+        for (int k = 0; k < phr.n; k++) if (phr.s[k] / 16 == bj) {
+            int vol = phr.v[k] + 3 > 7 ? 7 : phr.v[k] + 3;
+            if (phr.gm[k]) ev(phr.s[k] % 16, LN_LEAD, -phr.gms[k], phr.gm[k], I_DAB, vol > 2 ? vol - 2 : 1, (int)(phr.gms[k] * 0.9));
+            ev(phr.s[k] % 16, LN_LEAD, 0, phr.m[k], I_DAB, vol, (int)(phr.d[k] * stepMs * 0.9));
+        }
     }
 }
 
@@ -903,6 +929,7 @@ void update(void) {
     watch("fill", "%s", FL_NAME[arr.fill[tbar]]);
     watch("pocket", "%s", POCKETN[pocketSel]);
     watch("tempo", "%d", tempo);
+    watch("lead", "%s", arr.hasLead ? "on" : "none");
 #endif
 }
 

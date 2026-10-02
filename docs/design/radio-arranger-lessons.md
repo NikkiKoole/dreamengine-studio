@@ -407,3 +407,28 @@ rubs by register (a semitone or b9 within ~2 octaves) instead of by pitch class.
 
 **Ear check (same day):** the owner re-listened, "much better, now it doesn't sound so off". The lesson for
 the other stations: before tuning anything by pitch class, count the rubs by REGISTER, part pair by part pair.
+
+### 6.4 A song without a tune, grace notes, and rubs in the scorecard (2026-10-02)
+
+Three follow-ups, measured together (`arrange-score.js lofi loficity`, 3 seeds × 6 min):
+
+- **Some songs have no lead.** `plan_song` rolls it per song on its own stream (11): 85%, loficity's jazzhop
+  figure. One of the eight sampled songs came up without one, as in loficity's sample.
+- **Grace notes** (`add_graces`, loficity's "cut or tap"): before a lead note of 0.3 s or more, a scale neighbour
+  40-70 ms early (above 62%), 70% velocity, never over the last note's tail, odds per mood (35-50%). Booked as a
+  NEGATIVE offset on the note's own step, which radio.h's 100 ms look-ahead covers.
+- **`arrange-score.js` counts rubs by register**: `rubs <a-b> /min` = two pitched parts sounding together a
+  semitone or a b9 apart. This is the row that would have caught §6.3 before the owner had to; read it instead of
+  `bass clash %` (a maj7 chord's root reads as a "clash" there). Selfcheck +4, mutation-tested.
+
+| | lofi | loficity |
+|---|---|---|
+| lead semitone % | 10.3 | 12.1 |
+| lead third % / leap % | 12.1 / 5.5 | 13.8 / 12.9 |
+| rubs keys-keys / keys-lead / bass-keys per min | 13.1 / 2.5 / 0.8 | 13.9 / 2.7 / 4.0 |
+| lead notes/bar | 1.37 | 1.02 |
+| lead in % of bars | 36 | 27 |
+
+The interval shape and the rubs now match. The lead is still busier: it plays in more bars (B sections 24 of 30
+phrase slots vs their 14 of 22) and grace notes add notes per bar. On three seeds that may partly be sample size.
+Open: our lead leaps less (5.5% vs 12.9%), so the line may sound smoother but also flatter than theirs.

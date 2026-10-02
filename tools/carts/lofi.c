@@ -372,38 +372,56 @@ static void ev(int step, int lane, int off, int midi, int instr, int vol, int du
     BEv x = { (signed char)step, (signed char)lane, (short)off, (short)midi, (short)instr, (short)vol, durMs < 20 ? 20 : durMs };
     bev.e[bev.n++] = x;
 }
-static void lead_to4(int rootpc, const int *iv, int lo, int hi) {   // rad_lead_to, for four voices
-    int pcs[4]; for (int k = 0; k < 4; k++) pcs[k] = (rootpc + iv[k]) % 12;
-    if (!epInit) {
-        for (int k = 0; k < 4; k++) { int t = lo + 4 + k * 5, dd = ((pcs[k] - t) % 12 + 18) % 12 - 6; gvEP[k] = t + dd; }
-        epInit = true;
-    } else {
-        bool used[4] = { false, false, false, false };
-        for (int vi = 0; vi < 4; vi++) {
-            int bj = 0, bc = gvEP[vi], bd = 99;
-            for (int j = 0; j < 4; j++) { if (used[j]) continue; int dd = ((pcs[j] - gvEP[vi]) % 12 + 18) % 12 - 6; if (abs(dd) < bd) { bd = abs(dd); bj = j; bc = gvEP[vi] + dd; } }
-            used[bj] = true; gvEP[vi] = bc;
+// THE RHODES VOICING: loficity's lc_voice. Every close-position rotation of the four rootless notes and its
+// drop-2, in every octave with the bottom note in 48..60 and the top at most 76, the one that moves least from
+// the last chord (sum of voice motion, a top-voice leap over 4 penalised, a pull toward a 62 centre). This
+// replaced a greedy nearest-note move that folded voices into 52..76 one by one: it sat the keys ~5 semitones
+// higher than loficity's (on top of the lead) and stacked a MINOR NINTH inside the chord, e.g. Bbm9's C4 under
+// a Db5 (4.3 b9s a minute vs their 0.8). A voicing with a b9 between any two voices is now refused outright.
+static void lead_to4(int rootpc, const int *iv, int lo, int hi) {
+    int pcs[4], n = 0;
+    for (int k = 0; k < 4; k++) { int p = (rootpc + iv[k]) % 12, dup = 0; for (int j = 0; j < n; j++) if (pcs[j] == p) dup = 1; if (!dup) pcs[n++] = p; }
+    for (int a = 1; a < n; a++) { int v = pcs[a], b = a - 1; while (b >= 0 && pcs[b] > v) { pcs[b + 1] = pcs[b]; b--; } pcs[b + 1] = v; }
+    int best[4] = { 0 }; double bc = 1e9; int any = 0;
+    for (int k = 0; k < n; k++) for (int d2 = 0; d2 < 2; d2++) {
+        int sh[4];
+        for (int j = 0; j < n; j++) { int v = pcs[(k + j) % n]; while (j && v <= sh[j - 1]) v += 12; sh[j] = v; }
+        if (d2) { if (n < 3) continue; sh[n - 2] -= 12; for (int a = 1; a < n; a++) { int v = sh[a], b = a - 1; while (b >= 0 && sh[b] > v) { sh[b + 1] = sh[b]; b--; } sh[b + 1] = v; } }
+        for (int o = 2; o <= 7; o++) {
+            int v[4]; for (int j = 0; j < n; j++) v[j] = sh[j] + 12 * o;
+            if (v[0] < lo || v[0] > lo + 12 || v[n - 1] > hi) continue;
+            int bad = 0;
+            for (int a = 0; a < n && !bad; a++) for (int b = a + 1; b < n; b++) { int d = v[b] - v[a]; if (d == 13 || d == 25) bad = 1; }
+            for (int a = 1; a < n && !bad; a++) if (v[a] - v[a - 1] < 3 && v[a - 1] < 52) bad = 1;   // no low clusters
+            if (bad) continue;
+            double mean = 0; for (int j = 0; j < n; j++) mean += v[j]; mean /= n;
+            double c = 0.5 * fabs(mean - 62);
+            if (epInit) { for (int j = 0; j < n; j++) c += abs(v[j] - gvEP[j]); int t = abs(v[n - 1] - gvEP[3]); if (t > 4) c += 2 * (t - 4); }
+            if (!any || c < bc) { bc = c; any = 1; for (int j = 0; j < n; j++) best[j] = v[j]; }
         }
     }
-    for (int k = 0; k < 4; k++) { while (gvEP[k] < lo) gvEP[k] += 12; while (gvEP[k] > hi) gvEP[k] -= 12; }
-    for (int a = 1; a < 4; a++) { int v = gvEP[a], b = a - 1; while (b >= 0 && gvEP[b] > v) { gvEP[b + 1] = gvEP[b]; b--; } gvEP[b + 1] = v; }
+    if (!any) return;                                     // nothing fits: hold the last voicing
+    for (int j = 0; j < 4; j++) gvEP[j] = best[j < n ? j : n - 1];
+    epInit = true;
 }
 typedef struct { int s, len, v, top; BCh c; } KHit;
 static void key_hit(const KHit *h) {
-    lead_to4(root_pc((Ch){ h->c.off, h->c.q }), QV4[h->c.q], 52, 76);
+    lead_to4(root_pc((Ch){ h->c.off, h->c.q }), QV4[h->c.q], 48, 76);
     int dur = (int)(h->len * stepMs) - 30; if (dur < 100) dur = 100;
     int slot = h->len >= 16 ? I_EPL : I_EP, v = h->v + 2 > 7 ? 7 : h->v + 2;   // a Rhodes played this soft never barks
     for (int k = h->top ? 2 : 0; k < 4; k++) ev(h->s, LN_EP, (k - (h->top ? 2 : 0)) * arr.strum, gvEP[k], slot, k == 3 && v < 7 ? v + 1 : v, dur);
 }
 
-// the lead's pitch ladder: the key's MAJOR pentatonic, in the dab's register. Always major, whatever the
+// the lead's pitch ladder: the key's MAJOR pentatonic, in the dab's register: 67..86, loficity's (median 75). It
+// was 62..81, median 68, right on top of the Rhodes, so the tune rubbed a semitone against the chord's own 9th.
+// Always major, whatever the
 // mood's scale: every loop is written in the major key (Imaj9, ii-V-I, vi9), so a minor pentatonic on the
 // same tonic put Db/Ab over Bbmaj9/F9 (the "wrong scale" solo). Major pentatonic = the relative minor's
 // pentatonic, so the dusty/rainy moods keep their minor colour from the same five notes.
 static int ladder[24], nLadder = 0;
 static void build_ladder(void) {
     static const int p[5] = { 0, 2, 4, 7, 9 }; nLadder = 0;
-    for (int m = 62; m <= 81 && nLadder < 24; m++) for (int k = 0; k < 5; k++) if ((m - sng.keyPc + 120) % 12 == p[k]) ladder[nLadder++] = m;
+    for (int m = 67; m <= 86 && nLadder < 24; m++) for (int k = 0; k < 5; k++) if ((m - sng.keyPc + 120) % 12 == p[k]) ladder[nLadder++] = m;
 }
 static int ladder_near(int midi) { int bi = 0; for (int i = 1; i < nLadder; i++) if (abs(ladder[i] - midi) < abs(ladder[bi] - midi)) bi = i; return bi; }
 static int is_chord_tone(int midi, BCh c) {
@@ -492,7 +510,7 @@ static void build_phrase(long gbar) {
     if ((arr.j[gbar] / 4) % 2 == 1 && arnd(100) < 30) return;         // a group of space
     statement++;
     int inv = S->name == SC_B, shift = S->name == SC_B ? 2 : 0;
-    int li = ladder_near(leadLast > 0 ? leadLast : 70);              // start where the last phrase ended
+    int li = ladder_near(leadLast > 0 ? leadLast : 75);              // start where the last phrase ended
     int x = li;
     for (int i = 0; i < mot.n; i++) {
         int s = mot.s[i] + shift; if (s >= 30) continue;

@@ -381,3 +381,26 @@ that let the tune in halfway through a long first A, which loficity does not hav
 whether a song HAS a lead at all (jazzhop: 85%), lofi always has one. Fixed (1) and (2): bars filled per
 phrase 3.33 → **2.80** (theirs 2.88), lead in 46% → 38% of bars, notes/bar 1.63 → **1.41**. The rest of
 the gap is (3) plus more phrase slots in B (28 of 31 vs their 14 of 22), still open.
+
+### 6.3 The dissonance the scorecard could not see (2026-10-02)
+
+The owner listened to both: loficity "more pleasant and musical", lofi "some dissonance and weird stuff". No
+row in the scorecard showed it: lead clash % only checks the lead against the chord's pitch CLASSES, never
+WHERE the notes sit. Counting every pair of sounding notes by interval and part pair (rubs a minute, 3 seeds
+× 6 min) found two real causes:
+
+| rub / min | lofi before | after | loficity |
+|---|---|---|---|
+| keys-keys b9 (inside the Rhodes chord) | 4.3 | **0** | 0.8 |
+| keys-lead m2 (tune a semitone off the chord) | 3.0 | **0.7** | 0.2 |
+
+1. **The Rhodes voicing stacked minor ninths.** The voice-leading moved each voice to its nearest new note
+   and then folded it into 52..76 one at a time, which could put a 9th under the 3rd an octave up (Bbm9: C4
+   under Db5). Now loficity's `lc_voice`: every close + drop-2 inversion with the bottom in 48..60 and the top
+   ≤ 76, cheapest by voice motion, and any voicing with a b9 between two voices refused. Keys register 63.8 → 60.7 (theirs 58.5).
+2. **The lead lived inside the chord.** Its ladder was 62..81 (median 68) vs loficity's median 75, so a chord
+   tone in the tune sat a semitone from the Rhodes' 9th or 7th in the SAME octave. Now 67..86, median 76.
+
+**The bass "clash %" is mostly a false alarm**: 263 of 1063 bass notes flagged were the ROOT of a maj7 chord
+whose 7th the keys hold two octaves up, which is the chord, not a rub. Worth teaching arrange-score to count
+rubs by register (a semitone or b9 within ~2 octaves) instead of by pitch class.

@@ -404,3 +404,6 @@ WHERE the notes sit. Counting every pair of sounding notes by interval and part 
 **The bass "clash %" is mostly a false alarm**: 263 of 1063 bass notes flagged were the ROOT of a maj7 chord
 whose 7th the keys hold two octaves up, which is the chord, not a rub. Worth teaching arrange-score to count
 rubs by register (a semitone or b9 within ~2 octaves) instead of by pitch class.
+
+**Ear check (same day):** the owner re-listened, "much better, now it doesn't sound so off". The lesson for
+the other stations: before tuning anything by pitch class, count the rubs by REGISTER, part pair by part pair.

@@ -68,11 +68,16 @@ const SR = 44100
 const ROLES = {
   lofi:     { keys: [5, 13], bass: [6], lead: [7], kick: [20], snare: [23, 12], hat: [25, 26] },   // since the morphdrum kit
   loficity: { keys: [5, 6, 14, 15, 16], bass: [7, 8], lead: [10, 11], kick: [20], snare: [23, 9, 18], hat: [25, 26, 32, 33] },
+  // the city pops: "keys" is EVERY harmony part (keys + guitar + horns + strings), so the rubs rows see them all
+  citypop:  { keys: [5, 8], bass: [6], lead: [7], kick: [9], snare: [10], hat: [11] },
+  citypop2: { keys: [5, 13, 8, 9, 11], bass: [6], lead: [7, 10], kick: [20], snare: [23], hat: [25, 26] },
 }
 // the SOUND half's stems: EVERY slot a part sounds on (a layered kick is all of its slots)
 const STEMS = {
   lofi:     { keys: [5, 13], bass: [6], lead: [7], kit: [12, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29] },
   loficity: { keys: [5, 6, 14, 15, 16], bass: [7, 8], lead: [10, 11], kit: [9, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33], vinyl: [12, 13] },
+  citypop:  { keys: [5], guitar: [8], bass: [6], lead: [7], kit: [9, 10, 11] },
+  citypop2: { keys: [5, 13], guitar: [8], horns: [9], strings: [11], bass: [6], lead: [7, 10], kit: [12, 14, 15, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29] },
 }
 const BEDS = new Set(['vinyl'])        // noise beds: reported as a stem, left out of the music mix
 const PITCHED = ['keys', 'bass', 'lead']

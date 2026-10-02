@@ -432,3 +432,33 @@ Three follow-ups, measured together (`arrange-score.js lofi loficity`, 3 seeds �
 The interval shape and the rubs now match. The lead is still busier: it plays in more bars (B sections 24 of 30
 phrase slots vs their 14 of 22) and grace notes add notes per bar. On three seeds that may partly be sample size.
 Open: our lead leaps less (5.5% vs 12.9%), so the line may sound smoother but also flatter than theirs.
+
+## 7. The method, second customer: `citypop2` (2026-10-02)
+
+The owner kept the original `citypop` (its dissonance is part of its charm) and asked for a v2 beside it, built
+with §5-6's lessons. `tools/carts/citypop2.c` is lofi's chassis (song + bar planner, sample clock, rad_chair band)
+with city pop's own form (intro / verse / pre / chorus / verse / pre / chorus / sax solo / last chorus up a whole
+step 70% of the time / outro), a hook seeded by its PLACE in the form (so every chorus sings the same two phrases),
+a breath bar the horns fill, and a band cast intent-first (radio-voices.md → citypop2). What the measurements found,
+each of which printed a "fine" first:
+
+1. **The band rule.** Doubling parts (guitar, horns, strings) first played the keys' voicing shifted an octave: 171
+   rubs a minute among the harmony parts (the original: 14). An octave shift turns a voicing's maj7 into a
+   semitone and any semitone into a b9. Now every harmony part plays a SUBSET of the keys' exact pitches, and the
+   voicing refuses a semitone as well as a b9: 171 → 8.
+2. **Long notes rub against what the band HOLDS, not against the chord.** The root over a maj7 voicing, the b3 over
+   a held 9, the b7 over a 13 are all chord tones and all a semitone off. `clean_long` checks lead notes of an
+   8th or more against the voicing (and against the pushed chord on the and-of-4), moves them to a held tone, and
+   cuts a note held into a chord it clashes with. Lead-vs-harmony 14 → 9.5 a minute (against five harmony parts).
+3. **morphdrum's hat whines at Nyquist.** Its `INSTR_METAL` hat stem read −9 dBFS rms at an 18 kHz centroid, a third
+   of the mix, invisible to the ear and loud to the bus glue. lofi's ridden tone filter always hid it. citypop2's
+   tone knob is now a master LP at 15 kHz. **Open: fix it in the engine/header**, every morphdrum cart without a
+   master low-pass carries it (morphbox).
+4. **Karplus PLUCK loses its fundamental at bass pitches** (1.3 kHz centroid even behind LP 650); the fingered bass
+   is yacht's TRI + pitch snap (174 Hz). And **a pitch detector lies on reed and formant voices**: `formant-check`
+   reported octave and twelfth drops that a subharmonic (Goertzel f/2, f/3) check put at −50 to −90 dB. Both
+   engines were stable; check subharmonics before calling a "wrong mode".
+
+Scorecard (`arrange-score.js citypop2 citypop --sound`, 3 seeds): lead phrase 2.9 notes vs the original's 1.6, range
+2.8 vs 0.6 semitones, total rubs 24/min (loficity ~20), mix crest 16.8 dB, bass 174 Hz centroid +7 dB over the
+keys. The owner's first listen: the **voice and sax lead chairs sound odd** (not pitch: measured stable) — open.

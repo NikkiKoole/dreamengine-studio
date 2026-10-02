@@ -1670,6 +1670,26 @@
     "homage": "Tatsuro Yamashita / Mariya Takeuchi (city pop)"
   },
   {
+    "title": "city pop radio II",
+    "description": "City pop again, done the way lofi FM learned to: the glossy Japanese pop-funk of Tatsuro Yamashita, Mariya Takeuchi's Plastic Love and Anri, as a radio that writes whole SONGS. Every song is planned before it plays: an intro, two verses, a pre-chorus that climbs, a chorus on the Royal Road (IVmaj7-V13-iii7-vi9) or the Just-the-Two-of-Us changes, an alto sax solo, the last chorus up a whole step (of course), an outro. The HOOK repeats like a real song: every chorus sings the same two phrases and every verse the same melody, stated, then a breath bar the horns fill, then answered. The band, imagined from the records first: a Rhodes (or a DX7 electric piano), a fingered electric bass popping octaves and running chromatically into each change, a clean chorused guitar playing 16th cutting, a brass section on the anticipations, a string pad under the chorus, a tight session kit with a plate on the snare plus shaker and congas. Session-tight timing, the glossy rack (plate reverb, chorus on the keys and guitar, a dotted-8th echo on the lead, bus glue). SPACE next song, R replay, [ ] history, LEFT/RIGHT feel (4am..neon density), UP/DOWN tempo, T tone, B band (keys rhodes/dx7, bass finger/dx, lead synth/voice/sax/off, horns on/off), M power, H help; the strip at the bottom is a chord-locked jam strip (the lead lays out while you play). Pin via CITYPOP2_SEED.",
+    "file": "citypop2.cart.png",
+    "created": "2026-10-02",
+    "kind": [
+      "toy",
+      "instrument"
+    ],
+    "teaches": [
+      "generative-melody",
+      "chord-voicing",
+      "step-sequencer"
+    ],
+    "collection": [
+      "radio"
+    ],
+    "lineage": "A second city pop station, built beside the original citypop (kept as it was) with what lofi learned matching loficity (docs/design/radio-arranger-lessons.md): the band imagined from the genre first, then cast on the modeled engines (an EPIANO Rhodes or a DX FM piano, a Karplus fingered bass, INSTR_GUITAR cutting, INSTR_BRASS stabs, a chorused string pad, a morphdrum session kit with a plate on the snare); the song PLANNED before it plays (intro / verse / pre-chorus / chorus / sax solo / last chorus up a whole step / outro) and every bar planned knowing the next; a vocal-style HOOK that REPEATS (every chorus sings the same two phrases, every verse the same melody), with a breath bar the horns fill; loficity's voicing (no b9 inside a chord), the lead kept above the keys, passing tones + grace notes; and the sample-clock step grid.",
+    "homage": "Tatsuro Yamashita / Mariya Takeuchi / Anri (city pop)"
+  },
+  {
     "title": "cityview",
     "description": "RENDER TEST: pseudo-3D top-down city (GTA1 meets Zelda) WITH drivable raised highways folded in (was the separate overpass experiment). Drive a seeded, brick/window/block/stucco-TEXTURED city. M cycles five building view modes: (1) NORTH-UP camera-locked, always the south fronts, zero diagonals; (2) HEADING-UP camera rotates to heading, you see the 1-2 walls you drive toward, every wall UP still screen-up (the keeper); (3) BILLBOARD flat cards (props not boxes); (4) LEAN-OUT roofs pushed off-centre (the melty contrast); (5) PERSPECTIVE a real pitched pinhole camera (perspective divide -> horizon, foreshortening, towering buildings) the parallel-oblique modes can't do, with live pitch/eye tuning (,. and ;'). F lays a FLYOVER over the city: off / straight overpass / s-curve / spiral on-ramp / two-level stack interchange. A flyover is a road whose nodes carry a z; because height extrudes straight up the screen it reads as an elevated deck (running surface + dashed centre line + fascia thickness + pillars + dithered ground shadow). Drive UP a ramp and the camera rises (camz) so the city sinks below; the car z snaps to the nearest REACHABLE deck so you board via ramps and drive UNDER high decks. T toggles wall textures. Proves the ADR-0021 projected-primitive vocabulary in one place: project() (world x,y,z -> screen), pdisc (a ground circle is an ELLIPSE once rotated -> projected N-gon: ponds, car shadow, future roundabout islands), pline/pdash (projected dashed line: the deck centre line), pproj_poly (project-then-polyfill: lots + deck shadows). Whole renderer is flat quadfill + tritex-textured walls. Arrows drive, M view, F flyover, T textures, [ ] zoom, R reseed. The cityscape-renderer bench for big-game seam #2.",
     "file": "cityview.cart.png",

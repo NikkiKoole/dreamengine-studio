@@ -275,7 +275,7 @@ drummer:
 The open conga — the syncopated heart of the groove, mid-tuned.
 - tier: **shared** (byte-identical across addis/afrobeat)
 - origin: addis
-- used by: addis (`SL_CONGA`) · afrobeat (`SL_CONGA`)
+- used by: addis (`SL_CONGA`) · afrobeat (`SL_CONGA`) · citypop2 (`I_CONGA`)
 
 ### membrane/bongo
 `INSTR_MEMBRANE` · A1 D0 S7 R120 · h0.72 t0.65 m0.10

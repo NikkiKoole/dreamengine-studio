@@ -66,6 +66,8 @@ a broken doc link or `#section`).
 > the rest of that gap = no per-song lead roll (theirs 85%). Then grace notes.
 > **Owner heard "dissonance, weird stuff" (10-02)** → [§6.3](design/radio-arranger-lessons.md#63-the-dissonance-the-scorecard-could-not-see-2026-10-02):
 > b9s inside the Rhodes voicing (now loficity's lc_voice) + a lead an octave-ish too low, inside the chord. **Owner re-listened: "doesn't sound so off" ✓.**
+> **citypop2** (10-02, [§7](design/radio-arranger-lessons.md#7-the-method-second-customer-citypop2-2026-10-02)): the method's second customer, beside the kept original.
+> Open: the voice/sax lead chairs sound odd to the owner; morphdrum's METAL hat whines at Nyquist (engine fix).
 > Then ([§6.4](design/radio-arranger-lessons.md#64-a-song-without-a-tune-grace-notes-and-rubs-in-the-scorecard-2026-10-02)): 15% of songs have no lead, grace notes, and `arrange-score` rows
 > `rubs <a-b> /min` (dissonance by register). Interval shape + rubs now match loficity; lead still busier (1.37 vs 1.02 notes/bar).
 >

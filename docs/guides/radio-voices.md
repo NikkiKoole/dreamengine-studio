@@ -113,6 +113,31 @@ Its drum kit is its own (punchy synth kit, *not* house's box).
 trick, voiced clean here vs distorted in house). Everything else is unique. Note the
 *intra-cart* reuse too: `I_SOLO` is `I_LEAD` opened up — one voice, two stops.
 
+## citypop2 — city pop again, on the modeled engines (built 2026-10-02 beside citypop)
+
+Solo layer: **`solo.h`** (chord-locked jam strip; the lead lays out while you play). The original
+`citypop` is kept as it was; this one re-casts the band intent-first (the blind band: Rhodes / DX7,
+fingered bass, clean chorused guitar cutting, brass section, string pad, a tight session kit with a
+plate snare, shaker + congas) and plans whole songs (docs/design/radio-arranger-lessons.md §7).
+
+| slot | role | preset | engine |
+|---|---|---|---|
+| `I_EP` / `I_EPL` | the comp + held chords (chair: rhodes / dx7) | `epiano/rho-brite` ≈ + instrument_chorus · chair → `fm/epiano` | EPIANO / FM |
+| `I_BASS` | fingered bass: octave pops, the chromatic run into each change (chair: finger / dx) | new: PLUCK h0.35 t0.40 m0.25 · LP 1400 · chair → `fm/bass` | PLUCK / FM |
+| `I_GTR` | 16th cutting, the chord's top two voices kept under the lead | `guitar/steel` ≈ (m0.70 muted) + chorus, HP 220 | GUITAR |
+| `I_BRASS` | the stab into each chorus + a figure in the hook's breath bar | `brass/trumpet` ≈ + a pitch-env fall | BRASS |
+| `I_SAX` | the alto solo section | `reed/alto_sax` | REED |
+| `I_STR` | string pad (chorus, the pre's swell) — the keys' own voicing, so it adds no rub | new: SAW A260 R700 · LP 2600 · chorus 0.7 | SAW |
+| `I_LEAD` | the vocal hook (chair: synth / voice / sax / off) | `square/glossy-lead` ≈ (duty 0.5) · `voice/formant` · `reed/alto_sax` | SQUARE / VOICE / REED |
+| kit | punchy kick · crisp snare into the plate · lofi's hat | morphdrum (kick CHAR 0.55, snare send 0.40) | morphdrum |
+| `I_SHK` / `I_CONGA` / `I_TOM` | 16th shaker · conga · tom fills | `noise/shaker` family · `membrane/conga` · MEMBRANE low | NOISE / MEMBRANE |
+
+**The rack** (set-and-hold): reverb 0.62 with `reverb_plate`, a dotted-8th `echo` on the lead's
+send, chorus **per part** (keys, guitar, strings, lead) with the master chorus off, `glue`, `eq`
+makeup. **The master low-pass is load-bearing**: morphdrum's `INSTR_METAL` hat carries a loud
+component at Nyquist (its solo stem read −9 dBFS rms at an 18 kHz centroid), which lofi's ridden
+tone filter had always hidden; citypop2's tone knob is a master LP at 15 kHz (capped 16 kHz).
+
 ---
 
 ## motorik — Krautrock driver (Neu! × Stereolab)

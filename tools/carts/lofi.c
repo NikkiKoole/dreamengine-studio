@@ -483,7 +483,8 @@ static void add_passing(long gbar) {
         phr.n++; k++;                                                 // step past the note just added
     }
 }
-// one phrase per four bars: the song's own dab cell STATED over two bars, then ANSWERED over two
+// one phrase per four bars: the song's own dab cell STATED over two bars, a bar to BREATHE, then ANSWERED in the
+// fourth (the answer used to start in bar 3, so a phrase filled 3.3 of its 4 bars vs loficity's 2.9)
 static void build_phrase(long gbar) {
     const Sect *S = &arr.s[arr.sec[gbar]];
     phr.gbar = gbar; phr.n = 0;
@@ -511,7 +512,7 @@ static void build_phrase(long gbar) {
     }
     const int *A = ANS[arnd(5)]; int na = 0; while (na < 5 && A[na] >= 0) na++;
     for (int k = 0; k < na; k++) {
-        int s = 32 + A[k];
+        int s = 48 + A[k];                                            // bar 4: bar 3 is the breath (loficity's 48)
         { int st = arnd(100) < 75 ? 1 : 2; at += arnd(100) < 60 ? -st : st; }   // answers mostly fall, mostly by step
         if (at < 0) at = 1; if (at >= nLadder) at = nLadder - 2;
         BCh c = chord_at_step(gbar + s / 16, s % 16);
@@ -620,7 +621,7 @@ static void plan_bar(long bar) {
     }
 
     // ── THE LEAD — the dab cell grown into a phrase per four bars ──
-    int lead = R->lead || (S->name == SC_A && S->bars >= 16 && j >= 8);   // a long first A lets the tune in halfway
+    int lead = R->lead;   // (a long first A used to let the tune in halfway: the lead sat in 46% of bars vs loficity's 27%)
     if (lead && nLadder) {
         long gbar = bar - j % 4;
         if (phr.gbar != gbar) build_phrase(gbar);

@@ -372,3 +372,12 @@ major key. Never on a strong 8th (those stay chord tones), never a b9 over a bor
 And the rest of loficity's semitones are GRACE NOTES (cuts and taps into long notes), the next piece of the
 humanize layer, but our lead is already busier than theirs (1.63 vs 1.02 notes a bar), so grace notes should
 come with fewer notes elsewhere, not on top. **Ear pass pending.**
+
+**Why lofi's lead played more notes (1.47 a bar vs 1.02), measured the same day.** Not busier phrases:
+inside a bar where it plays, ours had 3.1-3.3 notes vs their 3.5. It played in MORE BARS (46% vs 27%),
+for three reasons: (1) the answer started at step 32, bar 3, where loficity's `lc_phrase` starts it at
+48, bar 4, leaving bar 3 as a breath, so our phrase filled 3.3 of its 4 bars vs their 2.9; (2) a rule
+that let the tune in halfway through a long first A, which loficity does not have; (3) loficity rolls
+whether a song HAS a lead at all (jazzhop: 85%), lofi always has one. Fixed (1) and (2): bars filled per
+phrase 3.33 → **2.80** (theirs 2.88), lead in 46% → 38% of bars, notes/bar 1.63 → **1.41**. The rest of
+the gap is (3) plus more phrase slots in B (28 of 31 vs their 14 of 22), still open.

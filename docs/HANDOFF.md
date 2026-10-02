@@ -62,7 +62,8 @@ a broken doc link or `#section`).
 > upright, trem Rhodes, clean tape, drag on the backbeat only). Numbers + traps: [§6](design/radio-arranger-lessons.md#6-the-sound-was-the-bigger-gap-2026-09-29-second-pass).
 > Ear pass pending. **The fragmented lead is fixed** (2026-09-30, [§6.1](design/radio-arranger-lessons.md#61-the-fragmented-lead-2026-09-30)):
 > grouped motif rhythms, phrase 2.47 notes = loficity's. **Passing tones** in (2026-10-02, [§6.2](design/radio-arranger-lessons.md#62-passing-tones-2026-10-02)):
-> semitones 0 → 8.5% (loficity 12-15), thirds 28 → 10%. Next candidate: grace notes, traded against a busier lead.
+> semitones 0 → 8.5% (loficity 12-15), thirds 28 → 10%. Answer moved to bar 4 (a breath in bar 3): notes/bar 1.63 → 1.41 (theirs 1.02);
+> the rest of that gap = no per-song lead roll (theirs 85%). Then grace notes.
 >
 > **Resume at:** [the strategy + the first scorecard reading](design/radio-arranger-lessons.md#5-the-strategy-make-lofi-as-good-as-loficity-in-a-way-we-can-repeat)
 > — next is `lofi` rebuilt on a shared arranger core, lead phrasing first; re-score after each change.

@@ -347,3 +347,28 @@ IS a step. The interval histograms: ours 62% ≤ 2 · 27% thirds · 11% leaps; l
 which 12% are SEMITONES, the passing tones its humanize layer puts inside a third. Our line is the
 smoother of the two; what theirs has and ours lacks is passing tones, which is phase 4 (the humanize
 layer), not phrasing.
+
+### 6.2 Passing tones (2026-10-02)
+
+The first piece of phase 4. `add_passing()` in lofi.c is loficity's `humanize_bar` passing-tone move: a lead
+leap of a third with room (2 to 8 sixteenths) gives up its second half to the KEY's scale note toward the
+next one, so a minor third fills as a semitone + a tone. Major scale, because every loop is written in the
+major key. Never on a strong 8th (those stay chord tones), never a b9 over a borrowed chord, odds per mood
+(sleepy 45%, the rest 60-65%), on its own stream (7000 + bar) so the phrase rolls are untouched.
+`arrange-score.js` now splits step % into **semitone % · third % · leap %**.
+
+| lead, 3 seeds × 6 min | before | after | loficity |
+|---|---|---|---|
+| semitone % | 0 | **8.5** | 12-15 |
+| third % | 27.9 | **10.0** | 6-20 |
+| leap % | 7.8 | 8.7 | 10-23 |
+| step % | 62.4 | 81.4 | 73.3 |
+| notes/bar | 1.47 | 1.63 | 1.02 |
+| phrase len | 2.47 | 2.69 | 2.47 |
+| clash % | 0.7 | 2.3 | 6.3 |
+
+(loficity's split varies a lot by seed, hence ranges.) Two readings to keep straight: **lead pocket ms rose
+8.9 → 20.5** only because passing tones mostly land on ODD 16ths, which swing; nothing was booked later.
+And the rest of loficity's semitones are GRACE NOTES (cuts and taps into long notes), the next piece of the
+humanize layer, but our lead is already busier than theirs (1.63 vs 1.02 notes a bar), so grace notes should
+come with fewer notes elsewhere, not on top. **Ear pass pending.**

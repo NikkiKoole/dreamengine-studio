@@ -15,7 +15,7 @@
     "chord-voicing",
     "swing-timing"
   ],
-  "lineage": "The lo-fi/Nujabes/Dilla pole of jazzy hip-hop, distinct from lowend's boom-bap; novel in THE DRUNK POCKET - a dialable off-grid time feel (snare-late/lazy-kick/swing + humanize), the loose pocket lowend undersold. Reuses vapor's lo-fi rack. 2026-09-29: the first station on radio.h's sample-clock grid (rad_audio_*), and the phase-1 pilot of docs/design/radio-arranger-lessons.md: the song is PLANNED up front - a form with per-part roles, an A/B pair or a ii-V turnaround, pushes, fills, hats-first, tone dips and a tone ride, a song that ends into a related key - all on a derived stream, so pinned seeds keep their key/mood/loop/title. A/B it against loficity. Later that day the BAND was recast the way loficity casts jazzhop (tools/arrange-score.js --sound found the gap was the sound, not the notes): a clean tape instead of a saturated one that squashed the Rhodes under every hit, a pizzicato upright, a morphdrum kit + rim, vibes/flute on top, the Rhodes' suitcase tremolo, the mix balanced by measured stems, and the drag moved off the tune onto the backbeat.",
+  "lineage": "The lo-fi/Nujabes/Dilla pole of jazzy hip-hop, distinct from lowend's boom-bap; novel in THE DRUNK POCKET - a dialable off-grid time feel (snare-late/lazy-kick/swing + humanize), the loose pocket lowend undersold. Reuses vapor's lo-fi rack. 2026-09-29: the first station on radio.h's sample-clock grid (rad_audio_*), and the phase-1 pilot of docs/design/radio-arranger-lessons.md: the song is PLANNED up front - a form with per-part roles, an A/B pair or a ii-V turnaround, pushes, fills, hats-first, tone dips and a tone ride, a song that ends into a related key - all on a derived stream, so pinned seeds keep their key/mood/loop/title. A/B it against loficity. Later that day the BAND was recast the way loficity casts jazzhop (tools/arrange-score.js --sound found the gap was the sound, not the notes): a clean tape instead of a saturated one that squashed the Rhodes under every hit, a pizzicato upright, a morphdrum kit + rim, vibes/flute on top, the Rhodes' suitcase tremolo, the mix balanced by measured stems, and the drag moved off the tune onto the backbeat. 2026-10-02: passing tones (loficity's humanize move) fill the lead's thirds with the key's scale note, so the line has semitones.",
   "homage": "Lo-fi hip-hop (Nujabes / J Dilla)",
   "todo": [
     "NO WAY TO JAM: the player can only tune the dial, never play along. Add a solo.h scale-locked solo strip (J toggles it) - the strip locks to the station's current key/scale so anything you touch is in tune. Worked examples: air, polopan, jangle, jingle, citypop, dub."
@@ -426,11 +426,11 @@ static int snap_chord(int li, BCh c) {      // the nearest ladder step that is a
     }
     return li;
 }
-static struct { int n; unsigned char s[16], d[16], v[16]; signed char li[16]; long gbar; } phr = { .gbar = -1 };
+static struct { int n; unsigned char s[24], d[24], v[24], m[24]; signed char li[24]; long gbar; } phr = { .gbar = -1 };
 static int leadLast = -1, statement = 0;
 // the answer's rhythms: grouped like the motif (they were a beat apart, so the answer broke into single notes too)
 static const int ANS[5][5] = { { 0, 2, 4, 10, -1 }, { 2, 4, 6, 12, -1 }, { 0, 2, 6, 8, 14 }, { 4, 6, 8, 12, -1 }, { 0, 3, 6, 8, -1 } };
-static void phr_add(int s, int li, int v) { if (phr.n < 16) { phr.s[phr.n] = (unsigned char)s; phr.li[phr.n] = (signed char)li; phr.v[phr.n] = (unsigned char)v; phr.d[phr.n] = 2; phr.n++; } }
+static void phr_add(int s, int li, int v) { if (phr.n < 24) { phr.s[phr.n] = (unsigned char)s; phr.li[phr.n] = (signed char)li; phr.m[phr.n] = (unsigned char)ladder[li]; phr.v[phr.n] = (unsigned char)v; phr.d[phr.n] = 2; phr.n++; } }
 // THE MOTIF'S RHYTHM. The dab cell's own onsets were 4-7 sixteenths apart and each kept only 60% of the time,
 // so the lead was single notes a beat or two apart: 1.4 notes a phrase vs loficity's 2.5 (arrange-score).
 // A motif is GROUPS: two to four notes a 16th or an 8th apart, then a breath. The cell keeps its PITCHES
@@ -456,6 +456,31 @@ static void plan_motif(void) {
         run++;
         int u = arnd(100);                                                                   // a run turns back at its end,
         mot.dir[i] = (signed char)(run >= 3 || u < 18 ? -d : u < 36 ? 0 : d);             // and sometimes repeats a note
+    }
+}
+// PASSING TONES (phase 4, loficity's humanize_bar). On a pentatonic ladder a "step" is often a third, so the
+// line was smooth but never chromatic: 27% thirds and no semitones, vs loficity's 6% thirds and 12% semitones,
+// which its humanize layer makes by filling a third with the scale note between. Same move here: a leap of a
+// third with room (two 16ths or more) gives up its second half to the KEY's scale step toward the next note
+// (the loops are major-key, so that is the major scale) - a minor third fills as a semitone + a tone. Never on
+// a strong 8th (those stay chord tones) and never a b9 over a borrowed chord. Its own stream (7000 + bar), so
+// the phrase rolls above are untouched. How often: PASSP per mood (sleepy fills least).
+static const int PASSP[NMO] = { 45, 60, 60, 65 };
+static int in_key(int midi) { static const int MAJ[7] = { 0, 2, 4, 5, 7, 9, 11 }; int pc = (midi - sng.keyPc + 120) % 12; for (int i = 0; i < 7; i++) if (MAJ[i] == pc) return 1; return 0; }
+static void add_passing(long gbar) {
+    arr_seed(sng.seed, 7000 + (unsigned)gbar);
+    for (int k = 0; k + 1 < phr.n; k++) {
+        int a = phr.m[k], b = phr.m[k + 1], iv = b - a, gap = phr.s[k + 1] - phr.s[k];
+        if (abs(iv) < 3 || abs(iv) > 4 || gap < 2 || gap > 8) continue;
+        if (arnd(100) >= PASSP[sng.mood]) continue;
+        int dir = iv > 0 ? 1 : -1, p = a + dir; if (!in_key(p)) p += dir;
+        if (p == b || !in_key(p)) continue;
+        int s = phr.s[k] + gap / 2;
+        if (s % 8 == 0 || is_avoid(p, chord_at_step(gbar + s / 16, s % 16))) continue;
+        if (phr.n >= 24) break;
+        for (int q = phr.n; q > k + 1; q--) { phr.s[q] = phr.s[q - 1]; phr.li[q] = phr.li[q - 1]; phr.m[q] = phr.m[q - 1]; phr.v[q] = phr.v[q - 1]; phr.d[q] = phr.d[q - 1]; }
+        phr.s[k + 1] = (unsigned char)s; phr.li[k + 1] = phr.li[k]; phr.m[k + 1] = (unsigned char)p; phr.v[k + 1] = (unsigned char)(phr.v[k] > 2 ? phr.v[k] - 1 : 2); phr.d[k + 1] = 2;
+        phr.n++; k++;                                                 // step past the note just added
     }
 }
 // one phrase per four bars: the song's own dab cell STATED over two bars, then ANSWERED over two
@@ -493,11 +518,12 @@ static void build_phrase(long gbar) {
         if (s % 8 == 0 || k == na - 1 || is_avoid(ladder[at], c)) at = snap_chord(at, c);
         phr_add(s, at, k == na - 1 ? 3 : 2);
     }
+    add_passing(gbar);
     for (int k = 0; k < phr.n; k++) {                                 // each note lasts to the next (the last one rings)
         int nx = k + 1 < phr.n ? phr.s[k + 1] : 64, g = nx - phr.s[k];
         phr.d[k] = (unsigned char)(k + 1 < phr.n ? (g > 6 ? 6 : g) : (g > 10 ? 10 : g));
     }
-    if (phr.n) leadLast = ladder[phr.li[phr.n - 1]];
+    if (phr.n) leadLast = phr.m[phr.n - 1];
 }
 
 static void plan_reset(void) { build_ladder(); plan_motif(); phr.gbar = -1; bev.bar = -1; leadLast = -1; statement = 0; }
@@ -600,7 +626,7 @@ static void plan_bar(long bar) {
         if (phr.gbar != gbar) build_phrase(gbar);
         int bj = j % 4;
         for (int k = 0; k < phr.n; k++) if (phr.s[k] / 16 == bj)
-            ev(phr.s[k] % 16, LN_LEAD, 0, ladder[phr.li[k]], I_DAB, phr.v[k] + 3 > 7 ? 7 : phr.v[k] + 3, (int)(phr.d[k] * stepMs * 0.9));
+            ev(phr.s[k] % 16, LN_LEAD, 0, phr.m[k], I_DAB, phr.v[k] + 3 > 7 ? 7 : phr.v[k] + 3, (int)(phr.d[k] * stepMs * 0.9));
     }
 }
 

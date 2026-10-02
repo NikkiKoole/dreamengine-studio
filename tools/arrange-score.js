@@ -50,6 +50,7 @@
 //   chord changes/bar      how often the sounding keys pitch-class set changes
 //   keys voices / reg      notes per keys hit, their mean MIDI register
 //   lead phrase len        notes per phrase (a gap ≥ 1 beat ends one) · range (semitones) · step %
+//                          (≤ 2 semitones) split as semitone % · third % (3-4) · leap % (≥ 5)
 //   <part> pocket ms       mean offset from the 16th grid (+ = late) · <part> spread = its std
 //   swing ms               odd-16th onsets' extra delay over even ones (all parts)
 //   <part> vol sd          dynamics: std of note volume (the engine's 0–7 scale)
@@ -260,6 +261,10 @@ function scoreSong(notes, roleMap) {
   m['lead phrase len'] = mean(phrases.map(p => p.length))
   m['lead range'] = mean(phrases.map(p => Math.max(...p) - Math.min(...p)))
   m['lead step %'] = ints.length ? 100 * ints.filter(x => x <= 2).length / ints.length : NaN
+  // the step % split: on a pentatonic ladder a third IS a step, so the shape needs the histogram
+  m['lead semitone %'] = ints.length ? 100 * ints.filter(x => x === 1).length / ints.length : NaN
+  m['lead third %'] = ints.length ? 100 * ints.filter(x => x === 3 || x === 4).length / ints.length : NaN
+  m['lead leap %'] = ints.length ? 100 * ints.filter(x => x >= 5).length / ints.length : NaN
   return m
 }
 
@@ -383,7 +388,7 @@ const ORDER = ['songs', 'bpm', 'grid fit', 'bars', 'min',
   'lead clash %', 'lead strong-CT %', 'bass clash %',
   'block contrast', 'layers/block', 'layers min-max', 'chord changes/bar', 'keys voices', 'keys register',
   ...PARTS.flatMap(p => [`${p} notes/bar`, `${p} repeat %`, `${p} distinct %`]),
-  'lead phrase len', 'lead range', 'lead step %',
+  'lead phrase len', 'lead range', 'lead step %', 'lead semitone %', 'lead third %', 'lead leap %',
   'swing ms', ...PARTS.flatMap(p => [`${p} pocket ms`, `${p} spread ms`]),
   ...PARTS.map(p => `${p} vol sd`)]
 function fmt(v) { return typeof v === 'string' ? v : Number.isNaN(v) || v === undefined ? '–' : Math.abs(v) >= 100 ? v.toFixed(0) : Math.abs(v) >= 10 ? v.toFixed(1) : v.toFixed(2) }

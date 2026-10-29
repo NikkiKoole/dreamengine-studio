@@ -6875,6 +6875,20 @@
     "homage": "The Sims (2000)"
   },
   {
+    "title": "singsample",
+    "description": "One recorded 'mi' sings a whole tune, as a big and a small creature. The console says 'mi' once (INSTR_VOICE with an m onset, captured off its own output with record_arm/record_grab), and that single take is bound to two INSTR_SING instruments: a BIG one (timbre 0.3, a larger throat) and a SMALL one (timbre 0.72). They trade a little pentatonic tune. Every note is the same sample: the note sets the pitch, the size knob sets who is singing, and the syllable keeps its own length, so it never turns into a chipmunk or a slowed tape. Long notes hold the vowel ('mi-i-i'). Build with DE_DEFINES=SWEEP for the probe: held notes chromatically from an octave below the recording to an octave above, for measuring tuning and artifacts at every interval. It plays on its own. SPACE starts the song again. Z / X: sing one note as the big / small one (hold to sustain).",
+    "file": "singsample.cart.png",
+    "created": "2026-10-29",
+    "kind": [
+      "probe",
+      "tech-demo"
+    ],
+    "teaches": [
+      "granular-synth"
+    ],
+    "lineage": "The showcase + acceptance probe for INSTR_SING (GitHub #44's real-time ask): one recorded syllable sings a tune. Built for Playtime's Mipo voices, where each character speaks with short recorded hums. Sibling of voxsize (the offline sample_formant face)."
+  },
+  {
     "title": "sing synth",
     "description": "Say a vowel and play your own voice as a synth. Tap REC and hold an 'aaah'; the engine loops it into a keyboard instrument you play polyphonically — capture four different vowels and switch between them. Voice sampler. Tap the REC button (it opens the mic the first time) and hold a steady vowel; ~1.2s is captured, normalized, loaded into a sample slot, and a held LOOP is set over the sustained middle (instrument_sample + SAMPLE_LOOP) so the note rings your actual voice — formants, texture and all — for as long as you hold a key. The loop region defaults to the middle but you DRAG its two green markers on the waveform to pick exactly which slice of your recording sustains (the sounding note re-loops live as you drag). The keybed (keybed.h: touch + mouse + QWERTY A-K + MIDI) plays it across two octaves, polyphonically: press a chord and it's three of your own vowels in harmony. The note you sang plays at original pitch; higher keys pitch it up. The four slot buttons pick the voice to play AND the next capture target, so you can bank an 'aaah', an 'eee', an 'ooo' and switch. The buffer is plain PCM DATA (deterministic, saveable), the clean side of the doctrine — only the act of singing is live. Not the vocoder (voxbox) or a pitch-follower (humtheremin): this freezes your VOICE into a playable, loopable instrument. REC button: open the mic (first tap), then hold a vowel to capture the current slot. Drag the two GREEN markers on the waveform to set the loop start/end. Slot buttons 1-4: pick the voice to play + capture into. A-K / click / touch / MIDI: play the keybed. Z/X: octave down/up.",
     "file": "singsynth.cart.png",

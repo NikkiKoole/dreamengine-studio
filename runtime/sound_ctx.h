@@ -446,11 +446,32 @@ typedef struct {
     bool   gr_rev;                      // MODE_GRAIN_REVERSE snapshot: grains AND the playhead run backward
     uint32_t gr_rnd;                    // per-voice LCG, reseeded at note-on (deterministic)
     bool   gr_on;
+    // SING (INSTR_SING): a recorded voice played at the NOTE's pitch, one glottal pulse per grain.
+#define SG_GRAINS 8                             //   overlapping grains per voice (the caps keep it under 7)
+    double sg_t;                        // the playhead in the buffer (samples); moves at SPEED, not at pitch
+    float  sg_clock;                    // samples until the next grain's CENTRE (<0 = not started)
+    float  sg_dir;                      // +1 / -1: the playhead rocks over the held vowel while the key is down
+    float  sg_hratio;                   // the take's pitch contour, frozen while rocking (else the take's own wobble replays back and forth)
+    int    sg_k;                        // analysis-epoch search cursor (nearest the playhead)
+    int    sg_hold;                     // buffer position of the LAST voiced epoch in the chop: a held key rocks just before it (-1 = none)
+    bool   sg_pend;                     // the next grain is computed and waiting for its start time
+    int    sg_pc, sg_pl, sg_pr;         // pending grain: source epoch · output half-widths left / right
+    float  sg_pd, sg_pg, sg_pT;         // pending grain: source step per output sample (the SIZE ratio) · gain · period to the NEXT centre
+    int    sg_gc[SG_GRAINS];            // live grains: source epoch position
+    int    sg_gj[SG_GRAINS];            //   output offset from the grain centre, runs -left..right
+    int    sg_gl[SG_GRAINS], sg_gr[SG_GRAINS]; //   output half-widths (sg_gr 0 = slot free)
+    float  sg_gd[SG_GRAINS], sg_gg[SG_GRAINS]; //   source step · gain
+    float  sg_es, sg_eo;                // level follower: source energy at the playhead vs output energy (sets the corrective gain)
+    bool   sg_on;
 } Voice;
 #define SOUND_HANDLE_BITS 5                      // slot field width — must hold SOUND_VOICES-1 (32 voices → 0..31 → 5 bits)
 #define SCOPE_LEN 2048
 #define SOUND_SAMPLE_SLOTS 8
 typedef struct { float *data; int len; bool loaded; } SoundSample;  // data = malloc'd mono PCM -1..1
+// INSTR_SING's analysis of one sample slot (sing_analyze, GAME thread): the glottal epochs + each one's
+// f0 (0 = unvoiced) + the take's median f0 (what a note's pitch is measured against). nep == 0 = none
+// yet; `want` = the audio side asked for one (a SING note or binding found none), served by sound_tick.
+typedef struct { int *ep; float *epf; int nep; float f0med; int want; } SingAn;
 #define SOUND_USER_WAVES 4
 #define SOUND_WAVE_LEN   64
 typedef struct {
@@ -747,6 +768,9 @@ typedef struct {
     int scope2_w;
     bool scope2_ever;
     SoundSample sound_samples[SOUND_SAMPLE_SLOTS];
+    SingAn sing_an[SOUND_SAMPLE_SLOTS];          // INSTR_SING analysis per sample slot
+    unsigned char sing_inst[SOUND_INSTR_SLOTS];  // GAME-side mirror: instrument slot is INSTR_SING (set by instrument())
+    signed char sing_smp1[SOUND_INSTR_SLOTS];    // GAME-side mirror: sample slot + 1 bound by instrument_sample() (0 = none)
     float *rec_ring;
     volatile int rec_w;
     volatile long rec_total;
@@ -1150,6 +1174,9 @@ static _Thread_local DeSound *de_snd = &de_snd_default;
 #define scope2_w             (de_snd->scope2_w)
 #define scope2_ever          (de_snd->scope2_ever)
 #define sound_samples        (de_snd->sound_samples)
+#define sing_an              (de_snd->sing_an)
+#define sing_inst            (de_snd->sing_inst)
+#define sing_smp1            (de_snd->sing_smp1)
 #define rec_ring             (de_snd->rec_ring)
 #define rec_w                (de_snd->rec_w)
 #define rec_total            (de_snd->rec_total)

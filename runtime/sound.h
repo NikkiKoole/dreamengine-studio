@@ -2393,7 +2393,14 @@ static void sound_set_master_gain(float g) {
 // musical clock (main-thread state, ticked once per frame from studio.c)
 
 // called once per frame from studio.c, before update()
+static void sing_forget(int slot);      // INSTR_SING analysis (defined beside at_psola_slot)
+static void sing_analyze(int slot);
+static bool sing_wanted(int slot);
 static void sound_tick(float dt) {
+    // INSTR_SING: serve analyses the AUDIO side asked for (a cart switch / state restore replays the
+    // binding there, past the game-side instrument() mirror). One per frame bounds the hitch.
+    for (int i = 0; i < SOUND_SAMPLE_SLOTS; i++)
+        if (sing_an[i].want && sing_an[i].nep == 0) { sing_analyze(i); break; }
     beat_accum += dt * (sound_bpm / 60.0f);
     int new_beat = (int)beat_accum;
     beat_just_advanced = (new_beat > beat_now);
@@ -5796,6 +5803,172 @@ static inline float sound_grain_sample(Voice *v, float pitch_mul) {
     return out * 0.5f;
 }
 
+// ── INSTR_SING: a recorded voice SUNG at the note's pitch, keeping who it is (GitHub #44) ──────────────
+// Plays the buffer bound by instrument_sample() over the chop, as TD-PSOLA: one grain per glottal PULSE,
+// windowed over a period either side of the pulse in the SOURCE and only then resampled by the SIZE
+// ratio, and each grain placed on the NOTE's period. The note moves the pitch; SIZE (timbre) moves the
+// formants; the playhead moves at SPEED (morph), so a syllable keeps its own length at any note.
+// Why one pulse per grain is the whole design: a grain holding two pulses carries the SOURCE pitch
+// inside it however it is re-spaced (the wall the offline shift face hit, sound.h at_psola_slot). With
+// one pulse per grain the pitch is set by the grain CLOCK alone, so repeating a pulse (going up) or
+// skipping one (going down) is harmless as long as neighbouring pulses look alike, which in a vowel they
+// do. That removes the epoch-MAPPING problem the offline faces fight (their DO-NOT-DO notes): there is no
+// mapping to get wrong, only "the pulse nearest the playhead".
+//   · pitch: the take's own CONTOUR rides on the note (target = note × local f0 / the take's median),
+//     so a rising "huh?" still rises; the median lands on the note. note_pitch / LFO / glide all apply.
+//   · a grain's CENTRE is scheduled on the clock and the grain STARTS half a window early (sg_pend), so
+//     pulse timing does not jitter with the source's period wobble.
+//   · loudness: gain sqrt(size × Tout / Tsrc) holds the per-pulse ENERGY per unit time, so neither the
+//     note nor the size is a volume knob. No window-sum normalisation (it would stretch narrow pulses).
+//   · unvoiced epochs (consonants) keep the SOURCE spacing and are only re-coloured by the size ratio, so
+//     an "h" or "pf" is not buzzed at the note's pitch.
+//   · HOLD: while the key is down and the playhead reaches the last voiced epoch of the chop, it ROCKS
+//     over the 60 ms before it (the held vowel), with the contour frozen; on release it runs on, so the
+//     word finishes ("mi-i-i-po": the -po plays at release). Then the voice falls silent (one-shot).
+//   · no analysis (an unpitched take, or not analysed yet): plain playback of the chop at SPEED.
+// The analysis runs on the GAME thread (sing_analyze, below at_mark), never here.
+#define SG_HOLD_S 0.06f                                        // the rocked stretch while a key holds a vowel
+static void sound_sing_start(Voice *v) {
+    v->sg_on = false;
+    for (int g = 0; g < SG_GRAINS; g++) v->sg_gr[g] = 0;
+    v->sg_pend = false; v->sg_clock = -1.0f; v->sg_dir = 1.0f; v->sg_k = 0; v->sg_hold = -1; v->sg_hratio = 1.0f;
+    v->sg_t = 0.0; v->sg_es = v->sg_eo = 0.0f;
+    if (v->smp_idx < 0 || v->smp_idx >= SOUND_SAMPLE_SLOTS || !sound_samples[v->smp_idx].loaded) return;
+    int n = sound_samples[v->smp_idx].len; if (n < 2) return;
+    float endf = (v->smp_end_f > 0.0f && v->smp_end_f <= 1.0f) ? v->smp_end_f : 1.0f;
+    double lo = (double)v->smp_start_f * (double)(n - 1), hi = (double)endf * (double)(n - 1);
+    v->sg_t = lo;
+    SingAn *a = &sing_an[v->smp_idx];
+    int ne = a->nep;
+    atomic_thread_fence(memory_order_acquire);
+    if (ne == 0) a->want = 1;                                   // ask the game thread (sound_tick) for one
+    else if (ne >= 3)
+        for (int k = ne - 1; k >= 0; k--)                       // the held vowel = the last voiced epoch in the chop
+            if (a->ep[k] >= lo && a->ep[k] <= hi && a->epf[k] > 0.0f) { v->sg_hold = a->ep[k]; break; }
+    v->sg_on = true;
+}
+static inline float sound_sing_sample(Voice *v, float pitch_mul) {
+    if (!v->sg_on || v->smp_idx < 0 || v->smp_idx >= SOUND_SAMPLE_SLOTS) return 0.0f;
+    const SoundSample *s = &sound_samples[v->smp_idx];
+    if (!s->loaded || !s->data || s->len < 2) return 0.0f;
+    float startf = v->smp_start_f, endf = v->smp_end_f;       // the chop, read live (INSTR_SAMPLE's rule)
+    if (v->instr_slot >= 0 && v->instr_slot < SOUND_INSTR_SLOTS) {
+        startf = instr_bank[v->instr_slot].smp_start;
+        endf   = instr_bank[v->instr_slot].smp_end;
+    }
+    if (!(endf > 0.0f && endf <= 1.0f)) endf = 1.0f;
+    double lo = (double)startf * (double)(s->len - 1), hi = (double)endf * (double)(s->len - 1);
+    if (hi - lo < 2.0) return 0.0f;
+    float speed = clamp01(v->mor) * 2.0f;                      // SPEED: 0 frozen · 0.5 → 1× · 1 → 2×
+    const SingAn *a = &sing_an[v->smp_idx];
+    int ne = a->nep;
+    atomic_thread_fence(memory_order_acquire);
+    if (ne < 3 || a->f0med <= 0.0f) {                          // no analysis: plain playback of the chop
+        if (v->sg_t < lo) v->sg_t = lo;
+        if (v->sg_t >= hi) return 0.0f;
+        int i0 = (int)v->sg_t; if (i0 > s->len - 2) i0 = s->len - 2;
+        float fr = (float)(v->sg_t - (double)i0);
+        v->sg_t += (double)speed;
+        return s->data[i0] + (s->data[i0 + 1] - s->data[i0]) * fr;
+    }
+    const int *ep = a->ep; const float *epf = a->epf;
+    bool held = v->step_samples < v->step_len_samples;
+    bool rocking = held && v->sg_hold >= 0 && (v->sg_t >= (double)v->sg_hold || v->sg_dir < 0.0f);
+
+    // 1. the NEXT grain: computed one grain ahead so it can start half a window before its centre
+    if (!v->sg_pend && v->sg_t < hi) {
+        int k = v->sg_k; if (k < 0) k = 0; if (k > ne - 1) k = ne - 1;
+        while (k + 1 < ne && (double)ep[k + 1] <= v->sg_t) k++;
+        while (k > 0 && (double)ep[k] > v->sg_t) k--;
+        v->sg_k = k;
+        int kk = (k + 1 < ne && v->sg_t - (double)ep[k] > (double)ep[k + 1] - v->sg_t) ? k + 1 : k;
+        int c = ep[kk];
+        int L = kk > 0 ? c - ep[kk - 1] : (kk + 1 < ne ? ep[kk + 1] - c : SOUND_SAMPLE_RATE / 110);
+        int R = kk + 1 < ne ? ep[kk + 1] - c : L;
+        if (L < 20) L = 20; if (L > 900) L = 900; if (R < 20) R = 20; if (R > 900) R = 900;
+        float size = de_powf(2.0f, (clamp01(v->timb) - 0.5f) * 2.0f);   // 0.5 = as recorded; 0/1 = ∓ an octave of throat
+        float oL, oR, T, g;
+        if (epf[kk] > 0.0f) {                                   // VOICED: one pulse, at the note's period
+            float ratio = epf[kk] / a->f0med;
+            if (rocking) ratio = v->sg_hratio; else v->sg_hratio = ratio;
+            float f = v->freq * pitch_mul * ratio;
+            if (f < 30.0f) f = 30.0f; if (f > 2000.0f) f = 2000.0f;
+            T = (float)SOUND_SAMPLE_RATE / f;
+            oL = (float)L / size; oR = (float)R / size;
+            float cap = 3.0f * T; if (cap > 1800.0f) cap = 1800.0f;   // 1T / 1.5T measured WORSE for level
+            if (oL > cap) oL = cap; if (oR > cap) oR = cap;
+            g = sqrtf(size * T * epf[kk] / (float)SOUND_SAMPLE_RATE);   // sqrt(size · Tout / Tsrc)
+            if (g > 4.0f) g = 4.0f;
+        } else {                                                // UNVOICED: the source's own spacing, re-coloured
+            oL = (float)L; oR = (float)R; T = (float)R; g = 1.0f;
+        }
+        if (v->sg_clock < 0.0f) v->sg_clock = oL;              // the very first grain: start its window at 0
+        if (oL > v->sg_clock) oL = v->sg_clock;                // never start a window part-way in (a click)
+        v->sg_pc = c; v->sg_pl = (int)oL; v->sg_pr = (int)(oR + 0.5f); v->sg_pd = size; v->sg_pg = g; v->sg_pT = T;
+        if (v->sg_pl < 1) v->sg_pl = 1; if (v->sg_pr < 1) v->sg_pr = 1;
+        v->sg_pend = true;
+    }
+    // 2. start it when its window opens (its centre then lands on the clock)
+    if (v->sg_pend && v->sg_clock <= (float)v->sg_pl) {
+        int slot = -1;
+        for (int gi = 0; gi < SG_GRAINS; gi++) if (v->sg_gr[gi] == 0) { slot = gi; break; }
+        if (slot >= 0) {
+            int j0 = -(int)(v->sg_clock + 0.5f); if (j0 < -v->sg_pl) j0 = -v->sg_pl;
+            v->sg_gc[slot] = v->sg_pc; v->sg_gj[slot] = j0;
+            v->sg_gl[slot] = v->sg_pl; v->sg_gr[slot] = v->sg_pr;
+            v->sg_gd[slot] = v->sg_pd; v->sg_gg[slot] = v->sg_pg;
+        }
+        v->sg_clock += v->sg_pT;
+        v->sg_pend = false;
+    }
+    // 3. sum the live grains
+    float out = 0.0f;
+    for (int gi = 0; gi < SG_GRAINS; gi++) {
+        int r = v->sg_gr[gi]; if (r == 0) continue;
+        int j = v->sg_gj[gi];
+        float x = j < 0 ? (float)j / (float)v->sg_gl[gi] : (float)j / (float)r;
+        float w = 0.5f * (1.0f + de_cos_turns(0.5f * x));
+        float sf = (float)v->sg_gc[gi] + (float)j * v->sg_gd[gi];
+        int si = (int)floorf(sf);
+        if (si >= 0 && si + 1 < s->len) {
+            float fr = sf - (float)si;
+            out += v->sg_gg[gi] * w * (s->data[si] + fr * (s->data[si + 1] - s->data[si]));
+        }
+        if (++v->sg_gj[gi] > r) v->sg_gr[gi] = 0;
+    }
+    // 4. LEVEL: follow the take's own loudness. Overlapping one-pulse grains add coherently at the unison
+    // and partly cancel elsewhere, by an amount that depends on the exact ratio: measured over a 25-note
+    // sweep, a 5.4 dB range and up to 2.5 dB between NEIGHBOURING notes, which in a tune reads as uneven
+    // velocity. No closed-form gain tracks it (capping the grain width made it worse: 7-9.5 dB), so two
+    // ~40 ms energy followers set a corrective gain, bounded to ±6 dB so it can only even out, never pump.
+    // The source is read a grain's lead BEHIND the playhead, where the output actually is, so an onset
+    // is not over-gained while the first grain's window opens.
+    {
+        double sp = v->sg_t - (double)v->sg_pl * (double)speed;
+        int i0 = (int)sp; if (i0 < 0) i0 = 0; if (i0 > s->len - 1) i0 = s->len - 1;
+        float src = s->data[i0];
+        const float A = 1.0f / (0.04f * (float)SOUND_SAMPLE_RATE);
+        v->sg_es += A * (src * src - v->sg_es);
+        v->sg_eo += A * (out * out - v->sg_eo);
+        float gl = v->sg_eo > 1e-9f ? sqrtf((v->sg_es + 1e-12f) / v->sg_eo) : 1.0f;
+        if (gl < 0.5f) gl = 0.5f; if (gl > 2.0f) gl = 2.0f;
+        out *= gl;
+    }
+    // 5. the clock and the playhead
+    v->sg_clock -= 1.0f;
+    if (rocking) {
+        double top = (double)v->sg_hold, bot = top - SG_HOLD_S * (float)SOUND_SAMPLE_RATE;
+        if (bot < lo) bot = lo;
+        v->sg_t += (double)(v->sg_dir * speed);
+        if (v->sg_t >= top) { v->sg_t = top; v->sg_dir = -1.0f; }
+        else if (v->sg_t <= bot) { v->sg_t = bot; v->sg_dir = 1.0f; }
+    } else {
+        v->sg_dir = 1.0f;                                       // released (or never held): finish the word
+        v->sg_t += (double)speed;
+    }
+    return out;
+}
+
 static inline float sound_engine_sample(Voice *v, float pitch_mul) {
     switch (v->wave) {                                       // dense engine ids → jump table (was 13 sequential compares)
         case INSTR_MALLET:   return sound_mallet_sample(v, pitch_mul);
@@ -5819,6 +5992,7 @@ static inline float sound_engine_sample(Voice *v, float pitch_mul) {
         case INSTR_SINTER:   return sound_sinter_sample(v, pitch_mul);
         case INSTR_WAVESCAN: return sound_wavescan_sample(v, pitch_mul);
         case INSTR_GRAIN:    return sound_grain_sample(v, pitch_mul);
+        case INSTR_SING:     return sound_sing_sample(v, pitch_mul);
     }
     // fall-through: the modal Karplus-Strong string — any engine id not handled above.
     int alloc = v->ks_len;
@@ -6447,6 +6621,7 @@ static void sound_setup_note(Voice *v, int midi, int slot, int vol, int gate_sam
     v->sn_on = false;
     v->ws_on = false;
     v->gr_on = false;
+    v->sg_on = false;
     v->fm_mph = v->fm_fb = v->fm_tph = 0.0f;   // FM needs no excitation, just deterministic phases
     if      (v->wave == INSTR_PLUCK)  sound_pluck_start(v);    // excite the string
     else if (v->wave == INSTR_MALLET) sound_mallet_start(v);   // strike the bar
@@ -6475,6 +6650,7 @@ static void sound_setup_note(Voice *v, int midi, int slot, int vol, int gate_sam
     else if (v->wave == INSTR_SINTER) sound_sinter_start(v);   // reseed the noise, size the hit, snapshot a/b/motion/decay
     else if (v->wave == INSTR_WAVESCAN) sound_wavescan_start(v); // zero the phases + gate, reseed the noise, snapshot res/noise/interval
     else if (v->wave == INSTR_GRAIN)  sound_grain_start(v);    // both chains at POSITION, chain 1 half a grain behind, snapshot scatter/detune/reverse
+    else if (v->wave == INSTR_SING)   sound_sing_start(v);     // playhead to the chop start, find the held vowel, ask for an analysis if none
     else if (v->wave == INSTR_FM4)    sound_fm4_start(v);      // reset 4 phases + feedback average
     // TRIGGER POLICY (§L4). The engine hooks above have just ARMED this voice's onset transient; if the
     // slot declares itself single-triggering and another key on it is already down, take it back off.
@@ -7424,6 +7600,8 @@ static void sound_fire_req(SoundReq r) {
         instr_bank[slot].smp_idx  = r.b;
         instr_bank[slot].smp_root = r.c / 1000.0f;
         if (instr_bank[slot].smp_root < 1.0f) instr_bank[slot].smp_root = 1.0f;
+        if (instr_bank[slot].wave == INSTR_SING && r.b >= 0 && r.b < SOUND_SAMPLE_SLOTS && sing_an[r.b].nep == 0)
+            sing_an[r.b].want = 1;      // INSTR_SING: ask sound_tick for the analysis (covers a replayed binding)
     } break;
     case SR_INSTR_SAMPLE_REGION: {  // a=slot, b=start*1e6, c=end*1e6 — the chop bounds (fractions 0..1)
         int slot = r.a;
@@ -8336,6 +8514,8 @@ void instrument(int slot, int wave, int attack_ms, int decay_ms, int sustain, in
     if (d < 0) d = 0;
     if (r < 0) r = 0;
     sound_push_ctrl(SR_INSTR, slot, wave, sustain, a, d, r);
+    sing_inst[slot] = (wave == INSTR_SING);   // INSTR_SING mirror; SR_INSTR clears the sample binding, so does this
+    sing_smp1[slot] = 0;
 }
 
 void wave_set(int which, const float *samples, int n) {
@@ -8459,8 +8639,10 @@ int record_grab(int sample_slot, float seconds) {
         for (int i = 0; i < want; i++) buf[i] *= g;
     }
     SoundSample *s = &sound_samples[sample_slot];
+    sing_forget(sample_slot);                          // INSTR_SING: the old analysis describes the old take
     if (s->data) free(s->data);                        // replace any prior recording in this slot
     s->data = buf; s->len = want; s->loaded = true;
+    if (sing_wanted(sample_slot)) sing_analyze(sample_slot);
     return want;
 }
 
@@ -8504,10 +8686,12 @@ void sample_load(int slot, const float *data, int n) {
     if (!buf) return;
     for (int i = 0; i < n; i++) buf[i] = data[i];
     SoundSample *s = &sound_samples[slot];
+    sing_forget(slot);                                     // INSTR_SING: the old analysis describes the old take
     s->loaded = false;                                     // brief: audio thread reads len 0 during the swap
     float *old = s->data;
     s->data = buf; s->len = n; s->loaded = true;
     if (old) free(old);                                    // same benign swap race record_grab already accepts
+    if (sing_wanted(slot)) sing_analyze(slot);
 }
 
 // ── AUTO-TUNE — offline formant-preserving pitch correction (docs/design/transparent-autotune.md) ──
@@ -8615,6 +8799,127 @@ static float autotune_mic_process(float x) {
     am_outbuf[ri] = 0.0f; am_nrm[ri] = 0.0f;
     return y;
 }
+// Steps 1 + 2 of the offline core, shared with INSTR_SING's per-sample analysis (sing_analyze). Split
+// out of at_psola_slot with the arithmetic untouched (asserted: psola-check baselines unchanged).
+// `wide` = the FORMANT/SING variant: tracks up to 1 kHz and runs the sub-harmonic check (see below).
+static inline float at_f0_at(const float *f0, int nHop, int pos) {
+    return f0[pos / AT_HOP < 0 ? 0 : (pos / AT_HOP >= nHop ? nHop - 1 : pos / AT_HOP)];
+}
+// 1. pitch track — autocorrelation f0 per hop (0 = unvoiced)
+static void at_track(const float *in, int n, int nHop, float *f0, int wide) {
+    int lo = SOUND_SAMPLE_RATE / 400, hi = SOUND_SAMPLE_RATE / 70;
+    // FORMANT reaches up to 1 kHz: a tiny high creature voice sits ABOVE the 400 Hz the snap face was
+    // built for, and a 440 Hz take tracked at 220 makes the formant pass mark every other pulse
+    // (measured: voxsize HIGH at SIZE_SEMIS=12, T-similarity 0.14-0.41). The sub-harmonic check below
+    // stops the wider range from settling an octave down.
+    if (wide) lo = SOUND_SAMPLE_RATE / 1000;
+    for (int h = 0; h < nHop; h++) {
+        int base = h * AT_HOP; float best = 0; int bl = lo;
+        for (int lag = lo; lag <= hi; lag++) { float c = at_corr(in, base, n, lag); if (c > best) { best = c; bl = lag; } }
+        if (best < 0.35f) { f0[h] = 0.0f; continue; }
+        // SUB-HARMONIC check, FORMANT face only: a wobbly voice correlates almost as well at 2T or 3T
+        // as at T, and the max above then reads an octave (or a twelfth) DOWN. Measured on voxsize's
+        // take: hops at 108/112/72/75 Hz against a true 220, and the epoch marker stepping 2-3
+        // periods there. Snap/shift shrug that off (full-width normalised grains); the formant face
+        // cannot, because a 2-period window resampled by the ratio holds two pulses at the wrong
+        // spacing. So prefer the SHORTEST lag that correlates within 15% of the best. Guarded so
+        // sample_autotune / sample_shift stay bit-identical (psola-check baseline); whether they want
+        // it too is its own measured change.
+        if (wide)
+            for (int dv = 3; dv >= 2; dv--) {
+                int c = bl / dv, sb = c; float sv = -1.0f;
+                if (c - 3 < lo) continue;
+                for (int lag = c - 3; lag <= c + 3; lag++) { float v = at_corr(in, base, n, lag); if (v > sv) { sv = v; sb = lag; } }
+                if (sv >= 0.85f * best) { bl = sb; break; }
+            }
+        float cm = at_corr(in, base, n, bl - 1), c0 = at_corr(in, base, n, bl), cp = at_corr(in, base, n, bl + 1);
+        float den = cm - 2 * c0 + cp, d = den != 0.0f ? 0.5f * (cm - cp) / den : 0.0f;
+        f0[h] = (float)SOUND_SAMPLE_RATE / (bl + d);
+    }
+}
+// 2. epoch marking — step by the local period, refine to the local peak (glottal mark). Returns the count.
+// ep[] must hold n / (SR / top_f0) + 8: 400 Hz for the snap/shift tracker, 1 kHz for `wide` (at_ep_cap).
+static inline int at_ep_cap(int n, int wide) { return n / (SOUND_SAMPLE_RATE / (wide ? 1000 : 400)) + 8; }
+static int at_mark(const float *in, int n, const float *f0, int nHop, int *ep, int maxEp) {
+    //
+    // ⚠ DO NOT "improve" this into a WSOLA correlation phase-lock like the streaming face uses. That
+    // was tried (2026-07-26, both raw-sum and energy-normalized forms) and it REGRESSES the snap face:
+    // it took the snapped take from a clean f0 220.4 Hz (wobble 1.1) to 178.8 Hz flipping over 110–220,
+    // i.e. PERIOD DOUBLING — the epoch spacing starts alternating long-short and every other pulse
+    // differs. Normalizing the correlation did not rescue it (165.1 Hz, still flipping). The streaming
+    // face needs the lock because it marks epochs from a live ring with no pitch track; here step 1 has
+    // already produced a per-hop autocorrelation f0, so the period is known and peak refinement inside
+    // ±28% of it is both sufficient and stable. Narrowing the lock's search window to ±8% (on the theory
+    // that a wide window let the mark hop a quarter period) does not rescue it either: still doubling
+    // (spread 110.5 Hz, ratio 0.874) and the periodicity error got no better. Run `node
+    // tools/psola-check.js` before and after ANY edit here — it caught that third attempt in one command.
+    // Why the snap face specifically: its Tt is within a few percent of T, so any marking jitter is
+    // comparable to the correction itself and flips the mapping, where a 2:1 shift has margin to spare.
+    // The fix has to be jitter-FREE, not better-guessed.
+    // Lesson for whoever measures this next: a period-doubled signal is still perfectly periodic, so a
+    // periodicity-error metric calls it CLEAN. Only the f0 reading catches it. Use both.
+    int nEp = 0, pos = AT_ACW / 2;
+    while (pos < n - 1 && nEp < maxEp) {
+        ep[nEp++] = pos;
+        float f = at_f0_at(f0, nHop, pos); if (f < 60.0f) f = 110.0f;
+        int T = (int)((float)SOUND_SAMPLE_RATE / f), a = pos + (int)(0.72f * T), b = pos + (int)(1.28f * T);
+        if (b >= n) break;
+        int pk = a; float pv = -1e9f;
+        for (int i = a; i <= b; i++) if (in[i] > pv) { pv = in[i]; pk = i; }
+        pos = pk;
+    }
+    return nEp;
+}
+
+// INSTR_SING's analysis of one sample slot: at_track + at_mark in their `wide` form (to 1 kHz, the
+// sub-harmonic check), each epoch's f0, and the take's MEDIAN f0 (what the played note is measured
+// against). GAME thread only — it costs ~0.1 s per second of audio, so it runs once per loaded take,
+// and only for a slot an INSTR_SING instrument is bound to (sing_wanted / the audio side's `want`).
+// Publication: the audio side reads nep FIRST (with an acquire fence), so nep goes to 0 before the
+// arrays change and is set LAST, after them. A SING note in that window plays the chop plainly.
+static void sing_forget(int slot) {                        // before the data under the analysis changes
+    if (slot < 0 || slot >= SOUND_SAMPLE_SLOTS) return;
+    SingAn *a = &sing_an[slot];
+    a->nep = 0;
+    atomic_thread_fence(memory_order_release);
+    int *e = a->ep; float *f = a->epf;
+    a->ep = NULL; a->epf = NULL; a->f0med = 0.0f;
+    free(e); free(f);                                      // same benign swap race sample_load accepts
+}
+static bool sing_wanted(int slot) {                        // is any INSTR_SING instrument bound to it?
+    for (int i = 0; i < SOUND_INSTR_SLOTS; i++) if (sing_inst[i] && sing_smp1[i] == slot + 1) return true;
+    return false;
+}
+static int sing_cmpf(const void *x, const void *y) { float a = *(const float *)x, b = *(const float *)y; return (a > b) - (a < b); }
+static void sing_analyze(int slot) {
+    if (slot < 0 || slot >= SOUND_SAMPLE_SLOTS) return;
+    SingAn *a = &sing_an[slot];
+    a->want = 0;
+    if (a->nep != 0) return;                               // already analysed (every writer calls sing_forget first)
+    const SoundSample *s = &sound_samples[slot];
+    if (!s->loaded || !s->data || s->len < AT_ACW * 2) return;
+    int n = s->len, nHop = (n - AT_ACW) / AT_HOP; if (nHop < 1) nHop = 1;
+    int cap = at_ep_cap(n, 1);
+    float *f0 = (float *)malloc((size_t)(nHop + 4) * sizeof(float));
+    int   *ep = (int *)malloc((size_t)cap * sizeof(int));
+    float *epf = (float *)malloc((size_t)cap * sizeof(float));
+    float *tmp = (float *)malloc((size_t)cap * sizeof(float));
+    if (!f0 || !ep || !epf || !tmp) { free(f0); free(ep); free(epf); free(tmp); return; }
+    at_track(s->data, n, nHop, f0, 1);
+    int ne = at_mark(s->data, n, f0, nHop, ep, cap), nv = 0;
+    for (int k = 0; k < ne; k++) {
+        float f = at_f0_at(f0, nHop, ep[k]);
+        epf[k] = f >= 60.0f ? f : 0.0f;
+        if (epf[k] > 0.0f) tmp[nv++] = epf[k];
+    }
+    float med = 0.0f;
+    if (nv > 0) { qsort(tmp, (size_t)nv, sizeof(float), sing_cmpf); med = tmp[nv / 2]; }
+    free(f0); free(tmp);
+    a->ep = ep; a->epf = epf; a->f0med = med;
+    atomic_thread_fence(memory_order_release);
+    a->nep = ne > 0 ? ne : -1;                             // -1 = analysed, nothing pitched: never re-run
+}
+
 // The offline PSOLA core, shared by BOTH faces of the same DSP (contemporary-rebirth.md Rung B):
 //   AT_SNAP  — correct to a scale (sample_autotune): target = detected + amount·(snapped − detected)
 //   AT_SHIFT — transpose by a fixed interval (sample_shift): target = detected + semis
@@ -8658,7 +8963,7 @@ static void at_psola_slot(int slot, int mode, int root, int scale, float semis, 
     // the raw take). Formants ride along with the pitch — see the header note on the parked hold axis.
     float fstep = (mode != AT_SNAP) ? de_powf(2.0f, semis / 12.0f) : 1.0f;   // FORMANT: the tract ratio
     int n = s->len, nHop = (n - AT_ACW) / AT_HOP; if (nHop < 1) nHop = 1;
-    int maxEp = n / (SOUND_SAMPLE_RATE / 400) + 8;
+    int maxEp = at_ep_cap(n, mode == AT_FORMANT);   // was sized for 400 Hz always: a 440 Hz take lost its tail's epochs
     float *in = (float *)malloc((size_t)n * sizeof(float));
     float *out = (float *)malloc((size_t)n * sizeof(float));
     float *norm = (float *)malloc((size_t)n * sizeof(float));
@@ -8667,66 +8972,10 @@ static void at_psola_slot(int slot, int mode, int root, int scale, float semis, 
     if (!in || !out || !norm || !f0 || !ep) { free(in); free(out); free(norm); free(f0); free(ep); return; }
     for (int i = 0; i < n; i++) in[i] = s->data[i];
 
-    // 1. pitch track — autocorrelation f0 per hop (0 = unvoiced)
-    int lo = SOUND_SAMPLE_RATE / 400, hi = SOUND_SAMPLE_RATE / 70;
-    // FORMANT reaches up to 1 kHz: a tiny high creature voice sits ABOVE the 400 Hz the snap face was
-    // built for, and a 440 Hz take tracked at 220 makes the formant pass mark every other pulse
-    // (measured: voxsize HIGH at SIZE_SEMIS=12, T-similarity 0.14-0.41). The sub-harmonic check below
-    // stops the wider range from settling an octave down.
-    if (mode == AT_FORMANT) lo = SOUND_SAMPLE_RATE / 1000;
-    for (int h = 0; h < nHop; h++) {
-        int base = h * AT_HOP; float best = 0; int bl = lo;
-        for (int lag = lo; lag <= hi; lag++) { float c = at_corr(in, base, n, lag); if (c > best) { best = c; bl = lag; } }
-        if (best < 0.35f) { f0[h] = 0.0f; continue; }
-        // SUB-HARMONIC check, FORMANT face only: a wobbly voice correlates almost as well at 2T or 3T
-        // as at T, and the max above then reads an octave (or a twelfth) DOWN. Measured on voxsize's
-        // take: hops at 108/112/72/75 Hz against a true 220, and the epoch marker stepping 2-3
-        // periods there. Snap/shift shrug that off (full-width normalised grains); the formant face
-        // cannot, because a 2-period window resampled by the ratio holds two pulses at the wrong
-        // spacing. So prefer the SHORTEST lag that correlates within 15% of the best. Guarded so
-        // sample_autotune / sample_shift stay bit-identical (psola-check baseline); whether they want
-        // it too is its own measured change.
-        if (mode == AT_FORMANT)
-            for (int dv = 3; dv >= 2; dv--) {
-                int c = bl / dv, sb = c; float sv = -1.0f;
-                if (c - 3 < lo) continue;
-                for (int lag = c - 3; lag <= c + 3; lag++) { float v = at_corr(in, base, n, lag); if (v > sv) { sv = v; sb = lag; } }
-                if (sv >= 0.85f * best) { bl = sb; break; }
-            }
-        float cm = at_corr(in, base, n, bl - 1), c0 = at_corr(in, base, n, bl), cp = at_corr(in, base, n, bl + 1);
-        float den = cm - 2 * c0 + cp, d = den != 0.0f ? 0.5f * (cm - cp) / den : 0.0f;
-        f0[h] = (float)SOUND_SAMPLE_RATE / (bl + d);
-    }
-    #define AT_F0(pos) (f0[(pos) / AT_HOP < 0 ? 0 : ((pos) / AT_HOP >= nHop ? nHop - 1 : (pos) / AT_HOP)])
-
-    // 2. epoch marking — step by the local period, refine to the local peak (glottal mark).
-    //
-    // ⚠ DO NOT "improve" this into a WSOLA correlation phase-lock like the streaming face uses. That
-    // was tried (2026-07-26, both raw-sum and energy-normalized forms) and it REGRESSES the snap face:
-    // it took the snapped take from a clean f0 220.4 Hz (wobble 1.1) to 178.8 Hz flipping over 110–220,
-    // i.e. PERIOD DOUBLING — the epoch spacing starts alternating long-short and every other pulse
-    // differs. Normalizing the correlation did not rescue it (165.1 Hz, still flipping). The streaming
-    // face needs the lock because it marks epochs from a live ring with no pitch track; here step 1 has
-    // already produced a per-hop autocorrelation f0, so the period is known and peak refinement inside
-    // ±28% of it is both sufficient and stable. Narrowing the lock's search window to ±8% (on the theory
-    // that a wide window let the mark hop a quarter period) does not rescue it either: still doubling
-    // (spread 110.5 Hz, ratio 0.874) and the periodicity error got no better. Run `node
-    // tools/psola-check.js` before and after ANY edit here — it caught that third attempt in one command.
-    // Why the snap face specifically: its Tt is within a few percent of T, so any marking jitter is
-    // comparable to the correction itself and flips the mapping, where a 2:1 shift has margin to spare.
-    // The fix has to be jitter-FREE, not better-guessed.
-    // Lesson for whoever measures this next: a period-doubled signal is still perfectly periodic, so a
-    // periodicity-error metric calls it CLEAN. Only the f0 reading catches it. Use both.
-    int nEp = 0, pos = AT_ACW / 2;
-    while (pos < n - 1 && nEp < maxEp) {
-        ep[nEp++] = pos;
-        float f = AT_F0(pos); if (f < 60.0f) f = 110.0f;
-        int T = (int)((float)SOUND_SAMPLE_RATE / f), a = pos + (int)(0.72f * T), b = pos + (int)(1.28f * T);
-        if (b >= n) break;
-        int pk = a; float pv = -1e9f;
-        for (int i = a; i <= b; i++) if (in[i] > pv) { pv = in[i]; pk = i; }
-        pos = pk;
-    }
+    // 1 + 2: pitch track, then epochs (at_track / at_mark above)
+    at_track(in, n, nHop, f0, mode == AT_FORMANT);
+    #define AT_F0(pos) at_f0_at(f0, nHop, (pos))
+    int nEp = at_mark(in, n, f0, nHop, ep, maxEp);
 
     // 3. time-varying TD-PSOLA → out (grain from the nearest analysis epoch, placed at the target period)
     //
@@ -8908,6 +9157,11 @@ float instrument_playhead(int slot) {
             SoundSample *s = &sound_samples[v->smp_idx];
             if (s->loaded && s->len > 1) return (float)(v->smp_pos / (double)(s->len - 1));
         }
+        if (v->active && v->sg_on && v->wave == INSTR_SING && v->instr_slot == slot   // INSTR_SING: its playhead
+            && v->smp_idx >= 0 && v->smp_idx < SOUND_SAMPLE_SLOTS) {
+            SoundSample *s = &sound_samples[v->smp_idx];
+            if (s->loaded && s->len > 1) return (float)(v->sg_t / (double)(s->len - 1));
+        }
         if (v->active && v->gr_on && v->wave == INSTR_GRAIN && v->instr_slot == slot   // INSTR_GRAIN: the PLAYHEAD
             && v->smp_idx >= 0 && v->smp_idx < SOUND_SAMPLE_SLOTS) {                     // (POSITION + travel), not a grain
             SoundSample *s = &sound_samples[v->smp_idx];
@@ -8929,6 +9183,8 @@ void instrument_sample(int slot, int sample_slot, int root_midi) {
     if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
     float root = sound_midi_to_freq(root_midi);
     sound_push_ctrl(SR_INSTR_SAMPLE, slot, sample_slot, (int)(root * 1000.0f), 0, 0, 0);
+    sing_smp1[slot] = (sample_slot >= 0 && sample_slot < SOUND_SAMPLE_SLOTS) ? (signed char)(sample_slot + 1) : 0;
+    if (sing_inst[slot] && sing_smp1[slot]) sing_analyze(sample_slot);   // INSTR_SING: analyse NOW, so a note this frame sings
 }
 
 void instrument_sample_region(int slot, float start, float end) {
@@ -10023,6 +10279,7 @@ static void sound_free_buffers(void) {
     for (int i = 0; i < SOUND_SAMPLE_SLOTS; i++) {
         free(sound_samples[i].data);
         sound_samples[i].data = NULL; sound_samples[i].len = 0; sound_samples[i].loaded = false;
+        sing_forget(i);
     }
 }
 

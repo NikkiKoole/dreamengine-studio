@@ -7,13 +7,21 @@
 > **here**, then fix the prose in the relevant design doc. If a design doc and this file
 > disagree, this file wins.
 
-_Last updated: 2026-10-01 — Plinky harvest: INSTR_WAVESCAN + INSTR_GRAIN shipped. See the top Shipped entry and [`design/plinky-harvest.md`](design/plinky-harvest.md)._
+_Last updated: 2026-10-29 — INSTR_SING + sample_formant: one recorded syllable sings a tune. See the top Shipped entry and [`design/transparent-autotune.md`](design/transparent-autotune.md)._
 
 > **This line is a headline, not an entry.** It reached **9,064 characters** and was the only place in the file that recorded `FILTER_DIODE`, `filter-spec.js` and `rebirth-classic.md` — three shipped things, invisible because nobody reads a shipped feature out of a `_Last updated:_` line. They have a real entry now (2026-07-02, above `sprite-draw.js`). Keep this to one date, one sentence, one link; `status-check --check` fails past 900 chars.
 
 ---
 
 ## Shipped ✓
+
+- **ONE SAMPLE SINGS: `INSTR_SING` + `sample_formant`** (2026-10-29, GitHub #44, for Playtime's Mipo
+  voices). `sample_formant(slot, semis)`: offline, moves a take's formants and keeps its pitch + length
+  (warp 1.502 / 0.690 at ±7, f0 held); with `sample_shift` it is the same-voice transpose. `INSTR_SING`:
+  the real-time face, one grain per glottal pulse on the note's period. 25 notes A2..A4 from one A3
+  "mi" land within 6 cents at one level with no clicks; timbre = SIZE, morph = SPEED, a held key sustains
+  the last vowel. Carts `voxsize`, `singsample`; gate `psola-check --cart voxsize`.
+  [`design/transparent-autotune.md`](design/transparent-autotune.md).
 
 - **PLINKY HARVEST: `INSTR_WAVESCAN` + `INSTR_GRAIN`** (2026-10-01). Plinky's two voices we lacked (MIT).
   WAVESCAN: four oscillators SCAN a 12-cycle band-limited bank (regenerated from Plinky's recipes by

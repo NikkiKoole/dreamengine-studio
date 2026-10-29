@@ -66,8 +66,40 @@ up from [`audio-input-frontier.md`](audio-input-frontier.md) §2.
 > face, so `sample_autotune` / `sample_shift` stay bit-identical (voxshift's psola-check baseline
 > unchanged). Whether snap/shift want the sub-harmonic check too is its own measured change; it is
 > the likely cause of voxshift's "SNAPPED octave-flips" todo. ⚠ Limits: ±12 works but is rougher
-> (−12 under-shoots, warp 0.58 for 0.50; +12 sharpens the pulses). A real-time per-note version for
-> `INSTR_SAMPLE` (the issue's nice-to-have) is not built.
+> (−12 under-shoots, warp 0.58 for 0.50; +12 sharpens the pulses). The real-time per-note version is
+> `INSTR_SING`, next.
+
+> **The PLAYED face — `INSTR_SING`, SHIPPED 2026-10-29** (#44's nice-to-have, asked for as "a song with
+> just one sample"). An engine, not a mode on `INSTR_SAMPLE`/`INSTR_GRAIN`: GRAIN's fixed-size grains are
+> its sound, and a dedicated voice could be designed around ONE rule from the start: **one grain per
+> glottal pulse, placed on the note's period.** That rule removes the problem the offline faces fight.
+> Their DO-NOT-DO notes are all about MAPPING analysis epochs to output epochs (nearest-epoch flip-flop,
+> the accumulator's period doubling); with one-pulse grains there is no mapping to get right, because
+> repeating a pulse (going up) or skipping one (going down) is harmless when neighbouring pulses look
+> alike. The epoch analysis (the `wide` at_track/at_mark, shared with `sample_formant`) runs once on the
+> GAME thread when a SING instrument is bound to the slot, plus a `sound_tick` pump for a binding the
+> audio side replays (cart switch / state restore), so no other cart pays for it.
+>
+> Measured in [`singsample`](../../tools/carts/singsample.c) `DE_DEFINES=SWEEP` (one A3 "mi", 25 held
+> notes A2..A4):
+>
+> | | size 0.5 (as recorded) | size 0.3 (bigger) | size 0.72 (smaller) |
+> |---|---|---|---|
+> | worst tuning | 6¢ | 10¢ (one note, +9) | 3¢ |
+> | level range across the 25 | 0.0 dB | 3.1 dB (that note) | 0.0 dB |
+> | worst splice (click-check metric; the source take reads 3.3) | 3.7× | 4.0× | 3.9× |
+> | formant warp at the unison (expected) | 1.000 | 0.758 (0.758) | 1.341 (1.357) |
+>
+> Two findings worth keeping. **Loudness needed a follower, not a formula:** overlapping one-pulse grains
+> add coherently at the unison and partly cancel elsewhere, by an amount that depends on the exact ratio
+> (5.4 dB range, 2.5 dB between neighbouring notes before). Capping the grain width at 1-1.5 output periods,
+> the offline shift face's fix, made it WORSE (7-9.5 dB), and `INSTR_VOICE` on the same notes has an
+> uncorrelated level curve (r −0.03), so it is not formant physics. A ±6 dB-bounded pair of 40 ms energy
+> followers (source at the playhead vs output) took it to 0.0 dB and LOWERED the onset peaks (1.72× → 1.37×
+> steady). **The probe's own f0 reader lied above 250 Hz** (octave errors read as −773¢); self-similarity at
+> the EXPECTED period vs 2T and T/2 is what told a reader error from a real flip, and a reader held to ±6%
+> of the expected period gave the table above. ⚠ Not covered: wasm parity (`web-audio-check` has no SING
+> probe), and the ears: the numbers say in tune, level and click-free, not that it sounds like a creature.
 
 ## Spike result (2026-07-17) — PROVEN, formants stay put
 

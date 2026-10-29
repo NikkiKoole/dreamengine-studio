@@ -31,6 +31,10 @@ de:meta */
 
 #include "studio.h"
 #include "cursor.h"
+#ifdef SWEEP
+#include <stdio.h>
+#include <stdlib.h>
+#endif
 
 #define VOX     5          // the source voice
 #define BIG     6          // INSTR_SING, a bigger throat
@@ -88,6 +92,10 @@ void init(void) {
 #define SWEEP_SIZE 0.5f                     // the probe measures the recording's own size (DE_DEFINES=SWEEP_SIZE=0.3f)
 #endif
     instrument_timbre(BIG, SWEEP_SIZE);
+#ifndef SWEEP_INFL
+#define SWEEP_INFL 0.5f                     // INFLECTION (harmonics): 0.5 = the take's own melody, 0 = flat on the note
+#endif
+    instrument_harmonics(BIG, SWEEP_INFL);
 #endif
     record_arm();
 }
@@ -103,6 +111,19 @@ void update(void) {
     }
     if (tick == 32 && src_h >= 0) { note_off(src_h); src_h = -1; }
     if (tick == CAP_UNTIL && !grabbed) {
+#ifdef SWEEP
+        // SING_TAKE=<file>: a real take instead of the synthetic "mi", as raw 44.1 kHz mono float32
+        // (ffmpeg -i x.ogg -ac 1 -ar 44100 -f f32le x.f32). The probe for recorded voices.
+        const char *tp = getenv("SING_TAKE");
+        if (tp) {
+            static float tk[44100 * 4];
+            FILE *f = fopen(tp, "rb");
+            int n = f ? (int)fread(tk, sizeof(float), sizeof(tk) / sizeof(tk[0]), f) : 0;
+            if (f) fclose(f);
+            if (n > 0) sample_load(0, tk, n);
+            grabbed = n > 0;
+        } else
+#endif
         grabbed = record_grab(0, 0.85f) > 0;
         if (grabbed) peaks_n = sample_peaks(0, peaks_lo, peaks_hi, PEAK_COLS);
     }

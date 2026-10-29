@@ -452,6 +452,7 @@ typedef struct {
     float  sg_clock;                    // samples until the next grain's CENTRE (<0 = not started)
     float  sg_dir;                      // +1 / -1: the playhead rocks over the held vowel while the key is down
     float  sg_hratio;                   // the take's pitch contour, frozen while rocking (else the take's own wobble replays back and forth)
+    float  sg_ref;                      // the take's REFERENCE pitch: the held vowel's (it lands on the note), else the take's median
     int    sg_k;                        // analysis-epoch search cursor (nearest the playhead)
     int    sg_hold;                     // buffer position of the LAST voiced epoch in the chop: a held key rocks just before it (-1 = none)
     bool   sg_pend;                     // the next grain is computed and waiting for its start time
@@ -471,7 +472,7 @@ typedef struct { float *data; int len; bool loaded; } SoundSample;  // data = ma
 // INSTR_SING's analysis of one sample slot (sing_analyze, GAME thread): the glottal epochs + each one's
 // f0 (0 = unvoiced) + the take's median f0 (what a note's pitch is measured against). nep == 0 = none
 // yet; `want` = the audio side asked for one (a SING note or binding found none), served by sound_tick.
-typedef struct { int *ep; float *epf; int nep; float f0med; int want; } SingAn;
+typedef struct { int *ep; float *epf, *epa; int nep; float f0med, epamax; int want; } SingAn;   // epa = each epoch's rms (the held vowel must be LOUD)
 #define SOUND_USER_WAVES 4
 #define SOUND_WAVE_LEN   64
 typedef struct {

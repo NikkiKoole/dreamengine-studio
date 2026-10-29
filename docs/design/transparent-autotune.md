@@ -100,6 +100,25 @@ up from [`audio-input-frontier.md`](audio-input-frontier.md) §2.
 > the EXPECTED period vs 2T and T/2 is what told a reader error from a real flip, and a reader held to ±6%
 > of the expected period gave the table above. ⚠ Not covered: wasm parity (`web-audio-check` has no SING
 > probe), and the ears: the numbers say in tune, level and click-free, not that it sounds like a creature.
+>
+> **Then the REAL takes (Playtime's Mipo voices, same day) broke two design choices and found a bug.**
+> `singsample` loads one with `SING_TAKE=<raw f32>` in SWEEP mode. Speech is not a held vowel: a sung "po"
+> glides 227 → 400 Hz then RINGS at 1/50 of its peak, a spoken "mo" ends in CREAK (vocal fry, ~75 Hz under
+> 139). (1) "The last voiced epoch" held the tail / the creak, so a held note sustained a whisper or a
+> growl an octave down: the held vowel is now the last epoch that is LOUD (≥ 1/4 of the take's loudest)
+> and within half an octave of the take's median. (2) The take's MEDIAN landing on the note centred a
+> swooping syllable mid-swoop (po3's median sat 4 semitones under the vowel it holds): the HELD vowel's
+> pitch is now the reference, and `harmonics` became INFLECTION (contour exponent 0..2, 0.5 = as
+> recorded). Sweep after, notes over two octaves, at INFLECTION 0: po3 within 7¢, mi 1¢, mo 19¢; level
+> within 0.5 dB; at the take's own pitch the splice metric equals the RAW take's (mi 3.5 vs 3.5, mo 5.2
+> vs 4.9, po3 4.2 vs 6.7) and rises SMOOTHLY going down, as a lowered voice's longer gaps should.
+> (3) THE BUG: a breath's correlation peaks at the EDGE of the lag range, and the parabolic refinement
+> then extrapolates, so the "huh" grunt analysed as voiced at a median of 43,029 Hz. A boundary maximum
+> is now unvoiced (wide tracker only; snap/shift keep the same edge at 400 Hz for bit-exactness). After
+> it, "huh" reads 47/81 epochs voiced near 559 Hz, and a harmonic comb at 584 Hz stands 7.2 dB above its
+> gaps (the sung "po": 8.1), so it most likely has a real high voiced part and SING pitches it; ears to
+> confirm. An UNPITCHED take now still runs the grains, so SIZE re-colours a breath (centroid 858 / 1134 /
+> 1535 Hz at size 0.3 / 0.5 / 0.72) instead of falling back to plain playback.
 
 ## Spike result (2026-07-17) — PROVEN, formants stay put
 

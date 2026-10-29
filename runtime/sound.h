@@ -5825,13 +5825,15 @@ static inline float sound_grain_sample(Voice *v, float pitch_mul) {
 //   · HOLD: while the key is down and the playhead reaches the last voiced epoch of the chop, it ROCKS
 //     over the 60 ms before it (the held vowel), with the contour frozen; on release it runs on, so the
 //     word finishes ("mi-i-i-po": the -po plays at release). Then the voice falls silent (one-shot).
-//   · no analysis (an unpitched take, or not analysed yet): plain playback of the chop at SPEED.
+//   · an UNPITCHED take (a breath, "hmpf", "huh": no voiced epoch, f0med 0) still runs the grains, all of
+//     them unvoiced, so SIZE re-colours it and the note does nothing (there is no pitch to move). Only a
+//     take with no analysis yet (or under 3 epochs) plays the chop plainly at SPEED.
 // The analysis runs on the GAME thread (sing_analyze, below at_mark), never here.
 #define SG_HOLD_S 0.06f                                        // the rocked stretch while a key holds a vowel
 static void sound_sing_start(Voice *v) {
     v->sg_on = false;
     for (int g = 0; g < SG_GRAINS; g++) v->sg_gr[g] = 0;
-    v->sg_pend = false; v->sg_clock = -1.0f; v->sg_dir = 1.0f; v->sg_k = 0; v->sg_hold = -1; v->sg_hratio = 1.0f;
+    v->sg_pend = false; v->sg_clock = -1.0f; v->sg_dir = 1.0f; v->sg_k = 0; v->sg_hold = -1; v->sg_hratio = 1.0f; v->sg_ref = 0.0f;
     v->sg_t = 0.0; v->sg_es = v->sg_eo = 0.0f;
     if (v->smp_idx < 0 || v->smp_idx >= SOUND_SAMPLE_SLOTS || !sound_samples[v->smp_idx].loaded) return;
     int n = sound_samples[v->smp_idx].len; if (n < 2) return;
@@ -5842,9 +5844,30 @@ static void sound_sing_start(Voice *v) {
     int ne = a->nep;
     atomic_thread_fence(memory_order_acquire);
     if (ne == 0) a->want = 1;                                   // ask the game thread (sound_tick) for one
-    else if (ne >= 3)
-        for (int k = ne - 1; k >= 0; k--)                       // the held vowel = the last voiced epoch in the chop
-            if (a->ep[k] >= lo && a->ep[k] <= hi && a->epf[k] > 0.0f) { v->sg_hold = a->ep[k]; break; }
+    else if (ne >= 3) {
+        // THE HELD VOWEL = the last epoch in the chop that is voiced, LOUD (>= 1/4 of the take's loudest)
+        // and near the take's pitch (within half an octave of its median). "The last voiced epoch" alone
+        // was wrong on every real take tried (Playtime's Mipo voices): it landed in a sung "po"'s ringing
+        // tail at 1/50 of its peak, and in a spoken "mo"'s CREAK (vocal fry, ~75 Hz under a 139 Hz voice),
+        // so a held note sustained a whisper, or a growl an octave down.
+        int kh = -1;
+        for (int k = ne - 1; k >= 0; k--) {
+            float f = a->epf[k];
+            if (a->ep[k] < lo || a->ep[k] > hi || f <= 0.0f || a->epa[k] < 0.25f * a->epamax) continue;
+            float r = f / a->f0med; if (r < 0.7071f || r > 1.4142f) continue;
+            kh = k; break;
+        }
+        if (kh >= 0) {
+            v->sg_hold = a->ep[kh];
+            // ...and ITS pitch is the reference that lands on the note, so a held note is in tune and the
+            // take's glide becomes an approach into it (how a singer scoops), not a note centred mid-swoop
+            // (a sung "po" glides 227 -> 400 Hz: its median sat 4 semitones under the vowel it holds).
+            double bot = (double)v->sg_hold - SG_HOLD_S * (float)SOUND_SAMPLE_RATE, sum = 0.0; int cnt = 0;
+            for (int k = kh; k >= 0 && (double)a->ep[k] >= bot; k--)
+                if (a->epf[k] > 0.0f && a->epa[k] >= 0.25f * a->epamax) { sum += a->epf[k]; cnt++; }
+            v->sg_ref = cnt > 0 ? (float)(sum / cnt) : a->epf[kh];
+        } else v->sg_ref = a->f0med;
+    }
     v->sg_on = true;
 }
 static inline float sound_sing_sample(Voice *v, float pitch_mul) {
@@ -5863,7 +5886,7 @@ static inline float sound_sing_sample(Voice *v, float pitch_mul) {
     const SingAn *a = &sing_an[v->smp_idx];
     int ne = a->nep;
     atomic_thread_fence(memory_order_acquire);
-    if (ne < 3 || a->f0med <= 0.0f) {                          // no analysis: plain playback of the chop
+    if (ne < 3) {                                              // no analysis yet: plain playback of the chop
         if (v->sg_t < lo) v->sg_t = lo;
         if (v->sg_t >= hi) return 0.0f;
         int i0 = (int)v->sg_t; if (i0 > s->len - 2) i0 = s->len - 2;
@@ -5889,7 +5912,10 @@ static inline float sound_sing_sample(Voice *v, float pitch_mul) {
         float size = de_powf(2.0f, (clamp01(v->timb) - 0.5f) * 2.0f);   // 0.5 = as recorded; 0/1 = ∓ an octave of throat
         float oL, oR, T, g;
         if (epf[kk] > 0.0f) {                                   // VOICED: one pulse, at the note's period
-            float ratio = epf[kk] / a->f0med;
+            // INFLECTION (harmonics x 2): how much of the take's own melody rides on the note. 0 = every pulse
+            // on the note (sung flat), 1 (= harmonics 0.5, the default) = as recorded, 2 = exaggerated
+            float ref = v->sg_ref > 0.0f ? v->sg_ref : a->f0med;
+            float ratio = de_powf(epf[kk] / ref, clamp01(v->harm) * 2.0f);
             if (rocking) ratio = v->sg_hratio; else v->sg_hratio = ratio;
             float f = v->freq * pitch_mul * ratio;
             if (f < 30.0f) f = 30.0f; if (f > 2000.0f) f = 2000.0f;
@@ -8832,8 +8858,15 @@ static void at_track(const float *in, int n, int nHop, float *f0, int wide) {
                 for (int lag = c - 3; lag <= c + 3; lag++) { float v = at_corr(in, base, n, lag); if (v > sv) { sv = v; sb = lag; } }
                 if (sv >= 0.85f * best) { bl = sb; break; }
             }
+        // EDGE of the lag range = NOT a pitch (wide only, like the check above). A breath's correlation
+        // simply keeps rising toward the shortest lag, so its "best" sits ON the boundary, where there is
+        // no peak for the parabola below to refine and it extrapolates: Playtime's "huh" grunt analysed as
+        // voiced at a median of 43,029 Hz. The snap/shift tracker has the same edge at 400 Hz; left alone
+        // there for bit-exactness, like the sub-harmonic check.
+        if (wide && (bl <= lo || bl >= hi)) { f0[h] = 0.0f; continue; }
         float cm = at_corr(in, base, n, bl - 1), c0 = at_corr(in, base, n, bl), cp = at_corr(in, base, n, bl + 1);
         float den = cm - 2 * c0 + cp, d = den != 0.0f ? 0.5f * (cm - cp) / den : 0.0f;
+        if (wide) { if (d > 1.0f) d = 1.0f; if (d < -1.0f) d = -1.0f; }   // a refinement, never a jump
         f0[h] = (float)SOUND_SAMPLE_RATE / (bl + d);
     }
 }
@@ -8882,9 +8915,9 @@ static void sing_forget(int slot) {                        // before the data un
     SingAn *a = &sing_an[slot];
     a->nep = 0;
     atomic_thread_fence(memory_order_release);
-    int *e = a->ep; float *f = a->epf;
-    a->ep = NULL; a->epf = NULL; a->f0med = 0.0f;
-    free(e); free(f);                                      // same benign swap race sample_load accepts
+    int *e = a->ep; float *f = a->epf, *am = a->epa;
+    a->ep = NULL; a->epf = NULL; a->epa = NULL; a->f0med = 0.0f; a->epamax = 0.0f;
+    free(e); free(f); free(am);                            // same benign swap race sample_load accepts
 }
 static bool sing_wanted(int slot) {                        // is any INSTR_SING instrument bound to it?
     for (int i = 0; i < SOUND_INSTR_SLOTS; i++) if (sing_inst[i] && sing_smp1[i] == slot + 1) return true;
@@ -8904,18 +8937,24 @@ static void sing_analyze(int slot) {
     int   *ep = (int *)malloc((size_t)cap * sizeof(int));
     float *epf = (float *)malloc((size_t)cap * sizeof(float));
     float *tmp = (float *)malloc((size_t)cap * sizeof(float));
-    if (!f0 || !ep || !epf || !tmp) { free(f0); free(ep); free(epf); free(tmp); return; }
+    float *epa = (float *)malloc((size_t)cap * sizeof(float));
+    if (!f0 || !ep || !epf || !tmp || !epa) { free(f0); free(ep); free(epf); free(tmp); free(epa); return; }
     at_track(s->data, n, nHop, f0, 1);
     int ne = at_mark(s->data, n, f0, nHop, ep, cap), nv = 0;
     for (int k = 0; k < ne; k++) {
         float f = at_f0_at(f0, nHop, ep[k]);
         epf[k] = f >= 60.0f ? f : 0.0f;
         if (epf[k] > 0.0f) tmp[nv++] = epf[k];
+        int e0 = ep[k], e1 = k + 1 < ne ? ep[k + 1] : ep[k] + SOUND_SAMPLE_RATE / 110;   // rms over this epoch's period
+        if (e1 > n) e1 = n; if (e1 <= e0) e1 = e0 + 1 < n ? e0 + 1 : e0;
+        double acc = 0.0; for (int i = e0; i < e1; i++) acc += (double)s->data[i] * s->data[i];
+        epa[k] = e1 > e0 ? (float)sqrt(acc / (double)(e1 - e0)) : 0.0f;
     }
+    float amax = 0.0f; for (int k = 0; k < ne; k++) if (epa[k] > amax) amax = epa[k];
     float med = 0.0f;
     if (nv > 0) { qsort(tmp, (size_t)nv, sizeof(float), sing_cmpf); med = tmp[nv / 2]; }
     free(f0); free(tmp);
-    a->ep = ep; a->epf = epf; a->f0med = med;
+    a->ep = ep; a->epf = epf; a->epa = epa; a->f0med = med; a->epamax = amax;
     atomic_thread_fence(memory_order_release);
     a->nep = ne > 0 ? ne : -1;                             // -1 = analysed, nothing pitched: never re-run
 }

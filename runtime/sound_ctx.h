@@ -464,6 +464,22 @@ typedef struct {
     float  sg_gd[SG_GRAINS], sg_gg[SG_GRAINS]; //   source step · gain
     float  sg_es, sg_eo;                // level follower: source energy at the playhead vs output energy (sets the corrective gain)
     bool   sg_on;
+    // SCRAPE (INSTR_SCRAPE): teeth, each a decaying noise burst, through a two-mode body (guiro / quijada / cabasa).
+    SoundBiquad scr_bq[2];              // the body: two bandpass modes (coefficients refreshed per tooth, state kept)
+    float  scr_g2;                      // the second mode's level
+    float  scr_lp, scr_hx, scr_hy;      // the exciter's band-limit: one-pole low-pass + one-pole high-pass states
+    float  scr_alp, scr_ahp;            //   their coefficients (set per tooth from the body)
+    float  scr_next;                    // samples until the next tooth
+    float  scr_e, scr_ek;               // the current tooth's burst level + its per-sample decay
+    float  scr_gain;                    // body normalisation (a narrow mode passes a smaller click)
+    float  scr_imp;                     // the click to inject on this sample (a tooth's start)
+    float  scr_nz, scr_fjit, scr_fric;  // the body's friction-noise share + per-tooth frequency spread + between-teeth trace
+    float  scr_bnc, scr_blv;            // a rattle tooth's BOUNCE: samples until it lands (0 = none) + its level
+    float  scr_glev;                    // the GESTURE level: 1 for a scrape, a swell-then-decay for a rattle
+    int    scr_n;                       // teeth so far
+    unsigned int scr_age;               // samples since note-on
+    uint32_t scr_rnd;                   // per-voice LCG, seeded from the note at note-on (each note = one fixed hit)
+    bool   scr_on;
 } Voice;
 #define SOUND_HANDLE_BITS 5                      // slot field width — must hold SOUND_VOICES-1 (32 voices → 0..31 → 5 bits)
 #define SCOPE_LEN 2048

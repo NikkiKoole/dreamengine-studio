@@ -7,13 +7,20 @@
 > **here**, then fix the prose in the relevant design doc. If a design doc and this file
 > disagree, this file wins.
 
-_Last updated: 2026-10-29 — INSTR_SING + sample_formant: one recorded syllable sings a tune. See the top Shipped entry and [`design/transparent-autotune.md`](design/transparent-autotune.md)._
+_Last updated: 2026-10-29 — INSTR_SCRAPE: a guiro with teeth. See the top Shipped entry and [`guides/instrument-recipes.md`](guides/instrument-recipes.md) (scrape/*)._
 
 > **This line is a headline, not an entry.** It reached **9,064 characters** and was the only place in the file that recorded `FILTER_DIODE`, `filter-spec.js` and `rebirth-classic.md` — three shipped things, invisible because nobody reads a shipped feature out of a `_Last updated:_` line. They have a real entry now (2026-07-02, above `sprite-draw.js`). Keep this to one date, one sentence, one link; `status-check --check` fails past 900 chars.
 
 ---
 
 ## Shipped ✓
+
+- **`INSTR_SCRAPE`: SCRAPED + RATTLED PERCUSSION FROM TEETH** (2026-10-29, GitHub #45, for Playtime's CR-78
+  band). Guiro / quijada / cabasa / ratchet from one `instrument()` + three macros (BODY / TOOTH RATE /
+  GESTURE): each tooth a click + friction through a two-mode body at its own frequency, a rattle's first
+  teeth bouncing. Guiro and quijada fitted to the samples they replace: 20/20 in `tools/scrape-check.js`
+  (rate, body band, ring, floor, level shape). No slower than the NOISE + LFO trick it replaces (24 voices:
+  8.3 s vs 10.6 s). Cart `scraper`; recipes `scrape/*` in [`guides/instrument-recipes.md`](guides/instrument-recipes.md).
 
 - **ONE SAMPLE SINGS: `INSTR_SING` + `sample_formant`** (2026-10-29, GitHub #44, for Playtime's Mipo
   voices). `sample_formant(slot, semis)`: offline, moves a take's formants and keeps its pitch + length

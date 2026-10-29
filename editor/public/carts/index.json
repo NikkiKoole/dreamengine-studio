@@ -6680,6 +6680,20 @@
     "lineage": "Measurement probe for schedule_at() / audio_time() (docs/design/audio-timing.md): the notes a sequencer books must land on their samples however the frames and the audio callbacks interleave. Driven by tools/schedule-check/run.sh, not played by hand. Born from loficity, whose grooves wobbled on native playback."
   },
   {
+    "title": "scraper",
+    "description": "A guiro, a quijada, a cabasa and a ratchet, each one instrument() and three knobs. Four INSTR_SCRAPE patches play a little hand-percussion groove: the guiro scrapes on the offbeats, the quijada rattles at the end of the bar, the cabasa shuffles sixteenths and the ratchet winds up before the turnaround. Every tooth is its own short burst through a body (gourd, bone, metal), so a scrape has clicks and a rattle dies away, rather than a tremolo on a hiss. The bars at the top draw each patch's three macros: BODY, RATE and GESTURE. Build with DE_DEFINES=PROBE for the measuring timeline (one guiro and one quijada at fixed times, for tools/scrape-check.js). It plays on its own. 1-4 hit one instrument (guiro / quijada / cabasa / ratchet); hold a key to scrape longer.",
+    "file": "scraper.cart.png",
+    "created": "2026-10-29",
+    "kind": [
+      "probe",
+      "tech-demo"
+    ],
+    "teaches": [
+      "drum-synthesis"
+    ],
+    "lineage": "The showcase + acceptance probe for INSTR_SCRAPE (GitHub #45): scraped and rattled percussion made of discrete teeth through a small body, replacing the instrument-recipes cr78/guiro trick (an LFO chopping noise). Targets measured from the guiro and quijada samples Puppetmaker 2 shipped."
+  },
+  {
     "title": "seinelaan 31",
     "description": "A real Eindhoven apartment (Seinelaan 31) walked as a top-down level, built from its Floorplanner .fml by the fmltools pipeline. Walls with walkable doorways and real door/window sprites, each room a distinct floor colour, 72 furniture pieces as top-down pixel sprites baked from Floorplanner CDN renders. WASD/arrows move, T toggles sprites vs boxes. Sibling of floorwalker.",
     "file": "seinelaan.cart.png",

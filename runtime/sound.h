@@ -5995,6 +5995,149 @@ static inline float sound_sing_sample(Voice *v, float pitch_mul) {
     return out;
 }
 
+// ── INSTR_SCRAPE: scraped + rattled percussion from discrete TEETH (GitHub #45) ──────────────────────────
+// A guiro, a quijada / vibraslap, a cabasa, a ratchet. Each TOOTH is its own event: a CLICK (the stick
+// dropping off one ridge, a tooth clacking in its socket) plus a little decaying friction noise, ringing a
+// two-mode BODY (two bandpasses) at a frequency drawn per tooth. Not an LFO on noise, the recipe this
+// replaces (instrument-recipes cr78/guiro): that is one smooth bump of one hiss, evenly spaced, at a fixed rate.
+// Shape MEASURED from the two samples Puppetmaker 2 shipped (Playtime assets, tools/scrape-check.js):
+//   guiro1   74.7 teeth/s (13.4 ms, ±0.8 ms) · tooth ring 3.0 ms · −55 dB between teeth ·
+//            levels 0.37-1.0 at random, steady · body 5.5 / 6.0 / 6.9 kHz (10/50/90% energy)
+//   quijada  22.5/s (44.5 ms) after a chaotic first three (7, 45, 33, 11 ms) · ring 1.7 ms ·
+//            −60 dB between · peaks at ~50 ms then decays to 0.11 · body 2.0 / 2.6 / 3.2 kHz
+// ⚠ The first model here was wrong and the per-tooth measurement says why: it guessed "the ring is the
+// burst, the body a moderate band" from the WHOLE sample's 1.4 kHz-wide band. One tooth at a time, the
+// band is narrow (see SCR_BODY): the width comes from teeth landing at different frequencies.
+// Macros: harmonics = BODY (0 gourd/guiro → 0.5 bone/box, quijada → 1 metal, cabasa/ratchet), timbre =
+// TOOTH RATE (10 · 10^timbre teeth/s: 0.35 ≈ 22, 0.87 ≈ 75), morph = GESTURE (0 a steady scrape held for
+// the gate · 1 a rattle that swells for ~50 ms then decays with τ 120 ms, its first teeth chaotic). The
+// NOTE transposes the body (C4 = as voiced). ⚠ The rate does NOT slow as a rattle dies, though that was
+// the ask: measured, the quijada's spacing holds at 44-45 ms to the end and only the level falls.
+// Each note is ONE fixed hit (the LCG is seeded from the note, like SINTER), as the CR-78 sample is.
+typedef struct { float f1, q1, f2, q2, g2, tau_ms, noise, fjit, fric; } ScrBody;   // fric = the trace between teeth
+// Fitted to the samples with tools/scrape-check.js. A TOOTH, measured one at a time, is a NARROW ring:
+// guiro1's teeth peak at 5.6-6.3 kHz, each ~400 Hz wide at -6 dB (Q ~15-20); the quijada's at 2.35-2.66
+// kHz, wider (Q ~6-8). The whole sample's 1.4 kHz-wide band is those teeth landing at DIFFERENT
+// frequencies, so each tooth draws its own (fjit), and the exciter is mostly a CLICK. The first build
+// excited with noise alone, and a noise burst through a resonator has a RANDOM peak: tooth levels
+// scattered 0.12-0.68 where the sample's sit at 0.42-1.0. Metal is the exception: cabasa beads hiss more
+// than they ring, so that anchor is mostly noise through a low-Q band.
+static const ScrBody SCR_BODY[3] = {
+    { 6000.0f, 24.0f, 4700.0f, 8.0f, 0.15f, 2.2f, 0.30f, 0.065f, 0.0006f },  // gourd: the guiro
+    { 2550.0f,  6.0f, 1950.0f, 4.0f, 0.30f, 0.6f, 0.15f, 0.05f,  0.0040f },  // bone / box: the quijada
+    { 9500.0f,  3.0f,13000.0f, 4.0f, 0.60f, 1.2f, 0.85f, 0.03f,  0.0020f },  // metal: cabasa beads, a ratchet's pawl
+};
+static inline float scr_rand(Voice *v) { v->scr_rnd = v->scr_rnd * 1664525u + 1013904223u; return (float)(v->scr_rnd >> 8) * (1.0f / 16777216.0f); }
+// a constant-peak bandpass from Q, WITHOUT the state reset sound_biquad_set does, so a ridden BODY (and
+// every tooth's own frequency) retunes a ring instead of clicking it. Returns its alpha (the gain scale)
+static float scr_coef(SoundBiquad *bq, float fc, float q) {
+    if (fc > 0.45f * (float)SOUND_SAMPLE_RATE) fc = 0.45f * (float)SOUND_SAMPLE_RATE;
+    float w0 = SOUND_TWO_PI * fc / (float)SOUND_SAMPLE_RATE, sn = de_sinf(w0), cs = de_cosf(w0);
+    float alpha = sn / (2.0f * q), a0 = 1.0f + alpha;
+    bq->b0 = alpha / a0; bq->b1 = 0.0f; bq->b2 = -alpha / a0;
+    bq->a1 = (-2.0f * cs) / a0; bq->a2 = (1.0f - alpha) / a0;
+    return alpha / a0;
+}
+// voice the body for the current harmonics + note (+ this tooth's own detune `fj`), interpolated between
+// the three anchors (frequency + Q in log); returns the burst's time constant in samples
+static float scr_body(Voice *v, float pitch_mul, float fj) {
+    float h = clamp01(v->harm) * 2.0f; int i = h >= 1.0f ? 1 : 0; float t = h - (float)i;
+    const ScrBody *a = &SCR_BODY[i], *b = &SCR_BODY[i + 1];
+    // the NOTE, not v->freq: a fresh voice runs a 5 ms anti-zipper glide (GLIDE_DECLICK_MS) from wherever the
+    // slot was, so the first tooth at sample 0 was voiced at a stray pitch (measured: a first tooth at 0.08)
+    float fn = v->freq_target > 0.0f ? v->freq_target : v->freq;
+    float tr = fn * pitch_mul / 261.6256f; if (tr < 0.25f) tr = 0.25f; if (tr > 4.0f) tr = 4.0f;   // C4 = as voiced
+    float f1 = a->f1 * de_powf(b->f1 / a->f1, t) * tr * fj, f2 = a->f2 * de_powf(b->f2 / a->f2, t) * tr * fj;
+    float q1 = a->q1 * de_powf(b->q1 / a->q1, t), q2 = a->q2 * de_powf(b->q2 / a->q2, t);
+    float b0 = scr_coef(&v->scr_bq[0], f1, q1);
+    scr_coef(&v->scr_bq[1], f2, q2);
+    v->scr_g2 = a->g2 + (b->g2 - a->g2) * t;
+    v->scr_nz = a->noise + (b->noise - a->noise) * t;
+    v->scr_fjit = a->fjit + (b->fjit - a->fjit) * t;
+    v->scr_fric = a->fric * de_powf(b->fric / a->fric, t);
+    // a unit click through a unit-peak bandpass comes out ~b0 tall (narrow = small): undo that, so every
+    // body gives a tooth of about the same height
+    v->scr_gain = 0.5f / (b0 > 1e-4f ? b0 : 1e-4f);
+    if (v->scr_gain > 200.0f) v->scr_gain = 200.0f;
+    // the exciter's band-limit: a one-pole low-pass above the body + a high-pass under it. A 2nd-order
+    // bandpass alone has 6 dB/oct skirts, and the noise half of the exciter leaked a quijada's 90%-energy
+    // point to 6.5 kHz (measured 3.2) before this
+    float fhi = (f1 > f2 ? f1 : f2) * 1.15f, flo = (f1 < f2 ? f1 : f2) * 0.75f;
+    if (fhi > 0.45f * (float)SOUND_SAMPLE_RATE) fhi = 0.45f * (float)SOUND_SAMPLE_RATE;
+    v->scr_alp = 1.0f - de_expf(-SOUND_TWO_PI * fhi / (float)SOUND_SAMPLE_RATE);
+    v->scr_ahp = de_expf(-SOUND_TWO_PI * flo / (float)SOUND_SAMPLE_RATE);
+    return (a->tau_ms * de_powf(b->tau_ms / a->tau_ms, t)) * 0.001f * (float)SOUND_SAMPLE_RATE;
+}
+static void sound_scrape_start(Voice *v) {
+    for (int k = 0; k < 2; k++) { v->scr_bq[k].z1 = v->scr_bq[k].z2 = 0.0f; }
+    v->scr_lp = v->scr_hx = v->scr_hy = 0.0f;
+    v->scr_rnd = 0x53435250u ^ ((uint32_t)(v->freq * 16.0f) * 2654435761u);   // one fixed hit per note
+    v->scr_next = 0.0f; v->scr_e = 0.0f; v->scr_ek = 0.0f; v->scr_imp = 0.0f; v->scr_bnc = 0.0f; v->scr_blv = 0.0f;
+    v->scr_n = 0; v->scr_age = 0; v->scr_glev = 1.0f;
+    scr_body(v, 1.0f, 1.0f);
+    v->scr_on = true;
+}
+static inline float sound_scrape_sample(Voice *v, float pitch_mul) {
+    if (!v->scr_on) return 0.0f;
+    float morph = clamp01(v->mor);
+    // the GESTURE level: a scrape holds; a rattle swells 0.55 → 1 over ~50 ms (the quijada's first three
+    // teeth) then decays, τ 120 ms at morph 1 and longer as morph falls (the middle = a scrape dying away)
+    float age = (float)v->scr_age / (float)SOUND_SAMPLE_RATE;
+    if (morph > 0.0f) {
+        float tau = 0.105f * de_powf(30.0f, 1.0f - morph);
+        float rat = age < 0.05f ? 0.55f + 0.45f * age / 0.05f : de_expf(-(age - 0.05f) / tau);
+        v->scr_glev = (1.0f - morph) + morph * rat;
+    }
+    if (v->scr_next <= 0.0f) {                              // a TOOTH
+        float fj = 1.0f + v->scr_fjit * (2.0f * scr_rand(v) - 1.0f);  // this tooth's own frequency
+        float tau = scr_body(v, pitch_mul, fj);
+        // level: a scrape's teeth vary 0.4-1.0 at random (guiro1 measured 0.37-1.0); a rattle's much less,
+        // or the randomness, not the decay, sets its shape
+        float lv = (1.0f - (0.6f - 0.45f * morph) * scr_rand(v)) * v->scr_glev;
+        v->scr_imp = lv;                                     // the CLICK, on this sample
+        v->scr_e = lv * v->scr_nz;                           // + its friction, decaying
+        v->scr_ek = de_expf(-1.0f / (tau > 4.0f ? tau : 4.0f));
+        float rate = 10.0f * de_powf(10.0f, clamp01(v->timb));       // teeth per second
+        float gap = (float)SOUND_SAMPLE_RATE / rate;
+        // jitter: ±6% for a steady scrape (guiro1: ±0.8 ms of 13.4); a rattle's FIRST teeth are chaotic
+        // (the quijada's 7 / 45 / 33 / 11 ms) and settle by the fourth
+        float j = 0.06f + (v->scr_n < 4 ? morph * 0.3f : 0.0f);
+        gap *= 1.0f + j * (2.0f * scr_rand(v) - 1.0f);
+        // ...and they BOUNCE: the quijada's short intervals (7 ms, then 33 + 11) are a tooth clacking and
+        // clacking again, which no amount of spacing jitter produces. Only a rattle's first teeth.
+        if (v->scr_n < 4 && scr_rand(v) < morph * 0.6f) {
+            v->scr_bnc = gap * (0.15f + 0.12f * scr_rand(v));
+            v->scr_blv = lv * (0.8f + 0.3f * scr_rand(v));
+        }
+        if (gap < 2.0f) gap = 2.0f;
+        v->scr_next += gap;
+        v->scr_n++;
+    }
+    if (v->scr_bnc > 0.0f && (v->scr_bnc -= 1.0f) <= 0.0f) {   // the bounce lands
+        v->scr_imp += v->scr_blv; v->scr_e += v->scr_blv * v->scr_nz;
+    }
+    v->scr_next -= 1.0f;
+    v->scr_age++;
+    // the friction: noise under each tooth's decaying level, plus a trace that runs between teeth (the
+    // stick on the gourd between ridges). Measured floor between teeth (scrape-check): guiro1 -55 dB,
+    // quijada -60. Without it the gaps are digital silence, which reads as a sequencer. It is a property
+    // of the MATERIAL (ScrBody.fric), not the gesture: tied to morph, the first try had the guiro 8 dB too
+    // hissy and the quijada's trace under the 16-bit render's last bit (an exact 0) at the same time.
+    float floor = v->scr_fric * v->scr_glev;
+    float nz = (v->scr_e + floor) * (2.0f * scr_rand(v) - 1.0f);
+    v->scr_e *= v->scr_ek;
+    // band-limit the WHOLE exciter, click included: a low-Q body (the quijada's, Q 6) let an unfiltered
+    // click's top end straight through (90%-energy point 3.66 kHz, measured 3.21). The click enters at
+    // 1/alp so the low-pass smooths it without SHRINKING it: passed in at unit height it kept only alp of
+    // its peak, the noise took over again, and the guiro's tooth levels scattered back to 0.23
+    v->scr_lp += v->scr_imp + v->scr_alp * (nz - v->scr_lp);
+    v->scr_hy = v->scr_ahp * (v->scr_hy + v->scr_lp - v->scr_hx); v->scr_hx = v->scr_lp;
+    float ex = v->scr_hy;
+    v->scr_imp = 0.0f;
+    float y = sound_biquad_run(&v->scr_bq[0], ex) + v->scr_g2 * sound_biquad_run(&v->scr_bq[1], ex);
+    return y * v->scr_gain;
+}
+
 static inline float sound_engine_sample(Voice *v, float pitch_mul) {
     switch (v->wave) {                                       // dense engine ids → jump table (was 13 sequential compares)
         case INSTR_MALLET:   return sound_mallet_sample(v, pitch_mul);
@@ -6019,6 +6162,7 @@ static inline float sound_engine_sample(Voice *v, float pitch_mul) {
         case INSTR_WAVESCAN: return sound_wavescan_sample(v, pitch_mul);
         case INSTR_GRAIN:    return sound_grain_sample(v, pitch_mul);
         case INSTR_SING:     return sound_sing_sample(v, pitch_mul);
+        case INSTR_SCRAPE:   return sound_scrape_sample(v, pitch_mul);
     }
     // fall-through: the modal Karplus-Strong string — any engine id not handled above.
     int alloc = v->ks_len;
@@ -6648,6 +6792,7 @@ static void sound_setup_note(Voice *v, int midi, int slot, int vol, int gate_sam
     v->ws_on = false;
     v->gr_on = false;
     v->sg_on = false;
+    v->scr_on = false;
     v->fm_mph = v->fm_fb = v->fm_tph = 0.0f;   // FM needs no excitation, just deterministic phases
     if      (v->wave == INSTR_PLUCK)  sound_pluck_start(v);    // excite the string
     else if (v->wave == INSTR_MALLET) sound_mallet_start(v);   // strike the bar
@@ -6677,6 +6822,7 @@ static void sound_setup_note(Voice *v, int midi, int slot, int vol, int gate_sam
     else if (v->wave == INSTR_WAVESCAN) sound_wavescan_start(v); // zero the phases + gate, reseed the noise, snapshot res/noise/interval
     else if (v->wave == INSTR_GRAIN)  sound_grain_start(v);    // both chains at POSITION, chain 1 half a grain behind, snapshot scatter/detune/reverse
     else if (v->wave == INSTR_SING)   sound_sing_start(v);     // playhead to the chop start, find the held vowel, ask for an analysis if none
+    else if (v->wave == INSTR_SCRAPE) sound_scrape_start(v);   // seed the hit from the note, voice the body, first tooth now
     else if (v->wave == INSTR_FM4)    sound_fm4_start(v);      // reset 4 phases + feedback average
     // TRIGGER POLICY (§L4). The engine hooks above have just ARMED this voice's onset transient; if the
     // slot declares itself single-triggering and another key on it is already down, take it back off.

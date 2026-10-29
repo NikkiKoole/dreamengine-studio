@@ -816,6 +816,9 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
              grain-check.js  the INSTR_GRAIN gate: renders the `grainprobe` cart (a sine SWEEP as the sample, since a sweep's
                              pitch IS its position) and asserts 1× = plain playback (corr ≥ .99), FROZEN holds still, an
                              octave up = 2.00× at the same timing, scatter/detune stay finite. T1's sweep is the control
+             scrape-check.js the INSTR_SCRAPE gate: renders `scraper` (DE_DEFINES=PROBE) and holds its guiro + quijada to
+                             the samples they replace (rate, body 10/50/90%, tooth ring, floor, level shape; 20 checks).
+                             `--ref <wav>` measures any recording the same way, `--selfcheck` = 6 known answers + a noise control
              gen-wavescan.js GENERATE runtime/wavescan_data.h, INSTR_WAVESCAN's 12-shape band-limited table bank, from
                              Plinky's own wave recipes + windowed-sinc mip pyramid (MIT) — NOT its shipped table, whose slots
                              2-15 are WAVs of unknown origin. --check gates staleness · --selfcheck = its saw byte-identical to

@@ -621,12 +621,28 @@ All raw waves; some voices fired multiple times detuned for beating/layering.
 | cr78/maracas | NOISE | A0 D26 S0 R12 · HP6000/2 | Shortest noise burst in the box — shaker texture. |
 | cr78/bongo | SINE | A0 D110 S0 R30 · pitch-env →+3 (0/18) | Bare damped sine at membrane pitch, gentle drop. |
 | cr78/conga | SINE | A0 D210 S0 R50 · pitch-env →+3 (0/22) | Longer damped sine, subtle pitch drop. |
-| cr78/guiro | NOISE | A0 D260 S0 R60 · BP2800/7 · cut-env →+1400 · LFO_VOL 36Hz/1.0 | Ratcheting scrape — bandpassed noise chopped by a 36Hz LFO. |
+| cr78/guiro | NOISE | A0 D260 S0 R60 · BP2800/7 · cut-env →+1400 · LFO_VOL 36Hz/1.0 | Ratcheting scrape — bandpassed noise chopped by a 36Hz LFO. The cr78 cart's circuit homage; for a guiro with TEETH (clicks, ring, jitter) use **scrape/guiro** below. |
 | cr78/metal-beat | SQUARE | A0 D180 S0 R60 · BP3300/6 (3 detuned squares) | Enharmonic clang — Kraftwerkian metallic beat. |
 
 > **Cross-ref:** cr78.c is a confirmed showcase-cart lineage — ymo lifts the *whole* CR-78
 > kit (`kit/cr78`) into its drum slots, the first time a station borrows an entire kit
 > rather than one voice (see [`instrument-presets.md` → kit/cr78](instrument-presets.md)).
+
+### scraper (INSTR_SCRAPE — scraped + rattled percussion, from scraper.c)
+
+One `instrument(slot, INSTR_SCRAPE, 0, 0, 7, 30)` plus three macros each: harmonics = BODY (0 gourd · 0.5
+bone/box · 1 metal), timbre = TOOTH RATE (10·10^t per second), morph = GESTURE (0 steady scrape for the
+gate · 1 a rattle that swells then dies). Each tooth is a click + a little friction through a two-mode
+body, the frequency drawn per tooth. Guiro + quijada are fitted to the samples Puppetmaker 2 shipped and
+gated by `tools/scrape-check.js` (20 checks: rate, body band, tooth ring, floor, level shape). The NOTE
+transposes the body (C4 = as voiced); each note is one fixed hit.
+
+| name | engine | recipe | character |
+|---|---|---|---|
+| scrape/guiro | SCRAPE | 0/0/7/30 · body 0.00 · rate 0.87 · gesture 0.00 · hit ~270 ms | 75 teeth/s at 6 kHz, each its own ring; replaces the LFO-on-noise trick. Measured vs guiro1: 76 /s, body 5.5/5.9/6.5 kHz (10/50/90%) vs 5.5/6.0/6.9. |
+| scrape/quijada | SCRAPE | 0/0/7/30 · body 0.50 · rate 0.35 · gesture 1.00 · hit ≥ 500 ms | The jawbone / vibraslap: 22 clacks/s at 2.5 kHz, bouncing at first, swelling ~50 ms then dying to a tenth. vs mp7-quijada: 23 /s, 1.9/2.5/3.3 vs 2.0/2.6/3.2 kHz. |
+| scrape/cabasa | SCRAPE | 0/0/7/30 · body 1.00 · rate 0.62 · gesture 0.55 · short hits | Beads on steel: mostly noise through a low-Q bright band; the half-way gesture makes a scrape that dies away. |
+| scrape/ratchet | SCRAPE | 0/0/7/30 · body 0.38 · rate 0.10 · gesture 0.00 · note 55 · hit ~500 ms | A slow pawl on a wooden cog, ~13 clicks/s: a low body between gourd and bone, the note dropped a fourth. Hold it as long as the crank turns. |
 
 ### drummachine (machine — 6 voices, from drummachine.c)
 
@@ -1065,6 +1081,7 @@ The alternate view — each cart and the recipe names it stocks. Carts with no f
 - **tr808.c** → 808/kick · /snare · /tom-lo/mid/hi · /conga-lo/mid/hi · /rimshot · /claves · /clap · /maracas · /cowbell · /cymbal · /hat-open · /hat-closed
 - **tr909.c** → tr909/kick · /snare · /ltom/mtom/htom · /rimshot · /clap · /chh · /ohh · /crash · /ride
 - **cr78.c** → cr78/kick · /snare-body · /snare-rattle · /rim · /hat-closed · /hat-open · /cymbal-tone · /cymbal-noise · /tambourine · /cowbell · /claves · /maracas · /bongo · /conga · /guiro · /metal-beat
+- **scraper.c** → scrape/guiro · /quijada · /cabasa · /ratchet
 - **drummachine.c** → drummachine/kick · /snare · /closed_hat · /open_hat · /clap · /bass
 
 **Synths & sequencers:**

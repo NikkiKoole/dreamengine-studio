@@ -8281,6 +8281,20 @@
     "lineage": "The acceptance probe + showcase for sample_shift() — Rung B of docs/design/contemporary-rebirth.md, the INTERVAL face of the formant-preserving PSOLA that docs/design/transparent-autotune.md shipped as a scale-SNAP (sample_autotune). It answers the question that doc's gate exists for: did the pitch move, and did the LENGTH survive? Four takes of ONE captured voice, side by side: RAW, SNAPPED, an octave UP, an octave DOWN. Source is INSTR_VOICE captured through record_arm/record_grab, so it needs no mic and replays deterministically (unlike mictune/livetune, which are LIVE by nature)."
   },
   {
+    "title": "voxsize",
+    "description": "One voice, four sizes: pitch and vocal-tract size as two separate knobs. A synthesised 'ah' (INSTR_VOICE) is captured off the console's own output with record_arm/record_grab and copied into four slots: RAW; BIGGER (sample_formant -7, a larger throat, same note); SMALLER (sample_formant +7, a smaller throat, same note); and HIGHER, SAME SIZE (sample_shift +7 then sample_formant -7: the note goes up a fifth while the formants are walked back down, so the speaker should not change). Playing a sample faster moves pitch and size together, which is the slowed-tape / chipmunk sound; this cart is the A/B that shows them moving apart. It runs on its own: SPACE replays from the top. 1 / 2 / 3 / 4 audition one take.",
+    "file": "voxsize.cart.png",
+    "created": "2026-10-29",
+    "kind": [
+      "probe",
+      "tech-demo"
+    ],
+    "teaches": [
+      "granular-synth"
+    ],
+    "lineage": "The acceptance probe + showcase for sample_formant() (GitHub issue #44), the third face of the PSOLA core after sample_autotune and sample_shift. Same timeline as voxshift, so the same formant-check / psola-check windows land on the same takes."
+  },
+  {
     "title": "Walking Bass",
     "description": "A 303-style bass-line sequencer done as a REAL pluck: draw a 16-step walking line on chunky note-bars, then sculpt dynamics (VEL) and note-length/tie (LEN) on a drawable lane, plus per-step SLIDE / OCTAVE. SLIDE slurs one note into the next on the upright's own pizz voice. The tb303 workflow in the upright's skin. 16 chunky NOTE-BARS — bar HEIGHT = pitch, scale-locked to E minor pentatonic (2 octaves) so any line walks. Tap a bar to toggle it, drag up/down for pitch, drag sideways to draw the whole line; a bar dragged to the floor is a rest. Directly beneath is ONE drawable lane with a VEL | LEN tab: VEL = per-step velocity (dynamics — a loud step reads as an accent, a near-silent one as a ghost; drives the pluck attack via note_on vol); LEN = per-step note length (staccato when short, legato near full, and TIE at the very top — the note detaches from the mono voice and rings on while the next note plucks). Below the lane, thin per-step toggle rows: SLD (glide into the next note — a same-voice slur via note_glide, both directions) and OCT (tap-cycle +1 / -1 / off). The voice is the upright's INSTR_BOWED pizz; length gates the note off partway through its step. Knobs: GLIDE (slur time), SWING (shuffle — delays the odd 16ths for a long-short pocket), TEMPO, TONE (pickup darkness), RING (how long a pluck rings). PLAY runs the loop; RND rolls a fresh line; CLR wipes it. While stopped, drawing a note auditions it. Tap a note-bar = on/off; drag up/down = pitch; drag to the floor = rest; drag sideways = draw the line. The lane's VEL/LEN tab picks what you draw: VEL = dynamics (higher = louder/accent, low = ghost), LEN = note length (short = staccato, full = legato, top = TIE/ring-on). Rows: tap SLD to flip glide, tap OCT to cycle +1 / -1 / off. PLAY / SPACE = run the loop. GLIDE / SWING / TEMPO / TONE / RING knobs. RND = random line, CLR = wipe.",
     "file": "walkbox.cart.png",

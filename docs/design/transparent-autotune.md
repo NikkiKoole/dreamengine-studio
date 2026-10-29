@@ -42,6 +42,33 @@ up from [`audio-input-frontier.md`](audio-input-frontier.md) §2.
 > - **The snap face is untouched:** generalizing its PSOLA loop was proven **bit-identical** by
 >   re-render (same cart, same seed, `DE_DEFINES=NO_SHIFT`, matching SHA), not by reasoning.
 
+> **The SIZE face — SHIPPED 2026-10-29** ([GitHub #44](https://github.com/NikkiKoole/dreamengine-studio/issues/44),
+> asked for by Playtime's Mipo voices): `sample_formant(slot, semitones)` moves the **formants** and
+> keeps the **pitch** and length, the dual of the parked axis above. It does not hit that axis's wall
+> because each grain is windowed over ±1 *source* period and only then resampled, so it carries one
+> glottal pulse, and the grains go back on their **own** epochs (pitch held = no epoch mapping at
+> all). And because `sample_shift` already moves pitch + formants together, **`shift(+N)` then
+> `formant(−N)` IS the transparent shift**: a fifth up in the same voice measures f0 329.7 Hz with
+> the envelope warp back at 1.000. Measured in [`voxsize`](../../tools/carts/voxsize.c) (envelope
+> warp fit against the raw take, + `psola-check --cart voxsize`):
+>
+> | take | envelope warp (expect) | f0 | f0 spread |
+> |---|---|---|---|
+> | formant −7 | 0.690 (0.667) | 220.4 | 4.4 (raw 4.4) |
+> | formant +7 | 1.502 (1.498) | 220.2 | 4.4 |
+> | shift +7, formant −7 | 1.000 (1.000) | 329.7 | 4.9 |
+>
+> Three things it needed that the other faces do not, each found by measurement: a **sub-harmonic
+> check** on the pitch track (the shared tracker reads a wobbly voice an octave or a twelfth down in
+> places, and the epoch marker then steps 2-3 periods, which a one-pulse grain cannot survive), a
+> tracker range up to **1 kHz** (a 440 Hz take was tracked at 220), and a whole-take **RMS match**
+> (−12 lost 4.7 dB to overlapping stretched grains cancelling). All three are guarded to the formant
+> face, so `sample_autotune` / `sample_shift` stay bit-identical (voxshift's psola-check baseline
+> unchanged). Whether snap/shift want the sub-harmonic check too is its own measured change; it is
+> the likely cause of voxshift's "SNAPPED octave-flips" todo. ⚠ Limits: ±12 works but is rougher
+> (−12 under-shoots, warp 0.58 for 0.50; +12 sharpens the pulses). A real-time per-note version for
+> `INSTR_SAMPLE` (the issue's nice-to-have) is not built.
+
 ## Spike result (2026-07-17) — PROVEN, formants stay put
 
 The make-or-break question — *can TD-PSOLA move the pitch while the formants (spectral envelope) stay

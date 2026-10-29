@@ -53,6 +53,8 @@
 //   node tools/psola-check.js --selfcheck --measure   dump what the probe signals actually read —
 //                                             run this BEFORE changing any known answer below
 //   node tools/psola-check.js --baseline <f>  use another golden file (the fixture's, mainly)
+//   node tools/psola-check.js --cart voxsize  the sample_formant probe instead (own baseline:
+//                                             tools/psola-check-voxsize.json); combines with the rest
 //
 // THE BAR IS THE BLESSED BASELINE (tools/psola-check.json, committed), take by take. RAW is the same
 // captured voice UNPROCESSED and it is in the sweep for two reasons: it is the row that shows the
@@ -77,18 +79,35 @@ const wavArg = argv.includes('--wav') ? argv[argv.indexOf('--wav') + 1] : null
 const ROOT = path.resolve(__dirname, '..')
 // --baseline exists so --selfcheck can exercise the save/refuse/missing paths for real without ever
 // touching the committed golden file.
+// --cart picks the probe: voxshift (default — snap + shift) or voxsize (sample_formant, issue #44).
+// Both run the same capture timeline, so only the expected f0 per take differs. Each cart has its
+// OWN baseline file, so blessing one can never move the other's bar.
+const CART = argv.includes('--cart') ? argv[argv.indexOf('--cart') + 1] : 'voxshift'
+const CART_TAKES = {
+  // voxshift auditions the four takes in order after a ~1.6s capture. Regions are stable because the
+  // cart is deterministic (record_arm/record_grab off its own INSTR_VOICE, no mic).
+  voxshift: [
+    { name: 'RAW',      from: 1.85, to: 3.00, f0: 220.5, control: true },
+    { name: 'SNAPPED',  from: 3.35, to: 4.50, f0: 220.4 },
+    { name: 'UP+12',    from: 4.85, to: 6.00, f0: 440.5 },
+    { name: 'DOWN-12',  from: 6.35, to: 7.50, f0: 110.25 },
+  ],
+  // voxsize: the formants move, the PITCH must not — so f0 is the raw take's on all but the last,
+  // which is shift +7 then formant -7 (a fifth up, same speaker). That the formants moved by the
+  // ratio is NOT checked here (this tool reads artifacts); measured at ship time with an envelope
+  // warp fit: 0.690 / 1.502 / 1.000 against 0.667 / 1.498 / 1.000.
+  voxsize: [
+    { name: 'RAW',      from: 1.85, to: 3.00, f0: 220.5, control: true },
+    { name: 'BIG-7',    from: 3.35, to: 4.50, f0: 220.5 },
+    { name: 'SMALL+7',  from: 4.85, to: 6.00, f0: 220.5 },
+    { name: 'HIGH+7',   from: 6.35, to: 7.50, f0: 330.4 },
+  ],
+}
+if (!CART_TAKES[CART]) { console.error(`psola-check: unknown --cart ${CART} (have: ${Object.keys(CART_TAKES).join(', ')})`); process.exit(2) }
+const TAKES = CART_TAKES[CART]
 const BASELINE = argv.includes('--baseline')
   ? path.resolve(argv[argv.indexOf('--baseline') + 1])
-  : path.join(__dirname, 'psola-check.json')
-
-// voxshift auditions the four takes in order after a ~1.6s capture. Regions are stable because the
-// cart is deterministic (record_arm/record_grab off its own INSTR_VOICE, no mic).
-const TAKES = [
-  { name: 'RAW',      from: 1.85, to: 3.00, f0: 220.5, control: true },
-  { name: 'SNAPPED',  from: 3.35, to: 4.50, f0: 220.4 },
-  { name: 'UP+12',    from: 4.85, to: 6.00, f0: 440.5 },
-  { name: 'DOWN-12',  from: 6.35, to: 7.50, f0: 110.25 },
-]
+  : path.join(__dirname, CART === 'voxshift' ? 'psola-check.json' : `psola-check-${CART}.json`)
 
 function readWav (p) {
   const b = fs.readFileSync(p)
@@ -115,11 +134,11 @@ function readWav (p) {
 function render () {
   const out = path.join(ROOT, 'build', 'psola-check.wav')
   const r = spawnSync('node',
-    [path.join('tools', 'play.js'), 'voxshift', 'script', '/dev/null',
+    [path.join('tools', 'play.js'), CART, 'script', '/dev/null',
       '--headless', '--frames', '600', '--wav', out],
     { cwd: ROOT, encoding: 'utf8' })
   if (r.status !== 0 || !fs.existsSync(out)) {
-    console.error('render failed (play.js voxshift)\n' + (r.stderr || r.stdout || ''))
+    console.error(`render failed (play.js ${CART})\n` + (r.stderr || r.stdout || ''))
     process.exit(2)
   }
   return out

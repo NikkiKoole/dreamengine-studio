@@ -1,0 +1,89 @@
+{
+  "note": "blessed psola-check baseline — see tools/psola-check.js",
+  "takes": {
+    "RAW": {
+      "splice": {
+        "count": 0,
+        "worst": 0,
+        "n": 50714,
+        "med": 0.003387
+      },
+      "periodicity": {
+        "p95": 0.2288,
+        "worst": 0.869,
+        "windows": 38,
+        "voiced": 38
+      },
+      "doubling": {
+        "f0": 220.2,
+        "spread": 4.4,
+        "ratio": 0.999,
+        "windows": 8,
+        "voiced": 8
+      }
+    },
+    "BIG-7": {
+      "splice": {
+        "count": 0,
+        "worst": 0,
+        "n": 50714,
+        "med": 0.002594
+      },
+      "periodicity": {
+        "p95": 0.2271,
+        "worst": 1.463,
+        "windows": 38,
+        "voiced": 38
+      },
+      "doubling": {
+        "f0": 220.4,
+        "spread": 4.4,
+        "ratio": 0.999,
+        "windows": 8,
+        "voiced": 8
+      }
+    },
+    "SMALL+7": {
+      "splice": {
+        "count": 233,
+        "worst": 0.0373,
+        "n": 50714,
+        "med": 0.003296
+      },
+      "periodicity": {
+        "p95": 0.3363,
+        "worst": 2.248,
+        "windows": 38,
+        "voiced": 38
+      },
+      "doubling": {
+        "f0": 220.2,
+        "spread": 4.4,
+        "ratio": 0.999,
+        "windows": 8,
+        "voiced": 8
+      }
+    },
+    "HIGH+7": {
+      "splice": {
+        "count": 0,
+        "worst": 0,
+        "n": 50714,
+        "med": 0.004272
+      },
+      "periodicity": {
+        "p95": 0.3826,
+        "worst": 2.697,
+        "windows": 38,
+        "voiced": 38
+      },
+      "doubling": {
+        "f0": 329.7,
+        "spread": 4.9,
+        "ratio": 0.998,
+        "windows": 8,
+        "voiced": 8
+      }
+    }
+  }
+}

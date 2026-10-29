@@ -8633,7 +8633,13 @@ static float autotune_mic_process(float x) {
 // inaudible, and it is bit-identical to the shipped autotune (asserted by re-render).
 // The SNAP path passes semis 0 / fstep 1.0f, and `j * 1.0f` is exact in IEEE754, so generalizing
 // this loop left sample_autotune's output BIT-IDENTICAL (asserted by re-render, not by reasoning).
-enum { AT_SNAP, AT_SHIFT };
+//   AT_FORMANT — move the FORMANTS by `semis`, keep the pitch and length (sample_formant). The DUAL of
+//   the parked hold axis, and it does not hit that axis's wall: each grain is windowed over ±1 SOURCE
+//   period and only THEN resampled, so it carries ONE glottal pulse with its tract ringing squeezed
+//   (smaller tract, formants up) or stretched (bigger, formants down). No competing periodicity
+//   inside the grain, and the grains go back on their own epochs, so the pitch has nothing to fight.
+//   It has its own loop in step 3 (no epoch mapping at all); details there.
+enum { AT_SNAP, AT_SHIFT, AT_FORMANT };
 // ⚠ THERE USED TO BE A `float formant` PARAMETER HERE. It was clamped to 0..1 and then never read
 // again — a placeholder for the formant-HOLD axis this engine deliberately parks (formants currently
 // ride along with the pitch; see the note above and transparent-autotune.md). Removed 2026-08-15:
@@ -8645,12 +8651,12 @@ static void at_psola_slot(int slot, int mode, int root, int scale, float semis, 
     SoundSample *s = &sound_samples[slot];
     if (!s->loaded || !s->data || s->len < AT_ACW * 2) return;
     if (mode == AT_SNAP && amount <= 0.001f) return;        // no-op → leave the slot untouched
-    if (mode == AT_SHIFT && semis > -0.01f && semis < 0.01f) return;   // a 0-semitone shift is a no-op too
+    if (mode != AT_SNAP && semis > -0.01f && semis < 0.01f) return;   // a 0-semitone shift is a no-op too
     if (amount > 1.0f) amount = 1.0f;
     // fstep = the pitch ratio: the grain CONTENT is resampled as well as re-spaced. Both together are
     // what measures clean (voxshift: f0 lands within 0.5 Hz of target at +3/+5/+7/+12, wobble as low as
     // the raw take). Formants ride along with the pitch — see the header note on the parked hold axis.
-    float fstep = (mode == AT_SHIFT) ? de_powf(2.0f, semis / 12.0f) : 1.0f;
+    float fstep = (mode != AT_SNAP) ? de_powf(2.0f, semis / 12.0f) : 1.0f;   // FORMANT: the tract ratio
     int n = s->len, nHop = (n - AT_ACW) / AT_HOP; if (nHop < 1) nHop = 1;
     int maxEp = n / (SOUND_SAMPLE_RATE / 400) + 8;
     float *in = (float *)malloc((size_t)n * sizeof(float));
@@ -8663,10 +8669,30 @@ static void at_psola_slot(int slot, int mode, int root, int scale, float semis, 
 
     // 1. pitch track — autocorrelation f0 per hop (0 = unvoiced)
     int lo = SOUND_SAMPLE_RATE / 400, hi = SOUND_SAMPLE_RATE / 70;
+    // FORMANT reaches up to 1 kHz: a tiny high creature voice sits ABOVE the 400 Hz the snap face was
+    // built for, and a 440 Hz take tracked at 220 makes the formant pass mark every other pulse
+    // (measured: voxsize HIGH at SIZE_SEMIS=12, T-similarity 0.14-0.41). The sub-harmonic check below
+    // stops the wider range from settling an octave down.
+    if (mode == AT_FORMANT) lo = SOUND_SAMPLE_RATE / 1000;
     for (int h = 0; h < nHop; h++) {
         int base = h * AT_HOP; float best = 0; int bl = lo;
         for (int lag = lo; lag <= hi; lag++) { float c = at_corr(in, base, n, lag); if (c > best) { best = c; bl = lag; } }
         if (best < 0.35f) { f0[h] = 0.0f; continue; }
+        // SUB-HARMONIC check, FORMANT face only: a wobbly voice correlates almost as well at 2T or 3T
+        // as at T, and the max above then reads an octave (or a twelfth) DOWN. Measured on voxsize's
+        // take: hops at 108/112/72/75 Hz against a true 220, and the epoch marker stepping 2-3
+        // periods there. Snap/shift shrug that off (full-width normalised grains); the formant face
+        // cannot, because a 2-period window resampled by the ratio holds two pulses at the wrong
+        // spacing. So prefer the SHORTEST lag that correlates within 15% of the best. Guarded so
+        // sample_autotune / sample_shift stay bit-identical (psola-check baseline); whether they want
+        // it too is its own measured change.
+        if (mode == AT_FORMANT)
+            for (int dv = 3; dv >= 2; dv--) {
+                int c = bl / dv, sb = c; float sv = -1.0f;
+                if (c - 3 < lo) continue;
+                for (int lag = c - 3; lag <= c + 3; lag++) { float v = at_corr(in, base, n, lag); if (v > sv) { sv = v; sb = lag; } }
+                if (sv >= 0.85f * best) { bl = sb; break; }
+            }
         float cm = at_corr(in, base, n, bl - 1), c0 = at_corr(in, base, n, bl), cp = at_corr(in, base, n, bl + 1);
         float den = cm - 2 * c0 + cp, d = den != 0.0f ? 0.5f * (cm - cp) / den : 0.0f;
         f0[h] = (float)SOUND_SAMPLE_RATE / (bl + d);
@@ -8716,7 +8742,7 @@ static void at_psola_slot(int slot, int mode, int root, int scale, float semis, 
     // contemporary-rebirth.md §"Rung B". Measure BOTH f0 and periodicity error before believing a change
     // here: period doubling is invisible to a periodicity metric.
     for (int i = 0; i < n; i++) { out[i] = 0.0f; norm[i] = 0.0f; }
-    if (nEp >= 3) {
+    if (nEp >= 3 && mode != AT_FORMANT) {
         int ai = 0;
         for (float op = (float)ep[0]; op < n; ) {
             while (ai + 1 < nEp && ep[ai + 1] <= (int)op) ai++;
@@ -8785,6 +8811,48 @@ static void at_psola_slot(int slot, int mode, int root, int scale, float semis, 
             op += Tt;
         }
         for (int i = 0; i < n; i++) if (norm[i] > 1e-6f) out[i] /= norm[i];
+    } else if (nEp >= 3 && mode == AT_FORMANT) {
+        // FORMANT: the pitch is HELD, so there is no epoch MAPPING to get wrong. Every grain is
+        // placed back on its OWN analysis epoch, which is jitter-free by construction. (The first
+        // version reused the mapping loop below with Tt = T, and inherited exactly the flip-flop the
+        // DO-NOT-DO notes describe: f0 spread 147 Hz, 165 splices at +7.)
+        // The window is ASYMMETRIC, its halves sized from the neighbouring epochs, so at ratio 1 the
+        // windows sum to exactly 1. VOICED: the source window spans the two periods around the
+        // epoch, then the grain is resampled by `fstep`, so in the output it is narrower (smaller
+        // tract) or wider (bigger) than its spacing and carries one pulse. Gain sqrt(fstep) keeps each
+        // pulse's ENERGY, so a small voice is not quieter than a big one. UNVOICED: the output window
+        // keeps the epoch spacing and only the noise under it is resampled, so a consonant is
+        // re-coloured without picking up a buzz at the 110 Hz default epoch rate.
+        // No divide by the window sum: it would stretch each narrow pulse back to full width and
+        // amplify the near-silent gap between pulses.
+        int defT = SOUND_SAMPLE_RATE / 110;
+        for (int k = 0; k < nEp; k++) {
+            int c = ep[k];
+            int L = k > 0       ? c - ep[k - 1] : (k + 1 < nEp ? ep[k + 1] - c : defT);
+            int R = k + 1 < nEp ? ep[k + 1] - c : L;
+            if (L < 20) L = 20; if (L > 900) L = 900; if (R < 20) R = 20; if (R > 900) R = 900;
+            int voiced = AT_F0(c) >= 60.0f;
+            float ow = voiced ? 1.0f / fstep : 1.0f;              // output half-width per source sample
+            float gg = voiced ? sqrtf(fstep) : 1.0f;
+            int oL = (int)((float)L * ow + 0.5f), oR = (int)((float)R * ow + 0.5f);
+            if (oL < 1) oL = 1; if (oR < 1) oR = 1;
+            for (int j = -oL; j <= oR; j++) {
+                float sf = (float)c + (float)j * fstep;
+                int si = (int)floorf(sf), di = c + j;
+                float fr = sf - (float)si;
+                if (si < 0 || si + 1 >= n || di < 0 || di >= n) continue;
+                float sv = in[si] + fr * (in[si + 1] - in[si]);
+                float w = 0.5f * (1.0f + de_cosf(SOUND_PI * (float)j / (float)(j < 0 ? oL : oR)));
+                out[di] += gg * w * sv;
+            }
+        }
+        // ...and the TAKE keeps its loudness. sqrt(fstep) holds a lone pulse's energy, but a big
+        // lowering stretches grains across ~4 periods where neighbours partly CANCEL: measured -4.7 dB
+        // at -12 (and +-0.1 dB at +-7, where this is a no-op in practice). A size knob must not be a
+        // volume knob, so match the whole take's RMS back to the input's.
+        double ei = 0, eo = 0;
+        for (int i = 0; i < n; i++) { ei += (double)in[i] * in[i]; eo += (double)out[i] * out[i]; }
+        if (eo > 1e-12) { float g = (float)sqrt(ei / eo); for (int i = 0; i < n; i++) out[i] *= g; }
     } else {
         for (int i = 0; i < n; i++) out[i] = in[i];        // too few epochs (unpitched/short) → pass through
     }
@@ -8794,13 +8862,17 @@ static void at_psola_slot(int slot, int mode, int root, int scale, float semis, 
     free(in); free(out); free(norm); free(f0); free(ep);
 }
 
-// the two public faces of the one core above
+// the three public faces of the one core above
 void sample_autotune(int slot, int root, int scale, float amount) {
     at_psola_slot(slot, AT_SNAP, root, scale, 0.0f, amount);
 }
 void sample_shift(int slot, float semitones) {
     if (semitones < -24.0f) semitones = -24.0f; if (semitones > 24.0f) semitones = 24.0f;
     at_psola_slot(slot, AT_SHIFT, 0, 0, semitones, 1.0f);
+}
+void sample_formant(int slot, float semitones) {
+    if (semitones < -12.0f) semitones = -12.0f; if (semitones > 12.0f) semitones = 12.0f;
+    at_psola_slot(slot, AT_FORMANT, 0, 0, semitones, 1.0f);
 }
 
 // Live waveform readout of the capture ring WHILE recording (before a grab): downsample the last

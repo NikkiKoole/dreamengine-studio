@@ -464,6 +464,7 @@ typedef struct {
     float  sg_gd[SG_GRAINS], sg_gg[SG_GRAINS]; //   source step · gain
     float  sg_es, sg_eo;                // level follower: source energy at the playhead vs output energy (sets the corrective gain)
     bool   sg_on;
+    bool   sg_once, sg_end;             // MODE_SING_ONESHOT snapshot (note-on): the take, once, holding the gate open · the take has ended (release now runs)
     // SCRAPE (INSTR_SCRAPE): teeth, each a decaying noise burst, through a two-mode body (guiro / quijada / cabasa).
     SoundBiquad scr_bq[2];              // the body: two bandpass modes (coefficients refreshed per tooth, state kept)
     float  scr_g2;                      // the second mode's level

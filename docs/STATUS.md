@@ -27,7 +27,8 @@ _Last updated: 2026-10-29 — INSTR_SCRAPE: a guiro with teeth. See the top Ship
   (warp 1.502 / 0.690 at ±7, f0 held); with `sample_shift` it is the same-voice transpose. `INSTR_SING`:
   the real-time face, one grain per glottal pulse on the note's period. 25 notes A2..A4 from one A3
   "mi" land within 6 cents at one level with no clicks; timbre = SIZE, morph = SPEED, a held key sustains
-  the last vowel. Carts `voxsize`, `singsample`; gate `psola-check --cart voxsize`.
+  the last vowel; `MODE_SING_ONESHOT` (#46) sings the take exactly once instead, for speech. Carts
+  `voxsize`, `singsample`; gate `psola-check --cart voxsize`.
   [`design/transparent-autotune.md`](design/transparent-autotune.md).
 
 - **PLINKY HARVEST: `INSTR_WAVESCAN` + `INSTR_GRAIN`** (2026-10-01). Plinky's two voices we lacked (MIT).

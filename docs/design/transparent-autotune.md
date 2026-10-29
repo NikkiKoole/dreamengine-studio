@@ -119,6 +119,20 @@ up from [`audio-input-frontier.md`](audio-input-frontier.md) §2.
 > gaps (the sung "po": 8.1), so it most likely has a real high voiced part and SING pitches it; ears to
 > confirm. An UNPITCHED take now still runs the grains, so SIZE re-colours a breath (centroid 858 / 1134 /
 > 1535 Hz at size 0.3 / 0.5 / 0.72) instead of falling back to plain playback.
+>
+> **ONE-SHOT, for speech (GitHub #46).** Playtime's measurement showed "let go and the word finishes" was
+> true of the PLAYHEAD and false of the SOUND: the voice still ran the normal ADSR release, so with a 90 ms
+> release a 20 ms hit sounded for ~0.1 s whatever the take. Holding for the take's length instead reached
+> the held-vowel rock, a loop. `instrument_mode(slot, MODE_SING_ONESHOT, 1)` (idx 0, default 0) does
+> neither: no rock, and the envelope GATE is held open past the key until the playhead has run off the chop
+> and its last grain has drained, then the release runs. Measured on po3 / mo / ba (Playtime's takes,
+> `hit(60, slot, 7, 20|300|1000)`, sizes/inflection/speed 0.5): the three holds render the SAME audio,
+> sounding 0.45 / 0.70 / 0.25 s against the takes' 0.53 / 0.67 / 0.23 (3%-of-peak threshold; po3's
+> envelope tracks the source down to 0.6 s, its ringing tail just sits under the threshold). psola-check's
+> PERIODICITY detector, raw take as the control: a repeated cycle LOWERS its p95 (po3 held 1000 ms: 0.68
+> vs raw 1.19), and one-shot never goes under the raw take (po3 1.27 / 1.19, mo 1.34 / 1.51, ba 1.92 /
+> 1.03); its splice detector reads 0 on mo and ba. Mode off renders byte-identical to before. A frozen
+> SPEED never reaches the end, so it falls back to the key rather than hanging a note.
 
 ## Spike result (2026-07-17) — PROVEN, formants stay put
 

@@ -5824,7 +5824,11 @@ static inline float sound_grain_sample(Voice *v, float pitch_mul) {
 //     an "h" or "pf" is not buzzed at the note's pitch.
 //   · HOLD: while the key is down and the playhead reaches the last voiced epoch of the chop, it ROCKS
 //     over the 60 ms before it (the held vowel), with the contour frozen; on release it runs on, so the
-//     word finishes ("mi-i-i-po": the -po plays at release). Then the voice falls silent (one-shot).
+//     word finishes ("mi-i-i-po": the -po plays at release) for as long as the ADSR release lasts.
+//   · ONE-SHOT (MODE_SING_ONESHOT, GitHub #46): no rock, and the GATE is held open past the key until the
+//     playhead has run off the chop and the last grain has drained (sound_sing_gate, read by the envelope),
+//     so a 20 ms hit sings the whole take and a 2 s hold still ends with it. Only then does the release run.
+//     A frozen SPEED never reaches the end, so it falls back to the key (else the note would never stop).
 //   · an UNPITCHED take (a breath, "hmpf", "huh": no voiced epoch, f0med 0) still runs the grains, all of
 //     them unvoiced, so SIZE re-colours it and the note does nothing (there is no pitch to move). Only a
 //     take with no analysis yet (or under 3 epochs) plays the chop plainly at SPEED.
@@ -5835,6 +5839,7 @@ static void sound_sing_start(Voice *v) {
     for (int g = 0; g < SG_GRAINS; g++) v->sg_gr[g] = 0;
     v->sg_pend = false; v->sg_clock = -1.0f; v->sg_dir = 1.0f; v->sg_k = 0; v->sg_hold = -1; v->sg_hratio = 1.0f; v->sg_ref = 0.0f;
     v->sg_t = 0.0; v->sg_es = v->sg_eo = 0.0f;
+    v->sg_once = v->eng_p[MODE_SING_ONESHOT] >= 0.5f; v->sg_end = false;
     if (v->smp_idx < 0 || v->smp_idx >= SOUND_SAMPLE_SLOTS || !sound_samples[v->smp_idx].loaded) return;
     int n = sound_samples[v->smp_idx].len; if (n < 2) return;
     float endf = (v->smp_end_f > 0.0f && v->smp_end_f <= 1.0f) ? v->smp_end_f : 1.0f;
@@ -5870,6 +5875,18 @@ static void sound_sing_start(Voice *v) {
     }
     v->sg_on = true;
 }
+// ONE-SHOT: is the take still holding the envelope's gate open? (the mix loop's ADSR asks)
+static inline bool sound_sing_gate(const Voice *v) {
+    return v->wave == INSTR_SING && v->sg_once && v->sg_on && !v->sg_end && v->mor > 0.001f;
+}
+static inline float sound_adsr_gated(int s, int a, int d, float sustain);   // the gated A/D/S, defined with the mix loop
+// ONE-SHOT: the take is over, so start the release from here, at the level the gated ADSR has reached.
+static inline void sound_sing_finish(Voice *v) {
+    if (!v->sg_once || v->sg_end) return;
+    v->sg_end = true;
+    v->rel_start = sound_adsr_gated(v->step_samples, v->a_samp, v->d_samp, v->sustain);
+    v->step_len_samples = v->step_samples;
+}
 static inline float sound_sing_sample(Voice *v, float pitch_mul) {
     if (!v->sg_on || v->smp_idx < 0 || v->smp_idx >= SOUND_SAMPLE_SLOTS) return 0.0f;
     const SoundSample *s = &sound_samples[v->smp_idx];
@@ -5888,14 +5905,14 @@ static inline float sound_sing_sample(Voice *v, float pitch_mul) {
     atomic_thread_fence(memory_order_acquire);
     if (ne < 3) {                                              // no analysis yet: plain playback of the chop
         if (v->sg_t < lo) v->sg_t = lo;
-        if (v->sg_t >= hi) return 0.0f;
+        if (v->sg_t >= hi) { sound_sing_finish(v); return 0.0f; }
         int i0 = (int)v->sg_t; if (i0 > s->len - 2) i0 = s->len - 2;
         float fr = (float)(v->sg_t - (double)i0);
         v->sg_t += (double)speed;
         return s->data[i0] + (s->data[i0 + 1] - s->data[i0]) * fr;
     }
     const int *ep = a->ep; const float *epf = a->epf;
-    bool held = v->step_samples < v->step_len_samples;
+    bool held = !v->sg_once && v->step_samples < v->step_len_samples;   // ONE-SHOT never rocks
     bool rocking = held && v->sg_hold >= 0 && (v->sg_t >= (double)v->sg_hold || v->sg_dir < 0.0f);
 
     // 1. the NEXT grain: computed one grain ahead so it can start half a window before its centre
@@ -5991,6 +6008,11 @@ static inline float sound_sing_sample(Voice *v, float pitch_mul) {
     } else {
         v->sg_dir = 1.0f;                                       // released (or never held): finish the word
         v->sg_t += (double)speed;
+    }
+    if (v->sg_once && v->sg_t >= hi && !v->sg_pend) {           // ONE-SHOT: off the chop and every grain drained
+        bool live = false;
+        for (int gi = 0; gi < SG_GRAINS; gi++) if (v->sg_gr[gi]) { live = true; break; }
+        if (!live) sound_sing_finish(v);
     }
     return out;
 }
@@ -8025,7 +8047,7 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
                 else if (t > 0.85f) env = (1.0f - t) / 0.15f;
                 else                env = 1.0f;
                 if (env < 0) env = 0;
-            } else if (v->step_samples < v->step_len_samples) {
+            } else if (v->step_samples < v->step_len_samples || sound_sing_gate(v)) {   // INSTR_SING one-shot holds the gate until the take ends
                 env = sound_adsr_gated(v->step_samples, v->a_samp, v->d_samp, v->sustain);  // gated A/D/S
             } else {
                 int rs = v->step_samples - v->step_len_samples;                              // release

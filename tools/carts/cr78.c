@@ -15,9 +15,9 @@
     "analog-voice-modeling",
     "swing-timing"
   ],
-  "lineage": "Roland CR-78 (1978) homage; extends drummachine's grid by rebuilding each analog voice from its circuit description — one shared noise source filtered per voice, beating detuned squares for metal, and a 36Hz volume-LFO chop for the guiro ratchet.",
+  "lineage": "Roland CR-78 (1978) homage; extends drummachine's grid by rebuilding each analog voice from its circuit description — one shared noise source filtered per voice, beating detuned squares for metal, and INSTR_SCRAPE for the guiro (it began as a 36Hz volume-LFO chop on noise; measured against a real CR-78 guiro sample that had the wrong rate, body and no gaps).",
   "homage": "Roland CR-78 CompuRhythm (1978)",
-  "description": "All 15 voices of the Roland CR-78 (1978) rebuilt from their analog circuits with the synth API: damped-sine membranes (kick/bongos/congas), one noise source shaped per voice by different filters (the famous swishy bandpassed hats, highpassed maracas, resonant tambourine jingle), detuned square pairs/triples for cowbell and the metallic beat, and the guiro's ratcheting scrape — bandpassed noise chopped by a 36Hz volume LFO under a rising cutoff sweep. Plays eight classic presets including Disco-2 (In the Air Tonight), the Mambo+Beguine blend (Heart of Glass), and the triplet-feel Shuffle and Swing — plus the knob the original never got: Z/X sets swing 50-66% by scheduling the offbeat 8ths late (adjustable swing didn't exist until the LM-1 in 1980). The grid is editable: click/drag cells to toggle, click the orange strip to move accents, click a label to audition; accent steps are a volume boost, just like the real knob. Q-G play voices by hand, LEFT/RIGHT preset, UP/DOWN tempo, SPACE start/stop."
+  "description": "All 15 voices of the Roland CR-78 (1978) rebuilt from their analog circuits with the synth API: damped-sine membranes (kick/bongos/congas), one noise source shaped per voice by different filters (the famous swishy bandpassed hats, highpassed maracas, resonant tambourine jingle), detuned square pairs/triples for cowbell and the metallic beat, and the guiro's ratcheting scrape — 75 teeth a second, each its own click ringing a 6 kHz gourd (INSTR_SCRAPE, fitted to a real CR-78 guiro sample). Plays eight classic presets including Disco-2 (In the Air Tonight), the Mambo+Beguine blend (Heart of Glass), and the triplet-feel Shuffle and Swing — plus the knob the original never got: Z/X sets swing 50-66% by scheduling the offbeat 8ths late (adjustable swing didn't exist until the LM-1 in 1980). The grid is editable: click/drag cells to toggle, click the orange strip to move accents, click a label to audition; accent steps are a volume boost, just like the real knob. Q-G play voices by hand, LEFT/RIGHT preset, UP/DOWN tempo, SPACE start/stop."
 }
 de:meta */
 #include "studio.h"
@@ -51,9 +51,13 @@ de:meta */
 //
 //   guiro — the strangest circuit in the box
 //     a noise burst whose loudness is chopped into rapid "teeth" to make the
-//     ratcheting scrape.  →  bandpassed noise + LFO_VOLUME at 36Hz, full
-//     depth, with a rising ENV_CUTOFF so the scrape sweeps up like a real
-//     stick dragged over the ridges.
+//     ratcheting scrape.  →  INSTR_SCRAPE (guiro recipe: body 0, rate 0.87,
+//     gesture 0). This cart first read that as bandpassed noise + LFO_VOLUME
+//     at 36Hz under a rising ENV_CUTOFF, and a real CR-78 guiro sample
+//     (Puppetmaker 2's cr78/guiro1, tools/scrape-check.js --ref) says that was
+//     wrong three ways: the machine scrapes at ~75 teeth/s not 36, through a
+//     narrow ~6 kHz body (the LFO patch spread 2.8-17 kHz), with real gaps
+//     between teeth (-55 dB; the LFO patch never got below -8.5 dB).
 //
 //   accent — not a sound! On the real unit it's a knob that just makes the
 //     flagged steps louder. Here: orange ticks above the grid, vol +2.
@@ -243,7 +247,7 @@ static void fire(int v, int boost, int delay) {
     case V_TAMB:  schedule_hit(delay, 80, SL_TAMB, vv(3, boost), 120); break;
     case V_MAR:   schedule_hit(delay, 90, SL_MAR, vv(3, boost), 40); break;
     case V_CLV:   schedule_hit(delay, 97, SL_CLV, vv(4, boost), 55); break;
-    case V_GUIRO: schedule_hit(delay, 70, SL_GUI, vv(4, boost), 300); break;
+    case V_GUIRO: schedule_hit(delay, 60, SL_GUI, vv(4, boost), 270); break;   // C4 = SCRAPE's body as voiced; ~270 ms = the sample's scrape
     case V_BONH:  schedule_hit(delay, 64, SL_BON, vv(4, boost), 140); break;
     case V_BONL:  schedule_hit(delay, 59, SL_BON, vv(4, boost), 150); break;
     case V_CONGA: schedule_hit(delay, 52, SL_CON, vv(4, boost), 250); break;
@@ -306,13 +310,14 @@ void init(void) {
     instrument(SL_CON, INSTR_SINE, 0, 210, 0, 50);
     instrument_env(SL_CON, 0, ENV_PITCH, 0, 22, 3.0f);
 
-    // guiro — the ratchet: bandpassed noise CHOPPED by a 36Hz volume LFO
-    // (~11 teeth per scrape) while the cutoff sweeps upward like the stick
-    // running along the ridges
-    instrument(SL_GUI, INSTR_NOISE, 0, 260, 0, 60);
-    instrument_filter(SL_GUI, FILTER_BAND, 2800, 7);
-    instrument_env(SL_GUI, 0, ENV_CUTOFF, 200, 80, 1400.0f);
-    instrument_lfo(SL_GUI, 0, LFO_VOLUME, 36.0f, 1.0f);
+    // guiro — teeth through a gourd: the scrape-check fit to a real CR-78
+    // guiro sample (75 teeth/s, 6 kHz body). Level 0.9 = the old LFO patch's
+    // RMS at the same trigger volume, so the mix does not move
+    instrument(SL_GUI, INSTR_SCRAPE, 0, 0, 7, 30);
+    instrument_harmonics(SL_GUI, 0.0f);    // BODY: gourd
+    instrument_timbre(SL_GUI, 0.87f);      // RATE: ~75 teeth/s
+    instrument_morph(SL_GUI, 0.0f);        // GESTURE: a steady scrape
+    instrument_level(SL_GUI, 0.9f);
 
     // metallic beat — one square slot, fired three times enharmonically
     instrument(SL_MET, INSTR_SQUARE, 0, 180, 0, 60);

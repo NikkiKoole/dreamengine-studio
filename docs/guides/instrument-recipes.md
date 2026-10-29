@@ -621,7 +621,7 @@ All raw waves; some voices fired multiple times detuned for beating/layering.
 | cr78/maracas | NOISE | A0 D26 S0 R12 · HP6000/2 | Shortest noise burst in the box — shaker texture. |
 | cr78/bongo | SINE | A0 D110 S0 R30 · pitch-env →+3 (0/18) | Bare damped sine at membrane pitch, gentle drop. |
 | cr78/conga | SINE | A0 D210 S0 R50 · pitch-env →+3 (0/22) | Longer damped sine, subtle pitch drop. |
-| cr78/guiro | NOISE | A0 D260 S0 R60 · BP2800/7 · cut-env →+1400 · LFO_VOL 36Hz/1.0 | Ratcheting scrape — bandpassed noise chopped by a 36Hz LFO. The cr78 cart's circuit homage; for a guiro with TEETH (clicks, ring, jitter) use **scrape/guiro** below. |
+| cr78/guiro | SCRAPE | = scrape/guiro (body 0 · rate 0.87 · gesture 0) · level 0.9 · note 60 · hit 270 ms | The ratchet, now measured against a real CR-78 guiro sample. It was bandpassed noise chopped by a 36Hz LFO (BP2800/7 · LFO_VOL 36Hz); that patch scraped at half the machine's rate through a 2.8-17 kHz hiss with no gaps between teeth. |
 | cr78/metal-beat | SQUARE | A0 D180 S0 R60 · BP3300/6 (3 detuned squares) | Enharmonic clang — Kraftwerkian metallic beat. |
 
 > **Cross-ref:** cr78.c is a confirmed showcase-cart lineage — ymo lifts the *whole* CR-78

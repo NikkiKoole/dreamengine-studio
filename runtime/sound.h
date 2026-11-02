@@ -811,6 +811,8 @@ static void flanger_process(int b, float *mixL, float *mixR) {
 #define TAPE_WBL_DEPTH   440.0f     // samples of extra head lag at amount 1 (~10ms)
 #define TAPE_WBL_GLIDE   1.088e-4f  // max one-pole glide coef per event (their 1e-4 @48k, rescaled to 44.1k)
 #define TAPE_WBL_HOME    5.0e-5f    // glide coef back to 0 once warble is switched off
+#define TAPE_AMT_SLEW    7.5e-4f    // DECLICK: wow/flutter amounts glide (~30 ms time constant)
+#define TAPE_HEAD_SLEW   2.3e-3f    // DECLICK: dry <-> delayed-head crossfade (~10 ms time constant)
 
 static void tape_process(int b, int i, float *mixL, float *mixR) {
     float sat = tape_sat[b][i];
@@ -825,11 +827,24 @@ static void tape_process(int b, int i, float *mixL, float *mixR) {
     tape_bufR[b][i][widx] = R;
     tape_widx[b][i] = (widx + 1) % TAPE_BUF_LEN;
     float warb = tape_warb[b][i];
-    if (tape_wow[b][i] > 0.0f || tape_flut[b][i] > 0.0f || warb > 0.0f || tape_wbl_off[b][i] != 0.0f) { // wow + flutter pitch warble (one shared transport)
+    // DECLICK (found by `seventyeight`'s needle, 2026-11-02). Wow/flutter used to be read straight from
+    // the setter, so switching tape on or off MID-PLAY jumped the read between the dry signal and the
+    // 320-sample head in one sample, and a new wow depth jumped it by up to ~100 — a splice either way
+    // (24% of peak at the needle). Now the AMOUNTS glide (~30 ms: a depth change becomes a smooth pitch
+    // change, which is what a tape does) and the HEAD is crossfaded in and out against the warble-only
+    // read (~10 ms). Each snaps within 1e-4 and is set outright when tape is configured before any
+    // audio, so the steady state — and every cart that sets tape in init() — is the old arithmetic.
+    float tw = tape_wow[b][i], tf = tape_flut[b][i];
+    float cw = tape_wow_c[b][i], cf = tape_flut_c[b][i], h = tape_head[b][i];
+    if (cw != tw) { cw += (tw - cw) * TAPE_AMT_SLEW;  if (fabsf(tw - cw) < 1e-4f) cw = tw; tape_wow_c[b][i]  = cw; }
+    if (cf != tf) { cf += (tf - cf) * TAPE_AMT_SLEW;  if (fabsf(tf - cf) < 1e-4f) cf = tf; tape_flut_c[b][i] = cf; }
+    float ht = (tw > 0.0f || tf > 0.0f) ? 1.0f : 0.0f;
+    if (h != ht)  { h  += (ht - h)  * TAPE_HEAD_SLEW; if (fabsf(ht - h)  < 1e-4f) h  = ht; tape_head[b][i]   = h;  }
+    if (h > 0.0f || warb > 0.0f || tape_wbl_off[b][i] != 0.0f) { // wow + flutter pitch warble (one shared transport)
         tape_wph[b][i] += TAPE_WOW_RATE  / (float)SOUND_SAMPLE_RATE; if (tape_wph[b][i] >= 1.0f) tape_wph[b][i] -= 1.0f;
         tape_fph[b][i] += TAPE_FLUT_RATE / (float)SOUND_SAMPLE_RATE; if (tape_fph[b][i] >= 1.0f) tape_fph[b][i] -= 1.0f;
-        float mod = de_sin_turns(tape_wph[b][i]) * tape_wow[b][i]  * TAPE_WOW_DEPTH
-                  + de_sin_turns(tape_fph[b][i]) * tape_flut[b][i] * TAPE_FLUT_DEPTH;
+        float mod = de_sin_turns(tape_wph[b][i]) * cw * TAPE_WOW_DEPTH
+                  + de_sin_turns(tape_fph[b][i]) * cf * TAPE_FLUT_DEPTH;
         if (warb > 0.0f) {                          // warble: a random EVENT, ~0.1..30 per second by amount
             uint32_t sd = tape_wbl_seed[b][i];
             sd = (1103515245u * sd + 12345u) & 0x7FFFFFFFu;
@@ -846,24 +861,29 @@ static void tape_process(int b, int i, float *mixL, float *mixR) {
             if (tape_wbl_off[b][i] < 0.01f) tape_wbl_off[b][i] = 0.0f;
         }
         float wo = tape_wbl_off[b][i];
-        if (tape_wow[b][i] > 0.0f || tape_flut[b][i] > 0.0f) {
-            float rp = (float)widx - TAPE_BASE_DELAY + mod;
-            if (wo != 0.0f) rp -= wo;                   // warble only ever adds lag
-            while (rp < 0.0f) rp += TAPE_BUF_LEN;
-            while (rp >= TAPE_BUF_LEN) rp -= TAPE_BUF_LEN;
-            L = moddel_hermite(tape_bufL[b][i], TAPE_BUF_LEN, rp);   // shared transport → same read pos L/R
-            R = moddel_hermite(tape_bufR[b][i], TAPE_BUF_LEN, rp);
-        } else {
+        if (h < 1.0f && (warb > 0.0f || wo != 0.0f)) {
             // warble ALONE rides its own head with NO base lag: jumping to the 320-sample head would
             // be a splice the moment it switched on (measured: 22x the local step, click-check).
             // Below 2 samples of lag (hermite needs that much history) blend dry toward the
             // 2-late read, so the lag grows from 0 continuously and lands back on 0 the same way.
+            // While the head fades in or out this IS the far side of the crossfade, so a warble
+            // running underneath a wow toggle does not splice either.
             float rp = (float)widx - (wo < 2.0f ? 2.0f : wo);
             while (rp < 0.0f) rp += TAPE_BUF_LEN;
             float rl = moddel_hermite(tape_bufL[b][i], TAPE_BUF_LEN, rp);
             float rr = moddel_hermite(tape_bufR[b][i], TAPE_BUF_LEN, rp);
             if (wo < 2.0f) { float a = wo * 0.5f; L += a * (rl - L); R += a * (rr - R); }
             else { L = rl; R = rr; }
+        }
+        if (h > 0.0f) {
+            float rp = (float)widx - TAPE_BASE_DELAY + mod;
+            if (wo != 0.0f) rp -= wo;                   // warble only ever adds lag
+            while (rp < 0.0f) rp += TAPE_BUF_LEN;
+            while (rp >= TAPE_BUF_LEN) rp -= TAPE_BUF_LEN;
+            float hl = moddel_hermite(tape_bufL[b][i], TAPE_BUF_LEN, rp);   // shared transport → same read pos L/R
+            float hr = moddel_hermite(tape_bufR[b][i], TAPE_BUF_LEN, rp);
+            if (h >= 1.0f) { L = hl; R = hr; }
+            else { L += h * (hl - L); R += h * (hr - R); }   // mid-crossfade: dry (or warble-only) <-> the head
         }
     }
     float k = 1.0f - 0.45f * sat;                   // HF rolloff: k=1 (transparent) → 0.55 (warm) as sat rises
@@ -895,6 +915,12 @@ static void fx_set_tape(int b, int i, float wow, float flut, float sat) {
     sat = clamp01(sat);
     tape_wow[b][i] = wow; tape_flut[b][i] = flut; tape_sat[b][i] = sat;
     tape_used[b][i] = true;
+    // Set before ANY audio has rendered (init()): nothing is playing, so land at once rather than
+    // fading in — which is also what keeps every cart that sets its tape up front byte-identical.
+    if (atomic_load_explicit(&snd_sample_clock, memory_order_relaxed) == 0) {
+        tape_wow_c[b][i] = wow; tape_flut_c[b][i] = flut;
+        tape_head[b][i] = (wow > 0.0f || flut > 0.0f) ? 1.0f : 0.0f;
+    }
 }
 static void fx_set_tape_warble(int b, float amount) {   // a VOICE of tape(): changes nothing until tape() is on
     tape_warb[b][0] = clamp01(amount);
@@ -10679,6 +10705,7 @@ static void sound_reset_state(void) {
             tape_widx[b][i] = 0; tape_wph[b][i] = 0.0f; tape_fph[b][i] = 0.0f; tape_lpL[b][i] = 0.0f; tape_lpR[b][i] = 0.0f;
             tape_wow[b][i] = 0.3f; tape_flut[b][i] = 0.2f; tape_sat[b][i] = 0.4f; tape_used[b][i] = false;
             tape_warb[b][i] = 0.0f; tape_wbl_off[b][i] = 0.0f; tape_wbl_tgt[b][i] = 0.0f; tape_wbl_coef[b][i] = 0.0f;
+            tape_wow_c[b][i] = 0.0f; tape_flut_c[b][i] = 0.0f; tape_head[b][i] = 0.0f;   // declick: dry, at rest
             tape_wbl_seed[b][i] = 1u + (uint32_t)b * 7919u + (uint32_t)i * 104729u;
         }
         wah_env[b] = 0.0f; wah_ic1[b] = 0.0f; wah_ic2[b] = 0.0f;

@@ -878,6 +878,9 @@ typedef struct {
     bool tape_used[SOUND_FX_BUSES][TAPE_INST];
     float tape_warb[SOUND_FX_BUSES][TAPE_INST];      // tape_warble amount 0..1 (0 = off; the tap glides home)
     float tape_wbl_off[SOUND_FX_BUSES][TAPE_INST];   // current extra tape-head lag, samples
+    float tape_wow_c[SOUND_FX_BUSES][TAPE_INST];     // DECLICK: the wow / flutter amounts IN USE, gliding toward
+    float tape_flut_c[SOUND_FX_BUSES][TAPE_INST];    //   tape_wow/_flut (a jump in depth is a jump in read position)
+    float tape_head[SOUND_FX_BUSES][TAPE_INST];      //   0 = dry … 1 = the delayed head: crossfaded, never switched
     float tape_wbl_tgt[SOUND_FX_BUSES][TAPE_INST];   // where the current warble event is gliding to
     float tape_wbl_coef[SOUND_FX_BUSES][TAPE_INST];  // that event's glide speed (one-pole)
     uint32_t tape_wbl_seed[SOUND_FX_BUSES][TAPE_INST]; // per-instance LCG (deterministic, never shared)
@@ -1291,6 +1294,9 @@ static _Thread_local DeSound *de_snd = &de_snd_default;
 #define tape_used            (de_snd->tape_used)
 #define tape_warb            (de_snd->tape_warb)
 #define tape_wbl_off         (de_snd->tape_wbl_off)
+#define tape_wow_c           (de_snd->tape_wow_c)
+#define tape_flut_c          (de_snd->tape_flut_c)
+#define tape_head            (de_snd->tape_head)
 #define tape_wbl_tgt         (de_snd->tape_wbl_tgt)
 #define tape_wbl_coef        (de_snd->tape_wbl_coef)
 #define tape_wbl_seed        (de_snd->tape_wbl_seed)

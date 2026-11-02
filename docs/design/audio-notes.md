@@ -2004,6 +2004,18 @@ v1, document it on the panel.
     master slot stays at 0.000¢; a reverb tank folded into the group comes out 10.6 dB lower through the
     group's -12 dB mid cut than one left on the master, whichever order the two calls come in. Showcase:
     `seventyeight`. ⚠ A voice keeps the bus it STARTED on, so group in init().
+43. **TAPE DECLICK — switching wow/flutter mid-play no longer splices** — **✓ FIXED 2026-11-02**, found by
+    `seventyeight`'s needle. `tape_process` read wow/flutter straight from the setter, so turning tape ON or
+    OFF while sound played jumped the read between the dry signal and the 320-sample head in ONE sample, and
+    a new wow depth jumped it by up to ~100 samples: 24% of peak at the needle, 14.5x the local step. The
+    warble path had already learned this (its comment records a 22x splice) but wow/flutter never had. Now
+    the amounts GLIDE (`TAPE_AMT_SLEW`, ~30 ms: a depth change is a smooth pitch change, which is what a tape
+    does) and the head CROSSFADES against the warble-only read (`TAPE_HEAD_SLEW`, ~10 ms), each snapping
+    within 1e-4, and both are set outright when tape is configured before any audio renders. So 11 tape
+    carts that set tape up front render byte-identical to before (lofi, loficity, tapeloop, warbleprobe,
+    vapor, genloss, mellotron, pedalboard, groovebox, delia, portapop); `wowflutter`, which RIDES `tape()`
+    as its tape wears, now glides where it stepped (differs from 0.017 s, same splice count). The needle's
+    click is gone. soundcheck / fx-check / soak-check / web-audio-check (16/16 bit-identical) green.
 
 One-line version: **we built a very good modular synth and forgot to build the
 broken speaker it should play through.**

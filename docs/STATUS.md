@@ -25,6 +25,7 @@ _Last updated: 2026-10-29 — INSTR_SCRAPE: a guiro with teeth. See the top Ship
   probe `widthprobe`, ledger [`design/audio-notes.md`](design/audio-notes.md) §17 #41. **And the group bus:
   `instrument_group(slot, lead)`** (a whole band through one chain) + `reverb_bus_into` (a SUBMIX: the room
   goes through the record too) + `instrument_fx_filter` (filter() on a group's bus); §17 #42, probe `groupprobe`.
+  Fixed on the way: switching `tape` wow/flutter mid-play spliced (§17 #43).
 - **`INSTR_SCRAPE`: SCRAPED + RATTLED PERCUSSION FROM TEETH** (2026-10-29, GitHub #45, for Playtime's CR-78
   band). Guiro / quijada / cabasa / ratchet from one `instrument()` + three macros (BODY / TOOTH RATE /
   GESTURE): each tooth a click + friction through a two-mode body at its own frequency, a rattle's first

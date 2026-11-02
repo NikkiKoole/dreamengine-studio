@@ -2177,7 +2177,7 @@ static CtxKey sound_ctx_key(SoundReqKind k) {
         case SR_EQ_INST: case SR_CRUSH_INST: case SR_TAPE_INST: case SR_FILTER_INST: case SR_DRIVE_INST:
         case SR_INSTR_GLIDE: case SR_INSTR_GLIDE_SCALE: case SR_INSTR_TRIGGER:   // a=slot, like their neighbours
         case SR_INSTR_TAPE_WARBLE: case SR_INSTR_GRAINS_REPEAT: case SR_INSTR_WIDTH:
-        case SR_INSTR_GROUP: case SR_REVERB_BUS_INTO: case SR_INSTR_FX_FILTER:   // a=slot / a=tank
+        case SR_INSTR_GROUP: case SR_REVERB_BUS_INTO: case SR_INSTR_FX_FILTER: case SR_INSTR_MONO:   // a=slot / a=tank
             return CTXK_KA;
         // a+b name the target
         case SR_WAVE_SET:                          // a=which table, b=start index (chunked writes)
@@ -7148,9 +7148,14 @@ static void fx_chain_ensure(int b, int fx) {
 // Was inlined verbatim at SR_NOTE / SR_NOTE_ON / SR_HIT_AT.
 static void sound_choke_group(int instr_slot) {
     uint32_t cmask = (instr_slot >= 0 && instr_slot < SOUND_INSTR_SLOTS) ? instr_bank[instr_slot].choke_mask : 0;
-    if (!cmask) return;
+    // MONO (instrument_mono): the slot also cuts ITSELF — every voice of it still sounding, released or not,
+    // fades out over the same ~3 ms as a choke, so the new note is the only one. A legato note never gets
+    // here (sound_legato_to slides the sounding voice instead), so slide and mono compose: a 303.
+    bool mono = instr_slot >= 0 && instr_slot < SOUND_INSTR_SLOTS && instr_bank[instr_slot].mono;
+    if (!cmask && !mono) return;
     for (int i = 0; i < SOUND_VOICES; i++) {
-        if (voices[i].active && !voices[i].choke_fade && ((cmask >> voices[i].instr_slot) & 1)) {
+        if (voices[i].active && !voices[i].choke_fade
+            && (((cmask >> voices[i].instr_slot) & 1) || (mono && voices[i].instr_slot == instr_slot && voices[i].sfx_idx < 0))) {
             if (voices[i].held && voices[i].owner_slot >= 0) held_voice[voices[i].owner_slot] = -1;
             voices[i].choke_fade = CHOKE_FADE_LEN;   // ramp out over ~3ms (applied in the voice loop) → no cliff
 #ifdef DE_TRACE
@@ -7464,6 +7469,9 @@ static void sound_fire_req(SoundReq r) {
     case SR_INSTR_CHOKE: {  // a=slot_a, b=slot_b
         if (r.a >= 0 && r.a < SOUND_INSTR_SLOTS && r.b >= 0 && r.b < SOUND_INSTR_SLOTS)
             instr_bank[r.a].choke_mask |= (1u << r.b);
+    } break;
+    case SR_INSTR_MONO: {   // a=slot, b=on
+        if (r.a >= 0 && r.a < SOUND_INSTR_SLOTS) instr_bank[r.a].mono = r.b ? 1 : 0;
     } break;
     case SR_INSTR_DRIVE: {  // a=slot, b=val*1000
         int slot = r.a;
@@ -9799,6 +9807,13 @@ static void sound_macro_note(int handle, int which, float x) {
 void instrument_harmonics(int slot, float x) { sound_macro_slot(slot, 0, x); }
 void instrument_timbre(int slot, float x)    { sound_macro_slot(slot, 1, x); }
 void instrument_morph(int slot, float x)     { sound_macro_slot(slot, 2, x); }
+// MONO: one voice per slot — a new note on it cuts whatever the slot is still sounding (a ~3 ms fade, the
+// choke's), the TB-303 / Minimoog rule. With schedule_note_at's .glide_ms a legato note SLIDES instead, so
+// mono + glide is a whole 303 for booked notes. on 0 = polyphonic again (unlike instrument_choke, clearable).
+void instrument_mono(int slot, int on) {
+    if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
+    sound_push_ctrl(SR_INSTR_MONO, slot, on ? 1 : 0, 0, 0, 0, 0);
+}
 void instrument_choke(int slot_a, int slot_b) {
     if (slot_a < 0 || slot_a >= SOUND_INSTR_SLOTS) return;
     if (slot_b < 0 || slot_b >= SOUND_INSTR_SLOTS) return;
@@ -10605,6 +10620,7 @@ static void sound_reset_state(void) {
         instr_bank[i].gl_scale   = 0.0f;   // constant time (the byte-identical path skips powf entirely)
         instr_bank[i].trig       = TRIG_MULTI;  // every note gets its onset — the shipped behaviour
         instr_bank[i].acc_set    = 0;      // accent routes = the engine's defaults (only an accented booked note reads them)
+        instr_bank[i].mono       = 0;      // polyphonic until instrument_mono()
         for (int k = 0; k < ACC_N; k++) instr_bank[i].acc_amt[k] = 0.0f;
         instr_bank[i].rvb_tank   = -1;     // -1 = the master send; instrument_reverb_bus() points it at a tank
         instr_bank[i].sc_key     = 0;      // sidechain trigger routing — off until sidechain_key()

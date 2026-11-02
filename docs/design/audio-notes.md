@@ -2016,6 +2016,15 @@ v1, document it on the panel.
     vapor, genloss, mellotron, pedalboard, groovebox, delia, portapop); `wowflutter`, which RIDES `tape()`
     as its tape wears, now glides where it stepped (differs from 0.017 s, same splice count). The needle's
     click is gone. soundcheck / fx-check / soak-check / web-audio-check (16/16 bit-identical) green.
+44. **MONO for booked notes (`instrument_mono(slot, on)`)** — **✓ SHIPPED 2026-11-02**, for Playtime's 303,
+    which played booked notes like a polysynth (bossa's bass plays root + fifth at once; a TB-303 cannot). A new
+    note on a mono slot cuts every voice of that slot still sounding, released or not, over the choke's ~3 ms
+    fade. With `schedule_note_at`'s `.glide_ms` a legato note never reaches that cut (it slides the sounding
+    voice), so mono + glide is a whole 303 for booked notes — the booked twin of `acid303.h`'s single held
+    voice. A per-slot FLAG, not `choke_mask`: that mask is 32 bits for 48 slots (Playtime's 303 lives in slot
+    47) and has no way to be cleared, which a SHARED slot needs. Measured (a throwaway probe): A4 held under an
+    E5 reads -17 dB poly, -65 dB mono; the glide to G5 still slides; no click at the cut. tr808 / tr909 /
+    fingerdrums / acidrack / groovebox render byte-identical to before.
 
 One-line version: **we built a very good modular synth and forgot to build the
 broken speaker it should play through.**

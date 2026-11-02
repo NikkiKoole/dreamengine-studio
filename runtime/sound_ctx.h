@@ -102,6 +102,8 @@ typedef struct {
                                     // INSTRUMENT declares, because the right answer differs per instrument:
                                     // Hammond percussion must be single, a flute's chiff must be multi.
     float acc_amt[6];               // ACCENT ROUTES (instrument_accent), indexed by ACC_VOL..ACC_CUTOFF: how hard an
+    int   mono;                     // MONO (instrument_mono): a new note cuts this slot's own sounding voices — one voice,
+                                    // like a TB-303. NOT choke_mask, which is 32 bits for 48 slots and cannot be cleared.
     unsigned acc_set;               // accented booked note pushes each one. A route whose acc_set bit is CLEAR uses the
                                     // ENGINE'S DEFAULT (sound_accent_default), so accent works with no setup at all.
 } Instrument;
@@ -764,6 +766,7 @@ typedef enum {
     SR_INSTR_GROUP = 157,     // a=slot, b=lead slot (-1 = ungroup) — the slot plays through the lead's FX bus (instrument_group)
     SR_REVERB_BUS_INTO = 158, // a=tank 1..2, b=lead slot (-1 = master) — the tank's bus folds into the lead's bus (reverb_bus_into)
     SR_INSTR_FX_FILTER = 159, // a=slot, b=mode, c=cutoff_hz, e0=res*1000 — filter() on one instrument's (or group's) BUS (instrument_fx_filter)
+    SR_INSTR_MONO = 160,      // a=slot, b=on — MONO: a new note on this slot cuts the slot's sounding voices (instrument_mono)
 } SoundReqKind;
 typedef struct { SoundReqKind kind; int a, b, c; int delay_samples; int dur_samples; int e0, e1, e2; } SoundReq;
 #define SOUND_REQ_QUEUE   512   // generous: live held-voice control pushes many setters/frame, and a patch cart's

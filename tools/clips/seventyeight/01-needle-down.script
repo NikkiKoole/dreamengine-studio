@@ -1,0 +1,13 @@
+# seventyeight — the whole demo in 16 s: the band in the room, the bell, needle down (the band goes
+# onto one worn 78 together, its room with it), the bell again (still clean: it is not on the
+# record), more wear, needle up. Clicks at the record (110,100) and the bell (250,120).
+click 120 250 120     # bell, in the room
+click 300 110 100     # needle DOWN: onto the record
+click 480 250 120     # bell while the band is on the record: must stay bright
+down  560 UP
+up    562 UP
+down  600 UP
+up    602 UP
+down  640 UP
+up    642 UP          # wear 0.5 -> 0.8: deeper sags, more crackle
+click 840 110 100     # needle UP: back in the room

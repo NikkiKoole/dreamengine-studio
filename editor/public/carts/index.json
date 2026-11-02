@@ -6750,6 +6750,21 @@
     "homage": "Sensible Soccer (1992)"
   },
   {
+    "title": "Seventy-Eight",
+    "description": "A little 1920s dance band on a wind-up gramophone. Drop the needle and the whole band goes onto one worn 78 together: it warbles as one, loses its top and its bass, folds to mono, and the room's echo goes with it. Ring the bell: it stays bright and clean, because it is not on the record. Tuba on the one and three, banjo on the two and four, brushes, and a clarinet that slides between its notes (booked ahead with schedule_note_at, never re-tongued inside a phrase). Every band slot plays through ONE group bus (instrument_group); the record is that bus's chain: tape wow + warble, a bass-cut EQ and a lowpass on the whole group (instrument_fx_filter), stereo_width(0). The band's reverb tank folds into the same group (reverb_bus_into), so the hall is recorded onto the disc rather than added afterwards. The bell is a separate slot on the master, which is exactly what a game's sound effects would be. More WEAR = deeper sags and more crackle. SPACE or tap the record: needle down / up · UP / DOWN or tap the WEAR bar: wear · X or tap the bell: ring it",
+    "file": "seventyeight.cart.png",
+    "created": "2026-11-02",
+    "kind": [
+      "toy",
+      "instrument"
+    ],
+    "teaches": [
+      "per-instrument-fx-bus",
+      "waveguide-synth"
+    ],
+    "lineage": "Showcase for GitHub #47 (from Playtime's booked score music): instrument_group + reverb_bus_into (a whole band, its room included, on ONE worn record), stereo_width (a 78 is mono), and schedule_note_at (a clarinet that slides note to note, a tuba that leans on the downbeat), all booked ahead on the audio clock."
+  },
+  {
     "title": "sfx editor",
     "description": "Draw a sound, PICO-8 style. Paint a pitch contour over 32 steps with the mouse (left = draw, right = erase), shape the volume lane and the filter CUT lane (top = wide open, lower = darker; a RES slider adds squelch), pick a wave per step, set the speed, SPACE to hear it. A SCALE picker (major/minor/penta/blues/hexatonic/whole-tone + a KEY root; click cycles, right-click cycles back) snaps painted notes in key, with faint row guides showing where notes can land — OFF for chromatic freehand. Press E to EXPORT the sound as C code — a step array plus a tiny player function — printed to the log, ready to paste into your game (no engine sound banks needed: playback is just hit() per step). S/L save and load, LOOP toggles looping, BACKSPACE clears. The prototype for cart-authored sfx (audio-notes §5.6).",
     "file": "sfxed.cart.png",

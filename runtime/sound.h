@@ -1908,7 +1908,7 @@ static void fx_set_gate(int b, float threshold, int attack_ms, int release_ms) {
 // ── width — STEREO WIDTH as an insert (issue #47: the 78 is MONO, and nothing could narrow a mix) ──
 // Mid/side: M = (L+R)/2 stays, S = (L-R)/2 is scaled by the width, L = M+S, R = M-S. 0 = mono (both
 // channels exactly the mid, bit for bit, once the slew lands), 1 = as is, 2 = twice as wide. On the
-// MASTER it runs after the send returns, so width(0) folds the reverb/echo tails to mono too.
+// MASTER it runs after the send returns, so stereo_width(0) folds the reverb/echo tails to mono too.
 // The amount SLEWS (SLEW_FAST, ~0.1 s to land): a jump in width is a step in L-R, i.e. a click on
 // anything panned. It SNAPS within 1e-4 (a step 80 dB down) so mono is exact rather than asymptotic —
 // and the threshold cannot be tighter: approaching 1.0, (1-c)*SLEW_FAST falls under half a float ULP at
@@ -10222,11 +10222,11 @@ void instrument_gate(int slot, float threshold, int attack_ms, int release_ms) {
     sound_push_ctrl(SR_INSTR_GATE, slot, (int)(threshold * 1000.0f), attack_ms, release_ms, 0, 0);
 }
 
-// ── width: stereo width as an insert — 0 mono · 1 as is · 2 wider (issue #47, the mono 78) ──
-void width(float amount) {
+// ── stereo_width: stereo width as an insert — 0 mono · 1 as is · 2 wider (issue #47, the mono 78) ──
+void stereo_width(float amount) {
     sound_push_ctrl(SR_WIDTH, (int)(amount * 1000.0f + 0.5f), 0, 0, 0, 0, 0);
 }
-void instrument_width(int slot, float amount) {
+void instrument_stereo_width(int slot, float amount) {
     if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
     sound_push_ctrl(SR_INSTR_WIDTH, slot, (int)(amount * 1000.0f + 0.5f), 0, 0, 0, 0);
 }

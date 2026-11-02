@@ -311,8 +311,8 @@
     X(fx_lfo) \
     X(gate) \
     X(instrument_gate) \
-    X(width) \
-    X(instrument_width) \
+    X(stereo_width) \
+    X(instrument_stereo_width) \
     X(filter) \
     X(filter_inst) \
     X(sidechain) \

@@ -8499,7 +8499,7 @@
   },
   {
     "title": "stereo width probe",
-    "description": "Measurement probe, not a playable cart (status hidden). Two notes hard-panned left and right and a plate reverb (whose tail is itself stereo), so the mix is wide in two different ways. VARIANT 0 never calls width; 1 calls width(0) at boot (must be mono, tail included); 2 calls width(1) (must be byte-identical to 0); 3 calls width(2); 4 goes width(0) and back to width(1) after two seconds (must end byte-identical again). Render it with `node tools/play.js widthprobe script /dev/null --headless --frames 360 --wav out.wav`.",
+    "description": "Measurement probe, not a playable cart (status hidden). Two notes hard-panned left and right and a plate reverb (whose tail is itself stereo), so the mix is wide in two different ways. VARIANT 0 never calls width; 1 calls stereo_width(0) at boot (must be mono, tail included); 2 calls stereo_width(1) (must be byte-identical to 0); 3 calls stereo_width(2); 4 goes stereo_width(0) and back to stereo_width(1) after two seconds (must end byte-identical again). Render it with `node tools/play.js widthprobe script /dev/null --headless --frames 360 --wav out.wav`.",
     "file": "widthprobe.cart.png",
     "created": "2026-11-02",
     "kind": [
@@ -8508,7 +8508,7 @@
     "teaches": [
       "algorithm-visualization"
     ],
-    "lineage": "Measurement probe for width() (issue #47: a 78 is mono, and nothing could narrow a mix). Rendered headless and read back with tools/stereo-check.js; not played by hand."
+    "lineage": "Measurement probe for stereo_width() (issue #47: a 78 is mono, and nothing could narrow a mix). Rendered headless and read back with tools/stereo-check.js; not played by hand."
   },
   {
     "title": "Wildfire",

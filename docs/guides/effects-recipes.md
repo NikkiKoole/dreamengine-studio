@@ -772,7 +772,7 @@ keeps the dry present with the watery wobble on top). **Showcase: `pedalboard`**
 > envelope (quiet = dark, the bloom), which chorus has no notion of. First insert built on the
 > modulation kit's filtered-random source — see [`boutique-pedals-roadmap.md`](../design/boutique-pedals-roadmap.md).
 
-## width — `width(amount)` · `instrument_width(slot, amount)`
+## stereo width — `stereo_width(amount)` · `instrument_stereo_width(slot, amount)`
 
 **Stereo width** as an insert (`FX_WIDTH` = 19): the mid stays, the left-right difference is scaled.
 `0` = mono, `1` = as is (bypass, byte-identical), `2` = twice as wide. It glides to a new amount in
@@ -781,9 +781,9 @@ the reverb/echo returns, so their tails narrow too. Check the result with `tools
 
 | recipe | call | character | used by |
 |---|---|---|---|
-| the 78 / phone speaker | `width(0.0f)` | the whole mix in mono, reverb tail included — pair with `tape` + a band-limiting `eq` for an old record | — |
-| tame a wide pad | `instrument_width(slot, 0.5f)` | a chorused/plate-heavy part pulled in so it stops crowding the sides | — |
-| widen the master | `width(1.5f)` | more side — check `stereo-check`'s mono-fold loss, a wide mix loses level summed to mono | — |
+| the 78 / phone speaker | `stereo_width(0.0f)` | the whole mix in mono, reverb tail included — pair with `tape` + a band-limiting `eq` for an old record | — |
+| tame a wide pad | `instrument_stereo_width(slot, 0.5f)` | a chorused/plate-heavy part pulled in so it stops crowding the sides | — |
+| widen the master | `stereo_width(1.5f)` | more side — check `stereo-check`'s mono-fold loss, a wide mix loses level summed to mono | — |
 
 ## leslie — `leslie(speed, drive, balance, doppler, mix)` · `instrument_leslie(slot, …)`
 

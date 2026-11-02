@@ -180,6 +180,34 @@ swing. The genuine fix decouples the audio clock from the buffer cadence → Aud
    engine with frames at 60 Hz and audio in fixed 1024 blocks (the `--wav` harness locks audio to frames
    and cannot see this) — 0 samples of click-gap error, against 785 for the old way as the negative
    control. `beat()`/`every()` and the radios are unchanged; porting `radio.h`'s clock to it is next.
+2c. **SHIPPED (2026-11-02, GitHub #47) — a booked note can now say more: `schedule_note_at(t, …, &NoteOpts)`.**
+   Before, a booked note was pitch + slot + vol + length and nothing else, so a sequencer that books ahead
+   could not play LEGATO (a booked note was always a new voice; `instrument_glide` only moves a HELD note,
+   and held notes are frame-loop calls, up to ~16 ms off the beat) or ACCENT (vol is 8 steps of loudness).
+   Setting a slot macro just before booking does not work either: a booked note copies its slot when it
+   STARTS, so every note booked but not yet playing picks up the newest value. So the extras TRAVEL WITH
+   THE NOTE, in the request's spare `e0/e1/e2` (glide ms · accent · three 10-bit macro offsets), through the
+   delayed pen untouched, flagged by `NOTE_EX_FLAG` so a plain note can never take the new path.
+   - **Legato** (`.glide_ms > 0`): the newest booked voice on that SLOT whose key is still down at t slides to
+     the new pitch (the same pitch-space ramp as `note_glide`), its gate moves to t + dur, and the envelopes
+     do NOT re-fire — which is a 303 slide exactly (the sweep belongs to the note that started the phrase).
+     Held `note_on` voices are never taken. Nothing sounding = an ordinary attack. ⚠ MONO PER SLOT: a host
+     that hands slots out from a pool (Playtime's `slotOf`) must keep a phrase on one slot.
+   - **Accent** (`.accent` 0..1) with `instrument_accent(slot, ACC_*, amount)` routes that each fall back to
+     an ENGINE DEFAULT, so it works with no setup: +40% vol, a 2× harder cutoff mod-envelope (the 303 accent
+     circuit), and the timbre macro where timbre means "harder" (mallet / hammer / breath / bow pressure …).
+     Applied after the slot is copied and BEFORE the engine start hooks, so a piano hammer or a flute's
+     breath sees the accented value from the first sample.
+   Measured with `legatoprobe` (three variants): an all-zero `NoteOpts` renders BYTE-IDENTICAL to plain
+   `schedule_at` over the whole 15 s file; unaccented 303 steps match plain to 0 difference while accented
+   ones go 0.162 → 0.224 peak and ~1.4k → 2.6k Hz onset centroid; the flute phrase holds its level through
+   each join (rms 0.088–0.091, against a 0.071 dip where plain re-attacks) while the pitch slides from the
+   onset; the 303 slide glides 45 → 48 in ~60 ms at a 341 Hz centroid (no re-fired sweep); mallet timbre
+   offsets −0.3 / 0 / +0.5 read 606 / 720 / 999 Hz. No new clicks at any legato join (click-check, vs plain).
+   ⚠ A legato phrase uses FEWER voices than the same notes re-attacked, so engines with a shared noise
+   state (PIPE's breath) render LATER unrelated notes slightly differently — the probe's T5 shows it. That
+   is voice allocation, not the accent; the 303/mallet comparisons have no such state and match exactly.
+   Still open on #47: the group bus and `width()`.
 3. **Cart-level — schedule ahead.** Carts on the frame-triggered path adopt the
    `radio.h` pattern (or a future shared helper) and trigger via
    `schedule`/`schedule_hit`/`strum` instead of `hit()` on the beat. Infrastructure

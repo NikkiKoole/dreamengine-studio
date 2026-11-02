@@ -101,6 +101,9 @@ typedef struct {
                                     // another key on this slot is still down does NOT). A property the
                                     // INSTRUMENT declares, because the right answer differs per instrument:
                                     // Hammond percussion must be single, a flute's chiff must be multi.
+    float acc_amt[6];               // ACCENT ROUTES (instrument_accent), indexed by ACC_VOL..ACC_CUTOFF: how hard an
+    unsigned acc_set;               // accented booked note pushes each one. A route whose acc_set bit is CLEAR uses the
+                                    // ENGINE'S DEFAULT (sound_accent_default), so accent works with no setup at all.
 } Instrument;
 #define SOUND_UNISON_MAX 7   // JP-8000 Super Saw = 7 detuned voices; the max unison stack per slot
 typedef struct { float b0, b1, b2, a1, a2, z1, z2; } SoundBiquad;
@@ -753,6 +756,9 @@ typedef enum {
     SR_INSTR_TAPE_WARBLE = 151, // a=slot, b=amount*1000 — the same on one instrument's tape
     SR_GRAINS_REPEAT = 152,   // a=beats*1000 — master grain tank becomes a beat-locked REPEAT (grains_repeat), chompi-harvest §3
     SR_INSTR_GRAINS_REPEAT = 153, // a=slot, b=beats*1000 — the same on one instrument's grain tank
+    SR_INSTR_ACCENT = 154,    // a=slot, b=ACC_* route, c=amount*1000 (signed) — what an accented note does on this
+                              // slot (instrument_accent). The ACCENT itself rides on a booked note: schedule_note_at()
+                              // sends an SR_NOTE_AT whose e0/e1/e2 carry glide/accent/macro offsets (NOTE_EX_* below)
 } SoundReqKind;
 typedef struct { SoundReqKind kind; int a, b, c; int delay_samples; int dur_samples; int e0, e1, e2; } SoundReq;
 #define SOUND_REQ_QUEUE   512   // generous: live held-voice control pushes many setters/frame, and a patch cart's

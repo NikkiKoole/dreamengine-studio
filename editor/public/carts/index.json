@@ -4066,6 +4066,19 @@
     "lineage": "The demo for docs/design/chompi-harvest.md: what we took from CHOMPI's MIT open-source release (CHOMPI Club / Chase Bliss). TEMPO's pattern generator (runtime/patgen.h), TAPE's warble (tape_warble), TEMPO's clock-locked freeze (grains_repeat), TAPE's one-knob delay and snap-to-fifths pitch. Not a CHOMPI clone and not named like one: the name and artwork are not licensed."
   },
   {
+    "title": "booked legato + accent probe",
+    "description": "Measurement probe, not a playable cart (status hidden). Books five tests at fixed audio times in the first frame: T1 a four-note flute phrase that should SLIDE note to note on one voice; T2 an eight-step 303 line with accents on steps 2 and 5; T3 the same line with a 303 SLIDE from step 3 into step 4; T4 a mallet and T5 a flute alternating plain and accented notes; T6 a mallet with a per-note timbre offset. VARIANT 0 uses the new extras, 1 books every note through schedule_note_at with an all-zero NoteOpts, 2 uses plain schedule_at — 1 and 2 must render byte-identical. Render it with `node tools/play.js legatoprobe script /dev/null --headless --frames 780 --wav out.wav`.",
+    "file": "legatoprobe.cart.png",
+    "created": "2026-11-02",
+    "kind": [
+      "tech-demo"
+    ],
+    "teaches": [
+      "algorithm-visualization"
+    ],
+    "lineage": "Measurement probe for schedule_note_at() (issue #47, from Playtime's booked music): legato glides, accents and per-note macro offsets on notes booked ahead with audio_time(). Rendered headless and read back by pitch, peak and centroid; not played by hand."
+  },
+  {
     "title": "Lemmings",
     "description": "A one-screen tribute to DMA Design's 1991 classic. A trapdoor drops a stream of brainless green-haired lemmings that trudge right, fall off ledges, splat in the lava pit, and turn at walls with zero self-preservation. The terrain IS the physics: a destructible pixel buffer where diggers and bashers erase dirt and collision just reads it back. Arm a job from the bottom toolbar then click a lemming to assign it — DIG straight down, BUILD a diagonal bridge, BLOCK as a living wall that turns the herd around, or BASH sideways through dirt — and steer enough of them into the glowing HOME exit before you run out. Save 10 of 20 to win. Controls: click a job tile in the bottom bar to arm it, click on a lemming to assign the armed job, right-click or click the armed tile again to disarm, R to restart.",
     "file": "lemmings.cart.png",

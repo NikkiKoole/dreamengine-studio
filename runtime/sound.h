@@ -2127,6 +2127,7 @@ static CtxKey sound_ctx_key(SoundReqKind k) {
         case SR_REVERB_BUS_FX:                     // a=tank, b=fx
         case SR_SIDECHAIN:                         // a=victim bus, b=trigger key
         case SR_ENG_TUNE:                          // a=slot, b=param idx
+        case SR_INSTR_ACCENT:                      // a=slot, b=ACC_* route
             return CTXK_KAB;
         // a+c name the target
         case SR_FX_MOD: case SR_FX_LFO:            // a=target, c=bus
@@ -6684,10 +6685,76 @@ static void emit_process(int b, float *mixL, float *mixR) {
     *mixR = oR * emit_gain[b] * pR;
 }
 
+// ── BOOKED-NOTE EXTRAS: schedule_note_at() (issue #47) ─────────────────────────────────────────────
+// A booked note is fire-and-forget, so anything it wants beyond pitch/slot/vol/length has to TRAVEL
+// WITH IT: setting a slot macro just before booking does not work, because a booked note copies the
+// slot when it STARTS and every note booked-but-not-started would pick up the latest value. So the
+// extras ride in the request's e0/e1/e2 (free on a note: only held-handle requests use them), through
+// the delayed pen untouched, and are unpacked when the note fires:
+//   e0 = glide_ms (0..60000; > 0 = LEGATO, see sound_legato_voice)
+//   e1 = NOTE_EX_FLAG | accent*1000 (0..1000)   — the flag tells an extended note from a plain one,
+//        whose e1 is always 0 (sound_push_req zeroes it), so every existing note takes the old path
+//   e2 = harmonics | timbre << 10 | morph << 20, each a signed 10-bit OFFSET (±1 in 1/511 steps) added
+//        to the slot's own macro — an offset, not an absolute, so 0 (a zeroed NoteOpts) means "the slot's"
+#define ACC_N        6
+#define NOTE_EX_FLAG (1 << 20)
+typedef struct { int glide_ms; float accent, harm, timb, mor; } NoteEx;
+static inline int note_ex_q10(float x) {
+    x = x < -1.0f ? -1.0f : (x > 1.0f ? 1.0f : x);
+    int q = (int)(x * 511.0f + (x < 0.0f ? -0.5f : 0.5f));
+    return q & 0x3FF;
+}
+static inline float note_ex_unq10(int bits) {
+    int q = bits & 0x3FF; if (q & 0x200) q -= 0x400;   // sign-extend the 10-bit field
+    return (float)q / 511.0f;
+}
+static bool note_ex_unpack(const SoundReq *r, NoteEx *ex) {
+    if (!(r->e1 & NOTE_EX_FLAG)) return false;
+    ex->glide_ms = r->e0 < 0 ? 0 : (r->e0 > 60000 ? 60000 : r->e0);
+    ex->accent   = (float)(r->e1 & 0xFFFFF) / 1000.0f;
+    ex->harm     = note_ex_unq10(r->e2);
+    ex->timb     = note_ex_unq10(r->e2 >> 10);
+    ex->mor      = note_ex_unq10(r->e2 >> 20);
+    return true;
+}
+
+// ACCENT DEFAULTS — what an accented note does on a slot nobody configured with instrument_accent().
+// The point of a per-engine default is that a host can book `accent = 0.8` on ANY patch and get
+// something an ear calls "leaned on", without knowing which macro means what on which engine:
+//   ACC_VOL  0.4  — louder by up to +40% (≈ +3 dB), the 303's own 5 → 7 step
+//   ACC_ENV  1.0  — a cutoff mod-envelope (ENV_CUTOFF/_OCT) kicks up to 2× harder: the 303 accent
+//                   circuit. A no-op on a slot with no filter envelope, so it is safe as a default
+//   ACC_TIMBRE    — the engine macro that IS "struck/blown harder": pick, mallet, hammer, breath air,
+//                   bow pressure, reed edge, brassiness, FM index. 0 where timbre means something
+//                   else (MEMBRANE strike POSITION, MODAL material, GRAIN size …), so nothing odd happens
+// HARMONICS / MORPH / CUTOFF default to 0: no engine's "harder" lives there.
+static float sound_accent_default(int wave, int route) {
+    if (route == ACC_VOL) return 0.4f;
+    if (route == ACC_ENV) return 1.0f;
+    if (route != ACC_TIMBRE) return 0.0f;
+    switch (wave) {
+        case INSTR_MALLET:                          return 0.30f;   // harder mallet
+        case INSTR_PLUCK:  case INSTR_PIPE:  case INSTR_BRASS:
+        case INSTR_FM:     case INSTR_FM4:          return 0.25f;   // pick / breath air / brassiness / index
+        case INSTR_EPIANO: case INSTR_PIANO: case INSTR_GUITAR:
+        case INSTR_REED:   case INSTR_BOWED:        return 0.20f;   // hammer / string / reed edge / bow pressure
+        default:                                    return 0.0f;
+    }
+}
+static inline float sound_accent_route(const Instrument *ins, int k) {
+    return (ins->acc_set & (1u << k)) ? ins->acc_amt[k] : sound_accent_default(ins->wave, k);
+}
+static inline float clamp01f_ex(float x) { return x < 0.0f ? 0.0f : (x > 1.0f ? 1.0f : x); }
+
 // Shared note setup for both one-shot note() (kind 2) and held note_on() — copies the
 // instrument's timbre/ADSR/LFO/filter into the voice. gate_samples = the gated length
-// (SOUND_HELD_GATE for a sustained note_on; a finite count for a one-shot).
+// (SOUND_HELD_GATE for a sustained note_on; a finite count for a one-shot). `ex` = a booked note's
+// extras (schedule_note_at), NULL for every other note — which is what keeps them byte-identical.
+static void sound_setup_note_ex(Voice *v, int midi, int slot, int vol, int gate_samples, const NoteEx *ex);
 static void sound_setup_note(Voice *v, int midi, int slot, int vol, int gate_samples) {
+    sound_setup_note_ex(v, midi, slot, vol, gate_samples, NULL);
+}
+static void sound_setup_note_ex(Voice *v, int midi, int slot, int vol, int gate_samples, const NoteEx *ex) {
     if (slot < 0 || slot >= SOUND_INSTR_SLOTS) slot = 0;
     Instrument *ins = &instr_bank[slot];
     v->active      = true;
@@ -6756,6 +6823,28 @@ static void sound_setup_note(Voice *v, int midi, int slot, int vol, int gate_sam
     v->harm = v->harm_target = ins->harmonics;
     v->timb = v->timb_target = ins->timbre;
     v->mor  = v->mor_target  = ins->morph;
+    // A BOOKED NOTE'S EXTRAS land HERE: after the slot's values are copied, before the engine start hooks
+    // below read them — so a piano's hammer, a flute's breath, a mallet's hardness all see the accented
+    // value from the very first sample (setting a macro AFTER the hook would only move the slew target).
+    if (ex) {
+        float acc = ex->accent;
+        float vm  = 1.0f + acc * sound_accent_route(ins, ACC_VOL);
+        float vv  = v->vol * vm; v->vol = v->vol_target = vv < 0.0f ? 0.0f : (vv > 1.5f ? 1.5f : vv);
+        v->harm = v->harm_target = clamp01f_ex(v->harm + ex->harm + acc * sound_accent_route(ins, ACC_HARMONICS));
+        v->timb = v->timb_target = clamp01f_ex(v->timb + ex->timb + acc * sound_accent_route(ins, ACC_TIMBRE));
+        v->mor  = v->mor_target  = clamp01f_ex(v->mor  + ex->mor  + acc * sound_accent_route(ins, ACC_MORPH));
+        if (acc > 0.0f) {
+            float em = 1.0f + acc * sound_accent_route(ins, ACC_ENV);
+            for (int e = 0; e < SOUND_ENVS; e++)
+                if (v->env_dest[e] == ENV_CUTOFF || v->env_dest[e] == ENV_CUTOFF_OCT) v->env_amount[e] *= em;
+            float co = acc * sound_accent_route(ins, ACC_CUTOFF);   // octaves
+            if (co != 0.0f) {
+                float c = v->flt_cutoff * de_powf(2.0f, co);
+                if (c > 20000.0f) c = 20000.0f;
+                v->flt_cutoff = v->cutoff_target = c;
+            }
+        }
+    }
     if (v->wave == INSTR_VOICE) vox_apply_macros(v);   // seed VOWEL/SIZE/EFFORT from the macros
     v->drv  = v->drv_target  = ins->drive;
     v->sync_ph = 0.0f;
@@ -6855,6 +6944,45 @@ static void sound_setup_note(Voice *v, int midi, int slot, int vol, int gate_sam
     v->step_samples     = 0;
     v->step_len_samples = gate_samples;
     v->rel_start        = sound_adsr_gated(gate_samples, v->a_samp, v->d_samp, v->sustain);
+}
+
+// LEGATO, booked ahead (schedule_note_at with glide_ms > 0). Which voice does a legato note slide?
+// The most recently started booked voice on this SLOT that still has its KEY DOWN at this sample —
+// the same "inside its gate" test as sound_slot_key_down, so a note already in its release does not
+// get dragged back up (a phrase with a gap re-attacks, as a flute player re-tongues). Held note_on()
+// voices are excluded: they belong to a handle the cart is riding, and a booked note must never
+// steal one. Mono per slot, by design — this is how a flute, a voice or a 303 plays a line; a host
+// that pools slots must keep a phrase on ONE slot, or every note takes the fresh-attack path.
+static Voice *sound_legato_voice(int slot) {
+    Voice *best = NULL;
+    for (int i = 0; i < SOUND_VOICES; i++) {
+        Voice *o = &voices[i];
+        if (!o->active || o->held || o->sfx_idx >= 0 || o->choke_fade) continue;
+        if (o->instr_slot != slot || o->step_samples >= o->step_len_samples) continue;
+        if (!best || o->step_samples < best->step_samples) best = o;
+    }
+    return best;
+}
+
+// Slide `v` to the new note WITHOUT re-attacking it: pitch glides over glide_ms (in pitch, with the
+// slot's glide scale — the same ramp note_glide + note_pitch use), the volume and macro offsets slew
+// to the new note's values, and the gate is extended so the key now lifts `gate` samples from HERE.
+// The envelopes do NOT re-fire — that is what legato means, and on a 303 it is exactly the slide:
+// the filter sweep belongs to the note that started the phrase. The accent's VOLUME still applies
+// (acid303.h's slide sets note_vol too); its envelope kick, having nothing to kick, does not.
+static void sound_legato_to(Voice *v, int midi, int vol, int gate, const NoteEx *ex) {
+    const Instrument *ins = &instr_bank[v->instr_slot];
+    v->freq_target = sound_midi_to_freq(midi);
+    v->gl_ms = ex->glide_ms;
+    sound_glide_start(v);
+    float vv = (vol < 0 ? 0 : vol > 7 ? 7 : vol) / 7.0f * (1.0f + ex->accent * sound_accent_route(ins, ACC_VOL));
+    v->vol_target  = vv < 0.0f ? 0.0f : (vv > 1.5f ? 1.5f : vv);
+    v->harm_target = clamp01f_ex(ins->harmonics + ex->harm + ex->accent * sound_accent_route(ins, ACC_HARMONICS));
+    v->timb_target = clamp01f_ex(ins->timbre    + ex->timb + ex->accent * sound_accent_route(ins, ACC_TIMBRE));
+    v->mor_target  = clamp01f_ex(ins->morph     + ex->mor  + ex->accent * sound_accent_route(ins, ACC_MORPH));
+    long long end = (long long)v->step_samples + (gate < 1 ? 1 : gate);
+    v->step_len_samples = end > 0x7FFFFFFF ? 0x7FFFFFFF : (int)end;
+    v->rel_start        = sound_adsr_gated(v->step_len_samples, v->a_samp, v->d_samp, v->sustain);
 }
 
 // Configure a voice to play one SFX step. Does not touch active / sfx_idx / step.
@@ -6989,12 +7117,23 @@ static void sound_fire_req(SoundReq r) {
     case SR_NOTE_AT:   // never arrives here in practice (the drain turns it into an SR_NOTE countdown); play it now if it does
     case SR_NOTE: {
         int gate = r.dur_samples > 0 ? r.dur_samples : SOUND_SAMPLE_RATE / 4;
+        NoteEx ex; bool has_ex = note_ex_unpack(&r, &ex);   // only a schedule_note_at() note has extras
+        if (has_ex && ex.glide_ms > 0 && r.b >= 0 && r.b < SOUND_INSTR_SLOTS) {
+            Voice *lv = sound_legato_voice(r.b);
+            if (lv) {   // LEGATO: a note on this slot still has its key down → slide it, no new attack
+#ifdef DE_TRACE
+                sve_push_v(SVE_ON, r.b, r.a, (int)(lv - voices), -1, r.c, gate);   // a played note, on the SAME voice
+#endif
+                sound_legato_to(lv, r.a, r.c, gate, &ex);
+                break;
+            }
+        }
         sound_choke_group(r.b);
         int vi = sound_find_voice();
 #ifdef DE_TRACE
         sve_push_v(SVE_ON, r.b, r.a, vi, -1, r.c, gate);   // fire-and-forget note() — victim -1 (no handle)
 #endif
-        sound_setup_note(&voices[vi], r.a, r.b, r.c, gate);
+        sound_setup_note_ex(&voices[vi], r.a, r.b, r.c, gate, has_ex ? &ex : NULL);
     } break;
     case SR_NOTE_ON: {    // held / sustained — e0 = handle slot, e1 = generation
         int slot = r.e0, gen = r.e1;
@@ -7110,6 +7249,16 @@ static void sound_fire_req(SoundReq r) {
         int slot = r.a;
         if (slot >= 0 && slot < SOUND_INSTR_SLOTS)
             instr_bank[slot].trig = (r.b == TRIG_SINGLE) ? TRIG_SINGLE : TRIG_MULTI;
+    } break;
+    case SR_INSTR_ACCENT: {   // a=slot, b=route, c=amount*1000 (signed)
+        int slot = r.a;
+        if (slot >= 0 && slot < SOUND_INSTR_SLOTS) {
+            if (r.b >= 0 && r.b < ACC_N) {
+                float a = r.c / 1000.0f;
+                instr_bank[slot].acc_amt[r.b] = a < -4.0f ? -4.0f : (a > 4.0f ? 4.0f : a);
+                instr_bank[slot].acc_set |= 1u << r.b;
+            }
+        }
     } break;
     case SR_NOTE_OFF_ALL: {
         for (int i = 0; i < SOUND_VOICES; i++)
@@ -10124,6 +10273,34 @@ void schedule_at(double t, int midi, int instr, int vol, int dur_ms) {
     sound_push_req(SR_NOTE_AT, midi, instr, vol, (int)(target & 0x7FFFFFFF), dur);
 }
 
+// schedule_at + the things a booked note could not say before (issue #47): LEGATO (glide_ms > 0 slides
+// the slot's still-sounding note instead of attacking a new one), an ACCENT (0..1, what it does is the
+// slot's instrument_accent routes or the engine default), and per-note MACRO OFFSETS. All of it travels
+// in the request (see NOTE_EX_FLAG) because a booked note reads its slot only when it STARTS. NULL opts
+// = exactly schedule_at — the same request, bit for bit, so it is safe to route every note through here.
+void schedule_note_at(double t, int midi, int instr, int vol, int dur_ms, const NoteOpts *opts) {
+    if (!opts) { schedule_at(t, midi, instr, vol, dur_ms); return; }
+    long long target = (long long)(t * (double)SOUND_SAMPLE_RATE + 0.5);
+    if (target < 0) target = 0;
+    int dur = ms_samp(dur_ms);
+    if (dur < 1) dur = 1;
+    int g = opts->glide_ms < 0 ? 0 : (opts->glide_ms > 60000 ? 60000 : opts->glide_ms);
+    float a = opts->accent < 0.0f ? 0.0f : (opts->accent > 1.0f ? 1.0f : opts->accent);
+    int e2 = note_ex_q10(opts->harmonics) | (note_ex_q10(opts->timbre) << 10) | (note_ex_q10(opts->morph) << 20);
+    sound_push((SoundReq){ .kind = SR_NOTE_AT, .a = midi, .b = instr, .c = vol,
+                           .delay_samples = (int)(target & 0x7FFFFFFF), .dur_samples = dur,
+                           .e0 = g, .e1 = NOTE_EX_FLAG | (int)(a * 1000.0f + 0.5f), .e2 = e2 });
+}
+
+// What an ACCENTED booked note does on this slot: route ACC_* gets `amount` (see sound_accent_default for
+// what each route scales, and the engine defaults a route keeps until it is set). One log entry per
+// (slot, route), last write wins — so there is deliberately no "reset all" form: a reset entry would
+// dedup into its own key and replay in the wrong order against later sets (de_switch_cart).
+void instrument_accent(int slot, int route, float amount) {
+    if (slot < 0 || slot >= SOUND_INSTR_SLOTS || route < 0 || route >= ACC_N) return;
+    sound_push_ctrl(SR_INSTR_ACCENT, slot, route, (int)(amount * 1000.0f + (amount < 0 ? -0.5f : 0.5f)), 0, 0, 0);
+}
+
 void bpm(int rate) {
     if (rate < 1)   rate = 1;
     if (rate > 999) rate = 999;
@@ -10276,6 +10453,8 @@ static void sound_reset_state(void) {
         instr_bank[i].gl_ms      = 0;      // no portamento until instrument_glide() — old carts unchanged
         instr_bank[i].gl_scale   = 0.0f;   // constant time (the byte-identical path skips powf entirely)
         instr_bank[i].trig       = TRIG_MULTI;  // every note gets its onset — the shipped behaviour
+        instr_bank[i].acc_set    = 0;      // accent routes = the engine's defaults (only an accented booked note reads them)
+        for (int k = 0; k < ACC_N; k++) instr_bank[i].acc_amt[k] = 0.0f;
         instr_bank[i].rvb_tank   = -1;     // -1 = the master send; instrument_reverb_bus() points it at a tank
         instr_bank[i].sc_key     = 0;      // sidechain trigger routing — off until sidechain_key()
         instr_bank[i].sc_send    = 0.0f;

@@ -935,6 +935,15 @@ void  schedule(int delay_ms, int midi, int instr, int vol);  // play a note in t
 void  schedule_hit(int delay_ms, int midi, int instr, int vol, int dur_ms);  // schedule() + hit() in one: a custom-length note at a sample-accurate future time. THE tool for fast sfx/arp steps — no frame-rate jitter
 double audio_time(void);                                      // seconds of sound the engine has actually played so far — the clock notes are placed on. pair it with schedule_at
 void  schedule_at(double t, int midi, int instr, int vol, int dur_ms);  // play a note at audio_time() t exactly — for a sequencer that books notes ahead (a groove stays tight; a delay from now can land up to 23ms off)
+typedef struct { int glide_ms; float accent, harmonics, timbre, morph; } NoteOpts;   // extras for ONE booked note — any field left 0 = "as the slot is". glide_ms > 0 = LEGATO · accent 0..1 · harmonics/timbre/morph = -1..1 OFFSETS on the slot's macros
+void  schedule_note_at(double t, int midi, int instr, int vol, int dur_ms, const NoteOpts *opts);  // schedule_at with extras: glide_ms > 0 SLIDES the slot's still-sounding note to this one (no new attack — a flute phrase, a 303 slide; book the previous note long enough to reach t, and keep a phrase on ONE slot), accent leans on the note (louder + what instrument_accent says), macro offsets reshape just this note. NULL = schedule_at. schedule_note_at(t, 62, 5, 6, 200, &(NoteOpts){ .glide_ms = 60, .accent = 1 });
+void  instrument_accent(int slot, int route, float amount);  // what an ACCENTED booked note does on this slot. route ACC_*; a route you never set keeps the engine's default (louder, a harder filter-env kick, and the engine's own "harder" macro: mallet, hammer, breath, bow pressure…), so accent works with no setup
+#define ACC_VOL       0   // louder: vol × (1 + accent·amount). default 0.4 (≈ +3 dB)
+#define ACC_ENV       1   // a cutoff mod-envelope (ENV_CUTOFF/_OCT) kicks harder: amount × (1 + accent·amount). default 1 — the 303 accent
+#define ACC_HARMONICS 2   // + accent·amount on the harmonics macro. default 0
+#define ACC_TIMBRE    3   // + accent·amount on the timbre macro. default = the engine's "harder" (0.2–0.3 on PLUCK/MALLET/FM/FM4/PIPE/BRASS/EPIANO/PIANO/GUITAR/REED/BOWED, else 0)
+#define ACC_MORPH     4   // + accent·amount on the morph macro. default 0
+#define ACC_CUTOFF    5   // the slot's filter cutoff up accent·amount OCTAVES. default 0
 void  bpm(int rate);                                          // set tempo (default 120)
 int   beat(void);                                             // current beat counter (advances based on bpm)
 float beat_pos(void);                                         // fractional position within current beat: 0.0 → 1.0

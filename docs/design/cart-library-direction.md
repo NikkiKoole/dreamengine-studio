@@ -210,7 +210,7 @@ that pairing.
 
 A vein distinct from §2b's single-voice instruments: **player-driven electronic
 performance toys** — one big gesture, a real hardware/genre lineage, built **cart-side
-only (no new engine DSP)**. The line started from a BeatCraft Studio "magic of one note"
+only (no new engine DSP)**. The line started from Aaron Batzdorff's one-note bass trick (TikTok @aaronbatzdorff; first credited by mistake to BeatCraft Studio)
 short → **`onenote`** (one-note funk groovebox — kick/snare + a single-pitch bass you
 transpose live on an in-scale keybed; *shipped 2026-06-21*) → **`grenadier`** (the Grendel
 RA-99 triple filterbank — three held voices on one root swept in a 2D Alpha/Beta space;

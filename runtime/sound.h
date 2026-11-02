@@ -1905,6 +1905,34 @@ static void fx_set_gate(int b, float threshold, int attack_ms, int release_ms) {
     gate_used[b] = (threshold > 0.0f);                  // threshold 0 = always open → byte-identical
 }
 
+// ── width — STEREO WIDTH as an insert (issue #47: the 78 is MONO, and nothing could narrow a mix) ──
+// Mid/side: M = (L+R)/2 stays, S = (L-R)/2 is scaled by the width, L = M+S, R = M-S. 0 = mono (both
+// channels exactly the mid, bit for bit, once the slew lands), 1 = as is, 2 = twice as wide. On the
+// MASTER it runs after the send returns, so width(0) folds the reverb/echo tails to mono too.
+// The amount SLEWS (SLEW_FAST, ~0.1 s to land): a jump in width is a step in L-R, i.e. a click on
+// anything panned. It SNAPS within 1e-4 (a step 80 dB down) so mono is exact rather than asymptotic —
+// and the threshold cannot be tighter: approaching 1.0, (1-c)*SLEW_FAST falls under half a float ULP at
+// 1-c ≈ 1e-5 and c STOPS MOVING, which at 1e-6 left width parked at 0.99999 forever (1 LSB of residue,
+// never bypassing — widthprobe's VARIANT 4 caught it). It turns itself OFF on landing at 1, so a bus
+// that went back to 1 is byte-identical to one never set. Set before ANY audio has rendered (init()),
+// it takes the value at once: there is nothing playing to click, and a cart asking for mono at boot
+// must be mono from the first sample, not after a 0.1 s glide in from stereo.
+static void width_process(int b, float *mixL, float *mixR) {
+    float c = width_cur[b] + (width_tgt[b] - width_cur[b]) * SLEW_FAST;
+    if (fabsf(c - width_tgt[b]) < 1e-4f) c = width_tgt[b];
+    width_cur[b] = c;
+    if (c == 1.0f && width_tgt[b] == 1.0f) { width_used[b] = false; return; }   // landed on "as is": bypass from here on
+    float m = 0.5f * (*mixL + *mixR), sd = 0.5f * (*mixL - *mixR) * c;
+    *mixL = m + sd; *mixR = m - sd;
+}
+static void fx_set_width(int b, float amount) {
+    float a = amount < 0.0f ? 0.0f : (amount > 2.0f ? 2.0f : amount);
+    if (!width_used[b]) width_cur[b] = 1.0f;            // a dormant bus is "as is" — slew FROM there, not from 0
+    if (atomic_load_explicit(&snd_sample_clock, memory_order_relaxed) == 0) width_cur[b] = a;   // nothing played yet: no glide
+    width_tgt[b]  = a;
+    width_used[b] = !(a == 1.0f && width_cur[b] == 1.0f);
+}
+
 // ── squash — MULTIBAND dynamics, the "OTT" box (docs/design/contemporary-rebirth.md Rung A) ──────
 // Three bands, each compressed DOWN from above a pivot AND UP from below it, then summed. That
 // upward half is what makes a modern master read permanently "on": loud parts sit flat while the
@@ -2006,6 +2034,7 @@ static void apply_insert(int kind, int inst, int b, float *L, float *R) {
         case FX_DRIVE:   if (drvins_used[b][inst]) drive_process(b, inst, L, R); break;   // mix-bus saturation insert (per-instance; reuses the DRIVE_* shapers)
         case FX_SHALLOW: if (shw_used[b])    shallow_process(b, L, R); break;   // K-field short delay + Low Pass Gate
         case FX_GATE:    if (gate_used[b])   gate_process(b, L, R);    break;   // noise gate (follower + threshold)
+        case FX_WIDTH:   if (width_used[b])  width_process(b, L, R);   break;   // stereo width (mid/side): 0 mono … 2 wide
         case FX_MULTIBAND:  if (sq_used[b])     squash_process(b, L, R);  break;   // multiband dynamics — 3 bands, down from above + UP from below (the OTT box)
         // FX_REVERB: wet-REPLACE on a reverb-bus (a bus fed only by sends, bus_tank[b] >= 0), so any
         // inserts AFTER it in the chain chew on the wet tail (reverb→bitcrush). On any other bus
@@ -2103,6 +2132,7 @@ static CtxKey sound_ctx_key(SoundReqKind k) {
         case SR_ECHO_INS_BBD: case SR_REVERB_SPRING: case SR_REVERB_SPRING_TONE: case SR_DRIVE_VOICE:
         case SR_MULTIBAND: case SR_HARMONIZE_MIC: case SR_INPUT_MONITOR:
         case SR_REVERB_PLATE: case SR_REVERB_PLATE_WIDTH: case SR_TAPE_WARBLE: case SR_GRAINS_REPEAT:
+        case SR_WIDTH:
             return CTXK_K;
         // a = slot / instance / bus / tank / target id
         case SR_INSTR: case SR_INSTR_DUTY: case SR_INSTR_LFO: case SR_INSTR_FILTER:
@@ -2120,7 +2150,7 @@ static CtxKey sound_ctx_key(SoundReqKind k) {
         case SR_GLUE: case SR_REVERB_BUS: case SR_FX_ORDER: case SR_VOICE_PARAM: case SR_INSTR_MULTIBAND:
         case SR_EQ_INST: case SR_CRUSH_INST: case SR_TAPE_INST: case SR_FILTER_INST: case SR_DRIVE_INST:
         case SR_INSTR_GLIDE: case SR_INSTR_GLIDE_SCALE: case SR_INSTR_TRIGGER:   // a=slot, like their neighbours
-        case SR_INSTR_TAPE_WARBLE: case SR_INSTR_GRAINS_REPEAT:
+        case SR_INSTR_TAPE_WARBLE: case SR_INSTR_GRAINS_REPEAT: case SR_INSTR_WIDTH:
             return CTXK_KA;
         // a+b name the target
         case SR_WAVE_SET:                          // a=which table, b=start index (chunked writes)
@@ -7756,6 +7786,14 @@ static void sound_fire_req(SoundReq r) {
             fx_chain_ensure(b, FX_GATE);
         }
     } break;
+    case SR_WIDTH: {        // master stereo width (bus 0): a=amount*1000
+        fx_set_width(0, r.a / 1000.0f);
+        fx_chain_ensure(0, FX_WIDTH);       // not in the default ladder: appended LAST, so it sees the whole mix
+    } break;
+    case SR_INSTR_WIDTH: {  // per-instrument: a=slot, b=amount*1000
+        int b = fx_instr_bus(r.a);
+        if (b >= 1) { fx_set_width(b, r.b / 1000.0f); fx_chain_ensure(b, FX_WIDTH); }
+    } break;
     case SR_MULTIBAND: {       // master multiband squash (bus 0): a=low, b=mid, c=high, e0=up, e1=mix (×1000)
         fx_set_squash(0, r.a / 1000.0f, r.b / 1000.0f, r.c / 1000.0f, r.e0 / 1000.0f, r.e1 / 1000.0f);
         fx_chain_ensure(0, FX_MULTIBAND);   // not in the default ladder, like FX_GATE
@@ -10184,6 +10222,15 @@ void instrument_gate(int slot, float threshold, int attack_ms, int release_ms) {
     sound_push_ctrl(SR_INSTR_GATE, slot, (int)(threshold * 1000.0f), attack_ms, release_ms, 0, 0);
 }
 
+// ── width: stereo width as an insert — 0 mono · 1 as is · 2 wider (issue #47, the mono 78) ──
+void width(float amount) {
+    sound_push_ctrl(SR_WIDTH, (int)(amount * 1000.0f + 0.5f), 0, 0, 0, 0, 0);
+}
+void instrument_width(int slot, float amount) {
+    if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
+    sound_push_ctrl(SR_INSTR_WIDTH, slot, (int)(amount * 1000.0f + 0.5f), 0, 0, 0, 0);
+}
+
 // ── multiband: multiband dynamics (the OTT box) — 3 bands, pulled down from above + pushed UP from below ──
 void multiband(float low, float mid, float high, float up, float mix) {
     sound_push_ctrl(SR_MULTIBAND, (int)(low * 1000.0f), (int)(mid * 1000.0f), (int)(high * 1000.0f),
@@ -10544,6 +10591,7 @@ static void sound_reset_state(void) {
         shw_widx[b] = 0; shw_env[b] = 0.0f; shw_lp[b] = 0.0f; shw_used[b] = false;   // shallow water: dormant + seeded
         shw_rate[b] = 1.0f; shw_depth[b] = 0.6f; shw_mix[b] = 0.0f; shw_mod[b] = (ModState){ .seed = 0x2B7E1516u + (unsigned)b * 2654435761u };
         gate_thresh[b] = 0.0f; gate_atk[b] = 1.0f; gate_rel[b] = 1.0f; gate_env[b] = 0.0f; gate_gain[b] = 1.0f; gate_used[b] = false;   // noise gate: open (bypass)
+        width_tgt[b] = width_cur[b] = 1.0f; width_used[b] = false;   // stereo width: as is (bypass)
         flg_widx[b] = 0; flg_phase[b] = 0.0f;
         flg_rate[b] = 0.3f; flg_depth[b] = 0.7f; flg_fb[b] = 0.7f; flg_mix[b] = 0.5f; flg_used[b] = false;
         for (int i = 0; i < TAPE_INST; i++) {

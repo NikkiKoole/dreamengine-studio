@@ -214,7 +214,7 @@ swing. The genuine fix decouples the audio clock from the buffer cadence → Aud
    21..30 hold one or two more 10-bit fields. Past that, `SoundReq` has to grow (it is also the ctx-log
    entry, ~9k of them), or locks move to a side table keyed by the note. Locks are OFFSETS, not absolutes,
    so a zeroed struct stays "no lock"; an absolute mode would need a per-field "set" bit.
-   Still open on #47: the group bus and `width()`.
+   Still open on #47: the group bus. (`width()` shipped the same day — [audio-notes.md](audio-notes.md) §17 #41.)
 3. **Cart-level — schedule ahead.** Carts on the frame-triggered path adopt the
    `radio.h` pattern (or a future shared helper) and trigger via
    `schedule`/`schedule_hit`/`strum` instead of `hit()` on the beat. Infrastructure

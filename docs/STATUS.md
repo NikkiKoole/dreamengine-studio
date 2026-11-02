@@ -20,7 +20,9 @@ _Last updated: 2026-10-29 — INSTR_SCRAPE: a guiro with teeth. See the top Ship
   (`.glide_ms`, no re-attack: flute phrases, the 303 slide), lean on an accent (`.accent`, per-engine
   defaults: louder + harder filter-env kick + the engine's own "harder" macro), and carry per-note macro
   offsets. Zeroed `NoteOpts` = byte-identical to `schedule_at`; probe `legatoprobe`. Design + numbers in
-  [`design/audio-timing.md`](design/audio-timing.md) §2c. #47's group bus and `width()` still open.
+  [`design/audio-timing.md`](design/audio-timing.md) §2c. **Also `width(amount)` / `instrument_width`**
+  (`FX_WIDTH`): mid/side stereo width, 0 = mono (the 78) … 2 = wide, post-send-returns on the master;
+  probe `widthprobe`, ledger [`design/audio-notes.md`](design/audio-notes.md) §17 #41. #47's group bus still open.
 - **`INSTR_SCRAPE`: SCRAPED + RATTLED PERCUSSION FROM TEETH** (2026-10-29, GitHub #45, for Playtime's CR-78
   band). Guiro / quijada / cabasa / ratchet from one `instrument()` + three macros (BODY / TOOTH RATE /
   GESTURE): each tooth a click + friction through a two-mode body at its own frequency, a rattle's first

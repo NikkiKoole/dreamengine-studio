@@ -33,6 +33,7 @@ static int fx_body(int kind) {
         case FX_GATE:    return CLR_DARK_GREEN;
         case FX_DRIVE:   return CLR_DARK_ORANGE;      // matches pedalboard's OD pedal body
         case FX_MULTIBAND: return CLR_BROWNISH_BLACK; // a near-black mastering rack
+        case FX_WIDTH:   return CLR_DARK_PURPLE;      // a console's stereo-image module
         default:         return CLR_DARKER_GREY;
     }
 }
@@ -57,6 +58,7 @@ static int fx_accent(int kind) {
         case FX_GATE:    return CLR_GREEN;
         case FX_DRIVE:   return CLR_PEACH;            // matches pedalboard's OD pedal accent
         case FX_MULTIBAND: return CLR_YELLOW;         // VU-meter yellow
+        case FX_WIDTH:   return CLR_PINK;
         default:         return CLR_LIGHT_GREY;
     }
 }
@@ -81,6 +83,7 @@ static const char *fx_name(int kind) {
         case FX_GATE:    return "GATE";
         case FX_DRIVE:   return "DRIVE";
         case FX_MULTIBAND: return "MULTIBAND";
+        case FX_WIDTH:   return "WIDTH";
         default:         return "FX";
     }
 }
@@ -183,6 +186,10 @@ static void fx_icon(int kind, int cx, int cy, int col, int bg) {
         line(cx - 14, cy - 7, cx + 14, cy - 7, col);         // the plate pressing down…
         line(cx - 14, cy + 7, cx + 14, cy + 7, col);         // …and the one pushing up
         for (int b = 0; b < 3; b++) rectfill(cx - 11 + b * 8, cy - mb[b] / 2, 5, mb[b], col);
+    } else if (kind == FX_WIDTH) {                           // two overlapping circles: left + right, the stereo image
+        circ(cx - 4, cy, 6, col);
+        circ(cx + 4, cy, 6, col);
+        line(cx - 13, cy, cx - 11, cy, col); line(cx + 11, cy, cx + 13, cy, col);   // pushed apart = wider
     } else {                                                 // REVERB — expanding rings (the bloom)
         for (int i = 1; i <= 3; i++) circ(cx, cy, i * 3, col);
         pset(cx, cy, col);

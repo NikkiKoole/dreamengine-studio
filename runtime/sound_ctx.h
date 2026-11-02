@@ -586,7 +586,7 @@ typedef struct {
     bool   rep_was;                // freeze seen last sample (edge detect)
 } GrainTank;
 #define SHW_BUF_LEN  (SOUND_SAMPLE_RATE / 16)   // ~62 ms — room for a drifting short delay
-#define N_INSERTS (FX_MULTIBAND + 1)           // array size / kind validation cap: pedals + FORMANT/FILTER/PAN/RINGMOD (default) + FX_REVERB/ECHO/GRAINS/DRIVE/SHALLOW/GATE/SQUASH (placed via fx_order). Chain length is capped separately by FX_ORDER_SLOTS.
+#define N_INSERTS (FX_WIDTH + 1)           // array size / kind validation cap: pedals + FORMANT/FILTER/PAN/RINGMOD (default) + FX_REVERB/ECHO/GRAINS/DRIVE/SHALLOW/GATE/SQUASH (placed via fx_order). Chain length is capped separately by FX_ORDER_SLOTS.
 #define FX_ORDER_SLOTS 16                   // fx_order packs 16 slots (4 ints × 4 bytes, 1 byte/slot: kind 5 bits | instance 3 bits). Kinds 0..31, instances 0..7. A chain longer than 16 is truncated.
 typedef enum {
     SR_SFX          = 0,
@@ -759,6 +759,8 @@ typedef enum {
     SR_INSTR_ACCENT = 154,    // a=slot, b=ACC_* route, c=amount*1000 (signed) — what an accented note does on this
                               // slot (instrument_accent). The ACCENT itself rides on a booked note: schedule_note_at()
                               // sends an SR_NOTE_AT whose e0/e1/e2 carry glide/accent/macro offsets (NOTE_EX_* below)
+    SR_WIDTH = 155,           // a=amount*1000 — master STEREO WIDTH insert (width): 0 mono · 1 as is · 2 wider (FX_WIDTH)
+    SR_INSTR_WIDTH = 156,     // a=slot, b=amount*1000 — the same on one instrument's bus
 } SoundReqKind;
 typedef struct { SoundReqKind kind; int a, b, c; int delay_samples; int dur_samples; int e0, e1, e2; } SoundReq;
 #define SOUND_REQ_QUEUE   512   // generous: live held-voice control pushes many setters/frame, and a patch cart's
@@ -1028,6 +1030,9 @@ typedef struct {
     float gate_env[SOUND_FX_BUSES];
     float gate_gain[SOUND_FX_BUSES];
     bool gate_used[SOUND_FX_BUSES];
+    float width_tgt[SOUND_FX_BUSES];    // STEREO WIDTH (FX_WIDTH): the side-signal gain asked for (1 = as is)
+    float width_cur[SOUND_FX_BUSES];    //   …and the one in use, slewed toward it (a jump in width is a step in L-R)
+    bool width_used[SOUND_FX_BUSES];
     float sq_down[SOUND_FX_BUSES][3];
     float sq_up[SOUND_FX_BUSES];
     float sq_mix[SOUND_FX_BUSES];
@@ -1434,6 +1439,9 @@ static _Thread_local DeSound *de_snd = &de_snd_default;
 #define gate_env             (de_snd->gate_env)
 #define gate_gain            (de_snd->gate_gain)
 #define gate_used            (de_snd->gate_used)
+#define width_tgt            (de_snd->width_tgt)
+#define width_cur            (de_snd->width_cur)
+#define width_used           (de_snd->width_used)
 #define sq_down              (de_snd->sq_down)
 #define sq_up                (de_snd->sq_up)
 #define sq_mix               (de_snd->sq_mix)

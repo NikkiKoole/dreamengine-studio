@@ -1974,6 +1974,19 @@ v1, document it on the panel.
     `SR_GRAINS_REPEAT`=152 / `SR_INSTR_GRAINS_REPEAT`=153. Measured (`repeatprobe`, frozen 117 ms late):
     every frozen onset keeps the live line's grid phase; click-check finds nothing at freeze / length
     change / thaw / seams. Mono (the tank is a mono core), no pitch, ≤ ~2.9 s.
+41. **Stereo WIDTH (`width` / `instrument_width`, `FX_WIDTH` = 19)** — **✓ SHIPPED 2026-11-02**, GitHub
+    #47 (Playtime's mono-78 treatment). Mid/side: M stays, S × amount; 0 = mono, 1 = as is, 2 = wide.
+    **Clears 0015's gate** because it cannot be a recipe: re-panning every slot to centre leaves the plate's
+    two pickups, a chorus and an autopan stereo, and nothing else in the engine separates mid from side.
+    Appended LAST in a chain, and the master chain runs after the send returns, so `width(0)` folds the
+    reverb/echo tails too. The amount slews (SLEW_FAST) and snaps within 1e-4 — NOT tighter: approaching
+    1.0 the step `(1-c)·0.003` drops under half a float ULP at `1-c ≈ 1e-5` and the slew STALLS, which at
+    a 1e-6 snap left width parked at 0.99999 forever (1 LSB residue, never bypassing). Set before any
+    audio renders, it takes the value at once (a cart asking for mono in `init()` is mono from sample 0).
+    `SR_WIDTH`=155 / `SR_INSTR_WIDTH`=156. Measured (`widthprobe`, hard-panned saw + square + plate):
+    `width(0)` passes `stereo-check --expect mono` while the no-width control fails it; `width(1)` is
+    byte-identical to never calling it; `width(2)` reads wide (side/mid 1.09 → 2.18); width(0) → width(1)
+    at 2.0 s is byte-identical again from 2.069 s; no clicks at the switch.
 
 One-line version: **we built a very good modular synth and forgot to build the
 broken speaker it should play through.**

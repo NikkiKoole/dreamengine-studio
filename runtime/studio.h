@@ -828,6 +828,8 @@ void fx_lfo(int bus, int target, float rate_hz, float depth, float center, int s
 // fx_order for the iconic 80s GATED REVERB (the tail chops off). A reorderable insert (FX_GATE).
 void gate(float threshold, int attack_ms, int release_ms);                  // threshold 0..1 (0 = always open/bypass), attack_ms (open, ~1-10), release_ms (close, ~30-300 = how fast the tail cuts). THE master gate
 void instrument_gate(int slot, float threshold, int attack_ms, int release_ms);  // noise gate on just this slot (auto-grabs a private FX bus)
+void width(float amount);                       // STEREO WIDTH of the whole mix: 0 = MONO (an old record, a phone speaker), 1 = as is (bypass), 2 = twice as wide. Glides there in ~0.1 s, so changing it never clicks. Runs after the reverb/echo returns, so their tails narrow too
+void instrument_width(int slot, float amount);  // stereo width on just this slot (auto-grabs a private FX bus): 0 = mono … 2 = wide
 
 // filter — a sweepable resonant FILTER on the whole mix: the DJ-filter / build-up sweep. A plain
 // state-variable filter (low/high/band/notch) you RIDE live — close it to a muffled thump on the
@@ -881,6 +883,7 @@ void input_monitor(float gain);                       // route the LIVE MIC thro
 #define FX_SHALLOW  16  // shallow-water INSERT — a filtered-random short delay + Low Pass Gate (via shallow(); place in fx_order). First kind past the old 16-kind ceiling
 #define FX_GATE     17  // noise-gate INSERT — clamps the signal shut below a threshold (via gate()). Put AFTER FX_REVERB in fx_order for gated reverb
 #define FX_MULTIBAND   18  // multiband-dynamics INSERT — 3 bands squashed down + pushed up, the "OTT" master sound (via multiband()). Place it BEFORE FX_DRIVE for squash-then-clip, after for clip-then-squash
+#define FX_WIDTH      19  // stereo-width INSERT — mid/side: 0 = mono, 1 = as is, 2 = wider (via width()/instrument_width(); appended LAST in the chain, so on the master it narrows the reverb tail too)
 #define FX_INST(kind, inst) ((kind) | ((inst) << 5))   // tag a kind with an INSTANCE for fx_order() — two of one effect in a chain (e.g. EQ before AND after a dirt stage). Configure instance n via eq_inst(n,…). Plain FX_* = instance 0. instance 0..1 (two per effect).
 void fx_order(int bus, const int *kinds, int n);   // set a bus's insert order: bus 0 = master, 1.. = an instrument's bus; kinds[] of FX_* (or FX_INST(FX_*, n)), n ≤ 16 slots
 

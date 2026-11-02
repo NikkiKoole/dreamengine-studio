@@ -207,6 +207,13 @@ swing. The genuine fix decouples the audio clock from the buffer cadence → Aud
    ⚠ A legato phrase uses FEWER voices than the same notes re-attacked, so engines with a shared noise
    state (PIPE's breath) render LATER unrelated notes slightly differently — the probe's T5 shows it. That
    is voice allocation, not the accent; the 303/mallet comparisons have no such state and match exactly.
+   **The P-LOCK seam.** The macro offsets are Elektron-style parameter locks for booked notes (one value
+   for that step only, the next note is back to the slot), limited on purpose to what Playtime needs
+   today. To lock more (cutoff, resonance, pan, sends, decay): add a field to `NoteOpts` (callers using
+   designated initialisers are unaffected) and pack it into the spare bits — e0's top 16 and e1's bits
+   21..30 hold one or two more 10-bit fields. Past that, `SoundReq` has to grow (it is also the ctx-log
+   entry, ~9k of them), or locks move to a side table keyed by the note. Locks are OFFSETS, not absolutes,
+   so a zeroed struct stays "no lock"; an absolute mode would need a per-field "set" bit.
    Still open on #47: the group bus and `width()`.
 3. **Cart-level — schedule ahead.** Carts on the frame-triggered path adopt the
    `radio.h` pattern (or a future shared helper) and trigger via

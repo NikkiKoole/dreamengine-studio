@@ -830,6 +830,8 @@ void gate(float threshold, int attack_ms, int release_ms);                  // t
 void instrument_gate(int slot, float threshold, int attack_ms, int release_ms);  // noise gate on just this slot (auto-grabs a private FX bus)
 void stereo_width(float amount);                       // STEREO WIDTH of the whole mix: 0 = MONO (an old record, a phone speaker), 1 = as is (bypass), 2 = twice as wide. Glides there in ~0.1 s, so changing it never clicks. Runs after the reverb/echo returns, so their tails narrow too
 void instrument_stereo_width(int slot, float amount);  // stereo width on just this slot (auto-grabs a private FX bus): 0 = mono … 2 = wide
+void instrument_group(int slot, int lead);       // GROUP BUS: `slot` plays through `lead`'s effects — set tape/eq/crush/filter/stereo_width on the LEAD and the whole group goes through them together (one warble for the whole band, sound effects left dry). lead -1 = back on its own. instrument_group(6, 5); instrument_group(7, 5); instrument_tape_warble(5, 0.6f);
+void reverb_bus_into(int tank, int lead);        // SUBMIX: reverb tank 1..2 (see reverb_bus) comes back through `lead`'s group instead of the master, so the room is IN the recording — the band's reverb warbles and narrows with the band. lead -1 = master (default)
 
 // filter — a sweepable resonant FILTER on the whole mix: the DJ-filter / build-up sweep. A plain
 // state-variable filter (low/high/band/notch) you RIDE live — close it to a muffled thump on the
@@ -837,6 +839,7 @@ void instrument_stereo_width(int slot, float amount);  // stereo width on just t
 // gesture. A reorderable insert (FX_FILTER); unlike the buffer effects it's cheap to sweep every frame.
 void filter(int mode, float cutoff_hz, float resonance);   // mode FILTER_LOW/HIGH/BAND/NOTCH (FILTER_OFF = bypass), cutoff 20..~20000 Hz (ride it live), resonance 0..1 (the peak/scream). THE master filter
 void filter_inst(int instance, int mode, float cutoff_hz, float resonance);  // filter on a 2nd master INSTANCE (0..1) — pair with FX_INST(FX_FILTER, instance) for filter A/B in one chain
+void instrument_fx_filter(int slot, int mode, float cutoff_hz, float resonance);  // filter() on one slot's EFFECTS BUS (instrument_filter is per voice) — on a group lead it filters the whole group as one sound, its reverb included: an old record's top roll-off. ride it live like filter()
 
 // sidechain & bus compression — DYNAMICS on the SUMMED signal (not a per-voice insert): the
 // "pumping" duck and the glue. sidechain() ducks a victim bus's level whenever a TRIGGER fires,

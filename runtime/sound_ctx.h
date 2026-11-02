@@ -761,6 +761,9 @@ typedef enum {
                               // sends an SR_NOTE_AT whose e0/e1/e2 carry glide/accent/macro offsets (NOTE_EX_* below)
     SR_WIDTH = 155,           // a=amount*1000 — master STEREO WIDTH insert (width): 0 mono · 1 as is · 2 wider (FX_WIDTH)
     SR_INSTR_WIDTH = 156,     // a=slot, b=amount*1000 — the same on one instrument's bus
+    SR_INSTR_GROUP = 157,     // a=slot, b=lead slot (-1 = ungroup) — the slot plays through the lead's FX bus (instrument_group)
+    SR_REVERB_BUS_INTO = 158, // a=tank 1..2, b=lead slot (-1 = master) — the tank's bus folds into the lead's bus (reverb_bus_into)
+    SR_INSTR_FX_FILTER = 159, // a=slot, b=mode, c=cutoff_hz, e0=res*1000 — filter() on one instrument's (or group's) BUS (instrument_fx_filter)
 } SoundReqKind;
 typedef struct { SoundReqKind kind; int a, b, c; int delay_samples; int dur_samples; int e0, e1, e2; } SoundReq;
 #define SOUND_REQ_QUEUE   512   // generous: live held-voice control pushes many setters/frame, and a patch cart's
@@ -840,6 +843,10 @@ typedef struct {
     int fx_next_bus;
     int8_t bus_tank[SOUND_FX_BUSES];
     int tank_bus[SOUND_REVERB_TANKS];
+    int8_t bus_parent[SOUND_FX_BUSES];   // SUBMIX: the bus each aux bus folds into (0 = master, the default)
+    uint8_t bus_order[SOUND_FX_BUSES];   // the order aux buses run in when any feeds another (children first)
+    bool bus_tree;                       // false = every aux bus folds to master → the old index-order loop, byte-identical
+    int tank_into[SOUND_REVERB_TANKS];   // reverb_bus_into: lead slot + 1 the tank's bus folds into (0 = master); held until the tank is claimed
     int rvb_bus_overflow;
     float cho_buf[SOUND_FX_BUSES][CHORUS_BUF_LEN];
     int cho_widx[SOUND_FX_BUSES];
@@ -1249,6 +1256,10 @@ static _Thread_local DeSound *de_snd = &de_snd_default;
 #define fx_next_bus          (de_snd->fx_next_bus)
 #define bus_tank             (de_snd->bus_tank)
 #define tank_bus             (de_snd->tank_bus)
+#define bus_parent           (de_snd->bus_parent)
+#define bus_order            (de_snd->bus_order)
+#define bus_tree             (de_snd->bus_tree)
+#define tank_into            (de_snd->tank_into)
 #define rvb_bus_overflow     (de_snd->rvb_bus_overflow)
 #define cho_buf              (de_snd->cho_buf)
 #define cho_widx             (de_snd->cho_widx)

@@ -2151,6 +2151,7 @@ static CtxKey sound_ctx_key(SoundReqKind k) {
         case SR_EQ_INST: case SR_CRUSH_INST: case SR_TAPE_INST: case SR_FILTER_INST: case SR_DRIVE_INST:
         case SR_INSTR_GLIDE: case SR_INSTR_GLIDE_SCALE: case SR_INSTR_TRIGGER:   // a=slot, like their neighbours
         case SR_INSTR_TAPE_WARBLE: case SR_INSTR_GRAINS_REPEAT: case SR_INSTR_WIDTH:
+        case SR_INSTR_GROUP: case SR_REVERB_BUS_INTO: case SR_INSTR_FX_FILTER:   // a=slot / a=tank
             return CTXK_KA;
         // a+b name the target
         case SR_WAVE_SET:                          // a=which table, b=start index (chunked writes)
@@ -7051,6 +7052,43 @@ static int fx_instr_bus(int slot) {
     return fx_bus_for(slot);
 }
 
+// ── SUBMIX: an aux bus can fold into ANOTHER aux bus instead of the master (issue #47) ─────────────
+// The 78 move: a band's REVERB is part of the recording, so the room has to go through the same tape,
+// EQ and width as the band. reverb_bus_into() points a reverb tank's bus at a group's bus; the group's
+// chain then runs on band + room together, warbling as one. Buses must then run CHILDREN FIRST (a
+// child adds into its parent's input before the parent's inserts run), so the order is rebuilt on every
+// routing change — never per sample. With no bus feeding another, bus_tree stays false and the mix
+// loop keeps its old 1..N-1 index order, which is what keeps every existing cart byte-identical.
+static int bus_depth(int b) {           // hops to the master (1 = folds straight into it)
+    int d = 0;
+    while (b > 0 && d < SOUND_FX_BUSES) { b = bus_parent[b]; d++; }
+    return d;
+}
+static void bus_rebuild_order(void) {
+    bool tree = false;
+    for (int b = 1; b < SOUND_FX_BUSES; b++) if (bus_parent[b] != 0) tree = true;
+    if (tree) {                          // deepest first; ties keep index order
+        int n = 0;
+        for (int d = SOUND_FX_BUSES; d >= 1; d--)
+            for (int b = 1; b < SOUND_FX_BUSES; b++) if (bus_depth(b) == d) bus_order[n++] = (uint8_t)b;
+    }
+    bus_tree = tree;
+}
+static bool bus_set_parent(int b, int p) {   // false = refused (bad bus, itself, or it would make a loop)
+    if (b < 1 || b >= SOUND_FX_BUSES || p < 0 || p >= SOUND_FX_BUSES || p == b) return false;
+    for (int q = p, k = 0; q > 0 && k < SOUND_FX_BUSES; q = bus_parent[q], k++) if (q == b) return false;
+    bus_parent[b] = (int8_t)p;
+    bus_rebuild_order();
+    return true;
+}
+static void reverb_bus_apply_into(int tank) {   // tank_into → the tank's bus parent (once the tank has a bus)
+    int bus = tank_bus[tank];
+    if (bus <= 0) return;
+    int lead = tank_into[tank] - 1;
+    int p = lead < 0 ? 0 : fx_instr_bus(lead);
+    if (p >= 0) bus_set_parent(bus, p);
+}
+
 // AUTO-PLACE: make sure `fx` runs somewhere in bus `b`'s insert chain, appending it if it is not
 // there yet. Every effect that is NOT in the default ladder (GRAINS/GATE/MULTIBAND/SHALLOW, and the
 // reverb-tail insert) does this right after its setter, so a cart that never calls fx_order() still
@@ -7560,6 +7598,7 @@ static void sound_fire_req(SoundReq r) {
             bus_tank[bus]  = (int8_t)tank;
             insert_order[bus][0] = FX_REVERB;  // the bus's chain starts with the reverb; fx_order() can add pedals after it
             insert_order_n[bus]  = 1;
+            if (tank_into[tank]) reverb_bus_apply_into(tank);   // reverb_bus_into() came first: route it now
         }
         float size = r.b / 1000.0f; size = clamp01(size);
         float damp = r.c / 1000.0f; damp = clamp01(damp);
@@ -7794,6 +7833,19 @@ static void sound_fire_req(SoundReq r) {
         int b = fx_instr_bus(r.a);
         if (b >= 1) { fx_set_width(b, r.b / 1000.0f); fx_chain_ensure(b, FX_WIDTH); }
     } break;
+    case SR_INSTR_GROUP: {  // a=slot, b=lead (-1 = ungroup): the slot plays through the lead's FX bus
+        int slot = r.a, lead = r.b;
+        if (slot < 0 || slot >= SOUND_INSTR_SLOTS) break;
+        if (lead < 0 || lead >= SOUND_INSTR_SLOTS) { instr_bank[slot].fx_bus = 0; break; }   // back to dry master; a later effect claims a fresh bus
+        int lb = fx_instr_bus(lead);   // the lead's bus, claimed now if it has none yet
+        if (lb >= 1) instr_bank[slot].fx_bus = lb;   // notes already sounding keep their bus (snapshotted at note-on)
+    } break;
+    case SR_REVERB_BUS_INTO: {   // a=tank 1..2, b=lead (-1 = master): where the tank's bus folds
+        int tank = r.a;
+        if (tank < 1 || tank >= SOUND_REVERB_TANKS) break;
+        tank_into[tank] = (r.b < 0 || r.b >= SOUND_INSTR_SLOTS) ? 0 : r.b + 1;
+        reverb_bus_apply_into(tank);   // a tank not claimed yet picks this up when reverb_bus() claims it
+    } break;
     case SR_MULTIBAND: {       // master multiband squash (bus 0): a=low, b=mid, c=high, e0=up, e1=mix (×1000)
         fx_set_squash(0, r.a / 1000.0f, r.b / 1000.0f, r.c / 1000.0f, r.e0 / 1000.0f, r.e1 / 1000.0f);
         fx_chain_ensure(0, FX_MULTIBAND);   // not in the default ladder, like FX_GATE
@@ -7960,6 +8012,10 @@ static void sound_fire_req(SoundReq r) {
     } break;
     case SR_FILTER: {       // a=mode, b=cutoff_hz, c=res*1000 — master resonant filter (bus 0)
         fx_set_filter(0, 0, r.a, (float)r.b, r.c / 1000.0f);
+    } break;
+    case SR_INSTR_FX_FILTER: {   // a=slot, b=mode, c=cutoff_hz, e0=res*1000 — the same filter, on the slot's (group's) BUS
+        int b = fx_instr_bus(r.a);
+        if (b >= 1) { fx_set_filter(b, 0, r.b, (float)r.c, r.e0 / 1000.0f); fx_chain_ensure(b, FX_FILTER); }
     } break;
     case SR_INSTR_PAN: {    // a=slot, b=pan*1000 (signed)
         int slot = r.a;
@@ -8448,7 +8504,10 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
         // ── aux insert buses (1..N-1): run each live bus's chorus→flanger chain, then return to
         // master (bus 0). A slot routed here (instrument_chorus/flanger) is effected in isolation;
         // everything on bus 0 bypasses. All-bus-0 carts skip this entirely → byte-identical.
-        for (int b = 1; b < SOUND_FX_BUSES; b++) {
+        for (int bi = 1; bi < SOUND_FX_BUSES; bi++) {
+            // SUBMIX (reverb_bus_into): with any bus feeding another, run them children-first and fold
+            // each into its PARENT. bus_tree false = the old index order into the master, unchanged.
+            int b = bus_tree ? bus_order[bi - 1] : bi;
             // run this bus's inserts in its (reorderable) order, then fold to master. Default order
             // = the old fixed ladder (trem→wah→cho→phaser→flg→tape→eq→crush); fx_order() rearranges.
             for (int s = 0; s < insert_order_n[b]; s++) apply_insert(insert_order[b][s], insert_inst[b][s], b, &busL[b], &busR[b]);
@@ -8456,7 +8515,8 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
             if (sc[b].used) { float g = sc_apply(b, busL[b], busR[b]); busL[b] *= g; busR[b] *= g; }   // sidechain/glue duck (pinned after inserts)
             { int st = shim_bus_of[b]; if (st >= 1 && shim[st].used) shimmer_process(st, &busL[b], &busR[b]); }   // per-instrument shimmer (pool tank 1+), pinned after inserts
             if (emit_on[b]) emit_process(b, &busL[b], &busR[b]);   // v2: position the FINISHED bus output (gain+pan+Doppler) — order: inserts→FX→shimmer→spatial→fold
-            busL[0] += busL[b]; busR[0] += busR[b];
+            int p = bus_tree ? bus_parent[b] : 0;
+            busL[p] += busL[b]; busR[p] += busR[b];
         }
 
         // steal-declick: when an audibly-ringing voice is stolen, its output step-discontinuity
@@ -9994,6 +10054,12 @@ void glue(int victim_bus, float amount, int attack_ms, int release_ms) {
 void filter(int mode, float cutoff_hz, float resonance) {
     sound_push_ctrl(SR_FILTER, mode, (int)cutoff_hz, (int)(resonance * 1000.0f), 0, 0, 0);
 }
+// filter() on one slot's FX BUS rather than on its voices (instrument_filter is per VOICE) — so on a
+// group lead it filters the whole group as one signal, its folded-in reverb included. Ride-safe like filter().
+void instrument_fx_filter(int slot, int mode, float cutoff_hz, float resonance) {
+    if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
+    sound_push_ctrl(SR_INSTR_FX_FILTER, slot, mode, (int)cutoff_hz, (int)(resonance * 1000.0f), 0, 0);
+}
 void filter_inst(int instance, int mode, float cutoff_hz, float resonance) {   // master filter on a 2nd INSTANCE (Increment F) — pair with FX_INST(FX_FILTER, instance)
     sound_push_ctrl(SR_FILTER_INST, instance, mode, (int)cutoff_hz, (int)(resonance * 1000.0f), 0, 0);
 }
@@ -10229,6 +10295,18 @@ void stereo_width(float amount) {
 void instrument_stereo_width(int slot, float amount) {
     if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
     sound_push_ctrl(SR_INSTR_WIDTH, slot, (int)(amount * 1000.0f + 0.5f), 0, 0, 0, 0);
+}
+
+// ── GROUP BUS + submix (issue #47): a whole band through ONE chain, its room included ──
+// A group is addressed by its LEAD slot, so it needs no new effect API: every instrument_* effect
+// set on the lead (tape, warble, eq, crush, filter, stereo_width, …) is the group's chain.
+void instrument_group(int slot, int lead) {
+    if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
+    sound_push_ctrl(SR_INSTR_GROUP, slot, (lead < 0 || lead >= SOUND_INSTR_SLOTS) ? -1 : lead, 0, 0, 0, 0);
+}
+void reverb_bus_into(int tank, int lead) {
+    if (tank < 1 || tank >= SOUND_REVERB_TANKS) return;
+    sound_push_ctrl(SR_REVERB_BUS_INTO, tank, (lead < 0 || lead >= SOUND_INSTR_SLOTS) ? -1 : lead, 0, 0, 0, 0);
 }
 
 // ── multiband: multiband dynamics (the OTT box) — 3 bands, pulled down from above + pushed UP from below ──
@@ -10583,6 +10661,9 @@ static void sound_reset_state(void) {
     memset(tape_bufR, 0, sizeof(tape_bufR));
     memset(shw_buf, 0, sizeof(shw_buf));
     fx_next_bus = 1;
+    for (int b = 0; b < SOUND_FX_BUSES; b++) { bus_parent[b] = 0; bus_order[b] = 0; }   // submix: every bus to master
+    bus_tree = false;
+    for (int t = 0; t < SOUND_REVERB_TANKS; t++) tank_into[t] = 0;
     fx_bus_overflow = 0;
     rvb_bus_overflow = 0;
     for (int b = 0; b < SOUND_FX_BUSES; b++) {

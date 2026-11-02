@@ -3414,6 +3414,19 @@
     ]
   },
   {
+    "title": "group bus + submix probe",
+    "description": "Measurement probe, not a playable cart (status hidden). Three held sines: slot 5 (A4) and slot 6 (E5, from frame 31) form the band, slot 7 (A6) stands in for a sound effect. VARIANT 0 groups nothing; 1 groups 5+6 under ONE tape (heavy wow + warble) on the lead; 2 gives them a tape EACH, slot 6's started half a second later (the control: two wobbles that must not agree). 3 and 5 fold a reverb tank into the group (reverb_bus_into called before / after reverb_bus) behind a -12 dB mid cut on the lead, and release the notes at 3 s so the TAIL is left: it must come out 12 dB down with the band; 4 is the same without the fold, whose tail must stay full. Render it with `node tools/play.js groupprobe script /dev/null --headless --frames 420 --wav out.wav --solo-slot 5`.",
+    "file": "groupprobe.cart.png",
+    "created": "2026-11-02",
+    "kind": [
+      "tech-demo"
+    ],
+    "teaches": [
+      "algorithm-visualization"
+    ],
+    "lineage": "Measurement probe for instrument_group() and reverb_bus_into() (issue #47: a whole band on one worn record, its room included, with the sound effects left dry). Rendered headless, stem by stem with --solo-slot, and read back by pitch and level; not played by hand."
+  },
+  {
     "title": "grow balls",
     "description": "A silly pogo-platformer. You're a little naked cartoon guy with visible balls — eat the fruit and veg scattered through the world and your balls GROW. Tiny balls only manage a small hop, but once they get big enough they turn into a spring: land and you POGO, and the bigger your balls, the higher you bounce. Steer in the air to land on the next platform (and the next snack), keep growing, and pogo a tower of one-way platforms all the way to the MOON. Arrows/WASD move, Z or Up to jump / super-bounce (tap on landing), hold Down to rest on a platform, R to restart.",
     "file": "growballs.cart.png",

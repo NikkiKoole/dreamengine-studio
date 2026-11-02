@@ -1987,6 +1987,23 @@ v1, document it on the panel.
     `stereo_width(0)` passes `stereo-check --expect mono` while the no-width control fails it; `stereo_width(1)` is
     byte-identical to never calling it; `stereo_width(2)` reads wide (side/mid 1.09 → 2.18); stereo_width(0) → stereo_width(1)
     at 2.0 s is byte-identical again from 2.069 s; no clicks at the switch.
+42. **GROUP BUS + SUBMIX (`instrument_group` / `reverb_bus_into` / `instrument_fx_filter`)** — **✓ SHIPPED
+    2026-11-02**, GitHub #47 (Playtime's 78: a whole band on one worn record, the game's sound effects dry).
+    `instrument_group(slot, lead)` points a slot at the LEAD's FX bus, so every `instrument_*` effect set on
+    the lead is the group's chain — addressed by slot, no new effect API. The 78 needed one more thing: the
+    band's reverb is ON the record, so `reverb_bus_into(tank, lead)` folds a reverb tank's bus into the
+    group's bus instead of the master — a general SUBMIX (`bus_parent[]`). Buses then run CHILDREN FIRST,
+    an order rebuilt only on a routing change (with a loop refused); with no bus feeding another the mix loop
+    keeps its old index order, so every existing cart renders byte-identical (6 carts incl. both reverb-bus
+    carts, sha-diffed against a clean HEAD worktree). `instrument_fx_filter` = `filter()` on a slot's BUS
+    (`instrument_filter` is per voice): the whole group's top roll-off, its reverb included.
+    `SR_INSTR_GROUP`=157 / `SR_REVERB_BUS_INTO`=158 / `SR_INSTR_FX_FILTER`=159. Measured (`groupprobe`, one
+    stem at a time): two grouped sines under ONE tape wobble identically (19.6¢ each, corr 0.9999) where a
+    tape EACH gives corr 0.08 — the control, since two tapes started together wobble identically by
+    construction (wow is a deterministic LFO), which made the first version of this test vacuous; the
+    master slot stays at 0.000¢; a reverb tank folded into the group comes out 10.6 dB lower through the
+    group's -12 dB mid cut than one left on the master, whichever order the two calls come in. Showcase:
+    `seventyeight`. ⚠ A voice keeps the bus it STARTED on, so group in init().
 
 One-line version: **we built a very good modular synth and forgot to build the
 broken speaker it should play through.**

@@ -22,7 +22,9 @@ _Last updated: 2026-10-29 — INSTR_SCRAPE: a guiro with teeth. See the top Ship
   offsets. Zeroed `NoteOpts` = byte-identical to `schedule_at`; probe `legatoprobe`. Design + numbers in
   [`design/audio-timing.md`](design/audio-timing.md) §2c. **Also `stereo_width(amount)` / `instrument_stereo_width`**
   (`FX_WIDTH`): mid/side stereo width, 0 = mono (the 78) … 2 = wide, post-send-returns on the master;
-  probe `widthprobe`, ledger [`design/audio-notes.md`](design/audio-notes.md) §17 #41. #47's group bus still open.
+  probe `widthprobe`, ledger [`design/audio-notes.md`](design/audio-notes.md) §17 #41. **And the group bus:
+  `instrument_group(slot, lead)`** (a whole band through one chain) + `reverb_bus_into` (a SUBMIX: the room
+  goes through the record too) + `instrument_fx_filter` (filter() on a group's bus); §17 #42, probe `groupprobe`.
 - **`INSTR_SCRAPE`: SCRAPED + RATTLED PERCUSSION FROM TEETH** (2026-10-29, GitHub #45, for Playtime's CR-78
   band). Guiro / quijada / cabasa / ratchet from one `instrument()` + three macros (BODY / TOOTH RATE /
   GESTURE): each tooth a click + friction through a two-mode body at its own frequency, a rattle's first

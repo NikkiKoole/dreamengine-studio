@@ -772,6 +772,19 @@ keeps the dry present with the watery wobble on top). **Showcase: `pedalboard`**
 > envelope (quiet = dark, the bloom), which chorus has no notion of. First insert built on the
 > modulation kit's filtered-random source — see [`boutique-pedals-roadmap.md`](../design/boutique-pedals-roadmap.md).
 
+## group bus — `instrument_group(slot, lead)` · `reverb_bus_into(tank, lead)` · `instrument_fx_filter(slot, …)`
+
+Several slots through **one** chain: `instrument_group(member, lead)` points a member at the lead's
+effects bus, and every `instrument_*` effect set on the LEAD then shapes the whole group. One tape on a
+group = one warble for the whole band (a tape per slot wobbles each part on its own). Slots left out
+(sound effects, a voice) stay clean. `reverb_bus_into(tank, lead)` sends a `reverb_bus` tank back
+THROUGH the group, so the room is on the recording too. `instrument_fx_filter` is `filter()` on the
+group's bus. Group in `init()`: a voice keeps the bus it started on.
+
+| recipe | calls | character | used by |
+|---|---|---|---|
+| the worn 78 | `instrument_group(m, lead)` per member · `reverb_bus(1, 0.55, 0.5)` + `reverb_bus_into(1, lead)` · on the lead: `instrument_tape(0.5, 0.3, 0.5)` + `instrument_tape_warble(0.6)` + `instrument_eq(-12, 3, -12)` + `instrument_fx_filter(FILTER_LOW, 2600, 0.15)` + `instrument_stereo_width(0)` | the whole band, hall included, sagging together on one record: thin, mono, dark | `seventyeight` |
+
 ## stereo width — `stereo_width(amount)` · `instrument_stereo_width(slot, amount)`
 
 **Stereo width** as an insert (`FX_WIDTH` = 19): the mid stays, the left-right difference is scaled.

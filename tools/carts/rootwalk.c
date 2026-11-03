@@ -16,8 +16,8 @@
   "lineage": "The auto-accompaniment jam from Playtime (vector-sketch experiments/playtime/src/music-jam.lua, DRUM-JAM.md J1 + J7), brought home as GitHub #48. The bass figure idea is onenote's (after Aaron Batzdorff's one-note synth bass trick, TikTok / YouTube @aaronbatzdorff), with the root now walking on its own like an organ's one-finger chord. Drums from runtime/drumpat.h (the groovebook cart is its reader) voiced through drumkit.h with groovebook's role map; the upright is the upright cart's pizzicato INSTR_BOWED; the 303 uses instrument_mono. Every note is booked ahead on the audio clock (schedule_note_at).",
   "description": {
     "summary": "A few-note bass figure transposed along a walking root, over a drum machine that arranges itself live. The root moving is the hook.",
-    "detail": "The core is small: a 1-3 note bass FIGURE written in scale degrees (R root, 8 octave, 7 flat seventh, A the approach a half step under the next root, N the push: the next root early on the and-of-4), transposed along a WALK of roots (1 4 5 1, 1 5 6 4, doo-wop 1 6 4 5, 2 5 1, round the fourths) that moves every 2 or 4 bars on its own. The track at the top shows the walk with a playhead; the next chord lights up when the bass leans into it. Underneath, a drum machine arranges itself in 8-bar phrases from the ENERGY knob: layers come in one at a time (kick, bass, keys, hats, snare, percussion), every fourth phrase at full tilt is a BREAKDOWN (the kick leaves, the bass never does), and the phrase after it is the DROP, everything back with a crash and the walk home. The KEYS layer plays the chords five ways (a soft Rhodes pad, disco saw stabs, clav funk stabs, a choked reggae skank, a strummed clean electric), each chord voiced close to the last one. Every phrase ends on a fill, the pattern family's own written Break where the library has one. The walks carry their CHORDS (major, minor, dominant seventh), and the riffs follow them: a riff is written in the minor pentatonic and moves onto each chord's own pentatonic, so its minor third becomes a 2 over a major chord. The plain figures stay put. Picks for the walk, figure, pace, key and voice are armed and land at the NEXT ROOT CHANGE, the way an organist changes register between chords; a new genre, family or chord style lands at the next bar. Patterns are the maker's own drum-patterns library, whose provenance is uneven (see drumpat.h): fine to play, not to call the real thing.",
-    "controls": "W walk, F figure, P pace, K key, V bass voice: each ARMS a change that lands at the next root change. G genre, R family (rhythm) and C chord style land at the next bar; a picked chord style plays even when the energy is low. L (or tap the layer lamps) = ALL LAYERS from the next bar, whatever the energy. E LEAN and X GAP (AUTO / ALWAYS / NEVER): whether the drums nod at a coming chord change, and whether the bar before a drop goes silent from beat 4. O SPOT: a groove phrase's last 4 bars as a drum break, a bass feature or bass and drums trading (AUTO / NEVER / one of them every phrase). Y VARY: turnaround bars, ghost snares and 16th hats as it gets busy. UP/DOWN or the knob set ENERGY; hold SPACE (or PUSH) to push it to the top, release and it falls back. Tap the buttons on a phone."
+    "detail": "The core is small: a 1-3 note bass FIGURE written in scale degrees (R root, 8 octave, 7 flat seventh, A the approach a half step under the next root, N the push: the next root early on the and-of-4), transposed along a WALK of roots (1 4 5 1, 1 5 6 4, doo-wop 1 6 4 5, 2 5 1, round the fourths) that moves every 2 or 4 bars on its own. The track at the top shows the walk with a playhead; the next chord lights up when the bass leans into it. Underneath, a drum machine arranges itself in 8-bar phrases from the ENERGY knob: layers come in one at a time (kick, bass, keys, hats, snare, percussion), every fourth phrase at full tilt is a BREAKDOWN (the kick leaves, the bass never does), and the phrase after it is the DROP, everything back with a crash and the walk home. The KEYS layer plays the chords five ways (a soft Rhodes pad, disco saw stabs, clav funk stabs, a choked reggae skank, a strummed clean electric), each chord voiced close to the last one. The jam answers the game's moments in drums, not chord stingers: a nod or a short fill on the next beat (Playtime S4a). Every phrase ends on a fill, the pattern family's own written Break where the library has one. The walks carry their CHORDS (major, minor, dominant seventh), and the riffs follow them: a riff is written in the minor pentatonic and moves onto each chord's own pentatonic, so its minor third becomes a 2 over a major chord. The plain figures stay put. Picks for the walk, figure, pace, key and voice are armed and land at the NEXT ROOT CHANGE, the way an organist changes register between chords; a new genre, family or chord style lands at the next bar. Patterns are the maker's own drum-patterns library, whose provenance is uneven (see drumpat.h): fine to play, not to call the real thing.",
+    "controls": "W progression, F figure, P pace, K key, V bass voice: each ARMS a change that lands at the next root change. G genre, R family (rhythm) and C chord style land at the next bar; a picked chord style plays even when the energy is low. L (or tap the layer lamps) = BUILD ALL: every layer from the next bar, whatever the energy. N NOD and D FILL answer a game moment in drums on the next beat (an open hat; a snare run onto a kick), at most one a bar and never into the gap; S makes them BIG (a nod becomes the fill, the fill adds a crash). E LEAN and X GAP (AUTO / ALWAYS / NEVER): whether the drums nod at a coming chord change, and whether the bar before a drop goes silent from beat 4. O SPOT: a groove phrase's last 4 bars as a drum break, a bass feature or bass and drums trading (AUTO / NEVER / one of them every phrase). Y VARY: turnaround bars, ghost snares and 16th hats as it gets busy. UP/DOWN or the knob set ENERGY; hold SPACE (or PUSH) to push it to the top, release and it falls back. Tap the buttons on a phone."
   }
 }
 de:meta */
@@ -785,6 +785,35 @@ static void book_bar(const Bar *o, double t0) {
     bar_drums(o, book_drum, &bc);
 }
 
+// ── ANSWERS (Playtime S4a, answerMoment): a game moment answered in DRUMS, on the next beat ──
+// The jam does not play the composed styles' chord stingers: the impact plonks already sound the
+// chord, and in the jam the drums are the part that answers. Two tiers, at most one answer a bar:
+// a NOD (snap, grab, jump...) = an accented open hat on the beat, or a kick while the hats are out;
+// a FILL (a door, a new room, the try button) = four snare 16ths across the beat, getting louder,
+// landing on an accented kick. BIG raises each tier by one: a nod plays the fill, the fill adds a
+// crash on the landing. Every answer ADDS hits; none takes the groove away.
+enum { A_NOD, A_FILL };
+static const char *ANSWER_NAME[3] = { "NOD", "FILL", "FILL + CRASH" };
+static int answer_level(int tier, int big) { return tier + (big ? 1 : 0); }   // 0 nod, 1 fill, 2 fill + crash
+// every hit of an answer: emit(role, 16ths after the next beat, 0, velocity)
+static void answer_hits(int level, int hats_on, int gvel, DrumEmit emit, void *ctx) {
+    if (level == 0) {
+        if (hats_on) emit(DP_OH, 0, 0, 3 + RMAP[DP_OH].vbump + 2 + gvel, ctx);
+        else         emit(DP_BD, 0, 0, 3 + RMAP[DP_BD].vbump + 2 + gvel, ctx);
+        return;
+    }
+    for (int s = 0; s < 4; s++) emit(DP_SD, s, 0, 6 - (3 - s) + gvel, ctx);   // quieter 3, 2, 1, 0
+    emit(DP_BD, 4, 0, 3 + RMAP[DP_BD].vbump + 2 + gvel, ctx);
+    if (level >= 2) emit(DP_CY, 4, 0, 6, ctx);
+}
+// the step of the next beat after `pos` (0..16 steps into the bar); 16 = the next bar's one
+static int next_beat_step(double pos) { return ((int)pos / 4 + 1) * 4; }
+typedef struct { BookCtx b; int beat; } AnsCtx;
+static void ans_drum(int role, int s, double dt, int vel, void *ctx) {
+    AnsCtx *a = ctx;
+    book_drum(role, a->beat + s, dt, vel, &a->b);   // step_time runs on past 16 into the next bar
+}
+
 // ── the cart ──────────────────────────────────────────────────────────────────
 static Jam jam;
 static float k_energy = 0.5f, push = 0.0f;
@@ -792,6 +821,7 @@ static double next_t = -1.0;
 #define RING 8
 static Bar hist[RING]; static double hist_t[RING]; static int hist_n = 0;
 static int lean_flash = 0;   // frames the next chip stays lit after an A / N sounds
+static int answered_bar = -1, sting_big = 0, answer_flash = 0, answer_shown = 0;   // the answers (see answer())
 
 #define PUSH_X 268
 #define PUSH_Y 146
@@ -808,6 +838,8 @@ void init(void) {
 }
 
 static void cycle(int *v, int n) { *v = (*v + 1) % n; }
+static void answer(int tier);
+#define ANS_Y 187   // the answer buttons, under the pickers
 
 static void arm_genre(void) {
     cycle(&jam.want.genre, NGENRE);
@@ -823,6 +855,9 @@ void update(void) {
     if (keyp('V')) cycle(&jam.want.voice, NVOICE);
     if (keyp('K')) cycle(&jam.want.key, 12);
     if (keyp('C')) cycle(&jam.want.chords, NCHORDFIG);
+    if (keyp('N')) answer(A_NOD);       // a small moment (snap, grab, jump)
+    if (keyp('D')) answer(A_FILL);      // a door, a new room, the try button
+    if (keyp('S')) sting_big = !sting_big;
     // one condition per pick: a mouse click can also arrive as a touch, and two statements cycled twice
     int mrow = mouse_pressed(MOUSE_LEFT) && mouse_y() >= 126 && mouse_y() < 135;
     if (keyp('E') || tapp(6, 126, 72, 9)  || (mrow && mouse_x() >= 6  && mouse_x() < 78))  cycle(&jam.want.lean, 3);
@@ -851,6 +886,7 @@ void update(void) {
         next_t += 16 * step_dur(o.genre);
     }
     if (lean_flash > 0) lean_flash--;
+    if (answer_flash > 0) answer_flash--;
 }
 
 // the bar sounding now (not the one just planned) + where in it we are, 0..16 steps
@@ -866,6 +902,24 @@ static const Bar *sounding(double *pos) {
         }
     }
     return best;
+}
+
+// Book an answer on the next beat of the bar sounding now. One a bar: a second press inside the
+// same bar is ignored, as in Playtime (state.music.answeredAt). Not into the GAP: a hole before a
+// drop stays a hole.
+static void answer(int tier) {
+    double pos = 0;
+    const Bar *o = sounding(&pos);
+    if (!o) return;
+    int beat = next_beat_step(pos);
+    int bar = o->bar + beat / 16;
+    if (bar == answered_bar) return;
+    if (beat < 16 && beat >= o->cut) return;
+    answered_bar = bar;
+    int level = answer_level(tier, sting_big);
+    AnsCtx ac = { { o, hist_t[o - hist] }, beat };
+    answer_hits(level, o->on[L_HATS], GEN[o->genre].vel, ans_drum, &ac);
+    answer_flash = 50; answer_shown = level;
 }
 
 static const char *NOTE[12] = { "C","C#","D","Eb","E","F","F#","G","Ab","A","Bb","B" };
@@ -935,11 +989,11 @@ void draw(void) {
     // the change that is coming, when it differs from the plain next step
     font(FONT_SMALL);
     if (o->moves && jam.ch.walk != o->walk)
-        print("NEW WALK FROM THE NEXT BAR", tx, ty + th + 4, CLR_YELLOW);
+        print("NEW PROGRESSION FROM THE NEXT BAR", tx, ty + th + 4, CLR_YELLOW);
     else if (o->mode == M_BREAK && o->inph == PHRASE - 1 && o->moves)
-        print("THE DROP BRINGS THE WALK HOME", tx, ty + th + 4, CLR_YELLOW);
+        print("THE DROP GOES HOME TO THE FIRST CHORD", tx, ty + th + 4, CLR_YELLOW);
     else {
-        char nb[48]; snprintf(nb, sizeof nb, "WALK %s  EVERY %d BARS", w->name, o->pace);
+        char nb[48]; snprintf(nb, sizeof nb, "PROGRESSION %s  EVERY %d BARS", w->name, o->pace);
         print(nb, tx, ty + th + 4, CLR_MEDIUM_GREY);
     }
 
@@ -1005,7 +1059,7 @@ void draw(void) {
     }
     if (jam.want.all || jam.cur.all) {
         rect(4, ly - 2, 230, 16, jam.want.all != jam.cur.all && (frame() / 15) % 2 ? CLR_DARK_GREY : CLR_YELLOW);
-        font(FONT_TINY); print(jam.want.all ? "ALL" : "AUTO", 296, ly + 4, CLR_YELLOW); font(FONT_SMALL);
+        font(FONT_TINY); print(jam.want.all ? "BUILD ALL" : "BUILD AUTO", 276, ly + 16, CLR_YELLOW); font(FONT_SMALL);
     }
     // LEAN + GAP: how the drums play the song (tap to cycle AUTO / ALWAYS / NEVER)
     {
@@ -1024,6 +1078,7 @@ void draw(void) {
         const char *doing = o->spot_on ? SPOT_NAME[o->spot]
                         : o->lean ? (o->lean == 1 ? "OPEN HAT LEANS IN" : o->lean == 2 ? "KICK LEANS IN" : "SNARE LEANS IN")
                         : o->cut < 16 ? "THE GAP" : o->turn ? "TURNAROUND" : NULL;
+        if (answer_flash > 0) { static char ab[24]; snprintf(ab, sizeof ab, "ANSWER: %s", ANSWER_NAME[answer_shown]); doing = ab; }
         if (doing) print(doing, 160, 95, CLR_ORANGE);
         font(FONT_SMALL);
     }
@@ -1038,7 +1093,7 @@ void draw(void) {
     const Picks *c = &jam.cur, *a = &jam.want;
     int py = 140;
     char pbuf[8]; snprintf(pbuf, sizeof pbuf, "%d BARS", PACES[a->pace]);
-    if (picker(6,   py, 62, "W  WALK",   WALKS[a->walk].name, a->walk != c->walk)) cycle(&jam.want.walk, NWALK);
+    if (picker(6,   py, 62, "W  PROGRESSION",   WALKS[a->walk].name, a->walk != c->walk)) cycle(&jam.want.walk, NWALK);
     if (picker(70,  py, 66, "F  FIGURE", FIGS[a->fig].name,   a->fig != c->fig))   cycle(&jam.want.fig, NFIG);
     if (picker(138, py, 38, "P  PACE",   pbuf,                a->pace != c->pace)) cycle(&jam.want.pace, 2);
     if (picker(178, py, 36, "K  KEY",    NOTE[a->key],        a->key != c->key))   cycle(&jam.want.key, 12);
@@ -1048,6 +1103,12 @@ void draw(void) {
                a->genre != c->genre || a->fam != c->fam)) cycle(&jam.want.fam, GEN[a->genre].nfam);
     if (picker(138, py, 38, "V  VOICE",  VOICE_NAME[a->voice], a->voice != c->voice)) cycle(&jam.want.voice, NVOICE);
     if (picker(178, py, 36, "C  CHORDS", CHORD_FIGS[a->chords].name, a->chords != c->chords)) cycle(&jam.want.chords, NCHORDFIG);
+    // the answers: what the jam does when the game has a moment (Playtime S4a)
+    font(FONT_TINY);
+    if (ui_button(6,   ANS_Y, 62, 11, "N  NOD"))  answer(A_NOD);
+    if (ui_button(70,  ANS_Y, 66, 11, "D  FILL")) answer(A_FILL);
+    if (ui_button(138, ANS_Y, 76, 11, sting_big ? "S  BIG" : "S  SMALL")) sting_big = !sting_big;
+    font(FONT_NORMAL);
 
     ui_knob(&k_energy, 240, 160, "ENERGY");
     ui_end();
@@ -1070,7 +1131,42 @@ void draw(void) {
 // step, and with energy at zero the layers never grow (and a breakdown never drops the bass).
 static void spec_late_probe(int role, int st, double dt, int vel, void *c) { (void)role; (void)dt; (void)vel; if (st >= 12) *(int *)c = 1; }
 static int root_home(int deg) { return in_range(deg); }   // the spec runs in C
+// records an answer's hits: role, 16th offset, velocity
+typedef struct { int n, role[8], s[8], vel[8]; } AnsRec;
+static void spec_ans(int role, int s, double dt, int vel, void *c) {
+    (void)dt; AnsRec *r = c;
+    if (r->n < 8) { r->role[r->n] = role; r->s[r->n] = s; r->vel[r->n] = vel; r->n++; }
+}
+static void spec_answers(void) {
+    // the next beat: always ahead of where we are, on a beat, the bar's one after beat 4
+    expect_eq(next_beat_step(0.0), 4, "from the one, the next beat is beat 2");
+    expect_eq(next_beat_step(3.99), 4, "just before beat 2, it is beat 2");
+    expect_eq(next_beat_step(4.0), 8, "on beat 2, it is beat 3");
+    expect_eq(next_beat_step(13.5), 16, "on beat 4, it is the next bar's one");
+    // a nod: one accented open hat, or a kick while the hats are out
+    AnsRec r = { 0 };
+    answer_hits(answer_level(A_NOD, 0), 1, 0, spec_ans, &r);
+    expect(r.n == 1 && r.role[0] == DP_OH && r.s[0] == 0, "a nod is one open hat on the beat");
+    r = (AnsRec){ 0 };
+    answer_hits(answer_level(A_NOD, 0), 0, 0, spec_ans, &r);
+    expect(r.n == 1 && r.role[0] == DP_BD, "a nod without hats is a kick");
+    // a fill: four snare 16ths getting louder, landing on a kick a beat later, no crash
+    r = (AnsRec){ 0 };
+    answer_hits(answer_level(A_FILL, 0), 1, 0, spec_ans, &r);
+    int ok = r.n == 5;
+    for (int k = 0; k < 4 && ok; k++) ok = r.role[k] == DP_SD && r.s[k] == k && (k == 0 || r.vel[k] > r.vel[k - 1]);
+    expect(ok, "a fill is four snare 16ths, each louder");
+    expect(r.role[4] == DP_BD && r.s[4] == 4, "a fill lands on a kick on the next beat");
+    // BIG raises a tier: a big nod plays the fill; a big fill adds the crash on the landing
+    AnsRec f = r; r = (AnsRec){ 0 };
+    answer_hits(answer_level(A_NOD, 1), 1, 0, spec_ans, &r);
+    expect(r.n == f.n && memcmp(r.role, f.role, sizeof r.role) == 0, "a big nod plays the fill");
+    r = (AnsRec){ 0 };
+    answer_hits(answer_level(A_FILL, 1), 1, 0, spec_ans, &r);
+    expect(r.n == 6 && r.role[5] == DP_CY && r.s[5] == 4, "a big fill crashes on the landing");
+}
 void spec(void) {
+    spec_answers();
     resolve_patterns();
     for (int gi = 0; gi < NGENRE; gi++) {
         expect(GEN[gi].nfam > 0, "every genre resolved at least one family");

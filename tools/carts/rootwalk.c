@@ -16,8 +16,8 @@
   "lineage": "The auto-accompaniment jam from Playtime (vector-sketch experiments/playtime/src/music-jam.lua, DRUM-JAM.md J1 + J7), brought home as GitHub #48. The bass figure idea is onenote's (after Aaron Batzdorff's one-note synth bass trick, TikTok / YouTube @aaronbatzdorff), with the root now walking on its own like an organ's one-finger chord. Drums from runtime/drumpat.h (the groovebook cart is its reader) voiced through drumkit.h with groovebook's role map; the upright is the upright cart's pizzicato INSTR_BOWED; the 303 uses instrument_mono. Every note is booked ahead on the audio clock (schedule_note_at).",
   "description": {
     "summary": "A few-note bass figure transposed along a walking root, over a drum machine that arranges itself live. The root moving is the hook.",
-    "detail": "The core is small: a 1-3 note bass FIGURE written in scale degrees (R root, 8 octave, 7 flat seventh, A the approach a half step under the next root, N the push: the next root early on the and-of-4), transposed along a WALK of roots (1 4 5 1, 1 5 6 4, doo-wop 1 6 4 5, 2 5 1, round the fourths) that moves every 2 or 4 bars on its own. The track at the top shows the walk with a playhead; the next chord lights up when the bass leans into it. Underneath, a drum machine arranges itself in 8-bar phrases from the ENERGY knob: layers come in one at a time (kick, bass, hats, snare, percussion), every fourth phrase at full tilt is a BREAKDOWN (the kick leaves, the bass never does), and the phrase after it is the DROP, everything back with a crash and the walk home. Every phrase ends on a fill, the pattern family's own written Break where the library has one. The walks carry their CHORDS (major, minor, dominant seventh), and the riffs follow them: a riff is written in the minor pentatonic and moves onto each chord's own pentatonic, so its minor third becomes a 2 over a major chord. The plain figures stay put. Picks for the walk, figure, pace, key and voice are armed and land at the NEXT ROOT CHANGE, the way an organist changes register between chords; a new genre or family lands at the next bar. Patterns are the maker's own drum-patterns library, whose provenance is uneven (see drumpat.h): fine to play, not to call the real thing.",
-    "controls": "W walk, F figure, P pace, K key, V bass voice: each ARMS a change that lands at the next root change. G genre and R family (rhythm) land at the next bar. UP/DOWN or the knob set ENERGY; hold SPACE (or PUSH) to push it to the top, release and it falls back. Tap the buttons on a phone."
+    "detail": "The core is small: a 1-3 note bass FIGURE written in scale degrees (R root, 8 octave, 7 flat seventh, A the approach a half step under the next root, N the push: the next root early on the and-of-4), transposed along a WALK of roots (1 4 5 1, 1 5 6 4, doo-wop 1 6 4 5, 2 5 1, round the fourths) that moves every 2 or 4 bars on its own. The track at the top shows the walk with a playhead; the next chord lights up when the bass leans into it. Underneath, a drum machine arranges itself in 8-bar phrases from the ENERGY knob: layers come in one at a time (kick, bass, keys, hats, snare, percussion), every fourth phrase at full tilt is a BREAKDOWN (the kick leaves, the bass never does), and the phrase after it is the DROP, everything back with a crash and the walk home. The KEYS layer plays the chords five ways (a soft Rhodes pad, disco saw stabs, clav funk stabs, a choked reggae skank, a strummed clean electric), each chord voiced close to the last one. Every phrase ends on a fill, the pattern family's own written Break where the library has one. The walks carry their CHORDS (major, minor, dominant seventh), and the riffs follow them: a riff is written in the minor pentatonic and moves onto each chord's own pentatonic, so its minor third becomes a 2 over a major chord. The plain figures stay put. Picks for the walk, figure, pace, key and voice are armed and land at the NEXT ROOT CHANGE, the way an organist changes register between chords; a new genre, family or chord style lands at the next bar. Patterns are the maker's own drum-patterns library, whose provenance is uneven (see drumpat.h): fine to play, not to call the real thing.",
+    "controls": "W walk, F figure, P pace, K key, V bass voice: each ARMS a change that lands at the next root change. G genre, R family (rhythm) and C chord style land at the next bar; a picked chord style plays even when the energy is low. UP/DOWN or the knob set ENERGY; hold SPACE (or PUSH) to push it to the top, release and it falls back. Tap the buttons on a phone."
   }
 }
 de:meta */
@@ -49,8 +49,8 @@ de:meta */
 #define MINL         2     // the jam never has fewer than kick + bass
 #define AHEAD        0.25  // book a bar when it is this close to the audio clock
 
-enum { L_KICK, L_BASS, L_HATS, L_SNARE, L_PERC, NLAYER };
-static const char *LAYER_NAME[NLAYER] = { "KICK", "BASS", "HATS", "SNARE", "PERC" };
+enum { L_KICK, L_BASS, L_KEYS, L_HATS, L_SNARE, L_PERC, NLAYER };   // the order they come in
+static const char *LAYER_NAME[NLAYER] = { "KICK", "BASS", "KEYS", "HATS", "SNARE", "PERC" };
 enum { M_GROOVE, M_BREAK, M_DROP };
 static const char *MODE_NAME[3] = { "GROOVE", "BREAKDOWN", "DROP" };
 
@@ -230,6 +230,80 @@ static const char *GENRE_A = "R..8..7.........";     // every genre's first figu
 
 static const int PACES[2] = { 2, 4 };
 
+// ── the chord layer (Playtime's J9d: music-jam.lua KEYS_CHORDS + CHORD_FIGURES) ─
+// The chord per kind keeps out of the bass's way: the major one has the 9th, not the major 7th
+// (the figures play a b7 over every chord); the minor and the dominant their b7.
+static const int *keys_chord(char kind, int *n) {
+    static const int M[4] = { 0, 4, 7, 14 }, m[4] = { 0, 3, 7, 10 }, D7[4] = { 0, 4, 7, 10 },
+                     J[4] = { 0, 4, 11, 14 }, S[4] = { 0, 5, 10, 14 };
+    *n = 4;
+    return kind == 'm' ? m : kind == '7' ? D7 : kind == 'J' ? J : kind == 's' ? S : M;
+}
+// how the chords are played: 16 steps, 'x' a hit, '-' holding it, '.' silence; each on its own
+// slot, voiced in lo..hi, rolled `roll` seconds a note. AUTO = the genre's (CHORDS_BY_GENRE).
+typedef struct { const char *name; const char *steps; int vel, lo, hi; float roll; } ChordFig;
+static const ChordFig CHORD_FIGS[] = {
+    { "AUTO",  NULL, 0, 0, 0, 0 },
+    { "PAD",   "x---------------", 2, 52, 74, 0.012f },   // a soft Rhodes on the one
+    { "DISCO", "..x-..x-..x-..x-", 2, 55, 76, 0.0f },     // saw stabs on the offbeat
+    { "FUNK",  "....x..x.x....x.", 3, 55, 76, 0.004f },   // clav stabs
+    { "SKANK", "....x-......x-..", 1, 60, 79, 0.008f },   // a choked guitar on 2 and 4
+    { "STRUM", "x--x--x-x--x--x-", 1, 52, 76, 0.022f },   // a clean electric, strummed
+};
+#define NCHORDFIG (int)(sizeof CHORD_FIGS / sizeof CHORD_FIGS[0])
+enum { CF_AUTO, CF_PAD, CF_DISCO, CF_FUNK, CF_SKANK, CF_STRUM };
+// per genre: ELECTRO HIP HOP BREAKS DISCO FUNK BRUSHES
+static const int CHORDS_BY_GENRE[6] = { CF_PAD, CF_PAD, CF_FUNK, CF_DISCO, CF_FUNK, CF_PAD };
+
+// Voice a chord close to the last one (Playtime's theory.voiceChord): every rotation of the chord's
+// pitch classes, closed and drop-2, at every octave whose bottom sits in lo..lo+12 and top under hi;
+// no minor 2nd / b9 anywhere, no close interval down low; the cheapest move from the previous
+// voicing wins (a big leap of the top voice costs extra), else the one nearest middle D.
+#define MAXVOICE 4
+static int voice_chord(int root_pc, const int *iv, int niv, int lo, int hi,
+                       const int *prev, int nprev, int *out) {
+    int pcs[MAXVOICE], n = 0;
+    for (int i = 0; i < niv; i++) {
+        int pc = (root_pc + iv[i]) % 12, dup = 0;
+        for (int k = 0; k < n; k++) if (pcs[k] == pc) dup = 1;
+        if (!dup) pcs[n++] = pc;
+    }
+    for (int a = 0; a < n; a++) for (int b = a + 1; b < n; b++) if (pcs[b] < pcs[a]) { int t = pcs[a]; pcs[a] = pcs[b]; pcs[b] = t; }
+    float best_cost = 1e9f; int found = 0;
+    for (int rot = 0; rot < n; rot++) for (int drop2 = 0; drop2 <= (n >= 3 ? 1 : 0); drop2++) {
+        int shape[MAXVOICE];
+        for (int k = 0; k < n; k++) {
+            int note = pcs[(rot + k) % n];
+            while (k > 0 && note <= shape[k - 1]) note += 12;
+            shape[k] = note;
+        }
+        if (drop2) {
+            shape[n - 2] -= 12;
+            for (int a = 0; a < n; a++) for (int b = a + 1; b < n; b++) if (shape[b] < shape[a]) { int t = shape[a]; shape[a] = shape[b]; shape[b] = t; }
+        }
+        for (int oct = 2; oct <= 7; oct++) {
+            int v[MAXVOICE];
+            for (int k = 0; k < n; k++) v[k] = shape[k] + 12 * oct;
+            if (v[0] < lo || v[0] > lo + 12 || v[n - 1] > hi) continue;
+            int bad = 0;
+            for (int a = 0; a < n; a++) {
+                for (int b = a + 1; b < n; b++) { int d = v[b] - v[a]; if (d == 1 || d == 13 || d == 25) bad = 1; }
+                if (a > 0 && v[a] - v[a - 1] < 3 && v[a - 1] < 52) bad = 1;
+            }
+            if (bad) continue;
+            float mean = 0; for (int k = 0; k < n; k++) mean += v[k];
+            float d = mean / n - 62; float cost = 0.5f * (d < 0 ? -d : d);
+            if (nprev > 0) {
+                for (int k = 0; k < n; k++) { int m2 = prev[k < nprev ? k : nprev - 1]; int dd = v[k] - m2; cost += dd < 0 ? -dd : dd; }
+                int top = v[n - 1] - prev[nprev - 1]; if (top < 0) top = -top;
+                if (top > 4) cost += 2 * (top - 4);
+            }
+            if (cost < best_cost) { best_cost = cost; found = 1; for (int k = 0; k < n; k++) out[k] = v[k]; }
+        }
+    }
+    return found ? n : 0;
+}
+
 static int degree_of(char c) {
     switch (c) {
     case 'R': return 0;  case '2': return 2;  case 'm': return 3;  case '3': return 4;
@@ -245,7 +319,7 @@ static int in_range(int pc) { return 33 + ((pc - 9) % 12 + 12) % 12; }
 enum { V_UPRIGHT, V_ACID, V_SINE, NVOICE };
 static const char *VOICE_NAME[NVOICE] = { "UPRIGHT", "303 MONO", "SINE" };
 
-typedef struct { int walk, fig, pace, genre, fam, voice, key; } Picks;   // key: pitch class of the 1
+typedef struct { int walk, fig, pace, genre, fam, voice, key, chords; } Picks;   // key: pitch class of the 1
 
 typedef struct {
     Picks cur, want;           // sounding vs armed
@@ -253,6 +327,7 @@ typedef struct {
     int phrase, mode, layers, var, on[NLAYER];
     int np_mode, np_layers, np_var, np_ready;   // the NEXT phrase, decided one bar early
     int wstep, root, left;     // the walk: its step, the root (semitones over the key), bars left on it
+    int voicing[MAXVOICE], nvoicing;            // the last chord voiced (the next one moves close to it)
     int ch_pending, ch_wstep; Picks ch;          // the next bar's change, snapshotted one bar early
 } Jam;
 
@@ -263,6 +338,7 @@ typedef struct {
     const Pat *pat;
     const char *loop;
     char letter;                                 // a riff's form letter this bar ('A' for a plain figure)
+    int chords, keys_on, voicing[MAXVOICE], nvoicing;   // the chord figure + this bar's voicing
     int key; char chord;                         // the key's pitch class, this bar's chord kind (M m 7)
     int note[16], len[16]; char kind[16];       // note -1 = nothing starts on this step
 } Bar;
@@ -320,13 +396,13 @@ static void jam_plan(Jam *j, float energy, Bar *o) {
     }
 
     // genre + family land at the next BAR (a new groove shouldn't wait for the chord)
-    j->cur.genre = j->want.genre; j->cur.fam = j->want.fam;
+    j->cur.genre = j->want.genre; j->cur.fam = j->want.fam; j->cur.chords = j->want.chords;   // these three: next bar
 
     // the root: a change snapshotted last bar lands now, else one bar less on this root
     if (j->ch_pending) {
-        int genre = j->cur.genre, fam = j->cur.fam;
+        int genre = j->cur.genre, fam = j->cur.fam, chords = j->cur.chords;
         j->cur = j->ch;
-        j->cur.genre = genre; j->cur.fam = fam;
+        j->cur.genre = genre; j->cur.fam = fam; j->cur.chords = chords;
         j->wstep = j->ch_wstep;
         j->root = WALKS[j->cur.walk].deg[j->wstep];
         j->left = PACES[j->cur.pace];
@@ -406,6 +482,18 @@ static void jam_plan(Jam *j, float energy, Bar *o) {
         else { while (len < n && loop[(b * 16 + s + len) % n] == '-') len++; }
         o->note[s] = midi; o->len[s] = len;
     }
+
+    // the chords: a layer of their own, or always when a style is PICKED (else a calm jam never hears it)
+    o->chords = j->cur.chords ? j->cur.chords : CHORDS_BY_GENRE[j->cur.genre];
+    o->keys_on = j->on[L_KEYS] || j->cur.chords != CF_AUTO;
+    if (o->keys_on) {
+        int niv; const int *iv = keys_chord(o->chord, &niv);
+        const ChordFig *cf = &CHORD_FIGS[o->chords];
+        int v[MAXVOICE];
+        int nv = voice_chord((j->cur.key + j->root) % 12, iv, niv, cf->lo, cf->hi, j->voicing, j->nvoicing, v);
+        if (nv) { memcpy(j->voicing, v, sizeof v); j->nvoicing = nv; }
+    }
+    memcpy(o->voicing, j->voicing, sizeof o->voicing); o->nvoicing = j->nvoicing;
     j->bar++;
 }
 
@@ -413,6 +501,7 @@ static void jam_plan(Jam *j, float energy, Bar *o) {
 #define SL_UPRIGHT 10
 #define SL_ACID    11
 #define SL_SINE    12
+#define SL_KEYS    13                       // 13..17: one slot per chord figure
 #define KIT_BASE_E 20                       // ELECTRO kit, 8 slots
 #define KIT_BASE_A 28                       // ACOUSTIC kit, 8 slots
 #define SL_SWEEP   36
@@ -469,7 +558,41 @@ static void setup_sound(void) {
 
     // the round sine bass
     instrument(SL_SINE, INSTR_SINE, 3, 300, 5, 90);
-    instrument_level(SL_SINE, 0.2f);       // measured: a sine carries 12 dB more rms than the pizz at the same level
+    instrument_level(SL_SINE, 0.2f);
+
+    // the chord instruments (Playtime's synth.lua patches of the same names)
+    int k = SL_KEYS + CF_PAD - 1;                                      // rhodes: a soft pad, panned + phased
+    instrument(k, INSTR_EPIANO, 1, 0, 7, 450);
+    instrument_harmonics(k, 0.15f); instrument_timbre(k, 0.2f); instrument_morph(k, 0.12f);
+    instrument_reverb(k, 0.3f); instrument_level(k, 0.35f);
+    instrument_autopan(k, 4.0f, 0.5f, 0);
+    instrument_phaser(k, 0.8f, 0.65f, 0.5f, 0.5f, 4);
+    instrument_tape(k, 0.25f, 0.1f, 0.0f);
+    k = SL_KEYS + CF_DISCO - 1;                                        // stab: a filtered saw
+    instrument(k, INSTR_SAW, 3, 180, 2, 160);
+    instrument_filter(k, FILTER_LOW, 1500, 2);
+    instrument_reverb(k, 0.35f); instrument_level(k, 0.38f);
+    k = SL_KEYS + CF_FUNK - 1;                                         // clav: a bright, short e-piano
+    instrument(k, INSTR_EPIANO, 2, 140, 2, 120);
+    instrument_harmonics(k, 0.85f); instrument_timbre(k, 0.75f); instrument_morph(k, 0.55f);
+    instrument_reverb(k, 0.2f); instrument_level(k, 1.0f);
+    k = SL_KEYS + CF_SKANK - 1;                                        // jab guitar: choked, on a worn tape
+    instrument(k, INSTR_GUITAR, 1, 0, 7, 90);
+    instrument_harmonics(k, 0.4f); instrument_timbre(k, 0.35f); instrument_morph(k, 0.12f);
+    instrument_mode(k, MODE_STRING_WEIGHT, 0.7f); instrument_mode(k, MODE_STRING_CLICK, 0.15f);
+    instrument_filter(k, FILTER_LOW, 2800, 1);
+    instrument_reverb(k, 0.3f); instrument_level(k, 0.55f);
+    instrument_drive(k, 0.15f);
+    instrument_tape(k, 0.3f, 0.12f, 0.35f);
+    k = SL_KEYS + CF_STRUM - 1;                                        // clean electric, long ring, a flanger
+    instrument(k, INSTR_GUITAR, 2, 0, 7, 1600);
+    instrument_harmonics(k, 0.4f); instrument_timbre(k, 0.3f); instrument_morph(k, 0.12f);
+    instrument_mode(k, MODE_STRING_WEIGHT, 0.7f); instrument_mode(k, MODE_STRING_CLICK, 0.15f);
+    instrument_filter(k, FILTER_LOW, 2400, 1);
+    instrument_reverb(k, 0.45f); instrument_level(k, 0.45f);
+    instrument_drive(k, 0.22f);
+    instrument_tape(k, 0.25f, 0.08f, 0.25f);
+    instrument_flanger(k, 0.25f, 0.5f, 0.5f, 0.35f);       // measured: a sine carries 12 dB more rms than the pizz at the same level
 }
 
 static double step_dur(int genre) { return 60.0 / GEN[genre].bpm / 4.0; }
@@ -493,6 +616,16 @@ static void book_bar(const Bar *o, double t0) {
     int slot = VOICE_SLOT[o->voice];
     for (int s = 0; s < 16; s++) {
         double t = step_time(o, t0, s);
+        if (o->keys_on && o->nvoicing) {
+            const ChordFig *cf = &CHORD_FIGS[o->chords];
+            if (cf->steps[s] == 'x') {
+                int len = 1;
+                while (s + len < 16 && cf->steps[s + len] == '-') len++;
+                int ms = (int)(len * st * 1000.0 * 0.95);
+                for (int k = 0; k < o->nvoicing; k++)
+                    schedule_at(t + k * cf->roll, o->voicing[k], SL_KEYS + o->chords - 1, cf->vel, ms);
+            }
+        }
         if (o->note[s] >= 0) {
             int ms = (int)(o->len[s] * st * 1000.0 * 0.9);
             if (o->voice == V_UPRIGHT && ms < 160) ms = 160;           // a pizz wants time to ring
@@ -553,6 +686,7 @@ void update(void) {
     if (keyp('R')) cycle(&jam.want.fam, GEN[jam.want.genre].nfam);
     if (keyp('V')) cycle(&jam.want.voice, NVOICE);
     if (keyp('K')) cycle(&jam.want.key, 12);
+    if (keyp('C')) cycle(&jam.want.chords, NCHORDFIG);
     if (key(KEY_UP))   { k_energy += 0.01f; if (k_energy > 1) k_energy = 1; }
     if (key(KEY_DOWN)) { k_energy -= 0.01f; if (k_energy < 0) k_energy = 0; }
 
@@ -702,11 +836,28 @@ void draw(void) {
     }
 
     // ── the arrangement: layers, mode, phrase position ──
+    // the chords: the figure's 16 steps + the voicing that is sounding
+    {
+        int ky = 102;
+        const ChordFig *cf = &CHORD_FIGS[o->chords];
+        print("KEYS", 6, ky, o->keys_on ? CLR_WHITE : CLR_DARK_GREY);
+        for (int s = 0; s < 16; s++) {
+            char c = cf->steps[s];
+            int col = !o->keys_on ? CLR_DARKER_GREY : c == 'x' ? CLR_PINK : c == '-' ? CLR_DARK_PURPLE : CLR_DARKER_GREY;
+            rectfill(fx + s * cs, ky + 1, cs - 2, 4, col);
+        }
+        if (o->keys_on && o->nvoicing) {
+            char vb[32] = ""; int at = 0;
+            for (int k = 0; k < o->nvoicing && at < 28; k++)
+                at += snprintf(vb + at, sizeof vb - at, "%s%s", k ? " " : "", NOTE[o->voicing[k] % 12]);
+            print_right(vb, 314, ky - 8, CLR_PINK);
+        }
+    }
     int ly = 112;
     for (int k = 0; k < NLAYER; k++) {
-        int lx = 6 + k * 46;
-        rectfill(lx, ly, 42, 12, o->on[k] ? (k == L_BASS ? CLR_GREEN : CLR_RED) : CLR_DARKER_GREY);
-        print_centered(LAYER_NAME[k], lx + 21, ly + 3, o->on[k] ? CLR_WHITE : CLR_DARK_GREY);
+        int lx = 6 + k * 38;
+        rectfill(lx, ly, 35, 12, o->on[k] ? (k == L_BASS ? CLR_GREEN : k == L_KEYS ? CLR_PINK : CLR_RED) : CLR_DARKER_GREY);
+        print_centered(LAYER_NAME[k], lx + 17, ly + 3, o->on[k] ? CLR_WHITE : CLR_DARK_GREY);
     }
     print(MODE_NAME[o->mode], 240, ly + 3, o->mode == M_GROOVE ? CLR_LIGHT_GREY : CLR_YELLOW);
     for (int i = 0; i < PHRASE; i++)
@@ -727,7 +878,8 @@ void draw(void) {
     if (picker(6,   py, 62, "G  GENRE",  GEN[a->genre].name,  a->genre != c->genre)) arm_genre();
     if (picker(70,  py, 66, "R  FAMILY", GEN[a->genre].fam[a->fam % GEN[a->genre].nfam].name,
                a->genre != c->genre || a->fam != c->fam)) cycle(&jam.want.fam, GEN[a->genre].nfam);
-    if (picker(138, py, 76, "V  VOICE",  VOICE_NAME[a->voice], a->voice != c->voice)) cycle(&jam.want.voice, NVOICE);
+    if (picker(138, py, 38, "V  VOICE",  VOICE_NAME[a->voice], a->voice != c->voice)) cycle(&jam.want.voice, NVOICE);
+    if (picker(178, py, 36, "C  CHORDS", CHORD_FIGS[a->chords].name, a->chords != c->chords)) cycle(&jam.want.chords, NCHORDFIG);
 
     ui_knob(&k_energy, 240, 160, "ENERGY");
     ui_end();
@@ -881,6 +1033,39 @@ void spec(void) {
         jam_init(&j, (Picks){ .walk = wave, .fig = 1, .pace = 0, .genre = G_FUNK });
         for (int b = 0; b < 26; b++) { jam_plan(&j, 0.0f, &o); if (b == 24 && o.root != 0) home = 0; }
         expect(home, "twelve steps up in fourths and the wave is home");
+    }
+    // the chord layer: keys come in third; a voicing holds the chord's notes, in range, no b9, and
+    // moves close to the last one; a picked chord style plays even in a calm jam
+    {
+        jam_init(&j, (Picks){ .walk = 1, .fig = 1, .pace = 0, .genre = G_FUNK });
+        int keys_early = 0, keys_seen = 0, voiced_ok = 1, close = 1, prev[MAXVOICE], np = 0;
+        for (int b = 0; b < 8 * 6; b++) {
+            jam_plan(&j, 0.5f, &o);                                  // target = 3 layers: kick bass keys
+            if (o.on[L_KEYS] && o.layers < 3) keys_early = 1;
+            if (!o.keys_on) continue;
+            keys_seen++;
+            int niv; const int *iv = keys_chord(o.chord, &niv);
+            const ChordFig *cf = &CHORD_FIGS[o.chords];
+            for (int k = 0; k < o.nvoicing; k++) {
+                int pc = (o.voicing[k] - (o.key + o.root)) % 12, ok = 0; pc = (pc + 12) % 12;
+                for (int i = 0; i < niv; i++) if (iv[i] % 12 == pc) ok = 1;
+                if (!ok || o.voicing[k] > cf->hi) voiced_ok = 0;
+                for (int m2 = k + 1; m2 < o.nvoicing; m2++) { int d = o.voicing[m2] - o.voicing[k]; if (d == 1 || d == 13 || d == 25) voiced_ok = 0; }
+            }
+            if (o.voicing[0] < cf->lo || o.voicing[0] > cf->lo + 12) voiced_ok = 0;
+            if (np) { int top = o.voicing[o.nvoicing - 1] - prev[np - 1]; if (top > 7 || top < -7) close = 0; }
+            memcpy(prev, o.voicing, sizeof prev); np = o.nvoicing;
+        }
+        expect(!keys_early, "the keys are the third layer in");
+        expect(keys_seen > 0, "the keys come in at middling energy");
+        expect(voiced_ok, "every voicing: the chord's notes, in range, no b9");
+        expect(close, "the top voice moves by a fifth at most, chord to chord");
+        jam_init(&j, (Picks){ .walk = 6, .fig = 1, .pace = 0, .genre = G_FUNK });
+        jam_plan(&j, 0.0f, &o);
+        expect(!o.keys_on, "a calm jam on AUTO has no keys");
+        j.want.chords = CF_STRUM;
+        jam_plan(&j, 0.0f, &o);
+        expect(o.keys_on && o.chords == CF_STRUM, "a picked chord style plays from the next bar, calm or not");
     }
     // brush walk's B: '7--A' holds the 7 for three steps and stops AT the A, which still sounds
     {

@@ -8138,7 +8138,7 @@
   },
   {
     "title": "unschedule probe",
-    "description": "Books every click of two slots up front, then takes some back. Slot 6 loses a WINDOW (clicks 5..9) half a second after booking; slot 5 loses everything from click 15 on, unbooked in the SAME frame it was booked, which is the FIFO claim (an unschedule sent right after its bookings must still see them). UC_MODE=0 is the NEGATIVE CONTROL: the same run with no unschedule, where every click must be heard, or the gate could not tell a dropped note from a click it simply failed to detect. Driven by `bash tools/schedule-check/run.sh`; not meant to be played.",
+    "description": "Books every click of two slots up front, then takes some back. Slot 6 loses a WINDOW (clicks 5..9) half a second after booking; slot 5 loses everything from click 15 on, unbooked in the SAME frame it was booked, which is the FIFO claim (an unschedule sent right after its bookings must still see them). UC_MODE=0 is the NEGATIVE CONTROL: the same run with no unschedule, where every click must be heard, or the gate could not tell a dropped note from a click it simply failed to detect. UC_MODE=2 checks NoteOpts.gain the same way: plain clicks, clicks at gain 0.5 (must peak at exactly half), and clicks whose opts leave gain unset (must match the plain ones, the control that gain 0 means full). Driven by `bash tools/schedule-check/run.sh`; not meant to be played.",
     "file": "unschedcheck.cart.png",
     "created": "2026-11-03",
     "kind": [

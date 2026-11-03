@@ -44,5 +44,12 @@ for mode in 1 0; do
     -o "$out" -lm -lpthread -framework CoreMIDI -framework CoreFoundation
   "$out" || fail=1
 done
+# NoteOpts.gain (a booked note's volume as a fraction): the same probe cart in UC_MODE=2, its own host.
+echo "── note gain"
+clang -O1 -g \
+  tools/schedule-check/gain.c runtime/studio.c runtime/raylib_compat.c build/cart.c \
+  -I runtime -I build -DDE_NO_RAYLIB=1 -DSCALE=1 -DSCREEN_W=320 -DSCREEN_H=200 -DUC_MODE=2 \
+  -o build/schedule-check-gain -lm -lpthread -framework CoreMIDI -framework CoreFoundation
+build/schedule-check-gain || fail=1
 if [ $fail -eq 0 ]; then echo "schedule-check: PASS"; else echo "schedule-check: FAIL"; fi
 exit $fail

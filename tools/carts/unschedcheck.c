@@ -11,7 +11,7 @@
     "step-sequencer"
   ],
   "lineage": "Measurement probe for unschedule() (asked for by Playtime's stingers: a part that rests while a stinger plays on its instrument, after its notes were already booked a bar ahead). Driven by tools/schedule-check/run.sh, not played by hand. Sibling of schedcheck.",
-  "description": "Books every click of two slots up front, then takes some back. Slot 6 loses a WINDOW (clicks 5..9) half a second after booking; slot 5 loses everything from click 15 on, unbooked in the SAME frame it was booked, which is the FIFO claim (an unschedule sent right after its bookings must still see them). UC_MODE=0 is the NEGATIVE CONTROL: the same run with no unschedule, where every click must be heard, or the gate could not tell a dropped note from a click it simply failed to detect. Driven by `bash tools/schedule-check/run.sh`; not meant to be played."
+  "description": "Books every click of two slots up front, then takes some back. Slot 6 loses a WINDOW (clicks 5..9) half a second after booking; slot 5 loses everything from click 15 on, unbooked in the SAME frame it was booked, which is the FIFO claim (an unschedule sent right after its bookings must still see them). UC_MODE=0 is the NEGATIVE CONTROL: the same run with no unschedule, where every click must be heard, or the gate could not tell a dropped note from a click it simply failed to detect. UC_MODE=2 checks NoteOpts.gain the same way: plain clicks, clicks at gain 0.5 (must peak at exactly half), and clicks whose opts leave gain unset (must match the plain ones, the control that gain 0 means full). Driven by `bash tools/schedule-check/run.sh`; not meant to be played."
 }
 de:meta */
 // unschedcheck: the unschedule() probe. See tools/schedule-check/unsched.c for the measurement.
@@ -19,7 +19,7 @@ de:meta */
 #include "studio.h"
 
 #ifndef UC_MODE
-#define UC_MODE 1          // 1 = take notes back · 0 = NEGATIVE CONTROL: book everything, take nothing back
+#define UC_MODE 1          // 1 = take notes back · 0 = NEGATIVE CONTROL: book everything, take nothing back · 2 = NoteOpts.gain
 #endif
 #define UC_STEP 0.25       // seconds between a slot's clicks = 11025 samples
 #define UC_N    20         // clicks per slot (2 x 20 = 40 booked notes, inside the engine's 64-note pen)
@@ -27,6 +27,22 @@ de:meta */
 void update(void) {
     static int frame_n = 0;
     static double t0 = 0;
+#if UC_MODE == 2
+    // GAIN mode (NoteOpts.gain): every third click plain (NULL opts), the next at gain 0.5, the next with
+    // opts but gain left 0 = unset, which must be exactly the plain click. vol 4 keeps clear of any clip.
+    if (frame_n == 0) {
+        instrument(5, INSTR_SQUARE, 0, 0, 7, 1);
+        t0 = audio_time() + 0.3;
+        for (int k = 0; k < 18; k++) {
+            double t = t0 + k * UC_STEP;
+            if (k % 3 == 0)      schedule_note_at(t, 69, 5, 4, 60, NULL);
+            else if (k % 3 == 1) schedule_note_at(t, 69, 5, 4, 60, &(NoteOpts){ .gain = 0.5f });
+            else                 schedule_note_at(t, 69, 5, 4, 60, &(NoteOpts){ .glide_ms = 0 });
+        }
+    }
+    frame_n++;
+    return;
+#endif
     if (frame_n == 0) {
         instrument(5, INSTR_SQUARE, 0, 0, 7, 1);
         instrument(6, INSTR_SQUARE, 0, 0, 7, 1);

@@ -6750,13 +6750,15 @@ static void emit_process(int b, float *mixL, float *mixR) {
 // extras ride in the request's e0/e1/e2 (free on a note: only held-handle requests use them), through
 // the delayed pen untouched, and are unpacked when the note fires:
 //   e0 = glide_ms (0..60000; > 0 = LEGATO, see sound_legato_voice)
-//   e1 = NOTE_EX_FLAG | accent*1000 (0..1000)   — the flag tells an extended note from a plain one,
-//        whose e1 is always 0 (sound_push_req zeroes it), so every existing note takes the old path
+//   e1 = NOTE_EX_FLAG | accent*1000 (0..1000, bits 0-9) | gain*1000 << 21 (bits 21-30; 0 = unset = 1.0)
+//        — the flag tells an extended note from a plain one, whose e1 is always 0 (sound_push_req zeroes
+//        it), so every existing note takes the old path. GAIN scales this note's volume as a FRACTION, which
+//        the 0..7 integer vol cannot: a host's music-volume slider on notes that share a slot with sfx
 //   e2 = harmonics | timbre << 10 | morph << 20, each a signed 10-bit OFFSET (±1 in 1/511 steps) added
 //        to the slot's own macro — an offset, not an absolute, so 0 (a zeroed NoteOpts) means "the slot's"
 #define ACC_N        6
 #define NOTE_EX_FLAG (1 << 20)
-typedef struct { int glide_ms; float accent, harm, timb, mor; } NoteEx;
+typedef struct { int glide_ms; float accent, harm, timb, mor, gain; } NoteEx;
 static inline int note_ex_q10(float x) {
     x = x < -1.0f ? -1.0f : (x > 1.0f ? 1.0f : x);
     int q = (int)(x * 511.0f + (x < 0.0f ? -0.5f : 0.5f));
@@ -6769,7 +6771,9 @@ static inline float note_ex_unq10(int bits) {
 static bool note_ex_unpack(const SoundReq *r, NoteEx *ex) {
     if (!(r->e1 & NOTE_EX_FLAG)) return false;
     ex->glide_ms = r->e0 < 0 ? 0 : (r->e0 > 60000 ? 60000 : r->e0);
-    ex->accent   = (float)(r->e1 & 0xFFFFF) / 1000.0f;
+    ex->accent   = (float)(r->e1 & 0x3FF) / 1000.0f;             // 10 bits: accent is 0..1000
+    int gq       = (r->e1 >> 21) & 0x3FF;
+    ex->gain     = gq ? (float)gq / 1000.0f : 1.0f;              // 0 = unset = full
     ex->harm     = note_ex_unq10(r->e2);
     ex->timb     = note_ex_unq10(r->e2 >> 10);
     ex->mor      = note_ex_unq10(r->e2 >> 20);
@@ -6886,7 +6890,7 @@ static void sound_setup_note_ex(Voice *v, int midi, int slot, int vol, int gate_
     // value from the very first sample (setting a macro AFTER the hook would only move the slew target).
     if (ex) {
         float acc = ex->accent;
-        float vm  = 1.0f + acc * sound_accent_route(ins, ACC_VOL);
+        float vm  = (1.0f + acc * sound_accent_route(ins, ACC_VOL)) * ex->gain;
         float vv  = v->vol * vm; v->vol = v->vol_target = vv < 0.0f ? 0.0f : (vv > 1.5f ? 1.5f : vv);
         v->harm = v->harm_target = clamp01f_ex(v->harm + ex->harm + acc * sound_accent_route(ins, ACC_HARMONICS));
         v->timb = v->timb_target = clamp01f_ex(v->timb + ex->timb + acc * sound_accent_route(ins, ACC_TIMBRE));
@@ -7033,7 +7037,7 @@ static void sound_legato_to(Voice *v, int midi, int vol, int gate, const NoteEx 
     v->freq_target = sound_midi_to_freq(midi);
     v->gl_ms = ex->glide_ms;
     sound_glide_start(v);
-    float vv = (vol < 0 ? 0 : vol > 7 ? 7 : vol) / 7.0f * (1.0f + ex->accent * sound_accent_route(ins, ACC_VOL));
+    float vv = (vol < 0 ? 0 : vol > 7 ? 7 : vol) / 7.0f * (1.0f + ex->accent * sound_accent_route(ins, ACC_VOL)) * ex->gain;
     v->vol_target  = vv < 0.0f ? 0.0f : (vv > 1.5f ? 1.5f : vv);
     v->harm_target = clamp01f_ex(ins->harmonics + ex->harm + ex->accent * sound_accent_route(ins, ACC_HARMONICS));
     v->timb_target = clamp01f_ex(ins->timbre    + ex->timb + ex->accent * sound_accent_route(ins, ACC_TIMBRE));
@@ -10475,9 +10479,12 @@ void schedule_note_at(double t, int midi, int instr, int vol, int dur_ms, const 
     int g = opts->glide_ms < 0 ? 0 : (opts->glide_ms > 60000 ? 60000 : opts->glide_ms);
     float a = opts->accent < 0.0f ? 0.0f : (opts->accent > 1.0f ? 1.0f : opts->accent);
     int e2 = note_ex_q10(opts->harmonics) | (note_ex_q10(opts->timbre) << 10) | (note_ex_q10(opts->morph) << 20);
+    // gain: 0 = unset (full). Anything above 0 keeps at least 1/1000, so a tiny gain never reads as "unset"
+    int gq = opts->gain <= 0.0f ? 0 : opts->gain >= 1.0f ? 1000 : (int)(opts->gain * 1000.0f + 0.5f);
+    if (opts->gain > 0.0f && gq < 1) gq = 1;
     sound_push((SoundReq){ .kind = SR_NOTE_AT, .a = midi, .b = instr, .c = vol,
                            .delay_samples = (int)(target & 0x7FFFFFFF), .dur_samples = dur,
-                           .e0 = g, .e1 = NOTE_EX_FLAG | (int)(a * 1000.0f + 0.5f), .e2 = e2 });
+                           .e0 = g, .e1 = NOTE_EX_FLAG | (int)(a * 1000.0f + 0.5f) | (gq << 21), .e2 = e2 });
 }
 
 // unschedule(): take back a slot's BOOKED notes whose start falls in [t1, t2) on the audio clock (the same

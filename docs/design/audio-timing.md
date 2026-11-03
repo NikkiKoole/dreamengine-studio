@@ -350,6 +350,16 @@ falls in `[t1, t2)` on the audio clock (`t2 <= t1` = from `t1` on).
   must vanish exactly, the other slot untouched. NEGATIVE CONTROL: the same run with nothing taken back
   must hear all 40. Mutation-tested: a pen that drops nothing turns the gate red.
 
+### A booked note's own volume: `NoteOpts.gain` (2026-11-03)
+
+The other half of the same ask: Playtime wanted a MUSIC volume apart from an FX volume, but an impact
+borrows the band's instrument, so music and sound effects share slots and a slot level cannot tell them
+apart. `NoteOpts.gain` (0..1, 0 = full) scales one booked note's volume as a fraction, which the 0..7
+`vol` cannot. It rides bits 21-30 of the request's `e1` (the accent keeps bits 0-9; it used to be read with a
+20-bit mask, now its real 10). Gate: the same schedule-check, block `note gain`: gain
+0.5 peaks at exactly half a plain note, and opts with gain left 0 match no opts exactly (the control that
+a zeroed `NoteOpts` changes nothing). Mutation-tested: a voice that ignores gain turns it red.
+
 ## Further reading — AudioWorklet & web-audio timing (for the fix #7 work)
 
 Worklets vs workers: **ScriptProcessorNode** (what we ship now, by default) runs audio

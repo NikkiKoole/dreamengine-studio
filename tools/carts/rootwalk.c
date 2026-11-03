@@ -1021,10 +1021,10 @@ void draw(void) {
         snprintf(lb, sizeof lb, "Y VARY %s", PICK3[a->vary]);
         print(lb, 216, ly + 16, a->vary != c->vary ? CLR_YELLOW : CLR_MEDIUM_GREY);
         // what the drums are doing right now, next to the figure name
-        const char *now = o->spot_on ? SPOT_NAME[o->spot]
+        const char *doing = o->spot_on ? SPOT_NAME[o->spot]
                         : o->lean ? (o->lean == 1 ? "OPEN HAT LEANS IN" : o->lean == 2 ? "KICK LEANS IN" : "SNARE LEANS IN")
                         : o->cut < 16 ? "THE GAP" : o->turn ? "TURNAROUND" : NULL;
-        if (now) print(now, 160, 95, CLR_ORANGE);
+        if (doing) print(doing, 160, 95, CLR_ORANGE);
         font(FONT_SMALL);
     }
     print(MODE_NAME[o->mode], 240, ly + 3, o->mode == M_GROOVE ? CLR_LIGHT_GREY : CLR_YELLOW);

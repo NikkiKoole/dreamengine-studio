@@ -808,6 +808,11 @@ static void answer_hits(int level, int hats_on, int gvel, DrumEmit emit, void *c
 }
 // the step of the next beat after `pos` (0..16 steps into the bar); 16 = the next bar's one
 static int next_beat_step(double pos) { return ((int)pos / 4 + 1) * 4; }
+// would any hit land in the GAP (steps cut..15 of this bar)? The drop's one (16) is fine.
+static int answer_in_gap(int level, int beat, int cut) {
+    int last = beat + (level == 0 ? 0 : 4);
+    return cut < 16 && last >= cut && beat < 16;
+}
 typedef struct { BookCtx b; int beat; } AnsCtx;
 static void ans_drum(int role, int s, double dt, int vel, void *ctx) {
     AnsCtx *a = ctx;
@@ -914,9 +919,9 @@ static void answer(int tier) {
     int beat = next_beat_step(pos);
     int bar = o->bar + beat / 16;
     if (bar == answered_bar) return;
-    if (beat < 16 && beat >= o->cut) return;
-    answered_bar = bar;
     int level = answer_level(tier, sting_big);
+    if (answer_in_gap(level, beat, o->cut)) return;
+    answered_bar = bar;
     AnsCtx ac = { { o, hist_t[o - hist] }, beat };
     answer_hits(level, o->on[L_HATS], GEN[o->genre].vel, ans_drum, &ac);
     answer_flash = 50; answer_shown = level;
@@ -1164,6 +1169,12 @@ static void spec_answers(void) {
     r = (AnsRec){ 0 };
     answer_hits(answer_level(A_FILL, 1), 1, 0, spec_ans, &r);
     expect(r.n == 6 && r.role[5] == DP_CY && r.s[5] == 4, "a big fill crashes on the landing");
+    // the gap (cut = 12): nothing may sound in steps 12..15; the drop's one is fine
+    expect(!answer_in_gap(0, 8, 12), "a nod on beat 3 stays out of the gap");
+    expect(answer_in_gap(1, 8, 12), "a fill from beat 3 would land in the gap: skipped");
+    expect(answer_in_gap(0, 12, 12), "a nod on beat 4 is inside the gap: skipped");
+    expect(!answer_in_gap(1, 16, 12), "a fill from the drop's one is fine");
+    expect(!answer_in_gap(1, 8, 16), "no gap, no skip");
 }
 void spec(void) {
     spec_answers();

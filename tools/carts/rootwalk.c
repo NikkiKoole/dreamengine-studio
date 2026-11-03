@@ -155,7 +155,7 @@ static void resolve_patterns(void) {
 
 // ── the walks, the figures, the paces ─────────────────────────────────────────
 // kinds: the CHORD on each step, one char per step (Playtime's J9): M major, m minor, 7 dominant
-typedef struct { const char *name; int n; int deg[8]; const char *kinds; } Walk;
+typedef struct { const char *name; int n; int deg[12]; const char *kinds; } Walk;
 static const Walk WALKS[] = {
     { "1 4 5 1",   4, { 0, 5, 7, 0 },  "MM7M" },
     { "1 5 6 4",   4, { 0, 7, 9, 5 },  "MMmM" },
@@ -164,6 +164,11 @@ static const Walk WALKS[] = {
     { "1 4 1 5",   4, { 0, 5, 0, 7 },  "MMM7" },
     { "1 b7 1 4",  4, { 0, 10, 0, 5 }, "MMMM" },
     { "FOURTHS",   8, { 0, 5, 10, 3, 8, 1, 6, 0 }, "77777777" }, // round the fourths
+    // WAVE (Playtime's 'wave' style, f1fd11bd, after Peter Martin's Open Studio "Ride the Wave"):
+    // the root up a fourth twelve times and home, maj9 (J) and 9sus (s) taking turns, so each 9sus
+    // is the next maj9's V. WAVE B swaps them; A then B puts a maj9 on all twelve roots.
+    { "WAVE",     12, { 0, 5, 10, 3, 8, 1, 6, 11, 4, 9, 2, 7 }, "JsJsJsJsJsJs" },
+    { "WAVE B",   12, { 0, 5, 10, 3, 8, 1, 6, 11, 4, 9, 2, 7 }, "sJsJsJsJsJsJ" },
 };
 // A riff is written in the MINOR pentatonic; over another chord its letters move by POSITION to
 // that chord's pentatonic: a letter on minor-pentatonic slot k (m 4 5 7 = slots 1..4) plays the
@@ -171,7 +176,10 @@ static const Walk WALKS[] = {
 static const int MINOR_PENTA[5] = { 0, 3, 5, 7, 10 };
 static const int *chord_shape(char kind) {
     static const int M[5] = { 0, 2, 4, 7, 9 }, D7[5] = { 0, 2, 4, 7, 10 };
-    return kind == 'M' ? M : kind == '7' ? D7 : MINOR_PENTA;
+    static const int SUS9[5] = { 0, 2, 5, 7, 10 };   // no third: the 4 in its place, the b7, the 9
+    // maj9 (J) borrows M's shape: {0,2,4,7,11} is closer to the chord, but a short bass note on the
+    // major 7th sounds sour against the root (9c's call)
+    return kind == 'M' || kind == 'J' ? M : kind == '7' ? D7 : kind == 's' ? SUS9 : MINOR_PENTA;
 }
 static int follow_chord(int semis, char kind) {
     const int *sh = chord_shape(kind);
@@ -585,7 +593,7 @@ static const Bar *sounding(double *pos) {
 static const char *NOTE[12] = { "C","C#","D","Eb","E","F","F#","G","Ab","A","Bb","B" };
 static const char *NUMERAL[12] = { "1","b2","2","b3","3","4","b5","5","b6","6","b7","7" };
 static void chord_name(int key, int deg, char kind, char *out, int n) {
-    snprintf(out, n, "%s%s", NOTE[(key + deg) % 12], kind == 'm' ? "m" : kind == '7' ? "7" : "");
+    snprintf(out, n, "%s%s", NOTE[(key + deg) % 12], kind == 'm' ? "m" : kind == '7' ? "7" : "");   // J / s: tagged below
 }
 
 // a cycling picker: label on top, the value below, a dot when armed but not yet sounding
@@ -636,7 +644,9 @@ void draw(void) {
         if (cw >= 30) print_scaled(nm, x + 5, ty + 6, cur ? CLR_WHITE : CLR_LIGHT_GREY, cw >= 60 ? 2 : 1);
         else print(nm, x + 3, ty + 6, cur ? CLR_WHITE : CLR_LIGHT_GREY);
         font(FONT_TINY);
-        print(NUMERAL[w->deg[k] % 12], x + 5, ty + th - 8, cur ? CLR_LIGHT_PEACH : CLR_MEDIUM_GREY);
+        print(NUMERAL[w->deg[k] % 12], x + 3, ty + th - 8, cur ? CLR_LIGHT_PEACH : CLR_MEDIUM_GREY);
+        if (w->kinds[k] == 'J' || w->kinds[k] == 's')
+            print(w->kinds[k] == 'J' ? "MAJ9" : "9SUS", x + 3, ty + th - 15, cur ? CLR_WHITE : CLR_LIGHT_GREY);
         font(FONT_NORMAL);
         if (cur) {
             int ph = x + 1 + (int)((cw - 2) * (bars_in + pos / 16.0) / o->pace);
@@ -852,6 +862,25 @@ void spec(void) {
             prev = o;
         }
         expect(seen > 0 && ok, "A leans into the next root across a key change");
+    }
+    // the wave: 9sus moves a riff's m to a 2 and keeps its 4 (no third); maj9 reads as major
+    {
+        int climb = -1, wave = -1;
+        for (int fi = 0; fi < NFIG; fi++) if (strcmp(FIGS[fi].name, "CLIMB") == 0) climb = fi;
+        for (int wi = 0; wi < NWALK; wi++) if (strcmp(WALKS[wi].name, "WAVE") == 0) wave = wi;
+        jam_init(&j, (Picks){ .walk = wave, .fig = climb, .pace = 0, .genre = G_FUNK });
+        jam_plan(&j, 0.0f, &o);
+        expect_eq(o.chord, 'J', "the wave starts on a maj9");
+        expect_eq(o.note[6] - root_home(0), 2, "over maj9, the riff's m plays a 2");
+        expect_eq(o.note[8] - root_home(0), 4, "over maj9, the riff's 4 plays the major third");
+        jam_plan(&j, 0.0f, &o); jam_plan(&j, 0.0f, &o);            // bar 2 = step 1, a 9sus on the 4
+        expect_eq(o.chord, 's', "then a 9sus");
+        expect_eq(o.note[6] - root_home(5), 2, "over 9sus, the riff's m plays a 2");
+        expect_eq(o.note[8] - root_home(5), 5, "over 9sus, the riff's 4 stays a 4 (no third)");
+        int home = 1;
+        jam_init(&j, (Picks){ .walk = wave, .fig = 1, .pace = 0, .genre = G_FUNK });
+        for (int b = 0; b < 26; b++) { jam_plan(&j, 0.0f, &o); if (b == 24 && o.root != 0) home = 0; }
+        expect(home, "twelve steps up in fourths and the wave is home");
     }
     // brush walk's B: '7--A' holds the 7 for three steps and stops AT the A, which still sounds
     {

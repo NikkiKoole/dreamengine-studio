@@ -742,6 +742,10 @@ static void chorus_process(int b, float *mixL, float *mixR) {
     // rounded-triangle LFO (cubic soft-clip at the peaks — models the BBD capacitor rounding)
     cho_phase[b] += cho_rate[b] / (float)SOUND_SAMPLE_RATE;
     if (cho_phase[b] >= 1.0f) cho_phase[b] -= 1.0f;
+    // MIX 0 = OFF, and FREE (2026-11-03, Playtime I5d): x*(1-0) + wet*0 is x exactly, so the two hermite
+    // reads were pure cost. The line is still written and the LFO still runs above, so riding the mix
+    // back up continues from exactly the state a full run would have: byte-identical either way.
+    if (cho_mix[b] == 0.0f) return;
     float tri = cho_phase[b] < 0.5f ? cho_phase[b] * 4.0f - 1.0f : 3.0f - cho_phase[b] * 4.0f;
     tri = tri * (1.5f - 0.5f * tri * tri);
     float modAmount = cho_depth[b] * (CHORUS_MAX_DELAY - CHORUS_MIN_DELAY) * 0.5f;
@@ -774,6 +778,15 @@ static void flanger_process(int b, float *mixL, float *mixR) {
     // triangle LFO 0→1→0
     flg_phase[b] += flg_rate[b] / (float)SOUND_SAMPLE_RATE;
     if (flg_phase[b] >= 1.0f) flg_phase[b] -= 1.0f;
+    // MIX 0 = OFF, and FREE (2026-11-03, Playtime I5d): the output is the dry signal exactly, so skip the
+    // read + DC blocker. Unlike chorus this is NOT state-identical: the line takes the dry signal with no
+    // feedback while off, so a flanger switched back on starts from a clean line instead of one whose
+    // inaudible comb kept ringing in the dark. The output while off is unchanged, bit for bit.
+    if (flg_mix[b] == 0.0f) {
+        buf[flg_widx[b]] = mono;
+        flg_widx[b] = (flg_widx[b] + 1) % FLANGER_BUF_LEN;
+        return;
+    }
     float lfo = flg_phase[b] < 0.5f ? flg_phase[b] * 2.0f : 2.0f - flg_phase[b] * 2.0f;
     float delaySec = FLANGER_MIN_DELAY + lfo * flg_depth[b] * (FLANGER_MAX_DELAY - FLANGER_MIN_DELAY);
     float ds = delaySec * (float)SOUND_SAMPLE_RATE;

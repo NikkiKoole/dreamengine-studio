@@ -17,7 +17,7 @@
   "description": {
     "summary": "A few-note bass figure transposed along a walking root, over a drum machine that arranges itself live. The root moving is the hook.",
     "detail": "The core is small: a 1-3 note bass FIGURE written in scale degrees (R root, 8 octave, 7 flat seventh, A the approach a half step under the next root, N the push: the next root early on the and-of-4), transposed along a WALK of roots (1 4 5 1, 1 5 6 4, doo-wop 1 6 4 5, 2 5 1, round the fourths) that moves every 2 or 4 bars on its own. The track at the top shows the walk with a playhead; the next chord lights up when the bass leans into it. Underneath, a drum machine arranges itself in 8-bar phrases from the ENERGY knob: layers come in one at a time (kick, bass, keys, hats, snare, percussion), every fourth phrase at full tilt is a BREAKDOWN (the kick leaves, the bass never does), and the phrase after it is the DROP, everything back with a crash and the walk home. The KEYS layer plays the chords five ways (a soft Rhodes pad, disco saw stabs, clav funk stabs, a choked reggae skank, a strummed clean electric), each chord voiced close to the last one. Every phrase ends on a fill, the pattern family's own written Break where the library has one. The walks carry their CHORDS (major, minor, dominant seventh), and the riffs follow them: a riff is written in the minor pentatonic and moves onto each chord's own pentatonic, so its minor third becomes a 2 over a major chord. The plain figures stay put. Picks for the walk, figure, pace, key and voice are armed and land at the NEXT ROOT CHANGE, the way an organist changes register between chords; a new genre, family or chord style lands at the next bar. Patterns are the maker's own drum-patterns library, whose provenance is uneven (see drumpat.h): fine to play, not to call the real thing.",
-    "controls": "W walk, F figure, P pace, K key, V bass voice: each ARMS a change that lands at the next root change. G genre, R family (rhythm) and C chord style land at the next bar; a picked chord style plays even when the energy is low. L (or tap the layer lamps) = ALL LAYERS from the next bar, whatever the energy. UP/DOWN or the knob set ENERGY; hold SPACE (or PUSH) to push it to the top, release and it falls back. Tap the buttons on a phone."
+    "controls": "W walk, F figure, P pace, K key, V bass voice: each ARMS a change that lands at the next root change. G genre, R family (rhythm) and C chord style land at the next bar; a picked chord style plays even when the energy is low. L (or tap the layer lamps) = ALL LAYERS from the next bar, whatever the energy. E LEAN and X GAP (AUTO / ALWAYS / NEVER): whether the drums nod at a coming chord change, and whether the bar before a drop goes silent from beat 4. UP/DOWN or the knob set ENERGY; hold SPACE (or PUSH) to push it to the top, release and it falls back. Tap the buttons on a phone."
   }
 }
 de:meta */
@@ -319,7 +319,9 @@ static int in_range(int pc) { return 33 + ((pc - 9) % 12 + 12) % 12; }
 enum { V_UPRIGHT, V_ACID, V_SINE, NVOICE };
 static const char *VOICE_NAME[NVOICE] = { "UPRIGHT", "303 MONO", "SINE" };
 
-typedef struct { int walk, fig, pace, genre, fam, voice, key, chords, all; } Picks;   // all: every layer, whatever the energy   // key: pitch class of the 1
+enum { P_AUTO, P_ALWAYS, P_NEVER };            // the LEAN and GAP picks (Playtime J10a-b)
+static const char *PICK3[3] = { "AUTO", "ALWAYS", "NEVER" };
+typedef struct { int walk, fig, pace, genre, fam, voice, key, chords, all, lean, gap; } Picks;   // all: every layer, whatever the energy   // key: pitch class of the 1
 
 typedef struct {
     Picks cur, want;           // sounding vs armed
@@ -338,7 +340,9 @@ typedef struct {
     const Pat *pat;
     const char *loop;
     char letter;                                 // a riff's form letter this bar ('A' for a plain figure)
-    int chords, keys_on, voicing[MAXVOICE], nvoicing;   // the chord figure + this bar's voicing
+    int chords, keys_on, voicing[MAXVOICE], nvoicing;
+    int cut, lean, run_from, toms;               // the drums play the song: see jam_plan
+   // the chord figure + this bar's voicing
     int key; char chord;                         // the key's pitch class, this bar's chord kind (M m 7)
     int note[16], len[16]; char kind[16];       // note -1 = nothing starts on this step
 } Bar;
@@ -397,15 +401,15 @@ static void jam_plan(Jam *j, float energy, Bar *o) {
 
     // genre + family land at the next BAR (a new groove shouldn't wait for the chord)
     j->cur.genre = j->want.genre; j->cur.fam = j->want.fam; j->cur.chords = j->want.chords;   // these: next bar
-    j->cur.all = j->want.all;
+    j->cur.all = j->want.all; j->cur.lean = j->want.lean; j->cur.gap = j->want.gap;
     // ALL LAYERS (Playtime's 'jam layers: all'): everything from the next bar; breakdowns still happen
     if (j->cur.all && j->mode != M_BREAK) { j->layers = NLAYER; for (int k = 0; k < NLAYER; k++) j->on[k] = 1; }
 
     // the root: a change snapshotted last bar lands now, else one bar less on this root
     if (j->ch_pending) {
-        int genre = j->cur.genre, fam = j->cur.fam, chords = j->cur.chords, all = j->cur.all;
+        int genre = j->cur.genre, fam = j->cur.fam, chords = j->cur.chords, all = j->cur.all, lean = j->cur.lean, gap = j->cur.gap;
         j->cur = j->ch;
-        j->cur.genre = genre; j->cur.fam = fam; j->cur.chords = chords; j->cur.all = all;
+        j->cur.genre = genre; j->cur.fam = fam; j->cur.chords = chords; j->cur.all = all; j->cur.lean = lean; j->cur.gap = gap;
         j->wstep = j->ch_wstep;
         j->root = WALKS[j->cur.walk].deg[j->wstep];
         j->left = PACES[j->cur.pace];
@@ -437,6 +441,33 @@ static void jam_plan(Jam *j, float energy, Bar *o) {
     o->root = j->root; o->next_root = next_root; o->moves = moves;
     o->fill = last_in_phrase && (j->on[L_SNARE] || j->mode == M_BREAK);
     o->written = o->fill && f->has_fill;
+
+    // THE DRUMS PLAY THE SONG (Playtime J10a-b). One deterministic roll per bar.
+    unsigned rs = (unsigned)b * 7919u + 0x9E3779B9u;
+    rs ^= rs >> 16; rs *= 0x7feb352du; rs ^= rs >> 15; rs *= 0x846ca68bu; rs ^= rs >> 16;
+    #define ROLL(n) ((rs = rs * 1664525u + 1013904223u), (int)((rs >> 8) % (unsigned)(n)))
+    // the GAP: the bar before a drop goes silent from step 12, so the one lands in a hole
+    int gap = last_in_phrase && j->cur.gap != P_NEVER && (j->cur.gap == P_ALWAYS || drop_next);
+    o->cut = gap ? 12 : 16;
+    // the LEAN: a bar leading into a real root change (not a phrase end) nods at it
+    o->lean = 0;
+    if (!last_in_phrase && moves && next_root != j->root && j->cur.lean != P_NEVER) {
+        int r10 = ROLL(10);
+        if (j->cur.lean == P_ALWAYS || r10 < 6) {
+            int kinds[3], nk = 0;
+            if (j->on[L_HATS]) kinds[nk++] = 1;    // an open hat on 14, accented
+            if (j->on[L_KICK]) kinds[nk++] = 2;    // a kick on 15
+            if (j->on[L_SNARE]) kinds[nk++] = 3;   // a snare run 12-15
+            if (nk) o->lean = kinds[ROLL(nk)];
+        }
+    }
+    // FILLS (the unwritten snare run): the whole bar when the gap closes a breakdown (the BUILD),
+    // from the middle at high energy, else the last beat; toms in Funk / Breaks one fill in three
+    int want_now = j->cur.all ? NLAYER : target_layers(energy);
+    o->run_from = (gap && j->mode == M_BREAK) ? 0 : want_now >= MINL + 3 ? 8 : 12;
+    o->toms = o->fill && !o->written && !gap && (j->cur.genre == G_FUNK || j->cur.genre == G_BREAKS)
+              && ROLL(3) == 0;
+    #undef ROLL
     o->pat = o->written ? &f->fill : &f->v[o->var];
 
     // the bass: the figure over the root, counted from the song's first bar so a figure
@@ -485,6 +516,8 @@ static void jam_plan(Jam *j, float energy, Bar *o) {
         int len = 1;
         if (fg->form) { while (s + len < 16 && row[s + len] == '-') len++; }              // stops at the bar line
         else { while (len < n && loop[(b * 16 + s + len) % n] == '-') len++; }
+        if (s >= o->cut) continue;                                 // the gap
+        if (s + len > o->cut) len = o->cut - s;                    // a hold is clipped at it
         o->note[s] = midi; o->len[s] = len;
     }
 
@@ -615,43 +648,82 @@ static void drum(int kit, int role, double t, int vel) {
     schedule_at(t, m->midi, KIT_BASE[kit] + m->role, vel, DK_ROLE_DUR[m->role]);
 }
 
-static void book_bar(const Bar *o, double t0) {
+// The chord on step s of this bar, honouring the gap: returns its length in steps, 0 = none.
+static int keys_at(const Bar *o, int s) {
+    if (!o->keys_on || !o->nvoicing || s >= o->cut) return 0;
+    const ChordFig *cf = &CHORD_FIGS[o->chords];
+    if (cf->steps[s] != 'x') return 0;
+    int len = 1;
+    while (s + len < 16 && cf->steps[s + len] == '-') len++;
+    if (s + len > o->cut) len = o->cut - s;
+    return len;
+}
+
+// Every drum hit of a bar, in order: emit(role, step, seconds after the step, velocity). ONE place
+// decides the drums, so booking and spec() see the same thing.
+typedef void (*DrumEmit)(int role, int s, double dt, int vel, void *ctx);
+static void bar_drums(const Bar *o, DrumEmit emit, void *ctx) {
     const Genre *g = &GEN[o->genre];
-    double st = step_dur(o->genre);
-    int slot = VOICE_SLOT[o->voice];
-    for (int s = 0; s < 16; s++) {
-        double t = step_time(o, t0, s);
-        if (o->keys_on && o->nvoicing) {
-            const ChordFig *cf = &CHORD_FIGS[o->chords];
-            if (cf->steps[s] == 'x') {
-                int len = 1;
-                while (s + len < 16 && cf->steps[s + len] == '-') len++;
-                int ms = (int)(len * st * 1000.0 * 0.95);
-                for (int k = 0; k < o->nvoicing; k++)
-                    schedule_at(t + k * cf->roll, o->voicing[k], SL_KEYS + o->chords - 1, cf->vel, ms);
-            }
-        }
-        if (o->note[s] >= 0) {
-            int ms = (int)(o->len[s] * st * 1000.0 * 0.9);
-            if (o->voice == V_UPRIGHT && ms < 160) ms = 160;           // a pizz wants time to ring
-            NoteOpts opt = { .accent = s == 0 ? 0.6f : 0.0f };
-            schedule_note_at(t, o->note[s], slot, s == 0 ? 7 : 6, ms, &opt);
-        }
-        const Pat *p = o->pat;
+    const Pat *p = o->pat;
+    int unwritten = o->fill && !o->written;
+    for (int s = 0; s < o->cut; s++) {
         int acc = (p->hit[DP_AC] >> s) & 1;
-        if (o->mode == M_DROP && o->inph == 0 && s == 0) drum(g->kit, DP_CY, t, 6);
+        if (o->mode == M_DROP && o->inph == 0 && s == 0) emit(DP_CY, s, 0, 6, ctx);
         for (int r = 0; r < NR; r++) {
             if (r == DP_AC || !((p->hit[r] >> s) & 1)) continue;
             int L = layer_of(r);
             if (L < 0 || !o->on[L]) continue;
-            if (o->fill && !o->written && L == L_HATS && s >= 14) continue;   // let go before the one
+            if (unwritten && L == L_HATS && s >= 14) continue;            // let go before the one
+            if (o->lean == 1 && r == DP_CH && s >= 14) continue;          // the open hat's room
             int vel = 3 + (r < DP_NROLES ? RMAP[r].vbump : 1) + acc * 2 + g->vel;
             if (o->mode == M_BREAK && L != L_HATS) vel--;
-            drum(g->kit, r, t, vel);
-            if ((p->flam[r] >> s) & 1) drum(g->kit, r, t + 0.015, vel - 1);
+            emit(r, s, 0, vel, ctx);
+            if ((p->flam[r] >> s) & 1) emit(r, s, 0.015, vel - 1, ctx);
         }
-        if (o->fill && !o->written && s >= 12) drum(g->kit, DP_SD, t, 6 - (15 - s));   // a run-up
+        // the lean
+        if (o->lean == 1 && s == 14) emit(DP_OH, s, 0, 3 + RMAP[DP_OH].vbump + 2 + g->vel, ctx);
+        if (o->lean == 2 && s == 15) emit(DP_BD, s, 0, 3 + RMAP[DP_BD].vbump - 1 + g->vel, ctx);
+        if (o->lean == 3 && s >= 12) emit(DP_SD, s, 0, 6 - (s == 15 ? 1 : 2) + g->vel, ctx);
+        // the fill
+        if (unwritten && s >= o->run_from) {
+            if (o->toms && s >= 12) {
+                static const int TOM[4] = { DP_HT, DP_HT, DP_MT, DP_LT };
+                emit(TOM[s - 12], s, 0, 3 + RMAP[TOM[s - 12]].vbump + 1 + g->vel, ctx);
+            } else {
+                int q = (int)((15 - s) * 3.0 / (16 - o->run_from) + 0.5);
+                emit(DP_SD, s, 0, 6 - q + g->vel, ctx);
+            }
+        }
     }
+}
+
+typedef struct { const Bar *o; double t0; } BookCtx;
+static void book_drum(int role, int s, double dt, int vel, void *ctx) {
+    BookCtx *b = ctx;
+    drum(GEN[b->o->genre].kit, role, step_time(b->o, b->t0, s) + dt, vel);
+}
+
+static void book_bar(const Bar *o, double t0) {
+    double st = step_dur(o->genre);
+    int slot = VOICE_SLOT[o->voice];
+    for (int s = 0; s < 16; s++) {
+        double t = step_time(o, t0, s);
+        int klen = keys_at(o, s);
+        if (klen) {
+            const ChordFig *cf = &CHORD_FIGS[o->chords];
+            int ms = (int)(klen * st * 1000.0 * 0.95);
+            for (int k = 0; k < o->nvoicing; k++)
+                schedule_at(t + k * cf->roll, o->voicing[k], SL_KEYS + o->chords - 1, cf->vel, ms);
+        }
+        if (o->note[s] >= 0) {
+            int ms = (int)(o->len[s] * st * 1000.0 * 0.9);
+            if (o->voice == V_UPRIGHT && ms < 160 && s + 3 < o->cut) ms = 160;   // a pizz wants time to ring (not into the gap)
+            NoteOpts opt = { .accent = s == 0 ? 0.6f : 0.0f };
+            schedule_note_at(t, o->note[s], slot, s == 0 ? 7 : 6, ms, &opt);
+        }
+    }
+    BookCtx bc = { o, t0 };
+    bar_drums(o, book_drum, &bc);
 }
 
 // ── the cart ──────────────────────────────────────────────────────────────────
@@ -692,6 +764,10 @@ void update(void) {
     if (keyp('V')) cycle(&jam.want.voice, NVOICE);
     if (keyp('K')) cycle(&jam.want.key, 12);
     if (keyp('C')) cycle(&jam.want.chords, NCHORDFIG);
+    // one condition per pick: a mouse click can also arrive as a touch, and two statements cycled twice
+    int mrow = mouse_pressed(MOUSE_LEFT) && mouse_y() >= 126 && mouse_y() < 135;
+    if (keyp('E') || tapp(6, 126, 72, 9)  || (mrow && mouse_x() >= 6  && mouse_x() < 78))  cycle(&jam.want.lean, 3);
+    if (keyp('X') || tapp(82, 126, 64, 9) || (mrow && mouse_x() >= 82 && mouse_x() < 146)) cycle(&jam.want.gap, 3);
     if (keyp('L') || tapp(6, 112, 228, 12) || (mouse_pressed(MOUSE_LEFT) && mouse_x() >= 6 && mouse_x() < 234
                                                && mouse_y() >= 112 && mouse_y() < 124)) jam.want.all = !jam.want.all;
     if (key(KEY_UP))   { k_energy += 0.01f; if (k_energy > 1) k_energy = 1; }
@@ -870,6 +946,20 @@ void draw(void) {
         rect(4, ly - 2, 230, 16, jam.want.all != jam.cur.all && (frame() / 15) % 2 ? CLR_DARK_GREY : CLR_YELLOW);
         font(FONT_TINY); print(jam.want.all ? "ALL" : "AUTO", 296, ly + 4, CLR_YELLOW); font(FONT_SMALL);
     }
+    // LEAN + GAP: how the drums play the song (tap to cycle AUTO / ALWAYS / NEVER)
+    {
+        char lb[24];
+        const Picks *a = &jam.want, *c = &jam.cur;
+        font(FONT_TINY);
+        snprintf(lb, sizeof lb, "E LEAN %s", PICK3[a->lean]);
+        print(lb, 8, ly + 16, a->lean != c->lean ? CLR_YELLOW : CLR_MEDIUM_GREY);
+        snprintf(lb, sizeof lb, "X GAP %s", PICK3[a->gap]);
+        print(lb, 84, ly + 16, a->gap != c->gap ? CLR_YELLOW : CLR_MEDIUM_GREY);
+        if (o->lean) print(o->lean == 1 ? "OPEN HAT LEANS IN" : o->lean == 2 ? "KICK LEANS IN" : "SNARE LEANS IN",
+                           150, ly + 16, CLR_ORANGE);
+        else if (o->cut < 16) print("THE GAP", 150, ly + 16, CLR_ORANGE);
+        font(FONT_SMALL);
+    }
     print(MODE_NAME[o->mode], 240, ly + 3, o->mode == M_GROOVE ? CLR_LIGHT_GREY : CLR_YELLOW);
     for (int i = 0; i < PHRASE; i++)
         rectfill(240 + i * 9, ly + 12, 7, 3, i == o->inph ? (o->fill && i == PHRASE - 1 ? CLR_ORANGE : CLR_WHITE)
@@ -911,6 +1001,7 @@ void draw(void) {
 // Pins the core: the root per bar follows the walk and pace, A lands a half step under the
 // next bar's root and N on it, a walk armed mid-song starts at the next change from its first
 // step, and with energy at zero the layers never grow (and a breakdown never drops the bass).
+static void spec_late_probe(int role, int st, double dt, int vel, void *c) { (void)role; (void)dt; (void)vel; if (st >= 12) *(int *)c = 1; }
 static int root_home(int deg) { return in_range(deg); }   // the spec runs in C
 void spec(void) {
     resolve_patterns();
@@ -1104,6 +1195,73 @@ void spec(void) {
         jam_init(&j, (Picks){ .walk = 1, .fig = 1, .pace = 0, .genre = G_FUNK, .key = 5 });
         jam_plan(&j, 0.0f, &o);
         expect(o.note[0] == 41 && o.note[3] == 53 && o.note[6] == 51, "1 5 6 4 in F: F2 F3 D#3");
+    }
+    // THE DRUMS PLAY THE SONG: before every drop no part plays at step 12 or later (Playtime's own
+    // spec), a lean only on a bar into a real change, longer fills when it's busy, toms in Funk
+    {
+        jam_init(&j, (Picks){ .walk = 1, .fig = 2 /* THE PUSH: a note on 14 */, .pace = 0, .genre = G_FUNK,
+                              .chords = CF_STRUM });
+        int gaps = 0, clean = 1, leans = 0, lean_wrong = 0, run8 = 0, toms = 0;
+        Bar prev = { 0 }; int have = 0;
+        for (int b = 0; b < 8 * 16; b++) {
+            jam_plan(&j, 1.0f, &o);
+            if (have && prev.cut == 12) {
+                gaps++;
+                if (o.mode != M_DROP || o.inph != 0) clean = 0;            // AUTO: a gap only before a drop
+            }
+            if (have && o.mode == M_DROP && o.inph == 0) {
+                if (prev.cut != 12) clean = 0;
+                for (int s2 = 12; s2 < 16; s2++) {
+                    if (prev.note[s2] >= 0 || keys_at(&prev, s2)) clean = 0;
+                }
+                for (int s2 = 0; s2 < 12; s2++) if (prev.note[s2] >= 0 && s2 + prev.len[s2] > 12) clean = 0;
+                // and the drums: walk the events
+                int late = 0;
+                bar_drums(&prev, spec_late_probe, &late);
+                if (late) clean = 0;
+            }
+            if (o.lean) { leans++; if (o.inph == PHRASE - 1 || !o.moves || o.next_root == o.root) lean_wrong = 1; }
+            if (o.fill && !o.written && o.run_from == 8) run8++;
+            if (o.toms) toms++;
+            prev = o; have = 1;
+        }
+        expect(gaps > 0, "there were drops to gap before");
+        expect(clean, "before every drop: nothing from step 12 (bass, keys, drums, holds)");
+        expect(leans > 0 && !lean_wrong, "the drums lean only into a real root change");
+        (void)run8; (void)toms;     // Funk's families all bring a WRITTEN break: the run-up is for Breaks
+        jam_init(&j, (Picks){ .walk = 1, .fig = 1, .pace = 0, .genre = G_BREAKS });
+        run8 = toms = 0; int calm12 = 1;
+        for (int b = 0; b < 8 * 16; b++) {
+            jam_plan(&j, 1.0f, &o);
+            if (o.fill && !o.written && o.cut == 16 && o.run_from == 8) run8++;
+            if (o.toms) toms++;
+        }
+        jam_init(&j, (Picks){ .walk = 1, .fig = 1, .pace = 0, .genre = G_BREAKS, .chords = 0 });
+        for (int b = 0; b < 8 * 6; b++) { jam_plan(&j, 0.5f, &o); if (o.fill && !o.written && o.cut == 16 && o.run_from != 12) calm12 = 0; }
+        expect(run8 > 0, "a busy jam's fills run from the middle of the bar");
+        expect(calm12, "a middling jam's fills run the last beat only");
+        expect(toms > 0, "Breaks gets a tom fill now and then");
+        // the BUILD: a breakdown's last bar (the gap) runs the snare from the top of the bar
+        jam_init(&j, (Picks){ .walk = 1, .fig = 1, .pace = 0, .genre = G_BREAKS });
+        int builds = 0, build_ok = 1;
+        for (int b = 0; b < 8 * 16; b++) {
+            jam_plan(&j, 1.0f, &o);
+            if (o.mode == M_BREAK && o.cut == 12 && o.fill && !o.written) { builds++; if (o.run_from != 0) build_ok = 0; }
+        }
+        expect(builds > 0 && build_ok, "a breakdown's gap bar is the BUILD: a snare run from step 0");
+        jam_init(&j, (Picks){ .walk = 1, .fig = 1, .pace = 0, .genre = G_FUNK, .lean = P_NEVER, .gap = P_NEVER });
+        int any = 0;
+        for (int b = 0; b < 8 * 16; b++) { jam_plan(&j, 1.0f, &o); if (o.lean || o.cut < 16) any = 1; }
+        expect(!any, "NEVER means never, for lean and gap");
+        jam_init(&j, (Picks){ .walk = 1, .fig = 1, .pace = 0, .genre = G_FUNK, .lean = P_ALWAYS, .gap = P_ALWAYS });
+        int lean_all = 1, gap_all = 1;
+        for (int b = 0; b < 8 * 4; b++) {
+            jam_plan(&j, 1.0f, &o);
+            if (o.inph == PHRASE - 1 && o.cut != 12) gap_all = 0;
+            if (o.inph != PHRASE - 1 && o.moves && o.next_root != o.root && !o.lean) lean_all = 0;
+        }
+        expect(gap_all, "GAP ALWAYS: every phrase ends in the gap");
+        expect(lean_all, "LEAN ALWAYS: every real change gets a lean");
     }
     // brush walk's B: '7--A' holds the 7 for three steps and stops AT the A, which still sounds
     {

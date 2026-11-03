@@ -330,6 +330,26 @@ buffer-origin mechanism, heard from the other side.
 - **Quantify exact ms**: would need an output recording + onset-interval analysis (web has
   no native `--wav` path). Not done — the structural diagnosis didn't need it.
 
+## Taking booked notes back: `unschedule` (2026-11-03)
+
+A cart that books ahead (`schedule_at`, a bar at a time) used to have no way to change its mind:
+Playtime's stingers want the band's own part to REST while a stinger plays on its instrument, and the
+part's notes are already booked. `unschedule(slot, t1, t2)` drops that slot's booked notes whose start
+falls in `[t1, t2)` on the audio clock (`t2 <= t1` = from `t1` on).
+
+- **Where they wait.** Every booked note sits in the audio thread's small pen (`delayed[]`, 64 notes) as a
+  countdown from the buffer being drained. The request walks the pen at the drain and swap-removes the
+  matches, converting its window exactly the way `SR_NOTE_AT` converts a target. The request queue is
+  FIFO, so an `unschedule` sent right after its bookings (the same frame) still sees them: no race.
+- **What it is not.** A note already SOUNDING rings on. Pair it with a choke (`instrument_choke` from the
+  slot that takes over) or `note_off` to make the part stop at once.
+- **An EVENT kind** (`SR_UNSCHEDULE`, in `sound_req_is_event`): it must never be recorded into the
+  cart-context config log, or `de_switch_cart` would replay a stale take-back.
+- **Gate:** `bash tools/schedule-check/run.sh`, block `unschedcheck` (probe cart + `unsched.c`): 2 slots ×
+  20 clicks booked up front; a window on one slot and an open end on the other (sent in the booking frame)
+  must vanish exactly, the other slot untouched. NEGATIVE CONTROL: the same run with nothing taken back
+  must hear all 40. Mutation-tested: a pen that drops nothing turns the gate red.
+
 ## Further reading — AudioWorklet & web-audio timing (for the fix #7 work)
 
 Worklets vs workers: **ScriptProcessorNode** (what we ship now, by default) runs audio

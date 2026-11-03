@@ -2130,6 +2130,7 @@ static bool sound_req_is_event(SoundReq r) {
         case SR_NOTE_FOLLOW: case SR_NOTE_PAN: case SR_NOTE_REVERB: case SR_NOTE_DRIVE_MODE:
         case SR_NOTE_POS: case SR_NOTE_MOTION: case SR_HIT_AT: case SR_NOTE_SYNC:
         case SR_NOTE_RETRIG: case SR_NOTE_GLIDE_SCALE: case SR_CART_SWITCH: case SR_NOTE_AT:
+        case SR_UNSCHEDULE:      // takes back booked notes: a moment, not a setting
         case SR_STATE_RESTORE:   // must NOT be recorded: it replays the very log it would land in
             return true;
         case SR_LFO_SHAPE: return r.c < 0;   // c<0 = live held note (handle in e0/e1); c>=0 = instrument-slot config
@@ -7213,6 +7214,7 @@ static void sound_fire_req(SoundReq r) {
             sound_set_step(v, sfx_bank[n].steps[0], sfx_bank[n].step_dur);
         }
     } break;
+    case SR_UNSCHEDULE: break;   // handled at the drain (it edits the pen); never fires as a sound
     case SR_NOTE_AT:   // never arrives here in practice (the drain turns it into an SR_NOTE countdown); play it now if it does
     case SR_NOTE: {
         int gate = r.dur_samples > 0 ? r.dur_samples : SOUND_SAMPLE_RATE / 4;
@@ -8226,6 +8228,26 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
         SoundReq r = req_queue[tail];
         atomic_store_explicit(&req_tail, (tail + 1) % SOUND_REQ_QUEUE, memory_order_release);  // free the slot for the producer
         if (!sound_req_is_event(r)) sound_ctx_record(r);   // cart-context config log (de_switch_cart)
+        if (r.kind == SR_UNSCHEDULE) {
+            // unschedule(): drop this slot's booked notes whose onset falls in [from, to). Everything booked
+            // BEFORE this request has already been drained into delayed[] (the queue is FIFO), so a cart that
+            // books then unbooks can't race itself. A pen entry fires at this buffer's first sample + its
+            // countdown, so the window converts the same way schedule_at's target does. Notes already
+            // SOUNDING are untouched: pair it with a choke / note-off to cut those.
+            int now31 = (int)(atomic_load_explicit(&snd_sample_clock, memory_order_relaxed) & 0x7FFFFFFF);
+            long long from = (long long)r.e0 - now31, to = (long long)r.e1 - now31;
+            if (from >  0x40000000LL) from -= 0x80000000LL;
+            if (from < -0x40000000LL) from += 0x80000000LL;
+            if (to   >  0x40000000LL) to   -= 0x80000000LL;
+            if (to   < -0x40000000LL) to   += 0x80000000LL;
+            for (int di = 0; di < delayed_count; ) {
+                long long at = delayed[di].delay_samples;
+                if (delayed[di].kind == SR_NOTE && delayed[di].b == r.a && at >= from && (r.e2 || at < to))
+                    delayed[di] = delayed[--delayed_count];   // swap-remove, as the pen does when a note fires
+                else di++;
+            }
+            continue;
+        }
         if (r.kind == SR_NOTE_AT) {
             // schedule_at(): an ABSOLUTE target sample. Convert it to a countdown from THIS buffer's first
             // sample, so the onset is independent of which callback happens to drain it (schedule_hit's
@@ -10456,6 +10478,19 @@ void schedule_note_at(double t, int midi, int instr, int vol, int dur_ms, const 
     sound_push((SoundReq){ .kind = SR_NOTE_AT, .a = midi, .b = instr, .c = vol,
                            .delay_samples = (int)(target & 0x7FFFFFFF), .dur_samples = dur,
                            .e0 = g, .e1 = NOTE_EX_FLAG | (int)(a * 1000.0f + 0.5f), .e2 = e2 });
+}
+
+// unschedule(): take back a slot's BOOKED notes whose start falls in [t1, t2) on the audio clock (the same
+// seconds as schedule_at's t). t2 <= t1 or any t2 a year past t1 = open-ended, "from t1 on". Only notes that
+// have not started: a note already sounding rings on (cut it with a choke / note_off). Covers everything that
+// waits in the pen for this slot: schedule_at, schedule_note_at, schedule_hit, schedule.
+void unschedule(int slot, double t1, double t2) {
+    if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
+    long long a = (long long)(t1 * (double)SOUND_SAMPLE_RATE + 0.5);
+    if (a < 0) a = 0;
+    int open = !(t2 > t1) || t2 - t1 > 365.0 * 24 * 3600;
+    long long b = open ? a : (long long)(t2 * (double)SOUND_SAMPLE_RATE + 0.5);
+    sound_push_ctrl(SR_UNSCHEDULE, slot, 0, 0, (int)(a & 0x7FFFFFFF), (int)(b & 0x7FFFFFFF), open);
 }
 
 // What an ACCENTED booked note does on this slot: route ACC_* gets `amount` (see sound_accent_default for

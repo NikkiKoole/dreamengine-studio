@@ -767,6 +767,8 @@ typedef enum {
     SR_REVERB_BUS_INTO = 158, // a=tank 1..2, b=lead slot (-1 = master) — the tank's bus folds into the lead's bus (reverb_bus_into)
     SR_INSTR_FX_FILTER = 159, // a=slot, b=mode, c=cutoff_hz, e0=res*1000 — filter() on one instrument's (or group's) BUS (instrument_fx_filter)
     SR_INSTR_MONO = 160,      // a=slot, b=on — MONO: a new note on this slot cuts the slot's sounding voices (instrument_mono)
+    SR_UNSCHEDULE = 161,      // a=slot, e0/e1 = ABSOLUTE window [from, to) in samples (low 31 bits, as SR_NOTE_AT), e2=1 open-ended —
+                              // drop the slot's booked notes that have not STARTED in that window (unschedule). An EVENT kind.
 } SoundReqKind;
 typedef struct { SoundReqKind kind; int a, b, c; int delay_samples; int dur_samples; int e0, e1, e2; } SoundReq;
 #define SOUND_REQ_QUEUE   512   // generous: live held-voice control pushes many setters/frame, and a patch cart's

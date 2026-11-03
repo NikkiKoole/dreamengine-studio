@@ -8137,6 +8137,19 @@
     "lineage": "Univibe / Shin-ei Uni-Vibe pedal (Machine Gun, Bridge of Sighs); first cart on mod_optical — the asymmetric photocell LFO distinguishing a univibe from a plain phaser."
   },
   {
+    "title": "unschedule probe",
+    "description": "Books every click of two slots up front, then takes some back. Slot 6 loses a WINDOW (clicks 5..9) half a second after booking; slot 5 loses everything from click 15 on, unbooked in the SAME frame it was booked, which is the FIFO claim (an unschedule sent right after its bookings must still see them). UC_MODE=0 is the NEGATIVE CONTROL: the same run with no unschedule, where every click must be heard, or the gate could not tell a dropped note from a click it simply failed to detect. Driven by `bash tools/schedule-check/run.sh`; not meant to be played.",
+    "file": "unschedcheck.cart.png",
+    "created": "2026-11-03",
+    "kind": [
+      "tech-demo"
+    ],
+    "teaches": [
+      "step-sequencer"
+    ],
+    "lineage": "Measurement probe for unschedule() (asked for by Playtime's stingers: a part that rests while a stinger plays on its instrument, after its notes were already booked a bar ahead). Driven by tools/schedule-check/run.sh, not played by hand. Sibling of schedcheck."
+  },
+  {
     "title": "upright bass",
     "description": "The jazz double bass, played the way you actually play one: the FINGERBOARD is the instrument. Four strings (E A D G), pitch running left-to-right. Press a string to sound a note, slide LEFT/RIGHT to WALK THE FRETS (each semitone re-articulates - clean in both directions, like fingering a walking line), PULL the string UP to BEND the pitch continuously (up to +2 semitones, the string visibly deflects toward your finger), lift to damp - monophonic and last-note-wins. You can also PICK: start a drag in the open space NEXT TO a string and sweep THROUGH it, and it plucks the moment your finger crosses it (each string sounds at the fret under your finger) - press right ON a string grabs/frets it, press in the gap picks it. The split is deliberate and matches the engine's physics: a waveguide string bends UP cleanly but can't be bent below its pitch (verified), so downward motion is the fret walk and the up-pull is the smooth continuous bend - horizontal picks the note, vertical is the expression. The right hand is an ARTICULATION switch, and pizz + arco are the SAME string model (INSTR_BOWED - the engine's built-in eng_tune pizzicato mode plucks the very string the bow would otherwise draw, exactly like the real instrument): PIZZ is the jazz sound, a woody finger pluck that rings and thumps (default); ARCO draws the bow - a slow speak, sings while held, with a left-hand vibrato; SLAP adds the string snapping back onto the fingerboard (the rockabilly thump). And the WOOD around the fingerboard is PERCUSSION - slap the belly (right) for a low boom, knock the neck (left) for a drier tick; where you hit maps the pitch but it keeps the woody bass-body character (INSTR_MEMBRANE + a knuckle transient). TONE sets mic/pickup darkness; RING is how long a pizz note rings after you lift. Range E1-G3. Play with mouse or a phone tap, or the computer keyboard (GarageBand musical-typing map, A = E1; Z / X shift the octave). Dressed as an upright laid sideways: scroll + tuning pegs at the left, ebony fingerboard with faint fret guides, bridge + f-holes at the body end, the low E string drawn thickest, and the live string deflecting as you bend it. A TUNE toggle (I) snaps a new note-on to the nearest semitone (a fretted attack) for when you don't want the fretless intonation - slides and bends still glide continuously either way.",
     "file": "upright.cart.png",

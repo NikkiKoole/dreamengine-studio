@@ -1,12 +1,12 @@
 {
-  "_README": "Hand-authored STRUCTURE for the generated history (docs/history.html). The generator (tools/build-history.js) derives ALL dates, commit lists, ADRs and cart-birth data from git + index.json — this file only supplies what a parser can't infer: era boundaries, subsystem identity + matchers, importance tiers, the marked days, and the (mostly empty) editorial seam. Editorial prose, when written, follows docs/guides/voice.md. Re-run: `node tools/build-history.js`. Scope: weeks 1–12 (through 2026-08-13). COVERAGE: all three layers now span the full window. `eras` + `markedDays` are complete; `observations` are refreshed to 2026-07-30 (see their `asOf`); and `milestones` were backfilled 2026-07-11→07-30 on 07-30 (175 entries, taking the total to 384), so a per-subsystem or per-tier TALLY finally describes the whole window rather than the repo through 07-10. Two things that backfill taught, worth heeding before the next one: (1) verify every `match` resolves to a commit INSIDE its declared era before trusting it — the generator picks the FIRST (oldest) subject containing the string, so a short matcher like 'mic' silently grabbed a week-1 commit, and 7 of 175 were wrong on the first pass, including two whose era was genuinely a day off in the prose; and (2) a backfill INVALIDATES older observations that quote milestone counts — eight evidence lines and one body had to be corrected, and one observation's central claim reversed once its window was measured on the same basis as the rest. EXTENDED 2026-08-13 to weeks 11–12 (+3 eras, +31 milestones, total 415): the external-clock/AUv3 arc, the linter-fixture push, lockup, tenement's first week, and the out-of-process wall. Two things this extension confirms about the hazards above. (1) The era check is not optional and it is cheap to automate: 3 of 31 matchers resolved OUTSIDE their declared era, all for the same reason — a work session crossed MIDNIGHT, so commits a human remembers as one day are split across two era boundaries. Verify by date before trusting the prose. (2) Observations are stamped asOf 2026-07-30 and were deliberately NOT re-analysed; instead the two evidence lines quoting a bare '384' now say 'of the 384 milestones through 2026-07-30', so a reader cannot compare a 415-total page against 384-based percentages. Re-analyse them on the next retrospect, not on a window extension.",
+  "_README": "Hand-authored STRUCTURE for the generated history (docs/history.html). The generator (tools/build-history.js) derives ALL dates, commit lists, ADRs and cart-birth data from git + index.json — this file only supplies what a parser can't infer: era boundaries, subsystem identity + matchers, importance tiers, the marked days, and the (mostly empty) editorial seam. Editorial prose, when written, follows docs/guides/voice.md. Re-run: `node tools/build-history.js`. Scope: weeks 1–23 (through 2026-11-03). COVERAGE: all three layers now span the full window. `eras` + `markedDays` are complete; `observations` are refreshed to 2026-07-30 (see their `asOf`); and `milestones` were backfilled 2026-07-11→07-30 on 07-30 (175 entries, taking the total to 384), so a per-subsystem or per-tier TALLY finally describes the whole window rather than the repo through 07-10. Two things that backfill taught, worth heeding before the next one: (1) verify every `match` resolves to a commit INSIDE its declared era before trusting it — the generator picks the FIRST (oldest) subject containing the string, so a short matcher like 'mic' silently grabbed a week-1 commit, and 7 of 175 were wrong on the first pass, including two whose era was genuinely a day off in the prose; and (2) a backfill INVALIDATES older observations that quote milestone counts — eight evidence lines and one body had to be corrected, and one observation's central claim reversed once its window was measured on the same basis as the rest. EXTENDED 2026-08-13 to weeks 11–12 (+3 eras, +31 milestones, total 415): the external-clock/AUv3 arc, the linter-fixture push, lockup, tenement's first week, and the out-of-process wall. Two things this extension confirms about the hazards above. (1) The era check is not optional and it is cheap to automate: 3 of 31 matchers resolved OUTSIDE their declared era, all for the same reason — a work session crossed MIDNIGHT, so commits a human remembers as one day are split across two era boundaries. Verify by date before trusting the prose. (2) Observations are stamped asOf 2026-07-30 and were deliberately NOT re-analysed; instead the two evidence lines quoting a bare '384' now say 'of the 384 milestones through 2026-07-30', so a reader cannot compare a 415-total page against 384-based percentages. Re-analyse them on the next retrospect, not on a window extension. EXTENDED 2026-11-03 to weeks 12–23 (+11 eras, +57 milestones): two racks in one host, the gates asked to fail, the App Store and Pro, the rhythm-box manuals, the patch matcher and the first pull requests, the harvest, and booked notes. The quiet stretches (late August, late September, and the four empty weeks of October) are eras of their own on purpose, so the silence is visible rather than skipped. Observations were NOT re-analysed (still asOf 2026-07-30).",
   "title": "dreamengine — a history",
   "subtitle": "How a fantasy console grew, week by week. Built structure-first from git, the STATUS ledger, and the decision log.",
   "voiceRef": "guides/voice.md",
   "window": {
     "from": "2026-05-28",
-    "to": "2026-08-13",
-    "label": "Weeks 1–12"
+    "to": "2026-11-03",
+    "label": "Weeks 1–23"
   },
   "denseDayThreshold": 80,
   "weeks": [
@@ -92,7 +92,84 @@
       "label": "Week 12",
       "from": "2026-08-13",
       "to": "2026-08-19",
-      "tagline": "The plug-in plays, and then the process boundary says no"
+      "tagline": "The plug-in plays, the process boundary says no, and then two racks, the App Store and Pro"
+    },
+    {
+      "id": "w13",
+      "label": "Week 13",
+      "from": "2026-08-20",
+      "to": "2026-08-26",
+      "tagline": "The rhythm boxes play their manuals, and the bowed bass gets a body"
+    },
+    {
+      "id": "w14",
+      "label": "Week 14",
+      "from": "2026-08-27",
+      "to": "2026-09-02",
+      "tagline": "Quiet"
+    },
+    {
+      "id": "w15",
+      "label": "Week 15",
+      "from": "2026-09-03",
+      "to": "2026-09-09",
+      "tagline": "A sample in, eight patches out"
+    },
+    {
+      "id": "w16",
+      "label": "Week 16",
+      "from": "2026-09-10",
+      "to": "2026-09-16",
+      "tagline": "Pull requests from other agents: four-operator FM, a modal engine, three new racks"
+    },
+    {
+      "id": "w17",
+      "label": "Week 17",
+      "from": "2026-09-17",
+      "to": "2026-09-23",
+      "tagline": "Quiet"
+    },
+    {
+      "id": "w18",
+      "label": "Week 18",
+      "from": "2026-09-24",
+      "to": "2026-09-30",
+      "tagline": "The harvest: other people's instruments, ported cart-first, and notes on the sample clock"
+    },
+    {
+      "id": "w19",
+      "label": "Week 19",
+      "from": "2026-10-01",
+      "to": "2026-10-07",
+      "tagline": "Plinky and CHOMPI, and the lofi lead learns to phrase"
+    },
+    {
+      "id": "w20",
+      "label": "Week 20",
+      "from": "2026-10-08",
+      "to": "2026-10-14",
+      "tagline": "Silence"
+    },
+    {
+      "id": "w21",
+      "label": "Week 21",
+      "from": "2026-10-15",
+      "to": "2026-10-21",
+      "tagline": "Silence"
+    },
+    {
+      "id": "w22",
+      "label": "Week 22",
+      "from": "2026-10-22",
+      "to": "2026-10-28",
+      "tagline": "Silence"
+    },
+    {
+      "id": "w23",
+      "label": "Week 23",
+      "from": "2026-10-29",
+      "to": "2026-11-04",
+      "tagline": "One syllable sings, notes get booked ahead, and the jam comes home from Playtime"
     }
   ],
   "subsystems": [
@@ -992,6 +1069,83 @@
       "from": "2026-08-13",
       "to": "2026-08-13",
       "blurb": "The seams finish landing — a deferred resize and a seqlock frame snapshot, so a host can blit and resize while the engine draws. Two crash classes and a wedged GarageBand transport later, a live `sample` finds the answer in the thread names: the host runs our UI and our audio in DIFFERENT processes, with three engines accumulated in the UI one. Booting becomes idempotent, the frame leaves the audio thread, and the panel survives a stopped host. What cannot be patched is the disconnect itself, so it is written down as a four-way fork. A day of retractions, too: a measured \"+147 cents\" turns out to be an estimator artifact, and \"acidrack can export\" turns out to be a debug channel."
+    },
+    {
+      "id": "two-racks",
+      "title": "Two racks in one host: the engine stops being a singleton",
+      "from": "2026-08-14",
+      "to": "2026-08-14",
+      "blurb": "Every host entry point learns which engine it is talking to, studio.c and every cart-land header go per-instance, and a gate proves N engines can run side by side. By evening two GarageBand tracks play two different racks, two panels show two pictures, and the iPad version plays at all (it had been running two engines and listening to the wrong one). The plug-in also learns to remember: a saved project restores its rack, a new knob no longer eats old songs, and the saved state shrinks from 589 KB to 3.5 KB."
+    },
+    {
+      "id": "the-gates-go-red",
+      "title": "Every gate is asked to fail, and most of them could not",
+      "from": "2026-08-15",
+      "to": "2026-08-16",
+      "blurb": "A sweep gives the checks known-answer fixtures, and the finding is uncomfortable: of ten gates given one, eight were broken in some way, passing on empty input or on a band outside the image. The worst was the store path, which had no gate at all, so every app build had been dead behind a green board. Meanwhile the host reaches into the rack: its keybed plays it, a note can mean a sound or a pitch, and a DAW can automate any knob."
+    },
+    {
+      "id": "into-the-store",
+      "title": "Tiny Acid Jam goes to review, Tiny Pedalboard goes live",
+      "from": "2026-08-17",
+      "to": "2026-08-18",
+      "blurb": "Tiny Acid Jam enters the App Store review queue, and Tiny Pedalboard goes live. The pedalboard then learns to be a real insert effect, a DAW track running through its chain, which takes a day of finding out why the input was always zero (we offered the host a buffer and read it back) and why the effect replaced the track instead of passing it through."
+    },
+    {
+      "id": "pro-and-export",
+      "title": "One Pro unlock, a shared container, and the first drum machine ever sold",
+      "from": "2026-08-19",
+      "to": "2026-08-19",
+      "blurb": "The business model is decided before anyone has bought anything: free, with one $4.99 Pro unlock. An app group lets a purchase reach the plug-in, and export_audio() becomes the first thing Pro actually sells, end to end to the iOS share sheet (and exposes that save() had been a no-op on iOS all along). The same day the Wurlitzer Side Man arrives, four wooden voices and no speaker of its own."
+    },
+    {
+      "id": "reading-the-manuals",
+      "title": "The rhythm boxes play their manuals, not guesses",
+      "from": "2026-08-20",
+      "to": "2026-08-21",
+      "blurb": "The latin patterns had been guesses, so the manuals, datasheets and a 1969 Hammond patent get read instead: 101 sourced preset rhythms become data a cart can play, and the maker's 565 Lua drum patterns finally land in the repo with a reader of their own. Then a pass by ear gives the bowed bass carts a body."
+    },
+    {
+      "id": "late-summer",
+      "title": "Late summer: a few evenings, and somebody else's model to be wrong against",
+      "from": "2026-08-22",
+      "to": "2026-09-05",
+      "blurb": "Two quiet weeks. In the few commits there is a real find: the bow's friction coefficient was above 1.0, which only showed up once a second, outside physical model (STK, luthier) was rendered beside ours. The pipe is cut by ear even though the fix worked."
+    },
+    {
+      "id": "the-patch-matcher",
+      "title": "A sample in, eight patches out",
+      "from": "2026-09-06",
+      "to": "2026-09-13",
+      "blurb": "The patch matcher lands: drop a recording on the editor and get eight dreamengine patches back, with a self-test that hides a patch and finds it again."
+    },
+    {
+      "id": "the-first-pull-requests",
+      "title": "Work arrives as pull requests: four-operator FM, a modal engine, three new racks",
+      "from": "2026-09-14",
+      "to": "2026-09-24",
+      "blurb": "Patchbench gives a matched patch somewhere to live: hear eight, keep one, breed by ear. Then work starts arriving as pull requests from cloud agents: four-operator FM, a modal engine (an exciter into a resonator), and three new racks, cloudhold, liveloop and ladderface. A CI job builds carts to wasm so a phone can play them. Then a quiet week."
+    },
+    {
+      "id": "the-harvest",
+      "title": "The harvest: other people's instruments, and notes on the sample clock",
+      "from": "2026-09-25",
+      "to": "2026-10-02",
+      "blurb": "Choochootracker, Plinky, CHOMPI and Oliver & Cie are read for what they do well and ported cart-first, each idea proven in a cart before it becomes an engine (MME, METAL, SINTER, WAVESCAN, GRAIN). audio_time() and schedule_at() let a cart book notes on the sample clock instead of the frame clock. Lofi Cities' arranger is ported line for line, and an arrangement scorecard measures what the radio stations learn from it."
+    },
+    {
+      "id": "the-long-quiet",
+      "title": "Four weeks of silence",
+      "from": "2026-10-03",
+      "to": "2026-10-28",
+      "blurb": "No commits for almost four weeks. Nothing broke and nothing shipped; the repo simply waited."
+    },
+    {
+      "id": "booked-notes",
+      "title": "One syllable sings, notes are booked ahead, and the jam comes home",
+      "from": "2026-10-29",
+      "to": "2026-11-03",
+      "blurb": "A recorded syllable sings a whole tune in the same voice, and a guiro gets real teeth. Booked notes grow up: legato, accent, per-note gain, a mono 303, and unschedule() to take them back. A whole band can share one worn 78 record. Then Playtime's auto-accompaniment jam is brought home as rootwalk, a few-note bass figure transposed along a walking root, and the repo gets a README for strangers."
     }
   ],
   "markedDays": {
@@ -1024,7 +1178,9 @@
     "2026-07-26": "The post-hardware rack — contemporary-rebirth.md argues a modern genre needs TECHNIQUES rather than more machine emulations, and cashes it out the same day: multiband() (the OTT box) with hyperbox as its showcase, then sample_shift() + harmonize_mic(). The PSOLA popping hunt fails twice in public (both phase fixes reverted) and ends by building the oracle that could see it, psola-check.js, which kills a third attempt in one command.",
     "2026-07-28": "The sieve day — the engine is cross-checked against Gordon Reid's Synth Secrets, all 63 parts, in eight passes covering every instrument family and the effects layer. It comes out COMPLETE at ~106 sub-findings, including a correction to the audit's own earlier claim (Reid retracts himself between Part 10 and Part 47), one place the engine gets hard physics RIGHT, and the design question that outranks most of the findings: every patch in the book is subtractive and all our imitative engines are physical models. Then the findings become an ordered build plan with a stated rule for how an item is judged done — and for how a DROP is recorded.",
     "2026-07-29": "Phase 1 complete, 7 of 7, every item shipped only once the owner could hear it — and two of the seven recorded as DROPs rather than skipped. instrument_keytrack() and the octave-denominated filter sweep land as real API, mono.h arrives and immediately confesses a bug in sh101, martenot's morph turns out to have been crackling (one new oracle, click-check.js), and instrument_mode is caught rejecting two of its own indices, which had left two finished piano sliders unreachable. Meanwhile boxhuman becomes five builds off one rig table and goes up on its hands.",
-    "2026-07-30": "The day the audit turned inward — 73 commits. The piano's inharmonicity ships as MODE_PIANO_STIFF after a run of public wrongness (the sign, not the scale; the compensation not separable; the owner's ear killing an A/B and being right; both failures the agent's own, in the test rig), BOWED finally gets a body, and note_retrig / note_glide / the glide scale dial / mouse_wheel_x / stereo-check all land. Then the sweep nobody had done: canvas-diff's golden had been red 20 days because nobody ran it, HANDOFF.md drops 1356 → 649 lines with the unique facts moved out FIRST, and status-check.js is born for the ledger everything said to trust — finding 20 of 53 'open' items already shipped."
+    "2026-07-30": "The day the audit turned inward — 73 commits. The piano's inharmonicity ships as MODE_PIANO_STIFF after a run of public wrongness (the sign, not the scale; the compensation not separable; the owner's ear killing an A/B and being right; both failures the agent's own, in the test rig), BOWED finally gets a body, and note_retrig / note_glide / the glide scale dial / mouse_wheel_x / stereo-check all land. Then the sweep nobody had done: canvas-diff's golden had been red 20 days because nobody ran it, HANDOFF.md drops 1356 → 649 lines with the unique facts moved out FIRST, and status-check.js is born for the ledger everything said to trust — finding 20 of 53 'open' items already shipped.",
+    "2026-08-14": "The day the engine stopped being one thing: 72 commits. Per-instance state end to end, two GarageBand tracks playing two racks, the iPad panel working, and saved projects that survive an update.",
+    "2026-09-28": "The harvest day: 19 commits. Three engines promoted from carts (MME, METAL, SINTER), a 24-tab specimens cart, audio_time() + schedule_at(), and Lofi Cities' arranger ported line for line."
   },
   "milestones": [
     {
@@ -3931,6 +4087,405 @@
       "era": "the-out-of-process-wall",
       "subsystem": "docs",
       "match": "was overstated"
+    },
+    {
+      "title": "The engine runs N independent instances, and a gate proves it",
+      "tier": "foundational",
+      "era": "two-racks",
+      "subsystem": "engine",
+      "match": "the engine runs N independent instances"
+    },
+    {
+      "title": "Two GarageBand tracks, two racks, both correct",
+      "tier": "mid",
+      "era": "two-racks",
+      "subsystem": "ios",
+      "match": "TWO TRACKS SOUND CORRECT"
+    },
+    {
+      "title": "The iOS app was silent: two engines, the wrong one playing",
+      "tier": "mid",
+      "era": "two-racks",
+      "subsystem": "ios",
+      "match": "iOS app was SILENT on device"
+    },
+    {
+      "title": "The plug-in remembers a saved project (fullState)",
+      "tier": "mid",
+      "era": "two-racks",
+      "subsystem": "ios",
+      "match": "the plug-in remembers: fullState"
+    },
+    {
+      "title": "Saved state migrates: a new knob no longer eats old songs",
+      "tier": "mid",
+      "era": "two-racks",
+      "subsystem": "ios",
+      "match": "session state MIGRATES"
+    },
+    {
+      "title": "A saved rack goes from 589 KB to 3.5 KB",
+      "tier": "small",
+      "era": "two-racks",
+      "subsystem": "ios",
+      "match": "589 KB"
+    },
+    {
+      "title": "Space granny, the mascot",
+      "tier": "small",
+      "era": "two-racks",
+      "subsystem": "promote",
+      "match": "space granny: the mascot doc"
+    },
+    {
+      "title": "A DAW can automate any knob",
+      "tier": "mid",
+      "era": "the-gates-go-red",
+      "subsystem": "ios",
+      "match": "the parameter IS the knob"
+    },
+    {
+      "title": "The host's keybed plays the rack",
+      "tier": "small",
+      "era": "the-gates-go-red",
+      "subsystem": "ios",
+      "match": "the host's keybed plays the rack now"
+    },
+    {
+      "title": "Ten gates given a fixture, eight of them broken",
+      "tier": "mid",
+      "era": "the-gates-go-red",
+      "subsystem": "introspect",
+      "match": "ten gates given a fixture"
+    },
+    {
+      "title": "The store path had no gate, so every app build was dead",
+      "tier": "mid",
+      "era": "the-gates-go-red",
+      "subsystem": "store",
+      "match": "the store path had no gate at all"
+    },
+    {
+      "title": "A millisecond conversion overflowed at 48 seconds, in 15 places",
+      "tier": "small",
+      "era": "the-gates-go-red",
+      "subsystem": "sound",
+      "match": "ms_samp()"
+    },
+    {
+      "title": "Tiny Acid Jam enters App Store review",
+      "tier": "foundational",
+      "era": "into-the-store",
+      "subsystem": "store",
+      "match": "Tiny Acid Jam is in the review queue"
+    },
+    {
+      "title": "Tiny Pedalboard is live on the App Store",
+      "tier": "foundational",
+      "era": "into-the-store",
+      "subsystem": "store",
+      "match": "Tiny Pedalboard is live"
+    },
+    {
+      "title": "The pedalboard becomes an insert effect",
+      "tier": "mid",
+      "era": "into-the-store",
+      "subsystem": "ios",
+      "match": "pedalboard is an aumf"
+    },
+    {
+      "title": "An insert has to pass the track through",
+      "tier": "small",
+      "era": "into-the-store",
+      "subsystem": "ios",
+      "match": "an insert has to pass the track through"
+    },
+    {
+      "title": "Field note: every check we own compares the repo with itself",
+      "tier": "small",
+      "era": "into-the-store",
+      "subsystem": "docs",
+      "match": "every check we own compares the repo with itself"
+    },
+    {
+      "title": "Free, with one Pro unlock at $4.99",
+      "tier": "mid",
+      "era": "pro-and-export",
+      "subsystem": "store",
+      "match": "pro is $4.99"
+    },
+    {
+      "title": "export_audio(), the first thing Pro sells",
+      "tier": "mid",
+      "era": "pro-and-export",
+      "subsystem": "sound",
+      "match": "export_audio(): the first thing Pro"
+    },
+    {
+      "title": "Every save() on iOS had been a no-op",
+      "tier": "small",
+      "era": "pro-and-export",
+      "subsystem": "ios",
+      "match": "every save() in every cart has been a no-op"
+    },
+    {
+      "title": "The Wurlitzer Side Man: the first drum machine ever sold",
+      "tier": "mid",
+      "era": "pro-and-export",
+      "subsystem": "machines",
+      "match": "the first drum machine had four wooden voices"
+    },
+    {
+      "title": "Every web build had been dead since export_poll",
+      "tier": "small",
+      "era": "pro-and-export",
+      "subsystem": "web",
+      "match": "every cart's web build has been dead"
+    },
+    {
+      "title": "The rhythm boxes, read from their manuals",
+      "tier": "mid",
+      "era": "reading-the-manuals",
+      "subsystem": "machines",
+      "match": "so I went and read the manuals"
+    },
+    {
+      "title": "565 drum patterns land in the repo",
+      "tier": "mid",
+      "era": "reading-the-manuals",
+      "subsystem": "machines",
+      "match": "your 565 lua patterns"
+    },
+    {
+      "title": "A 1969 Hammond patent has the chord and bass lanes",
+      "tier": "small",
+      "era": "reading-the-manuals",
+      "subsystem": "machines",
+      "match": "a 1969 Hammond patent"
+    },
+    {
+      "title": "drumpat.h gets a reader",
+      "tier": "small",
+      "era": "reading-the-manuals",
+      "subsystem": "machines",
+      "match": "drumpat.h has a reader now"
+    },
+    {
+      "title": "The bowed bass carts get a body, by ear",
+      "tier": "small",
+      "era": "reading-the-manuals",
+      "subsystem": "sound",
+      "match": "the bowed body is cleared"
+    },
+    {
+      "title": "The editor moves off port 5173",
+      "tier": "small",
+      "era": "reading-the-manuals",
+      "subsystem": "debug",
+      "match": "the editor moves off 5173"
+    },
+    {
+      "title": "The bow's friction was above unity",
+      "tier": "mid",
+      "era": "late-summer",
+      "subsystem": "sound",
+      "match": "the bow friction was over unity"
+    },
+    {
+      "title": "A reference renderer: somebody else's model to be wrong against",
+      "tier": "mid",
+      "era": "late-summer",
+      "subsystem": "sound",
+      "match": "somebody else's model"
+    },
+    {
+      "title": "The pipe is cut, by ear",
+      "tier": "small",
+      "era": "late-summer",
+      "subsystem": "sound",
+      "match": "the pipe is a clarinet"
+    },
+    {
+      "title": "The patch matcher: a sample in, eight patches out",
+      "tier": "foundational",
+      "era": "the-patch-matcher",
+      "subsystem": "sound",
+      "match": "a sample in, eight patches out"
+    },
+    {
+      "title": "Patchbench: hear eight, keep one, breed by ear",
+      "tier": "mid",
+      "era": "the-first-pull-requests",
+      "subsystem": "sound",
+      "match": "patchbench: hear eight"
+    },
+    {
+      "title": "The first pull request from a cloud agent",
+      "tier": "mid",
+      "era": "the-first-pull-requests",
+      "subsystem": "engine",
+      "match": "Merge pull request #34"
+    },
+    {
+      "title": "INSTR_MODAL: an exciter into a resonator",
+      "tier": "mid",
+      "era": "the-first-pull-requests",
+      "subsystem": "sound",
+      "match": "INSTR_MODAL: exciter into resonator"
+    },
+    {
+      "title": "INSTR_FM4: four-operator FM",
+      "tier": "mid",
+      "era": "the-first-pull-requests",
+      "subsystem": "sound",
+      "match": "INSTR_FM4: four-operator FM"
+    },
+    {
+      "title": "cloudhold: freeze as a performed gesture",
+      "tier": "small",
+      "era": "the-first-pull-requests",
+      "subsystem": "sound",
+      "match": "cloudhold: freeze as a performed gesture"
+    },
+    {
+      "title": "CI builds carts to wasm for phones",
+      "tier": "mid",
+      "era": "the-first-pull-requests",
+      "subsystem": "web",
+      "match": "ci: build carts to wasm"
+    },
+    {
+      "title": "Field note 030: the capability nobody believes exists",
+      "tier": "small",
+      "era": "the-first-pull-requests",
+      "subsystem": "docs",
+      "match": "field-notes: 030"
+    },
+    {
+      "title": "ADR-0036: depth-tested triangles, not a 3D engine",
+      "tier": "mid",
+      "era": "the-harvest",
+      "subsystem": "3d",
+      "match": "ADR-0036"
+    },
+    {
+      "title": "INSTR_MME, promoted from a cart",
+      "tier": "mid",
+      "era": "the-harvest",
+      "subsystem": "sound",
+      "match": "INSTR_MME: the multi modulation engine"
+    },
+    {
+      "title": "INSTR_METAL: the six-square metal bank",
+      "tier": "small",
+      "era": "the-harvest",
+      "subsystem": "sound",
+      "match": "INSTR_METAL: the six-square"
+    },
+    {
+      "title": "specimens: twenty-four algorithmic engines in one cart",
+      "tier": "small",
+      "era": "the-harvest",
+      "subsystem": "sound",
+      "match": "specimens: a fourth row"
+    },
+    {
+      "title": "audio_time() + schedule_at(): notes on the sample clock",
+      "tier": "foundational",
+      "era": "the-harvest",
+      "subsystem": "sound",
+      "match": "audio_time() + schedule_at()"
+    },
+    {
+      "title": "loficity: Lofi Cities' arranger, ported line for line",
+      "tier": "mid",
+      "era": "the-harvest",
+      "subsystem": "radio",
+      "match": "loficity: Lofi Cities' arranger"
+    },
+    {
+      "title": "arrange-score: a scorecard for arrangements",
+      "tier": "mid",
+      "era": "the-harvest",
+      "subsystem": "radio",
+      "match": "arrange-score: an ARRANGEMENT scorecard"
+    },
+    {
+      "title": "The Plinky harvest: WAVESCAN and GRAIN",
+      "tier": "mid",
+      "era": "the-harvest",
+      "subsystem": "sound",
+      "match": "Plinky harvest"
+    },
+    {
+      "title": "The CHOMPI and O&C harvest: patgen.h, tonnetz.h",
+      "tier": "small",
+      "era": "the-harvest",
+      "subsystem": "sound",
+      "match": "CHOMPI + O&C harvest"
+    },
+    {
+      "title": "citypop2: city pop rebuilt with lofi's method",
+      "tier": "small",
+      "era": "the-harvest",
+      "subsystem": "radio",
+      "match": "citypop2: city pop rebuilt"
+    },
+    {
+      "title": "INSTR_SING: one recorded syllable sings a tune",
+      "tier": "mid",
+      "era": "booked-notes",
+      "subsystem": "sound",
+      "match": "INSTR_SING: one recorded syllable"
+    },
+    {
+      "title": "INSTR_SCRAPE: a guiro with teeth",
+      "tier": "small",
+      "era": "booked-notes",
+      "subsystem": "sound",
+      "match": "INSTR_SCRAPE: a guiro"
+    },
+    {
+      "title": "schedule_note_at: booked legato, accent and per-note macros",
+      "tier": "mid",
+      "era": "booked-notes",
+      "subsystem": "sound",
+      "match": "schedule_note_at + instrument_accent"
+    },
+    {
+      "title": "A whole band on one record: instrument_group",
+      "tier": "mid",
+      "era": "booked-notes",
+      "subsystem": "effects",
+      "match": "instrument_group + reverb_bus_into"
+    },
+    {
+      "title": "seventyeight: a 1920s dance band on a worn 78",
+      "tier": "small",
+      "era": "booked-notes",
+      "subsystem": "radio",
+      "match": "seventyeight: a 1920s"
+    },
+    {
+      "title": "unschedule(): take back booked notes",
+      "tier": "small",
+      "era": "booked-notes",
+      "subsystem": "sound",
+      "match": "unschedule(slot, t1, t2)"
+    },
+    {
+      "title": "rootwalk: Playtime's jam comes home",
+      "tier": "mid",
+      "era": "booked-notes",
+      "subsystem": "radio",
+      "match": "rootwalk: the auto-accompaniment jam"
+    },
+    {
+      "title": "A README for strangers",
+      "tier": "mid",
+      "era": "booked-notes",
+      "subsystem": "docs",
+      "match": "README: what dreamengine is"
     }
   ],
   "threads": {

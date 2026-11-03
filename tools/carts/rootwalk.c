@@ -477,7 +477,9 @@ static void jam_plan(Jam *j, float energy, Bar *o) {
         else if (c == 'N') midi = approach + 1;
         else {
             int d = degree_of(c); if (d == -99) continue;
-            if (fg->form) d = follow_chord(d, o->chord);            // riffs follow the chord, figures don't
+            if (fg->form) d = follow_chord(d, o->chord);            // riffs follow the chord, figures don't...
+            else if (c == '7' && o->chord == 'J') d = 11;             // ...except a figure's 7 over maj9: the major 7th
+                                                                      // (Playtime's FIGURE_DEGREES), else it rubs
             midi = home + d;
         }
         int len = 1;
@@ -997,7 +999,7 @@ void spec(void) {
         expect_eq(o.note[6] - root_home(2), 3, "over m, the riff keeps its minor third");
         jam_init(&j, (Picks){ .walk = 0, .fig = rob7, .pace = 0, .genre = G_FUNK });
         jam_plan(&j, 0.0f, &o);
-        expect_eq(o.note[6] - root_home(0), 10, "a plain figure's b7 stays a b7 over a major chord");
+        expect_eq(o.note[6] - root_home(0), 10, "a plain figure's b7 stays a b7 over a major (not maj9) chord");
         jam_init(&j, (Picks){ .walk = 0, .fig = rob7, .pace = 0, .genre = G_FUNK, .key = 7 });
         jam_plan(&j, 0.0f, &o);
         expect_eq(o.note[0], 43, "in G the root is G2");
@@ -1088,6 +1090,20 @@ void spec(void) {
         int breaks = 0, kick_in_break = 0;
         for (int b = 0; b < 8 * 10; b++) { jam_plan(&j, 0.0f, &o); if (o.mode == M_BREAK) { breaks++; if (o.on[L_KICK]) kick_in_break = 1; } }
         expect(breaks > 0 && !kick_in_break, "ALL: breakdowns still drop the kick");
+    }
+    // over maj9 a plain figure's 7 is the MAJOR 7th; over everything else it stays a b7
+    // (playtime-71's known answers: root-octave-b7 in F)
+    {
+        int wave = -1;
+        for (int wi = 0; wi < NWALK; wi++) if (strcmp(WALKS[wi].name, "WAVE") == 0) wave = wi;
+        jam_init(&j, (Picks){ .walk = wave, .fig = 1, .pace = 0, .genre = G_FUNK, .key = 5 });
+        jam_plan(&j, 0.0f, &o);
+        expect(o.note[0] == 41 && o.note[3] == 53 && o.note[6] == 52, "Fmaj9: F2 F3 E3");
+        jam_plan(&j, 0.0f, &o); jam_plan(&j, 0.0f, &o);
+        expect(o.note[0] == 34 && o.note[3] == 46 && o.note[6] == 44, "Bb9sus: A#1 A#2 G#2");
+        jam_init(&j, (Picks){ .walk = 1, .fig = 1, .pace = 0, .genre = G_FUNK, .key = 5 });
+        jam_plan(&j, 0.0f, &o);
+        expect(o.note[0] == 41 && o.note[3] == 53 && o.note[6] == 51, "1 5 6 4 in F: F2 F3 D#3");
     }
     // brush walk's B: '7--A' holds the 7 for three steps and stops AT the A, which still sounds
     {

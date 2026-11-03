@@ -202,11 +202,20 @@ static const Figure FIGS[] = {
     { "THE ONE",     "R..............." },
     { "OCTAVE POP",  "R.....8.R.....8." },
     { "APPROACH",    "R-----........A." },
-    // the riffs (Playtime's four, all pentatonic)
+    // the riffs (Playtime's music-riffs.lua, all pentatonic, all following the chord)
     { "POCKET",      "R..R..7.R.....5.", { { 'B', "            8.7A" } }, "AAAB" },
     { "CLIMB",       "R.....m.4.5.7...", { { 'B', "          8.7.5." }, { 'C', "          8.5.mA" } }, "ABAC" },
     { "CALL+ANSWER", "R..8..R.....5.7.", { { 'B', "        7.5.4.mA" } }, "AAAB" },
     { "LOW + HIGH",  "R...L...R..m4...", { { 'B', "        R..m5.N." } }, "AAAB" },
+    // eight more (Playtime 22e311da)
+    { "DISCO OCTAVES",  "R.8.",             { { 'B', "            7.5A" } }, "AAAB" },
+    { "ONE DROP",       "R--.....5-.m....", { { 'B', "        5-.7.8.A" } }, "AAAB" },
+    { "MOTOWN",         "R...5...8...5.4.", { { 'B', "        7...5.mA" } }, "AAAB" },
+    { "SIXTEENTH FUNK", "R.RR..7.R.m.4.5.", { { 'B', "        8.7.5.4A" } }, "AAAB" },
+    { "HIP HOP LOW",    "R-------L-----..", { { 'B', "        L---m-A." } }, "AAAB" },
+    { "LADDER",         "R.m.4.5.7.8.7.5.", { { 'B', "        8.7.5.mA" } }, "AAAB" },
+    { "PUSH AND POP",   "R..8...R......N.", { { 0 } },                       "A" },
+    { "BRUSH WALK",     "R---m---4---5---", { { 'B', "            7--A" } }, "AAAB" },   // the hold ends at the A
 };
 #define NFIG (int)(sizeof FIGS / sizeof FIGS[0])
 static const char *GENRE_A = "R..8..7.........";     // every genre's first figure
@@ -843,6 +852,16 @@ void spec(void) {
             prev = o;
         }
         expect(seen > 0 && ok, "A leans into the next root across a key change");
+    }
+    // brush walk's B: '7--A' holds the 7 for three steps and stops AT the A, which still sounds
+    {
+        int bw = -1;
+        for (int fi = 0; fi < NFIG; fi++) if (strcmp(FIGS[fi].name, "BRUSH WALK") == 0) bw = fi;
+        jam_init(&j, (Picks){ .walk = 0, .fig = bw, .pace = 0, .genre = G_BRUSHES });
+        jam_plan(&j, 0.0f, &o); jam_plan(&j, 0.0f, &o);            // bar 1 = the last before the change: B
+        expect_eq(o.letter, 'B', "brush walk plays B into the change");
+        expect_eq(o.len[12], 3, "the 7 holds up to the A");
+        expect(o.note[15] >= 0, "the A after the hold still sounds");
     }
 
     // 5. riffs: the form lines up with the END of the root's step; the strong 16ths stay in the

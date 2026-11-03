@@ -17,7 +17,7 @@
   "description": {
     "summary": "A few-note bass figure transposed along a walking root, over a drum machine that arranges itself live. The root moving is the hook.",
     "detail": "The core is small: a 1-3 note bass FIGURE written in scale degrees (R root, 8 octave, 7 flat seventh, A the approach a half step under the next root, N the push: the next root early on the and-of-4), transposed along a WALK of roots (1 4 5 1, 1 5 6 4, doo-wop 1 6 4 5, 2 5 1, round the fourths) that moves every 2 or 4 bars on its own. The track at the top shows the walk with a playhead; the next chord lights up when the bass leans into it. Underneath, a drum machine arranges itself in 8-bar phrases from the ENERGY knob: layers come in one at a time (kick, bass, keys, hats, snare, percussion), every fourth phrase at full tilt is a BREAKDOWN (the kick leaves, the bass never does), and the phrase after it is the DROP, everything back with a crash and the walk home. The KEYS layer plays the chords five ways (a soft Rhodes pad, disco saw stabs, clav funk stabs, a choked reggae skank, a strummed clean electric), each chord voiced close to the last one. Every phrase ends on a fill, the pattern family's own written Break where the library has one. The walks carry their CHORDS (major, minor, dominant seventh), and the riffs follow them: a riff is written in the minor pentatonic and moves onto each chord's own pentatonic, so its minor third becomes a 2 over a major chord. The plain figures stay put. Picks for the walk, figure, pace, key and voice are armed and land at the NEXT ROOT CHANGE, the way an organist changes register between chords; a new genre, family or chord style lands at the next bar. Patterns are the maker's own drum-patterns library, whose provenance is uneven (see drumpat.h): fine to play, not to call the real thing.",
-    "controls": "W walk, F figure, P pace, K key, V bass voice: each ARMS a change that lands at the next root change. G genre, R family (rhythm) and C chord style land at the next bar; a picked chord style plays even when the energy is low. L (or tap the layer lamps) = ALL LAYERS from the next bar, whatever the energy. E LEAN and X GAP (AUTO / ALWAYS / NEVER): whether the drums nod at a coming chord change, and whether the bar before a drop goes silent from beat 4. UP/DOWN or the knob set ENERGY; hold SPACE (or PUSH) to push it to the top, release and it falls back. Tap the buttons on a phone."
+    "controls": "W walk, F figure, P pace, K key, V bass voice: each ARMS a change that lands at the next root change. G genre, R family (rhythm) and C chord style land at the next bar; a picked chord style plays even when the energy is low. L (or tap the layer lamps) = ALL LAYERS from the next bar, whatever the energy. E LEAN and X GAP (AUTO / ALWAYS / NEVER): whether the drums nod at a coming chord change, and whether the bar before a drop goes silent from beat 4. O SPOT: a groove phrase's last 4 bars as a drum break, a bass feature or bass and drums trading (AUTO / NEVER / one of them every phrase). Y VARY: turnaround bars, ghost snares and 16th hats as it gets busy. UP/DOWN or the knob set ENERGY; hold SPACE (or PUSH) to push it to the top, release and it falls back. Tap the buttons on a phone."
   }
 }
 de:meta */
@@ -319,15 +319,24 @@ static int in_range(int pc) { return 33 + ((pc - 9) % 12 + 12) % 12; }
 enum { V_UPRIGHT, V_ACID, V_SINE, NVOICE };
 static const char *VOICE_NAME[NVOICE] = { "UPRIGHT", "303 MONO", "SINE" };
 
-enum { P_AUTO, P_ALWAYS, P_NEVER };            // the LEAN and GAP picks (Playtime J10a-b)
+enum { P_AUTO, P_ALWAYS, P_NEVER };            // the LEAN / GAP / VARY picks (Playtime J10a-d)
 static const char *PICK3[3] = { "AUTO", "ALWAYS", "NEVER" };
-typedef struct { int walk, fig, pace, genre, fam, voice, key, chords, all, lean, gap; } Picks;   // all: every layer, whatever the energy   // key: pitch class of the 1
+// SPOTLIGHTS (J10c): a groove phrase's last 4 bars hand the stage to one part
+enum { SP_NONE, SP_DRUMS, SP_BASS, SP_TRADE, NSPOT };
+static const char *SPOT_NAME[NSPOT] = { "", "DRUM BREAK", "BASS FEATURE", "TRADING" };
+enum { SPK_AUTO, SPK_NEVER, SPK_DRUMS, SPK_BASS, SPK_TRADE, NSPK };   // the pick
+static const char *SPK_NAME[NSPK] = { "AUTO", "NEVER", "DRUMS", "BASS", "TRADE" };
+// the ghost snares' three masks (one per song)
+static const char *GHOSTS[3] = { "......x....x....", ".......x..x.....", "...x......x....x" };
+static unsigned mix32(unsigned x) { x ^= x >> 16; x *= 0x7feb352du; x ^= x >> 15; x *= 0x846ca68bu; x ^= x >> 16; return x; }
+#define JAM_SEED 0x5EEDu
+typedef struct { int walk, fig, pace, genre, fam, voice, key, chords, all, lean, gap, spot, vary; } Picks;   // all: every layer, whatever the energy   // key: pitch class of the 1
 
 typedef struct {
     Picks cur, want;           // sounding vs armed
     int bar;                   // the index of the next bar to plan
     int phrase, mode, layers, var, on[NLAYER];
-    int np_mode, np_layers, np_var, np_ready;   // the NEXT phrase, decided one bar early
+    int np_mode, np_layers, np_var, np_ready, np_spot, spot, ghosts;   // the NEXT phrase, decided one bar early
     int wstep, root, left;     // the walk: its step, the root (semitones over the key), bars left on it
     int voicing[MAXVOICE], nvoicing;            // the last chord voiced (the next one moves close to it)
     int ch_pending, ch_wstep; Picks ch;          // the next bar's change, snapshotted one bar early
@@ -341,7 +350,8 @@ typedef struct {
     const char *loop;
     char letter;                                 // a riff's form letter this bar ('A' for a plain figure)
     int chords, keys_on, voicing[MAXVOICE], nvoicing;
-    int cut, lean, run_from, toms;               // the drums play the song: see jam_plan
+    int cut, lean, run_from, toms, feature_fig;
+    int spot, spot_on, ghosts, hats16, turn;     // spotlight + variations this bar               // the drums play the song: see jam_plan
    // the chord figure + this bar's voicing
     int key; char chord;                         // the key's pitch class, this bar's chord kind (M m 7)
     int note[16], len[16]; char kind[16];       // note -1 = nothing starts on this step
@@ -359,7 +369,9 @@ static void jam_init(Jam *j, Picks p) {
     j->root = WALKS[p.walk].deg[0];
     j->left = PACES[p.pace];
     j->np_mode = M_GROOVE; j->np_layers = MINL; j->np_var = 0; j->np_ready = 1;
+    j->np_spot = p.spot >= SPK_DRUMS ? p.spot - SPK_DRUMS + SP_DRUMS : SP_NONE;   // a named spotlight from phrase one
     j->phrase = -1;
+    j->ghosts = (int)(mix32(JAM_SEED ^ 0xA5A5u) % 3);                  // one ghost mask per song
 }
 
 // Playtime's newPhrase, decided for the phrase AFTER the current one.
@@ -375,7 +387,13 @@ static void decide_next_phrase(Jam *j, float energy) {
         if (want > layers) layers++; else if (want < layers) layers--;
     }
     if (phrase % VAR_EVERY == 0) var++;
-    j->np_mode = mode; j->np_layers = layers; j->np_var = var; j->np_ready = 1;
+    int spot = SP_NONE;                                            // only a GROOVE phrase gets a spotlight
+    if (mode == M_GROOVE && j->cur.spot >= SPK_DRUMS) spot = j->cur.spot - SPK_DRUMS + SP_DRUMS;
+    else if (mode == M_GROOVE && j->cur.spot == SPK_AUTO && layers >= 4 && phrase % BREAK_EVERY == BREAK_EVERY / 2) {
+        unsigned r = mix32(JAM_SEED + (unsigned)phrase * 104729u);
+        if (r % 2 == 0) spot = SP_DRUMS + (int)((r >> 8) % 3);
+    }
+    j->np_mode = mode; j->np_layers = layers; j->np_var = var; j->np_spot = spot; j->np_ready = 1;
 }
 
 static const Genre *genre_of(const Picks *p) { return &GEN[p->genre]; }
@@ -394,7 +412,7 @@ static void jam_plan(Jam *j, float energy, Bar *o) {
     if (inph == 0) {
         j->phrase++;
         if (!j->np_ready) decide_next_phrase(j, energy);
-        j->mode = j->np_mode; j->layers = j->np_layers; j->var = j->np_var; j->np_ready = 0;
+        j->mode = j->np_mode; j->layers = j->np_layers; j->var = j->np_var; j->spot = j->np_spot; j->np_ready = 0;
         for (int k = 0; k < NLAYER; k++) j->on[k] = k < j->layers;
         if (j->mode == M_BREAK) for (int k = 0; k < NLAYER; k++) j->on[k] = k != L_KICK;  // the floor drops out
     }
@@ -402,14 +420,15 @@ static void jam_plan(Jam *j, float energy, Bar *o) {
     // genre + family land at the next BAR (a new groove shouldn't wait for the chord)
     j->cur.genre = j->want.genre; j->cur.fam = j->want.fam; j->cur.chords = j->want.chords;   // these: next bar
     j->cur.all = j->want.all; j->cur.lean = j->want.lean; j->cur.gap = j->want.gap;
+    j->cur.spot = j->want.spot; j->cur.vary = j->want.vary;
     // ALL LAYERS (Playtime's 'jam layers: all'): everything from the next bar; breakdowns still happen
     if (j->cur.all && j->mode != M_BREAK) { j->layers = NLAYER; for (int k = 0; k < NLAYER; k++) j->on[k] = 1; }
 
     // the root: a change snapshotted last bar lands now, else one bar less on this root
     if (j->ch_pending) {
-        int genre = j->cur.genre, fam = j->cur.fam, chords = j->cur.chords, all = j->cur.all, lean = j->cur.lean, gap = j->cur.gap;
+        int genre = j->cur.genre, fam = j->cur.fam, chords = j->cur.chords, all = j->cur.all, lean = j->cur.lean, gap = j->cur.gap, spot = j->cur.spot, vary = j->cur.vary;
         j->cur = j->ch;
-        j->cur.genre = genre; j->cur.fam = fam; j->cur.chords = chords; j->cur.all = all; j->cur.lean = lean; j->cur.gap = gap;
+        j->cur.genre = genre; j->cur.fam = fam; j->cur.chords = chords; j->cur.all = all; j->cur.lean = lean; j->cur.gap = gap; j->cur.spot = spot; j->cur.vary = vary;
         j->wstep = j->ch_wstep;
         j->root = WALKS[j->cur.walk].deg[j->wstep];
         j->left = PACES[j->cur.pace];
@@ -435,12 +454,21 @@ static void jam_plan(Jam *j, float energy, Bar *o) {
     const Family *f = family_of(&j->cur);
     o->bar = b; o->inph = inph; o->phrase = j->phrase; o->mode = j->mode; o->layers = j->layers;
     memcpy(o->on, j->on, sizeof o->on);
+    o->spot = j->spot; o->spot_on = j->spot && inph >= PHRASE - 4;   // a spotlight acts in the last 4 bars
+    if (o->spot_on) {
+        if (o->spot == SP_DRUMS) o->on[L_BASS] = o->on[L_KEYS] = 0;
+        if (o->spot == SP_BASS)  o->on[L_KEYS] = 0;
+        if (o->spot == SP_TRADE) {
+            o->on[L_KEYS] = 0;
+            if (inph < PHRASE - 2) o->on[L_KICK] = o->on[L_HATS] = o->on[L_SNARE] = o->on[L_PERC] = 0;   // bass alone
+            else o->on[L_BASS] = 0;                                                                         // drums alone
+        }
+    }
     o->genre = j->cur.genre; o->fam = j->cur.fam % g->nfam; o->var = j->var % f->nv;
     o->voice = j->cur.voice; o->fig = j->cur.fig; o->walk = j->cur.walk; o->wstep = j->wstep;
     o->pace = PACES[j->cur.pace]; o->left = j->left;
     o->root = j->root; o->next_root = next_root; o->moves = moves;
-    o->fill = last_in_phrase && (j->on[L_SNARE] || j->mode == M_BREAK);
-    o->written = o->fill && f->has_fill;
+    o->fill = last_in_phrase && (o->on[L_SNARE] || j->mode == M_BREAK);
 
     // THE DRUMS PLAY THE SONG (Playtime J10a-b). One deterministic roll per bar.
     unsigned rs = (unsigned)b * 7919u + 0x9E3779B9u;
@@ -449,30 +477,45 @@ static void jam_plan(Jam *j, float energy, Bar *o) {
     // the GAP: the bar before a drop goes silent from step 12, so the one lands in a hole
     int gap = last_in_phrase && j->cur.gap != P_NEVER && (j->cur.gap == P_ALWAYS || drop_next);
     o->cut = gap ? 12 : 16;
+    // the written fill plays two phrase ends in three; the build before a drop is always the jam's own
+    int build = gap && j->mode == M_BREAK;
+    o->written = o->fill && !build && ROLL(3) != 0 && f->has_fill;
     // the LEAN: a bar leading into a real root change (not a phrase end) nods at it
     o->lean = 0;
     if (!last_in_phrase && moves && next_root != j->root && j->cur.lean != P_NEVER) {
         int r10 = ROLL(10);
         if (j->cur.lean == P_ALWAYS || r10 < 6) {
             int kinds[3], nk = 0;
-            if (j->on[L_HATS]) kinds[nk++] = 1;    // an open hat on 14, accented
-            if (j->on[L_KICK]) kinds[nk++] = 2;    // a kick on 15
-            if (j->on[L_SNARE]) kinds[nk++] = 3;   // a snare run 12-15
+            if (o->on[L_HATS]) kinds[nk++] = 1;    // an open hat on 14, accented
+            if (o->on[L_KICK]) kinds[nk++] = 2;    // a kick on 15
+            if (o->on[L_SNARE]) kinds[nk++] = 3;   // a snare run 12-15
             if (nk) o->lean = kinds[ROLL(nk)];
         }
     }
     // FILLS (the unwritten snare run): the whole bar when the gap closes a breakdown (the BUILD),
     // from the middle at high energy, else the last beat; toms in Funk / Breaks one fill in three
     int want_now = j->cur.all ? NLAYER : target_layers(energy);
-    o->run_from = (gap && j->mode == M_BREAK) ? 0 : want_now >= MINL + 3 ? 8 : 12;
+    o->run_from = build ? 0 : want_now >= MINL + 3 ? 8 : 12;
     o->toms = o->fill && !o->written && !gap && (j->cur.genre == G_FUNK || j->cur.genre == G_BREAKS)
               && ROLL(3) == 0;
     #undef ROLL
-    o->pat = o->written ? &f->fill : &f->v[o->var];
+    // VARIATIONS (J10d), as play gets busy: a turnaround bar, ghost snares, 16th hats
+    int busy = want_now >= MINL + 2, always = j->cur.vary == P_ALWAYS, never = j->cur.vary == P_NEVER;
+    o->turn = !never && (always || busy) && f->nv > 1 && inph == PHRASE - 2;
+    o->ghosts = !never && (always || busy) ? j->ghosts + 1 : 0;     // 1..3 = which mask
+    o->hats16 = !never && j->cur.genre != G_BRUSHES && (always || want_now >= MINL + 3);
+    o->pat = o->written ? &f->fill : &f->v[o->turn ? (o->var + 1) % f->nv : o->var];
 
     // the bass: the figure over the root, counted from the song's first bar so a figure
     // that isn't 16 steps long keeps its place across bar lines
     const Figure *fg = &FIGS[j->cur.fig];
+    int feature = o->spot_on && o->spot == SP_BASS;
+    if (feature && !fg->form) {                                    // the BASS FEATURE plays a riff
+        int riffs[32], nr = 0;
+        for (int k = 0; k < NFIG && nr < 32; k++) if (FIGS[k].form) riffs[nr++] = k;
+        fg = &FIGS[riffs[mix32(JAM_SEED + (unsigned)j->phrase * 7u) % (unsigned)nr]];
+    }
+    o->feature_fig = feature ? (int)(fg - FIGS) : -1;
     const char *loop = fg->loop;
     if (!loop) loop = (o->var % 2 == 0) ? GENRE_A : g->loop_b;
     o->loop = loop;
@@ -484,6 +527,13 @@ static void jam_plan(Jam *j, float energy, Bar *o) {
         int bars_left = moves ? 1 : j->left;                       // a drop next makes this the last bar too
         int li = fl - bars_left; if (li < 0) li = 0;
         o->letter = fg->form[li];
+        if (feature) {                                             // A, v1, A, v2 over the feature's 4 bars
+            char v1 = fg->vars[0].letter ? fg->vars[0].letter : 'A';
+            char v2 = fg->vars[1].letter ? fg->vars[1].letter : v1;
+            if (v1 > v2 && fg->vars[1].letter) { char t = v1; v1 = v2; v2 = t; }   // vars sorted
+            int k = inph - (PHRASE - 4);
+            o->letter = k == 0 || k == 2 ? 'A' : k == 1 ? v1 : v2;
+        }
         const char *ov = NULL;
         for (int v = 0; v < 2; v++) if (fg->vars[v].letter == o->letter) ov = fg->vars[v].overlay;
         for (int s = 0; s < 16; s++) {
@@ -502,7 +552,7 @@ static void jam_plan(Jam *j, float energy, Bar *o) {
         o->note[s] = -1;
         char c = row[s];
         o->kind[s] = c;
-        if (!j->on[L_BASS]) continue;
+        if (!o->on[L_BASS]) continue;
         int midi;
         if (c == 'A') midi = approach;
         else if (c == 'N') midi = approach + 1;
@@ -523,7 +573,8 @@ static void jam_plan(Jam *j, float energy, Bar *o) {
 
     // the chords: a layer of their own, or always when a style is PICKED (else a calm jam never hears it)
     o->chords = j->cur.chords ? j->cur.chords : CHORDS_BY_GENRE[j->cur.genre];
-    o->keys_on = j->on[L_KEYS] || j->cur.chords != CF_AUTO;
+    o->keys_on = (o->on[L_KEYS] || j->cur.chords != CF_AUTO)
+              && !(o->spot_on && o->spot != SP_NONE);              // every spotlight sends the keys out
     if (o->keys_on) {
         int niv; const int *iv = keys_chord(o->chord, &niv);
         const ChordFig *cf = &CHORD_FIGS[o->chords];
@@ -680,6 +731,14 @@ static void bar_drums(const Bar *o, DrumEmit emit, void *ctx) {
             emit(r, s, 0, vel, ctx);
             if ((p->flam[r] >> s) & 1) emit(r, s, 0.015, vel - 1, ctx);
         }
+        // ghost snares where the pattern has none (not under a run-up)
+        int running = unwritten && s >= o->run_from;
+        if (o->ghosts && o->on[L_SNARE] && !running && GHOSTS[o->ghosts - 1][s] == 'x' && !((p->hit[DP_SD] >> s) & 1))
+            emit(DP_SD, s, 0, 3 + RMAP[DP_SD].vbump - 3 + g->vel, ctx);
+        // 16th hats: fill the odd step after a closed hat
+        if (o->hats16 && o->on[L_HATS] && (s & 1) && ((p->hit[DP_CH] >> (s - 1)) & 1) && !((p->hit[DP_CH] >> s) & 1)
+            && !(s >= 14 && (running || o->lean == 1)))
+            emit(DP_CH, s, 0, 3 + RMAP[DP_CH].vbump - 1 + g->vel, ctx);
         // the lean
         if (o->lean == 1 && s == 14) emit(DP_OH, s, 0, 3 + RMAP[DP_OH].vbump + 2 + g->vel, ctx);
         if (o->lean == 2 && s == 15) emit(DP_BD, s, 0, 3 + RMAP[DP_BD].vbump - 1 + g->vel, ctx);
@@ -768,6 +827,8 @@ void update(void) {
     int mrow = mouse_pressed(MOUSE_LEFT) && mouse_y() >= 126 && mouse_y() < 135;
     if (keyp('E') || tapp(6, 126, 72, 9)  || (mrow && mouse_x() >= 6  && mouse_x() < 78))  cycle(&jam.want.lean, 3);
     if (keyp('X') || tapp(82, 126, 64, 9) || (mrow && mouse_x() >= 82 && mouse_x() < 146)) cycle(&jam.want.gap, 3);
+    if (keyp('O') || tapp(150, 126, 62, 9) || (mrow && mouse_x() >= 150 && mouse_x() < 212)) cycle(&jam.want.spot, NSPK);
+    if (keyp('Y') || tapp(214, 126, 60, 9) || (mrow && mouse_x() >= 214 && mouse_x() < 274)) cycle(&jam.want.vary, 3);
     if (keyp('L') || tapp(6, 112, 228, 12) || (mouse_pressed(MOUSE_LEFT) && mouse_x() >= 6 && mouse_x() < 234
                                                && mouse_y() >= 112 && mouse_y() < 124)) jam.want.all = !jam.want.all;
     if (key(KEY_UP))   { k_energy += 0.01f; if (k_energy > 1) k_energy = 1; }
@@ -955,9 +1016,15 @@ void draw(void) {
         print(lb, 8, ly + 16, a->lean != c->lean ? CLR_YELLOW : CLR_MEDIUM_GREY);
         snprintf(lb, sizeof lb, "X GAP %s", PICK3[a->gap]);
         print(lb, 84, ly + 16, a->gap != c->gap ? CLR_YELLOW : CLR_MEDIUM_GREY);
-        if (o->lean) print(o->lean == 1 ? "OPEN HAT LEANS IN" : o->lean == 2 ? "KICK LEANS IN" : "SNARE LEANS IN",
-                           150, ly + 16, CLR_ORANGE);
-        else if (o->cut < 16) print("THE GAP", 150, ly + 16, CLR_ORANGE);
+        snprintf(lb, sizeof lb, "O SPOT %s", SPK_NAME[a->spot]);
+        print(lb, 152, ly + 16, a->spot != c->spot ? CLR_YELLOW : CLR_MEDIUM_GREY);
+        snprintf(lb, sizeof lb, "Y VARY %s", PICK3[a->vary]);
+        print(lb, 216, ly + 16, a->vary != c->vary ? CLR_YELLOW : CLR_MEDIUM_GREY);
+        // what the drums are doing right now, next to the figure name
+        const char *now = o->spot_on ? SPOT_NAME[o->spot]
+                        : o->lean ? (o->lean == 1 ? "OPEN HAT LEANS IN" : o->lean == 2 ? "KICK LEANS IN" : "SNARE LEANS IN")
+                        : o->cut < 16 ? "THE GAP" : o->turn ? "TURNAROUND" : NULL;
+        if (now) print(now, 160, 95, CLR_ORANGE);
         font(FONT_SMALL);
     }
     print(MODE_NAME[o->mode], 240, ly + 3, o->mode == M_GROOVE ? CLR_LIGHT_GREY : CLR_YELLOW);
@@ -1068,7 +1135,7 @@ void spec(void) {
         if (o.inph == 0 && o.mode == M_BREAK) breaks++;
         if (o.inph == 0 && o.mode == M_DROP) { drops++; if (o.wstep != 0) drop_home = 0; }
         if (o.mode == M_BREAK && o.on[L_KICK]) bass_lost = 1;    // the kick must leave...
-        if (!o.on[L_BASS]) bass_lost = 1;                        // ...the bass never does
+        if (!o.on[L_BASS] && !o.spot_on) bass_lost = 1;          // ...the bass never does (a spotlight may)
     }
     expect(breaks > 0 && drops > 0, "full energy: breakdowns and drops happen");
     expect(!bass_lost, "a breakdown drops the kick and keeps the bass");
@@ -1262,6 +1329,67 @@ void spec(void) {
         }
         expect(gap_all, "GAP ALWAYS: every phrase ends in the gap");
         expect(lean_all, "LEAN ALWAYS: every real change gets a lean");
+    }
+    // SPOTLIGHTS: only in a groove phrase's last 4 bars; drum break = no bass/keys; trading = bass
+    // alone then drums alone; bass feature = a riff A v1 A v2, keys out
+    {
+        int seen[NSPOT] = { 0 }, ok = 1, early = 0, not_groove = 0;
+        jam_init(&j, (Picks){ .walk = 1, .fig = 1, .pace = 0, .genre = G_FUNK });
+        for (int b = 0; b < 8 * 40; b++) {
+            jam_plan(&j, 1.0f, &o);
+            if (o.spot_on && o.inph < PHRASE - 4) early = 1;
+            if (o.spot && o.mode != M_GROOVE) not_groove = 1;
+            if (!o.spot_on) continue;
+            seen[o.spot]++;
+            if (o.keys_on) ok = 0;
+            if (o.spot == SP_DRUMS && (o.on[L_BASS] || !o.on[L_KICK])) ok = 0;
+            if (o.spot == SP_TRADE && o.inph < PHRASE - 2 && (o.on[L_KICK] || !o.on[L_BASS])) ok = 0;
+            if (o.spot == SP_TRADE && o.inph >= PHRASE - 2 && (o.on[L_BASS] || !o.on[L_KICK])) ok = 0;
+            if (o.spot == SP_BASS) {
+                if (o.feature_fig < 0 || !FIGS[o.feature_fig].form) ok = 0;
+                int k = o.inph - (PHRASE - 4);
+                if ((k == 0 || k == 2) && o.letter != 'A') ok = 0;
+                if ((k == 1 || k == 3) && o.letter == 0) ok = 0;
+            }
+        }
+        expect(!early && !not_groove, "a spotlight is a groove phrase's last 4 bars, nothing else");
+        expect(seen[SP_DRUMS] + seen[SP_BASS] + seen[SP_TRADE] > 0, "AUTO: a busy jam gets spotlights");
+        expect(ok, "each spotlight sends out the right parts (and the keys)");
+        for (int sp = SPK_DRUMS; sp <= SPK_TRADE; sp++) {
+            jam_init(&j, (Picks){ .walk = 1, .fig = 1, .pace = 0, .genre = G_FUNK, .spot = sp });
+            int every = 1;
+            for (int b = 0; b < 8 * 8; b++) { jam_plan(&j, 0.0f, &o); if (o.mode == M_GROOVE && o.inph >= 4 && !o.spot_on) every = 0; }
+            expect(every, "a named spotlight plays in every groove phrase, calm or not");
+        }
+        jam_init(&j, (Picks){ .walk = 1, .fig = 1, .pace = 0, .genre = G_FUNK, .spot = SPK_NEVER });
+        int none = 1; for (int b = 0; b < 8 * 40; b++) { jam_plan(&j, 1.0f, &o); if (o.spot) none = 0; }
+        expect(none, "spotlight NEVER");
+    }
+    // VARIATIONS: a turnaround bar 7 on the family's next pattern; ghosts only where the pattern
+    // has no snare; NEVER means none
+    {
+        jam_init(&j, (Picks){ .walk = 1, .fig = 1, .pace = 0, .genre = G_FUNK, .vary = P_ALWAYS, .spot = SPK_NEVER });
+        int turns = 0, turn_ok = 1, ghost_ok = 1, ghosts = 0;
+        const char *mask = GHOSTS[j.ghosts];
+        for (int b = 0; b < 8 * 8; b++) {
+            jam_plan(&j, 1.0f, &o);
+            const Family *f = &GEN[o.genre].fam[o.fam];
+            if (o.turn) { turns++; if (o.inph != PHRASE - 2 || o.pat != &f->v[(o.var + 1) % f->nv]) turn_ok = 0; }
+            if (o.ghosts && o.on[L_SNARE]) for (int s2 = 0; s2 < 16; s2++)
+                if (mask[s2] == 'x' && !((o.pat->hit[DP_SD] >> s2) & 1) && !(o.fill && !o.written)) ghosts++;
+            if (o.ghosts && o.ghosts - 1 != j.ghosts) ghost_ok = 0;
+        }
+        expect(turns > 0 && turn_ok, "the turnaround plays the next pattern on bar 7");
+        expect(ghosts > 0 && ghost_ok, "ghost snares fill the song's mask where the pattern is empty");
+        jam_init(&j, (Picks){ .walk = 1, .fig = 1, .pace = 0, .genre = G_FUNK, .vary = P_NEVER });
+        int any = 0; for (int b = 0; b < 8 * 8; b++) { jam_plan(&j, 1.0f, &o); if (o.turn || o.ghosts || o.hats16) any = 1; }
+        expect(!any, "variations NEVER");
+        // the written fill now plays two phrase ends in three: Funk gets its toms
+        jam_init(&j, (Picks){ .walk = 1, .fig = 1, .pace = 0, .genre = G_FUNK });
+        int written = 0, fills = 0, toms = 0;
+        for (int b = 0; b < 8 * 60; b++) { jam_plan(&j, 1.0f, &o); if (o.fill) { fills++; if (o.written) written++; } if (o.toms) toms++; }
+        expect(written > 0 && written < fills, "Funk's written break plays some phrase ends, not all");
+        expect(toms > 0, "so Funk rolls its toms now and then");
     }
     // brush walk's B: '7--A' holds the 7 for three steps and stops AT the A, which still sounds
     {

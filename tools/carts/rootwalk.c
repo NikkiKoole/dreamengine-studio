@@ -17,7 +17,7 @@
   "description": {
     "summary": "A few-note bass figure transposed along a walking root, over a drum machine that arranges itself live. The root moving is the hook.",
     "detail": "The core is small: a 1-3 note bass FIGURE written in scale degrees (R root, 8 octave, 7 flat seventh, A the approach a half step under the next root, N the push: the next root early on the and-of-4), transposed along a WALK of roots (1 4 5 1, 1 5 6 4, doo-wop 1 6 4 5, 2 5 1, round the fourths) that moves every 2 or 4 bars on its own. The track at the top shows the walk with a playhead; the next chord lights up when the bass leans into it. Underneath, a drum machine arranges itself in 8-bar phrases from the ENERGY knob: layers come in one at a time (kick, bass, keys, hats, snare, percussion), every fourth phrase at full tilt is a BREAKDOWN (the kick leaves, the bass never does), and the phrase after it is the DROP, everything back with a crash and the walk home. The KEYS layer plays the chords five ways (a soft Rhodes pad, disco saw stabs, clav funk stabs, a choked reggae skank, a strummed clean electric), each chord voiced close to the last one. Every phrase ends on a fill, the pattern family's own written Break where the library has one. The walks carry their CHORDS (major, minor, dominant seventh), and the riffs follow them: a riff is written in the minor pentatonic and moves onto each chord's own pentatonic, so its minor third becomes a 2 over a major chord. The plain figures stay put. Picks for the walk, figure, pace, key and voice are armed and land at the NEXT ROOT CHANGE, the way an organist changes register between chords; a new genre, family or chord style lands at the next bar. Patterns are the maker's own drum-patterns library, whose provenance is uneven (see drumpat.h): fine to play, not to call the real thing.",
-    "controls": "W walk, F figure, P pace, K key, V bass voice: each ARMS a change that lands at the next root change. G genre, R family (rhythm) and C chord style land at the next bar; a picked chord style plays even when the energy is low. UP/DOWN or the knob set ENERGY; hold SPACE (or PUSH) to push it to the top, release and it falls back. Tap the buttons on a phone."
+    "controls": "W walk, F figure, P pace, K key, V bass voice: each ARMS a change that lands at the next root change. G genre, R family (rhythm) and C chord style land at the next bar; a picked chord style plays even when the energy is low. L (or tap the layer lamps) = ALL LAYERS from the next bar, whatever the energy. UP/DOWN or the knob set ENERGY; hold SPACE (or PUSH) to push it to the top, release and it falls back. Tap the buttons on a phone."
   }
 }
 de:meta */
@@ -319,7 +319,7 @@ static int in_range(int pc) { return 33 + ((pc - 9) % 12 + 12) % 12; }
 enum { V_UPRIGHT, V_ACID, V_SINE, NVOICE };
 static const char *VOICE_NAME[NVOICE] = { "UPRIGHT", "303 MONO", "SINE" };
 
-typedef struct { int walk, fig, pace, genre, fam, voice, key, chords; } Picks;   // key: pitch class of the 1
+typedef struct { int walk, fig, pace, genre, fam, voice, key, chords, all; } Picks;   // all: every layer, whatever the energy   // key: pitch class of the 1
 
 typedef struct {
     Picks cur, want;           // sounding vs armed
@@ -360,7 +360,7 @@ static void jam_init(Jam *j, Picks p) {
 
 // Playtime's newPhrase, decided for the phrase AFTER the current one.
 static void decide_next_phrase(Jam *j, float energy) {
-    int want = target_layers(energy);
+    int want = j->cur.all ? NLAYER : target_layers(energy);
     int phrase = j->phrase + 1;
     int mode = j->mode, layers = j->layers, var = j->var;
     if (mode == M_BREAK && want >= 3)      { mode = M_DROP; if (want > layers) layers = want; }
@@ -396,13 +396,16 @@ static void jam_plan(Jam *j, float energy, Bar *o) {
     }
 
     // genre + family land at the next BAR (a new groove shouldn't wait for the chord)
-    j->cur.genre = j->want.genre; j->cur.fam = j->want.fam; j->cur.chords = j->want.chords;   // these three: next bar
+    j->cur.genre = j->want.genre; j->cur.fam = j->want.fam; j->cur.chords = j->want.chords;   // these: next bar
+    j->cur.all = j->want.all;
+    // ALL LAYERS (Playtime's 'jam layers: all'): everything from the next bar; breakdowns still happen
+    if (j->cur.all && j->mode != M_BREAK) { j->layers = NLAYER; for (int k = 0; k < NLAYER; k++) j->on[k] = 1; }
 
     // the root: a change snapshotted last bar lands now, else one bar less on this root
     if (j->ch_pending) {
-        int genre = j->cur.genre, fam = j->cur.fam, chords = j->cur.chords;
+        int genre = j->cur.genre, fam = j->cur.fam, chords = j->cur.chords, all = j->cur.all;
         j->cur = j->ch;
-        j->cur.genre = genre; j->cur.fam = fam; j->cur.chords = chords;
+        j->cur.genre = genre; j->cur.fam = fam; j->cur.chords = chords; j->cur.all = all;
         j->wstep = j->ch_wstep;
         j->root = WALKS[j->cur.walk].deg[j->wstep];
         j->left = PACES[j->cur.pace];
@@ -687,6 +690,8 @@ void update(void) {
     if (keyp('V')) cycle(&jam.want.voice, NVOICE);
     if (keyp('K')) cycle(&jam.want.key, 12);
     if (keyp('C')) cycle(&jam.want.chords, NCHORDFIG);
+    if (keyp('L') || tapp(6, 112, 228, 12) || (mouse_pressed(MOUSE_LEFT) && mouse_x() >= 6 && mouse_x() < 234
+                                               && mouse_y() >= 112 && mouse_y() < 124)) jam.want.all = !jam.want.all;
     if (key(KEY_UP))   { k_energy += 0.01f; if (k_energy > 1) k_energy = 1; }
     if (key(KEY_DOWN)) { k_energy -= 0.01f; if (k_energy < 0) k_energy = 0; }
 
@@ -858,6 +863,10 @@ void draw(void) {
         int lx = 6 + k * 38;
         rectfill(lx, ly, 35, 12, o->on[k] ? (k == L_BASS ? CLR_GREEN : k == L_KEYS ? CLR_PINK : CLR_RED) : CLR_DARKER_GREY);
         print_centered(LAYER_NAME[k], lx + 17, ly + 3, o->on[k] ? CLR_WHITE : CLR_DARK_GREY);
+    }
+    if (jam.want.all || jam.cur.all) {
+        rect(4, ly - 2, 230, 16, jam.want.all != jam.cur.all && (frame() / 15) % 2 ? CLR_DARK_GREY : CLR_YELLOW);
+        font(FONT_TINY); print(jam.want.all ? "ALL" : "AUTO", 296, ly + 4, CLR_YELLOW); font(FONT_SMALL);
     }
     print(MODE_NAME[o->mode], 240, ly + 3, o->mode == M_GROOVE ? CLR_LIGHT_GREY : CLR_YELLOW);
     for (int i = 0; i < PHRASE; i++)
@@ -1066,6 +1075,19 @@ void spec(void) {
         j.want.chords = CF_STRUM;
         jam_plan(&j, 0.0f, &o);
         expect(o.keys_on && o.chords == CF_STRUM, "a picked chord style plays from the next bar, calm or not");
+    }
+    // ALL LAYERS: everything from the next bar at zero energy, breakdowns still come
+    {
+        jam_init(&j, (Picks){ .walk = 0, .fig = 1, .pace = 0, .genre = G_FUNK });
+        jam_plan(&j, 0.0f, &o);
+        expect_eq(o.layers, MINL, "calm: kick + bass");
+        j.want.all = 1;
+        jam_plan(&j, 0.0f, &o);
+        int all_on = 1; for (int k = 0; k < NLAYER; k++) if (!o.on[k]) all_on = 0;
+        expect(all_on, "ALL: every layer from the next bar, at zero energy");
+        int breaks = 0, kick_in_break = 0;
+        for (int b = 0; b < 8 * 10; b++) { jam_plan(&j, 0.0f, &o); if (o.mode == M_BREAK) { breaks++; if (o.on[L_KICK]) kick_in_break = 1; } }
+        expect(breaks > 0 && !kick_in_break, "ALL: breakdowns still drop the kick");
     }
     // brush walk's B: '7--A' holds the 7 for three steps and stops AT the A, which still sounds
     {

@@ -88,6 +88,26 @@ and leave the rest dry. `drive` is the exception — it's a **per-voice** insert
 
 ---
 
+## Switching an effect off, and what each one costs (measured 2026-11-03)
+
+A per-slot effect (`instrument_chorus`, `instrument_tape` …) claims one of the **7 aux buses** for good, and
+that bus runs its chain **every sample, silent or not** (there is no idle skip). So what "off" means matters:
+
+- **Free at 0:** chorus and flanger at `mix 0` (since e0fb8df5), phaser at `mix 0`, tremolo and autopan at
+  `depth 0`. **Tape at `0, 0, 0`** costs almost nothing too: its heads and saturation skip.
+- **No bus needed at all:** per-voice `instrument_filter`, `LFO_PAN` (autopan) and `LFO_VOLUME` (tremolo).
+  The difference: each NOTE runs its own LFO, so a busy part sweeps out of step where a bus moves as one.
+- **A band shares one bus:** `instrument_group(slot, lead)`, so five parts on one tape cost one tape.
+- **Running out:** a slot that asks for an 8th bus stays silently dry; the only signal is a one-time
+  `[sound] WARNING: instrument FX bus pool exhausted` on stdout. There is no getter, and no way to free a bus.
+
+Cost of one ACTIVE insert, in held saw notes (7 slots × 60 s, headless, Apple-silicon Mac; a phone is
+slower but the ratios hold): leslie ~2.9 · tape ~2.5 · phaser (6 stages) ~1.8 · `instrument_fx_filter`
+~1.75 · chorus ~1.4 · flanger ~1.3 · crush ~0.7 · tremolo ~0.65 · `LFO_PAN` ~0.55 per playing note ·
+eq ~0.3 · bus autopan ~0.25 · stereo width ~0.2. A tape + phaser + chorus + autopan stack ≈ 4.8.
+
+---
+
 ## echo — `echo(time_ms, feedback, tone)` · `instrument_echo(slot, send)` · `note_echo` · insert: `echo_insert(time_ms, feedback, tone, mix)`
 
 THE shared tape-echo bus. `time_ms` 1–2000 (sweep it live → the tail pitch-bends like tape speed),

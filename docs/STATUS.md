@@ -15,6 +15,12 @@ _Last updated: 2026-10-29 — INSTR_SCRAPE: a guiro with teeth. See the top Ship
 
 ## Shipped ✓
 
+- **ROOTWALK + A FREE "OFF" FOR CHORUS AND FLANGER** (2026-11-03, GitHub #48). `rootwalk`: Playtime's
+  auto-accompaniment jam as a cart (a bass figure on a walking root, a drum machine that arranges itself),
+  kept in step with Playtime J1-J10 and S4a (it answers a game moment in drums: N nod, D fill, S big; never
+  into the gap); spec 204. Engine: chorus and flanger at `mix 0` no longer run (byte-identical output),
+  which made Playtime's zeroed pedals free (~12 voices). Costs per effect: [`guides/effects-recipes.md`](guides/effects-recipes.md).
+
 - **BOOKED LEGATO + ACCENT: `schedule_note_at` + `instrument_accent`** (2026-11-02, GitHub #47, for Playtime's
   booked score music). A note booked on the sample clock can now slide from the slot's still-sounding note
   (`.glide_ms`, no re-attack: flute phrases, the 303 slide), lean on an accent (`.accent`, per-engine
@@ -1134,6 +1140,19 @@ Detail lives in the linked design doc in every case; that is where it was always
 
 
 ## Open — prioritized
+
+- **TWO GATES ARE RED on master, from before 2026-11-03** (found 2026-11-03). `refactor-guard` flags
+  `acidcandy` because its baseline predates the commits since (re-bless on a settled tree after checking the
+  diff is wanted), and `tune-check` reads ORGAN tonewheel A5 and MODAL A3/A5 an octave low. Both fail the
+  same with today's engine change reverted.
+- **EFFECTS BUS: idle skip + `instrument_fx_clear` — parked until measured** (2026-11-03). Agreed with
+  Playtime: an effect at 0 is already free, so build an idle skip only if a device is measured tight
+  (Playtime's iPhone SE 2; two AUv3 racks on an older iPad), and `instrument_fx_clear` only when bus pooling
+  needs it. Playtime's plan: its `docs/SHARED-INSTRUMENTS.md` I5.
+- **SHARED INSTRUMENT LIBRARY with Playtime — not decided** (2026-11-03). Proposed shape: one
+  `presets.json` (sound recipes + kits, constants by name), generated into a C header for carts and into
+  Lua for Playtime, the drumpat.h route; a reader cart like `groovebook`; behaviour voices (`acid303.h`,
+  `tr808.h`) stay code. Playtime's `docs/SHARED-INSTRUMENTS.md` I1-I4.
 
 - **PATCH MATCHING — option D still waits** (2026-09-13). A, the bench, and B (ear-judged
   breeding on `patchbench`) are in. Skip C (realtime `record_grab` scoring). D — a scratch

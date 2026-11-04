@@ -199,6 +199,21 @@ and any highpass on `instrument_filter`.
 | metal/chord | bogie.c | same, m0.50 | One lifetime for all six: what tr808.h's hat is today. Keep it as the control when judging the other two. |
 | metal/bell | bogie.c | h0.9 t0.05 m0.3 · dec0.9 spr0.6 · note 72, hit 3 s | Not a drum: cymbal ratios spread wide, almost no noise, a long slow-darkening ring. |
 
+> **⚠ These are 808-style cymbals. For an ACOUSTIC kit, do not copy their filter.** METAL's built-in
+> bright noise sits at **15-20 kHz**, and a high-pass (as above) keeps exactly that: drumhand's cymbals,
+> built from these rows, measured as hiss (its crash 3-20 kHz, flatness 0.82; a real 18" crash is
+> 3.5/4.7/7.7 kHz, 10/50/90% energy). For acoustic cymbals **LOW-pass** and place the bank by NOTE
+> (mode 0 = f0 × 1.18). What worked against CC0 recordings (`tools/oneshot-compare.js`, refs via
+> `tools/fetch-refs.js`), all in `drumhand.c` with the numbers:
+> - **hats**: h0.70 t0.85 m0.85 · LP 12.5 kHz/4 · tip note 81, shank 84 (a real shank is the BRIGHTER one)
+> - **crash**: h0.55 t0.30 m0.30 · dec0.68 spr0.15 · LP 8.5 kHz/4 · note 100
+> - **ride**: ONE bank cannot do it (its six squares fill 0.65-2.7 kHz, where a ride is nearly empty), so
+>   two voices per stroke: METAL shimmer at note 110 (t0.15, LP 11 kHz) + a MODAL plate body ~590 Hz,
+>   both D45 S4 for the stick's hit. The bell: METAL spr0 through BAND 3.4 kHz/10, note 88
+> - **every cymbal `instrument_mono`**: one physical cymbal = one voice. As separate voices, eighth-note
+>   ride strokes stacked into a pulsing drone (heard as "a train locomotive")
+> - **pick the reference by ear first**: matched to a dark "wash" ride, the ride came out all body, no ping
+
 > Measured on single hits (wav-envelope, 60 ms windows): with noise at 0 the bank's brightness
 > RISES across the decay at m0.85 (0.33 → 0.44) and FALLS at m0.15 (0.30 → 0.20); with noise on,
 > the noise (on the base lifetime) shapes the first ~100 ms and the bank the rest. The shipped

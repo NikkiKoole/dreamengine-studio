@@ -18,9 +18,10 @@ fix was choosing a different ride by listening (Savannah Ride for the bow, a Mei
 ## Leads (NOT checked, not in any manifest yet)
 
 - **Barry Beats (aka Sispex)**, https://barrybeatsakasispex.bandcamp.com: many drum samples, also as
-  separate one-shots; suggested by Nikki (2026-11-04) as a source for more kits. ⚠ Check the license
-  before use: Bandcamp sample packs are usually licensed for use IN music, often not for redistribution,
-  so they may suit tuning by ear locally but not a manifest that re-downloads them.
+  separate one-shots; suggested by Nikki (2026-11-04) as a source for more kits. The intent (Nikki):
+  use them to LEARN and TUNE our own synthesized voices, never ship them. So they stay local (bought /
+  downloaded by hand into build/refs/), not in a fetch-refs manifest, which is for freely
+  re-downloadable CC0 audio. Still read the pack's terms.
 - **pjcohen's drum KITS** on freesound (many acoustic kits, one drum per file): CC BY 4.0, not CC0
   (his cymbals ARE CC0). Usable with attribution if a set ever allows CC BY; fetch-refs refuses them today.
 - **Boxed Ear's free Roland CR-78 pack** (what cr78 was tuned against; copies in vector-sketch/experiments):

@@ -13,7 +13,7 @@
     "step-sequencer",
     "swing-timing"
   ],
-  "lineage": "The drum-kit member of the humanized-playing spikes (strumhand, breathflute, tablahand, reedhand, basshand; docs/design/humanized-playing.md section 7.1). A kit adds two new kinds of rule to the needs table: a TECHNIQUE chosen per note (snare centre / edge / rimshot / cross-stick / ghost, hat tip / shank, ride bow / bell, kick buried / bounced) and a shared continuous control (the hi-hat PEDAL every hat hit reads). Voices built from INSTR_MEMBRANE (kick, snare head, rim, toms), INSTR_NOISE (snare wires) and INSTR_METAL (hats, ride, crash; the bogie recipes). The groove is original.",
+  "lineage": "The drum-kit member of the humanized-playing spikes (strumhand, breathflute, tablahand, reedhand, basshand; docs/design/humanized-playing.md section 7.1). A kit adds two new kinds of rule to the needs table: a TECHNIQUE chosen per note (snare centre / edge / rimshot / cross-stick / ghost, hat tip / shank, ride bow / bell, kick buried / bounced) and a shared continuous control (the hi-hat PEDAL every hat hit reads). Voices built from INSTR_MEMBRANE (kick, snare head, rim, toms), INSTR_NOISE (snare wires) and INSTR_METAL (hats, ride, bell, crash), every voice tuned against a CC0 recording (pitch, energy band, time to -20 dB; build/refs/drums-cc0/SOURCES.txt), the cymbals lowpassed where the bogie recipes let 15-20 kHz hiss through. The groove is original.",
   "description": {
     "summary": "An 8-bar soul groove played by a DRUMMER instead of a grid: two hands and two feet, a technique per stroke, a hi-hat pedal that every hat hit reads, ghost notes, flams, a buzz and a fill that builds and lands on the crash. TAB flips to the grid version.",
     "detail": "Four limbs. The right hand keeps the hats (or the ride) on top of the beat, the left hand plays the backbeat a hair behind it and the ghost notes in between, the right foot the kick, the left foot the hi-hat PEDAL. Each stroke is a TECHNIQUE: the snare is struck in the centre, near the edge, as a rimshot (stick on head and rim at once), as a cross-stick (stick laid across the rim) or as a ghost; the hat is hit with the tip (a light tick) or the shank (a thick chunk); the ride on the bow or the bell; the kick is buried (beater held into the head, short) or bounced (it rings). The pedal is a continuous openness every hat hit reads: closed tick, half-open sizzle, open wash, and when the foot closes it makes its own chick and stops a ringing open hat. The drummer has a body: a hand cannot be on the hat and the snare at once, so the hats stop in a fill and the fill alternates right and left; a quick second stroke by the same hand is a little late and softer; the energy builds over the eight bars into the fill and the crash, and over a long take the left hand tires (lighter ghosts, a little dragging). Keys 1-5 switch each layer on and off.",
@@ -54,6 +54,7 @@ de:meta */
 #define S_CRASH  17
 #define S_TOMHI  18
 #define S_TOMLO  19
+#define S_BELL   26     // the ride's BELL: its own slot, since it wants the opposite filter to the bow
 // RECORDED cymbals (2026-11-04, Nikki: "an awful cymbal and ride sound"): CC0 one-shots loaded at
 // runtime from build/refs/drums-cc0/*.f32 (the binary runs with cwd = build/), the breakchop route.
 // Missing files = the synthesized cymbals, so the cart never breaks. K switches kits.
@@ -70,7 +71,7 @@ static const float REC_LVL[NREC] = { 0.16f, 0.20f, 0.18f, 0.32f, 0.32f, 0.30f };
 static bool rec_ok = false;        // all six loaded
 static bool rec_kit = true;        // use them (K)
 #define LOOKAHEAD 0.12
-#define HAT_LVL   0.16f
+#define HAT_LVL   0.24f
 
 // ---- the written groove: 8 bars, 16 steps each ----
 // kick : K bounced, B buried, k soft
@@ -146,20 +147,25 @@ static void setup_sound(void) {
     instrument_harmonics(S_HEAD, 0.70f); instrument_timbre(S_HEAD, 0.15f); instrument_morph(S_HEAD, 0.10f);
     // snare wires: broad band noise; accent opens the band (per-note brightness)
     instrument(S_WIRE, INSTR_NOISE, 0, 170, 0, 50);
-    instrument_filter(S_WIRE, FILTER_BAND, 2200, 2);
+    instrument_filter(S_WIRE, FILTER_LOW, 7000, 2);   // was a band at 2.2 kHz whose skirt hissed to 12 kHz
     instrument_accent(S_WIRE, ACC_CUTOFF, 1.0f);
     instrument_accent(S_WIRE, ACC_VOL, 0.0f);
     // rim: a small hard inharmonic body, struck at the edge = wood/metal click
     instrument(S_RIM, INSTR_MEMBRANE, 0, 0, 7, 30);
     instrument_harmonics(S_RIM, 1.0f); instrument_timbre(S_RIM, 0.75f); instrument_morph(S_RIM, 0.0f);
     instrument_filter(S_RIM, FILTER_HIGH, 400, 1);
-    // hi-hat: the bogie metal bank, a long lifetime; the GATE (from the pedal) ends it
-    instrument(S_HAT, INSTR_METAL, 0, 0, 7, 45);
-    instrument_harmonics(S_HAT, 0.45f); instrument_timbre(S_HAT, 0.50f); instrument_morph(S_HAT, 0.85f);
+    // CYMBALS: every one voiced against a CC0 recording (build/refs/drums-cc0, SOURCES.txt) by its
+    // energy band (10/50/90%) and its time to -20 dB. The METAL bank's mode 0 sits at f0 x 1.18, so the
+    // NOTE places the cymbal; its built-in bright noise lives up at 15-20 kHz, so every cymbal is
+    // LOWPASSED (the old high-passes let that hiss through: the crash measured 3-20 kHz, flatness 0.82).
+    // hi-hat: the bank played high (tip note 81 / shank 84), lowpassed at 12.5 kHz. Real tip 2.7/8.2/
+    // 14.4 kHz, ours 2.5/7.1/15.4. The GATE (from the pedal) ends it
+    instrument(S_HAT, INSTR_METAL, 0, 0, 7, 60);
+    instrument_harmonics(S_HAT, 0.70f); instrument_timbre(S_HAT, 0.85f); instrument_morph(S_HAT, 0.85f);
     instrument_mode(S_HAT, MODE_METAL_DECAY, 0.66f);
     instrument_mode(S_HAT, MODE_METAL_SPREAD, 0.20f);
     instrument_env(S_HAT, 0, ENV_PITCH, 0, 80, 1.4f);
-    instrument_filter(S_HAT, FILTER_HIGH, 1800, 1);
+    instrument_filter(S_HAT, FILTER_LOW, 12500, 4);
     instrument_mono(S_HAT, 1);
     // the chick: the two cymbals clapped shut by the foot, short and darker
     instrument(S_CHICK, INSTR_METAL, 0, 0, 7, 25);
@@ -167,41 +173,52 @@ static void setup_sound(void) {
     instrument_mode(S_CHICK, MODE_METAL_DECAY, 0.10f);
     instrument_filter(S_CHICK, FILTER_BAND, 2400, 1);
     instrument_choke(S_CHICK, S_HAT);
-    // ride: cymbal ratios, lows live longest so the wash darkens
+    // ride bow: a real ride's wash is LOW (its partials 409 / 495 / 549 Hz, energy 0.39-2 kHz), not a
+    // fizz. The bank at note 63 with a tight spread puts its lowest modes at 398 / 538 Hz; no noise,
+    // the lows live longest (morph 0), a gentle lowpass. Was 1-18 kHz with noise
     instrument(S_RIDE, INSTR_METAL, 0, 0, 7, 300);
-    instrument_harmonics(S_RIDE, 0.62f); instrument_timbre(S_RIDE, 0.28f); instrument_morph(S_RIDE, 0.30f);
-    instrument_mode(S_RIDE, MODE_METAL_DECAY, 0.84f);
-    instrument_mode(S_RIDE, MODE_METAL_SPREAD, 0.30f);
-    instrument_filter(S_RIDE, FILTER_HIGH, 700, 1);
-    // crash: bright, noisy, long
+    instrument_harmonics(S_RIDE, 0.62f); instrument_timbre(S_RIDE, 0.10f); instrument_morph(S_RIDE, 0.0f);
+    instrument_mode(S_RIDE, MODE_METAL_DECAY, 0.92f);
+    instrument_mode(S_RIDE, MODE_METAL_SPREAD, 0.05f);
+    instrument_filter(S_RIDE, FILTER_LOW, 1500, 0);
+    // ride bell: BRIGHT and short where the bow is low and long (real: strongest at 3068 Hz, -20 dB in
+    // 405 ms). Bell ratios spread wide, a wide band around 5 kHz keeps the squares' tops off 12 kHz
+    instrument(S_BELL, INSTR_METAL, 0, 0, 7, 300);
+    instrument_harmonics(S_BELL, 0.90f); instrument_timbre(S_BELL, 0.10f); instrument_morph(S_BELL, 0.20f);
+    instrument_mode(S_BELL, MODE_METAL_DECAY, 0.45f);
+    instrument_mode(S_BELL, MODE_METAL_SPREAD, 0.40f);
+    instrument_filter(S_BELL, FILTER_BAND, 5000, 0);
+    // crash: its partials cluster at 3.5-5.5 kHz (an 18" crash: 4145 / 5469 Hz), so the bank sits HIGH
+    // (note 100), little noise, lowpassed at 8.5 kHz, -20 dB in about a second
     instrument(S_CRASH, INSTR_METAL, 0, 0, 7, 400);
-    instrument_harmonics(S_CRASH, 0.55f); instrument_timbre(S_CRASH, 0.70f); instrument_morph(S_CRASH, 0.85f);
-    instrument_mode(S_CRASH, MODE_METAL_DECAY, 0.86f);
-    instrument_mode(S_CRASH, MODE_METAL_SPREAD, 0.25f);
-    instrument_filter(S_CRASH, FILTER_HIGH, 500, 1);
-    // toms
-    instrument(S_TOMHI, INSTR_MEMBRANE, 0, 0, 7, 90);
-    instrument_harmonics(S_TOMHI, 0.50f); instrument_timbre(S_TOMHI, 0.22f); instrument_morph(S_TOMHI, 0.20f);
-    instrument(S_TOMLO, INSTR_MEMBRANE, 0, 0, 7, 110);
-    instrument_harmonics(S_TOMLO, 0.50f); instrument_timbre(S_TOMLO, 0.20f); instrument_morph(S_TOMLO, 0.22f);
+    instrument_harmonics(S_CRASH, 0.55f); instrument_timbre(S_CRASH, 0.30f); instrument_morph(S_CRASH, 0.30f);
+    instrument_mode(S_CRASH, MODE_METAL_DECAY, 0.68f);
+    instrument_mode(S_CRASH, MODE_METAL_SPREAD, 0.15f);
+    instrument_filter(S_CRASH, FILTER_LOW, 8500, 4);
+    // toms: tuned heads (rack 129 Hz -20 dB in 140 ms; floor ~90 Hz), short; see tom_stroke for the 2nd mode
+    instrument(S_TOMHI, INSTR_MEMBRANE, 0, 0, 7, 60);
+    instrument_harmonics(S_TOMHI, 0.30f); instrument_timbre(S_TOMHI, 0.55f); instrument_morph(S_TOMHI, 0.15f);
+    instrument(S_TOMLO, INSTR_MEMBRANE, 0, 0, 7, 80);
+    instrument_harmonics(S_TOMLO, 0.30f); instrument_timbre(S_TOMLO, 0.50f); instrument_morph(S_TOMLO, 0.15f);
 
     // the room and the drummer's-view stereo picture
     instrument_pan(S_HAT, -0.35f); instrument_pan(S_CHICK, -0.35f);
-    instrument_pan(S_RIDE, 0.38f); instrument_pan(S_CRASH, -0.45f);
+    instrument_pan(S_RIDE, 0.38f); instrument_pan(S_BELL, 0.38f); instrument_pan(S_CRASH, -0.45f);
     instrument_pan(S_TOMHI, -0.15f); instrument_pan(S_TOMLO, 0.30f);
     instrument_pan(S_RIM, 0.05f);
-    instrument_level(S_KICK, 1.0f);
+    instrument_level(S_KICK, 0.9f);    // the 118 Hz second-mode voice made it fuller; keep the peak off 0 dBFS
     instrument_level(S_HEAD, 0.75f);
-    instrument_level(S_WIRE, 0.55f);
+    instrument_level(S_WIRE, 0.18f);   // the real snare's energy is mostly its 205 Hz tone
     instrument_level(S_RIM, 0.80f);
     instrument_level(S_CHICK, 0.25f);
     instrument_level(S_HAT, HAT_LVL);
-    instrument_level(S_RIDE, 0.20f);
-    instrument_level(S_CRASH, 0.16f);
+    instrument_level(S_RIDE, 0.36f);
+    instrument_level(S_BELL, 0.48f);
+    instrument_level(S_CRASH, 0.25f);
     instrument_level(S_TOMHI, 0.85f); instrument_level(S_TOMLO, 0.9f);
-    int s[] = { S_KICK, S_HEAD, S_WIRE, S_RIM, S_HAT, S_CHICK, S_RIDE, S_CRASH, S_TOMHI, S_TOMLO };
-    float send[] = { 0.06f, 0.18f, 0.18f, 0.12f, 0.08f, 0.06f, 0.12f, 0.15f, 0.14f, 0.14f };
-    for (int i = 0; i < 10; i++) instrument_reverb(s[i], send[i]);
+    int s[] = { S_KICK, S_HEAD, S_WIRE, S_RIM, S_HAT, S_CHICK, S_RIDE, S_CRASH, S_TOMHI, S_TOMLO, S_BELL };
+    float send[] = { 0.06f, 0.18f, 0.18f, 0.12f, 0.08f, 0.06f, 0.12f, 0.15f, 0.14f, 0.14f, 0.12f };
+    for (int i = 0; i < 11; i++) instrument_reverb(s[i], send[i]);
     reverb(0.28f, 0.45f);
     eq(14.0f, 10.0f, 5.0f);     // no master volume: the master EQ is the fader (membranes are quiet)
 }
@@ -269,28 +286,29 @@ static void snare_stroke(double t, char tech, float g, float spot) {
     float tb = -0.03f + 0.55f * spot;                    // offset on the head's 0.15 strike position
     switch (tech) {
     case 'S':  // centre: round head + full wires
-        book(S_HEAD, 54, t, g * 0.9f, 140, 0, tb, 0, 0);
-        book(S_WIRE, 60, t, g, 150, 0, 0, 0, 0.25f);
+        book(S_HEAD, 55, t, g * 0.9f, 70, 0, tb, 0, 0);
+        book(S_WIRE, 60, t, g, 70, 0, 0, 0, 0.25f);
         break;
     case 'E':  // edge: less body, an overtone ring on top, the wires answer less and brighter
-        book(S_HEAD, 54, t, g * 0.50f, 200, 0, tb + 0.50f, 0.05f, 0);
-        book(S_HEAD, 62, t, g * 0.45f, 300, -0.3f, 0.6f, 0, 0);      // the head's upper mode ringing
+        book(S_HEAD, 55, t, g * 0.50f, 100, 0, tb + 0.50f, 0.05f, 0);
+        book(S_HEAD, 63, t, g * 0.45f, 150, -0.3f, 0.6f, 0, 0);      // the head's upper mode ringing
         book(S_WIRE, 60, t, g * 0.65f, 130, 0, 0, 0, 0.6f);
         break;
     case 'R':  // rimshot: head and rim at once, a crack on top, the wires bright
-        book(S_HEAD, 54, t, g, 200, 0, tb + 0.50f, 0.15f, 0);
-        book(S_WIRE, 60, t, g, 180, 0, 0, 0, 1.0f);
-        book(S_RIM, 84, t, g, 30, 0, 0.25f, 0, 0);
-        book(S_RIM, 76, t, g * 0.7f, 40, 0, 0.1f, 0, 0);
+        book(S_HEAD, 55, t, g, 90, 0, tb + 0.50f, 0.15f, 0);
+        book(S_WIRE, 60, t, g, 80, 0, 0, 0, 1.0f);
+        book(S_RIM, 84, t, g * 0.35f, 30, 0, 0.25f, 0, 0);    // the crack sits ~16 dB under the head (CC0 ref)
+        book(S_RIM, 76, t, g * 0.25f, 40, 0, 0.1f, 0, 0);
         break;
     case 'X':  // cross-stick: the stick laid across, a woody tock, hardly any head or wire
-        book(S_RIM, 74, t, g * 0.7f, 60, -0.1f, 0, 0, 0);
-        book(S_HEAD, 57, t, g * 0.22f, 60, 0, tb + 0.30f, 0, 0);
-        book(S_WIRE, 60, t, g * 0.10f, 35, 0, 0, 0, 0);
+        // (CC0 ref: a low knock ~90-120 Hz under a 1.5 kHz click, gone in ~45 ms)
+        book(S_RIM, 91, t, g * 0.3f, 30, -0.1f, 0, 0, 0);
+        book(S_HEAD, 45, t, g * 0.5f, 35, 0, tb + 0.30f, 0, 0);
+        book(S_WIRE, 60, t, g * 0.10f, 30, 0, 0, 0, 0);
         break;
     case 'g':  // ghost: a soft tap, mostly wires, short
     default:
-        book(S_HEAD, 54, t, g * 0.55f, 60, 0, tb - 0.05f, 0, 0);
+        book(S_HEAD, 55, t, g * 0.55f, 50, 0, tb - 0.05f, 0, 0);
         book(S_WIRE, 60, t, g, 45, 0, 0, 0, 0);
         break;
     }
@@ -308,8 +326,9 @@ static void hat_stroke(double t, bool shank, float g, float open, float spot) {
     int gate = 16 + (int)(700.0f * powf(open, 1.6f));
     float sizzle = 0.35f * sinf(3.14159f * fminf(open, 1.0f)) - 0.08f * (1.0f - open);
     // tip: a light tick, more noise; shank (the shoulder on the edge): louder, the bank's tone, lower
-    if (shank) book(S_HAT, 54, t, g * 1.3f, gate + 12, -0.20f + spot * 0.05f, sizzle - 0.20f, 0, 0);
-    else       book(S_HAT, 60, t, g * 0.70f, gate, 0.10f + spot * 0.05f, sizzle + 0.12f, 0, 0);
+    // the shank sits HIGHER and broader than the tip on a real hat (3.9/9.1/14.9 kHz vs 2.7/8.2/14.4)
+    if (shank) book(S_HAT, 84, t, g * 1.3f, gate + 12, 0.05f + spot * 0.05f, sizzle * 0.4f - 0.10f, 0, 0);
+    else       book(S_HAT, 81, t, g * 0.70f, gate, spot * 0.05f, sizzle * 0.4f, 0, 0);
 }
 
 static void chick(double t, float g) {
@@ -318,28 +337,35 @@ static void chick(double t, float g) {
 
 static void ride_stroke(double t, bool bell, float g, float spot) {
     if (rec_ok && rec_kit) { book(bell ? R_BELL : R_RIDE, 60, t, g * (bell ? 0.95f : 0.8f), bell ? 2600 : 3000, 0, 0, 0, 0); return; }
-    if (bell) book(S_RIDE, 72, t, g * 1.05f, 1400, 0.30f, -0.22f, 0.1f, 0);
-    else      book(S_RIDE, 64, t, g * 0.7f, 1300, spot * 0.05f, spot * 0.06f, 0, 0);
+    if (bell) book(S_BELL, 86, t, g * 1.05f, 1400, 0, 0, 0, 0);
+    else      book(S_RIDE, 63, t, g * 0.7f, 1300, spot * 0.05f, spot * 0.06f, 0, 0);
 }
 
 static void kick_stroke(double t, char tech, float g, float spot) {
     // the beater's slap: a tiny high, short voice on the same head (louder when the beater digs in)
+    // a real kick (CC0 ref): 54 Hz with a STRONG mode at 118 Hz (2.2x, -3.5 dB), booked as its own voice
     if (tech == 'B') {  // buried: the beater stays in the head, short and slappy
-        book(S_KICK, 33, t, g, 95, 0, 0.30f + spot * 0.05f, 0.10f, 0);
+        book(S_KICK, 31, t, g, 70, 0, 0.30f + spot * 0.05f, 0.10f, 0);
+        book(S_KICK, 44, t, g * 0.55f, 45, 0, 0.30f, 0, 0);
         book(S_KICK, 72, t, g * 0.8f, 14, 0.2f, 0.85f, -0.3f, 0);
     } else {            // bounced: the head rings, round
-        book(S_KICK, 33, t, g, 280, 0, -0.06f + spot * 0.05f, 0, 0);
+        book(S_KICK, 31, t, g, 150, 0, -0.06f + spot * 0.05f, 0, 0);
+        book(S_KICK, 44, t, g * 0.75f, 80, 0, 0, 0, 0);
         book(S_KICK, 72, t, g * 0.25f, 10, 0.2f, 0.85f, -0.3f, 0);
     }
 }
 
 static void tom_stroke(double t, bool hi, float g, float spot) {
-    book(hi ? S_TOMHI : S_TOMLO, hi ? 45 : 38, t, g, hi ? 380 : 480, 0, spot * 0.12f, 0, 0);
+    // a real tom (CC0 refs): the fundamental (rack 129 Hz, floor ~90) plus a STRONG mode ~2.1x up,
+    // which the membrane's own modes leave 17-20 dB down, so it is booked as a second, shorter voice
+    int sl = hi ? S_TOMHI : S_TOMLO, n = hi ? 47 : 40;
+    book(sl, n, t, g, hi ? 120 : 140, 0, spot * 0.12f, 0, 0);
+    book(sl, n + 13, t, g * (hi ? 0.65f : 1.0f), hi ? 70 : 90, 0, spot * 0.12f, 0, 0);
 }
 
 static void crash_stroke(double t, float g) {
     if (rec_ok && rec_kit) { book(R_CRASH, 60, t, g, 3000, 0, 0, 0, 0); return; }
-    book(S_CRASH, 62, t, g, 2600, 0, 0, 0, 0);
+    book(S_CRASH, 100, t, g, 2600, 0, 0, 0, 0);
 }
 
 // ================= the drummer ======================================================
@@ -554,7 +580,7 @@ static void probe(void) {
     double t0 = audio_time() + 0.3;
 #ifdef PROBE_TECH
     // 0 centre 1 edge 2 rimshot 3 cross-stick 4 ghost 5 hat tip 6 hat shank 7 ride bow 8 ride bell
-    // 9 kick bounced 10 kick buried 11 flam 12 drag 13 buzz
+    // 9 kick bounced 10 kick buried 11 flam 12 drag 13 buzz 16 tom high 17 tom floor 18 crash
     snare_stroke(t0 + 0, 'S', 0.85f, 0.15f);
     snare_stroke(t0 + 1, 'E', 0.85f, 0.15f);
     snare_stroke(t0 + 2, 'R', 0.85f, 0.15f);
@@ -569,6 +595,7 @@ static void probe(void) {
     snare_stroke(t0 + 13 - 0.024, 'g', 0.3f, 0.15f); snare_stroke(t0 + 13, 'S', 0.85f, 0.15f);
     snare_stroke(t0 + 14 - 0.056, 'g', 0.26f, 0.15f); snare_stroke(t0 + 14 - 0.028, 'g', 0.22f, 0.15f); snare_stroke(t0 + 14, 'S', 0.85f, 0.15f);
     { double bt = t0 + 15, gap = 0.03; float bg = 0.6f; for (int k = 0; k < 8; k++) { snare_stroke(bt, 'g', bg, 0.15f); bt += gap; gap *= 0.88; bg *= 0.84f; } }
+    tom_stroke(t0 + 16, true, 0.85f, 0); tom_stroke(t0 + 17, false, 0.85f, 0); crash_stroke(t0 + 18, 0.85f);
 #endif
 #ifdef PROBE_PEDAL
     // 0..6: tip hits at openness 0, .15, .3, .45, .6, .75, .9 · 7: open .85 choked by the foot at +0.25

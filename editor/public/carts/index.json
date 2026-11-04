@@ -2376,7 +2376,7 @@
       "step-sequencer",
       "swing-timing"
     ],
-    "lineage": "The drum-kit member of the humanized-playing spikes (strumhand, breathflute, tablahand, reedhand, basshand; docs/design/humanized-playing.md section 7.1). A kit adds two new kinds of rule to the needs table: a TECHNIQUE chosen per note (snare centre / edge / rimshot / cross-stick / ghost, hat tip / shank, ride bow / bell, kick buried / bounced) and a shared continuous control (the hi-hat PEDAL every hat hit reads). Voices built from INSTR_MEMBRANE (kick, snare head, rim, toms), INSTR_NOISE (snare wires) and INSTR_METAL (hats, ride, crash; the bogie recipes). The groove is original."
+    "lineage": "The drum-kit member of the humanized-playing spikes (strumhand, breathflute, tablahand, reedhand, basshand; docs/design/humanized-playing.md section 7.1). A kit adds two new kinds of rule to the needs table: a TECHNIQUE chosen per note (snare centre / edge / rimshot / cross-stick / ghost, hat tip / shank, ride bow / bell, kick buried / bounced) and a shared continuous control (the hi-hat PEDAL every hat hit reads). Voices built from INSTR_MEMBRANE (kick, snare head, rim, toms), INSTR_NOISE (snare wires) and INSTR_METAL (hats, ride, bell, crash), every voice tuned against a CC0 recording (pitch, energy band, time to -20 dB; build/refs/drums-cc0/SOURCES.txt), the cymbals lowpassed where the bogie recipes let 15-20 kHz hiss through. The groove is original."
   },
   {
     "title": "drum machine",

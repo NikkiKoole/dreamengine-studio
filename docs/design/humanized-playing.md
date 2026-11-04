@@ -651,8 +651,13 @@ Engine side this needs `sound_retrig_voice` to cover BOWED and a signed bow velo
    `stretch` 2 moves the peak to 1 s; a cutoff +2 -> 0 oct takes the centroid 1064 -> 437 Hz. Byte-
    identical for every cart without shapes. Acceptance: booked `breathflute` defines a scoop, a messa di
    voce, a breath fade and the tongue's puff once and scales / stretches them per note (onsets now start
-   below pitch, level spread across notes 4.6 -> 6.3 dB, settled within ~2 c). Still open with it: the
-   bayan drop booked (`tablahand`).
+   below pitch, level spread across notes 4.6 -> 6.3 dB, settled within ~2 c). And `tablahand`'s left
+   hand is now SHAPES on each booked ge: the BOOM (the measured hold-then-drop: +4.8 st held 90 ms,
+   falling by 190 ms, the curve one AD envelope could not draw), the wrist gesture (press / wail / dip /
+   meend) and the palm (a gain shape stretched to its moment), with the slot's own chirp turned down
+   per note. Pitch track: holds ~108-112 Hz for ~90 ms then falls (the real dhin holds 117, falls to 89);
+   the old per-frame slot riding (kept on B, byte-identical) fell at once from 96 Hz. No slot riding,
+   so it no longer depends on there being ONE bayan.
 4. Lanes. Acceptance: `pianohand`'s pedal as `LANE_DAMPER`, `synthhand`'s knob as `LANE_CUTOFF`,
    `drumhand`'s hi-hat pedal.
 5. Note events. Acceptance: `cellohand`'s bow change booked, with BOWED retrig.

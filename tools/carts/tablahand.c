@@ -17,7 +17,7 @@
   "description": {
     "summary": "Teental on a tabla played by two HANDS instead of a step grid: every bol is a stroke with its own force, timing and spot on the head, dha lands as two hands a few ms apart, the bayan's pitch rises when the wrist presses and sinks when it lets go. TAB flips to the grid version.",
     "detail": "The vocabulary: na/ta ring on the rim, tin rings on the head, ti/te/ra are closed strokes that stop at once, ge is the open bass whose pitch the wrist bends, ke is the flat closed bass slap; dha = na + ge, dhin = tin + ge. THE LEFT HAND keeps playing after it strikes: each ge gets a wrist gesture (press: up and back; wail: the gumki, up-down-up while it rings; dip: struck pressed, then let go so the pitch falls; meend: a late slow rise; or flat) and a palm that comes down to damp it, soon or late, lightly or fully, and lifts again just before the next stroke. The right hand's resting fingers press a little differently each stroke, so the ring length varies. The hands: the left and right of a dha almost never land together, a fast run like ti-ra-ki-ta is uneven (long-short) with its inner strokes softer, a hand striking twice quickly is a little late and softer the second time, and where each finger lands drifts slowly. The cycle: sam (beat 1) leans hardest, the khali section is lighter and has no bass, every fourth cycle plays a fill, a tihai (one figure three times, landing on sam) or a ke-heavy variation, in turn. Keys 1-5 switch each layer on and off.",
-    "controls": "SPACE play/stop · TAB hands / grid · 1 time 2 force 3 touch 4 left 5 hands · UP/DOWN humanity · LEFT/RIGHT tempo · R new take"
+    "controls": "SPACE play/stop · TAB hands / grid · B left hand as shapes / riding · 1 time 2 force 3 touch 4 left 5 hands · UP/DOWN humanity · LEFT/RIGHT tempo · R new take"
   }
 }
 de:meta */
@@ -48,6 +48,7 @@ de:meta */
 
 #define DAYAN 62        // the treble drum tuned to D
 #define BAYAN 38        // the bass drum, two octaves and a bit under
+enum { SH_BOOM = 10, SH_PRESS, SH_WAIL, SH_DIP, SH_MEEND, SH_PALM };   // the left hand's shapes (step 3)
 
 // ---- strokes ----
 enum { R_NONE, R_NA, R_TIN, R_TE, R_RA };      // right hand on the dayan
@@ -84,6 +85,7 @@ enum { L_TIME, L_FORCE, L_TOUCH, L_GLIDE, L_HANDS, NLAYER };
 static const char *LAYER_NAME[NLAYER] = { "time", "force", "touch", "left", "hands" };
 
 static bool  playing = true, human = true;
+static bool  ride_mode = false;   // B: the OLD left hand, riding the bayan slot every frame (instrument_tune / _level)
 static bool  layer[NLAYER] = { true, true, true, true, true };
 static float humanity = 1.0f;
 static int   tempo = 96;
@@ -135,6 +137,14 @@ static void setup_sound(void) {
     // bayan: looser, a deeper chirp; the closed slap is a flat thud
     instrument(B_OPEN, INSTR_MEMBRANE, 1, 0, 7, 420);
     instrument_harmonics(B_OPEN, 0.22f); instrument_timbre(B_OPEN, 0.30f); instrument_morph(B_OPEN, 0.30f);
+    // THE LEFT HAND AS SHAPES (NoteOpts step 3): every ge carries its own gestures, no slot riding.
+    // Pitch shapes in cents (the wrist ones per semitone of "amount", scaled per stroke).
+    { float t[] = {0, 90, 190},                v[] = {480, 480, 0};          shape_define(SH_BOOM,  3, t, v, SHAPE_EASE); }  // measured: holds ~90 ms, falls ~5 st by ~170 ms
+    { float t[] = {0, 150, 300, 900, 1500},    v[] = {0, 100, 100, 15, 0};   shape_define(SH_PRESS, 5, t, v, SHAPE_EASE); }
+    { float t[] = {0, 250, 500, 750, 1100, 1700}, v[] = {0, 100, 20, 80, 15, 0}; shape_define(SH_WAIL, 6, t, v, SHAPE_EASE); }  // up, down, up
+    { float t[] = {0, 100, 400},               v[] = {100, 40, 0};           shape_define(SH_DIP,   3, t, v, SHAPE_FAST); }  // struck pressed, let go
+    { float t[] = {0, 120, 700},               v[] = {0, 0, 100};            shape_define(SH_MEEND, 3, t, v, SHAPE_EASE); }  // a late, slow rise
+    { float t[] = {0, 1000, 1150},             v[] = {0, 0, 1};              shape_define(SH_PALM,  3, t, v, SHAPE_LINEAR); } // dB per unit of scale; stretched to damp_at
     instrument(B_SHUT, INSTR_MEMBRANE, 1, 0, 7, 25);
     instrument_harmonics(B_SHUT, 0.75f); instrument_timbre(B_SHUT, 0.55f); instrument_morph(B_SHUT, 0.0f);
     instrument_choke(D_SHUT, D_OPEN);       // a closed stroke stops the ringing head
@@ -218,7 +228,28 @@ static void play_bol(const Bol *b, double t, float accent, bool inner, int sub, 
         float f = force * 0.95f;
         if (K && last_l > 0 && tl - last_l < 0.13) { tl += 0.006 * H; f *= 1.0f - 0.15f * H; }
         float pos = C ? (drift(t, 0.5f) * 0.05f + r1() * 0.03f) * H : 0;
-        if (b->l == L_GE) {
+        if (b->l == L_GE && human && !ride_mode) {
+            // SHAPES: the boom (the drum's own hold-then-drop) + the wrist gesture + the palm, all booked
+            NoteOpts o = { .gain = f < 0.04f ? 0.04f : f, .timbre = pos, .morph = -0.25f };   // the slot's chirp down: the boom replaces it
+            int k = 0;
+            o.shape[k++] = (NoteShape){ SH_BOOM, SHP_PITCH, 0.85f + 0.3f * f };
+            if (G) {
+                float u = rnd_float();
+                int g = u < 0.12f ? G_FLAT : u < 0.42f ? G_PRESS : u < 0.62f ? G_WAIL : u < 0.82f ? G_DIP : G_MEEND;
+                if (accent >= 0.99f && rnd_float() < 0.6f) g = G_WAIL;
+                float amount = (0.6f + 2.0f * rnd_float()) * (0.6f + 0.4f * accent) * H;
+                float speed = 0.08f + 0.2f * rnd_float();
+                float damp_at = 0.12f + 0.6f * rnd_float() * rnd_float(), damp_to = 0.08f + 0.5f * rnd_float();
+                if (g == G_WAIL) { damp_at += 0.4f; speed = 0.25f + 0.2f * rnd_float(); }
+                int sid = g == G_PRESS ? SH_PRESS : g == G_WAIL ? SH_WAIL : g == G_DIP ? SH_DIP : g == G_MEEND ? SH_MEEND : 0;
+                float st = g == G_PRESS ? speed / 0.15f : g == G_WAIL ? speed / 0.25f : speed / 0.2f;
+                if (sid) o.shape[k++] = (NoteShape){ (unsigned char)sid, SHP_PITCH, amount, st };
+                o.shape[k++] = (NoteShape){ SH_PALM, SHP_GAIN, 20.0f * log10f(damp_to), damp_at };
+                LeftEv e = { tl, g, amount, speed, damp_at, damp_to };       // for the display only
+                left[nleft % NLEFT] = e; nleft++;
+            }
+            schedule_note_at(tl, BAYAN, B_OPEN, 7, 1400, &o);
+        } else if (b->l == L_GE) {
             stroke(B_OPEN, BAYAN, tl, f, pos, 0, 1400, 0);
             if (G) {
                 // choose what the wrist does: strong beats press and wail, light ones stay flat
@@ -332,19 +363,25 @@ static void ride_left(void) {
 #ifdef PROBE_NO_WRIST
     semi = 0;
 #endif
+    shown_glide = semi; shown_palm = 1.0f - level;
+    if (!ride_mode && human) { semi = 0; level = 1; }   // SHAPES carry the left hand now: the slot stays neutral
     if (fabsf(semi - tune_last) > 0.01f)   { instrument_tune(B_OPEN, semi); tune_last = semi; }
     if (fabsf(level - level_last) > 0.01f) { instrument_level(B_OPEN, level); level_last = level; }
-    shown_glide = semi; shown_palm = 1.0f - level;
+    if (ride_mode || !human) { shown_glide = semi; shown_palm = 1.0f - level; }
 }
 
 void init(void) {
     setup_sound();
     new_take();
+#ifdef RIDE_MODE
+    ride_mode = true;
+#endif
 }
 
 void update(void) {
     if (keyp(KEY_SPACE)) { playing = !playing; t_beat = audio_time() + 0.15; }
     if (keyp(KEY_TAB)) human = !human;
+    if (keyp('B')) ride_mode = !ride_mode;
     for (int i = 0; i < NLAYER; i++) if (keyp('1' + i)) layer[i] = !layer[i];
     if (keyp(KEY_UP))    humanity = fminf(1.5f, humanity + 0.25f);
     if (keyp(KEY_DOWN))  humanity = fmaxf(0.0f, humanity - 0.25f);
@@ -363,6 +400,7 @@ void draw(void) {
     cls(CLR_DARK_BLUE);
     double at = audio_time();
     print(human ? "HANDS" : "GRID", 4, 4, human ? CLR_GREEN : CLR_RED);
+    if (human) print(ride_mode ? "B: left hand RIDES the slot" : "B: left hand as SHAPES", 150, 160, ride_mode ? CLR_DARK_GREY : CLR_YELLOW);
     print(str("teental  %d bpm  cycle %d  take %d", tempo, cycle + 1, seed), 60, 4, CLR_WHITE);
 
     // the cycle: 16 beats round a circle, sam at the top; strokes land as dots

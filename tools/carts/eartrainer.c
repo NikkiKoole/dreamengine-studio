@@ -32,6 +32,13 @@ de:meta */
 #include "studio.h"
 #include "ui.h"   // ui_button — per-finger capture + fat hit pads (menu + answers + replay)
 
+#define SL_PIANO 5   // the grand piano slot (configured in init; note() takes a SLOT, not an INSTR_*)
+
+void init(void) {
+    instrument(SL_PIANO, INSTR_PIANO, 1, 0, 7, 900);   // struck, rings down on its own
+    instrument_harmonics(SL_PIANO, 0.08f);             // the GRAND voicing (unset = 0.5 = harpsichord)
+}
+
 // ---- screens & modes ------------------------------------------------------
 enum { ST_MENU, ST_PLAY };
 enum { TR_NOTES, TR_CHORDS, TR_INTERVALS };
@@ -76,13 +83,13 @@ static void printc(const char *s, int cx, int y, int c) { print(s, cx - text_w(s
 
 static void play_target(void) {
     if (mode == TR_CHORDS) {
-        for (int i = 0; i < 3; i++) note(root + QUAL_IVL[answer][i], INSTR_PIANO, 5);
+        for (int i = 0; i < 3; i++) note(root + QUAL_IVL[answer][i], SL_PIANO, 5);
     } else if (mode == TR_INTERVALS) {
-        note(root, INSTR_PIANO, 6);                 // reference note now...
+        note(root, SL_PIANO, 6);                 // reference note now...
         pend_midi = root + IVL_SEMI[answer];        // ...target note a beat later
         pend_t = 16;
     } else {
-        note(WHITE_MIDI[answer], INSTR_PIANO, 6);
+        note(WHITE_MIDI[answer], SL_PIANO, 6);
     }
 }
 
@@ -125,7 +132,7 @@ static const char *choice_label(int ci) {
 void update(void) {
     if (flash > 0.0f) flash -= 0.06f;
     if (flash < 0.0f) flash = 0.0f;
-    if (pend_t > 0) { pend_t--; if (pend_t == 0 && pend_midi >= 0) { note(pend_midi, INSTR_PIANO, 6); pend_midi = -1; } }
+    if (pend_t > 0) { pend_t--; if (pend_t == 0 && pend_midi >= 0) { note(pend_midi, SL_PIANO, 6); pend_midi = -1; } }
     if (st == ST_PLAY && picked >= 0) {
         if (result_t > 0) result_t--;
         else new_round();

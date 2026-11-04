@@ -21,6 +21,8 @@
 //   # as-shipped macros (all 0), but the modeled engines' tuning DEPENDS on the macros (PIPE's
 //   # in-tune range moves with the morph/embouchure macro). e.g. air's flute:
 //   node tools/tune-check.js --engine PIPE --macros 0,0.38,0.70 --range 48-90 [--step 2]
+//   --mode NAME=value (repeatable) adds instrument_mode(slot, NAME, value) to the recipe, e.g. split a
+//   piano voicing's error into stretch and loop offset: --engine PIANO --mode MODE_PIANO_STRETCH=0
 //
 // "cents" = 1200·log2(measured/expected); 100 cents = one semitone. SINE is rendered
 // first as a control — it's mathematically exact, so a non-zero SINE reading means the
@@ -360,6 +362,7 @@ static int fnum=-1, held=-1;
 void init(void){
   instrument(5, ${id}, 4, 60, 7, 140);
   instrument_harmonics(5, ${h}f); instrument_timbre(5, ${t}f); instrument_morph(5, ${m}f);
+${(opts.modes || []).map(([k, v]) => `  instrument_mode(5, ${k}, ${v.toFixed(4)}f);`).join('\n')}
 }
 void update(void){
   fnum++;
@@ -499,7 +502,8 @@ function run(opts) {
   if (!opts.recipe) checkStretchDifferential(results)
   if (opts.json) { console.log(JSON.stringify(results, null, 2)); return results }
   const title = opts.recipe
-    ? `${opts.recipe.engine} @ h${opts.recipe.macros[0]} t${opts.recipe.macros[1]} m${opts.recipe.macros[2]}`
+    ? `${opts.recipe.engine} @ h${opts.recipe.macros[0]} t${opts.recipe.macros[1]} m${opts.recipe.macros[2]}` +
+      (opts.recipe.modes || []).map(([k, v]) => ` ${k}=${v}`).join('')
     : 'tuning sweep'
   printResults(results, sr, title)
   return results
@@ -657,7 +661,14 @@ if (engArg) {
   const macros = (flag('--macros', '0,0,0')).split(',').map(Number)
   if (macros.length !== 3 || macros.some(isNaN)) { console.error('--macros wants h,t,m (e.g. 0,0.38,0.70)'); process.exit(1) }
   const [lo, hi] = (flag('--range', '45-88')).split('-').map(Number)
-  recipe = { engine: engArg.toUpperCase(), macros, lo, hi, step: +flag('--step', 2) }
+  const modes = []
+  argv.forEach((a, i) => {
+    if (a !== '--mode') return
+    const m = /^([A-Z_][A-Z0-9_]*)=(-?[\d.]+)$/.exec(argv[i + 1] || '')
+    if (!m) { console.error('--mode wants NAME=value (e.g. MODE_PIANO_STRETCH=0)'); process.exit(1) }
+    modes.push([m[1], +m[2]])
+  })
+  recipe = { engine: engArg.toUpperCase(), macros, lo, hi, step: +flag('--step', 2), modes }
 }
 
 if (argv.includes('--selfcheck')) process.exit(selfcheck())

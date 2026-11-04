@@ -1,13 +1,13 @@
 // tr909.h — the shared TR-909 VOICE BANK, extracted so the 909 stops living in
 // one cart (the tr808.h move, again). tr909.c grew the definitive voicing: the
 // fast-sweep house KICK with its ATTACK-click layer, the 185+330Hz snare, sine
-// toms with a click, the woody rimshot, the three-retrigger clap, and the FM-clang
-// ROM stand-ins for the metal (hats/crash/ride) riding a shared highpass. When a
+// toms with a click, the woody rimshot, the three-retrigger clap, and the METAL-bank
+// ROM stand-ins for the metal (hats/crash/ride) riding a shared lowpass (FM + highpass until 2026-11-04). When a
 // SECOND cart (acidcandy's 909 face) wanted the SAME kit, this became the one
 // honest 909 core so the two can never drift.
 //
 // A cart owns its PATTERN + UI + per-voice KNOBS; this owns the SOUND: the 13-slot
-// bank (tr909_build), the metal-highpass XY (tr909_metal), the knob-shaped trigger
+// bank (tr909_build), the metal-lowpass XY (tr909_metal), the knob-shaped trigger
 // (tr909_fire), and the stroke family flam/drag/ratchet (tr909_fire_stroke). The
 // three per-voice knobs (tune/decay/colour, floats 0..1, 0.5 = neutral) are the
 // cart's arrays, passed in.
@@ -20,7 +20,7 @@
 //   void init(void) {
 //       for (int v=0;v<TR9_NV;v++){ ktune[v]=kdecay[v]=kcolor[v]=0.5f; }
 //       tr909_build(TR909_BASE);
-//       tr909_metal(TR909_BASE, mcut, mres);              // aim the 5 metal highpasses
+//       tr909_metal(TR909_BASE, mcut, mres);              // aim the 5 metal lowpasses
 //   }
 //   tr909_fire(TR909_BASE, TR9_BD, 1, 0, ktune, kdecay, kcolor);
 //   tr909_fire_stroke(TR909_BASE, v, stroke, boost, delay, step_ms, ktune, kdecay, kcolor);
@@ -49,7 +49,50 @@ enum { TR9S_BD, TR9S_BDC, TR9S_SDB, TR9S_SDN, TR9S_TOM, TR9S_TOMC, TR9S_RS,
 enum { TR9_ST_PLAIN, TR9_ST_FLAM, TR9_ST_DRAG, TR9_ST_RATCHET, TR9_NSTROKE };
 
 // ── per-voice knob maths (arrays are the CART's; 0.5 = neutral) ───────────────
-static int tr909__midi(const float *kt, int v, int base) { return base + (int)((kt[v] - 0.5f) * 24.0f + 0.5f); }
+// ── measured against a real TR-909 (2026-11-04): the "TR909 - all" set in a vintage-drums collection,
+// every voice at its knob marks 0 / 3 / 7 / 10 (tools/oneshot-compare.js). Two knobs did not behave:
+// TUNE swept two OCTAVES where a real tom / snare / kick tune spans ~10 semitones (and unevenly: most
+// of it above the middle), and DECAY stopped growing because the slot's own decay capped the gate. The
+// tables below are the real knob, read at its marks; between marks, linear.
+static float tr909__knob4(float k, const float t[4]) {          // marks at 0, .3, .7, 1
+    if (k <= 0.0f) return t[0];
+    if (k >= 1.0f) return t[3];
+    if (k < 0.3f)  return t[0] + (t[1] - t[0]) * (k / 0.3f);
+    if (k < 0.7f)  return t[1] + (t[2] - t[1]) * ((k - 0.3f) / 0.4f);
+    return t[2] + (t[3] - t[2]) * ((k - 0.7f) / 0.3f);
+}
+// semitones from the voice's pitch AT MARK 3, measured: kick 54/54/65/97 Hz, snare 129/161/215/248,
+// toms (all three alike) e.g. low 75/86/118/129
+static const float TR909_TUNE_BD[4]  = { 0.0f, 0.0f, 3.2f, 10.1f };
+static const float TR909_TUNE_SD[4]  = { -3.8f, 0.0f, 5.0f, 7.5f };
+static const float TR909_TUNE_TOM[4] = { -2.5f, 0.0f, 5.4f, 7.4f };
+static int tr909__midi(const float *kt, int v, int base) {
+    const float *t = v == TR9_BD ? TR909_TUNE_BD : v == TR9_SD ? TR909_TUNE_SD
+                   : (v == TR9_LT || v == TR9_MT || v == TR9_HT) ? TR909_TUNE_TOM : 0;
+    if (!t) return base + (int)((kt[v] - 0.5f) * 24.0f + 0.5f);   // rim / clap / metal: ±12 as before
+    float st = tr909__knob4(kt[v], t);
+    return base + (int)(st + (st >= 0.0f ? 0.5f : -0.5f));        // base = the pitch AT MARK 3
+}
+// -20 dB times, measured at the decay marks 0 / 3 / 7 / 10
+static const float TR909_DEC_BD[4] = { 85, 115, 170, 220 };
+static const float TR909_DEC_LT[4] = { 170, 190, 220, 265 };
+static const float TR909_DEC_MT[4] = { 115, 120, 125, 145 };
+static const float TR909_DEC_HT[4] = { 120, 130, 160, 160 };
+static int tr909__decay_slot(float t20) { return (int)(t20 / 0.9f * 1.1f + 0.5f); }   // a linear decay crosses -20 dB at 0.9
+// hats: the DECAY knob at marks 0 / .25 / .5 / .75 / 1 (the set has 0, 2, 4, 6, 8, 10)
+static const float TR909_DEC_CH[5] = { 25, 55, 80, 93, 95 };
+static const float TR909_DEC_OH[5] = { 145, 185, 190, 235, 260 };
+static float tr909__knob5(float k, const float t[5]) {
+    if (k <= 0.0f) return t[0];
+    if (k >= 1.0f) return t[4];
+    float x = k * 4.0f; int i = (int)x; float f = x - (float)i;
+    return t[i] + (t[i + 1] - t[i]) * f;
+}
+// crash / ride TUNE on a real 909 is the sample's PLAYBACK RATE: across the knob the crash rises ~an
+// octave (5.1 -> 9.6 kHz) and gets SHORTER by the same factor (845 -> 430 ms); the ride ~9 semitones,
+// 695 -> 380 ms. So the knob moves pitch AND length together: ±6 semitones, length / rate
+static int tr909__cym_semi(float k) { return (int)((k - 0.5f) * 12.0f + (k >= 0.5f ? 0.5f : -0.5f)); }
+static int tr909__cym_len(float k, int ms) { return (int)((float)ms / de_powf(2.0f, (k - 0.5f)) + 0.5f); }
 static int tr909__dur(const float *kd, int v, int base) {
     float s = de_powf(4.0f, (kd[v] - 0.5f) * 2.0f);
     int d = (int)(base * s + 0.5f);
@@ -103,7 +146,7 @@ static void tr909_build(int base) {
     instrument(base + TR9S_BD, INSTR_SINE, 0, 300, 0, 50);
     instrument_filter(base + TR9S_BD, FILTER_LOW, 380, 2);
     instrument_env(base + TR9S_BD, 0, ENV_PITCH, 0, 35, 30.0f);
-    instrument_drive(base + TR9S_BD, 0.35f);
+    instrument_drive(base + TR9S_BD, 0.22f);   // was 0.35: its 2nd harmonic sat 13 dB under the body, a real 909's 27-30
     // kick click — the ATTACK knob layer: a 10ms highpassed noise tick
     instrument(base + TR9S_BDC, INSTR_NOISE, 0, 9, 0, 4);
     instrument_filter(base + TR9S_BDC, FILTER_HIGH, 2500, 2);
@@ -114,7 +157,7 @@ static void tr909_build(int base) {
     instrument_env(base + TR9S_SDB, 0, ENV_PITCH, 0, 15, 4.0f);
     // snare noise — brighter + longer than the 808's
     instrument(base + TR9S_SDN, INSTR_NOISE, 0, 170, 0, 50);
-    instrument_filter(base + TR9S_SDN, FILTER_HIGH, 1400, 2);
+    instrument_filter(base + TR9S_SDN, FILTER_LOW, 8500, 4);   // real 909 snare tops out ~8.2-9 kHz (a highpass ran to 20)
 
     // toms — sine pitch drop + a short noise click
     instrument(base + TR9S_TOM, INSTR_SINE, 0, 220, 0, 45);
@@ -124,49 +167,52 @@ static void tr909_build(int base) {
 
     // rimshot — short woody dual ping through a low highpass
     instrument(base + TR9S_RS, INSTR_TRI, 0, 28, 0, 10);
-    instrument_filter(base + TR9S_RS, FILTER_HIGH, 400, 3);
+    instrument_filter(base + TR9S_RS, FILTER_HIGH, 150, 2);   // 400 Hz cut the real body (215 Hz)
 
     // handclap — bandpassed noise; the retriggers in tr909_fire() make the clap
     instrument(base + TR9S_CP, INSTR_NOISE, 0, 100, 0, 45);
     instrument_filter(base + TR9S_CP, FILTER_BAND, 1200, 5);
 
-    // ── the ROM-sample stand-ins: FM-clang metal (hats/crash/ride) ──────────
-    instrument(base + TR9S_HHC, INSTR_FM, 0, 40, 0, 16);
-    instrument_harmonics(base + TR9S_HHC, 0.55f);
-    instrument_timbre(base + TR9S_HHC, 0.90f);
-    instrument_morph(base + TR9S_HHC, 0.85f);
-    instrument_env(base + TR9S_HHC, 0, ENV_CUTOFF, 0, 28, -5000.0f);
+    // ── the ROM-sample stand-ins: METAL banks (hats/crash/ride) ─────────────
+    // A real 909's hats and cymbals are 6-bit SAMPLES of real cymbals: noisy, energy 3.3 / 7.5 / 14 kHz
+    // (open hat, 10/50/90%), the crash 2.8 / 6.0 / 10.7, the ride 4.3 / 9.5 / 14. These were FM clang,
+    // and FM's sidebands + aliasing put them at 8 / 15.7 / 20.8 kHz whatever the filter did (measured
+    // 2026-11-04 against the "TR909 - all" set). The METAL bank lowpassed lands there; the XY pad
+    // (tr909_metal) now rides that LOWPASS: right = brighter. Lengths come from tr909_fire per hit.
+    instrument(base + TR9S_HHC, INSTR_METAL, 0, 40, 0, 16);
+    instrument_harmonics(base + TR9S_HHC, 0.70f); instrument_timbre(base + TR9S_HHC, 0.85f); instrument_morph(base + TR9S_HHC, 0.85f);
+    instrument_mode(base + TR9S_HHC, MODE_METAL_DECAY, 0.40f); instrument_mode(base + TR9S_HHC, MODE_METAL_SPREAD, 0.20f);
 
-    instrument(base + TR9S_HHO, INSTR_FM, 0, 380, 0, 110);
-    instrument_harmonics(base + TR9S_HHO, 0.55f);
-    instrument_timbre(base + TR9S_HHO, 0.90f);
-    instrument_morph(base + TR9S_HHO, 0.85f);
-    instrument_env(base + TR9S_HHO, 0, ENV_CUTOFF, 0, 220, -4500.0f);
+    instrument(base + TR9S_HHO, INSTR_METAL, 0, 380, 0, 110);
+    instrument_harmonics(base + TR9S_HHO, 0.70f); instrument_timbre(base + TR9S_HHO, 0.85f); instrument_morph(base + TR9S_HHO, 0.85f);
+    instrument_mode(base + TR9S_HHO, MODE_METAL_DECAY, 0.66f); instrument_mode(base + TR9S_HHO, MODE_METAL_SPREAD, 0.20f);
     instrument_choke(base + TR9S_HHC, base + TR9S_HHO);   // closed hat chokes the open hat
 
-    // crash — FM clang + a separate long noise wash (TONE crossfades)
-    instrument(base + TR9S_CC, INSTR_FM, 0, 1000, 0, 280);
-    instrument_harmonics(base + TR9S_CC, 0.55f);
-    instrument_timbre(base + TR9S_CC, 1.00f);
-    instrument_morph(base + TR9S_CC, 0.90f);
+    // crash — the bank + a separate long noise wash (TONE crossfades)
+    instrument(base + TR9S_CC, INSTR_METAL, 0, 1000, 0, 280);
+    instrument_harmonics(base + TR9S_CC, 0.55f); instrument_timbre(base + TR9S_CC, 0.30f); instrument_morph(base + TR9S_CC, 0.30f);
+    instrument_mode(base + TR9S_CC, MODE_METAL_DECAY, 0.80f); instrument_mode(base + TR9S_CC, MODE_METAL_SPREAD, 0.15f);
     instrument(base + TR9S_CCN, INSTR_NOISE, 0, 1200, 0, 320);
 
-    // ride — same metal, less feedback = a cleaner ringing ping
-    instrument(base + TR9S_RC, INSTR_FM, 0, 550, 0, 160);
-    instrument_harmonics(base + TR9S_RC, 0.55f);
-    instrument_timbre(base + TR9S_RC, 0.72f);
-    instrument_morph(base + TR9S_RC, 0.58f);
+    // ride — the bank, cleaner (less noise), a bright ping
+    instrument(base + TR9S_RC, INSTR_METAL, 0, 550, 0, 160);
+    instrument_harmonics(base + TR9S_RC, 0.62f); instrument_timbre(base + TR9S_RC, 0.35f); instrument_morph(base + TR9S_RC, 0.30f);
+    instrument_mode(base + TR9S_RC, MODE_METAL_DECAY, 0.80f); instrument_mode(base + TR9S_RC, MODE_METAL_SPREAD, 0.20f);
 }
 
-// aim the shared metal highpass on all five metal slots from the XY pad (mcut/mres 0..1)
+// aim the shared metal LOWPASS on all five metal slots from the XY pad (mcut/mres 0..1). Since
+// 2026-11-04 a lowpass (was a highpass on FM): right = BRIGHTER. At the carts' default (mcut 0.40) the
+// corners land where a real 909's metal tops out (hats ~12.5 kHz, crash ~9.5, ride ~13).
 static void tr909_metal(int base, float mcut, float mres) {
     float m = 0.3f + 1.4f * mcut;
     int   r = (int)(mres * 12.0f + 0.5f);
-    instrument_filter(base + TR9S_HHC, FILTER_HIGH, (int)(8500 * m), r);
-    instrument_filter(base + TR9S_HHO, FILTER_HIGH, (int)(8000 * m), r);
-    instrument_filter(base + TR9S_CC,  FILTER_HIGH, (int)(4500 * m), r);
-    instrument_filter(base + TR9S_CCN, FILTER_HIGH, (int)(5200 * m), r);
-    instrument_filter(base + TR9S_RC,  FILTER_HIGH, (int)(5000 * m), r);
+    #define TR909_LPC(hz) ((int)((hz) * m) > 18000 ? 18000 : (int)((hz) * m))
+    instrument_filter(base + TR9S_HHC, FILTER_LOW, TR909_LPC(14500), r);
+    instrument_filter(base + TR9S_HHO, FILTER_LOW, TR909_LPC(14500), r);
+    instrument_filter(base + TR9S_CC,  FILTER_LOW, TR909_LPC(11000), r);
+    instrument_filter(base + TR9S_CCN, FILTER_LOW, TR909_LPC(10000), r);
+    instrument_filter(base + TR9S_RC,  FILTER_LOW, TR909_LPC(15000), r);
+    #undef TR909_LPC
 }
 
 // fire one voice `delay` ms from now. Analog voices per the schematic; hats/cymbals
@@ -187,26 +233,36 @@ static void tr909_fire_semi(int base, int v, int boost, int delay,
     #define VV(bs)    tr909__vv((bs), boost)
     switch (v) {
     case TR9_BD:  // house kick: fast sweep body + ATTK click layer
-        schedule_hit(delay, M(32), base + TR9S_BD, VV(6), D(320));
-        schedule_hit(delay, 60, base + TR9S_BDC, VV(CV(0, 6)), 10);
+        {   int dd = tr909__decay_slot(tr909__knob4(kd[v], TR909_DEC_BD));
+            instrument(base + TR9S_BD, INSTR_SINE, 0, dd, 0, 50);
+            schedule_hit(delay, M(33), base + TR9S_BD, VV(6), dd);   // 54 Hz at mark 3, as measured
+        }
+        schedule_hit(delay, 60, base + TR9S_BDC, VV(CV(0, 3)), 10);   // the real ATTACK knob barely moves the spectrum
         break;
     case TR9_SD: {  // 185Hz + 330Hz modes; SNPY fades body↔noise
-        int body = CV(8, 1), snpy = CV(1, 8);
+        int body = CV(8, 1), snpy = CV(1, 8) - 2;   // -2: the real snare's energy is mostly its body
         int tilt = tr909__snare_tilt(boost);   // §J9: a harder hit tips body→noise, not just louder
-        schedule_hit(delay, M(54), base + TR9S_SDB, VV(body - tilt), D(95));
-        schedule_hit(delay, M(64), base + TR9S_SDB, VV(body - 1 - tilt), D(95));
+        schedule_hit(delay, M(51), base + TR9S_SDB, VV(body - tilt), D(95));       // 161 Hz at mark 3
+        schedule_hit(delay, M(57), base + TR9S_SDB, VV(body - 2 - tilt), D(95));   // its 2nd mode, ~1.4x (real 161 + 226, 5-9 dB under)
         schedule_hit(delay, M(60), base + TR9S_SDN, VV(snpy + tilt), D(180));
         break;
     }
     case TR9_LT: case TR9_MT: case TR9_HT: {  // sine drop + CLIK attack noise
-        int m = v == TR9_LT ? 42 : v == TR9_MT ? 47 : 54;
-        schedule_hit(delay, M(m),  base + TR9S_TOM,  VV(5), D(240));
+        // pitch AT MARK 3 measured 86 / 108 / 129 Hz; a strong 2nd mode ~2x up (6-12 dB under), which the
+        // sine alone does not have: booked as a quieter octave
+        int m = v == TR9_LT ? 40 : v == TR9_MT ? 44 : 47;
+        const float *dt = v == TR9_LT ? TR909_DEC_LT : v == TR9_MT ? TR909_DEC_MT : TR909_DEC_HT;
+        int dd = tr909__decay_slot(tr909__knob4(kd[v], dt));
+        instrument(base + TR9S_TOM, INSTR_SINE, 0, dd, 0, 45);
+        schedule_hit(delay, M(m),      base + TR9S_TOM,  VV(5), dd);
+        schedule_hit(delay, M(m) + 12, base + TR9S_TOM,  VV(2), dd * 2 / 3);
         schedule_hit(delay, 70, base + TR9S_TOMC, VV(CV(0, 5)), 14);
         break;
     }
     case TR9_RS:  // woody dual ping
-        schedule_hit(delay, M(76), base + TR9S_RS, VV(5), D(30));
-        schedule_hit(delay, M(64), base + TR9S_RS, VV(3), D(30));
+        // a real 909 rim: 215 Hz, its 463 Hz partial ~8 dB under (was 659 / 330)
+        schedule_hit(delay, M(57), base + TR9S_RS, VV(5), D(30));
+        schedule_hit(delay, M(70), base + TR9S_RS, VV(2), D(30));
         break;
     case TR9_CP:  // three retriggers ~9ms apart + a soft room tail
         schedule_hit(delay,      M(60), base + TR9S_CP, VV(5), 11);
@@ -214,20 +270,35 @@ static void tr909_fire_semi(int base, int v, int boost, int delay,
         schedule_hit(delay + 18, M(60), base + TR9S_CP, VV(5), 11);
         schedule_hit(delay + 26, M(60), base + TR9S_CP, VV(3), D(130));
         break;
-    case TR9_CH:  // FM clang through the closing highpass
-        schedule_hit(delay, M(97), base + TR9S_HHC, VV(4), D(40));
+    case TR9_CH: {  // the metal bank, short; DECAY from the real knob
+        int dd = tr909__decay_slot(tr909__knob5(kd[v], TR909_DEC_CH));
+        instrument(base + TR9S_HHC, INSTR_METAL, 0, dd, 0, 16);
+        schedule_hit(delay, 84 + semi, base + TR9S_HHC, VV(4), dd);
         break;
-    case TR9_OH:  // same metal, long burst; choked by a closed hit
-        schedule_hit(delay, M(97), base + TR9S_HHO, VV(4), D(400));
+    }
+    case TR9_OH: {  // same metal, long burst; choked by a closed hit
+        int dd = tr909__decay_slot(tr909__knob5(kd[v], TR909_DEC_OH));
+        instrument(base + TR9S_HHO, INSTR_METAL, 0, dd, 0, 110);
+        schedule_hit(delay, 84 + semi, base + TR9S_HHO, VV(4), dd);
         break;
-    case TR9_CC:  // TONE fades FM clang ↔ noise wash
-        schedule_hit(delay, M(84), base + TR9S_CC,  VV(CV(6, 1)), D(1100));
-        schedule_hit(delay, M(60), base + TR9S_CCN, VV(CV(1, 6)), D(1300));
+    }
+    case TR9_CC: {  // TONE fades the bank ↔ noise wash; TUNE = playback rate (pitch + length)
+        // real: -20 dB in 845 / 715 / 495 / 430 ms across the knob, ~660 at its middle
+        int st = tr909__cym_semi(kt[v]) + semi;
+        int dd = tr909__decay_slot((float)tr909__cym_len(kt[v], D(660)));
+        instrument(base + TR9S_CC,  INSTR_METAL, 0, dd, 0, 280);
+        instrument(base + TR9S_CCN, INSTR_NOISE, 0, dd, 0, 320);
+        schedule_hit(delay, 100 + st, base + TR9S_CC,  VV(CV(6, 1)), dd);
+        schedule_hit(delay, 60 + st,  base + TR9S_CCN, VV(CV(1, 6)), dd);
         break;
-    case TR9_RC:  // cleaner FM ping — bell + a quieter edge a fifth up
-        schedule_hit(delay, M(76), base + TR9S_RC, VV(4), D(600));
-        schedule_hit(delay, M(83), base + TR9S_RC, VV(2), D(600));
+    }
+    case TR9_RC: {  // a cleaner ping; TUNE = playback rate. Real: 695 / 480 / 440 / 380 ms, ~470 at the middle
+        int st = tr909__cym_semi(kt[v]) + semi;
+        int dd = tr909__decay_slot((float)tr909__cym_len(kt[v], D(470)));
+        instrument(base + TR9S_RC, INSTR_METAL, 0, dd, 0, 160);
+        schedule_hit(delay, 104 + st, base + TR9S_RC, VV(4), dd);
         break;
+    }
     }
     #undef M
     #undef D

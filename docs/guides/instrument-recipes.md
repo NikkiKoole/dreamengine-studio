@@ -587,21 +587,22 @@ reach past both machines. Design: [`design/morphdrum.md`](../design/morphdrum.md
 
 ### tr909 (machine — 11 voices, from tr909.c)
 
-Mixed: kick/snare/toms are SINE+NOISE, hats/crash/ride are **FM** (`h0.55 t0.90 m0.85` metal
-pad), clap/rim raw. Metal XY pad controls the FM slots' highpass + resonance; 6 pattern
+Mixed: kick/snare/toms are SINE+NOISE, hats/crash/ride the **METAL** bank (FM until 2026-11-04),
+clap/rim raw. **Measured against a real TR-909** (the "TR909 - all" knob-mark set, `tools/oneshot-compare.js`):
+TUNE and DECAY follow the real knobs' measured curves. Metal XY pad = the metal slots' LOWPASS + resonance; 6 pattern
 presets (GOOD LIFE, THE BELLS, ENERGY FLASH, HARDFLOOR, REVOLUTION 909, GABBER) are grids.
 
 | name | engine | recipe | character |
 |---|---|---|---|
-| tr909/kick | SINE+NOISE | 0/300/0/50 S0 · LP380/2 · pitch-env →+30 (0/35) · drive0.35 + click 0/9/0/4 HP2500/2 | Fast sine sweep punch, driven warehouse weight, highpass click. |
-| tr909/snare | SINE+NOISE | 0/90/0/25 LP1400 pitch-env →4 (0/15) dual 185/330Hz + noise 0/170/0/50 HP1400/2 | Two-mode pitched snare (SNPY knob fades body↔noise). |
-| tr909/ltom/mtom/htom | SINE+NOISE | 0/220/0/45 · pitch-env →+7 (0/60) + click 0/12/0/5 BP2000/3 | Three toms (midi ~40/47/54), pitch drop + woody attack click. |
-| tr909/rimshot | TRI | 0/28/0/10 · HP400/3 (dual ping 76/64 midi) | Short woody dual ping — the Energy Flash tick. |
+| tr909/kick | SINE+NOISE | decay from the knob (-20 dB 85/115/170/220 ms at marks 0/3/7/10) · LP380/2 · pitch-env →+30 (0/35) · drive0.22 + click 0/9/0/4 HP2500/2 | 54 Hz at mark 3; TUNE 54→97 Hz across the knob, as measured. |
+| tr909/snare | SINE+NOISE | 0/90/0/25 LP1400 pitch-env →4 (0/15) · 161 Hz + 2nd mode ~1.4× + noise 0/170/0/50 LP8500/4 | TUNE 129→248 Hz; energy mostly the body (real snare tops out ~8-9 kHz). |
+| tr909/ltom/mtom/htom | SINE+NOISE | decay from the knob · pitch-env →+7 (0/60) + an octave layer ~9 dB under + click 0/12/0/5 BP2000/3 | 86/108/129 Hz at mark 3; TUNE ~-2.5..+7.4 semitones, uneven like the real knob. |
+| tr909/rimshot | TRI | 0/28/0/10 · HP150/2 (215 Hz + 466 Hz ~7 dB under) | A real 909 rim: 215 + 463 Hz. |
 | tr909/clap | NOISE | 0/100/0/45 · BP1200/5 · 3× retrigger @9ms + room tail 0/130/0/45 | Triple-attack handclap + soft decay tail. |
-| tr909/chh | FM | 0/40/0/16 · FM(h0.55 t0.90 m0.85) · HP8500/2 · cut-env 0/28/−5000 | Tight FM metal clang, fast-closing sizzle, chokes open hat. |
-| tr909/ohh | FM | 0/380/0/110 · FM(h0.55 t0.90 m0.85) · HP8000/2 · cut-env 0/220/−4500 | Long-decay FM hat, inharmonic clang + sizzle, choked by closed. |
-| tr909/crash | FM+NOISE | 0/1000/0/280 · FM(h0.55 t1.00 m0.90) HP4500/2 + noise 0/1200/0/320 | Long crash, FM metal body + noise wash, tone-blended. |
-| tr909/ride | FM | 0/550/0/160 · FM(h0.55 t0.72 m0.58) · HP5000/2 (dual bell 76/83 midi) | Jeff Mills ringing bell, cleaner FM metal than crash. |
+| tr909/chh | METAL | h0.70 t0.85 m0.85 · dec0.40 spr0.20 · note 84 · LP via the pad (14.5k × pad) · decay 25..95 ms from the knob | Real: 3.3 / 7.6 / 13.7 kHz; ours 2.4 / 7.2 / 15. Chokes the open hat. |
+| tr909/ohh | METAL | same bank · dec0.66 · decay 145..260 ms from the knob | Choked by the closed hat. |
+| tr909/crash | METAL+NOISE | h0.55 t0.30 m0.30 · dec0.80 spr0.15 · note 100 · LP 11k × pad + noise wash LP 10k × pad | TUNE = playback rate: pitch ±6 semitones AND length (845→430 ms on the real one). |
+| tr909/ride | METAL | h0.62 t0.35 m0.30 · dec0.80 spr0.20 · note 104 · LP 15k × pad | The Jeff Mills bell; TUNE moves pitch + length like the crash. |
 
 ### tr606 (machine — 7 voices, from tr606.c)
 

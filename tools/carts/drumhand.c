@@ -68,11 +68,11 @@ de:meta */
 #define NREC     6
 static const char *REC_FILE[NREC] = { "refs/drums-cc0/ride.f32", "refs/drums-cc0/bell.f32", "refs/drums-cc0/crash.f32",
                                       "refs/drums-cc0/hatc.f32", "refs/drums-cc0/hats.f32", "refs/drums-cc0/hato.f32" };
-static const float REC_LVL[NREC] = { 0.16f, 0.20f, 0.18f, 0.32f, 0.32f, 0.30f };   // under the +14 dB master EQ
+static const float REC_LVL[NREC] = { 0.16f, 0.20f, 0.18f, 0.18f, 0.18f, 0.17f };   // hats -5 dB: oneshot-compare vs the same real kit (2026-11-04)   // under the +14 dB master EQ
 static bool rec_ok = false;        // all six loaded
 static bool rec_kit = true;        // use them (K)
 #define LOOKAHEAD 0.12
-#define HAT_LVL   0.24f
+#define HAT_LVL   0.094f    // -8 dB: oneshot-compare had the synth hats 8-11 dB hot vs the real kit
 
 // ---- the written groove: 8 bars, 16 steps each ----
 // kick : K bounced, B buried, k soft
@@ -224,8 +224,8 @@ static void setup_sound(void) {
     instrument_pan(S_TOMHI, -0.15f); instrument_pan(S_TOMLO, 0.30f);
     instrument_pan(S_RIM, 0.05f);
     instrument_level(S_KICK, 0.9f);    // the 118 Hz second-mode voice made it fuller; keep the peak off 0 dBFS
-    instrument_level(S_HEAD, 0.75f);
-    instrument_level(S_WIRE, 0.18f);   // the real snare's energy is mostly its 205 Hz tone
+    instrument_level(S_HEAD, 1.0f);    // up 2.5 dB for the RIMSHOT; centre/edge/ghost/x-stick gains come down instead
+    instrument_level(S_WIRE, 0.25f);   // the real snare's energy is mostly its 205 Hz tone (raised with the head, gains lowered)
     instrument_level(S_RIM, 0.80f);
     instrument_level(S_CHICK, 0.25f);
     instrument_level(S_HAT, HAT_LVL);
@@ -233,7 +233,7 @@ static void setup_sound(void) {
     instrument_level(S_BELL, 0.15f);
     instrument_level(S_RIDEB, 0.82f);
     instrument_level(S_CRASH, 0.25f);
-    instrument_level(S_TOMHI, 0.85f); instrument_level(S_TOMLO, 0.9f);
+    instrument_level(S_TOMHI, 1.0f); instrument_level(S_TOMLO, 0.9f);
     int s[] = { S_KICK, S_HEAD, S_WIRE, S_RIM, S_HAT, S_CHICK, S_RIDE, S_CRASH, S_TOMHI, S_TOMLO, S_BELL, S_RIDEB };
     float send[] = { 0.06f, 0.18f, 0.18f, 0.12f, 0.08f, 0.06f, 0.12f, 0.15f, 0.14f, 0.14f, 0.12f, 0.12f };
     for (int i = 0; i < 12; i++) instrument_reverb(s[i], send[i]);
@@ -293,6 +293,22 @@ static void book(int slot, int midi, double t, float gain, int gate, float h, fl
     schedule_note_at(t, midi, slot, 7, gate, &o);
 }
 
+// book with a per-note DAMP (NoteOpts step 1): the ring dies at its own rate instead of being cut by the gate
+static void book_damp(int slot, int midi, double t, float gain, int gate, float h, float tb, float mo, float damp) {
+    gain = clamp(gain, 0.04f, 1.0f);
+#ifdef NO_DAMP
+    damp = 0;
+#endif
+    NoteOpts o = { .gain = gain, .harmonics = h, .timbre = tb, .morph = mo, .damp = damp };
+    schedule_note_at(t, midi, slot, 7, gate, &o);
+}
+// how long a ring should last (seconds) -> the NoteOpts damp that gives it (the engine: tau = 3(1-d)^2 + 0.02)
+static float damp_for(float tau) {
+    if (tau <= 0.02f) return 1.0f;
+    float d = 1.0f - sqrtf((tau - 0.02f) / 3.0f);
+    return d < 0 ? 0 : d;
+}
+
 static void dot(double t, int limb, int kind, float gain, float dev, char sym) {
     dots[ndot % NDOT] = (Dot){ t, cur_bar, step, limb, kind, gain, dev, sym };
     ndot++;
@@ -304,13 +320,15 @@ static void snare_stroke(double t, char tech, float g, float spot) {
     float tb = -0.03f + 0.55f * spot;                    // offset on the head's 0.15 strike position
     switch (tech) {
     case 'S':  // centre: round head + full wires
-        book(S_HEAD, 55, t, g * 0.9f, 70, 0, tb, 0, 0);
-        book(S_WIRE, 60, t, g, 70, 0, 0, 0, 0.25f);
+        // levels: oneshot-compare had the snare 5 dB hot vs the real kit (heads/wires slots were raised for
+        // the rimshot, so these gains carry -5 dB plus that raise)
+        book(S_HEAD, 55, t, g * 0.38f, 70, 0, tb, 0, 0);
+        book(S_WIRE, 60, t, g * 0.40f, 70, 0, 0, 0, 0.25f);
         break;
     case 'E':  // edge: less body, an overtone ring on top, the wires answer less and brighter
-        book(S_HEAD, 55, t, g * 0.50f, 100, 0, tb + 0.50f, 0.05f, 0);
-        book(S_HEAD, 63, t, g * 0.45f, 150, -0.3f, 0.6f, 0, 0);      // the head's upper mode ringing
-        book(S_WIRE, 60, t, g * 0.65f, 130, 0, 0, 0, 0.6f);
+        book(S_HEAD, 55, t, g * 0.21f, 100, 0, tb + 0.50f, 0.05f, 0);
+        book(S_HEAD, 63, t, g * 0.19f, 150, -0.3f, 0.6f, 0, 0);      // the head's upper mode ringing
+        book(S_WIRE, 60, t, g * 0.26f, 130, 0, 0, 0, 0.6f);
         break;
     case 'R':  // rimshot: head and rim at once, a crack on top, the wires bright
         book(S_HEAD, 55, t, g, 90, 0, tb + 0.50f, 0.15f, 0);
@@ -320,14 +338,14 @@ static void snare_stroke(double t, char tech, float g, float spot) {
         break;
     case 'X':  // cross-stick: the stick laid across, a woody tock, hardly any head or wire
         // (CC0 ref: a low knock ~90-120 Hz under a 1.5 kHz click, gone in ~45 ms)
-        book(S_RIM, 91, t, g * 0.3f, 15, -0.1f, 0, 0, 0);
-        book(S_HEAD, 45, t, g * 0.5f, 18, 0, tb + 0.30f, 0, 0);
-        book(S_WIRE, 60, t, g * 0.10f, 18, 0, 0, 0, 0);
+        book(S_RIM, 91, t, g * 0.21f, 15, -0.1f, 0, 0, 0);          // -3 dB: it measured 3 dB hot
+        book(S_HEAD, 45, t, g * 0.26f, 18, 0, tb + 0.30f, 0, 0);
+        book(S_WIRE, 60, t, g * 0.05f, 18, 0, 0, 0, 0);
         break;
     case 'g':  // ghost: a soft tap, mostly wires, short
     default:
-        book(S_HEAD, 55, t, g * 0.55f, 50, 0, tb - 0.05f, 0, 0);
-        book(S_WIRE, 60, t, g, 45, 0, 0, 0, 0);
+        book(S_HEAD, 55, t, g * 0.23f, 50, 0, tb - 0.05f, 0, 0);
+        book(S_WIRE, 60, t, g * 0.40f, 45, 0, 0, 0, 0);
         break;
     }
 }
@@ -337,16 +355,18 @@ static void hat_stroke(double t, bool shank, float g, float open, float spot) {
         // recorded: the pedal picks the take (closed / half / open); the gate chokes it, as the foot does
         int sl = open < 0.12f ? R_HATC : open < 0.55f ? R_HATS : R_HATO;
         int gate = 30 + (int)(900.0f * powf(open, 1.6f));
-        book(sl, 60, t, g * (shank ? 1.15f : 0.8f), gate, 0, 0, 0, 0);
+        book(sl, 60, t, g * (shank ? 1.0f : 0.8f), gate, 0, 0, 0, 0);   // shank ~1.5 dB over the tip (the real kit)
         return;
     }
-    // openness → how long the cymbals ring (the gate) and how much they sizzle (noise)
-    int gate = 16 + (int)(700.0f * powf(open, 1.6f));
+    // openness -> how long the cymbals ring and how much they sizzle (noise). The ring is DAMPED by the foot
+    // (NoteOpts.damp, a natural decay) rather than cut by the gate; the gate stays as a long safety
+    int gate = 40 + (int)(1200.0f * powf(open, 1.6f));
+    float hat_damp = damp_for((16.0f + 700.0f * powf(open, 1.6f)) / 1000.0f + 0.02f);   // measured vs the real hats: closed tip/shank reach -20 dB in ~75/115 ms
     float sizzle = 0.35f * sinf(3.14159f * fminf(open, 1.0f)) - 0.08f * (1.0f - open);
     // tip: a light tick, more noise; shank (the shoulder on the edge): louder, the bank's tone, lower
     // the shank sits HIGHER and broader than the tip on a real hat (3.9/9.1/14.9 kHz vs 2.7/8.2/14.4)
-    if (shank) book(S_HAT, 84, t, g * 1.3f, gate + 12, 0.05f + spot * 0.05f, sizzle * 0.4f - 0.10f, 0, 0);
-    else       book(S_HAT, 81, t, g * 0.70f, gate, spot * 0.05f, sizzle * 0.4f, 0, 0);
+    if (shank) book_damp(S_HAT, 84, t, g * 0.92f, gate + 12, 0.05f + spot * 0.05f, sizzle * 0.4f - 0.10f, 0, hat_damp);
+    else       book_damp(S_HAT, 81, t, g * 0.70f, gate, spot * 0.05f, sizzle * 0.4f, 0, hat_damp);
 }
 
 static void chick(double t, float g) {
@@ -366,8 +386,9 @@ static void kick_stroke(double t, char tech, float g, float spot) {
     // the beater's slap: a tiny high, short voice on the same head (louder when the beater digs in)
     // a real kick (CC0 ref): 54 Hz with a STRONG mode at 118 Hz (2.2x, -3.5 dB), booked as its own voice
     if (tech == 'B') {  // buried: the beater stays in the head, short and slappy
-        book(S_KICK, 31, t, g, 70, 0, 0.30f + spot * 0.05f, 0.10f, 0);
-        book(S_KICK, 44, t, g * 0.55f, 45, 0, 0.30f, 0, 0);
+        // the beater pressing the head DAMPS it (NoteOpts.damp), a natural short decay instead of a gate cut
+        book_damp(S_KICK, 31, t, g, 150, 0, 0.30f + spot * 0.05f, 0.10f, 0.82f);
+        book_damp(S_KICK, 44, t, g * 0.55f, 80, 0, 0.30f, 0, 0.82f);
         book(S_KICK, 72, t, g * 0.8f, 14, 0.2f, 0.85f, -0.3f, 0);
     } else {            // bounced: the head rings, round
         book(S_KICK, 31, t, g, 150, 0, -0.06f + spot * 0.05f, 0, 0);

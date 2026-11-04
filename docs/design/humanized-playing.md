@@ -610,7 +610,12 @@ Engine side this needs `sound_retrig_voice` to cover BOWED and a signed bow velo
    686 / 1307 Hz; damp 1 stops a string in ~50 ms; two OVERLAPPING notes on one sample slot play two
    different slices; release shapes at mid-release -26 / -44 / -49 dB. Notes without the new fields
    take the old path: basshand and synthhand render byte-identical. Acceptance: `strumhand` uses
-   `.cents` (no slot retuning). Still to do with it: `tablahand` / `drumhand` closed strokes via `damp`.
+   `.cents` (no slot retuning); `drumhand` uses `.damp` for the synth hi-hat's openness and the buried kick
+   (a damped ring instead of a gate cut; the closed hat tip reaches -20 dB in 75 ms, the real one 75),
+   with its mix rebalanced by `oneshot-compare` against the same real kit (snare -9.7 vs -10.0 dB to the
+   kick, cross-stick exact, hats within 1 dB; the rimshot still ~5 dB quiet, its gains at the cap).
+   **Found: `.cutoff_oct` cannot merge the ride bow and bell into one slot,** because they want different
+   filter TYPES (low-pass vs band-pass), not different cutoffs: a per-note filter MODE would be needed.
 2. `vib`. Acceptance: `breathflute`'s vibrato on booked notes.
 3. Shapes. Acceptance: `breathflute` fully booked (scoop, swell, fall), the bayan drop booked.
 4. Lanes. Acceptance: `pianohand`'s pedal as `LANE_DAMPER`, `synthhand`'s knob as `LANE_CUTOFF`,
@@ -627,4 +632,6 @@ Engine side this needs `sound_retrig_voice` to cover BOWED and a signed bow velo
   the group.)
 - Curve sample rate (every 32 samples = 0.7 ms) vs cost on a phone with 32 voices.
 - A take index into a sample bank (the choir's ~1000 takes) needs the sample-slot story first.
+- A per-note filter MODE (low-pass / band-pass / high-pass), not only a cutoff: the ride bow and bell
+  want opposite filter types on one cymbal (found while accepting step 1 on `drumhand`).
 

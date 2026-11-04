@@ -19,7 +19,8 @@
 //   RS  a CLICK, not a tone: one swing at ~1.15 kHz over a low knock, gone in 5 ms
 //   HH  noise through a NARROW band at 8.5 kHz (the CR-78 "swish", 8.4 there), held ~25 ms and cut
 //   CY  the same band held long: -9 dB at 90 ms, -20 dB at 255 ms
-//   HB / LB / LC  bare damped sines: 355 / 215 / 140 Hz, -20 dB in 60 / 75 / 110 ms
+//   HB / LB / LC  damped sines settling at 361 / 218 / 145 Hz (each drifts UP as it dies), no DC
+//       thud under them (a resonator rings around zero), -20 dB in 60 / 75 / 110 ms
 //   C   a pure 2.25 kHz ping, -20 dB in 20 ms
 //   TB  a very narrow ring at 4.3 kHz (CR-78: 4.65), -20 dB in ~190 ms
 //   GU  a 6.2 kHz gourd scraped by teeth (INSTR_SCRAPE, the cr78 guiro's recipe)
@@ -61,7 +62,7 @@ static void tr77__exp(int slot, int wave, int rel) {
 static void tr77_build(int base) {
     // BD: 65 Hz, a hair of pitch drop (67 -> 62 Hz measured), the 140 Hz partner 25 dB down
     tr77__exp(base + T77S_BD, INSTR_SINE, 310);
-    instrument_filter(base + T77S_BD, FILTER_LOW, 320, 2);
+    instrument_filter(base + T77S_BD, FILTER_HIGH, 40, 2);    // no DC thud: see the toms below
     instrument_env(base + T77S_BD, 0, ENV_PITCH, 0, 30, 1.0f);
     tr77__exp(base + T77S_BD2, INSTR_SINE, 120);
     instrument_level(base + T77S_BD2, 0.12f);
@@ -86,12 +87,24 @@ static void tr77_build(int base) {
     instrument_filter(base + T77S_CY, FILTER_BAND, 8650, 15);
 
     // bongos / conga: bare damped sines
+    // Two things a bare damped sine gets wrong (2026-11-04, by ear: "a tonal thing"):
+    //  - a RESONATOR's ring has no DC, a switched-on sine does: its first half-swing is never
+    //    cancelled, a low thud under every hit (measured 5-8 dB more energy below 50 Hz than the
+    //    real ones). A gentle highpass an octave under each note takes it out.
+    //  - the real pitch DRIFTS UP as the ring dies (355 -> 361, 216 -> 218, 139 -> 145 Hz): tuned
+    //    to where it settles, started a little flat.
     tr77__exp(base + T77S_HB, INSTR_SINE, 130);
-    instrument_tune(base + T77S_HB, 0.29f);            // F4 349 -> 355 Hz
+    instrument_tune(base + T77S_HB, 0.58f);            // F4 349 -> 361 Hz, where it settles
+    instrument_env(base + T77S_HB, 0, ENV_PITCH, 0, 100, -0.30f);
+    instrument_filter(base + T77S_HB, FILTER_HIGH, 180, 2);
     tr77__exp(base + T77S_LB, INSTR_SINE, 165);
-    instrument_tune(base + T77S_LB, -0.40f);           // A3 220 -> 215 Hz
+    instrument_tune(base + T77S_LB, -0.16f);           // A3 220 -> 218 Hz
+    instrument_env(base + T77S_LB, 0, ENV_PITCH, 0, 120, -0.15f);
+    instrument_filter(base + T77S_LB, FILTER_HIGH, 110, 2);
     tr77__exp(base + T77S_LC, INSTR_SINE, 280);
-    instrument_tune(base + T77S_LC, 0.30f);            // C#3 138.6 -> 140 Hz
+    instrument_tune(base + T77S_LC, 0.78f);            // C#3 138.6 -> 145 Hz
+    instrument_env(base + T77S_LC, 0, ENV_PITCH, 0, 40, -0.50f);
+    instrument_filter(base + T77S_LC, FILTER_HIGH, 75, 2);
 
     // CB: the CR-78 cowbell (a detuned square pair 554 / 784 Hz, lowpassed). NO TR-77 reference
     instrument(base + T77S_CB, INSTR_SQUARE, 0, 55, 0, 25);
@@ -138,8 +151,8 @@ static int tr77__vv(int base, int boost) {
 static void tr77_fire_len(int base, int v, int boost, int delay, int len_ms) {
     switch (v) {
     case TR77_BD:
-        schedule_hit(delay, 36, base + T77S_BD,  tr77__vv(6, boost), 5);
-        schedule_hit(delay, 49, base + T77S_BD2, tr77__vv(6, boost), 5);
+        schedule_hit(delay, 36, base + T77S_BD,  tr77__vv(7, boost), 5);
+        schedule_hit(delay, 49, base + T77S_BD2, tr77__vv(7, boost), 5);
         break;
     case TR77_SD:
         schedule_hit(delay, 65, base + T77S_SDB, tr77__vv(5, boost), 5);
@@ -151,9 +164,9 @@ static void tr77_fire_len(int base, int v, int boost, int delay, int len_ms) {
         break;
     case TR77_HH: schedule_hit(delay, 60, base + T77S_HH, tr77__vv(6, boost), 30); break;
     case TR77_CY: schedule_hit(delay, 60, base + T77S_CY, tr77__vv(6, boost), 90); break;
-    case TR77_HB: schedule_hit(delay, 65, base + T77S_HB, tr77__vv(6, boost), 1); break;   // 355 Hz
-    case TR77_LB: schedule_hit(delay, 57, base + T77S_LB, tr77__vv(6, boost), 1); break;   // 215 Hz
-    case TR77_LC: schedule_hit(delay, 49, base + T77S_LC, tr77__vv(6, boost), 1); break;   // 140 Hz
+    case TR77_HB: schedule_hit(delay, 65, base + T77S_HB, tr77__vv(7, boost), 1); break;   // settles at 361 Hz
+    case TR77_LB: schedule_hit(delay, 57, base + T77S_LB, tr77__vv(7, boost), 1); break;   // settles at 218 Hz
+    case TR77_LC: schedule_hit(delay, 49, base + T77S_LC, tr77__vv(7, boost), 1); break;   // settles at 145 Hz
     case TR77_CB:
         schedule_hit(delay, 79, base + T77S_CB, tr77__vv(4, boost), 150);
         schedule_hit(delay, 73, base + T77S_CB, tr77__vv(3, boost), 150);

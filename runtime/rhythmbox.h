@@ -263,14 +263,14 @@ static const RbLane RB_TR77_L9[] = {
     { "LC+BD", "2 (see note)", RB_HIT, RB_ROLE_DRUM, 0, 0x5151ULL, 0x0ULL },
 };
 static const RbLane RB_TR77_L10[] = {
-    { "GU", "6(+12)", RB_GATE, RB_ROLE_DRUM, RB_PARTIAL, 0x0ULL, 0x0ULL },
+    { "GU", "6(+12)", RB_HIT, RB_ROLE_DRUM, 0, 0xddddULL, 0x0ULL },
     { "M", "20", RB_HIT, RB_ROLE_DRUM, 0, 0xfff5ULL, 0xaULL },
     { "CB+HB", "41", RB_HIT, RB_ROLE_DRUM, 0, 0x7575ULL, 0x0ULL },
     { "LB", "15", RB_HIT, RB_ROLE_DRUM, 0, 0xc0c0ULL, 0x0ULL },
     { "LC", "17", RB_HIT, RB_ROLE_DRUM, 0, 0x4949ULL, 0x0ULL },
 };
 static const RbLane RB_TR77_L11[] = {
-    { "GU", "6(+12)", RB_GATE, RB_ROLE_DRUM, RB_PARTIAL, 0x0ULL, 0x0ULL },
+    { "GU", "6(+12)", RB_HIT, RB_ROLE_DRUM, 0, 0xddddULL, 0x0ULL },
     { "M", "20", RB_HIT, RB_ROLE_DRUM, 0, 0xffffULL, 0x0ULL },
     { "CB+LB", "42'", RB_HIT, RB_ROLE_DRUM, 0, 0x5551ULL, 0x4ULL },
     { "HB", "1", RB_HIT, RB_ROLE_DRUM, 0, 0xaaaaULL, 0x0ULL },

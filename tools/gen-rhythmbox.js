@@ -252,6 +252,11 @@ function selfcheck(sets) {
   T('TR77 Rhumba C lane = rumba clave 0,3,6,10,12',
     on(lane(find('RB_TR77', /^RHUMBA$/), 'C')), [0, 3, 6, 10, 12]);
   // TR-77, doc §3.1: hatched columns are states the rhythm skips, so nothing may fall there
+  // TR-77, doc §8.2: the cha-cha guiro is drawn as bars (long, short-short per beat), encoded as
+  // the stroke STARTS; MAMBO prints the same figure
+  T('TR77 Cha-Cha + Mambo GU = stroke starts 0,2,3,4,6,7,8,10,11,12,14,15',
+    ['CHA-CHA', 'MAMBO'].map(n => on(lane(find('RB_TR77', new RegExp('^' + n + '$')), 'GU'))),
+    [[0,2,3,4,6,7,8,10,11,12,14,15], [0,2,3,4,6,7,8,10,11,12,14,15]]);
   T('TR77 no mark ever falls on a hatched column',
     sets.find(s => s.mach.id === 'RB_TR77').rhythms.flatMap(r =>
       r.lanes.flatMap(l => on(l).filter(c => (r.unused >> BigInt(c)) & 1n))), []);

@@ -36,6 +36,7 @@ listen, repeat.** The numbers find the fault; the ear decides whether it is fixe
 | "a locomotive", a drone on eighth notes | the ride stem louder than the kick, pulsing | **one physical cymbal = one voice** (`instrument_mono`); and a ride needs a bright shimmer layer, not only a low body |
 | "woodblock" | a rim that rings a pitched tone for 10+ ms | a rim is a **click**: one swing and a damped ring, gone in ~5 ms |
 | a kick/tom with no character | a missing strong mode ~2x up (real: 1-5 dB under the fundamental) | book the second mode as its own quieter voice |
+| a dull boom under a tom/kick that matches on every other number | 5-17 dB more energy below 50 Hz than the real one: a switched-on decaying SINE leaves a DC thud a resonator does not have (TR-77) | a gentle **highpass** an octave under the note |
 | the 909's ROM hats sounding like FM | FM sidebands at 8-21 kHz whatever the filter | the METAL bank, low-passed |
 | a knob that "stops working" halfway | decay stopped growing above the middle | the slot's own decay envelope caps any gate: set the slot's decay **per hit** from a table measured at the real knob's marks |
 | a tune knob that sweeps octaves | real tom/snare tune spans ~2-10 semitones, unevenly | a measured table per voice |

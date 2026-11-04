@@ -252,9 +252,15 @@ void update(void) {
                 int run = 1;
                 if (r->lane[l].kind == RB_GATE)
                     while (run < nord && rb_hit(r, l, order[(sidx + run) % nord])) run++;
+                // the guiro's stroke runs to half a column before the next one: the chart draws
+                // it as bars (doc §8.2, CHA-CHA), long, short-short
+                int gap = 1;
+                while (gap < nord && !rb_hit(r, l, order[(sidx + gap) % nord])) gap++;
                 int tv[2], n = tr77_lane(r->lane[l].label, tv);
-                for (int i = 0; i < n; i++)
-                    tr77_fire_len(TR77_BASE, tv[i], 0, 0, (int)(run * period * 1000.0f));
+                for (int i = 0; i < n; i++) {
+                    float hold = (tv[i] == TR77_GU) ? (gap - 0.5f) : (float)run;
+                    tr77_fire_len(TR77_BASE, tv[i], 0, 0, (int)(hold * period * 1000.0f));
+                }
             } else if (ro & RB_ROLE_DRUM) {
                 sideman_fire(SIDEMAN_BASE, lane_voice(l), 0, 0);
             }

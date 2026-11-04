@@ -1067,15 +1067,25 @@ EXPONENTIAL release (release ~2.2x the -20 dB time).
 
 | voice | recipe | -20 dB | level |
 |---|---|---|---|
-| bass drum | SINE 65 Hz (C2), +1 st pitch blip, LP 320; a 140 Hz partner 25 dB down | 110 / 115 ms | ref |
+| bass drum | SINE 65 Hz (C2), +1 st pitch blip, HIGHPASS 40 (no DC thud); a 140 Hz partner 25 dB down | 125 / 115 ms | ref |
 | snare | SINE 355 Hz shell at level .40 + NOISE through LP 9 kHz res 4 | 65 / 70 ms | +0.5 / +0.3 |
 | rim shot | TRI note 86 (1175 Hz) through BAND 1100 res 5, 2 ms gate, + a faint 55 Hz knock | 5 / 5 ms | -0.3 / +0.4 |
 | hi-hat / cymbal | NOISE through BAND 8550 / 8650 res 15, gate 30 / 90 ms | 30 / 35, 215 / 255 ms | -5.2 / -4.8 |
-| high bongo / low bongo / low conga | bare SINE 355 / 215 / 140 Hz | 60 / 75 / 115 ms | +0.5 / +0.4 |
+| high bongo / low bongo / low conga | SINE settling at 361 / 218 / 145 Hz, started 0.3 / 0.15 / 0.5 st flat (the real pitch drifts UP as it dies), HIGHPASS an octave under each | 60 / 75 / 120 ms | +0.7 / +0.4 |
 | claves | SINE 2250 Hz | 20 / 20 ms | +0.5 / +0.4 |
 | tambourine | NOISE through BAND 4340 res 15 (`TB'` = the same, 5 dB softer) | 175 / 190 ms | -9.2 / -8.9 |
 | guiro | INSTR_SCRAPE, the cr78 gourd (75 teeth/s) | | -12.2 / -12.0 |
 | cowbell, maracas | **no TR-77 reference**: the CR-78's recipes, at its balance (-9.2 / -6.6) | | |
+
+What it taught, part two ("a tonal thing", by ear, after the levels all matched): **a switched-on decaying
+sine is not a resonator.** A bridged-T rings around zero; a sine started at phase 0 leaves its first
+half-swing uncancelled, a DC thud under every hit (5-8 dB more energy below 50 Hz on the toms, 17 dB more
+at 20 Hz on the kick). A gentle highpass under the note takes it out, and that was the missing magic,
+not the levels. Measure the sub band (below 50 Hz, re the hit's total) of any membrane voice built this way.
+And the real toms' pitch drifts UP a few cents to a third of a semitone as the ring dies.
+
+The guiro plays from 2026-11-04: CHA-CHA and MAMBO's guiro lane was drawn as BARS (long, short-short per
+beat) and left empty in the data; it is now the stroke starts, each held to half a column before the next.
 
 What it taught: the TR-77 kick, hats and tambourine are the CR-78's circuits a few percent apart (65 Hz,
 8.4-8.5 kHz, 4.3-4.65 kHz), so the CR-78 recipes were the right starting point. And a click voice must

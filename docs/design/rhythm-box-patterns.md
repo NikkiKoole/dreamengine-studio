@@ -709,16 +709,25 @@ LC+BD   trig 2 (see note) x...x.x.x...x.x.     (0,4,6,8,12,14)
 
 **CHA-CHA**
 ```
-GU     trig 6(+12)  SUSTAINED BARS, not dots - see prose below
+GU     trig 6(+12)  x.xxx.xxx.xxx.xx     (STROKE STARTS of drawn bars, see prose below)
 M      trig 20      x?x?xxxxxxxxxxxx     (0,2,4..15 certain; cols 1 and 3 UNCERTAIN)
 CB+HB  trig 41      x.x.xxx.x.x.xxx.     (0,2,4,5,6,8,10,12,13,14)
 LB     trig 15      ......xx......xx     (6,7,14 certain; col 15 faint but present)
 LC     trig 17      x..x..x.x..x..x.     (0,3,6,8,11,14)
 ```
 
+The **GU lane is drawn as BARS, not dots** (re-read off the 300 dpi page, 2026-11-04; the prose this
+note once promised was never written, so the lane was empty until then). Per beat: one LONG bar
+from the beat's column running about 1.5 columns, then two SHORT bars of about half a column on its
+3rd and 4th columns, the cha-cha guiro's long, short-short. Every bar starts on a column line and
+ends half a column before the next one starts, so the lane is encoded as the stroke STARTS
+(0,2,3,4,6,7,...) and a player holds each stroke for (gap to the next start - half a column).
+Holding the marks as one gate would merge the two shorts into one stroke, which is why it is not
+written that way. MAMBO prints the identical figure.
+
 **MAMBO**
 ```
-GU     trig 6(+12)  SUSTAINED BARS - same figure as CHA-CHA (see below)
+GU     trig 6(+12)  x.xxx.xxx.xxx.xx     (the same bars as CHA-CHA, re-read 2026-11-04)
 M      trig 20      xxxxxxxxxxxxxxxx     (all 16 - every column verified by eye at high zoom)
 CB+LB  trig 42'     x.?.x.x.x.x.x.x.     (0,4,6,8,10,12,14; col 2 UNCERTAIN)
 HB     trig 1       .x.x.x.x.x.x.x.x     (ALL EIGHT ODD columns 1,3,5,7,9,11,13,15)

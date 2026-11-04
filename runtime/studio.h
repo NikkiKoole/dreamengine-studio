@@ -372,7 +372,7 @@ void map_scale(int n);                                  // integer zoom for map 
 #define SAMPLE_PINGPONG 3  // bounce forward/backward between the chop ends while held
 
 void sfx(int n);                              // play sfx slot n; -1 stops all sfx
-void note(int midi, int instr, int vol);                  // one-shot note (250ms). vol 0..7. `instr` is an instrument slot (0..4 are the waves above; define 5..47 yourself)
+void note(int midi, int instr, int vol);                  // one-shot note (250ms). vol 0..7. `instr` is an instrument slot (0..4 are the waves above; define 5..127 yourself)
 void hit(int midi, int instr, int vol, int dur_ms);       // note with custom duration — closed hihat ~30ms, open ~200ms
 
 // held notes — start a sustained voice and drive it live; the opposite of fire-and-forget note()
@@ -431,7 +431,7 @@ float sync_beats(void);                                   // beats since the clo
 float sync_bpm(void);                                     // the external clock's tempo (0 if none) — show it, or feed your tempo-synced delay
 
 // instruments — give a slot a waveform + ADSR envelope, then play it like any wave: note(midi, slot, vol)
-void instrument(int slot, int wave, int attack_ms, int decay_ms, int sustain, int release_ms); // define slot 5..47: ms timings, sustain 0..7. pluck = fast attack+short release; pad = slow attack+long release. ⚠ REDEFINING a slot does NOT clear what else was attached to it: instrument_env/_lfo/_filter/_drive/_level/_pan and the sends all SURVIVE. Reusing a slot for a different voice inherits the old one's modulation, silently (it cost the sideman brush two stale ENV_CUTOFF sweeps). Switch each one off by amount, or use a fresh slot
+void instrument(int slot, int wave, int attack_ms, int decay_ms, int sustain, int release_ms); // define slot 5..127: ms timings, sustain 0..7. pluck = fast attack+short release; pad = slow attack+long release. ⚠ REDEFINING a slot does NOT clear what else was attached to it: instrument_env/_lfo/_filter/_drive/_level/_pan and the sends all SURVIVE. Reusing a slot for a different voice inherits the old one's modulation, silently (it cost the sideman brush two stale ENV_CUTOFF sweeps). Switch each one off by amount, or use a fresh slot
 void wave_set(int which, const float *samples, int n);    // fill custom wave INSTR_USER0+which (which 0..3) with one drawn cycle: n samples in -1..1, resampled to 64. Live — a ringing note morphs as you redraw
 void instrument_duty(int slot, float duty);               // pulse width 0.0..1.0 for a square-wave slot (0.5 = square, 0.12 = thin/nasal). no effect on other waves
 void instrument_pan(int slot, float pan);                 // stereo position for a slot: -1 left .. 0 center (default) .. +1 right. voices inherit at note-on. sweep live with note_pan or LFO_PAN

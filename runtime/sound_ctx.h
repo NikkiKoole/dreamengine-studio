@@ -27,7 +27,7 @@
 #define SOUND_VOICES       32   // polyphony (8→16→32; needs SOUND_HANDLE_BITS≥5). ~9-10KB/voice .bss; CPU is the real cost (every active voice runs per-sample) — long-ringing modal/Karplus engines + chords starved 16
 #define SOUND_SFX_STEPS    32
 #define SOUND_SFX_SLOTS    32
-#define SOUND_INSTR_SLOTS  48   // 0-4 = the raw waves; 5-47 cart-defined (rich patch carts like modrack want banks per wave + many macro engines). ~200B/slot
+#define SOUND_INSTR_SLOTS  128  // 0-4 = the raw waves; 5-127 cart-defined (rich patch carts like modrack want banks per wave + many macro engines; Playtime's drum jam wants an 808 + a 909 beside a full band). ~430 B/slot (Instrument 344 + the lanes + the sing mirrors): 128 slots = ~55 KB. Was 48 until 2026-11-04
 #define SOUND_KS_MAX       1024   // Karplus-Strong delay line cap (~4KB/voice) — bottoms out around 43Hz / MIDI 29
 #define SOUND_MODAL_MAX    12     // INSTR_MODAL resonator budget (4 is the floor; MODE_MODAL_MODES spends this)
 #define SOUND_MME_BANDS    20     // INSTR_MME vocoder model: filter-bank width (Warps' 20)
@@ -93,7 +93,7 @@ typedef struct {
                                     // sounding voice each sample — fire-and-forget hits bend too. default 1
     int   uni_voices;               // UNISON stack: 1 = off (default), 2..7 = N detuned wavetable copies summed (instrument_unison)
     float uni_detune;               // unison spread in semitones (edge voices at ±this); read LIVE per sample like tune_mul. default 0
-    uint32_t choke_mask;            // bitmask: bit N set = a new note on this slot kills active voices on slot N
+    uint32_t choke_mask[(SOUND_INSTR_SLOTS + 31) / 32];   // bitmask: bit N (word N>>5, bit N&31) set = a new note on this slot kills active voices on slot N. Was ONE uint32_t for 48 slots: a choke aimed at slot 32-47 shifted by >= 32 bits (UB; on arm64/x86/wasm it wrapped and also choked slot N-32)
     int   smp_idx;                  // INSTR_SAMPLE: which sound_samples[] slot to play; -1 = none (default). Set by instrument_sample()
     float smp_root;                 // INSTR_SAMPLE: the buffer's root freq (Hz) — the pitch at playback speed 1.0
     float smp_start, smp_end;       // INSTR_SAMPLE: the CHOP — play from start..end as fractions 0..1 (default 0,1 = whole). instrument_sample_region()
@@ -107,7 +107,7 @@ typedef struct {
                                     // Hammond percussion must be single, a flute's chiff must be multi.
     float acc_amt[6];               // ACCENT ROUTES (instrument_accent), indexed by ACC_VOL..ACC_CUTOFF: how hard an
     int   mono;                     // MONO (instrument_mono): a new note cuts this slot's own sounding voices — one voice,
-                                    // like a TB-303. NOT choke_mask, which is 32 bits for 48 slots and cannot be cleared.
+                                    // like a TB-303. NOT choke_mask, which cannot be cleared.
     unsigned acc_set;               // accented booked note pushes each one. A route whose acc_set bit is CLEAR uses the
                                     // ENGINE'S DEFAULT (sound_accent_default), so accent works with no setup at all.
 } Instrument;

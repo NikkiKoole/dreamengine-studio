@@ -15,6 +15,12 @@ _Last updated: 2026-10-29 — INSTR_SCRAPE: a guiro with teeth. See the top Ship
 
 ## Shipped ✓
 
+- **128 instrument slots (was 48), and a choke mask wide enough for them** (2026-11-04). For Playtime's
+  drum jam (an 808 + a 909 beside a full band). `choke_mask` was ONE uint32_t for 48 slots, so a choke
+  aimed at slot 32-47 shifted by >= 32 bits (UB; in practice it wrapped and also choked slot N-32); now one
+  bit per slot. +36 KB static data. 24 carts (every choke user + every booked cart) byte-identical;
+  instance-check + state-check pass.
+
 - **NoteOpts.filter: a booked note's own filter TYPE** (2026-11-04). `FILTER_*` per note (0 = the
   slot's, `NOTE_FILTER_OFF` = none), latched at note-on, free per sample. `wahhand` (funk guitar,
   scratch high-pass / stab band-pass / hold low-pass under a wah lane) renders byte-identical to the

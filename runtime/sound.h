@@ -7435,15 +7435,20 @@ static void fx_chain_ensure(int b, int fx) {
 // (choke_fade), not a hard stop — the voice keeps ringing while it ramps out, so no click.
 // Was inlined verbatim at SR_NOTE / SR_NOTE_ON / SR_HIT_AT.
 static void sound_choke_group(int instr_slot) {
-    uint32_t cmask = (instr_slot >= 0 && instr_slot < SOUND_INSTR_SLOTS) ? instr_bank[instr_slot].choke_mask : 0;
+    const uint32_t *cmask = (instr_slot >= 0 && instr_slot < SOUND_INSTR_SLOTS) ? instr_bank[instr_slot].choke_mask : NULL;
+    bool any = false;
+    if (cmask) for (int w = 0; w < (SOUND_INSTR_SLOTS + 31) / 32; w++) if (cmask[w]) { any = true; break; }
+    if (!any) cmask = NULL;
     // MONO (instrument_mono): the slot also cuts ITSELF — every voice of it still sounding, released or not,
     // fades out over the same ~3 ms as a choke, so the new note is the only one. A legato note never gets
     // here (sound_legato_to slides the sounding voice instead), so slide and mono compose: a 303.
     bool mono = instr_slot >= 0 && instr_slot < SOUND_INSTR_SLOTS && instr_bank[instr_slot].mono;
     if (!cmask && !mono) return;
     for (int i = 0; i < SOUND_VOICES; i++) {
+        int vs = voices[i].instr_slot;
+        bool choked = cmask && vs >= 0 && vs < SOUND_INSTR_SLOTS && ((cmask[vs >> 5] >> (vs & 31)) & 1u);
         if (voices[i].active && !voices[i].choke_fade
-            && (((cmask >> voices[i].instr_slot) & 1) || (mono && voices[i].instr_slot == instr_slot && voices[i].sfx_idx < 0))) {
+            && (choked || (mono && voices[i].instr_slot == instr_slot && voices[i].sfx_idx < 0))) {
             if (voices[i].held && voices[i].owner_slot >= 0) held_voice[voices[i].owner_slot] = -1;
             voices[i].choke_fade = CHOKE_FADE_LEN;   // ramp out over ~3ms (applied in the voice loop) → no cliff
 #ifdef DE_TRACE
@@ -7790,7 +7795,7 @@ static void sound_fire_req(SoundReq r) {
     } break;
     case SR_INSTR_CHOKE: {  // a=slot_a, b=slot_b
         if (r.a >= 0 && r.a < SOUND_INSTR_SLOTS && r.b >= 0 && r.b < SOUND_INSTR_SLOTS)
-            instr_bank[r.a].choke_mask |= (1u << r.b);
+            instr_bank[r.a].choke_mask[r.b >> 5] |= (1u << (r.b & 31));
     } break;
     case SR_INSTR_MONO: {   // a=slot, b=on
         if (r.a >= 0 && r.a < SOUND_INSTR_SLOTS) instr_bank[r.a].mono = r.b ? 1 : 0;

@@ -85,6 +85,7 @@ typedef struct {
     int   bow_body;                 // INSTR_BOWED shared body: 0 = unclaimed, 1.. = bow_bodies[] index+1 (same "0 = none" convention as fx_bus)
     float pan;                      // stereo position -1 L .. 0 center .. +1 R; default 0 = center (linear law, stereo.md)
     float level;                    // per-slot output level (instrument_level); read LIVE at mix. 1.0 = unity/byte-identical bypass, <1 trims — the mixer leg drive/echo/reverb/pan already had
+    float vib_amt;                  // BUILT-IN VIBRATO amount (instrument_vibrato) for PIPE/REED/BOWED/BRASS; read LIVE per sample. 1 = as the engine plays it (byte-identical), 0 = off
     float tune_mul;                 // slot detune as a freq factor (2^(semis/12)); read LIVE by every
                                     // sounding voice each sample — fire-and-forget hits bend too. default 1
     int   uni_voices;               // UNISON stack: 1 = off (default), 2..7 = N detuned wavetable copies summed (instrument_unison)
@@ -767,6 +768,7 @@ typedef enum {
     SR_REVERB_BUS_INTO = 158, // a=tank 1..2, b=lead slot (-1 = master) — the tank's bus folds into the lead's bus (reverb_bus_into)
     SR_INSTR_FX_FILTER = 159, // a=slot, b=mode, c=cutoff_hz, e0=res*1000 — filter() on one instrument's (or group's) BUS (instrument_fx_filter)
     SR_INSTR_MONO = 160,      // a=slot, b=on — MONO: a new note on this slot cuts the slot's sounding voices (instrument_mono)
+    SR_INSTR_VIBRATO = 162,   // a=slot, b=amount*1000 — scale the engine's built-in vibrato (instrument_vibrato), read LIVE
     SR_UNSCHEDULE = 161,      // a=slot, e0/e1 = ABSOLUTE window [from, to) in samples (low 31 bits, as SR_NOTE_AT), e2=1 open-ended —
                               // drop the slot's booked notes that have not STARTED in that window (unschedule). An EVENT kind.
 } SoundReqKind;

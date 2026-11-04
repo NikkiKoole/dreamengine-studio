@@ -2191,7 +2191,7 @@ static CtxKey sound_ctx_key(SoundReqKind k) {
         case SR_EQ_INST: case SR_CRUSH_INST: case SR_TAPE_INST: case SR_FILTER_INST: case SR_DRIVE_INST:
         case SR_INSTR_GLIDE: case SR_INSTR_GLIDE_SCALE: case SR_INSTR_TRIGGER:   // a=slot, like their neighbours
         case SR_INSTR_TAPE_WARBLE: case SR_INSTR_GRAINS_REPEAT: case SR_INSTR_WIDTH:
-        case SR_INSTR_GROUP: case SR_REVERB_BUS_INTO: case SR_INSTR_FX_FILTER: case SR_INSTR_MONO:   // a=slot / a=tank
+        case SR_INSTR_GROUP: case SR_REVERB_BUS_INTO: case SR_INSTR_FX_FILTER: case SR_INSTR_MONO: case SR_INSTR_VIBRATO:   // a=slot / a=tank
             return CTXK_KA;
         // a+b name the target
         case SR_WAVE_SET:                          // a=which table, b=start index (chunked writes)
@@ -4318,6 +4318,7 @@ static inline float sound_reed_sample(Voice *v, float pitch_mul) {
     v->rd_vib_ph += (5.2f + 0.9f * wob) / SR;              // vibrato rate drifts ~4.3..6.1 Hz
     if (v->rd_vib_ph >= 1.0f) v->rd_vib_ph -= 1.0f;
     float vib = de_sin_turns(v->rd_vib_ph) * vibd * (0.8f + 0.2f * wob);   // depth breathes too
+    vib *= (v->instr_slot >= 0) ? instr_bank[v->instr_slot].vib_amt : 1.0f;   // instrument_vibrato: 1 = as is (x1.0f exactly), 0 = off
     // breath turbulence — the "air" in the tone, the #1 cue that this is a REAL wind instrument
     // (navkit omits it, so the bare port reads as a synth tooter). Lightly LP the white noise
     // (airy, not hissy), scale by breath pressure so it vanishes when not blowing, add to the
@@ -4452,6 +4453,7 @@ static inline float sound_pipe_sample(Voice *v, float pitch_mul) {
     float wob = de_sin_turns(v->pp_drift_ph);
     v->pp_vib_ph += (5.0f + 0.8f * wob) / SR; if (v->pp_vib_ph >= 1.0f) v->pp_vib_ph -= 1.0f;
     float vib = de_sin_turns(v->pp_vib_ph) * (0.6f + 0.4f * wob);
+    vib *= (v->instr_slot >= 0) ? instr_bank[v->instr_slot].vib_amt : 1.0f;   // instrument_vibrato: 1 = as is (x1.0f exactly), 0 = off
     // breath turbulence — the flute IS air; resonate filtered noise through the bore + a slow drift
     float wn = voice_white(v);
     v->pp_noise_lp += 0.6f * (wn - v->pp_noise_lp);
@@ -4598,6 +4600,7 @@ static inline float sound_bowed_sample(Voice *v, float pitch_mul) {
     float wob = de_sin_turns(v->bw_drift_ph);
     v->bw_vib_ph += (5.3f + 0.8f * wob) / SR; if (v->bw_vib_ph >= 1.0f) v->bw_vib_ph -= 1.0f;
     float vib = de_sin_turns(v->bw_vib_ph) * (0.6f + 0.4f * wob);
+    vib *= (v->instr_slot >= 0) ? instr_bank[v->instr_slot].vib_amt : 1.0f;   // instrument_vibrato: 1 = as is (x1.0f exactly), 0 = off
     // bow noise (rosin grip texture) + a slow drift on the bow speed — navkit omits both
     float wn = voice_white(v);
     v->bw_noise_lp += 0.5f * (wn - v->bw_noise_lp);
@@ -4769,6 +4772,7 @@ static inline float sound_brass_sample(Voice *v, float pitch_mul) {
     float wob = de_sin_turns(v->br_drift_ph);             // slow wander, shared by rate + depth
     v->br_vib_ph += (5.4f + 0.9f * wob) / SR; if (v->br_vib_ph >= 1.0f) v->br_vib_ph -= 1.0f;
     float vib = de_sin_turns(v->br_vib_ph) * vibd * (0.8f + 0.2f * wob);
+    vib *= (v->instr_slot >= 0) ? instr_bank[v->instr_slot].vib_amt : 1.0f;   // instrument_vibrato: 1 = as is (x1.0f exactly), 0 = off
     // breath turbulence — the "air" cue (reed pattern); resonate filtered noise through the bore + drift
     float wn = voice_white(v);
     v->br_noise_lp += 0.5f * (wn - v->br_noise_lp);
@@ -8119,6 +8123,12 @@ static void sound_fire_req(SoundReq r) {
         if (x < 0.0f) x = 0.0f;
         instr_bank[slot].level = x;
     } break;
+    case SR_INSTR_VIBRATO: {  // a=slot, b=amount*1000 — the built-in vibrato of PIPE/REED/BOWED/BRASS, read LIVE
+        int slot = r.a;
+        if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
+        float x = r.b / 1000.0f;
+        instr_bank[slot].vib_amt = x < 0.0f ? 0.0f : x > 2.0f ? 2.0f : x;
+    } break;
     case SR_INSTR_SAMPLE: {  // a=slot, b=sample slot, c=root freq(Hz)*1000 — bind INSTR_SAMPLE to a recorded buffer
         int slot = r.a;
         if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
@@ -9137,6 +9147,16 @@ void instrument_level(int slot, float gain) {
     if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
     if (gain < 0.0f) gain = 0.0f;
     sound_push_ctrl(SR_INSTR_LEVEL, slot, (int)(gain * 1000.0f), 0, 0, 0, 0);
+}
+
+// The BUILT-IN VIBRATO that PIPE, REED, BOWED and BRASS give every note (wandering rate and depth,
+// from the first sample). 1 = as the engine plays it (the default, byte-identical), 0 = off so a cart
+// can play its OWN with note_lfo(LFO_PITCH), up to 2 = twice as deep. Read LIVE per sample, so riding
+// it fades a vibrato in on a slot's sounding notes (2026-11-04, design/humanized-playing.md §4.1).
+void instrument_vibrato(int slot, float amount) {
+    if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
+    if (amount < 0.0f) amount = 0.0f;
+    sound_push_ctrl(SR_INSTR_VIBRATO, slot, (int)(amount * 1000.0f), 0, 0, 0, 0);
 }
 
 // ── PCM sampler (mic-and-sampling.md) ────────────────────────────────────────
@@ -10706,6 +10726,7 @@ static void sound_reset_state(void) {
         instr_bank[i].echo       = 0.0f;   // dry until instrument_echo() — old carts unchanged
         instr_bank[i].reverb     = 0.0f;   // dry until instrument_reverb() — old carts unchanged
         instr_bank[i].level      = 1.0f;   // unity until instrument_level() — old carts byte-identical
+        instr_bank[i].vib_amt    = 1.0f;   // built-in vibrato as the engine plays it until instrument_vibrato()
         instr_bank[i].gl_ms      = 0;      // no portamento until instrument_glide() — old carts unchanged
         instr_bank[i].gl_scale   = 0.0f;   // constant time (the byte-identical path skips powf entirely)
         instr_bank[i].trig       = TRIG_MULTI;  // every note gets its onset — the shipped behaviour

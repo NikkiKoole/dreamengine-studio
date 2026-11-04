@@ -436,6 +436,7 @@ void wave_set(int which, const float *samples, int n);    // fill custom wave IN
 void instrument_duty(int slot, float duty);               // pulse width 0.0..1.0 for a square-wave slot (0.5 = square, 0.12 = thin/nasal). no effect on other waves
 void instrument_pan(int slot, float pan);                 // stereo position for a slot: -1 left .. 0 center (default) .. +1 right. voices inherit at note-on. sweep live with note_pan or LFO_PAN
 void instrument_level(int slot, float gain);              // per-slot output LEVEL 0..1 — 1 = unity (default, byte-identical), 0.5 ≈ half, 0 = silent. balance a multi-part mix; ride it live like drive/echo. the level leg of the per-slot mixer (drive/echo/reverb/pan)
+void instrument_vibrato(int slot, float amount);  // the BUILT-IN vibrato of PIPE/REED/BOWED/BRASS: 1 = as the engine plays it (default), 0 = off (play your own with note_lfo), up to 2 = deeper. LIVE: ride it to fade a vibrato in. instrument_vibrato(slot, 0);
 void instrument_glide(int slot, int ms);                   // PORTAMENTO for this patch — every note from this slot slides over `ms` (0 = snap, the default). the per-slot twin of note_glide
 void instrument_glide_scale(int slot, float amount);       // GLIDE SCALE for this patch: 0 = every interval takes the same time (default), GLIDE_ANALOG, 1 = `ms` per octave
 void instrument_trigger(int slot, int mode);               // TRIG_MULTI (default) = every note gets its attack transient; TRIG_SINGLE = only when no other key on this instrument is down (the real Hammond percussion rule)

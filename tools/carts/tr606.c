@@ -15,7 +15,7 @@
   ],
   "lineage": "Roland TR-606 (1981), the TB-303's silver sibling — completes the Roland classic-machine family (cr78/tr808/tr909/tb303/sh101). Metal bank + dual-bandpass cymbal modeled from circuit-analysis MEASURED values; kick/snare/toms are the documented circuit topologies (double twin-T + TONE, single twin-T + snappy, resonator + rumble) ear-tuned to reference. Chassis copied from tr808.c.",
   "homage": "Roland TR-606 Drumatix (1981)",
-  "description": "The tin insect — Roland's TR-606 Drumatix (1981), sold as the TB-303's matching silver sibling (\"your rhythm section in two boxes\"). Thin snappy kick, papery snare, and the jewel-box hats half of electro and all of Aphex Twin ran on. Built from the real circuit: the six-oscillator metal bank at the circuit-analysis frequencies (246.4/308/367/418.2/440.4/627.2 Hz — note the beating 418+440 pair), hats and cymbal shimmer through the schematic's 7.1kHz BANDPASS (not the 808's highpass) with the cymbal body through its own 3.44kHz path, the kick as the schematic's DOUBLE twin-T (two detuned resonators beating, TONE knob crossfades them — no 808 boom), single-mode twin-T snare under bright snappy noise, toms with the low rumble burst, and two documented quirks: the open hat's decay is TEMPO-LINKED (faster song = shorter ring, like the hardware), and the closed hat fires the shut-off circuit (chokes the open hat). Stock panel is austere like the real thing — volume and ACCENT were the only controls — so the per-voice TUNE/DECAY/character knobs hide behind MODS, the drilled-pots mod culture as a toggle. Six presets (Drumatix, Acid Pair, Skitter, Electro, Tom Dance, Sparse), accent row, anachronistic swing. Q-U play voices, LEFT/RIGHT preset, UP/DOWN tempo, SPACE start/stop, Z/X swing, M mods, MOUSE edits the grid / accent strip / knobs."
+  "description": "The tin insect — Roland's TR-606 Drumatix (1981), sold as the TB-303's matching silver sibling (\"your rhythm section in two boxes\"). Thin snappy kick, papery snare, and the jewel-box hats half of electro and all of Aphex Twin ran on. Voiced against a real TR-606 (one-shots measured pitch, band and decay): a single ~54 Hz twin-T kick (TONE brings in the second resonator, no 808 boom), a 226 Hz snare tone over dark noise, toms with the low rumble burst, hats and cymbal as the metal bank's dense hiss through a resonant band around 7 kHz, every voice falling off exponentially like the hardware, and two documented quirks: the open hat's decay is TEMPO-LINKED (faster song = shorter ring, like the hardware), and the closed hat fires the shut-off circuit (chokes the open hat). Stock panel is austere like the real thing — volume and ACCENT were the only controls — so the per-voice TUNE/DECAY/character knobs hide behind MODS, the drilled-pots mod culture as a toggle. Six presets (Drumatix, Acid Pair, Skitter, Electro, Tom Dance, Sparse), accent row, anachronistic swing. Q-U play voices, LEFT/RIGHT preset, UP/DOWN tempo, SPACE start/stop, Z/X swing, M mods, MOUSE edits the grid / accent strip / knobs."
 }
 de:meta */
 #include "studio.h"
@@ -28,7 +28,10 @@ de:meta */
 // is thin, wiry and fast: a tin insect that thinks it's a drummer. Detroit
 // electro, the acid revival, and Aphex Twin ran on it. Sibling cart to
 // tr808.c (same editable grid + swing knob); all-analog, and the metal side
-// has been circuit-analyzed to component level, so those values are MEASURED:
+// has been circuit-analyzed to component level, so those values are MEASURED.
+// (2026-11-04: the SOUND was then re-voiced against real TR-606 one-shots,
+// see the note above fire(): one ~54 Hz kick, noise-through-a-band metal,
+// exponential decays. The circuit notes below are why, not what plays.)
 //
 //   the metal bank — cymbal and hats share ONE bank of six Schmitt-trigger
 //     squares at 246.4 / 308.0 / 367.0 / 418.2 / 440.4 / 627.2 Hz (MIDI
@@ -253,98 +256,95 @@ static int vv(int base, int boost) {
     return v < 0 ? 0 : (v > 7 ? 7 : v);
 }
 
-// fire one voice `delay` ms from now. Layered hits follow the schematic:
-// kick = TWO twin-T resonators (TONE crossfades), snare = one mode + snappy,
-// metal = bank members MB1-MB6 into the 7100/3440Hz bandpass paths.
+// fire one voice `delay` ms from now.
+// VOICED AGAINST A REAL TR-606 (2026-11-04, one-shots measured with tools/oneshot-compare.js; the set
+// is normalized, so it rules pitch / spectrum / envelope, not level). Three things it said:
+//   - EVERY voice decays EXPONENTIALLY (the level falls in a straight line in dB: the kick ~2 dB per
+//     10 ms, the snare ~5, the open hat a slow ~0.6 per 40 ms out to nearly a second), so each is a
+//     short gate into an exponential release, its length from the voice's DECAY knob (release ~2.2x
+//     the -20 dB time), the slot redefined per hit. Straight-line ADSRs held the hits up too long.
+//   - the kick is ONE ~54 Hz tone (no 87 Hz partner), the snare mostly its 226 Hz tone with a dark
+//     noise 24 dB under it, the toms 151 / 205 Hz.
+//   - the cymbal and hats are the metal bank heard as a dense HISS around 7.5 kHz (peaks 7741 / 7257),
+//     not two squares through a highpass (which put them at 13-20 kHz); NOISE through a resonant band.
+//     The cymbal is a burst that drops 10 dB in 40 ms over a long slow tail: two layers.
+static void hit_exp(int slot, int wave, int midi, int vol, int delay, int rel) {
+    instrument(slot, wave, 0, 0, 7, rel < 5 ? 5 : rel);      // keeps filter / env / release shape
+    schedule_hit(delay, midi, slot, vol, 5);
+}
 static void fire(int v, int boost, int delay) {
     switch (v) {
-    case V_BD: {  // double twin-T: 65Hz + 87Hz beat against each other
-        int lo = k_cv(v, 7, 2), hii = k_cv(v, 2, 6);
-        schedule_hit(delay, k_midi(v, 36), SL_BD1, vv(lo,  boost), k_dur(v, 150));
-        schedule_hit(delay, k_midi(v, 41), SL_BD2, vv(hii, boost), k_dur(v, 105));
+    case V_BD: {  // ~54 Hz; TONE brings in the second resonator (quiet at the middle)
+        hit_exp(SL_BD1, INSTR_SINE, k_midi(v, 33), vv(5, boost), delay, k_dur(v, 235));
+        int hii = k_cv(v, 0, 3);
+        if (hii > 0) hit_exp(SL_BD2, INSTR_SINE, k_midi(v, 41), vv(hii, boost), delay, k_dur(v, 120));
         break;
     }
-    case V_SD: {  // one twin-T mode + bright snappy noise
-        int body = k_cv(v, 8, 0), snpy = k_cv(v, 0, 8);
-        schedule_hit(delay, k_midi(v, 58), SL_SDB, vv(body, boost), k_dur(v, 90));
-        schedule_hit(delay, k_midi(v, 60), SL_SDN, vv(snpy, boost), k_dur(v, 120));
+    case V_SD: {  // the 226 Hz tone carries it; SNAPPY = how much dark noise
+        int snpy = k_cv(v, 0, 5);
+        hit_exp(SL_SDB, INSTR_SINE, k_midi(v, 57), vv(5, boost), delay, k_dur(v, 110));
+        if (snpy > 0) hit_exp(SL_SDN, INSTR_NOISE, 60, vv(snpy, boost), delay, k_dur(v, 110));
         break;
     }
-    case V_LT: case V_HT: {  // resonator drop + the low rumble burst
-        int m = v == V_LT ? 45 : 52;
-        schedule_hit(delay, k_midi(v, m),  SL_TOM,  vv(5, boost), k_dur(v, 240));
+    case V_LT: case V_HT: {  // 151 / 205 Hz, -20 dB in ~115 / ~80 ms; the low rumble burst kept
+        int m = v == V_LT ? 50 : 55;
+        hit_exp(SL_TOM, INSTR_SINE, k_midi(v, m), vv(5, boost), delay, k_dur(v, v == V_LT ? 250 : 175));
         schedule_hit(delay, k_midi(v, 48), SL_TOMN, vv(k_cv(v, 0, 5), boost), 25);
         break;
     }
-    case V_CY: {  // both bandpass paths at once; TONE fades body↔shimmer
-        // body members chosen so their odd harmonics LAND in the 3440Hz band
-        // (308×11=3388, 627×5=3135) — the circuit sums all six, we fire two
-        int body = k_cv(v, 5, 2), shim = k_cv(v, 4, 7);
-        schedule_hit(delay, k_midi(v, MB2), SL_CYL, vv(body, boost), k_dur(v, 800));
-        schedule_hit(delay, k_midi(v, MB6), SL_CYL, vv(body - 1, boost), k_dur(v, 800));
-        schedule_hit(delay, k_midi(v, MB5), SL_CYH, vv(shim, boost), k_dur(v, 600));
-        schedule_hit(delay, k_midi(v, MB6), SL_CYH, vv(shim - 1, boost), k_dur(v, 600));
+    case V_CY: {  // a burst (-10 dB in 40 ms) over a long slow tail; TONE leans burst ↔ tail
+        hit_exp(SL_CYH, INSTR_NOISE, 60, vv(k_cv(v, 3, 5), boost), delay, 50);
+        hit_exp(SL_CYL, INSTR_NOISE, 60, vv(k_cv(v, 1, 0), boost), delay, k_dur(v, 1250));
         break;
     }
-    case V_OH: {  // the beating 418+440 pair; decay TEMPO-LINKED (hardware quirk)
+    case V_OH: {  // decay TEMPO-LINKED (hardware quirk); the real one rings ~0.9 s to -20 dB
         int base = 3 * (15000 / tempo);
-        if (base < 150) base = 150; else if (base > 650) base = 650;
-        // 3+2+2, not 5+4: the pair alone must NOT reach full scale (5+4 = 9/7
-        // rail-clips, and any overlap crackles into hard popping), and the ~25Hz
-        // MB4/MB5 beat needs a third member under it or it pinches to silence
-        // (full-depth infra-pitch AM reads as popping, not shimmer — the real
-        // box hides the beat under four more oscillators; MB6 is the cheapest)
-        schedule_hit(delay, k_midi(v, MB4), SL_HATO, vv(3, boost), k_dur(v, base));
-        schedule_hit(delay, k_midi(v, MB5), SL_HATO, vv(2, boost), k_dur(v, base));
-        schedule_hit(delay, k_midi(v, MB6), SL_HATO, vv(2, boost), k_dur(v, base));
+        if (base < 150) base = 150; else if (base > 1000) base = 1000;
+        hit_exp(SL_HATO, INSTR_NOISE, 60, vv(3, boost), delay, k_dur(v, base * 22 / 10));
         break;
     }
-    case V_CH:  // crisp top members; firing also chokes the open hat (shut-off)
-        schedule_hit(delay, k_midi(v, MB5), SL_HATC, vv(4, boost), k_dur(v, 38));
-        schedule_hit(delay, k_midi(v, MB6), SL_HATC, vv(3, boost), k_dur(v, 38));
+    case V_CH:  // firing also chokes the open hat (the schematic's shut-off)
+        hit_exp(SL_HATC, INSTR_NOISE, 60, vv(3, boost), delay, k_dur(v, 92));
         break;
     }
 }
 
 void init(void) {
-    // kick — two twin-T resonators, clean (no drive: the 606 doesn't boom).
-    // The tiny pitch blip on the low one fakes the trigger thump.
-    instrument(SL_BD1, INSTR_SINE, 0, 140, 0, 40);
+    // every voice: a short gate into an EXPONENTIAL release (see fire); the release length is set per hit
+    instrument(SL_BD1, INSTR_SINE, 0, 0, 7, 190);
     instrument_filter(SL_BD1, FILTER_LOW, 300, 2);
-    instrument_env(SL_BD1, 0, ENV_PITCH, 0, 14, 6.0f);
-    instrument(SL_BD2, INSTR_SINE, 0, 100, 0, 30);
+    instrument_env(SL_BD1, 0, ENV_PITCH, 0, 14, 2.0f);       // a small blip (the real pitch barely moves)
+    instrument_release_shape(SL_BD1, RELEASE_EXP);
+    instrument(SL_BD2, INSTR_SINE, 0, 0, 7, 120);
     instrument_filter(SL_BD2, FILTER_LOW, 350, 2);
+    instrument_release_shape(SL_BD2, RELEASE_EXP);
 
-    // snare body (single mode) + the bright "snappy" noise gate
-    instrument(SL_SDB, INSTR_SINE, 0, 85, 0, 25);
-    instrument_filter(SL_SDB, FILTER_LOW, 1400, 1);
-    instrument_env(SL_SDB, 0, ENV_PITCH, 0, 15, 3.0f);
-    instrument(SL_SDN, INSTR_NOISE, 0, 115, 0, 35);
-    instrument_filter(SL_SDN, FILTER_HIGH, 2400, 2);
+    instrument(SL_SDB, INSTR_SINE, 0, 0, 7, 110);
+    instrument_tune(SL_SDB, 0.47f);                          // 220 -> 226 Hz
+    instrument_release_shape(SL_SDB, RELEASE_EXP);
+    instrument(SL_SDN, INSTR_NOISE, 0, 0, 7, 110);
+    instrument_filter(SL_SDN, FILTER_LOW, 4000, 2);          // dark: the real snare's noise tops out ~4 kHz
+    instrument_release_shape(SL_SDN, RELEASE_EXP);
 
-    // toms — resonator with a drop + the documented LOW-passed rumble burst
-    instrument(SL_TOM, INSTR_SINE, 0, 230, 0, 45);
-    instrument_env(SL_TOM, 0, ENV_PITCH, 0, 60, 5.0f);
+    instrument(SL_TOM, INSTR_SINE, 0, 0, 7, 250);
+    instrument_env(SL_TOM, 0, ENV_PITCH, 0, 60, 3.0f);
+    instrument_release_shape(SL_TOM, RELEASE_EXP);
     instrument(SL_TOMN, INSTR_NOISE, 0, 24, 0, 10);
     instrument_filter(SL_TOMN, FILTER_LOW, 400, 2);
 
-    // the metal paths — BANDpass, per the schematic (the 808 cart uses
-    // highpass; this narrower window is the 606's delicacy)
-    // both metal paths are HIGHPASSES here, not the schematic's bandpasses:
-    // we fire 2 bank members where the circuit sums 6, so a narrow band
-    // starves between their sparse odd harmonics, and a wide band leaks the
-    // square fundamentals until the hats turn to cowbells (both measured).
-    // Each highpass keeps its window's upper skirt: shimmer ≥ ~7k, body ≥ ~3k
-    // — the 7100 / 3440 Hz split survives as the two cutoffs.
-    instrument(SL_CYH, INSTR_SQUARE, 0, 460, 0, 140);   // shimmer path
-    instrument_filter(SL_CYH, FILTER_HIGH, 7000, 3);
-    instrument(SL_CYL, INSTR_SQUARE, 0, 780, 0, 200);   // body path
-    instrument_filter(SL_CYL, FILTER_HIGH, 3000, 3);
-
-    instrument(SL_HATO, INSTR_SQUARE, 0, 320, 0, 80);   // hats ≥ ~7k too
-    instrument_filter(SL_HATO, FILTER_HIGH, 7000, 3);
-    instrument(SL_HATC, INSTR_SQUARE, 0, 38, 0, 13);
-    instrument_filter(SL_HATC, FILTER_HIGH, 7000, 3);
+    // the metal: noise through a resonant band at the bank's ~7.5 kHz cluster (see fire)
+    instrument(SL_CYH, INSTR_NOISE, 0, 0, 7, 90);            // cymbal burst
+    instrument_filter(SL_CYH, FILTER_BAND, 6800, 13);
+    instrument_release_shape(SL_CYH, RELEASE_EXP);
+    instrument(SL_CYL, INSTR_NOISE, 0, 0, 7, 2000);          // cymbal tail
+    instrument_filter(SL_CYL, FILTER_BAND, 6800, 13);
+    instrument_release_shape(SL_CYL, RELEASE_EXP);
+    instrument(SL_HATO, INSTR_NOISE, 0, 0, 7, 1000);
+    instrument_filter(SL_HATO, FILTER_BAND, 6900, 13);
+    instrument_release_shape(SL_HATO, RELEASE_EXP);
+    instrument(SL_HATC, INSTR_NOISE, 0, 0, 7, 92);
+    instrument_filter(SL_HATC, FILTER_BAND, 6900, 13);
+    instrument_release_shape(SL_HATC, RELEASE_EXP);
     instrument_choke(SL_HATC, SL_HATO);  // the schematic's "shut off circuit"
 
     for (int v = 0; v < NV; v++) { ktune[v] = 0.5f; kdecay[v] = 0.5f; kcolor[v] = 0.5f; }

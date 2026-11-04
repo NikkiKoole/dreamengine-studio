@@ -1,6 +1,6 @@
 # Tuning a drum voice against a real recording
 
-How the CR-78, TR-808, TR-909, Mini Pops MP-7 and drumhand voices were made to sound like the
+How the CR-78, TR-606, TR-808, TR-909, Mini Pops MP-7 and drumhand voices were made to sound like the
 real things (2026-11-04), written down so the next machine does not start from scratch. The
 short version: **pick the reference by ear, measure ours against it, fix the biggest difference,
 listen, repeat.** The numbers find the fault; the ear decides whether it is fixed.
@@ -44,7 +44,7 @@ listen, repeat.** The numbers find the fault; the ear decides whether it is fixe
 
 Two machines, opposite answers, both found by ear first:
 
-- **Mini Pops MP-7 noise voices** (maracas, cymbal, snare): held at full level then released, they
+- **Mini Pops MP-7 noise voices** (maracas, cymbal, snare; and every TR-606 voice, same fix): held at full level then released, they
   plateaued and smeared into a wash, and the bossa lost its swing. A real hit falls fast and then
   trails: a short gate into an **exponential** release (`instrument_release_shape(slot,
   RELEASE_EXP)`, release ~2.2x the -20 dB time).

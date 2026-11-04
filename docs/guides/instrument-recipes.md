@@ -625,19 +625,18 @@ presets (GOOD LIFE, THE BELLS, ENERGY FLASH, HARDFLOOR, REVOLUTION 909, GABBER) 
 
 ### tr606 (machine — 7 voices, from tr606.c)
 
-All raw waves. The metal bank uses the circuit-analysis frequencies (246.4/308/367/418.2/
-440.4/627.2 Hz = midi 59/63/66/68/69/75 — the 418+440 pair beats); kick is the schematic's
-DOUBLE twin-T (TONE knob crossfades the two resonators). Open-hat decay is tempo-linked;
-6 pattern presets (DRUMATIX, ACID PAIR, SKITTER, ELECTRO, TOM DANCE, SPARSE) are grids.
+Retuned 2026-11-04 against real TR-606 one-shots (pitch, band, -20 dB time; the set is normalized, so
+not level). Every voice is a 7 ms gate into an EXPONENTIAL release (`RELEASE_EXP`), R from the DECAY
+knob (~2.2x the -20 dB time), the slot redefined per hit. 6 pattern presets are grids.
 
 | name | engine | recipe | character |
 |---|---|---|---|
-| 606/kick | SINE×2 | 65Hz 0/140/0/40 LP300/2 pitch-env →+6 (0/14) + 87Hz 0/100/0/30 LP350/2, TONE xfade | Two twin-T resonators beating — the tight clicky "tock", no 808 boom. |
-| 606/snare | SINE+NOISE | body 233Hz 0/85/0/25 LP1400/1 pitch-env →+3 (0/15) + snappy 0/115/0/35 HP2400/2 | ONE body mode (unlike the 808's two) under bright paper noise. |
-| 606/tom-lo/hi | SINE+NOISE | 0/230/0/45 pitch-env →+5 (0/60) (midi 45/52) + rumble 0/24/0/10 LP400/2 | Sweet analog toms + the documented LOW-passed rumble burst. |
-| 606/cymbal | SQUARE×4 | body midi 63+75 on 0/780/0/200 HP3000/3 + shimmer midi 69+75 on 0/460/0/140 HP7000/3 | The dual-path (3440/7100Hz) cymbal: clangy midband body + fizzy top, ~650ms. |
-| 606/hat-open | SQUARE | 0/320/0/80 · HP7000/3 (the beating 418+440Hz pair, midi 68+69) | Jewel-box sizzle; decay TEMPO-LINKED like the hardware (~3 steps). |
-| 606/hat-closed | SQUARE | 0/38/0/13 · HP7000/3 (midi 69+75) | ~40ms tick; fires the shut-off circuit (chokes the open hat). |
+| 606/kick | SINE | midi 33 (~54 Hz) LP300/2 · pitch-env +2 (0/14) · R 235 · TONE adds a 2nd resonator (midi 41, R 120) | real: -20 dB at 85 ms (ours 80). One tone, no 87 Hz partner. |
+| 606/snare | SINE+NOISE | body midi 57 tune +0.47 (226 Hz) R 110 + noise LP4000/2 R 110 (24 dB under) | real 50 ms (ours 55); the noise is DARK, not bright paper. |
+| 606/tom-lo/hi | SINE+NOISE | midi 50/55 (151/205 Hz) pitch-env +3 (0/60) · R 250/175 + rumble LP400/2 | real LT 115 ms (ours 105), HT 205 Hz exact. |
+| 606/cymbal | NOISE×2 | BAND6800/13: burst R 50 + tail R 1250 | burst drops 10 dB in 40 ms over a long tail; real 260 ms to -20 (ours 300). |
+| 606/hat-open | NOISE | BAND6900/13 · R = 2.2 × (3 steps, 150..1000 ms) | TEMPO-LINKED like the hardware; choked by the closed hat. |
+| 606/hat-closed | NOISE | BAND6900/13 · R 92 | real 40 ms (ours 45). Fires the shut-off circuit (chokes the open hat). |
 
 ### cr78 (machine — 16 voices, from cr78.c)
 

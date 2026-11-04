@@ -463,11 +463,11 @@ Each was measured; the evidence lives in the section linked. Status: ✓ fixed, 
 - ○ the formant jumps to a new vowel (no slew) and is not an `fx_mod` target; there is no per-voice
   formant except `INSTR_VOICE` (§6.7)
 
-## 8. Proposal: the NoteOpts layout (DRAFT, 2026-11-04, not built)
+## 8. The NoteOpts layout (proposed 2026-11-04; steps 1-5 BUILT the same day, step 6 parked)
 
-> Written against the needs in §6 (every spike + Playtime's choir). **Not built: building is on hold**
-> until Nikki says go; this is the shape to agree on first, then check with playtime-97 against
-> singing before any `sound.h` edit.
+> Written against the needs in §6 (every spike + Playtime's choir). Steps 1-5 are built and accepted
+> (§8.10); the choir (step 6) is parked, and what is still open is in §8.11. The text below is the
+> proposal as agreed; where the build differed, §8.10 says so.
 
 ### 8.1 Rules the layout follows
 

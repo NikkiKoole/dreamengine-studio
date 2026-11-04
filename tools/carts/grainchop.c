@@ -77,6 +77,7 @@ static int   a_pitch = -999; static bool a_rev = false; static int a_frozen = -1
 static void apply_voice(void) {
     const Voice *v = &VOICES[eng];
     instrument(SLOT, v->instr, v->a, v->d, v->s, v->r);
+    instrument_harmonics(SLOT, v->instr == INSTR_PIANO ? 0.08f : 0.5f);   // PIANO = the grand (0.5 = harpsichord); others keep the centre detent
 }
 
 void init(void) {

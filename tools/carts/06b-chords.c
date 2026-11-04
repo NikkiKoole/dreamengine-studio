@@ -45,6 +45,7 @@ static int last_step  = -1;
 
 void init() {
     instrument(SL_PIANO, INSTR_PIANO, 1, 0, 7, 1800);  // struck, long release — rings on its own
+    instrument_harmonics(SL_PIANO, 0.08f);             // the GRAND voicing (unset = 0.5 = harpsichord)
     instrument(SL_HAT, INSTR_NOISE, 0, 24, 0, 14);     // fast decay = a tick, not a splat
     instrument_filter(SL_HAT, FILTER_HIGH, 7000, 2);   // highpass strips the noise's low-end mud
 }

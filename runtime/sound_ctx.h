@@ -498,6 +498,12 @@ typedef struct {
     // NoteOpts step 2: the note's own vibrato (vb_cents 0 = none, skipped), refreshed every 32 samples
     float  vb_cents, vb_rate, vb_wander, vb_ph, vb_wph, vb_mul;
     int    vb_delay, vb_fade;           // samples
+    // NoteOpts step 3: up to 3 shape references, evaluated every 32 samples from note-on + origin
+    bool   sh_on;
+    unsigned char sh_id[3], sh_tgt[3];
+    float  sh_scale[3], sh_stretch[3];
+    int    sh_origin;
+    float  sh_pmul, sh_gmul, sh_cmul, sh_h, sh_t, sh_m;   // the current results
     int    rel_shape;                   // copied from the slot at note-on
 } Voice;
 #define SOUND_HANDLE_BITS 5                      // slot field width — must hold SOUND_VOICES-1 (32 voices → 0..31 → 5 bits)
@@ -780,6 +786,8 @@ typedef enum {
     SR_REVERB_BUS_INTO = 158, // a=tank 1..2, b=lead slot (-1 = master) — the tank's bus folds into the lead's bus (reverb_bus_into)
     SR_INSTR_FX_FILTER = 159, // a=slot, b=mode, c=cutoff_hz, e0=res*1000 — filter() on one instrument's (or group's) BUS (instrument_fx_filter)
     SR_INSTR_MONO = 160,      // a=slot, b=on — MONO: a new note on this slot cuts the slot's sounding voices (instrument_mono)
+    SR_SHAPE_HDR = 165,       // a=id, b=n points, c=interp — a shape's header (shape_define), sent after its points
+    SR_SHAPE_PT = 166,        // a=id, b=point index, c=t_ms, e0=value*1000 — one breakpoint (shape_define)
     SR_INSTR_RELSHAPE = 164,  // a=slot, b=shape — the release curve (instrument_release_shape)
     SR_INSTR_ANALOG = 163,    // a=slot, b=amount*1000 — voice cards + drift (instrument_analog)
     SR_INSTR_VIBRATO = 162,   // a=slot, b=amount*1000 — scale the engine's built-in vibrato (instrument_vibrato), read LIVE
@@ -790,7 +798,12 @@ typedef struct { SoundReqKind kind; int a, b, c; int delay_samples; int dur_samp
 // NoteOpts step 1 (humanized-playing.md §8.2): the per-note fields that do not fit a SoundReq. Written by
 // schedule_note_at into a game-side ring, copied at the drain into a pen-side slot, applied at note-on.
 typedef struct { float cents, cutoff_oct, damp; int release_ms; float rg_start, rg_end;
-                 float vib_cents, vib_rate; int vib_delay_ms, vib_fade_ms; float vib_wander; } NotePay;   // + step 2: the note's own vibrato
+                 float vib_cents, vib_rate; int vib_delay_ms, vib_fade_ms; float vib_wander;
+                 unsigned char sh_id[3], sh_tgt[3]; float sh_scale[3], sh_stretch[3]; int origin_ms; } NotePay;   // + step 3: shapes
+// step 3: a SHAPE (shape_define): up to 6 breakpoints in ms, interpolated, the last value holds
+#define SHAPE_MAX  64
+#define SHAPE_PTS  6
+typedef struct { unsigned char n, interp; float t_ms[SHAPE_PTS], v[SHAPE_PTS]; } ShapeDef;   // + step 2: the note's own vibrato
 #define NPAY_RING 512   // = SOUND_REQ_QUEUE: a ring slot cannot be reused before its request is drained
 #define SOUND_REQ_QUEUE   512   // generous: live held-voice control pushes many setters/frame, and a patch cart's
 #define SOUND_DELAYED_MAX 64    // pending delayed notes (strum/schedule/schedule_hit) — fast sfx steps queue several ahead
@@ -1091,6 +1104,7 @@ typedef struct {
     int     npay_w;                     // game-side write index
     NotePay npay_pen[SOUND_DELAYED_MAX];   // audio-side: one per note waiting in the pen
     unsigned char npay_used[SOUND_DELAYED_MAX];
+    ShapeDef shape_tbl[SHAPE_MAX];      // step 3: the shape library (id 1..63; 0 = none)
     atomic_llong snd_sample_clock;   // samples this instance has RENDERED (advanced once per callback, never reset):
                                      // the sample-accurate clock behind audio_time() / schedule_at()
     SoundReq ctx_log[SOUND_CART_CTX][SOUND_CTX_LOG];
@@ -1511,6 +1525,7 @@ static _Thread_local DeSound *de_snd = &de_snd_default;
 #define npay_w               (de_snd->npay_w)
 #define npay_pen             (de_snd->npay_pen)
 #define npay_used            (de_snd->npay_used)
+#define shape_tbl            (de_snd->shape_tbl)
 #define snd_sample_clock     (de_snd->snd_sample_clock)
 #define ctx_log              (de_snd->ctx_log)
 #define ctx_log_n            (de_snd->ctx_log_n)

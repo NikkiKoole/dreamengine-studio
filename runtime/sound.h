@@ -2191,7 +2191,7 @@ static CtxKey sound_ctx_key(SoundReqKind k) {
         case SR_EQ_INST: case SR_CRUSH_INST: case SR_TAPE_INST: case SR_FILTER_INST: case SR_DRIVE_INST:
         case SR_INSTR_GLIDE: case SR_INSTR_GLIDE_SCALE: case SR_INSTR_TRIGGER:   // a=slot, like their neighbours
         case SR_INSTR_TAPE_WARBLE: case SR_INSTR_GRAINS_REPEAT: case SR_INSTR_WIDTH:
-        case SR_INSTR_GROUP: case SR_REVERB_BUS_INTO: case SR_INSTR_FX_FILTER: case SR_INSTR_MONO: case SR_INSTR_VIBRATO: case SR_INSTR_ANALOG: case SR_INSTR_RELSHAPE:   // a=slot / a=tank
+        case SR_INSTR_GROUP: case SR_REVERB_BUS_INTO: case SR_INSTR_FX_FILTER: case SR_INSTR_MONO: case SR_INSTR_VIBRATO: case SR_INSTR_ANALOG: case SR_INSTR_RELSHAPE: case SR_SHAPE_HDR:   // a=slot / a=tank
             return CTXK_KA;
         // a+b name the target
         case SR_WAVE_SET:                          // a=which table, b=start index (chunked writes)
@@ -2199,6 +2199,7 @@ static CtxKey sound_ctx_key(SoundReqKind k) {
         case SR_SIDECHAIN:                         // a=victim bus, b=trigger key
         case SR_ENG_TUNE:                          // a=slot, b=param idx
         case SR_INSTR_ACCENT:                      // a=slot, b=ACC_* route
+        case SR_SHAPE_PT:                          // a=shape id, b=point index
             return CTXK_KAB;
         // a+c name the target
         case SR_FX_MOD: case SR_FX_LFO:            // a=target, c=bus
@@ -6909,6 +6910,54 @@ static inline float clamp01f_ex(float x) { return x < 0.0f ? 0.0f : (x > 1.0f ? 
 // instrument's timbre/ADSR/LFO/filter into the voice. gate_samples = the gated length
 // (SOUND_HELD_GATE for a sustained note_on; a finite count for a one-shot). `ex` = a booked note's
 // extras (schedule_note_at), NULL for every other note — which is what keeps them byte-identical.
+// NoteOpts step 3: evaluate a voice's shapes at its current time (called every 32 samples)
+static float shape_value(const ShapeDef *d, float t) {
+    int n = d->n;
+    if (n <= 0) return 0.0f;
+    if (t <= d->t_ms[0] || n == 1) return d->v[0];
+    if (t >= d->t_ms[n - 1]) return d->v[n - 1];
+    int i = 0; while (i < n - 2 && t >= d->t_ms[i + 1]) i++;
+    float span = d->t_ms[i + 1] - d->t_ms[i];
+    float x = span > 0.0f ? (t - d->t_ms[i]) / span : 1.0f;
+    if (d->interp == 1)      x = x * x * (3.0f - 2.0f * x);                       // SHAPE_EASE
+    else if (d->interp == 2) { float y = 1.0f - x; x = 1.0f - y * y * y; }        // SHAPE_FAST: quick, then settles
+    return d->v[i] + (d->v[i + 1] - d->v[i]) * x;
+}
+static void shapes_eval(Voice *v) {
+    float t = (float)(v->step_samples - v->sh_origin) * (1000.0f / (float)SOUND_SAMPLE_RATE);
+    float cents = 0, db = 0, oct = 0, h = 0, tb = 0, m = 0;
+    for (int k = 0; k < 3; k++) {
+        int id = v->sh_id[k];
+        if (id < 1 || id >= SHAPE_MAX || shape_tbl[id].n == 0) continue;
+        float st = v->sh_stretch[k] > 0.0f ? v->sh_stretch[k] : 1.0f;
+        float val = shape_value(&shape_tbl[id], t / st) * (v->sh_scale[k] != 0.0f ? v->sh_scale[k] : 1.0f);
+        switch (v->sh_tgt[k]) {
+            case 1: cents += val; break;   // SHP_PITCH  (cents)
+            case 2: db    += val; break;   // SHP_GAIN   (dB)
+            case 3: h     += val; break;   // SHP_HARM   (macro offset)
+            case 4: tb    += val; break;   // SHP_TIMB
+            case 5: m     += val; break;   // SHP_MORPH
+            case 6: oct   += val; break;   // SHP_CUTOFF (octaves)
+        }
+    }
+    v->sh_pmul = cents != 0.0f ? de_powf(2.0f, cents / 1200.0f) : 1.0f;
+    v->sh_gmul = db    != 0.0f ? de_powf(10.0f, db / 20.0f)    : 1.0f;
+    v->sh_cmul = oct   != 0.0f ? de_powf(2.0f, oct)            : 1.0f;
+    v->sh_h = h; v->sh_t = tb; v->sh_m = m;
+}
+static void shapes_take(Voice *v, const NotePay *pay, int origin_samples) {
+    v->sh_on = false;
+    if (!pay) return;
+    for (int k = 0; k < 3; k++) {
+        v->sh_id[k] = pay->sh_id[k]; v->sh_tgt[k] = pay->sh_tgt[k];
+        v->sh_scale[k] = pay->sh_scale[k]; v->sh_stretch[k] = pay->sh_stretch[k];
+        if (pay->sh_id[k] && pay->sh_tgt[k]) v->sh_on = true;
+    }
+    v->sh_origin = origin_samples;
+    v->sh_pmul = v->sh_gmul = v->sh_cmul = 1.0f; v->sh_h = v->sh_t = v->sh_m = 0.0f;
+    if (v->sh_on) shapes_eval(v);
+}
+
 static void sound_setup_note_ex(Voice *v, int midi, int slot, int vol, int gate_samples, const NoteEx *ex);
 static void sound_setup_note(Voice *v, int midi, int slot, int vol, int gate_samples) {
     sound_setup_note_ex(v, midi, slot, vol, gate_samples, NULL);
@@ -6953,6 +7002,8 @@ static void sound_setup_note_ex(Voice *v, int midi, int slot, int vol, int gate_
     v->rel_shape = ins->rel_shape;
     v->dmp_mul = v->dmp_env = 1.0f;
     v->vb_cents = 0.0f; v->vb_mul = 1.0f; v->vb_ph = v->vb_wph = 0.0f;
+    v->sh_on = false;
+    if (pay) shapes_take(v, pay, ms_samp(pay->origin_ms));      // NoteOpts step 3 (step_samples starts at 0)
     if (pay && pay->vib_cents > 0.0f) {          // NoteOpts step 2: this note's own vibrato
         v->vb_cents  = pay->vib_cents;
         v->vb_rate   = pay->vib_rate > 0.0f ? pay->vib_rate : 5.5f;
@@ -7179,6 +7230,10 @@ static void sound_legato_to(Voice *v, int midi, int vol, int gate, const NoteEx 
     const Instrument *ins = &instr_bank[v->instr_slot];
     v->freq_target = sound_midi_to_freq(midi);
     if (ex->pay && ex->pay->cents != 0.0f) v->freq_target *= de_powf(2.0f, ex->pay->cents / 1200.0f);
+    if (ex->pay) {                                 // step 3: a slurred note's own shapes, counted from the slur
+        bool any = false; for (int k = 0; k < 3; k++) if (ex->pay->sh_id[k] && ex->pay->sh_tgt[k]) any = true;
+        if (any) shapes_take(v, ex->pay, v->step_samples + ms_samp(ex->pay->origin_ms));
+    }
     if (ex->pay && ex->pay->vib_cents > 0.0f) {    // step 2: a slurred note with its own vibrato (it blooms from the slur)
         v->vb_cents = ex->pay->vib_cents; v->vb_rate = ex->pay->vib_rate > 0.0f ? ex->pay->vib_rate : 5.5f;
         v->vb_delay = v->step_samples + ms_samp(ex->pay->vib_delay_ms); v->vb_fade = ms_samp(ex->pay->vib_fade_ms);
@@ -8222,6 +8277,16 @@ static void sound_fire_req(SoundReq r) {
         if (x < 0.0f) x = 0.0f;
         instr_bank[slot].level = x;
     } break;
+    case SR_SHAPE_PT: {       // a=id, b=index, c=t_ms, e0=value*1000
+        if (r.a < 1 || r.a >= SHAPE_MAX || r.b < 0 || r.b >= SHAPE_PTS) return;
+        shape_tbl[r.a].t_ms[r.b] = (float)r.c;
+        shape_tbl[r.a].v[r.b]    = (float)r.e0 / 1000.0f;
+    } break;
+    case SR_SHAPE_HDR: {      // a=id, b=n, c=interp (sent after the points)
+        if (r.a < 1 || r.a >= SHAPE_MAX) return;
+        shape_tbl[r.a].n = (unsigned char)(r.b < 0 ? 0 : (r.b > SHAPE_PTS ? SHAPE_PTS : r.b));
+        shape_tbl[r.a].interp = (unsigned char)(r.c < 0 || r.c > 2 ? 0 : r.c);
+    } break;
     case SR_INSTR_RELSHAPE: { // a=slot, b=shape — the release curve, read at note-on
         int slot = r.a;
         if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
@@ -8550,6 +8615,7 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
             // instead of depending on which mod source happens to run first. 1.0 = untouched.
             float cutoff_mul = 1.0f;
             float harm_mod = 0.0f, timb_mod = 0.0f, mor_mod = 0.0f;   // macro modulation (engine voices)
+            if (v->sh_on) { harm_mod += v->sh_h; timb_mod += v->sh_t; mor_mod += v->sh_m; }   // NoteOpts shapes (step 3)
             float pan_mod = 0.0f;   // LFO_PAN offset (auto-pan), added to the slewed base pan below
             float detune_mod = 0.0f;   // LFO_DETUNE/ENV_DETUNE offset (semitones), added to the unison spread below
             if (v->sfx_idx < 0) {
@@ -8600,6 +8666,7 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
                 // apply the octave-relative modulation last, on top of the Hz offsets. Untouched when
                 // nothing routes to an _OCT dest (cutoff_mul is an exact 1.0), which is why every
                 // existing patch renders byte-identically.
+                if (v->sh_on) cutoff_mul *= v->sh_cmul;   // NoteOpts shape on the cutoff (step 3)
                 if (cutoff_mul != 1.0f) cutoff *= cutoff_mul;
                 duty = clampf(0.05f, 0.95f, duty);
                 // slot detune (instrument_tune): read LIVE from the bank each sample,
@@ -8614,6 +8681,10 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
                         v->an_drift_mul = 1.0f + d * 3.0f * v->an_amt * 0.0005778f / 1.6f;   // +-3 cents at amount 1
                     }
                     pitch_mul *= v->an_tune * v->an_drift_mul;
+                }
+                if (v->sh_on) {                // NoteOpts step 3: the note's shapes, refreshed every 32 samples
+                    if ((v->step_samples & 31) == 0) shapes_eval(v);
+                    pitch_mul *= v->sh_pmul;
                 }
                 if (v->vb_cents > 0.0f) {      // NoteOpts step 2: the note's own vibrato, refreshed every 32 samples
                     if ((v->step_samples & 31) == 0) {
@@ -8702,6 +8773,7 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
             }
             float contrib = s * v->vol * env * trem * v->sp_gain * 0.2f;   // sp_gain = 1.0 = byte-identical bypass
             if (v->an_amt > 0.0f) contrib *= v->an_lvl;   // ANALOG voice card: its own level (instrument_analog)
+            if (v->sh_on) contrib *= v->sh_gmul;           // NoteOpts shape on the gain (step 3)
             if (v->dmp_mul < 1.0f) {                       // NoteOpts damp: this note's ring dies at its own rate
                 v->dmp_env *= v->dmp_mul;
                 contrib *= v->dmp_env;
@@ -9320,6 +9392,20 @@ void instrument_level(int slot, float gain) {
 // amplitude (it stays loud, then plunges, then stops in exact silence); real things fade on a curve, and
 // a piano's felt damper drops quickly then leaves a short tail (measured in pianohand, 2026-11-04).
 // RELEASE_LINEAR (default, byte-identical) / RELEASE_EXP / RELEASE_DAMPER. Read at note-on.
+// SHAPES (NoteOpts step 3): a gesture defined ONCE (a scoop, a fall, a swell, a bayan drop), referenced
+// by booked notes via NoteOpts.shape[] and scaled / stretched per note. Up to 6 breakpoints (t in ms from
+// the note's curve origin, ascending; values in the target's unit), interp SHAPE_LINEAR / SHAPE_EASE /
+// SHAPE_FAST; before the first point the first value, after the last the last value HOLDS. id 1..63.
+void shape_define(int id, int n, const float *t_ms, const float *v, int interp) {
+    if (id < 1 || id >= SHAPE_MAX || !t_ms || !v) return;
+    if (n < 1) n = 1; if (n > SHAPE_PTS) n = SHAPE_PTS;
+    for (int i = 0; i < n; i++) {
+        float vv = v[i] < -100000.0f ? -100000.0f : (v[i] > 100000.0f ? 100000.0f : v[i]);
+        sound_push_ctrl(SR_SHAPE_PT, id, i, (int)(t_ms[i] < 0 ? 0 : t_ms[i]), (int)(vv * 1000.0f), 0, 0);
+    }
+    sound_push_ctrl(SR_SHAPE_HDR, id, n, interp, 0, 0, 0);
+}
+
 void instrument_release_shape(int slot, int shape) {
     if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
     sound_push_ctrl(SR_INSTR_RELSHAPE, slot, shape, 0, 0, 0, 0);
@@ -10732,7 +10818,8 @@ void schedule_note_at(double t, int midi, int instr, int vol, int dur_ms, const 
     // NoteOpts step 1: anything beyond the packed six travels in the ring (only when used, so a note
     // with none of them takes the old path byte for byte)
     if (opts->cents != 0.0f || opts->cutoff_oct != 0.0f || opts->damp > 0.0f || opts->release_ms > 0 ||
-        opts->region_start != 0.0f || opts->region_end != 0.0f || opts->vib.cents > 0.0f) {
+        opts->region_start != 0.0f || opts->region_end != 0.0f || opts->vib.cents > 0.0f || opts->origin_ms > 0 ||
+        opts->shape[0].id || opts->shape[1].id || opts->shape[2].id) {
         int k = npay_w; npay_w = (npay_w + 1) % NPAY_RING;
         npay_ring[k] = (NotePay){ .cents = opts->cents < -1200.0f ? -1200.0f : (opts->cents > 1200.0f ? 1200.0f : opts->cents),
                                   .cutoff_oct = opts->cutoff_oct < -6.0f ? -6.0f : (opts->cutoff_oct > 6.0f ? 6.0f : opts->cutoff_oct),
@@ -10743,7 +10830,14 @@ void schedule_note_at(double t, int midi, int instr, int vol, int dur_ms, const 
                                   .vib_rate = opts->vib.rate_hz < 0.0f ? 0.0f : (opts->vib.rate_hz > 20.0f ? 20.0f : opts->vib.rate_hz),
                                   .vib_delay_ms = opts->vib.delay_ms < 0 ? 0 : opts->vib.delay_ms,
                                   .vib_fade_ms = opts->vib.fade_ms < 0 ? 0 : opts->vib.fade_ms,
-                                  .vib_wander = opts->vib.wander };
+                                  .vib_wander = opts->vib.wander,
+                                  .origin_ms = opts->origin_ms < 0 ? 0 : opts->origin_ms };
+        for (int sk = 0; sk < 3; sk++) {
+            npay_ring[k].sh_id[sk]  = opts->shape[sk].id < SHAPE_MAX ? opts->shape[sk].id : 0;
+            npay_ring[k].sh_tgt[sk] = opts->shape[sk].target <= 6 ? opts->shape[sk].target : 0;
+            npay_ring[k].sh_scale[sk] = opts->shape[sk].scale;
+            npay_ring[k].sh_stretch[sk] = opts->shape[sk].stretch < 0.0f ? 0.0f : opts->shape[sk].stretch;
+        }
         e1 |= NPAY_FLAG | (k << NPAY_SHIFT);
     }
     sound_push((SoundReq){ .kind = SR_NOTE_AT, .a = midi, .b = instr, .c = vol,

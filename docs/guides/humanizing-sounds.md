@@ -15,6 +15,10 @@ instrument** (its own imperfections and its real sound). The player model always
 the engine only has to carry what it decided. Never use fresh random per note on its own: drift (a
 `noise()` over time) plus a little scatter is what reads as human.
 
+And the part that is easy to forget: **a player's other hand is on the KNOBS.** Moving the sound while
+it plays (a filter swept by hand, the mod wheel, a swell pedal, breath pressure) is what turns a
+correct part into MUSIC. It has its own section, §4; do not skip it.
+
 ## 2. The engine calls made for this
 
 | call | what it does | when |
@@ -42,7 +46,52 @@ All three default to the old behaviour, bit-identical.
 Shared shape of every spike: keys **1-5** switch the layers, **TAB** flips to the plain version, UP/DOWN
 sets how much humanity, R gives a new take. Copy that: it is how the ear decides what matters.
 
-## 4. Techniques that work today
+## 4. Ride the knobs: the part that makes it music
+
+On every instrument a player is moving the SOUND while playing, not only choosing notes: the synth
+player sweeps the cutoff through a phrase and pushes the mod wheel in on a long note, the organist rides
+the swell pedal, the guitarist rocks a wah, a wind player's breath IS a continuous control. A part
+with perfect notes and a frozen sound still sounds sequenced. In `synthhand` the hand on the cutoff
+moved the brightness between ~390 and ~1380 Hz through each phrase while the plain version sat flat
+at ~700 Hz, and it is one of the layers that made Nikki call it "much more beautiful".
+
+**What to ride, by instrument:**
+
+| instrument | the knob | ride it with |
+|---|---|---|
+| synth pad / lead | filter cutoff (+ a little resonance), mod-wheel vibrato, pitch bend | `note_cutoff`, `note_res`, `note_lfo` depth, `note_pitch` on held notes |
+| organ | the swell (expression) pedal, Leslie speed | `note_vol` on the held chord, `leslie()` speed on a change |
+| guitar | wah pedal, volume swells | a band filter cutoff ridden like a pedal, `note_vol` |
+| winds, bowed | breath / bow pressure and speed | `note_vol` + `note_timbre` / `note_morph` (see `breathflute`, `cellohand`) |
+| the whole mix | a DJ-style filter sweep, a tape slow-down | `filter()` and `varispeed()` (made to be ridden) |
+
+**Move it like a hand, not like an LFO.** A hand aims at a target that changes with the phrase, gets
+there with a bit of momentum and overshoots a little; an LFO repeats. The pattern from `synthhand`:
+
+```c
+// target: where the hand wants the knob (phrase shape + slow wandering)
+float phase = fmodf(t_now / phrase_len, 1.0f);
+knob_target = lo + (hi - lo) * smooth01(sinf(3.14159f * phase)) + wander * (noise(t_now * 0.4f) * 2 - 1);
+// the hand: a damped spring, so it lags, swings and settles
+knob_vel += (knob_target - knob_cut) * 6.0f * dt() - knob_vel * 3.2f * dt();
+knob_cut += knob_vel * dt();
+for (each held note h) note_cutoff(h, (int)knob_cut);
+```
+
+Shape the target from the MUSIC: open toward the top of a phrase or a build, close for a breakdown,
+bring vibrato in only on long notes and only after they have settled (0.3-0.5 s).
+
+**The one trap: effects are set-and-hold.** `note_*`, `filter()`, `varispeed()`, `instrument_level()`
+and `instrument_tune()` are built to be ridden every frame. The effect calls (`crush`, `tape`, `eq`,
+`chorus`, `reverb`, `echo` and their `instrument_*` twins) rebuild their DSP when called, so calling
+them every frame STUTTERS (CLAUDE.md, `tools/lint-fx-frame.js`): change those only when the value
+actually changes.
+
+**The engine gap:** a knob is a curve SHARED by every sounding note, and a BOOKED note cannot follow it
+yet (only held notes, or a whole-slot ride like `instrument_level`); it is a row of the needs list
+(design doc §6.5 / §6.6).
+
+## 5. Techniques that work today
 
 - **Booked vs held.** Book notes (`schedule_note_at`, ~0.12 s lookahead on `audio_time()`) when timing
   must be tight (drums, plucks, piano): per-note gain + macro offsets at the onset. Hold notes (`note_on`
@@ -62,7 +111,7 @@ sets how much humanity, R gives a new take. Copy that: it is how the ear decides
 - **The master EQ as a volume knob:** there is no master volume; `eq(db, db, db)` works when the cart
   is quiet (set once, never per frame).
 
-## 5. Making the SOUND right: measure against a recording
+## 6. Making the SOUND right: measure against a recording
 
 Humanized playing on a wrong sound still sounds wrong (the tabla and the upright both proved it).
 The method that worked:
@@ -86,14 +135,14 @@ Known engine sound gaps (open, see the design doc): `INSTR_MEMBRANE` tilts all m
 the piano's morph "pedal" is latched at note-on; `note_retrig` does nothing on BOWED; bowed pressure
 barely changes the colour; the piano treble decays too fast; `INSTR_METAL` cymbals want a LOWPASS.
 
-## 6. Recorded one-shots, when synthesis is not the point
+## 7. Recorded one-shots, when synthesis is not the point
 
 Realistic cymbals are the hardest thing to synthesize. `drumhand` loads CC0 one-shots at runtime with
 `fopen` + `sample_load` into `INSTR_SAMPLE` slots (the `breakchop` route), with a synth fallback when
 the files are missing. The binary runs with cwd = `build/`, so the files live in `build/refs/...`; a web
 build falls back to synthesis. For a shipped product (Playtime) ship them as assets.
 
-## 7. What the engine still cannot do
+## 8. What the engine still cannot do
 
 A BOOKED note can only be shaped at its onset: no pitch curve, no late vibrato, no swell, no bow change,
 no shared pedal curve, no per-note release, filter or damping. The full needs list (with every

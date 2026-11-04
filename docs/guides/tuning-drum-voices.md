@@ -73,6 +73,10 @@ over one bar, ours against the real pattern; if the alternation is missing, it w
   "wobble". Measure single uncut hits, and A/B single hits against single hits.
 - **One real hit vs a pattern**: compare like with like, or the ear hears the difference in the
   file, not the sound.
+- **A long FFT window on a single hit hides its attack.** A Hann window of ~190 ms that starts at the
+  onset weights the first 30 ms near zero, which is where a kick's thump lives: it once reported a real
+  kick as 11-23 dB "more broadband" than ours when the band was within 3 dB. Compare a hit's bands as
+  ENVELOPES in 10 ms steps, or compare whole grooves (many hits average the taper out).
 - **The engine's per-voice filter** was broken above ~6 kHz until 2026-11-04 (fe643a60, baa291bd):
   any bright voice measured before that is suspect.
 

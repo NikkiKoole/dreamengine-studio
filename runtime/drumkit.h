@@ -208,9 +208,10 @@ static void dk_fire_acoustic(int b, double t, int role, int midi, int vel) {
         // drops to ~58 within 30 ms (the membrane BEND, morph 0.5), then a deep boom at ~40 Hz that
         // carries most of its energy (its spectrum PEAKS at 40 Hz) and is still ringing at -29 dB
         // after 400 ms. The boom is its own note, with a harmonics offset of -0.40 for a longer
-        // membrane ring (t60 ~1 s against the slot's 0.6). Not reached: the real kick is BROADBAND
-        // from 90 to 350 Hz (head + shell + room, 11-23 dB over ours); membrane notes only add
-        // peaks there, a noise thump would need a slot of its own.
+        // membrane ring (t60 ~1 s against the slot's 0.6). Measure a kick in TIME (band envelopes
+        // in 10 ms steps), not with a long tapered FFT window: that window all but erases the first
+        // 30 ms, and once read the real kick as "broadband 90-350 Hz, 11-23 dB over ours" when its
+        // 90-350 Hz band is in fact within ~3 dB of this one.
         dk_note_(t, 31 + tr, b + DK_KICK, vel, 60, 0.57f, -0.06f, 0, 0.5f, 0, 0);
         dk_note_(t, 44 + tr, b + DK_KICK, vel,  80, 0.65f, 0, 0, 0, 0, 0);
         dk_note_(t, 72 + tr, b + DK_KICK, vel,  10, 0.15f, 0.85f, 0.2f, -0.3f, 0, 0);

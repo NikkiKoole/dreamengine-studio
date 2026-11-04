@@ -1102,7 +1102,7 @@ cart's `dk_level` table is just one overall volume, 0.75 in groovebook/rootwalk/
 
 | role | recipe | ours vs real |
 |---|---|---|
-| kick | MEMBRANE h0.80 t0.12 m0.30 HIGHPASS 28 · note 31 (g .57, 60 ms, morph +0.5: the strike drops from ~90 Hz) + 44 (g .65, the 118 Hz mode) + 72 (g .15, 10 ms, the beater slap) + 27 (g .40, 900 ms, harmonics -0.40: the long 40 Hz BOOM) | spectrum 35-62 Hz within ~3 dB, the boom -28 vs -29 dB at 380 ms; NOT the real kick's broadband 90-350 Hz thump |
+| kick | MEMBRANE h0.80 t0.12 m0.30 HIGHPASS 28 · note 31 (g .57, 60 ms, morph +0.5: the strike drops from ~90 Hz) + 44 (g .65, the 118 Hz mode) + 72 (g .15, 10 ms, the beater slap) + 27 (g .40, 900 ms, harmonics -0.40: the long 40 Hz BOOM) | spectrum 35-62 Hz within ~3 dB, the boom -28 vs -29 dB at 380 ms, the 90-350 Hz band within ~3 dB over the first 120 ms |
 | snare | head MEMBRANE h0.70 t0.15 m0.10 HIGHPASS 100 note 55 g .36 gate 55 + wires (slot DK_L_WIRES) NOISE LP7000/2 g .057 | 205 Hz, -10.0 vs -10.0 dB under the kick |
 | hat closed | METAL h0.70 t0.85 m0.85 dec .66 spr .20 LP12500/4 · note 81 g .028 damp .92 | -17.2 vs -17.3 dB, -20 dB at 65 vs 75 ms |
 | hat open | same bank · note 77 timbre -0.25 g .039 damp .46 · choked by the closed hat | -14.4 vs -14.5 dB, darker than drumhand's |

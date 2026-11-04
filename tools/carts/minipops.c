@@ -54,7 +54,7 @@ enum {
 // instrument slots (5..31 are free; 5-8 are the user waves, start at 9)
 enum {
     SL_KICK = 9, SL_SN1, SL_SN2, SL_RIM, SL_BON, SL_COW, SL_CLV, SL_MAR,
-    SL_TAMB, SL_CYM, SL_GUIRA, SL_QUIJ
+    SL_TAMB, SL_CYM, SL_GUIRA, SL_QUIJ, SL_CYML
 };
 
 static const char *VNAME[NV] = {
@@ -186,8 +186,9 @@ static int vv(int base, int boost) {
 static void fire(int v, int boost, int delay) {
     switch (v) {
     case V_KICK:  schedule_hit(delay, 33, SL_KICK, vv(5, boost), 90); break;    // 54 Hz
-    case V_SN1:   schedule_hit(delay, 60, SL_SN1,  vv(4, boost), 180); break;
-    case V_SN2:   schedule_hit(delay, 60, SL_SN2,  vv(4, boost), 110); break;
+    // the noise voices: a 5 ms gate, then an EXPONENTIAL release is the whole hit (see init)
+    case V_SN1:   schedule_hit(delay, 60, SL_SN1,  vv(4, boost), 5); break;
+    case V_SN2:   schedule_hit(delay, 60, SL_SN2,  vv(4, boost), 5); break;
     case V_RIM:   schedule_hit(delay, 91, SL_RIM,  vv(5, boost), 12); break;   // a ~1.6 kHz click
     case V_BONH:  schedule_hit(delay, 74, SL_BON,  vv(4, boost), 18); break;   // 587 Hz (real 592), -20 dB ~30 ms
     case V_BONM:  schedule_hit(delay, 67, SL_BON,  vv(4, boost), 28); break;   // 392 (398), ~40 ms
@@ -197,10 +198,10 @@ static void fire(int v, int boost, int delay) {
         schedule_hit(delay, 68, SL_CLV, vv(4, boost), 35);
         schedule_hit(delay, 97, SL_CLV, vv(1, boost), 30);
         break;
-    case V_MAR:   schedule_hit(delay, 90, SL_MAR,  vv(2, boost), 35); break;
-    case V_TAMB:  schedule_hit(delay, 90, SL_TAMB, vv(1, boost), 60); break;   // the narrow ring is hot
-    case V_CYMS:  schedule_hit(delay, 90, SL_CYM,  vv(3, boost), 130); break;
-    case V_CYML:  schedule_hit(delay, 90, SL_CYM,  vv(3, boost), 340); break;
+    case V_MAR:   schedule_hit(delay, 90, SL_MAR,  vv(2, boost), 5); break;
+    case V_TAMB:  schedule_hit(delay, 90, SL_TAMB, vv(1, boost), 5); break;   // the narrow ring is hot
+    case V_CYMS:  schedule_hit(delay, 90, SL_CYM,  vv(3, boost), 5); break;
+    case V_CYML:  schedule_hit(delay, 90, SL_CYML, vv(3, boost), 5); break;
     case V_GUIRA: schedule_hit(delay, 50, SL_GUIRA, vv(4, boost), 940); break;  // one long stroke, the body a fifth down
     case V_QUIJ:  schedule_hit(delay, 60, SL_QUIJ,  vv(4, boost), 500); break;
     }
@@ -210,22 +211,35 @@ void init(void) {
     // ── the voice circuits, from the measurements in the header ─────────
     instrument(SL_KICK, INSTR_SINE, 0, 75, 0, 40);          // a short round thump, no pitch drop
     instrument_filter(SL_KICK, FILTER_LOW, 400, 1);
-    instrument(SL_SN1, INSTR_NOISE, 0, 160, 0, 40);         // pure filtered noise, 2.7-12 kHz
-    instrument_filter(SL_SN1, FILTER_BAND, 3700, 11);       // resonant: a wide band's skirt ran to 20 kHz
-    instrument(SL_SN2, INSTR_NOISE, 0, 100, 0, 30);
-    instrument_filter(SL_SN2, FILTER_BAND, 3700, 11);
+    // NOISE VOICES. Held at full level then released (a linear ADSR) they plateaued and smeared into a
+    // wash, and a very resonant band made every hit's level a lottery (the engine's noise is never
+    // reseeded): the real bossa's maracas+cymbal line pulses 0 / -7 / -4 / -7 per 16th, ours wobbled
+    // 0 / -4 / -6 / -9. So each is a 5 ms gate into an EXPONENTIAL release (falls fast, then trails, like
+    // the real one-shots), with a little less resonance. Release times set to the real -20 dB times.
+    instrument(SL_SN1, INSTR_NOISE, 0, 0, 7, 295);         // pure filtered noise, 2.7-12 kHz
+    instrument_filter(SL_SN1, FILTER_BAND, 3700, 10);
+    instrument_release_shape(SL_SN1, RELEASE_EXP);
+    instrument(SL_SN2, INSTR_NOISE, 0, 0, 7, 166);
+    instrument_filter(SL_SN2, FILTER_BAND, 3700, 10);
+    instrument_release_shape(SL_SN2, RELEASE_EXP);
     instrument(SL_RIM, INSTR_TRI, 0, 8, 0, 5);
     instrument_filter(SL_RIM, FILTER_BAND, 1600, 6);
     instrument(SL_BON, INSTR_SINE, 0, 120, 0, 20);          // the gate sets each bongo's length
     instrument(SL_COW, INSTR_SINE, 0, 60, 0, 20);
     instrument_tune(SL_COW, 0.4f);                          // 831 -> 851 Hz
     instrument(SL_CLV, INSTR_SINE, 0, 40, 0, 12);
-    instrument(SL_MAR, INSTR_NOISE, 0, 35, 0, 10);
-    instrument_filter(SL_MAR, FILTER_BAND, 7200, 12);
-    instrument(SL_TAMB, INSTR_NOISE, 0, 45, 0, 30);
+    instrument(SL_MAR, INSTR_NOISE, 0, 0, 7, 60);
+    instrument_filter(SL_MAR, FILTER_BAND, 7200, 11);
+    instrument_release_shape(SL_MAR, RELEASE_EXP);
+    instrument(SL_TAMB, INSTR_NOISE, 0, 0, 7, 70);
     instrument_filter(SL_TAMB, FILTER_BAND, 4600, 15);
-    instrument(SL_CYM, INSTR_NOISE, 0, 400, 0, 60);         // the gate makes it short or long
-    instrument_filter(SL_CYM, FILTER_BAND, 4800, 12);
+    instrument_release_shape(SL_TAMB, RELEASE_EXP);
+    instrument(SL_CYM, INSTR_NOISE, 0, 0, 7, 274);          // the short cymbal
+    instrument_filter(SL_CYM, FILTER_BAND, 4800, 11);
+    instrument_release_shape(SL_CYM, RELEASE_EXP);
+    instrument(SL_CYML, INSTR_NOISE, 0, 0, 7, 741);        // the long one: its own slot, since release time is per slot
+    instrument_filter(SL_CYML, FILTER_BAND, 4800, 11);
+    instrument_release_shape(SL_CYML, RELEASE_EXP);
     instrument(SL_GUIRA, INSTR_SCRAPE, 0, 0, 7, 30);        // a metal scraper, 66 teeth/s
     instrument_harmonics(SL_GUIRA, 0.92f);                  // BODY: nearly metal (a metal scraper: noisy, wide)
     instrument_timbre(SL_GUIRA, 0.82f);                     // RATE: 10 * 10^0.82 = 66 /s

@@ -44,6 +44,9 @@ Every spike, and Playtime's choir independently, landed on the same three ideas:
 | `tablahand` | tabla, `INSTR_MEMBRANE` | a stroke VOCABULARY (bols as data), two hands, a left hand that bends and damps the bayan after striking | none | Nikki: "nice, but still misses character" (the SOUND of the strokes, not the playing) |
 | `tablalab` | tabla, one sine per measured overtone | the stroke SOUND, fitted to recordings (§5) | none | not judged yet |
 | `reedhand` | tenor sax, held `INSTR_REED` | a jazz player's marks: scoop, ghost, growl (breath macro ridden up after the attack), fall, late vibrato, a swing that wanders and lays back | `instrument_vibrato` | not judged yet |
+| `cellohand` | arco cello, held `INSTR_BOWED` | a BOW ARM (position, direction, planned speed, mid-note changes), bow pressure/speed curves, shifts, late vibrato | none | not judged yet |
+| `pianohand` | piano, booked `INSTR_PIANO` | a sustain PEDAL computed by the cart (legato re-pedalling, half pedal, a slow lift), note endings via 5 release slots, melody lead, chord spread | none | not judged yet |
+| `drumhand` | acoustic kit, booked | a drummer with LIMBS, a technique per stroke (centre/edge/rimshot/cross-stick/ghost, hat tip/shank, ride bow/bell), a hi-hat PEDAL | none | not judged yet |
 | `basshand` | walking upright, pizz `INSTR_BOWED`, booked | per-pluck force and spot, left-hand note length, open strings ringing, slides in from below (booked legato glides), ghost notes and rakes | `instrument_vibrato` (off) | not judged yet |
 
 Playtime's choir spike (`scripts/spikes/choir.playtime.lua` there) is the voice member of the set: a
@@ -213,6 +216,43 @@ timbre comes from the take).
   open/closed two-slot pattern as the tabla (§6.2 item 6), so **a per-note damping amount** would
   remove a slot from both
 
+### 6.5 Cello, piano, drum kit (the §7.1 spikes; built by three parallel agents 2026-11-04)
+
+All measured, none judged by ear yet. Engine facts below were checked against `runtime/sound.h`.
+
+- **An event INSIDE a held note** (cello bow change; the hi-hat foot closing on a ringing hat).
+  Starting a new voice is a RE-ATTACK, not a bow change (the bowed string needs ~0.4 s to build back
+  up, partials ~4-5 cents off at the join). `note_retrig` does nothing on a bowed note: it re-arms
+  onsets for PIPE / REED / BRASS / ORGAN only (`sound_retrig_voice`). What worked: riding the held
+  note (a 4-8 dB dip for 30-90 ms, a timbre blip) plus a noise tick on a second slot. The physical
+  answer is a **signed bow-velocity curve** (the string lets go and re-catches); today bow speed has a
+  floor (`bowSpeed = 0.30 + mor*0.60`) and cannot reach zero or reverse.
+- **A curve SHARED by every sounding note** (sustain pedal, hi-hat pedal; the accordion bellows is
+  the same kind). The piano's morph "pedal" is latched into the string's loop loss at note-on
+  (`pn_dampg = pn_damps = v->mor`) and never re-read: a held note with `note_morph` changed mid-note
+  renders BYTE-IDENTICAL. So `pianohand` computes the dampers itself and books each note's gate to
+  end at key-up or the next pedal lift. A booked note cannot follow a curve that is decided later, and
+  a half pedal cannot change a ringing note's decay RATE. Need: a per-slot (or group) damper/pedal
+  amount that every sounding note follows live, booked ones included, with a per-note "key held" flag
+  the pedal curve cannot damp; timed on the audio clock (riding per frame lands ~17 ms late and steps).
+- **How a note ENDS**: release time is copied into the voice at note-on, so `pianohand` uses 5
+  identical slots for 5 release lengths. The release is a LINEAR ramp (-6 dB at half, then a plunge;
+  a felt damper is the reverse: a quick drop then a short tail) and ends in exact digital silence.
+  Need: **a per-note release time + shape** in NoteOpts; an **end event** (damper / key-off noise).
+- **A technique per note = a BUNDLE of voices fired together** (rimshot = head + wires + rim crack;
+  flam / drag / buzz = 2-9 strokes), each with its own gate, strike spot and filter. Measured distinct
+  (cross-stick centroid 576 Hz vs a centre hit ~3.5 kHz). Today: several `schedule_note_at` calls.
+- **A per-note filter cutoff** (drums: today only via `ACC_CUTOFF`, one amount per slot) and a
+  **per-note decay / damping amount** (drums: `MODE_METAL_DECAY` is per slot; the THIRD instrument
+  asking, after bass and tabla).
+- **Sound-setting curves over a note**, confirmed on bowed: morph (bow speed) is live (+6.8 dB),
+  timbre (pressure) is live but weak (centroid 1004 to 1142 Hz, the scratch nearly inaudible),
+  harmonics (bow position) is note-on only. Need also: **bow position per note**, latched at note-on.
+- **Engine sound gaps found on the way** (not NoteOpts): bowed pressure needs more spectral range;
+  the piano's treble decays far too fast (C6 down 40 dB in ~0.4 s whatever the pedal setting).
+- Slides inside a legato pair are bookable today (mono slot + `glide_ms`), but a bowed string can only
+  go ~7 semitones under its start (the 2.5x string buffer, capped).
+
 ## 7. Next
 
 - **Reed and upright bass spikes built** (2026-11-04, `reedhand`, `basshand`), waiting for the ear.
@@ -265,4 +305,4 @@ should add rows of a different KIND:
 
 New categories in short: events inside a note, curves shared by a whole instrument, how notes end,
 a per-note technique choice, legato on polyphonic slots. The three spikes in bold cover nearly all
-of them; each must report its rows for §6.
+of them; each must report its rows for §6. **All three built 2026-11-04; their rows are §6.5.**

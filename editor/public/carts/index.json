@@ -1500,6 +1500,22 @@
     "lineage": "Follows shadelab (CPU shader exploration) and precedes raymarch; adds Hugo Elias's classic demoscene 2D wave-equation height-field sim alongside a sine-only fake mode, teaching both paths to displacement mapping."
   },
   {
+    "title": "cellohand",
+    "description": "A slow cello line played by a bow arm instead of a keyboard: the bow has a length and runs out, so long notes change bow mid-note without a new attack, down-bows lean in and up-bows grow, bow speed and pressure shape each note's level and colour, the left hand slides on the big shifts and lets the vibrato bloom late. TAB flips to the keyboard version. The player keeps track of where the bow is (frog to tip) and which way it travels. Every new stroke turns it round, the player plans each phrase so its accent or longest note lands on a down-bow, a long note gets a full bow, and when a note outlasts the bow it changes direction mid-note: a short dip, a little bite of rosin, the pitch and the vibrato carrying straight through. Down-bows start heavy at the frog and lighten towards the tip, up-bows start light and grow. Bow speed and pressure are curves over each note (a swell on the long ones, an accent that digs in and lets go), and a stroke that must last longer than the bow allows is played slower with more weight. Some notes slide into place, more on big leaps. The time breathes: pushing in a phrase, broadening at its end, a little time taken before a shift. Keys 1-5 switch each layer on and off. SPACE play/stop · TAB bow arm / keyboard · 1 time 2 bow 3 changes 4 shifts 5 vib · UP/DOWN humanity · LEFT/RIGHT tempo · R new take",
+    "file": "cellohand.cart.png",
+    "created": "2026-11-04",
+    "kind": [
+      "instrument",
+      "tech-demo"
+    ],
+    "teaches": [
+      "waveguide-synth",
+      "analog-voice-modeling",
+      "self-oscillation"
+    ],
+    "lineage": "The seventh humanized-playing spike (docs/design/humanized-playing.md §7.1), after strumhand, breathflute, tablahand, tablalab, reedhand and basshand: an arco cello, INSTR_BOWED with the cello body. breathflute's held-and-ridden mechanics, with a BOW model in place of the lungs. Asks the question the earlier spikes did not: an EVENT inside a held note (the bow change), which re-articulates without a new note."
+  },
+  {
     "title": "Centipede",
     "description": "The arcade classic, drawn entirely from chunky primitives. A segmented bug winds down through a field of mushrooms toward your blaster, which is pinned to the bottom band of the screen. Every shot counts: blast a mid-body segment and the centipede splits in two while a fresh mushroom sprouts where it died; pick off the head and the swarm just shortens. A glittering spider darts through the lower third, eating mushrooms and hunting you for a fat 300-point bounty. Clear every segment to march into a faster wave; lose all three lives and your run is over. Lives, score, and a saved high score. Arrows/WASD move (bottom band only), Z/Space fire upward, Z to restart on game over.",
     "file": "centipede.cart.png",
@@ -2345,6 +2361,22 @@
     "lineage": "Direct port of the classic Drugwars/Dope Wars formula (1984/1984-inspired text game) into a living tilemap city, adding pal()-recolored pedestrians, ambient music beds, and a per-district price-flavor matrix.",
     "genre": "tycoon",
     "homage": "Drug Wars (1984)"
+  },
+  {
+    "title": "drumhand",
+    "description": "An 8-bar soul groove played by a DRUMMER instead of a grid: two hands and two feet, a technique per stroke, a hi-hat pedal that every hat hit reads, ghost notes, flams, a buzz and a fill that builds and lands on the crash. TAB flips to the grid version. Four limbs. The right hand keeps the hats (or the ride) on top of the beat, the left hand plays the backbeat a hair behind it and the ghost notes in between, the right foot the kick, the left foot the hi-hat PEDAL. Each stroke is a TECHNIQUE: the snare is struck in the centre, near the edge, as a rimshot (stick on head and rim at once), as a cross-stick (stick laid across the rim) or as a ghost; the hat is hit with the tip (a light tick) or the shank (a thick chunk); the ride on the bow or the bell; the kick is buried (beater held into the head, short) or bounced (it rings). The pedal is a continuous openness every hat hit reads: closed tick, half-open sizzle, open wash, and when the foot closes it makes its own chick and stops a ringing open hat. The drummer has a body: a hand cannot be on the hat and the snare at once, so the hats stop in a fill and the fill alternates right and left; a quick second stroke by the same hand is a little late and softer; the energy builds over the eight bars into the fill and the crash, and over a long take the left hand tires (lighter ghosts, a little dragging). Keys 1-5 switch each layer on and off. SPACE play/stop · TAB drummer / grid · 1 time 2 dynamics 3 technique 4 pedal 5 limbs · UP/DOWN humanity · LEFT/RIGHT tempo · R new take",
+    "file": "drumhand.cart.png",
+    "created": "2026-11-04",
+    "kind": [
+      "instrument",
+      "tech-demo"
+    ],
+    "teaches": [
+      "drum-synthesis",
+      "step-sequencer",
+      "swing-timing"
+    ],
+    "lineage": "The drum-kit member of the humanized-playing spikes (strumhand, breathflute, tablahand, reedhand, basshand; docs/design/humanized-playing.md section 7.1). A kit adds two new kinds of rule to the needs table: a TECHNIQUE chosen per note (snare centre / edge / rimshot / cross-stick / ghost, hat tip / shank, ride bow / bell, kick buried / bounced) and a shared continuous control (the hi-hat PEDAL every hat hit reads). Voices built from INSTR_MEMBRANE (kick, snare head, rim, toms), INSTR_NOISE (snare wires) and INSTR_METAL (hats, ride, crash; the bogie recipes). The groove is original."
   },
   {
     "title": "drum machine",
@@ -5668,6 +5700,22 @@
       "analog-voice-modeling"
     ],
     "lineage": "INSTR_PIANO showcase and tuning rig; ported from navkit's StifKarp engine. Novel: exposes the dispersion allpass chain that adds inharmonicity (stretched upper partials) to Karplus-Strong, with six presets spanning grand piano through celesta as acceptance tests."
+  },
+  {
+    "title": "pianohand",
+    "description": "A short original piece for two hands on INSTR_PIANO, played by a model of a pianist: a sustain pedal that changes just AFTER each new chord (legato pedalling), a dry passage, a half-pedal passage, a final chord let go by a slow lift. Melody voiced over the accompaniment, chords slightly apart, a phrase that breathes. TAB flips to the sequenced version. The left hand plays broken chords, the right hand a melody. The pianist plans each phrase: where it swells, how much the melody sings over the accompaniment, how the tempo pushes and broadens. The pedal is a curve: pressed after the first note, lifted a moment after each new bass note so the old harmony clears without a gap, held at half depth in a misty passage, and raised slowly over the last chord. Every note ends when its damper falls: when the key comes up with the pedal up, or later when the pedal lifts. Staccato keys let go fast, bass dampers are slower, the top octave has no dampers at all. Keys 1-5 switch each layer on and off. SPACE play/stop · TAB pianist / sequenced · 1 time 2 dynamics 3 pedal 4 endings 5 pedal noise+halo · UP/DOWN humanity · LEFT/RIGHT tempo · R new take",
+    "file": "pianohand.cart.png",
+    "created": "2026-11-04",
+    "kind": [
+      "instrument",
+      "tech-demo"
+    ],
+    "teaches": [
+      "waveguide-synth",
+      "adsr-envelope",
+      "chord-voicing"
+    ],
+    "lineage": "The humanized-playing piano spike (docs/design/humanized-playing.md section 7.1), after strumhand, breathflute, tablahand, reedhand and basshand. The new kind of rule it tests: ONE curve shared by every sounding note (the sustain pedal), and how a note ENDS. INSTR_PIANO notes are all BOOKED (schedule_note_at); the pedal is planned ahead by the player and turned into each note's gate and release, because a booked note cannot be reached after its onset."
   },
   {
     "title": "piano roll",

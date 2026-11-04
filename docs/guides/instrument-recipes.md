@@ -545,6 +545,25 @@ Recipes built straight on the raw oscillators — full ADSR + filter per voice, 
 triple. This is where the **drum machines** live (each voice labeled by machine) alongside
 the additive synths, whimsical toys, and live synth patches.
 
+### minipops (machine — the Korg Mini Pops MP-7, 15 voices, from minipops.c)
+
+Every voice measured against the real MP-7's one-shots (`tools/oneshot-compare.js`). The era's sound: the
+pitched voices are near-pure sine pings, the snares pure filtered noise with no drum body.
+
+| name | engine | recipe | character |
+|---|---|---|---|
+| mp7/kick | SINE | 0/75/0/40 · LP400/1 · note 33 · hit 90 ms | A short round 54 Hz thump, no pitch drop. |
+| mp7/snare | NOISE | 0/160/0/40 (snare 2: 0/100/0/30) · BP3700/11 | Pure noise, 3.0 / 4.9 / 13 kHz (real 2.9 / 5.4 / 12.4). |
+| mp7/rim | TRI | 0/8/0/5 · BP1600/6 · note 91 | A ~1.6 kHz click. |
+| mp7/bongo-h/m/l | SINE | 0/120/0/20 · notes 74/67/54 · hits 18/28/60 ms | 587 / 392 / 185 Hz pings (real 592 / 398 / 183). |
+| mp7/cowbell | SINE | 0/60/0/20 · note 80 · tune +0.4 | A pure 851 Hz ping. |
+| mp7/clave | SINE | 0/40/0/12 · notes 68 + 97 (the 97 two velocity steps under) | 409 Hz + a 2175 Hz partial ~8 dB under. |
+| mp7/maracas | NOISE | 0/35/0/10 · BP7200/12 | 6.3 / 9.3 / 17 kHz (real 5.5 / 9.6 / 15.5). |
+| mp7/tambourine | NOISE | 0/45/0/30 · BP4600/15 | A narrow 4.6 kHz ring (the CR-78's idea too). |
+| mp7/cymbal-s/l | NOISE | 0/400/0/60 · BP4800/12 · hits 130 / 340 ms | 4.1 / 5.9 / 12.7 kHz (real 4.7 / 6.4 / 11.5). |
+| mp7/guira | SCRAPE | body 0.92 · rate 0.82 · gesture 0 · note 50 · hit 940 ms | A metal scraper: 66.5 teeth/s (real 65.7), body 3.5 / 4.9 / 7.1 kHz. |
+| mp7/quijada | SCRAPE | = scrape/quijada · hit 500 ms | The recipe was fitted to THIS machine's quijada. |
+
 ### tr808 (machine — all 16 voices, from tr808.c)
 
 Voices use raw waves (SINE/NOISE/TRI/SQUARE), some layered. Per-voice TUNE/DECAY/character

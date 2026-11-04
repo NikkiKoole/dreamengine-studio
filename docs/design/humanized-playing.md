@@ -3,7 +3,7 @@
 > **STATUS: EXPLORING (2026-11-04)**. Four spike carts (`strumhand`, `breathflute`, `tablahand`,
 > `tablalab`) and one small engine call (`instrument_vibrato`). Gathering NEEDS across instruments and
 > voices; **building the engine side is ON HOLD** (Nikki, 2026-11-04) until the picture is full enough
-> that one shape fits every instrument and the sampled voices. Next spikes: a reed, an upright bass.
+> that one shape fits every instrument and the sampled voices. Built since: a reed and an upright bass; next: cello (arco), piano with pedal, drum kit (§7.1).
 > Written together with Playtime's choir spike (playtime `docs/CHOIR.md`, commit f876a6b3).
 
 Related: [`audio-timing.md`](audio-timing.md) (booking notes on the audio clock, which every spike here
@@ -221,6 +221,48 @@ timbre comes from the take).
   now BOOKED: a pluck under the note plus a legato booked note with `glide_ms` on the mono slot. So a
   slide INTO a note is already bookable today on a mono slot (§4.2 is not absolute); a pitch curve is
   still needed for poly slots, falls, scoops and vibrato.
+- **The upright's SOUND, measured** (CC0 pack "Standup Bass" by pjcohen, Freesound pack 21521, 12
+  notes; `build/refs/upright-cc0/`). A real pizz has the fundamental (and 2nd) loudest and harmonics
+  3-8 14-45 dB down; ours had the fundamental 7-12 dB UNDER harmonics 3-8, which reads as higher and
+  thinner than the note (Nikki: "it sounds lower" for the real one). Cause: the pizz pluck is noise
+  low-passed at a FIXED frequency, so a low note's first ~25 harmonics get equal energy. Fix:
+  **`MODE_BOW_PLUCK`** (idx 6, default 0 = the old noise pluck, bit-identical; 1 = a FINGER pluck,
+  the string seeded as a triangle per half, harmonics ~1/n^2 relative to the note). The fundamental
+  is now the loudest harmonic on G1/G2/G3; the centroid is still ~2x the recordings' (G1 415 vs 177
+  Hz), so darker still is possible. The Bartok snap pizz (bright upper harmonics + a noise burst at
+  the attack) is the slap/buzz character, not built yet. A sharp-then-settling onset pitch was NOT
+  confirmed: the low-note pitch tracks were too noisy to trust.
+- **The upright's thump and room** (Nikki after the finger pluck: "much more like a bass instead of a
+  low piano", but the real G1 "so much more beautiful, dark and full, ours more synthey"). Measured
+  differences on G1: the real note drops ~15 dB in 0.6 s then HOLDS for seconds (ours only faded);
+  every real harmonic decays at its own rate (ours all at one: a static spectrum); the real
+  fundamental sits ~15 cents flat against its overtones (ours within 1-2); and the real recording has
+  ~30 dB more energy BETWEEN the harmonics (wood, body, room). Cart-side fix in `basshand`: the string
+  turned down under a short low membrane THUMP at a fixed body pitch, a 350 Hz low-pass, a small dark
+  room, the master EQ as a volume knob. G1 now 0/-6/-8/-10/-11 dB at 0/.1/.3/.6/1 s (real 0/+1/-9/
+  -15/-15), between-harmonics -35 dB (real -19, ours before -48), centroid 345 Hz (real 177). A bright
+  "snap" attack layer was tried and went the WRONG way (centroid 2x): the real attack is a low boom.
+  Then (Nikki: "the thump sounds very identical") the thump follows the hand: force squared, a light
+  finger now and then, spot / character / length varying per pluck. Still engine-side: the hold after
+  the attack, per-harmonic decay, the slightly flat fundamental.
 - Tabla: fit the closed strokes (te, ke) to the recordings; try the measured strokes in `tablahand`.
 - When the needs list is full: one engine proposal covering §6, checked against every spike and the
   voice before any `sound.h` edit.
+
+### 7.1 What the table does not cover yet (2026-11-04)
+
+Every spike so far is ONE note at a time, shaped at its start or along its length. These families
+should add rows of a different KIND:
+
+| family | the new kind of rule | spike |
+|---|---|---|
+| bowed strings, arco (cello, violin) | an EVENT inside a held note (a bow change re-articulates without a new note); bow pressure + speed curves shaping level AND timbre; position shifts; up- vs down-bow attacks | **cello** |
+| piano with sustain pedal | a curve SHARED by every sounding note (pedal, half-pedal, re-pedalling); how a note ENDS (release speed, damper noise, let ring vs stopped) | **piano** |
+| drum kit | a TECHNIQUE chosen per note (rimshot, cross-stick, centre/edge, open/closed hat); a shared continuous control (the hi-hat pedal); flams, buzz rolls, ghosts | **drum kit** |
+| brass with a mute, harmonica | a FILTER curve per note (the hand on the mute is a wah during the note), or one generalised "curve on any parameter" | later |
+| accordion, organ swell | the bellows: one pressure curve shared by all notes (the same kind as the pedal) | later |
+| guitar, the skipped parts | legato (hammer-on / pull-off) on a POLYPHONIC slot, where glide is mono-only today; natural harmonics (an overtone choice); bends that return | later |
+
+New categories in short: events inside a note, curves shared by a whole instrument, how notes end,
+a per-note technique choice, legato on polyphonic slots. The three spikes in bold cover nearly all
+of them; each must report its rows for §6.

@@ -36,6 +36,8 @@ de:meta */
 
 #define BASS  10
 #define GHOST 11          // a muted, dead note: the same string, damped hard, low-passed
+#define THUMP 12          // the pluck's wooden thump: the finger + the body knocked, gone in ~0.3 s
+#define SNAP  13          // the bright ATTACK: the same string with the noise pluck, dying in ~0.3 s
 #define LOOKAHEAD 0.12
 
 // twelve-bar F blues, a walking line, four quarter notes a bar (MIDI, E1 = 28)
@@ -77,11 +79,27 @@ static void setup_sound(void) {
     // voiced exactly as upright.c / rootwalk.c
     instrument(BASS, INSTR_BOWED, 4, 0, 7, 475);
     instrument_mode(BASS, MODE_BOW_PIZZ, 1.0f);
-    instrument_mode(BASS, MODE_BOW_BODY, 0.85f);
+#ifndef BASS_BODY
+#define BASS_BODY 0.85f
+#endif
+    instrument_mode(BASS, MODE_BOW_BODY, BASS_BODY);
     instrument_mode(BASS, MODE_BOW_SIZE, BOW_SIZE_BASS);
-    instrument_filter(BASS, FILTER_LOW, 1500, 3);
-    instrument_harmonics(BASS, 0.30f);
-    instrument_timbre(BASS, 0.30f);
+#ifndef BASS_PLUCK
+#define BASS_PLUCK 1.0f   // the finger pluck (MODE_BOW_PLUCK), matched to CC0 upright recordings
+#endif
+    instrument_mode(BASS, MODE_BOW_PLUCK, BASS_PLUCK);
+#ifndef BASS_CUT          // DE_DEFINES overrides, for voicing sweeps against the recordings
+#define BASS_CUT 350      // dark: the real G1 centroid is 177 Hz
+#endif
+#ifndef BASS_HARM
+#define BASS_HARM 0.30f
+#endif
+#ifndef BASS_TIMB
+#define BASS_TIMB 0.30f
+#endif
+    instrument_filter(BASS, FILTER_LOW, BASS_CUT, 3);
+    instrument_harmonics(BASS, BASS_HARM);
+    instrument_timbre(BASS, BASS_TIMB);
     instrument_morph(BASS, 0.45f);
     instrument_mono(BASS, 1);               // one string sounding at a time, like a walking line
     instrument_vibrato(BASS, 0.0f);         // no built-in wobble on plucked notes
@@ -94,8 +112,58 @@ static void setup_sound(void) {
     instrument_harmonics(GHOST, 0.2f); instrument_timbre(GHOST, 0.1f); instrument_morph(GHOST, 0.9f);
     instrument_vibrato(GHOST, 0.0f);
     instrument_choke(GHOST, BASS);          // a dead note stops the ringing one
-    instrument_reverb(BASS, 0.12f);
-    reverb(0.4f, 0.55f);
+    // THE THUMP (2026-11-04): a real pizz drops ~15 dB in its first half second and then rings on
+    // steady (measured on CC0 upright recordings); ours only faded. A short, low, damped membrane hit
+    // under every pluck gives that attack-then-bloom shape and some wood between the harmonics.
+#ifndef BASS_THUMP
+#define BASS_THUMP 1.0f
+#endif
+#ifndef BASS_ROOM
+#define BASS_ROOM 0.30f
+#endif
+#ifndef BASS_LVL
+#define BASS_LVL 0.25f    // the string sits under the thump: a real pizz is loud, then rings on ~15 dB down
+#endif
+#ifndef THUMP_MS
+#define THUMP_MS 300
+#endif
+#ifndef THUMP_NOTE
+#define THUMP_NOTE 38     // a fixed body pitch (~73 Hz); 0 = an octave under the note
+#endif
+    instrument_level(BASS, BASS_LVL);
+    instrument(THUMP, INSTR_MEMBRANE, 1, 0, 7, THUMP_MS);
+    instrument_harmonics(THUMP, 0.80f);      // inharmonic: wood, not a second pitch
+    instrument_timbre(THUMP, 0.20f);         // near the centre: a round knock
+    instrument_morph(THUMP, 0.25f);          // a little pitch drop off the hit
+    instrument_filter(THUMP, FILTER_LOW, 700, 1);
+    instrument_reverb(THUMP, BASS_ROOM);
+    // THE SNAP: the old bright noise pluck on its own slot, decaying fast, over the dark finger
+    // pluck that rings on: loud-then-bloom AND a colour that darkens as the note rings (measured:
+    // every real harmonic decays at its own rate; ours all at one, a static spectrum)
+#ifndef BASS_SNAP
+#define BASS_SNAP 0.0f   // tried: makes it BRIGHTER (centroid 2x), the real attack is low, not bright
+#endif
+#ifndef BASS_SNAP_MS
+#define BASS_SNAP_MS 280
+#endif
+    instrument(SNAP, INSTR_BOWED, 2, BASS_SNAP_MS, 0, 40);
+    instrument_mode(SNAP, MODE_BOW_PIZZ, 1.0f);
+    instrument_mode(SNAP, MODE_BOW_BODY, 0.85f);
+    instrument_mode(SNAP, MODE_BOW_SIZE, BOW_SIZE_BASS);
+    instrument_filter(SNAP, FILTER_LOW, 2500, 2);
+    instrument_harmonics(SNAP, 0.30f); instrument_timbre(SNAP, 0.40f); instrument_morph(SNAP, 0.45f);
+    instrument_vibrato(SNAP, 0.0f);
+    instrument_reverb(SNAP, BASS_ROOM);
+    // the room: a small, dark space (the recordings were made in one, a dry string never is)
+    instrument_reverb(BASS, BASS_ROOM);
+    instrument_reverb(GHOST, BASS_ROOM * 0.6f);
+    reverb(0.22f, 0.7f);
+    // LEVEL: the string sits low under the thump, so the whole cart came out ~10 dB quiet (Nikki: "a
+    // bit softer"). No master volume exists; the master EQ in dB does the job, the cart is all bass.
+#ifndef BASS_MASTER_DB
+#define BASS_MASTER_DB 11.5f
+#endif
+    eq(BASS_MASTER_DB, BASS_MASTER_DB - 2.0f, 0.0f);
 }
 
 static void new_take(void) { rnd_seed(seed); qn = 0; sl.t = -10; t_beat = audio_time() + 0.25; }
@@ -152,6 +220,31 @@ static void play_quarter(int q, double t, double beat_len) {
     } else {
         schedule_note_at(tt, midi, BASS, 7, gate, &o);
     }
+    if (BASS_SNAP > 0) {
+        NoteOpts k = { .gain = force * BASS_SNAP, .harmonics = spot };
+        schedule_note_at(tt, midi, SNAP, 7, BASS_SNAP_MS, &k);
+    }
+    if (BASS_THUMP > 0) {
+        // the knock follows the note an octave down-ish but stays low (the body, not the string)
+        int tm = THUMP_NOTE > 0 ? THUMP_NOTE : (midi - 12 < 24 ? 24 : midi - 12);
+        float tg = force * 0.85f, tt_spot = spot, tmorph = 0, tharm = 0;
+        int   tgate = 90;
+        if (C) {
+            // the thump is the HAND too (Nikki: "the thump sounds very identical"): it follows the
+            // force squared (soft plucks barely knock), sometimes a light finger hardly knocks at
+            // all, the strike spot and knock character move, the body knock sits lower under low
+            // notes, and each one lasts its own time
+            tg = force * force * 1.05f * (0.75f + 0.25f * rnd_float());
+            if (rnd_float() < 0.15f * H) tg *= 0.35f;
+            tt_spot = spot + r1() * 0.15f * H;
+            tmorph = r1() * 0.15f * H;
+            tharm = r1() * 0.10f * H;
+            tm += (midi - 36) / 6 + (rnd_float() < 0.3f * H ? (rnd_float() < 0.5f ? -1 : 1) : 0);
+            tgate = 60 + rnd(70);
+        }
+        NoteOpts t = { .gain = tg * BASS_THUMP, .timbre = tt_spot, .morph = tmorph, .harmonics = tharm };
+        schedule_note_at(tt, tm, THUMP, 7, tgate, &t);
+    }
     dot(tt, midi, force, spot, slide ? 2 : open ? 3 : 0);
 
     // between the beats: a ghost (dead thump) or a rake into the next note, on the swung "and"
@@ -194,7 +287,22 @@ static void ride_slide(void) {
     if (fabsf(semi - tune_last) > 0.01f) { instrument_tune(BASS, semi); tune_last = semi; }
 }
 
-void init(void) { setup_sound(); new_take(); }
+void init(void) {
+    setup_sound(); new_take();
+#ifdef PROBE_NOTE    // DE_DEFINES=PROBE_NOTE=<midi>: one plain pluck, for the A/B against a recording
+    playing = false;
+    NoteOpts o = { .gain = 0.9f };
+    schedule_note_at(audio_time() + 0.2, PROBE_NOTE, BASS, 7, 3000, &o);
+    if (BASS_SNAP > 0) {
+        NoteOpts k = { .gain = 0.9f * BASS_SNAP };
+        schedule_note_at(audio_time() + 0.2, PROBE_NOTE, SNAP, 7, BASS_SNAP_MS, &k);
+    }
+    if (BASS_THUMP > 0) {
+        NoteOpts t = { .gain = 0.9f * 0.85f * BASS_THUMP };
+        schedule_note_at(audio_time() + 0.2, THUMP_NOTE > 0 ? THUMP_NOTE : (PROBE_NOTE - 12 < 24 ? 24 : PROBE_NOTE - 12), THUMP, 7, 90, &t);
+    }
+#endif
+}
 
 void update(void) {
     if (keyp(KEY_SPACE)) { playing = !playing; t_beat = audio_time() + 0.15; }

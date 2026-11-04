@@ -6435,15 +6435,50 @@ static inline float sound_ad_env(int s, int a, int d) {
 // shared Chamberlin SVF integrator: advance flt_low/flt_band one sample, return the highpass tap.
 // nl_res = Steiner-Parker nonlinear resonance (tanh on the band feedback = the bite). svf() and
 // steiner() differ ONLY in this flag + their output stage (raw taps vs tanh-driven taps).
-static inline float svf_step(Voice *v, float in, float cutoff_hz, bool nl_res) {
-    float f = 2.0f * de_sinf(SOUND_PI * cutoff_hz / (float)SOUND_SAMPLE_RATE);
-    if (f > 0.99f) f = 0.99f; else if (f < 0.0005f) f = 0.0005f;   // keep the simple SVF stable
+static inline float svf_tick(Voice *v, float in, float f, bool nl_res) {
     v->flt_low += f * v->flt_band;
     float high = in - v->flt_low - v->flt_q * (nl_res ? de_tanhf(v->flt_band) : v->flt_band);
     v->flt_band += f * high;
     // clamp state so a high-resonance sweep can't blow up
     if      (v->flt_low  >  4.0f) v->flt_low  =  4.0f; else if (v->flt_low  < -4.0f) v->flt_low  = -4.0f;
     if      (v->flt_band >  4.0f) v->flt_band =  4.0f; else if (v->flt_band < -4.0f) v->flt_band = -4.0f;
+    return high;
+}
+// HIGH CUTOFFS (2026-11-04, svf-highcut). The Chamberlin is only well-behaved while f*(f + 2q)
+// stays small. Past that, one pole runs toward z = -1 and the filter RINGS AT NYQUIST, and at low
+// resonance above ~6 kHz it goes properly unstable and rails on the ±4 clamp above. The old 0.99
+// clamp also pinned every cutoff above ~7.3 kHz to the same filter. Measured: FILTER_BAND 7800 Hz
+// res 4 on white noise came out +12 dB with its energy at 18-22 kHz, which is why every bright
+// hat / cymbal / maracas / tambourine recipe (cr78's, against a real CR-78) sat at ~20 kHz.
+// So when the 1x coefficient leaves the safe zone, the SAME step runs 2x or 4x oversampled
+// (input held), where the coefficient is small again; at 4x it is capped at the zone's edge (the
+// highest reachable cutoff is then ~15.6 kHz at res 0, higher with resonance). INSIDE the safe
+// zone the arithmetic is exactly the old one, so every patch that was sounding right renders
+// byte-identical. Limit 2.5 from an analytic study vs the analog prototype: it keeps the spurious
+// Nyquist peak of LP/BP under ~1.5 dB (the old filter reached +20..55 dB, or INF).
+// Blast radius when it landed: 26 carts' audio moved (the near-Nyquist energy of their hats /
+// cymbals / bright patches fell 9-35 dB, overall level up to -11 dB); the rest of a 184-cart
+// before/after sweep stayed byte-identical. Accepted by ear, not rebalanced.
+#define SVF_SAFE 2.5f
+static inline float svf_step(Voice *v, float in, float cutoff_hz, bool nl_res) {
+    float x = SOUND_PI * cutoff_hz / (float)SOUND_SAMPLE_RATE;
+    float f = 2.0f * de_sinf(x);
+    float q = v->flt_q;
+    if (f <= 0.99f && f * (f + 2.0f * q) <= SVF_SAFE) {
+        if (f < 0.0005f) f = 0.0005f;          // keep the simple SVF stable
+        return svf_tick(v, in, f, nl_res);
+    }
+    int n = 2;
+    f = 2.0f * de_sinf(x * 0.5f);
+    if (f > 0.99f || f * (f + 2.0f * q) > SVF_SAFE) {
+        n = 4;
+        f = 2.0f * de_sinf(x * 0.25f);
+        float fmax = sqrtf(q * q + SVF_SAFE) - q;   // the root of f*(f + 2q) = SVF_SAFE
+        if (f > fmax) f = fmax;
+        if (f > 0.99f) f = 0.99f;
+    }
+    float high = 0.0f;
+    for (int i = 0; i < n; i++) high = svf_tick(v, in, f, nl_res);
     return high;
 }
 

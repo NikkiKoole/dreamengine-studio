@@ -15,6 +15,12 @@ _Last updated: 2026-10-29 — INSTR_SCRAPE: a guiro with teeth. See the top Ship
 
 ## Shipped ✓
 
+- **PER-VOICE FILTER FIXED ABOVE ~6 kHz** (2026-11-04, found comparing `cr78` to real CR-78 samples). The
+  Chamberlin SVF behind `instrument_filter` (and the Steiner modes) rang at Nyquist or went unstable at high
+  cutoffs (BAND 7800 res 4 on noise: +12 dB, all of it at 18-22 kHz), so bright hats/cymbals/maracas sat at
+  ~20 kHz. It now oversamples 2x/4x only outside its safe zone (`svf_step`, `runtime/sound.h`); everything
+  inside stays byte-identical. 26 of 184 filter carts changed (whine gone, up to -11 dB), accepted by ear.
+
 - **ROOTWALK + A FREE "OFF" FOR CHORUS AND FLANGER** (2026-11-03, GitHub #48). `rootwalk`: Playtime's
   auto-accompaniment jam as a cart (a bass figure on a walking root, a drum machine that arranges itself),
   kept in step with Playtime J1-J10 and S4a (it answers a game moment in drums: N nod, D fill, S big; never

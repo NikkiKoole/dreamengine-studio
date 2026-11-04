@@ -2143,6 +2143,7 @@ static bool sound_req_is_event(SoundReq r) {
         case SR_NOTE_FOLLOW: case SR_NOTE_PAN: case SR_NOTE_REVERB: case SR_NOTE_DRIVE_MODE:
         case SR_NOTE_POS: case SR_NOTE_MOTION: case SR_HIT_AT: case SR_NOTE_SYNC:
         case SR_NOTE_RETRIG: case SR_NOTE_GLIDE_SCALE: case SR_CART_SWITCH: case SR_NOTE_AT:
+        case SR_LANE_AT: case SR_LANE:   // a lane point is a moment on the clock, like a booked note
         case SR_UNSCHEDULE:      // takes back booked notes: a moment, not a setting
         case SR_STATE_RESTORE:   // must NOT be recorded: it replays the very log it would land in
             return true;
@@ -6910,6 +6911,28 @@ static inline float clamp01f_ex(float x) { return x < 0.0f ? 0.0f : (x > 1.0f ? 
 // instrument's timbre/ADSR/LFO/filter into the voice. gate_samples = the gated length
 // (SOUND_HELD_GATE for a sustained note_on; a finite count for a one-shot). `ex` = a booked note's
 // extras (schedule_note_at), NULL for every other note — which is what keeps them byte-identical.
+// NoteOpts step 4: LANES. A lane point ramps a slot's lane from where it is to a value; refreshed every
+// 32 samples for every slot with a ramp running. Lanes: 0 DAMPER (0 up .. 1 down), 1 CUTOFF (octaves),
+// 2 LEVEL (dB), 3 VIB (a scale on the notes' own vibrato, default 1).
+static void lane_cache(int s) {
+    lane_cmul[s] = lane_v[s][1] != 0.0f ? de_powf(2.0f, lane_v[s][1]) : 1.0f;
+    lane_gmul[s] = lane_v[s][2] != 0.0f ? de_powf(10.0f, lane_v[s][2] / 20.0f) : 1.0f;
+}
+static void lanes_tick(int n) {
+    for (int s = 0; s < SOUND_INSTR_SLOTS; s++) {
+        bool moved = false;
+        for (int l = 0; l < 4; l++) {
+            if (lane_pos[s][l] >= lane_len[s][l]) continue;
+            lane_pos[s][l] += n;
+            float k = lane_len[s][l] > 0 ? (float)lane_pos[s][l] / (float)lane_len[s][l] : 1.0f;
+            if (k > 1.0f) k = 1.0f;
+            lane_v[s][l] = lane_from[s][l] + (lane_to[s][l] - lane_from[s][l]) * k;
+            moved = true;
+        }
+        if (moved) lane_cache(s);
+    }
+}
+
 // NoteOpts step 3: evaluate a voice's shapes at its current time (called every 32 samples)
 static float shape_value(const ShapeDef *d, float t) {
     int n = d->n;
@@ -7003,6 +7026,7 @@ static void sound_setup_note_ex(Voice *v, int midi, int slot, int vol, int gate_
     v->dmp_mul = v->dmp_env = 1.0f;
     v->vb_cents = 0.0f; v->vb_mul = 1.0f; v->vb_ph = v->vb_wph = 0.0f;
     v->sh_on = false;
+    v->ped_acc = 0.0f;
     if (pay) shapes_take(v, pay, ms_samp(pay->origin_ms));      // NoteOpts step 3 (step_samples starts at 0)
     if (pay && pay->vib_cents > 0.0f) {          // NoteOpts step 2: this note's own vibrato
         v->vb_cents  = pay->vib_cents;
@@ -7423,6 +7447,17 @@ static void sound_fire_req(SoundReq r) {
         }
     } break;
     case SR_UNSCHEDULE: break;   // handled at the drain (it edits the pen); never fires as a sound
+    case SR_LANE_AT:   // never arrives here in practice (the drain turns it into an SR_LANE countdown)
+    case SR_LANE: {    // a=slot, b=lane, c=value*1000, e0=ramp_ms — start the ramp from where the lane is now
+        int s = r.a, l = r.b;
+        if (s < 0 || s >= SOUND_INSTR_SLOTS || l < 0 || l > 3) break;
+        lanes_used = true;
+        lane_from[s][l] = lane_v[s][l];
+        lane_to[s][l]   = (float)r.c / 1000.0f;
+        lane_len[s][l]  = ms_samp(r.e0 < 0 ? 0 : r.e0);
+        lane_pos[s][l]  = 0;
+        if (lane_len[s][l] <= 0) { lane_v[s][l] = lane_to[s][l]; lane_len[s][l] = 0; lane_cache(s); }
+    } break;
     case SR_NOTE_AT:   // never arrives here in practice (the drain turns it into an SR_NOTE countdown); play it now if it does
     case SR_NOTE: {
         int gate = r.dur_samples > 0 ? r.dur_samples : SOUND_SAMPLE_RATE / 4;
@@ -8479,13 +8514,23 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
             if (to   < -0x40000000LL) to   += 0x80000000LL;
             for (int di = 0; di < delayed_count; ) {
                 long long at = delayed[di].delay_samples;
-                if (delayed[di].kind == SR_NOTE && delayed[di].b == r.a && at >= from && (r.e2 || at < to)) {
+                bool mine = (delayed[di].kind == SR_NOTE && delayed[di].b == r.a) ||
+                            (delayed[di].kind == SR_LANE && delayed[di].a == r.a);   // its booked lane points too (step 4)
+                if (mine && at >= from && (r.e2 || at < to)) {
                     npay_release(&delayed[di]);                 // its NoteOpts payload slot, if any
                     delayed[di] = delayed[--delayed_count];   // swap-remove, as the pen does when a note fires
                 }
                 else di++;
             }
             continue;
+        }
+        if (r.kind == SR_LANE_AT) {   // lane_at(): an ABSOLUTE target sample -> a countdown, like schedule_at
+            int now31 = (int)(atomic_load_explicit(&snd_sample_clock, memory_order_relaxed) & 0x7FFFFFFF);
+            long long d = (long long)r.delay_samples - now31;
+            if (d >  0x40000000LL) d -= 0x80000000LL;
+            if (d < -0x40000000LL) d += 0x80000000LL;
+            r.kind = SR_LANE;
+            r.delay_samples = d > 0 ? (int)d : 0;
         }
         if (r.kind == SR_NOTE_AT) {
             // schedule_at(): an ABSOLUTE target sample. Convert it to a countdown from THIS buffer's first
@@ -8534,6 +8579,7 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
         for (int sk = 0; sk < N_SC_KEYS; sk++) sc_key_lvl[sk] = 0.0f;   // sidechain trigger sums, refilled below
         voc_mod = 0.0f;                                                // vocoder modulator send, refilled below
         fxmod_tick();   // ride sweep-safe effect params from CV / engine LFOs (fx_mod/fx_lfo) — no-op until first use
+        if (lanes_used && (i & 31) == 0) lanes_tick(32);   // NoteOpts step 4: ramp the lanes (no-op until the first lane_at)
         bow_body_advance();   // clock every claimed INSTR_BOWED body ONCE per sample — see the pool: doing
                               // this inside the voice loop would tie the box's pitch to the chord size
 
@@ -8587,6 +8633,15 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
                 sound_set_step(v, s->steps[v->step], s->step_dur);
             }
 
+            // DAMPER lane (NoteOpts step 4): a note whose key is UP has its gate pushed forward by the damper
+            // amount each sample, so its release clock stands still at 1 (the pedal holds it), runs at half speed
+            // at 0.5 (half pedal) and is untouched at 0. A key still down is not in release: it ignores the pedal.
+            if (lanes_used && v->sfx_idx < 0 && v->step_samples >= v->step_len_samples &&
+                v->instr_slot >= 0 && v->instr_slot < SOUND_INSTR_SLOTS && lane_v[v->instr_slot][0] > 0.0f) {
+                v->ped_acc += lane_v[v->instr_slot][0];
+                int adv = (int)v->ped_acc;
+                if (adv > 0) { v->step_len_samples += adv; v->ped_acc -= (float)adv; }
+            }
             // envelope: SFX use the per-step declick; one-shot notes use the instrument's ADSR
             float env;
             if (v->sfx_idx >= 0) {
@@ -8667,6 +8722,7 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
                 // nothing routes to an _OCT dest (cutoff_mul is an exact 1.0), which is why every
                 // existing patch renders byte-identically.
                 if (v->sh_on) cutoff_mul *= v->sh_cmul;   // NoteOpts shape on the cutoff (step 3)
+                if (lanes_used) cutoff_mul *= lane_cmul[v->instr_slot];   // the slot's CUTOFF lane (step 4)
                 if (cutoff_mul != 1.0f) cutoff *= cutoff_mul;
                 duty = clampf(0.05f, 0.95f, duty);
                 // slot detune (instrument_tune): read LIVE from the bank each sample,
@@ -8698,6 +8754,7 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
                         v->vb_ph += v->vb_rate * (1.0f + 0.15f * w) * dt32;
                         if (v->vb_ph >= 1.0f) v->vb_ph -= 1.0f;
                         float c = v->vb_cents * k * (1.0f + 0.25f * w) * de_sin_turns(v->vb_ph);
+                        if (lanes_used && v->instr_slot >= 0 && v->instr_slot < SOUND_INSTR_SLOTS) c *= lane_v[v->instr_slot][3];   // VIB lane (the mod wheel)
                         v->vb_mul = 1.0f + c * 0.0005778f;                               // 2^(c/1200), small c
                     }
                     pitch_mul *= v->vb_mul;
@@ -8774,6 +8831,7 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
             float contrib = s * v->vol * env * trem * v->sp_gain * 0.2f;   // sp_gain = 1.0 = byte-identical bypass
             if (v->an_amt > 0.0f) contrib *= v->an_lvl;   // ANALOG voice card: its own level (instrument_analog)
             if (v->sh_on) contrib *= v->sh_gmul;           // NoteOpts shape on the gain (step 3)
+            if (lanes_used && v->instr_slot >= 0 && v->instr_slot < SOUND_INSTR_SLOTS) contrib *= lane_gmul[v->instr_slot];   // LEVEL lane (step 4)
             if (v->dmp_mul < 1.0f) {                       // NoteOpts damp: this note's ring dies at its own rate
                 v->dmp_env *= v->dmp_mul;
                 contrib *= v->dmp_env;
@@ -9404,6 +9462,20 @@ void shape_define(int id, int n, const float *t_ms, const float *v, int interp) 
         sound_push_ctrl(SR_SHAPE_PT, id, i, (int)(t_ms[i] < 0 ? 0 : t_ms[i]), (int)(vv * 1000.0f), 0, 0);
     }
     sound_push_ctrl(SR_SHAPE_HDR, id, n, interp, 0, 0, 0);
+}
+
+// LANES (NoteOpts step 4): a curve SHARED by every sounding note on a slot, booked on the audio clock like
+// schedule_at: at t the lane ramps from where it is to `value` over ramp_ms. LANE_DAMPER (0 up .. 1 down:
+// a note whose key is UP keeps sounding while it is down, at half the release speed at 0.5; a held key
+// ignores it) · LANE_CUTOFF (octaves, the hand on the knob) · LANE_LEVEL (dB, a swell pedal, bellows) ·
+// LANE_VIB (a scale on the notes' NoteOpts.vib, default 1: the mod wheel).
+void lane_at(double t, int slot, int lane, float value, int ramp_ms) {
+    if (slot < 0 || slot >= SOUND_INSTR_SLOTS || lane < 0 || lane > 3) return;
+    long long target = (long long)(t * (double)SOUND_SAMPLE_RATE + 0.5);
+    if (target < 0) target = 0;
+    float v = value < -100.0f ? -100.0f : (value > 100.0f ? 100.0f : value);
+    sound_push((SoundReq){ .kind = SR_LANE_AT, .a = slot, .b = lane, .c = (int)(v * 1000.0f),
+                           .delay_samples = (int)(target & 0x7FFFFFFF), .e0 = ramp_ms });
 }
 
 void instrument_release_shape(int slot, int shape) {
@@ -11019,6 +11091,8 @@ static void sound_reset_state(void) {
         instr_bank[i].vib_amt    = 1.0f;
         instr_bank[i].analog_amt = 0.0f;   // every voice identical until instrument_analog()
         instr_bank[i].rel_shape  = 0;      // the linear release until instrument_release_shape()
+        for (int l = 0; l < 4; l++) { lane_v[i][l] = lane_from[i][l] = lane_to[i][l] = (l == 3 ? 1.0f : 0.0f); lane_pos[i][l] = lane_len[i][l] = 0; }
+        lane_cmul[i] = lane_gmul[i] = 1.0f;   // step 4: lanes neutral (VIB = 1)
         instr_bank[i].analog_next = 0;   // built-in vibrato as the engine plays it until instrument_vibrato()
         instr_bank[i].gl_ms      = 0;      // no portamento until instrument_glide() — old carts unchanged
         instr_bank[i].gl_scale   = 0.0f;   // constant time (the byte-identical path skips powf entirely)

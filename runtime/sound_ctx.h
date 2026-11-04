@@ -504,6 +504,7 @@ typedef struct {
     float  sh_scale[3], sh_stretch[3];
     int    sh_origin;
     float  sh_pmul, sh_gmul, sh_cmul, sh_h, sh_t, sh_m;   // the current results
+    float  ped_acc;                     // step 4: the damper's fractional advance of a released note's gate
     int    rel_shape;                   // copied from the slot at note-on
 } Voice;
 #define SOUND_HANDLE_BITS 5                      // slot field width — must hold SOUND_VOICES-1 (32 voices → 0..31 → 5 bits)
@@ -786,6 +787,8 @@ typedef enum {
     SR_REVERB_BUS_INTO = 158, // a=tank 1..2, b=lead slot (-1 = master) — the tank's bus folds into the lead's bus (reverb_bus_into)
     SR_INSTR_FX_FILTER = 159, // a=slot, b=mode, c=cutoff_hz, e0=res*1000 — filter() on one instrument's (or group's) BUS (instrument_fx_filter)
     SR_INSTR_MONO = 160,      // a=slot, b=on — MONO: a new note on this slot cuts the slot's sounding voices (instrument_mono)
+    SR_LANE_AT = 167,         // a=slot, b=lane, c=value*1000, e0=ramp_ms, delay=ABSOLUTE target sample (lane_at)
+    SR_LANE = 168,            // the same, after the drain turned the target into a countdown (fires in the pen)
     SR_SHAPE_HDR = 165,       // a=id, b=n points, c=interp — a shape's header (shape_define), sent after its points
     SR_SHAPE_PT = 166,        // a=id, b=point index, c=t_ms, e0=value*1000 — one breakpoint (shape_define)
     SR_INSTR_RELSHAPE = 164,  // a=slot, b=shape — the release curve (instrument_release_shape)
@@ -1105,6 +1108,11 @@ typedef struct {
     NotePay npay_pen[SOUND_DELAYED_MAX];   // audio-side: one per note waiting in the pen
     unsigned char npay_used[SOUND_DELAYED_MAX];
     ShapeDef shape_tbl[SHAPE_MAX];      // step 3: the shape library (id 1..63; 0 = none)
+    // step 4: LANES, curves shared by every sounding note on a slot (lane_at), ramped, refreshed every 32 samples
+    bool  lanes_used;                   // false until the first lane event: everything below is skipped
+    float lane_v[SOUND_INSTR_SLOTS][4], lane_from[SOUND_INSTR_SLOTS][4], lane_to[SOUND_INSTR_SLOTS][4];
+    int   lane_pos[SOUND_INSTR_SLOTS][4], lane_len[SOUND_INSTR_SLOTS][4];
+    float lane_cmul[SOUND_INSTR_SLOTS], lane_gmul[SOUND_INSTR_SLOTS];
     atomic_llong snd_sample_clock;   // samples this instance has RENDERED (advanced once per callback, never reset):
                                      // the sample-accurate clock behind audio_time() / schedule_at()
     SoundReq ctx_log[SOUND_CART_CTX][SOUND_CTX_LOG];
@@ -1526,6 +1534,14 @@ static _Thread_local DeSound *de_snd = &de_snd_default;
 #define npay_pen             (de_snd->npay_pen)
 #define npay_used            (de_snd->npay_used)
 #define shape_tbl            (de_snd->shape_tbl)
+#define lanes_used           (de_snd->lanes_used)
+#define lane_v               (de_snd->lane_v)
+#define lane_from            (de_snd->lane_from)
+#define lane_to              (de_snd->lane_to)
+#define lane_pos             (de_snd->lane_pos)
+#define lane_len             (de_snd->lane_len)
+#define lane_cmul            (de_snd->lane_cmul)
+#define lane_gmul            (de_snd->lane_gmul)
 #define snd_sample_clock     (de_snd->snd_sample_clock)
 #define ctx_log              (de_snd->ctx_log)
 #define ctx_log_n            (de_snd->ctx_log_n)

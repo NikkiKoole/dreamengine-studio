@@ -58,8 +58,9 @@ a broken doc link or `#section`).
 > `cellohand` B (Nikki: "I like the booked cello"); drumhand L accepted too ("better too");
 > (b) open from step 5: whether booked cellohand still wants the rosin tick, and the other bowed gaps
 > ([the engine gaps](design/humanized-playing.md#72-engine-gaps-found-while-spiking-the-checklist));
-> (c) step 6, the choir on `INSTR_SING` with Playtime (the voice needs in §6.3; playtime-97's session has ended, so
-> brief whichever Playtime session picks it up). The how-to for any session: [humanizing-sounds](guides/humanizing-sounds.md).
+> (c) step 6, the choir, is PARKED by Nikki (documented, not done now): nearly everything it needs is built;
+> the one gap is a sample BANK (8 slots x 8 s vs 1023 WORLD-baked takes), and WORLD may make `INSTR_SING`
+> unnecessary. The analysis + where Playtime's voice work lives: §8.10 step 6. The how-to for any session: [humanizing-sounds](guides/humanizing-sounds.md).
 > **Hot files:** `runtime/sound.h` / `sound_ctx.h` are shared with the CR-78/drum-voicing agent (dreamengine-f4):
 > announce before editing, commit only your own hunks by pathspec, and when a foreign untracked cart is in
 > `tools/carts/` the pre-commit index gate forces a splice or a wait (it regenerates `index.json` from the tree).

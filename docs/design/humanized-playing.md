@@ -709,7 +709,39 @@ drafted, §8.10 step 5; `amount` on a BOWED `NEV_REARTIC` is how slowly the bow 
    1.5 s windows, means 0.7 dB apart; the changes add no clicks above the string's own background.
    **Nikki: "I like the booked cello."** Not done: the rosin tick on a second slot (the engine's catch
    replaces it).
-6. With Playtime: the choir booked on `INSTR_SING` (shapes + origin + region), checked by playtime-97.
+6. **PARKED (2026-11-04, Nikki: documented, not done now): the choir.** Checked what the sampled voices
+   still need from the engine, against §6.3, now that steps 1-5 exist. Almost all of it is BUILT:
+
+   | the choir needs (§6.3) | where it is |
+   |---|---|
+   | its own syllable per note, overlapping notes included (10) | step 1, `region_start/end`, latched |
+   | per-note tuning (1, 4) | step 1, `.cents` |
+   | scoop, sag, swell, phrase-final fade (2, 4, 5) | step 3, shapes |
+   | curves counting from the VOWEL, not the consonant (8) | step 3, `origin_ms` |
+   | the late-blooming vibrato (3) | step 2, `.vib` |
+   | per-note size (6) | the `.timbre` offset (on `INSTR_SING` timbre IS size) |
+   | tails overlapping the next syllable (11) | a polyphonic slot (do not make it mono) |
+   | a take shorter than the note (9) | nothing to build: curves end with the sound |
+
+   **The one real gap is STORAGE.** The engine has 8 sample slots x 8 s (~64 s); Playtime's WORLD-baked
+   set is 1023 takes / 7.7 MB. A song's worth may pack into the slots and be chopped per note (rough
+   estimate, unmeasured); the library cannot. So the engine work for these samples is **a sample BANK:
+   many short takes, picked by index per note** (§8.11's "take index into a bank", which waits on the
+   sample-slot story). Build it when a song needs more than the slots hold, not before.
+   **And `INSTR_SING` may not be needed at all:** it was wanted to change pitch without changing length,
+   which WORLD now does OFFLINE (Playtime `claudetools/voice-bake.py`: a pitch every 3 semitones, the
+   rest resampled <= 1 st, lengths x1.00-1.02, no chipmunk). Plain `INSTR_SAMPLE` + steps 1-5 may carry
+   it (untested). Morphing between takes (Playtime's WORLD morph, the 50% blend Nikki liked) stays out
+   (§8.9: analysis-domain playback, not PCM).
+   **Where the voice work lives (all in Playtime, `~/Projects/love/vector-sketch/experiments/playtime`):**
+   `docs/CHOIR.md` (the lessons + the "WORLD" section), `claudetools/voice-pitch.py` (per-syllable
+   pitch / vowel start / peak -> `src/voice-pitch-data.lua`), `claudetools/voice-bake.py` (the WORLD
+   bake, into git-ignored `assets/voices-baked/`), `claudetools/voice-morph.py`, `claudetools/choir-world-render.py`,
+   the in-game spike `scripts/spikes/choir.playtime.lua` (`w` = speed change / baked), and the renders
+   Nikki judged in `docs/choir-renders/`.
+   **When it resumes:** either a small dreamengine choir cart playing a handful of baked takes booked
+   (tests the engine side), or Playtime's own choir on the engine (tests the real thing; needs a
+   Playtime session, playtime-97's has ended).
 
 ### 8.11 Open questions
 

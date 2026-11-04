@@ -85,6 +85,8 @@ typedef struct {
     int   bow_body;                 // INSTR_BOWED shared body: 0 = unclaimed, 1.. = bow_bodies[] index+1 (same "0 = none" convention as fx_bus)
     float pan;                      // stereo position -1 L .. 0 center .. +1 R; default 0 = center (linear law, stereo.md)
     float level;                    // per-slot output level (instrument_level); read LIVE at mix. 1.0 = unity/byte-identical bypass, <1 trims — the mixer leg drive/echo/reverb/pan already had
+    float analog_amt;               // ANALOG (instrument_analog): 0 = every voice identical (byte-identical), 1 = voice cards + drift
+    unsigned analog_next;           // the next voice card (0..7) a note on this slot is handed, round-robin
     float vib_amt;                  // BUILT-IN VIBRATO amount (instrument_vibrato) for PIPE/REED/BOWED/BRASS; read LIVE per sample. 1 = as the engine plays it (byte-identical), 0 = off
     float tune_mul;                 // slot detune as a freq factor (2^(semis/12)); read LIVE by every
                                     // sounding voice each sample — fire-and-forget hits bend too. default 1
@@ -487,6 +489,8 @@ typedef struct {
     unsigned int scr_age;               // samples since note-on
     uint32_t scr_rnd;                   // per-voice LCG, seeded from the note at note-on (each note = one fixed hit)
     bool   scr_on;
+    // ANALOG voice card (instrument_analog), set at note-on; an_amt 0 = every factor 1.0 and skipped
+    float  an_amt, an_tune, an_cut, an_lvl, an_drift_mul, an_ph;
 } Voice;
 #define SOUND_HANDLE_BITS 5                      // slot field width — must hold SOUND_VOICES-1 (32 voices → 0..31 → 5 bits)
 #define SCOPE_LEN 2048
@@ -768,6 +772,7 @@ typedef enum {
     SR_REVERB_BUS_INTO = 158, // a=tank 1..2, b=lead slot (-1 = master) — the tank's bus folds into the lead's bus (reverb_bus_into)
     SR_INSTR_FX_FILTER = 159, // a=slot, b=mode, c=cutoff_hz, e0=res*1000 — filter() on one instrument's (or group's) BUS (instrument_fx_filter)
     SR_INSTR_MONO = 160,      // a=slot, b=on — MONO: a new note on this slot cuts the slot's sounding voices (instrument_mono)
+    SR_INSTR_ANALOG = 163,    // a=slot, b=amount*1000 — voice cards + drift (instrument_analog)
     SR_INSTR_VIBRATO = 162,   // a=slot, b=amount*1000 — scale the engine's built-in vibrato (instrument_vibrato), read LIVE
     SR_UNSCHEDULE = 161,      // a=slot, e0/e1 = ABSOLUTE window [from, to) in samples (low 31 bits, as SR_NOTE_AT), e2=1 open-ended —
                               // drop the slot's booked notes that have not STARTED in that window (unschedule). An EVENT kind.

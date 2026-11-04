@@ -2191,7 +2191,7 @@ static CtxKey sound_ctx_key(SoundReqKind k) {
         case SR_EQ_INST: case SR_CRUSH_INST: case SR_TAPE_INST: case SR_FILTER_INST: case SR_DRIVE_INST:
         case SR_INSTR_GLIDE: case SR_INSTR_GLIDE_SCALE: case SR_INSTR_TRIGGER:   // a=slot, like their neighbours
         case SR_INSTR_TAPE_WARBLE: case SR_INSTR_GRAINS_REPEAT: case SR_INSTR_WIDTH:
-        case SR_INSTR_GROUP: case SR_REVERB_BUS_INTO: case SR_INSTR_FX_FILTER: case SR_INSTR_MONO: case SR_INSTR_VIBRATO:   // a=slot / a=tank
+        case SR_INSTR_GROUP: case SR_REVERB_BUS_INTO: case SR_INSTR_FX_FILTER: case SR_INSTR_MONO: case SR_INSTR_VIBRATO: case SR_INSTR_ANALOG:   // a=slot / a=tank
             return CTXK_KA;
         // a+b name the target
         case SR_WAVE_SET:                          // a=which table, b=start index (chunked writes)
@@ -6909,6 +6909,22 @@ static void sound_setup_note_ex(Voice *v, int midi, int slot, int vol, int gate_
     v->d_samp     = ins->d_samp;
     v->r_samp     = ins->r_samp;
     v->sustain    = ins->sustain;
+    // ANALOG voice card (instrument_analog): the next of 8 cards, its offsets from a hash of (slot,
+    // card). Amount 0 leaves every factor at 1 and the mix loop skips them (byte-identical).
+    v->an_amt = ins->analog_amt; v->an_tune = v->an_cut = v->an_lvl = v->an_drift_mul = 1.0f; v->an_ph = 0.0f;
+    if (v->an_amt > 0.0f) {
+        unsigned card = ins->analog_next++ & 7u;
+        unsigned hsh = (card + 1u) * 2654435761u ^ ((unsigned)slot + 7u) * 40503u;
+        float u[4];
+        for (int k = 0; k < 4; k++) { hsh ^= hsh >> 13; hsh *= 0x5bd1e995u; hsh ^= hsh >> 15; u[k] = (float)(hsh & 0xffffu) / 32767.5f - 1.0f; }
+        float a = v->an_amt;
+        v->an_tune = de_powf(2.0f, (u[0] * 7.0f * a) / 1200.0f);
+        v->an_cut  = 1.0f + u[1] * 0.10f * a;
+        v->an_lvl  = 1.0f + u[2] * 0.08f * a;
+        float es   = 1.0f + u[3] * 0.15f * a;
+        v->a_samp = (int)((float)v->a_samp * es); v->d_samp = (int)((float)v->d_samp * es); v->r_samp = (int)((float)v->r_samp * es);
+        v->an_ph = (float)card * 0.137f;                 // each card drifts from its own place
+    }
     // deterministic per-voice seed for the stateful LFO shapes (S&H/random): a counter advanced per
     // voice-start → distinct per note yet identical run-to-run (so --det stays byte-reproducible).
     // PER-INSTANCE (sound_ctx.h) since 2026-08-14 — it was a function-local static, and two engines
@@ -8146,6 +8162,12 @@ static void sound_fire_req(SoundReq r) {
         if (x < 0.0f) x = 0.0f;
         instr_bank[slot].level = x;
     } break;
+    case SR_INSTR_ANALOG: {   // a=slot, b=amount*1000 — voice cards + drift, read at each note-on
+        int slot = r.a;
+        if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
+        float x = r.b / 1000.0f;
+        instr_bank[slot].analog_amt = x < 0.0f ? 0.0f : x > 2.0f ? 2.0f : x;
+    } break;
     case SR_INSTR_VIBRATO: {  // a=slot, b=amount*1000 — the built-in vibrato of PIPE/REED/BOWED/BRASS, read LIVE
         int slot = r.a;
         if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
@@ -8441,6 +8463,7 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
 
             // LFOs (one-shot notes only): up to 3 routable sines → pitch / duty / volume / cutoff
             float duty = v->duty, trem = 1.0f, pitch_mul = 1.0f, cutoff = v->flt_cutoff;
+            if (v->an_amt > 0.0f) cutoff *= v->an_cut;   // ANALOG voice card: its own filter (instrument_analog)
             // OCTAVE-relative cutoff modulation (audit §B2b) accumulates here and multiplies `cutoff`
             // ONCE, after every additive Hz term — the exact shape pitch_mul already has. Kept separate
             // so the two units compose in a defined order (Hz offsets first, then the octave scaling)
@@ -8504,6 +8527,14 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
                 if (v->instr_slot >= 0 && v->instr_slot < SOUND_INSTR_SLOTS)
                     pitch_mul *= instr_bank[v->instr_slot].tune_mul;
                 pitch_mul *= v->doppler_mul;   // spatial Doppler (note_motion/hit_at); 1.0 = bypass
+                if (v->an_amt > 0.0f) {        // ANALOG: the card's tuning + a slow drift, refreshed every 64 samples
+                    if ((v->step_samples & 63) == 0) {
+                        v->an_ph += 64.0f / (float)SOUND_SAMPLE_RATE;
+                        float d = de_sin_turns(v->an_ph * 0.11f) + 0.6f * de_sin_turns(v->an_ph * 0.27f + 0.3f);
+                        v->an_drift_mul = 1.0f + d * 3.0f * v->an_amt * 0.0005778f / 1.6f;   // +-3 cents at amount 1
+                    }
+                    pitch_mul *= v->an_tune * v->an_drift_mul;
+                }
             }
 
             // engine fork: wavetable oscillators below INSTR_ENGINE_BASE, modeled engines at/above
@@ -8574,6 +8605,7 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
                 s = dc_block(&v->drv_dc_x1, &v->drv_dc_y1, s, 0.999f);
             }
             float contrib = s * v->vol * env * trem * v->sp_gain * 0.2f;   // sp_gain = 1.0 = byte-identical bypass
+            if (v->an_amt > 0.0f) contrib *= v->an_lvl;   // ANALOG voice card: its own level (instrument_analog)
             if (v->instr_slot >= 0 && v->instr_slot < SOUND_INSTR_SLOTS)
                 contrib *= instr_bank[v->instr_slot].level;   // per-slot output level (instrument_level); read LIVE, 1.0 = byte-identical bypass
             // choke ramp-out: fade the LIVE (still-oscillating) voice to silence over CHOKE_FADE_LEN
@@ -9176,6 +9208,19 @@ void instrument_level(int slot, float gain) {
 // from the first sample). 1 = as the engine plays it (the default, byte-identical), 0 = off so a cart
 // can play its OWN with note_lfo(LFO_PITCH), up to 2 = twice as deep. Read LIVE per sample, so riding
 // it fades a vibrato in on a slot's sounding notes (2026-11-04, design/humanized-playing.md §4.1).
+// ANALOG: every voice of an old analog polysynth is slightly different (a "voice card": its own
+// tuning, filter, envelope speed and level) and the synth hands notes out in rotation, so the same
+// note twice sounds twice; the oscillators also DRIFT. instrument_analog gives a slot that: 8 cards
+// handed out round-robin, each with fixed offsets from a hash of (slot, card) scaled by amount
+// (tune +-7 cents, cutoff +-10%, envelope speed +-15%, level +-0.7 dB at 1), and a slow pitch drift
+// (+-3 cents at 1). 0 = off (the default, byte-identical). Read at each note-on. Measured as the part
+// that made the synthhand spike "much more beautiful" (2026-11-04, design/humanized-playing.md §6.6).
+void instrument_analog(int slot, float amount) {
+    if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
+    if (amount < 0.0f) amount = 0.0f;
+    sound_push_ctrl(SR_INSTR_ANALOG, slot, (int)(amount * 1000.0f), 0, 0, 0, 0);
+}
+
 void instrument_vibrato(int slot, float amount) {
     if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
     if (amount < 0.0f) amount = 0.0f;
@@ -10749,7 +10794,9 @@ static void sound_reset_state(void) {
         instr_bank[i].echo       = 0.0f;   // dry until instrument_echo() — old carts unchanged
         instr_bank[i].reverb     = 0.0f;   // dry until instrument_reverb() — old carts unchanged
         instr_bank[i].level      = 1.0f;   // unity until instrument_level() — old carts byte-identical
-        instr_bank[i].vib_amt    = 1.0f;   // built-in vibrato as the engine plays it until instrument_vibrato()
+        instr_bank[i].vib_amt    = 1.0f;
+        instr_bank[i].analog_amt = 0.0f;   // every voice identical until instrument_analog()
+        instr_bank[i].analog_next = 0;   // built-in vibrato as the engine plays it until instrument_vibrato()
         instr_bank[i].gl_ms      = 0;      // no portamento until instrument_glide() — old carts unchanged
         instr_bank[i].gl_scale   = 0.0f;   // constant time (the byte-identical path skips powf entirely)
         instr_bank[i].trig       = TRIG_MULTI;  // every note gets its onset — the shipped behaviour

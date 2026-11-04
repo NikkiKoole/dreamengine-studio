@@ -260,6 +260,8 @@ runtime/   studio.h (public API: constants + declarations), studio.c (Raylib imp
                          Deliberately does NOT own the
                          BOX: the real unit had no speaker, it fed the organ's amp and cabinet, so that stage is the
                          cart's, via outboard.h. sideman cart; design/sideman.md
+             tr77.h      the Roland TR-77 (1972) VOICE BANK, tuned against real TR-77 samples (sideman.h's shape):
+                         tr77_build/_fire/_fire_len + tr77_lane(label) = "CB+LB" fires BOTH drums. autorhythm
              drumpat.h   GENERATED (tools/gen-drumpat.js) from tools/drum-patterns.json: 565 MODERN
                          16-STEP patterns in 92 named groups (CR78, the classic-genre set, then rock/funk/
                          disco/reggae/house/hiphop/dnb/dubstep/EDM/breaks…), bit-packed one uint16 per role

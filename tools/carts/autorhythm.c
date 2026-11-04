@@ -15,14 +15,15 @@
   "homage": "Ace Tone Rhythm Ace FR-2L; Roland Rhythm TR-77; SGS M252/M253 rhythm generator",
   "description": {
     "summary": "76 preset rhythms off three generations of organ rhythm hardware, read from the service manuals, with the mechanism on screen instead of a sidx grid.",
-    "detail": "Every latin pattern in this studio used to be a plausible reconstruction. These are not: all 76 come off manufacturer documents (docs/design/rhythm-box-patterns.md) and each one is traceable to a page and a figure. The cart is built to show what makes them unlike a sidx grid. ONE FIXED CLOCK, RE-DIVIDED PER RHYTHM: the FR-2L waltz splits the same 24-count bar by three, its slow rock reads all 48 counts as one 12/8 bar. SKIPPED STATES: the TR-77 hatches out counts a rhythm does not use, so its counter steps OVER them, which is what gives 6/8 MARCH its meter, and you can watch it happen. MARKS THAT DO NOT SOUND: on the SGS chips the trigger is the rising edge of a ROM bit, so two marks on consecutive states fire once, and those cells are drawn hollow (66 of the M252's 955 marks are hollow). GATES, NOT HITS: a few lanes are held rather than struck. The tempo control is the machine's own VARIABLE CLOCK in ticks per second, not a BPM, because that is what these boxes actually had; the implied BPM is shown but derived. THE VOICES ARE NOT SOURCED and the cart says so: the FR-2L scan is about 75 dpi, its lane labels are interpolation rather than ink, so the printed label is shown dim and the voice you hear is assigned BY LANE ORDER from the sideman.h tube bank, which you can rotate. Patterns sourced, voicing yours.",
-    "controls": "SPACE run/stop. K = the organ key: hold it and the rhythm plays while held, released it stops (Elektor 1976 fig 22: on these instruments the drums began when you played). LEFT/RIGHT rhythm, [ and ] machine, UP/DOWN clock rate. V rotates the voice map. M switches the TR-77 metronome click on (it is a click for the player, not part of the kit, so it is off by default). 1-8 audition a lane. Z and X transpose the held chord a semitone and N flips it minor/major: those two only do anything on the machines that HAVE accompaniment lanes (the Hammond patent and the SGS M255), and the footer lights their row up when they do."
+    "detail": "Every latin pattern in this studio used to be a plausible reconstruction. These are not: all 76 come off manufacturer documents (docs/design/rhythm-box-patterns.md) and each one is traceable to a page and a figure. The cart is built to show what makes them unlike a sidx grid. ONE FIXED CLOCK, RE-DIVIDED PER RHYTHM: the FR-2L waltz splits the same 24-count bar by three, its slow rock reads all 48 counts as one 12/8 bar. SKIPPED STATES: the TR-77 hatches out counts a rhythm does not use, so its counter steps OVER them, which is what gives 6/8 MARCH its meter, and you can watch it happen. MARKS THAT DO NOT SOUND: on the SGS chips the trigger is the rising edge of a ROM bit, so two marks on consecutive states fire once, and those cells are drawn hollow (66 of the M252's 955 marks are hollow). GATES, NOT HITS: a few lanes are held rather than struck. The tempo control is the machine's own VARIABLE CLOCK in ticks per second, not a BPM, because that is what these boxes actually had; the implied BPM is shown but derived. THE TR-77 PLAYS ITS OWN VOICES (runtime/tr77.h): every drum with a reference was tuned against recordings of a real TR-77, its pitch, decay and level against the kick, and a lane like CB+LB fires both drums, as its one diode line did. The other machines' voices are NOT SOURCED and the cart says so: the FR-2L scan is about 75 dpi, its lane labels are interpolation rather than ink, so the printed label is shown dim and the voice you hear is assigned by the label as a hint from the sideman.h tube bank, which you can rotate.",
+    "controls": "SPACE run/stop. K = the organ key: hold it and the rhythm plays while held, released it stops (Elektor 1976 fig 22: on these instruments the drums began when you played). LEFT/RIGHT rhythm, [ and ] machine, UP/DOWN clock rate. V rotates the voice map (on the TR-77 it steps from the real kit through the Side Man maps and back). M switches the TR-77 metronome click on (it is a click for the player, not part of the kit, so it is off by default). 1-8 audition a lane. Z and X transpose the held chord a semitone and N flips it minor/major: those two only do anything on the machines that HAVE accompaniment lanes (the Hammond patent and the SGS M255), and the footer lights their row up when they do."
   }
 }
 de:meta */
 #include "studio.h"
 #include "rhythmbox.h"
 #include "sideman.h"
+#include "tr77.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -58,7 +59,8 @@ static const Machine MACH[] = {
 //
 // The Side Man bank is also a decade EARLY for these charts (1959 tubes against a 1969
 // transistor box and a 1970s chip) and has no snare at all, so a wire brush stands in.
-// Nothing here claims to be the machine's own voice: the patterns are sourced, the
+// Except on the TR-77 (tr77.h, see tr77_kit() below), nothing here claims to be the machine's
+// own voice: the patterns are sourced, the
 // voicing is the closest thing on the shelf.
 static const int VORDER[SM_NV] = {
     SM_BASS, SM_BRUSH, SM_MARACAS, SM_CLAVES, SM_TOM1, SM_WOOD, SM_TEMP1, SM_CYMBAL,
@@ -105,8 +107,10 @@ static int voice_hint(const char *lab, int lane) {
 // decides WHEN the chord the player is holding sounds, and the bass root and fifth are derived
 // from it "by frequency division". So the cart holds a chord and the lanes gate it. That is the
 // mechanism, not a substitute for it: no note data is needed or invented.
-#define SL_ORGAN 12
-#define SL_BASS  13
+// 9..22 = the Side Man bank, 23..39 = the TR-77 bank. These two used to sit on 12 and 13, INSIDE the
+// Side Man bank, so building the organ overwrote its wood block and temple block.
+#define SL_ORGAN 42
+#define SL_BASS  43
 static int  root  = 45;        // A2, transposable
 static bool minor = true;
 
@@ -139,6 +143,14 @@ static bool is_metro(const char *lab) {
     return (lab[0] == 'M' || lab[0] == 'm') && (lab[1] == 'e' || lab[1] == 'E');
 }
 
+// The TR-77 machine plays its OWN voices (runtime/tr77.h, tuned against real TR-77 samples) while
+// vrot == 0; V then cycles through the Side Man maps and back. Every other machine has only the
+// Side Man bank for now.
+#define MACH_TR77 1
+static bool tr77_kit(void) { return mach == MACH_TR77 && vrot == 0; }
+static const char *T77_ABBR[TR77_NV] = { "BAS", "SNR", "RIM", "HAT", "CYM", "BGH", "BGL", "CNG",
+    "COW", "CLV", "MAR", "GUI", "TMB", "TMB'", "CLK" };
+
 // the hinted voice, then rotated by V. vrot == 0 is the hint itself.
 static int lane_voice(int lane) {
     const RbRhythm *r = cur();
@@ -170,13 +182,18 @@ static void audition(int lane) {
     const RbRhythm *r = cur();
     if (lane >= r->nlanes) return;
     if (r->lane[lane].flags & RB_RESETCOL) return;    // a counter, not a drum
-    int v = lane_voice(lane);
-    sideman_fire(SIDEMAN_BASE, v, 0, 0);
+    if (tr77_kit()) {
+        int tv[2], n = tr77_lane(r->lane[lane].label, tv);
+        for (int i = 0; i < n; i++) tr77_fire(TR77_BASE, tv[i], 0, 0);
+    } else {
+        sideman_fire(SIDEMAN_BASE, lane_voice(lane), 0, 0);
+    }
     flash[lane] = 6;
 }
 
 void init(void) {
     sideman_build(SIDEMAN_BASE);
+    tr77_build(TR77_BASE);
     instrument(SL_ORGAN, INSTR_SQUARE, 4, 40, 5, 90);    // a thin drawbar-ish chord
     instrument(SL_BASS,  INSTR_TRI,    2, 60, 4, 120);   // the divided bass
     instrument_level(SL_ORGAN, 3);   // three notes at once, so keep each one modest
@@ -230,7 +247,17 @@ void update(void) {
             }
             if (ro & RB_ROLE_BASSLO) hit(root,     SL_BASS, 5, 170);   // the root
             if (ro & RB_ROLE_BASSHI) hit(root + 7, SL_BASS, 5, 170);   // the fifth, divided
-            if (ro & RB_ROLE_DRUM)   sideman_fire(SIDEMAN_BASE, lane_voice(l), 0, 0);
+            if ((ro & RB_ROLE_DRUM) && tr77_kit()) {
+                // a GATE lane (the guiro) is held for its whole run of marks
+                int run = 1;
+                if (r->lane[l].kind == RB_GATE)
+                    while (run < nord && rb_hit(r, l, order[(sidx + run) % nord])) run++;
+                int tv[2], n = tr77_lane(r->lane[l].label, tv);
+                for (int i = 0; i < n; i++)
+                    tr77_fire_len(TR77_BASE, tv[i], 0, 0, (int)(run * period * 1000.0f));
+            } else if (ro & RB_ROLE_DRUM) {
+                sideman_fire(SIDEMAN_BASE, lane_voice(l), 0, 0);
+            }
             flash[l] = 5; lastfire[l] = 5;
         }
     }
@@ -274,8 +301,15 @@ static void draw_grid(void) {
         } else if (met) {
             print(metro ? "click" : "off", 40, y + 2, metro ? CLR_PEACH : CLR_DARKER_GREY);
         } else {
-            int v = lane_voice(l);
-            print(SIDEMAN_SHORT[v], 40, y + 2, flash[l] ? CLR_WHITE : CLR_MEDIUM_GREY);
+            char vn[12];
+            if (tr77_kit()) {
+                int tv[2], n = tr77_lane(r->lane[l].label, tv);
+                if (n == 2) snprintf(vn, sizeof vn, "%s+%s", T77_ABBR[tv[0]], T77_ABBR[tv[1]]);
+                else snprintf(vn, sizeof vn, "%s", n ? TR77_SHORT[tv[0]] : "-");
+            } else {
+                snprintf(vn, sizeof vn, "%s", SIDEMAN_SHORT[lane_voice(l)]);
+            }
+            print(vn, 40, y + 2, flash[l] ? CLR_WHITE : CLR_MEDIUM_GREY);
         }
 
         for (int c = 0; c < r->counts; c++) {
@@ -309,7 +343,8 @@ static void draw_panel(void) {
     print(MACH[mach].era, 2, 12, CLR_DARK_GREY);
     // the standing disclaimer, moved out of the footer to free a legend line for the keys
     print("patterns from the service manuals", 150, 4, CLR_DARKER_GREY);
-    print("the voicing is this cart's guess", 150, 12, CLR_DARKER_GREY);
+    if (tr77_kit()) print("TR-77 voices, tuned to the real", 150, 12, CLR_DARK_GREEN);
+    else            print("the voicing is this cart's guess", 150, 12, CLR_DARKER_GREY);
     print(r->name, 2, 24, CLR_LIME_GREEN);
     // the provenance line, but only when it says more than the name already does
     if (strcmp(r->source, r->name) != 0 && !MACH[mach].note)

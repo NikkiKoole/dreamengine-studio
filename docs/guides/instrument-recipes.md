@@ -1056,6 +1056,33 @@ tubes against a 1969 transistor box and a 1970s chip), so nothing here claims to
 own voice. And the mapping is rotatable in the cart (`V`), because a hint is a hint: the patterns are
 sourced, the voicing is a choice the player can overrule.
 
+**Except the TR-77, which since 2026-11-04 plays its own voices** (`runtime/tr77.h`, below), with the
+Side Man maps one `V` press away.
+
+### tr77.h (Roland Rhythm TR-77, 1972, voiced against real one-shots)
+
+Measured with `oneshot-compare.js --rel kick` against the "Vintage Drums and Keys" TR-77 set (local,
+for learning only). Levels are dB vs the kick, ours / real; every voice is a short gate into an
+EXPONENTIAL release (release ~2.2x the -20 dB time).
+
+| voice | recipe | -20 dB | level |
+|---|---|---|---|
+| bass drum | SINE 65 Hz (C2), +1 st pitch blip, LP 320; a 140 Hz partner 25 dB down | 110 / 115 ms | ref |
+| snare | SINE 355 Hz shell at level .40 + NOISE through LP 9 kHz res 4 | 65 / 70 ms | +0.5 / +0.3 |
+| rim shot | TRI note 86 (1175 Hz) through BAND 1100 res 5, 2 ms gate, + a faint 55 Hz knock | 5 / 5 ms | -0.3 / +0.4 |
+| hi-hat / cymbal | NOISE through BAND 8550 / 8650 res 15, gate 30 / 90 ms | 30 / 35, 215 / 255 ms | -5.2 / -4.8 |
+| high bongo / low bongo / low conga | bare SINE 355 / 215 / 140 Hz | 60 / 75 / 115 ms | +0.5 / +0.4 |
+| claves | SINE 2250 Hz | 20 / 20 ms | +0.5 / +0.4 |
+| tambourine | NOISE through BAND 4340 res 15 (`TB'` = the same, 5 dB softer) | 175 / 190 ms | -9.2 / -8.9 |
+| guiro | INSTR_SCRAPE, the cr78 gourd (75 teeth/s) | | -12.2 / -12.0 |
+| cowbell, maracas | **no TR-77 reference**: the CR-78's recipes, at its balance (-9.2 / -6.6) | | |
+
+What it taught: the TR-77 kick, hats and tambourine are the CR-78's circuits a few percent apart (65 Hz,
+8.4-8.5 kHz, 4.3-4.65 kHz), so the CR-78 recipes were the right starting point. And a click voice must
+put its NOTE inside its filter band: a TRI at 1480 Hz through a 1.1 kHz band still measured 1480 Hz and
+6 dB quiet. A second set (Reverb's Rhythm 77 pack) disagrees (an 86 Hz kick, 12 kHz hats): another unit
+or other settings, kept as the alternative if this one ever sounds wrong.
+
 ### drumkit.h's ACOUSTIC kit (2026-11-04, voiced against a real kit)
 
 Tuned against lennartgreen's CC0 "Vintage Hip Hop" kit (`build/refs/drums-cc0`, recorded at one gain,

@@ -676,7 +676,7 @@ Engine side this needs `sound_retrig_voice` to cover BOWED and a signed bow velo
    booked per step on every pad slot + the lead; each voice card's filter offset set ONCE at note-on, the
    supply sag folded into the lane value) instead of `note_cutoff` on every held voice every frame. The
    ridden path renders byte-identical to before; the booked sweep tracks it (centroid per 0.5 s within
-   a few %, the lane ~4% brighter at the top of the sweep, not yet explained). Still open: `drumhand`'s
+   a few %, the lane ~4% brighter at the top of the sweep, not yet explained). **Nikki: "works great, sounds good."** Still open: `drumhand`'s
    hi-hat pedal.
 5. Note events. Acceptance: `cellohand`'s bow change booked, with BOWED retrig.
 6. With Playtime: the choir booked on `INSTR_SING` (shapes + origin + region), checked by playtime-97.

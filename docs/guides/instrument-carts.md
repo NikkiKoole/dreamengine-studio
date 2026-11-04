@@ -9,9 +9,9 @@ radio stations, and the sound-making toys. Two jobs:
    already exists and which existing cart is its closest relative, so you start from a
    working model instead of a blank file.
 
-> **Humanized-playing spikes** (2026-11-04): ten carts whose point is making an instrument sound PLAYED
+> **Humanized-playing spikes** (2026-11-04): carts whose point is making an instrument sound PLAYED
 > (`strumhand`, `breathflute`, `reedhand`, `cellohand`, `basshand`, `pianohand`, `tablahand`, `tablalab`,
-> `drumhand`, `synthhand`); each has layers on keys 1-5 and a TAB A/B. Pattern + engine calls:
+> `drumhand`, `synthhand`, `mouthhand`); each has layers on keys 1-5 and a TAB A/B. Pattern + engine calls:
 > [`humanizing-sounds.md`](humanizing-sounds.md).
 
 Exact controls live in each cart's **`de:meta` block** in `tools/carts/<name>.c` (the

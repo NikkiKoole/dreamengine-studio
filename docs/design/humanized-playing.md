@@ -1,7 +1,7 @@
 # Humanized playing: a player, not a keyboard
 
-> **STATUS: EXPLORING (2026-11-04)**. Ten spike carts (`strumhand`, `breathflute`, `tablahand`,
-> `tablalab`, `reedhand`, `basshand`, `cellohand`, `pianohand`, `drumhand`, `synthhand`) and three
+> **STATUS: EXPLORING (2026-11-04)**. Spike carts (`strumhand`, `breathflute`, `tablahand`, `tablalab`,
+> `reedhand`, `basshand`, `cellohand`, `pianohand`, `drumhand`, `synthhand`, `mouthhand`) and three
 > engine calls shipped (`instrument_vibrato`, `MODE_BOW_PLUCK`, `instrument_analog`). The NEEDS list
 > for booked-note curves (§6) is close to complete; **building that part is ON HOLD** (Nikki,
 > 2026-11-04) until one shape fits every instrument and the sampled voices. Written together with
@@ -52,6 +52,7 @@ Every spike, and Playtime's choir independently, landed on the same three ideas:
 | `pianohand` | piano, booked `INSTR_PIANO` | a sustain PEDAL computed by the cart (legato re-pedalling, half pedal, a slow lift), note endings via 5 release slots, melody lead, chord spread | none | not judged yet |
 | `drumhand` | acoustic kit, booked | a drummer with LIMBS, a technique per stroke (centre/edge/rimshot/cross-stick/ghost, hat tip/shank, ride bow/bell), a hi-hat PEDAL | none | not judged yet |
 | `synthhand` | analog polysynth pad + mono lead (SAW + ladder) | the PLAYER at a synth (a hand on the cutoff, mod-wheel vibrato late, bends, glides, chord spread, legato) AND the MACHINE (8 voice cards with their own tune/cutoff/env/level offsets in rotation, slow drift more when cold, power sag) | none | Nikki: "this analog is much more beautiful"; layer A/B: "I like what cards is doing", drift hard to hear "but it feels nicer on too" |
+| `mouthhand` | funk synth bass + lead, a moving FORMANT on each (`instrument_formant` ridden, smoothed) | can a moving vowel humanize ANY sound? follow (harder = more open), a "wah" at each attack, drift, a talk-box vowel line | none | Nikki: "it sounds better but tbh I had expected to be more wowed" |
 | `basshand` | walking upright, pizz `INSTR_BOWED`, booked | per-pluck force and spot, left-hand note length, open strings ringing, slides in from below (booked legato glides), ghost notes and rakes | `instrument_vibrato` (off) | not judged yet |
 
 Playtime's choir spike (`scripts/spikes/choir.playtime.lua` there) is the voice member of the set: a
@@ -308,6 +309,34 @@ INSTRUMENT.
   hashed from (slot, card) and scaled by amount (tune +-7 cents, cutoff +-10%, envelope speed +-15%,
   level +-0.7 dB at 1), drift +-3 cents refreshed every 64 samples. 0 = byte-identical. The same note 8
   times at 1: pitch -5..+4 cents, level +-0.6 dB, centroid 584-649 Hz.
+
+### 6.7 Formants: a mouth on any sound? (2026-11-04, `mouthhand`) — answered
+
+The question: can a moving formant (a vowel filter) humanize ANY sound, the way the voice cards do?
+
+- **Measured:** riding today's `instrument_formant` works. Smoothed in the cart and re-sent only when
+  it moves, there is no zipper (worst click scores identical moving vs frozen); the lead's main
+  resonance wanders ~600-2450 Hz moving vs ~620-1030 Hz frozen; open vowels add gain (the first render
+  clipped; trim the slot levels). The engine jumps to a new vowel (no slew), and the vowel is not an
+  `fx_mod` target.
+- **Verdict (Nikki):** better, not wow. **As a general humanizer a moving formant is a small ingredient**,
+  like drift: worth doing, not a headline.
+- **Where the wow lives, from real players** (sources in the guide §5): a talk box says WORDS (the
+  consonants make the illusion of speech: lips closing, stops, fast glides), all of the sound goes
+  through the mouth, the source is a bright open sawtooth, the shapes are exaggerated and the pitch
+  bends into words (Roger Troutman); and the funk bass "quack" is a touch-wah, a resonant filter swept
+  by how HARD each note is hit (Bootsy's Mu-Tron III). Brass wah-wah is a plunger opened and closed in
+  rhythm (Bubber Miley, Cootie Williams, Tricky Sam Nanton's "ya-ya").
+- **Those are two specific effects, and both mostly exist already:** talking = the vocoder with a
+  voice-engine modulator speaking consonants (`vocode`; `INSTR_VOICE` + `voice_consonant`/`voice_coda`,
+  `say`, `vox`), the touch-wah = `instrument_wah` (in `clavinet`, `epiano`, `afrobeat`, `pedalboard`).
+  A talking synth is a cart/feature goal of its own (the parked "talkbox / Dalek" toy in
+  `cart-library-direction.md`), not a humanizer.
+- **The general lesson that DOES apply to every instrument: brightness follows force.** A harder note
+  is a brighter note (that is the touch-wah, and it is how strings, hammers, breath and lips behave);
+  ride the cutoff / timbre with each note's force. In the guide (§5).
+- Engine notes for the needs list, if a talking synth is ever built: a slewed live vowel (an `fx_mod`
+  target) and a per-VOICE formant (only `INSTR_VOICE` has one; a bus formant is one mouth per slot).
 
 ## 7. Next
 

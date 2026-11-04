@@ -6,8 +6,8 @@ analog warmth, voice cards, drift, ride the knobs, filter sweep, mod wheel, vibr
 
 > The how-to. The why, every measurement and the open engine needs live in
 > [`design/humanized-playing.md`](../design/humanized-playing.md); this page is what to DO when a cart's
-> instrument sounds like a keyboard, a sequencer or a cheap synth. Built from ten spike carts
-> (2026-11-04); each one is a working template.
+> instrument sounds like a keyboard, a sequencer or a cheap synth. Built from the humanized-playing spike
+> carts (2026-11-04); each one is a working template.
 
 ## 1. The idea in one paragraph
 
@@ -45,6 +45,7 @@ All three default to the old behaviour, bit-identical.
 | piano | `pianohand` | a pedal the cart computes (legato re-pedalling, half pedal), melody voiced over the accompaniment and a little ahead, chords rolled top note first |
 | tabla | `tablahand` (playing), `tablalab` (stroke sound) | bols as data; two hands; the bayan wrist (press / wail / dip / meend) and palm damping ridden live; strokes as measured overtone recipes |
 | drum kit | `drumhand` | a drummer with limbs (the hat hand leaves for fills), a technique per stroke (centre / edge / rimshot / cross-stick / ghost), the hi-hat pedal, recorded CC0 cymbals (K) |
+| a mouth (formant) on a synth bass + lead | `mouthhand` | a moving vowel: harder = more open, a "wah" at each attack, drift, a talk-box vowel line (a small ingredient; see §5) |
 | analog synth | `synthhand` | a hand on the cutoff knob (springy), late mod-wheel vibrato, bends, chord spread; voice cards (now `instrument_analog`), drift, power sag |
 
 Shared shape of every spike: keys **1-5** switch the layers, **TAB** flips to the plain version, UP/DOWN
@@ -110,6 +111,24 @@ yet (only held notes, or a whole-slot ride like `instrument_level`); it is a row
 - **Open vs closed strokes:** two slots per drum (long and short release) + `instrument_choke`.
 - **A late vibrato:** `instrument_vibrato(slot, 0)`, then `note_lfo` depth ramped from 0 after
   0.15-0.4 s, only on notes long enough to have one, rate wandering 5-6 Hz.
+- **Brightness follows force.** The one rule that holds for every instrument: a harder note is a
+  BRIGHTER note (strings, hammers, breath, lips all behave this way, and it is exactly what a funk
+  touch-wah does). Tie each note's cutoff / timbre offset to its force (booked: `NoteOpts.timbre`; held:
+  `note_cutoff` / `note_timbre`), or put `instrument_wah(slot, sensitivity, resonance, mix)` on it for
+  the full Mu-Tron "quack" that follows how hard you play.
+- **A moving formant is a small ingredient, not a headline.** `instrument_formant` ridden slowly (smooth
+  the vowel yourself, re-send only on a change, trim the level: open vowels add gain) gives a part a
+  gentle "mouth" (`mouthhand`); it sounds better, it does not wow on its own.
+- **For an instrument that TALKS** (talk box, robot voice), do not fake it with the formant: the wow is
+  WORDS, and consonants make them. Use the vocoder with the voice engine speaking syllables as its
+  modulator (`vocode`; `INSTR_VOICE` with `voice_consonant` / `voice_coda`, see `say`, `vox`), a bright
+  open saw as the carrier, all of it through the vocoder, exaggerated vowels and pitch bends into the
+  words. How real players do it: Roger Troutman on a Minimoog through an Electro-Harmonix Golden Throat
+  ([EHX](https://www.ehx.com/blog/ehx-vault-golden-throat-roger-troutman/)); talk box technique, vowels
+  first then consonants ([Disc Makers](https://blog.discmakers.com/2017/09/meet-the-talk-box/),
+  [Dunlop](https://www.jimdunlop.com/content/manuals/MRT01.pdf)); the sawtooth source
+  ([gfworks](https://gfworks.jp/talkbox/how_to_play.html)); Bootsy's Mu-Tron III envelope filter
+  ([Guitar World](https://www.guitarworld.com/features/the-mu-tron-iii-without-it-there-aint-no-bootsy)).
 - **A wooden attack:** a short low damped `INSTR_MEMBRANE` hit under each pluck, its gain following force
   squared and its spot / length varying (basshand). A bright "snap" layer went the wrong way.
 - **The master EQ as a volume knob:** there is no master volume; `eq(db, db, db)` works when the cart

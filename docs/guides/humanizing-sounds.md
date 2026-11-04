@@ -112,6 +112,10 @@ yet (only held notes, or a whole-slot ride like `instrument_level`); it is a row
   `instrument_level` (damping) reach sounding voices; slot macros do NOT (read at note-on only).
 - **Open vs closed strokes:** `NoteOpts.damp` (1 = stopped at once) on the same slot; or, for strokes
   that also SOUND different, two slots + `instrument_choke` (tablahand, drumhand).
+- **Curves on a booked note (shapes):** define a gesture once with `shape_define` (a scoop, a swell, a
+  fade, a puff of breath, a filter closing, a bayan drop), then reference up to three per note through
+  `NoteOpts.shape[]`, scaled (how deep) and stretched (how slow) by the player model. Computed in the
+  engine, so no per-frame stepping and no detuning from riding macros (`breathflute` B).
 - **A late vibrato:** `instrument_vibrato(slot, 0)`, then either on a BOOKED note `NoteOpts.vib`
   (`{ .cents, .rate_hz, .delay_ms, .fade_ms, .wander }`: straight, then blooming; `breathflute` B) or on a
   held note `note_lfo` depth ramped from 0 after 0.15-0.4 s. Only on notes long enough to have one, rate

@@ -1,6 +1,6 @@
 # Humanized playing: a player, not a keyboard
 
-> **STATUS: BUILDING (2026-11-04): NoteOpts steps 1-2 shipped (§8.10).** Spike carts (`strumhand`, `breathflute`, `tablahand`, `tablalab`,
+> **STATUS: BUILDING (2026-11-04): NoteOpts steps 1-3 shipped (§8.10).** Spike carts (`strumhand`, `breathflute`, `tablahand`, `tablalab`,
 > `reedhand`, `basshand`, `cellohand`, `pianohand`, `drumhand`, `synthhand`, `mouthhand`) and three
 > engine calls shipped (`instrument_vibrato`, `MODE_BOW_PLUCK`, `instrument_analog`). The NEEDS list
 > for booked-note curves (§6) is close to complete and a DRAFT layout is in §8; **building it is ON HOLD** (Nikki,
@@ -641,7 +641,18 @@ Engine side this needs `sound_retrig_voice` to cover BOWED and a signed bow velo
    note: riding the macros moves the pitch: harmonics 0.15 (what breathflute rides on loud notes, for
    brightness) pulls -10 c on D5 and -13 c on G5, timbre (breath air) 0.38 -> 0.70 pulls -3 to -4 c; plus
    the frame-stepped scoop and breath-sharp. Booked notes do not ride them, so they stay in tune.
-3. Shapes. Acceptance: `breathflute` fully booked (scoop, swell, fall), the bayan drop booked.
+3. **BUILT (2026-11-04):** `shape_define(id, n, t_ms[], v[], interp)` (id 1..63, up to 6 points,
+   `SHAPE_LINEAR / EASE / FAST`, the last value holds), sent as one `SR_SHAPE_PT` per point + an
+   `SR_SHAPE_HDR`, logged like any config (so `de_switch_cart` restores them); `NoteOpts.shape[3]`
+   (`NoteShape { id, target, scale, stretch }`, targets `SHP_PITCH` cents / `SHP_GAIN` dB / `SHP_HARM`
+   / `SHP_TIMB` / `SHP_MORPH` offsets / `SHP_CUTOFF` octaves) and `origin_ms`, evaluated per voice every
+   32 samples; a legato note can bring its own, counted from the slur. Measured: a scoop -80 c lands by
+   150 ms, `scale` 0.5 halves it, `origin_ms` 200 holds it until 200 ms; a swell -12/0/-12 dB over 1 s,
+   `stretch` 2 moves the peak to 1 s; a cutoff +2 -> 0 oct takes the centroid 1064 -> 437 Hz. Byte-
+   identical for every cart without shapes. Acceptance: booked `breathflute` defines a scoop, a messa di
+   voce, a breath fade and the tongue's puff once and scales / stretches them per note (onsets now start
+   below pitch, level spread across notes 4.6 -> 6.3 dB, settled within ~2 c). Still open with it: the
+   bayan drop booked (`tablahand`).
 4. Lanes. Acceptance: `pianohand`'s pedal as `LANE_DAMPER`, `synthhand`'s knob as `LANE_CUTOFF`,
    `drumhand`'s hi-hat pedal.
 5. Note events. Acceptance: `cellohand`'s bow change booked, with BOWED retrig.

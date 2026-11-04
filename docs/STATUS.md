@@ -15,6 +15,11 @@ _Last updated: 2026-10-29 — INSTR_SCRAPE: a guiro with teeth. See the top Ship
 
 ## Shipped ✓
 
+- **NOTEOPTS STEP 3: curves on booked notes, `shape_define` + `NoteOpts.shape[]` + `origin_ms`**
+  (2026-11-04). A gesture (scoop, swell, fade, breath puff, filter close) is defined once and referenced
+  per note, scaled and stretched, on pitch / gain / the three macros / the filter; evaluated in the
+  engine every 32 samples. [`design/humanized-playing.md`](design/humanized-playing.md) §8.10.
+
 - **NOTEOPTS STEP 2: a booked note's own vibrato, `NoteOpts.vib` (`NoteVib`)** (2026-11-04). Depth,
   rate, a delay, a bloom-in time and a wander, on a per-voice generator; a booked flute line now carries
   the late-blooming vibrato that used to need a held note ridden every frame. [`design/humanized-playing.md`](design/humanized-playing.md) §8.10.

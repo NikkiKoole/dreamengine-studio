@@ -93,6 +93,11 @@ static void setup_sound(void) {
     instrument_morph(SL, 0.70f);         // the in-tune flute embouchure
     instrument_reverb(SL, 0.30f);
     reverb(0.6f, 0.45f);
+    // the BOOKED line's gestures (NoteOpts step 3), defined once and scaled / stretched per note:
+    float t1[] = {0, 90},           v1[] = {-100, 0};          shape_define(1, 2, t1, v1, SHAPE_FAST);  // scoop: -100 c settling (x the note's scoop)
+    float t2[] = {0, 450, 1000},    v2[] = {-1.5f, 0.4f, -1.0f}; shape_define(2, 3, t2, v2, SHAPE_EASE); // messa di voce, over 1 s (stretched to the note)
+    float t3[] = {0, 600, 1000},    v3[] = {0, -0.5f, -4.5f};   shape_define(3, 3, t3, v3, SHAPE_EASE); // the fade before a breath
+    float t4[] = {0, 45},           v4[] = {0.4f, 0};          shape_define(4, 2, t4, v4, SHAPE_LINEAR); // the tongue's puff of air (timbre)
 }
 
 static void new_take(void) {
@@ -178,12 +183,21 @@ static void start_note(int i) {
     if (booked && human) {
         // BOOKED (the acceptance test for NoteOpts step 2): the same plan, carried BY the note. Level,
         // breath-sharp cents, the slur and the late-blooming vibrato travel with it; nothing is ridden.
-        // What booking cannot carry yet (step 3, curves): the scoop settling in, the swell, the chiff decay.
+        // Since step 3 the scoop, the swell / breath fade and the tongue's puff travel as SHAPES too.
         release();
+        float len_s = n_end - n_start;
         NoteOpts o = { .gain = clamp(vol / 7.0f, 0.05f, 1.0f), .cents = n_sharp,
                        .glide_ms = (slur && layer[L_TONGUE]) ? 40 : 0,
                        .vib = { .cents = n_vib_depth * 100.0f, .rate_hz = n_vib_rate,
                                 .delay_ms = (int)(n_vib_delay * 1000.0f), .fade_ms = 400, .wander = 0.5f } };
+        // step 3: the expression the held version rode per frame, now carried as shapes
+        int k = 0;
+        if (layer[L_PITCH] && n_scoop != 0.0f) o.shape[k++] = (NoteShape){ 1, SHP_PITCH, -n_scoop / 100.0f };   // the scoop
+        if (layer[L_BREATH]) {
+            if (n->breath)          o.shape[k++] = (NoteShape){ 3, SHP_GAIN, H, len_s };        // fade into the breath
+            else if (len_s > 0.5f)  o.shape[k++] = (NoteShape){ 2, SHP_GAIN, H, len_s };        // swell
+        }
+        if (layer[L_TONGUE] && !slur && k < 3) o.shape[k++] = (NoteShape){ 4, SHP_TIMB, n->art == '!' ? 1.4f : n->art == 'd' ? 0.6f : 1.0f };
         schedule_note_at(audio_time() + 0.03, n->midi, SL, 7, (int)((n_end - n_start) * 1000.0f), &o);
         h = 0;                                   // nothing to ride
     }
@@ -303,7 +317,7 @@ void update(void) {
 void draw(void) {
     cls(CLR_DARK_BLUE);
     print(human ? "LUNGS" : "KEYBOARD", 4, 4, human ? CLR_GREEN : CLR_RED);
-    if (human) print(booked ? "B: BOOKED (step 2)" : "B: held + ridden", 150, 160, booked ? CLR_YELLOW : CLR_DARK_GREY);
+    if (human) print(booked ? "B: BOOKED (NoteOpts)" : "B: held + ridden", 150, 160, booked ? CLR_YELLOW : CLR_DARK_GREY);
     print(str("%d bpm   take %d", tempo, seed), 100, 4, CLR_WHITE);
     if (!playing) print("stopped", 260, 4, CLR_LIGHT_GREY);
 

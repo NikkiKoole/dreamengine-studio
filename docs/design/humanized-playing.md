@@ -413,8 +413,14 @@ Each was measured; the evidence lives in the section linked. Status: ✓ fixed, 
   inaudible (§6.5)
 - ○ bow position (harmonics) is read at note-on only (§6.5)
 - ○ a slide can go only ~7 semitones under the starting note (2.5x string buffer, capped) (§6.5)
-- ○ the same slide error as PIPE's, smaller: the 0.5-sample loop delay is scaled with the note, so a slide
-  up lands ~1 c flat on a cello fourth, ~4 c up high on a violin (estimated, not measured)
+- ✓ NOT A BUG (measured 2026-11-04, was "the same slide error as PIPE's, ~1-4 c, estimated"): a slid note
+  lands within 0.1 c of the same note bowed fresh, measured settled with vibrato off on a mono slot
+  (glide 80 ms; G2->D3, G3->C4, A3->D4, A4->D5, A5->D6, E4->A3 down: all 0.0 +-0.1 c). Only A6->A6+5
+  differed, and the SLID note was the closer one (-3.0 c against -8.8 c fresh). No engine change.
+- ○ settled fresh notes sit flatter up high: -1 c at G2/D3, -1.7 c at C4/D4, -3.4 c at D5, -6.5 c at D6,
+  -8.8 c at A6 (late window, 1.5-2.8 s in; tune-check's earlier window reads A5 -2.0 c). Same family
+  as the warm-up drift in `sound_bowed_start`'s seed comment (friction pulling the loop as it settles);
+  not chased
 
 **INSTR_BOWED (pizzicato):**
 - ✓ the noise pluck was bright and thin, fundamental 7-12 dB under harmonics 3-8: `MODE_BOW_PLUCK` (§7)

@@ -4534,7 +4534,30 @@ static void sound_bowed_start(Voice *v) {
     // a lowpassed noise excitation across the whole string (Karplus-Strong style) — and the friction
     // is bypassed per-sample, so the same waveguide just rings down. eng_p[0] >= 0.5 → pizz.
     v->bw_pizz = (v->eng_p[0] >= 0.5f);
-    if (v->bw_pizz) {
+    if (v->bw_pizz && clamp01(v->eng_p[MODE_BOW_PLUCK]) > 0.0f) {
+        // FINGER PLUCK (MODE_BOW_PLUCK, 2026-11-04, design/humanized-playing.md): a finger pulls the
+        // string into a TRIANGLE and lets go, so its harmonics fall ~1/n^2 relative to the NOTE. The
+        // noise pluck below is low-passed at a FIXED frequency, which on a low note feeds the first
+        // ~25 harmonics equally: measured against CC0 upright recordings, our fundamental sat 7-12 dB
+        // UNDER harmonics 3-8, the real one is the loudest with 3-8 14-45 dB down. Seeded per half
+        // (nut side, bridge side), a little of the noise kept as finger texture, DC removed per half.
+        float shape = clamp01(v->eng_p[MODE_BOW_PLUCK]);
+        float lp = 0.0f, bright = 0.20f + v->timb * 0.45f;
+        for (int half = 0; half < 2; half++) {
+            int i0 = half ? nutLen : 0, n = half ? brLen : nutLen;
+            float mean = 0.0f;
+            for (int k = 0; k < n; k++) {
+                float wn = voice_white(v);
+                lp += bright * (wn - lp);
+                float t = (float)k / (float)(n > 1 ? n - 1 : 1);
+                float tri = t < 0.3f ? t / 0.3f : (1.0f - t) / 0.7f;
+                float x = (1.0f - shape) * lp * 1.4f + shape * (tri * 0.9f + lp * 0.15f);
+                v->ks_buf[i0 + k] = x; mean += x;
+            }
+            mean /= (float)(n > 0 ? n : 1);
+            for (int k = 0; k < n; k++) v->ks_buf[i0 + k] -= mean;
+        }
+    } else if (v->bw_pizz) {
         float lp = 0.0f, bright = 0.20f + v->timb * 0.45f;   // warmer (more LP) = a rounder finger pluck
         for (int i = 0; i < nutLen + brLen; i++) {
             float wn = voice_white(v);

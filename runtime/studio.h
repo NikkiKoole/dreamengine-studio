@@ -583,6 +583,7 @@ void instrument_mode(int slot, int idx, float value);  // per-engine aux channel
 #define MODE_BOW_PIZZ      0   // instrument_mode idx — INSTR_BOWED: >= 0.5 = PIZZICATO (pluck the same string), < 0.5 = arco (bow, self-oscillating hold)
 #define MODE_BOW_BODY      1   // instrument_mode idx — INSTR_BOWED: BODY resonance amount. A violin's body is what makes it a violin rather than a sawtooth, and this engine shipped without one. 0 = no body (the bare string, as before), 1 = all body. (Synth Secrets §M2 — three short parallel delay lines: a body is a small reverberant room)
 #define MODE_BOW_SIZE      2   // instrument_mode idx — INSTR_BOWED: how BIG the body is (a bigger instrument is a longer delay). Use the BOW_SIZE_* names: violin (the default) / viola / cello / bass. All the notes on one slot share ONE body, like a real instrument, so this is the size of that instrument
+#define MODE_BOW_PLUCK     6   // instrument_mode idx — INSTR_BOWED pizzicato: HOW the string is plucked. 0 = the noise pluck (default, bright and even), 1 = a FINGER pluck (the string pulled into a triangle: a strong fundamental, harmonics falling off like a real upright). Read at note-on
 // The bowed-body sizes, as MODE_BOW_SIZE values. Named because the numbers are not guessable: they come
 // from each instrument's real air resonance (violin ~275 Hz, viola ~225, cello ~110, bass ~60).
 #define BOW_SIZE_VIOLIN 0.50f  // MODE_BOW_SIZE — a violin-sized body (1.00x). The default: a slot that never sets a size gets this

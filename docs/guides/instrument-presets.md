@@ -391,12 +391,15 @@ showcase cart). The first **whole-kit** showcase-cart lineage (vs single-preset 
 
 | piece | recipe |
 |---|---|
-| kick (`SL_KICK`)        | SINE A0 D170 R40 · LP 320/2 · pitch-env →13 (0/45) — soft round |
-| snare shell (`SL_SNB`)  | SINE A0 D70 R25 · LP 900/1 · pitch-env →5 (0/25) — tonal layer |
-| snare rattle (`SL_SNN`) | NOISE A0 D130 R35 · BP 1700/3 · cut-env →900 — noise layer |
-| hats (`SL_HATC`/`SL_HATO`) | NOISE · BP 7800/7200 — the famous swish |
-| metal beat (`SL_MET`)   | SQUARE A0 D210 R60 · BP 3100/6 |
-| claves (`SL_CLV`)       | TRI A0 D36 R14 · LP 3600/6 |
+| kick (`SL_KICK`)        | SINE A0 D140 R40 · LP 320/2 · pitch-env →2 (0/30) · note 36 — soft round 65 Hz |
+| snare shell (`SL_SNB`)  | SINE A0 D60 R20 · pitch-env →2 (0/15) · note 63 · level 0.15 — 311 Hz, under the rattle |
+| snare rattle (`SL_SNN`) | NOISE A0 D70 R25 · LP 8000/6 — noise to ~10 kHz, the loud layer |
+| hats (`SL_HATC`/`SL_HATO`) | NOISE · BP 8400/14 · level 0.51 — the swish is a NARROW 7.4-9.7 kHz band |
+| metal beat (`SL_MET`)   | TRI A0 D60 R25 · BP 5400/6 · notes 114 + 112 · level 0.36 — rings at 5.3-5.9 kHz |
+| claves (`SL_CLV`)       | SINE A0 D40 R12 · note 99 · tune -0.23 — a pure 2.46 kHz ping |
+
+Retuned 2026-11-04 in `cr78.c` against a real CR-78 sample set and ported here (levels are each
+voice vs the kick, as on the real kit).
 
 - tier: unique (a whole kit)
 - origin: **cr78.c** (the CompuRhythm showcase cart)

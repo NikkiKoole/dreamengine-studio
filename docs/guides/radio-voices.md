@@ -535,7 +535,7 @@ PWM-square family.
 | `I_BASS` | Hosono counterpoint bass | `square/hosono-bass` | SQUARE |
 | `I_ARP`  | sequencer "conveyor belt" | `tri/sequencer` | TRI |
 | `I_LEAD` | yonanuki lead | `square/ymo-lead` (kin: PWM-square family) | SQUARE |
-| `SL_*`   | CR-78 kit (kick, 2-layer snare, hats, metal, claves) | `kit/cr78` | SINE/NOISE/SQUARE/TRI |
+| `SL_*`   | CR-78 kit (kick, 2-layer snare, hats, metal, claves) | `kit/cr78` | SINE/NOISE/TRI |
 
 **Borrowing at a glance:** synthetic and dance-adjacent, but it draws from `cr78.c` (the
 **5th showcase-cart lineage**, and the first *whole-kit* borrow) rather than the generic synth

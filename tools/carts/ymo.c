@@ -312,20 +312,20 @@ static void play_step(long abs, double pos) {
     const Kit *kit = &KITS[sng.kit];
 
     // DRUMS — the CR-78 circuits, driven by the pattern strings
-    hitrow(kit->kick, step, dly, 33, SL_KICK, 6, 220);
+    hitrow(kit->kick, step, dly, 36, SL_KICK, 6, 220);
     if (kit->snare && kit->snare[step] == 'x') {         // the two-layer snare
-        schedule_hit(dly + rnd(2), 53, SL_SNB, 4, 100);
-        schedule_hit(dly + rnd(2), 60, SL_SNN, 4, 170);
+        schedule_hit(dly + rnd(2), 63, SL_SNB, 4, 100);
+        schedule_hit(dly + rnd(2), 60, SL_SNN, 7, 120);
         vu += 2;
     }
     int hatVol = (step % 4 == 0) ? 3 : 2;
     if (lvl >= 3 || (kit->hatc && kit->hatc[step] == 'x'))
         schedule_hit(dly + rnd(2), 90, SL_HATC, hatVol, 60);
     hitrow(kit->hato, step, dly, 90, SL_HATO, 3, 360);
-    hitrow(kit->clv,  step, dly, 97, SL_CLV, 4, 55);
+    hitrow(kit->clv,  step, dly, 99, SL_CLV, 4, 60);
     if (lvl >= 2 && kit->metal && kit->metal[step] == 'x' && bar % 2 == 0) {
-        schedule_hit(dly + rnd(2), 88, SL_MET, 3, 210);  // the Kraftwerkian clang
-        schedule_hit(dly + rnd(2), 93, SL_MET, 2, 210);  // (two of cr78.c's three
+        schedule_hit(dly + rnd(2), 114, SL_MET, 3, 120); // the Kraftwerkian clang
+        schedule_hit(dly + rnd(2), 112, SL_MET, 3, 120); // (the two loud tones of cr78.c's three
         vu += 1.5f;                                      //  squares — voice budget)
     }
     if (kit->kick && kit->kick[step] == 'x') vu += 2;
@@ -382,28 +382,31 @@ static void setup_instruments(void) {
     instrument_duty(I_LEAD, 0.25f);
     instrument_lfo(I_LEAD, 0, LFO_PITCH, 5.6f, 0.12f);
 
-    // — CR-78 circuits, verbatim from cr78.c —
-    instrument(SL_KICK, INSTR_SINE, 0, 170, 0, 40);          // soft round kick
+    // — CR-78 circuits, from cr78.c (retuned there 2026-11-04 against a real
+    //   CR-78 sample set: pitch, band, decay, and each voice's level vs the kick) —
+    instrument(SL_KICK, INSTR_SINE, 0, 140, 0, 40);          // soft round 65 Hz kick
     instrument_filter(SL_KICK, FILTER_LOW, 320, 2);
-    instrument_env(SL_KICK, 0, ENV_PITCH, 0, 45, 13.0f);
+    instrument_env(SL_KICK, 0, ENV_PITCH, 0, 30, 2.0f);
 
-    instrument(SL_SNB, INSTR_SINE, 0, 70, 0, 25);            // snare shell
-    instrument_filter(SL_SNB, FILTER_LOW, 900, 1);
-    instrument_env(SL_SNB, 0, ENV_PITCH, 0, 25, 5.0f);
-    instrument(SL_SNN, INSTR_NOISE, 0, 130, 0, 35);          // snare rattle
-    instrument_filter(SL_SNN, FILTER_BAND, 1700, 3);
-    instrument_env(SL_SNN, 0, ENV_CUTOFF, 0, 90, 900.0f);
+    instrument(SL_SNB, INSTR_SINE, 0, 60, 0, 20);            // snare shell, 311 Hz
+    instrument_env(SL_SNB, 0, ENV_PITCH, 0, 15, 2.0f);
+    instrument_level(SL_SNB, 0.15f);                         // the rattle carries the snare
+    instrument(SL_SNN, INSTR_NOISE, 0, 70, 0, 25);           // snare rattle, noise to ~10 kHz
+    instrument_filter(SL_SNN, FILTER_LOW, 8000, 6);
 
-    instrument(SL_HATC, INSTR_NOISE, 0, 40, 0, 18);          // the swish
-    instrument_filter(SL_HATC, FILTER_BAND, 7800, 4);
+    instrument(SL_HATC, INSTR_NOISE, 0, 22, 0, 10);          // the swish: a NARROW 7.4-9.7 kHz band
+    instrument_filter(SL_HATC, FILTER_BAND, 8400, 14);
+    instrument_level(SL_HATC, 0.51f);
     instrument(SL_HATO, INSTR_NOISE, 0, 320, 0, 80);
-    instrument_filter(SL_HATO, FILTER_BAND, 7200, 4);
+    instrument_filter(SL_HATO, FILTER_BAND, 8400, 14);
+    instrument_level(SL_HATO, 0.51f);
 
-    instrument(SL_MET, INSTR_SQUARE, 0, 210, 0, 60);         // the metallic beat
-    instrument_filter(SL_MET, FILTER_BAND, 3100, 6);
+    instrument(SL_MET, INSTR_TRI, 0, 60, 0, 25);             // the metallic beat rings HIGH (5.3-5.9 kHz)
+    instrument_filter(SL_MET, FILTER_BAND, 5400, 6);
+    instrument_level(SL_MET, 0.36f);
 
-    instrument(SL_CLV, INSTR_TRI, 0, 36, 0, 14);             // claves
-    instrument_filter(SL_CLV, FILTER_LOW, 3600, 6);
+    instrument(SL_CLV, INSTR_SINE, 0, 40, 0, 12);            // claves, a pure 2.46 kHz ping
+    instrument_tune(SL_CLV, -0.23f);
 }
 
 // ── update ────────────────────────────────────────────────────────────────

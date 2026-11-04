@@ -57,10 +57,8 @@ de:meta */
 #define S_TOMHI  18
 #define S_TOMLO  19
 #define S_BELL   26     // the ride's BELL: its own slot, since it wants the opposite filter to the bow
-#define S_RIDEB  27     // the ride bow's BODY tone (a MODAL plate at ~415 Hz), under the banks
-#define S_RIDE2  28     // the ride's second METAL bank, a minor third over S_RIDE: together a dense 260-700 Hz cluster
-#define S_RIDESH 29     // the ride's shimmer: a METAL bank band-passed to 2.6 kHz (the recording's 2.5-3.3 kHz tones)
-#define S_RIDEW  30     // the ride's WASH: noise band-passed at 480 Hz, ringing ~1 s (what turns the banks' tones into a cymbal)
+#define S_RIDESH 29     // the ride's shimmer: a METAL bank band-passed to 2.6 kHz (the recording's 2-4 kHz plateau)
+#define RIDE_TANK 1     // the ride's private reverb tank: the RESONATOR both ride voices are struck into
 // RECORDED cymbals (2026-11-04, Nikki: "an awful cymbal and ride sound"): CC0 one-shots loaded at
 // runtime from build/refs/drums-cc0/*.f32 (the binary runs with cwd = build/), the breakchop route.
 // Missing files = the synthesized cymbals, so the cart never breaks. K switches kits.
@@ -182,45 +180,31 @@ static void setup_sound(void) {
     instrument_mode(S_CHICK, MODE_METAL_DECAY, 0.10f);
     instrument_filter(S_CHICK, FILTER_BAND, 2400, 1);
     instrument_choke(S_CHICK, S_HAT);
-    // RIDE, aimed at the RECORDED kit's ride (build/refs/drums-cc0/ride.wav), 2026-11-04, picked by ear from
-    // level-matched renders (Nikki: the old one was "ringy pingy metallic plonky"; of the dark versions, the
-    // one with a noise wash, because bare banks had "tones to it" where the recording is "nice noise, fuller").
-    // The recording is DARK: 80-95% of its energy in a cluster of tones at 290-600 Hz ringing ~1 s, a quieter
-    // shimmer at 2.5-3.3 kHz that grows after the first 300 ms, almost nothing above 5 kHz. (The previous
-    // voicing aimed at a bright ping ride, "Savannah", energy median 7.6 kHz: a different instrument.)
-    // Four voices, all MONO (a ride is one plate, a stroke re-excites it; separate voices stacked into a drone,
-    // which is what once made a dark ride read as "a train locomotive"):
-    //   S_RIDE + S_RIDE2  two METAL banks a minor third apart, lows living longest: the 260-700 Hz cluster
-    //   S_RIDESH          a METAL bank band-passed at 2.6 kHz: the shimmer
-    //   S_RIDEW           band-passed noise at 480 Hz: the wash between the banks' tones
-    //   S_RIDEB           the struck MODAL plate at ~415 Hz, the body
-    // Measured against the recording (oneshot-compare, band 10/50/90 % of energy): 248/581/1712 Hz vs
-    // 388/431/1992, flatness 0.03 vs 0.03, -20 dB in ~1 s vs 1.08 s; stems level-matched to the recorded ride.
-    instrument(S_RIDE, INSTR_METAL, 0, 60, 5, 500);
-    instrument_harmonics(S_RIDE, 0.0f); instrument_timbre(S_RIDE, 0.06f); instrument_morph(S_RIDE, 0.0f);
-    instrument_mode(S_RIDE, MODE_METAL_DECAY, 0.62f);
-    instrument_mode(S_RIDE, MODE_METAL_SPREAD, 0.0f);
-    instrument_filter(S_RIDE, FILTER_LOW, 4500, 0);
+    // RIDE, aimed at the RECORDED kit's ride (build/refs/drums-cc0/ride.wav), 2026-11-04/05, picked by ear
+    // from level-matched renders. The recording: "you hear something at the start, then just a beautiful
+    // noise" (Nikki), a broad but BROWN noise packed into the octave around 500 Hz, a soft plateau at 2-4 kHz,
+    // almost no low end, and each stroke dropping ~10 dB before the next. Built from TONES (METAL banks,
+    // a MODAL body) it stayed "in a certain pitch" whatever was tuned; so the ride is now STRUCK INTO A
+    // RESONATOR: a short dark noise stroke and a short shimmer both sent fully into a private reverb tank
+    // (RIDE_TANK, set up at the end of init), whose dense resonances make the wash. No fixed pitch anywhere.
+    //   S_RIDE    the stroke: noise band-passed at 500 Hz (Q 14), a fast drop then a quiet ~1 s tail. The fast
+    //             drop is what keeps strokes apart: a 350 ms swell piled the tails into a hiss bed (6.5 dB
+    //             between strokes vs the recording's 10)
+    //   S_RIDESH  the shimmer, a METAL bank band-passed at 2.6 kHz, quiet and a little long (a short loud one
+    //             was spiky)
+    // Measured on the ride stem in the groove (octave bands re 500 Hz, recording in brackets): 250 -14 (-10),
+    // 1k -9 (-10), 2k -10 (-8), 4k -9 (-8), 8k -19 (-20); 10.2 dB between strokes (10.1); level-matched.
+    // Still off: the deepest bass, 125 Hz at -27 vs -36.
+    // History: a bright "ping" ride (2026-11-04 morning, "ringy pingy metallic plonky"), then tone banks +
+    // a noise wash ("tones to it", "too much hiss noise" from the overlapping tails).
+    instrument(S_RIDE, INSTR_NOISE, 0, 90, 1, 900);
+    instrument_filter(S_RIDE, FILTER_BAND, 500, 14);
     instrument_mono(S_RIDE, 1);
-    instrument(S_RIDE2, INSTR_METAL, 0, 60, 5, 500);
-    instrument_harmonics(S_RIDE2, 0.9f); instrument_timbre(S_RIDE2, 0.06f); instrument_morph(S_RIDE2, 0.0f);
-    instrument_mode(S_RIDE2, MODE_METAL_DECAY, 0.62f); instrument_mode(S_RIDE2, MODE_METAL_SPREAD, 0.1f);
-    instrument_filter(S_RIDE2, FILTER_LOW, 4500, 0); instrument_mono(S_RIDE2, 1); instrument_pan(S_RIDE2, 0.38f);
-    instrument_level(S_RIDE2, 0.085f);
-    instrument(S_RIDEW, INSTR_NOISE, 0, 0, 7, 1100);
-    instrument_filter(S_RIDEW, FILTER_BAND, 480, 5); instrument_mono(S_RIDEW, 1); instrument_pan(S_RIDEW, 0.38f);
-    instrument_level(S_RIDEW, 0.12f);
     instrument(S_RIDESH, INSTR_METAL, 0, 60, 5, 700);
     instrument_harmonics(S_RIDESH, 1.0f); instrument_timbre(S_RIDESH, 0.10f); instrument_morph(S_RIDESH, 0.5f);
-    instrument_mode(S_RIDESH, MODE_METAL_DECAY, 0.72f); instrument_mode(S_RIDESH, MODE_METAL_SPREAD, 0.0f);
+    instrument_mode(S_RIDESH, MODE_METAL_DECAY, 0.55f); instrument_mode(S_RIDESH, MODE_METAL_SPREAD, 0.0f);
     instrument_filter(S_RIDESH, FILTER_BAND, 2600, 0); instrument_mono(S_RIDESH, 1); instrument_pan(S_RIDESH, 0.38f);
-    instrument_level(S_RIDESH, 0.085f);
-    instrument(S_RIDEB, INSTR_MODAL, 0, 45, 4, 1200);
-    instrument_harmonics(S_RIDEB, 0.05f); instrument_timbre(S_RIDEB, 0.10f); instrument_morph(S_RIDEB, 0.0f);
-    instrument_mode(S_RIDEB, MODE_MODAL_MODES, 1.0f);
-    instrument_mode(S_RIDEB, MODE_MODAL_POS, 0.70f);
-    instrument_mode(S_RIDEB, MODE_MODAL_DIRECT, 0.15f);
-    instrument_mono(S_RIDEB, 1);
+    instrument_level(S_RIDESH, 0.198f);
     // ride bell, aimed at the bell Nikki picked (Meinl Byzance 20" "B2", CC0): a clear, nearly pure
     // ding, partials 3036 / 3435 / 3790 Hz, -20 dB in 345 ms. The bank in a tight spread through a
     // narrow band at 3.4 kHz: ours 3047 / 4016 Hz, -20 dB in 340 ms
@@ -244,7 +228,7 @@ static void setup_sound(void) {
 
     // the room and the drummer's-view stereo picture
     instrument_pan(S_HAT, -0.35f); instrument_pan(S_CHICK, -0.35f);
-    instrument_pan(S_RIDE, 0.38f); instrument_pan(S_RIDEB, 0.38f); instrument_pan(S_BELL, 0.38f); instrument_pan(S_CRASH, -0.45f);
+    instrument_pan(S_RIDE, 0.38f); instrument_pan(S_BELL, 0.38f); instrument_pan(S_CRASH, -0.45f);
     instrument_pan(S_TOMHI, -0.15f); instrument_pan(S_TOMLO, 0.30f);
     instrument_pan(S_RIM, 0.05f);
     instrument_level(S_KICK, 0.9f);    // the 118 Hz second-mode voice made it fuller; keep the peak off 0 dBFS
@@ -253,16 +237,20 @@ static void setup_sound(void) {
     instrument_level(S_RIM, 0.80f);
     instrument_level(S_CHICK, 0.25f);
     instrument_level(S_HAT, HAT_LVL);
-    instrument_level(S_RIDE, 0.98f * 0.085f);    // the ride's four voices, level-matched to the recorded ride in the groove
+    instrument_level(S_RIDE, 0.25f);    // the ride, level-matched to the recorded ride in the groove
     instrument_level(S_BELL, 0.15f);
-    instrument_level(S_RIDEB, 0.82f * 0.085f);
     instrument_level(S_CRASH, 0.25f);
     instrument_level(S_TOMHI, 1.0f); instrument_level(S_TOMLO, 0.9f);
-    int s[] = { S_KICK, S_HEAD, S_WIRE, S_RIM, S_HAT, S_CHICK, S_RIDE, S_CRASH, S_TOMHI, S_TOMLO, S_BELL, S_RIDEB };
-    float send[] = { 0.06f, 0.18f, 0.18f, 0.12f, 0.08f, 0.06f, 0.12f, 0.15f, 0.14f, 0.14f, 0.12f, 0.12f };
-    for (int i = 0; i < 12; i++) instrument_reverb(s[i], send[i]);
+    int s[] = { S_KICK, S_HEAD, S_WIRE, S_RIM, S_HAT, S_CHICK, S_RIDE, S_CRASH, S_TOMHI, S_TOMLO, S_BELL };
+    float send[] = { 0.06f, 0.18f, 0.18f, 0.12f, 0.08f, 0.06f, 0.12f, 0.15f, 0.14f, 0.14f, 0.12f };
+    for (int i = 0; i < 11; i++) instrument_reverb(s[i], send[i]);
     reverb(0.28f, 0.45f);
     eq(14.0f, 10.0f, 5.0f);     // no master volume: the master EQ is the fader (membranes are quiet)
+    // the ride's resonator (see RIDE above). AFTER the send loop: instrument_reverb() would re-route the slots
+    reverb_bus(RIDE_TANK, 0.97f, 0.80f);
+    reverb_bus_fx(RIDE_TANK, FX_EQ, -12.0f, -6.0f, -12.0f);     // brown: lows and highs out of the tail
+    instrument_reverb_bus(S_RIDE, RIDE_TANK, 1.0f);
+    instrument_reverb_bus(S_RIDESH, RIDE_TANK, 1.0f);
 }
 
 static bool load_f32(const char *path, int sample_slot) {
@@ -410,11 +398,8 @@ static void ride_stroke(double t, bool bell, float g, float spot) {
     if (rec_ok && rec_kit) { book(bell ? R_BELL : R_RIDE, 60, t, g * (bell ? 0.95f : 0.8f), bell ? 2600 : 3000, 0, 0, 0, 0); return; }
     if (bell) book(S_BELL, 88, t, g * 1.05f, 900, 0, 0, 0, 0);
     else {    // the bow: shimmer + body, one stroke
-        book(S_RIDE, 56, t, g * 0.7f, 1800, spot * 0.05f, spot * 0.06f, 0, 0);
-        book(S_RIDE2, 59, t, g * 0.5f, 1800, 0, 0, 0, 0);
-        book(S_RIDEW, 60, t, g * 0.8f, 60, 0, 0, 0, 0);
+        book(S_RIDE, 60, t, g * 0.8f, 60, 0, 0, 0, 0);       // the stroke (noise: the pitch is not heard)
         book(S_RIDESH, 84, t, g * 0.3f, 2400, 0, 0, 0, 0);
-        book(S_RIDEB, 68, t, g * 0.7f, 1800, 0, spot * 0.05f, 0, 0);
     }
 }
 

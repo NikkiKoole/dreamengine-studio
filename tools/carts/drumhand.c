@@ -184,13 +184,13 @@ static void setup_sound(void) {
     // no ping, which on eighth notes read as "a train locomotive comes by".)
     // MONO, both: a ride is ONE plate, a stroke re-excites it. As separate voices, eighth notes
     // STACKED the rings into a pulsing drone.
-    instrument(S_RIDE, INSTR_METAL, 0, 0, 7, 300);
+    instrument(S_RIDE, INSTR_METAL, 0, 45, 4, 300);    // D45 S4: the stick's HIT, -6 dB by 40 ms then the ring (Savannah's curve; full sustain had no attack)
     instrument_harmonics(S_RIDE, 0.62f); instrument_timbre(S_RIDE, 0.15f); instrument_morph(S_RIDE, 0.30f);   // timbre = noise mix: 0.35 hissed (Nikki), 0.15 by ear
     instrument_mode(S_RIDE, MODE_METAL_DECAY, 0.48f);
     instrument_mode(S_RIDE, MODE_METAL_SPREAD, 0.30f);
     instrument_filter(S_RIDE, FILTER_LOW, 11000, 2);
     instrument_mono(S_RIDE, 1);
-    instrument(S_RIDEB, INSTR_MODAL, 0, 0, 7, 600);
+    instrument(S_RIDEB, INSTR_MODAL, 0, 45, 4, 600);
     instrument_harmonics(S_RIDEB, 0.05f); instrument_timbre(S_RIDEB, 0.10f); instrument_morph(S_RIDEB, 0.0f);
     instrument_mode(S_RIDEB, MODE_MODAL_MODES, 1.0f);
     instrument_mode(S_RIDEB, MODE_MODAL_POS, 0.70f);
@@ -229,9 +229,9 @@ static void setup_sound(void) {
     instrument_level(S_RIM, 0.80f);
     instrument_level(S_CHICK, 0.25f);
     instrument_level(S_HAT, HAT_LVL);
-    instrument_level(S_RIDE, 0.67f);
+    instrument_level(S_RIDE, 0.98f);
     instrument_level(S_BELL, 0.15f);
-    instrument_level(S_RIDEB, 0.56f);
+    instrument_level(S_RIDEB, 0.82f);
     instrument_level(S_CRASH, 0.25f);
     instrument_level(S_TOMHI, 0.85f); instrument_level(S_TOMLO, 0.9f);
     int s[] = { S_KICK, S_HEAD, S_WIRE, S_RIM, S_HAT, S_CHICK, S_RIDE, S_CRASH, S_TOMHI, S_TOMLO, S_BELL, S_RIDEB };

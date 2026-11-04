@@ -18,7 +18,11 @@
     "summary": "An 8-bar soul groove played by a DRUMMER instead of a grid: two hands and two feet, a technique per stroke, a hi-hat pedal that every hat hit reads, ghost notes, flams, a buzz and a fill that builds and lands on the crash. TAB flips to the grid version.",
     "detail": "Four limbs. The right hand keeps the hats (or the ride) on top of the beat, the left hand plays the backbeat a hair behind it and the ghost notes in between, the right foot the kick, the left foot the hi-hat PEDAL. Each stroke is a TECHNIQUE: the snare is struck in the centre, near the edge, as a rimshot (stick on head and rim at once), as a cross-stick (stick laid across the rim) or as a ghost; the hat is hit with the tip (a light tick) or the shank (a thick chunk); the ride on the bow or the bell; the kick is buried (beater held into the head, short) or bounced (it rings). The pedal is a continuous openness every hat hit reads: closed tick, half-open sizzle, open wash, and when the foot closes it makes its own chick and stops a ringing open hat. The drummer has a body: a hand cannot be on the hat and the snare at once, so the hats stop in a fill and the fill alternates right and left; a quick second stroke by the same hand is a little late and softer; the energy builds over the eight bars into the fill and the crash, and over a long take the left hand tires (lighter ghosts, a little dragging). Keys 1-5 switch each layer on and off.",
     "controls": "SPACE play/stop · TAB drummer / grid · L foot ease-down as booked LANE_LEVEL ramps / ridden per frame · 1 time 2 dynamics 3 technique 4 pedal 5 limbs · UP/DOWN humanity · LEFT/RIGHT tempo · R new take"
-  }
+  },
+  "todo": [
+    "Synth ride: the deepest bass is still ~9 dB heavy against the recording (125 Hz octave -27 vs -36 dB re 500 Hz, measured on the groove stem).",
+    "Synth ride BELL is still the old tone build (a band-passed METAL bank); give it the struck-resonator treatment the bow got (583ccae6)."
+  ]
 }
 de:meta */
 // drumhand — a spike: what does a drum kit need to sound PLAYED, and what would a booked note

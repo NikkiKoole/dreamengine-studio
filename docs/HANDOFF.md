@@ -44,7 +44,7 @@ a broken doc link or `#section`).
 > What a reader needs to *choose* a lane is in the front-door output; what they need to *resume*
 > one is in the lane itself. A summary in between is a third copy, and it is the copy nobody
 > updates. If you find yourself writing one again, teach `handoff.js` to print it instead.
-> **▶ ACTIVE THREAD (2026-11-04) - HUMANIZED PLAYING + the NoteOpts build (booked notes that carry the player's expression).**
+> **▶ ACTIVE THREAD (2026-11-05) - HUMANIZED PLAYING + the NoteOpts build (booked notes that carry the player's expression).**
 > **Shipped (2026-11-04):** eleven spike carts (`strumhand`, `breathflute`, `reedhand`, `cellohand`, `basshand`,
 > `pianohand`, `tablahand`, `tablalab`, `drumhand`, `synthhand`, `mouthhand`); engine calls `instrument_vibrato`,
 > `MODE_BOW_PLUCK`, `instrument_analog`, `instrument_release_shape`; **NoteOpts steps 1-5**: per-note `cents` /
@@ -68,6 +68,17 @@ a broken doc link or `#section`).
 > playtime-90: binding Playtime `6ba19f6f` (struct size guarded by `de_note_opts_size()`), the showcase = Playtime's
 > `parlour` style `dbd5b6b1` (src/music-parlour.lua, a music-panel `humanize` row A/Bs it), dylib rebuilt from
 > 10f4de3f. Waits for Nikki's ear. The how-to for any session: [humanizing-sounds](guides/humanizing-sounds.md).
+> (e) DONE 2026-11-04/05 after step 5: `NoteOpts.filter` (a booked note's own FILTER_* type, `409701fd`, accepted
+> on `wahhand`: 6 slots byte-identical to the 18-slot + 36-choke build; Playtime's FFI struct grown to 112 bytes,
+> vector-sketch `4c4b0031`) · 128 instrument slots + a choke mask one bit per slot (`9f2b18dd`, for Playtime's drum
+> jam) · INSTR_MODAL level laws (`e735767c`, audio-notes §32) · tune-check judges MODAL on its own string pass
+> (`53132b49`, the gate is green again) · drumhand's synth ride rebuilt as a noise stroke STRUCK INTO A RESONATOR
+> (a private reverb tank), each stroke's colour from force + stick spot (`583ccae6`, `fbbbb74f`; Nikki: "the best
+> still not perfect but better and better"; the method is in guides/tuning-drum-voices.md).
+> (f) OPEN: the ride's deepest bass + the bell's old build (drumhand `todo`); settled bowed notes flat up high and
+> the rosin tick ([the engine gaps](design/humanized-playing.md#72-engine-gaps-found-while-spiking-the-checklist));
+> the per-note filter's open questions (§8.11); lofi's rim level not heard in-cart (audio-notes §32); 128 slots
+> untested on iOS and in Playtime's desound rebuild, then playtime-90 measures whether 32 voices hold a band + an 808.
 > **Hot files:** `runtime/sound.h` / `sound_ctx.h` are shared with the CR-78/drum-voicing agent (dreamengine-f4):
 > announce before editing, commit only your own hunks by pathspec, and when a foreign untracked cart is in
 > `tools/carts/` the pre-commit index gate forces a splice or a wait (it regenerates `index.json` from the tree).

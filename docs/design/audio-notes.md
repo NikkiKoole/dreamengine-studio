@@ -3086,4 +3086,6 @@ Then trims against the library (`MODAL_STRIKE_TRIM` 0.1, `MODAL_CONT_TRIM` 1.26,
 so it was left. Re-levelled to sound as before (each patch measured old vs new at its own pitches):
 lofi rim 0.28 -> 0.79, loficity rim 0.28 -> 0.64, bossa clave 0.30 -> 0.36, woodblock 0.28 -> 0.52,
 drumhand ride body EQ +12 -> +3 dB (in-cart stem within 0.1 dB); loficity's bowed glass moved -0.9 dB
-and was left. The level-check baseline was re-blessed for MODAL only.
+and was left. ⚠ Only drumhand was checked INSIDE the cart; lofi's and loficity's rims were set from the probe of
+their exact patch at their exact note (a level is a pure multiplier, so this should hold), because no seed
+tried played lofi's rim in a 60 s render. Worth one listen. The level-check baseline was re-blessed for MODAL only.

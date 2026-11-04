@@ -32,7 +32,10 @@ const int   DECAYS[] = { 0, 0, 0, 0, 1, 1 };   // 1 = struck/plucked: rings out 
 #define NENG 6                                  // be RE-struck to stay audible (the self-osc ones just hold)
 int   frames = 0;
 
-void setup_engine(void) { instrument(5, ENG[eng], 4, 0, 7, 400); }   // sustaining; holds while gated
+void setup_engine(void) {   // sustaining; holds while gated
+    instrument(5, ENG[eng], 4, 0, 7, 400);
+    instrument_harmonics(5, ENG[eng] == INSTR_PIANO ? 0.08f : 0.5f);   // PIANO = the grand (0.5 = harpsichord); others keep the centre detent
+}
 
 void kill_all(void) {
     for (int i = 0; i < NV; i++) { if (handle[i] > 0) note_off(handle[i]); handle[i] = 0; }

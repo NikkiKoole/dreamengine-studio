@@ -44,6 +44,25 @@ a broken doc link or `#section`).
 > What a reader needs to *choose* a lane is in the front-door output; what they need to *resume*
 > one is in the lane itself. A summary in between is a third copy, and it is the copy nobody
 > updates. If you find yourself writing one again, teach `handoff.js` to print it instead.
+> **▶ ACTIVE THREAD (2026-11-04) - HUMANIZED PLAYING + the NoteOpts build (booked notes that carry the player's expression).**
+> **Shipped (2026-11-04):** eleven spike carts (`strumhand`, `breathflute`, `reedhand`, `cellohand`, `basshand`,
+> `pianohand`, `tablahand`, `tablalab`, `drumhand`, `synthhand`, `mouthhand`); engine calls `instrument_vibrato`,
+> `MODE_BOW_PLUCK`, `instrument_analog`, `instrument_release_shape`; **NoteOpts steps 1-4**: per-note `cents` /
+> `cutoff_oct` / `damp` / `release_ms` / latched sample region, `.vib` (NoteVib), shapes (`shape_define` +
+> `NoteOpts.shape[]` + `origin_ms`), lanes (`lane_at`: DAMPER / CUTOFF / LEVEL / VIB). Nikki's verdicts: booked
+> `breathflute` "sounds much better" (and in tune: riding PIPE's macros detunes it), `synthhand` analog "makes me
+> happy", `drumhand` "much better than before".
+> **Resume at:** [the order of work](design/humanized-playing.md#810-order-of-work-each-step-accepted-by-a-spike-re-done-booked).
+> Next, in order: (a) the two step-4 acceptance tests still open: `synthhand`'s hand on the cutoff as booked
+> `LANE_CUTOFF` ramps (today `note_cutoff` per frame on held notes) and `drumhand`'s hi-hat pedal as a lane;
+> (b) step 5, events inside a note (`note_event_at` on a booking id), which needs the bowed engine to re-arm its
+> onset on retrig and a bow speed that can reach zero and reverse ([the engine gaps](design/humanized-playing.md#72-engine-gaps-found-while-spiking-the-checklist));
+> (c) step 6, the choir on `INSTR_SING` with Playtime (the voice needs in §6.3; playtime-97's session has ended, so
+> brief whichever Playtime session picks it up). The how-to for any session: [humanizing-sounds](guides/humanizing-sounds.md).
+> **Hot files:** `runtime/sound.h` / `sound_ctx.h` are shared with the CR-78/drum-voicing agent (dreamengine-f4):
+> announce before editing, commit only your own hunks by pathspec, and when a foreign untracked cart is in
+> `tools/carts/` the pre-commit index gate forces a splice or a wait (it regenerates `index.json` from the tree).
+
 > **▶ ACTIVE THREAD (2026-10-02) — RADIO ARRANGER: make `lofi` as good as `loficity`, as a METHOD the other 38 stations can reuse.**
 >
 > The maker's goal is not one good lofi station but a repeatable strategy: measure the gap to a

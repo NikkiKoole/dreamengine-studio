@@ -185,7 +185,7 @@ static void setup_sound(void) {
     // MONO, both: a ride is ONE plate, a stroke re-excites it. As separate voices, eighth notes
     // STACKED the rings into a pulsing drone.
     instrument(S_RIDE, INSTR_METAL, 0, 0, 7, 300);
-    instrument_harmonics(S_RIDE, 0.62f); instrument_timbre(S_RIDE, 0.35f); instrument_morph(S_RIDE, 0.30f);
+    instrument_harmonics(S_RIDE, 0.62f); instrument_timbre(S_RIDE, 0.15f);   // noise mix: 0.35 hissed (Nikki), 0.15 = shimmer by ear instrument_morph(S_RIDE, 0.30f);
     instrument_mode(S_RIDE, MODE_METAL_DECAY, 0.48f);
     instrument_mode(S_RIDE, MODE_METAL_SPREAD, 0.30f);
     instrument_filter(S_RIDE, FILTER_LOW, 11000, 2);

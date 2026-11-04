@@ -2780,6 +2780,14 @@ static inline float sound_biquad_run(SoundBiquad *bq, float in);
 // moves ratios, so a search can put partials anywhere a ratio table can.
 
 #define MODAL_NYQ  0.45f
+// LEVEL (2026-11-04): see "LEVEL LAWS" in sound_modal_sample. MODAL_W_REF_INV = 1/sin(2 pi 440/SR), the
+// pitch the level law is referenced to (A4 keeps its old drive); the trims and MODAL_OUT set where a
+// note sits against the rest of the library.
+#define MODAL_W_REF_INV (1.0f / 0.0626483f)
+#define MODAL_STRIKE_TRIM 0.1f
+#define MODAL_CONT_TRIM   1.26f
+#define MODAL_BOW_MAKEUP  (-0.35f)
+#define MODAL_OUT         0.44f
 #define MODAL_NGEO 4
 
 // Published geometry endpoints (Cook CCRMA notes + free-free-bar / Bessel / stiff-string).
@@ -2892,20 +2900,33 @@ static inline float sound_modal_sample(Voice *v, float pitch_mul) {
         float soft = 1.0f - 0.82f * bright;
         for (int k = 0; k < m; k++) hw *= soft;
         v->mo_gain[m] = w * hw;
-        gsum += v->mo_gain[m];
+        gsum += v->mo_gain[m] * v->mo_gain[m];
     }
-    if (gsum > 1e-6f) {
-        float inv = 1.0f / gsum;
+    // LEVEL LAW 3 of 3 (2026-11-04): normalise the mode gains by POWER, not by sum. Modes ring at
+    // different frequencies, so their powers add: sum-normalised, a bright material (energy spread
+    // over 12 modes) came out ~11 dB under a dull one (nearly all in the fundamental). Same ratios
+    // between modes, so the same timbre; and the mode count no longer moves the level either.
+    if (gsum > 1e-12f) {
+        float inv = 1.0f / sqrtf(gsum);
         for (int m = 0; m < n; m++) v->mo_gain[m] *= inv;
     }
-    // more modes must not read as louder (playbook step 2)
-    v->mo_norm = 0.88f / sqrtf((float)n);
+    v->mo_norm = MODAL_OUT;
 
     // T60: bright/ringing ~3.2s → dull/short ~0.12s. Per-mode tilt so highs die first
     // (the struck-bar percept). Pole radius from T60: r = exp(-6.91 / (T60 * sr)).
     float t60 = 0.12f * de_expf((1.0f - damp) * 3.3f);   // 0.12s → ~3.3s
     float f0  = v->freq * pitch_mul;
     if (f0 < 20.0f) f0 = 20.0f;
+    // LEVEL LAWS 1 + 2 (2026-11-04, docs/design/audio-notes.md "INSTR_MODAL level laws"). The engine promised every macro position at the same loudness; measured, it
+    // spread 36 dB and fell ~6 dB per octave. (1) PITCH: a resonator turns a value written into its
+    // state into an amplitude ~ 1/sin(w), so low notes rang far louder (A2 +12 dB over A4, clipping).
+    // Both drives are scaled by sin(w0), referenced to A4, one factor for the whole voice so the
+    // balance between modes is untouched. (2) RING TIME: breath and bow feed NOISE scaled by (1-r),
+    // and noise builds up like a random walk, so the level went as 1/sqrt(T60), not flat: the
+    // continuous drive is scaled by sqrt(T60 / T60 at timbre 0.5).
+    float w0 = SOUND_TWO_PI * f0 / sr; if (w0 > 1.5707963f) w0 = 1.5707963f;
+    float lvl_pitch = de_sinf(w0) * MODAL_W_REF_INV;
+    float lvl_ring  = sqrtf(t60 * (1.0f / 0.6250f));
 
     // ── the exciter ────────────────────────────────────────────────────────
     // Strike: short noise burst (STK's recorded marmstk1 is not portable — Elements
@@ -2967,13 +2988,13 @@ static inline float sound_modal_sample(Voice *v, float pitch_mul) {
         float r = de_expf(-6.9078f * tilt / (t60 * sr));
         sound_modal_set(&v->mo_bq[m], mf, r);
         if (attack)
-            v->mo_bq[m].z1 += v->mo_gain[m] * (0.22f + 0.70f * v->mo_strike);
+            v->mo_bq[m].z1 += v->mo_gain[m] * (0.22f + 0.70f * v->mo_strike) * lvl_pitch * MODAL_STRIKE_TRIM;
         // (1-r) keeps the held equilibrium independent of T60. Blow (broadband) needs
         // more dump than bow (the bank supplies the tone as energy accumulates).
         float leak = 1.0f - r;
         if (leak < 0.0f) leak = 0.0f;
         float g_cont = 2.4f + 12.0f * v->mo_blow + 14.0f * v->mo_bow;
-        v->mo_bq[m].z1 += excit * leak * g_cont;
+        v->mo_bq[m].z1 += excit * leak * g_cont * lvl_pitch * lvl_ring * MODAL_CONT_TRIM;
         ring += sound_biquad_run(&v->mo_bq[m], excit) * v->mo_gain[m];
     }
 
@@ -2986,7 +3007,7 @@ static inline float sound_modal_sample(Voice *v, float pitch_mul) {
     v->mo_dc_state = dc;
     // Bow has no attack dump, so it needs makeup to sit next to strike/blow
     // (playbook: every macro position at the same loudness).
-    return dc * v->mo_norm * (1.0f + 1.6f * v->mo_bow);
+    return dc * v->mo_norm * (1.0f + MODAL_BOW_MAKEUP * v->mo_bow);
 }
 
 // ── INSTR_MME: the multi modulation engine (choochootracker-borrow-list.md row 1) ────

@@ -3057,3 +3057,33 @@ Corollary worth keeping: **an engine macro that does nothing is invisible to eve
 changed something. None of them asks whether a knob the docs advertise actually moves the sound. The
 sweep that found this is three lines of "render at 0, render at 1, compare bytes" and could be a gate
 of its own across the whole macro surface.
+
+## 32. INSTR_MODAL level laws: a 36 dB spread and a 6 dB/octave slope (2026-11-04)
+
+The engine's comments promised "every macro position at the same loudness". Measured over a grid
+(4 geometries × 3 materials × 3 exciters × A2-A5, vol 7), it spread 36 dB and fell ~6 dB per octave:
+a bright breathy MODAL sat near -38 dB rms, a dull bowed one clipped, and a struck A2 clipped where
+A4 peaked at -12.6. Carts had compensated by guessing in opposite directions (lofi's rim at level
+0.28, drumhand's ride body +12 dB of EQ). Three laws were missing, each now the inverse of its cause
+in `sound_modal_sample`:
+
+1. **Pitch.** A resonator turns a value written into its state into an amplitude ~ 1/sin(w), so the
+   strike dump and the continuous drive both rang louder the lower the note. Both are scaled by
+   sin(w0), referenced to A4 (`MODAL_W_REF_INV`), ONE factor per voice so the balance between modes
+   (the timbre) is untouched.
+2. **Ring time.** Breath and bow feed NOISE scaled by (1-r). The old comment said that made the level
+   independent of T60; that holds for a steady input, but noise accumulates like a random walk, so the
+   level went as 1/sqrt(T60). The continuous drive is scaled by sqrt(T60 / T60 at timbre 0.5).
+3. **Brightness.** Mode gains were normalised to SUM 1, but modes at different frequencies add in
+   POWER, so a bright material (energy over all modes) came out ~11 dB under a dull one. Now
+   normalised by sqrt(sum g²): same ratios, same timbre, and the mode count no longer moves the level.
+   The strike stays consistent too, because the gain is applied on the way in AND out (power, again).
+
+Then trims against the library (`MODAL_STRIKE_TRIM` 0.1, `MODAL_CONT_TRIM` 1.26, `MODAL_BOW_MAKEUP`
+-0.35): strike peaks -17..-9 dBFS (MALLET is -16), breath rms -28..-20, bow -30..-19 (BOWED/BRASS
+-22/-23), pitch flat within ~1 dB A2-A5. A strike's PEAK still moves ~5 dB with material, because the
+7 ms noise burst matters more for a short material; flattening it would change the attack's character,
+so it was left. Re-levelled to sound as before (each patch measured old vs new at its own pitches):
+lofi rim 0.28 -> 0.79, loficity rim 0.28 -> 0.64, bossa clave 0.30 -> 0.36, woodblock 0.28 -> 0.52,
+drumhand ride body EQ +12 -> +3 dB (in-cart stem within 0.1 dB); loficity's bowed glass moved -0.9 dB
+and was left. The level-check baseline was re-blessed for MODAL only.

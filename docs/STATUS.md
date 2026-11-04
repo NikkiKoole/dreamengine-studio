@@ -15,6 +15,11 @@ _Last updated: 2026-10-29 — INSTR_SCRAPE: a guiro with teeth. See the top Ship
 
 ## Shipped ✓
 
+- **INSTR_MODAL level laws** (2026-11-04). Its loudness spread 36 dB across the macros and fell ~6 dB
+  per octave (a bright breath near silent, a dull bow and a low strike clipping). Three missing laws
+  added (pitch, ring time, power-normalised modes); now within the library's range and flat in pitch.
+  Five cart patches re-levelled to sound as before. [`design/audio-notes.md`](design/audio-notes.md) §32.
+
 - **128 instrument slots (was 48), and a choke mask wide enough for them** (2026-11-04). For Playtime's
   drum jam (an 808 + a 909 beside a full band). `choke_mask` was ONE uint32_t for 48 slots, so a choke
   aimed at slot 32-47 shifted by >= 32 bits (UB; in practice it wrapped and also choked slot N-32); now one

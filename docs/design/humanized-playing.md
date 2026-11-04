@@ -3,7 +3,7 @@
 > **STATUS: EXPLORING (2026-11-04)**. Spike carts (`strumhand`, `breathflute`, `tablahand`, `tablalab`,
 > `reedhand`, `basshand`, `cellohand`, `pianohand`, `drumhand`, `synthhand`, `mouthhand`) and three
 > engine calls shipped (`instrument_vibrato`, `MODE_BOW_PLUCK`, `instrument_analog`). The NEEDS list
-> for booked-note curves (§6) is close to complete; **building that part is ON HOLD** (Nikki,
+> for booked-note curves (§6) is close to complete and a DRAFT layout is in §8; **building it is ON HOLD** (Nikki,
 > 2026-11-04) until one shape fits every instrument and the sampled voices. Written together with
 > Playtime's choir spike (playtime `docs/CHOIR.md`). Search words: humanize, humanise, human feel,
 > expression, analog warmth, NoteOpts curves.
@@ -283,6 +283,12 @@ All measured, none judged by ear yet. Engine facts below were checked against `r
   - **`INSTR_METAL`'s built-in noise sits at 15-20 kHz, so cymbals need a LOWPASS;** the bogie recipes
     HIGH-pass, which is what made the first cymbals hiss (the crash was 3-20 kHz, spectral flatness
     0.82). The `metal/*` rows in `guides/instrument-recipes.md` may deserve a note.
+  - **The ride (Nikki heard a "train locomotive"):** each ride stroke was its own voice ringing 1.3 s, so
+    eighth notes stacked into a low pulsing drone. Kit rule: **one physical cymbal = one voice** (mono
+    slot). And no single engine gave a ride both its body and its high shimmer without filling the mids,
+    so a stroke is TWO mono voices (METAL shimmer + MODAL body ~590 Hz), aimed at a CC0 ride Nikki picked
+    by ear (refs `build/refs/drums-cc0/ref_ride_*`; dreamengine-f4, drumhand commits ending "the ride
+    gets its stick hit").
 
 ### 6.6 A synth: humanizing the MACHINE (2026-11-04, `synthhand`)
 
@@ -310,7 +316,7 @@ INSTRUMENT.
   level +-0.7 dB at 1), drift +-3 cents refreshed every 64 samples. 0 = byte-identical. The same note 8
   times at 1: pitch -5..+4 cents, level +-0.6 dB, centroid 584-649 Hz.
 
-### 6.7 Formants: a mouth on any sound? (2026-11-04, `mouthhand`) — answered
+### 6.7 Formants: a mouth on any sound? (2026-11-04, `mouthhand`): answered
 
 The question: can a moving formant (a vowel filter) humanize ANY sound, the way the voice cards do?
 
@@ -391,3 +397,180 @@ should add rows of a different KIND:
 New categories in short: events inside a note, curves shared by a whole instrument, how notes end,
 a per-note technique choice, legato on polyphonic slots. The three spikes in bold cover nearly all
 of them; each must report its rows for §6. **All three built 2026-11-04; their rows are §6.5.**
+
+## 8. Proposal: the NoteOpts layout (DRAFT, 2026-11-04, not built)
+
+> Written against the needs in §6 (every spike + Playtime's choir). **Not built: building is on hold**
+> until Nikki says go; this is the shape to agree on first, then check with playtime-97 against
+> singing before any `sound.h` edit.
+
+### 8.1 Rules the layout follows
+
+1. **The player model stays in the caller.** The engine carries decisions (values, curves), never a
+   model of a player (playtime-97's framing, §6).
+2. **Zero means "as the slot is".** Every new field defaults to 0 = today's behaviour, so existing calls
+   (designated initialisers, `NULL`) stay byte-identical. New fields are APPENDED to `NoteOpts`.
+3. **Fixed size, no allocation, realtime-safe** (AUv3, the audio thread).
+4. **Units as `studio.h` already speaks them:** cents for pitch, dB for gain curves, octaves for cutoff,
+   0..1 offsets for the three macros, ms for time.
+5. **It has to fit the plumbing.** Today `schedule_note_at` BIT-PACKS `NoteOpts` into three ints of a
+   `SoundReq` (`.e0/.e1/.e2`: glide, accent + gain, the three macros at 10 bits each). Curves cannot fit
+   there, and growing `SoundReq` is costly because the cart contexts log requests (8 x 1024 entries). So
+   curves travel as REFERENCES to shapes defined once (8.3), and anything per-note that does not pack
+   goes through a fixed engine-side payload pool indexed from the request (8.7).
+
+### 8.2 Per-note scalars (appended to NoteOpts)
+
+```c
+typedef struct {
+    // today (unchanged)
+    int   glide_ms; float accent, harmonics, timbre, morph, gain;
+    // new: all 0 = as the slot is
+    float cents;          // fixed pitch offset (guitar finger pressure, voice tuning)       §6.4, §6.3
+    float cutoff_oct;     // filter offset for THIS note, octaves (ride bow vs bell)          §6.5
+    float damp;           // 0 = the slot's ring .. 1 = stopped at once (closed stroke, ghost) §6.2/6.4/6.5
+    int   release_ms;     // 0 = the slot's release; else this note's                        §6.5
+    int   origin_ms;      // where curve time 0 is, after note-on (the vowel after the consonant) §6.3 #8
+    float region_start, region_end;   // INSTR_SAMPLE/SING: this note's chop, LATCHED at note-on (0,0 = slot's) §6.3 #10
+    NoteVib   vib;        // 8.4
+    NoteShape shape[3];   // 8.3: up to three curves on this note
+} NoteOpts;
+```
+
+`damp` is engine-specific in meaning but one idea: how much of the instrument's natural ring this note
+keeps (a membrane's mode decay, a string's loop loss, a sample's release). It removes the second slot
+the tabla, the bass ghosts and the drums all needed (§6.2 item 6).
+
+### 8.3 Curves: a shape library, referenced and scaled per note
+
+A player re-uses the same gestures (a scoop, a fall, a swell, a bayan drop, a growl coming in) at
+different sizes. So shapes are defined ONCE (set-and-hold, like an instrument) and each note references
+up to three, scaled:
+
+```c
+void shape_define(int id, int n, const float *t_ms, const float *v, int interp);
+//   up to 6 breakpoints; interp SHAPE_LINEAR / SHAPE_EASE / SHAPE_EXP; the last value HOLDS
+typedef struct {
+    unsigned char id;      // 0 = none; 1..63 = a defined shape
+    unsigned char target;  // SHP_PITCH (cents) / SHP_GAIN (dB) / SHP_HARM / SHP_TIMB / SHP_MORPH (macro offset)
+                           // / SHP_CUTOFF (octaves) / SHP_VOWEL (formant, later)
+    float scale;           // multiplies the shape's values (0 = 1.0: as defined)
+    float stretch;         // multiplies its times (0 = 1.0): a longer note, a slower swell
+} NoteShape;
+```
+
+Per-note uniqueness comes from the caller's player model choosing `scale` / `stretch` (and which
+shape); the engine just plays it, sampled every 32 samples, from `origin_ms`. A curve ENDS WITH THE SOUND
+(no sustain implied, §6.3 #9). This covers: the flute / sax / voice scoop, a fall, a breath sag, the
+bayan's hold-then-drop, messa di voce, a phrase-end fade, the sax growl, bow pressure and speed, the
+palm dulling the bayan, a per-note "wah" (once SHP_VOWEL exists).
+
+### 8.4 Vibrato as fields, not a shape
+
+It is on almost every wind, bowed and sung long note, and it is a generator, not a line:
+
+```c
+typedef struct { float cents, rate_hz; int delay_ms, fade_ms; float wander; } NoteVib;
+// cents 0 = none; wander 0..1 = how much rate and depth drift (the engines' built-in vibrato already does this)
+```
+
+Pairs with `instrument_vibrato(slot, 0)` (shipped): the slot's built-in vibrato off, the note's own on.
+
+### 8.5 Curves shared by every sounding note: lanes
+
+The pedal, the hi-hat pedal, a synth's knobs, the bellows (§6.5, §6.6). Booked on the audio clock like
+notes, ramped sample-accurately, followed by held AND booked notes on the slot (or group):
+
+```c
+void lane_at(double t, int slot, int lane, float value, int ramp_ms);
+// LANE_DAMPER  0 up .. 1 down: a note whose KEY is up (its gate ended) keeps ringing while the damper is
+//              up, at a decay scaled by (1 - damper); a note whose key is down ignores it (the pedal)
+// LANE_CUTOFF  octaves offset on every voice of the slot (the hand on the knob)
+// LANE_LEVEL   dB (swell pedal, bellows)
+// LANE_VIB     vibrato depth scale (the mod wheel)
+// LANE_VOWEL   the slot's formant vowel, slewed (a talk box; fixes the formant's jump, §6.7)
+```
+
+The hi-hat pedal is `LANE_DAMPER` on the hat slot; the piano pedal the same on the piano. It replaces
+the per-frame `instrument_level` / `instrument_tune` riding three spikes used, which steps at frame rate
+and lands ~17 ms late (§6.5).
+
+### 8.6 Events inside a note
+
+The cello bow change and the foot closing on a ringing hat (§6.5): a booked note returns an id, and
+events address it:
+
+```c
+int  schedule_note_at(...);                 // now RETURNS a booking id (> 0), still usable as void
+void note_event_at(int booking, double t, int event, float amount);
+// NEV_REARTIC  re-articulate without restarting the pitch: re-arm the engine's onset (the bow catch,
+//              the chiff) and dip the excitation by `amount` (BOWED: reverse the bow, §6.5)
+// NEV_DAMP     set damp from t on (the foot closing, a hand muting)
+// NEV_RELEASE  end the note at t (key-up decided later than booking)
+```
+
+Engine side this needs `sound_retrig_voice` to cover BOWED and a signed bow velocity (§6.5).
+
+### 8.7 Plumbing (how it travels)
+
+- `NoteOpts` stays a caller-side struct. `schedule_note_at` keeps packing the old six fields into the
+  request as today (so nothing old changes) and, only when a new field is non-zero, writes the rest into
+  a fixed pool of payload records (e.g. 128 per engine instance) through the same SPSC direction the
+  request queue uses, passing the record index in the request. The record is freed when the note fires
+  and its values are copied into the voice.
+- Shapes live in a per-instance table (64 x 6 points), defined with `shape_define` (a config request,
+  logged like `instrument()`, so `de_switch_cart` and session state restore them).
+- Lanes are requests booked on the audio clock (like `schedule_at`) holding the current value + a ramp
+  per (slot, lane).
+- Deterministic and per-instance like the rest (sound_ctx.h, `ctx-gen --verify`).
+
+### 8.8 Coverage: every need, and where it lands
+
+| need (§6) | field |
+|---|---|
+| pitch curve: scoop, fall, sag, bayan drop, slide | `shape[]` with SHP_PITCH |
+| vibrato with a delay and fade-in | `vib` |
+| loudness curve: swell, fade, bow-change dip | `shape[]` SHP_GAIN; the dip also `note_event_at` NEV_REARTIC |
+| macro curves: growl, bow pressure/speed, palm | `shape[]` SHP_HARM / TIMB / MORPH |
+| cents per note | `cents` |
+| release time per note; release SHAPE | `release_ms`; the shape: an instrument property (`instrument_release_shape`, 8.9) |
+| damping per note | `damp` |
+| filter per note | `cutoff_oct` (+ SHP_CUTOFF for a moving one) |
+| curve origin; curves end with the sound | `origin_ms`; the rule in 8.3 |
+| sample chop / take per note | `region_start/end` (a take index into a bank: later, with Playtime) |
+| shared curves: pedal, hi-hat pedal, knobs, bellows | `lane_at` |
+| events inside a note: bow change, foot closing | `note_event_at` |
+| per-note vowel ("wah") | SHP_VOWEL, needs a per-voice formant (engine voicing work first) |
+
+### 8.9 What stays OUT
+
+- **The player model** and **technique bundles** (a rimshot = three voices): the caller's job; a bundle
+  is three `schedule_note_at` calls, maybe a cart-land helper header later, not the engine.
+- **Instrument properties**, not per note: `instrument_vibrato`, `instrument_analog`, `MODE_BOW_PLUCK`
+  (shipped), and `instrument_release_shape` (linear / exponential / felt damper: the linear release is an
+  engine gap, §6.5).
+- **Engine voicing gaps** (§6.5-6.7: membrane mode control, exponential decays, bowed pressure range,
+  piano treble, per-voice formant): separate work, each measured against recordings.
+- **Morphing between sampled takes** (Playtime's WORLD idea, §6.3): far off, analysis-domain playback.
+
+### 8.10 Order of work, each step accepted by a spike re-done BOOKED
+
+1. Scalars: `cents`, `cutoff_oct`, `damp`, `release_ms`, `origin_ms`, the region. Acceptance:
+   `strumhand` without one slot per string; `tablahand` without the closed slots.
+2. `vib`. Acceptance: `breathflute`'s vibrato on booked notes.
+3. Shapes. Acceptance: `breathflute` fully booked (scoop, swell, fall), the bayan drop booked.
+4. Lanes. Acceptance: `pianohand`'s pedal as `LANE_DAMPER`, `synthhand`'s knob as `LANE_CUTOFF`,
+   `drumhand`'s hi-hat pedal.
+5. Note events. Acceptance: `cellohand`'s bow change booked, with BOWED retrig.
+6. With Playtime: the choir booked on `INSTR_SING` (shapes + origin + region), checked by playtime-97.
+
+### 8.11 Open questions
+
+- Six breakpoints and three shapes per note: enough? (The bayan drop needs 3, a breath sag 2, a messa di
+  voce 3; nothing so far needed more than 4.)
+- Do held-note `note_*` calls ADD to a note's shapes, or override them? (Proposed: add.)
+- Lane per slot or per group (`instrument_group`)? (Proposed: per slot, a group lead's lane applies to
+  the group.)
+- Curve sample rate (every 32 samples = 0.7 ms) vs cost on a phone with 32 voices.
+- A take index into a sample bank (the choir's ~1000 takes) needs the sample-slot story first.
+

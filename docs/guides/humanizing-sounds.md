@@ -129,6 +129,9 @@ yet (only held notes, or a whole-slot ride like `instrument_level`); it is a row
   [Dunlop](https://www.jimdunlop.com/content/manuals/MRT01.pdf)); the sawtooth source
   ([gfworks](https://gfworks.jp/talkbox/how_to_play.html)); Bootsy's Mu-Tron III envelope filter
   ([Guitar World](https://www.guitarworld.com/features/the-mu-tron-iii-without-it-there-aint-no-bootsy)).
+- **One physical object = one voice.** A cymbal, a string, a drum head rings ONCE: a new stroke
+  replaces the old ring, it does not stack on it. Give it a mono slot (`instrument_mono`). A ride whose
+  strokes each rang 1.3 s on its own voice turned eighth notes into a low drone ("a train locomotive").
 - **A wooden attack:** a short low damped `INSTR_MEMBRANE` hit under each pluck, its gain following force
   squared and its spot / length varying (basshand). A bright "snap" layer went the wrong way.
 - **The master EQ as a volume knob:** there is no master volume; `eq(db, db, db)` works when the cart

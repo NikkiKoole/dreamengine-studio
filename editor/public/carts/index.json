@@ -8583,6 +8583,20 @@
     "lineage": "The acceptance probe + showcase for sample_formant() (GitHub issue #44), the third face of the PSOLA core after sample_autotune and sample_shift. Same timeline as voxshift, so the same formant-check / psola-check windows land on the same takes."
   },
   {
+    "title": "wahhand",
+    "description": "A funk guitar on an E9 vamp where every stroke picks its own FILTER: muted scratches high-passed thin, chord stabs band-passed into a quack, the held note at the end low-passed round, and a wah foot rocking over all of it. TAB flips between one slot per string (the per-note filter) and three slots per string (how it had to be built before). A real guitar string can only ring once: strike it again and the old note stops. So the six strings are six mono slots, and a scratch on a string really does cut the stab ringing on it. With NoteOpts.filter each stroke carries its own filter type, so the guitar stays six slots. Without it, a string needs one slot per filter type (18 slots), each choking the other two of its own string, and the wah foot has to be booked on all 18. The two versions are meant to sound the same; what is being tested is whether they do, and what the second one costs to write. SPACE play/stop · TAB one slot per string / three · W wah foot on/off · LEFT/RIGHT tempo",
+    "file": "wahhand.cart.png",
+    "created": "2026-11-04",
+    "kind": [
+      "instrument",
+      "tech-demo"
+    ],
+    "teaches": [
+      "waveguide-synth"
+    ],
+    "lineage": "The acceptance spike for NoteOpts.filter (docs/design/humanized-playing.md §8.11: a per-note filter TYPE, not only a cutoff). Built on strumhand's six-mono-string guitar. Asks whether one guitar whose strokes each pick their own filter (thin scratch, quacking stab, round held note) is worth an engine field, against the best a cart could do before it: one slot per string PER filter type, chokes between them."
+  },
+  {
     "title": "Walking Bass",
     "description": "A 303-style bass-line sequencer done as a REAL pluck: draw a 16-step walking line on chunky note-bars, then sculpt dynamics (VEL) and note-length/tie (LEN) on a drawable lane, plus per-step SLIDE / OCTAVE. SLIDE slurs one note into the next on the upright's own pizz voice. The tb303 workflow in the upright's skin. 16 chunky NOTE-BARS — bar HEIGHT = pitch, scale-locked to E minor pentatonic (2 octaves) so any line walks. Tap a bar to toggle it, drag up/down for pitch, drag sideways to draw the whole line; a bar dragged to the floor is a rest. Directly beneath is ONE drawable lane with a VEL | LEN tab: VEL = per-step velocity (dynamics — a loud step reads as an accent, a near-silent one as a ghost; drives the pluck attack via note_on vol); LEN = per-step note length (staccato when short, legato near full, and TIE at the very top — the note detaches from the mono voice and rings on while the next note plucks). Below the lane, thin per-step toggle rows: SLD (glide into the next note — a same-voice slur via note_glide, both directions) and OCT (tap-cycle +1 / -1 / off). The voice is the upright's INSTR_BOWED pizz; length gates the note off partway through its step. Knobs: GLIDE (slur time), SWING (shuffle — delays the odd 16ths for a long-short pocket), TEMPO, TONE (pickup darkness), RING (how long a pluck rings). PLAY runs the loop; RND rolls a fresh line; CLR wipes it. While stopped, drawing a note auditions it. Tap a note-bar = on/off; drag up/down = pitch; drag to the floor = rest; drag sideways = draw the line. The lane's VEL/LEN tab picks what you draw: VEL = dynamics (higher = louder/accent, low = ghost), LEN = note length (short = staccato, full = legato, top = TIE/ring-on). Rows: tap SLD to flip glide, tap OCT to cycle +1 / -1 / off. PLAY / SPACE = run the loop. GLIDE / SWING / TEMPO / TONE / RING knobs. RND = random line, CLR = wipe.",
     "file": "walkbox.cart.png",

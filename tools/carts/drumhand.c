@@ -305,6 +305,13 @@ static void book(int slot, int midi, double t, float gain, int gate, float h, fl
     schedule_note_at(t, midi, slot, 7, gate, &o);
 }
 
+// book with a per-note FILTER offset (NoteOpts.cutoff_oct): the ride's colour per stroke
+static void book_cut(int slot, int midi, double t, float gain, int gate, float cut_oct) {
+    gain = clamp(gain, 0.04f, 1.0f);
+    NoteOpts o = { .gain = gain, .cutoff_oct = cut_oct };
+    schedule_note_at(t, midi, slot, 7, gate, &o);
+}
+
 // book with a per-note DAMP (NoteOpts step 1): the ring dies at its own rate instead of being cut by the gate
 static void book_damp(int slot, int midi, double t, float gain, int gate, float h, float tb, float mo, float damp) {
     gain = clamp(gain, 0.04f, 1.0f);
@@ -398,8 +405,12 @@ static void ride_stroke(double t, bool bell, float g, float spot) {
     if (rec_ok && rec_kit) { book(bell ? R_BELL : R_RIDE, 60, t, g * (bell ? 0.95f : 0.8f), bell ? 2600 : 3000, 0, 0, 0, 0); return; }
     if (bell) book(S_BELL, 88, t, g * 1.05f, 900, 0, 0, 0, 0);
     else {    // the bow: shimmer + body, one stroke
-        book(S_RIDE, 60, t, g * 0.8f, 60, 0, 0, 0, 0);       // the stroke (noise: the pitch is not heard)
-        book(S_RIDESH, 84, t, g * 0.3f, 2400, 0, 0, 0, 0);
+        // each stroke its own COLOUR (2026-11-05): a harder stroke opens the band and splashes more shimmer,
+        // the stick's slow drift (spot -1..1, the same hat_spot the hats read) moves it toward the bell or
+        // the edge. Small on purpose (at most +-0.3 octave) so the colour picked by ear stays the centre.
+        float oct = clamp(0.45f * (g - 0.7f) + 0.15f * spot, -0.3f, 0.3f);
+        book_cut(S_RIDE, 60, t, g * 0.8f, 60, oct);            // the stroke (noise: the pitch is not heard)
+        book_cut(S_RIDESH, 84, t, g * 0.3f * (1.0f + 0.8f * (g - 0.7f)), 2400, 0.10f * spot);
     }
 }
 

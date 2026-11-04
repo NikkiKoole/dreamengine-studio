@@ -1,0 +1,27 @@
+# CC0 drum + cymbal one-shots from freesound.org, the references drumhand / cr78-style voices were tuned to
+# (tools/oneshot-compare.js). One per line: <freesound id> <local name> CC0 by <user> <hq preview url>.
+# tools/fetch-refs.js re-checks each license on its sound page before downloading; a non-CC0 entry is refused.
+# The first six are drumhand's RECORDED cymbal kit (K); it loads build/refs/drums-cc0/<name>.f32.
+93907 ride CC0 by pjcohen https://cdn.freesound.org/previews/93/93907_394391-hq.mp3
+46446 bell CC0 by pjcohen https://cdn.freesound.org/previews/46/46446_394391-hq.mp3
+163449 crash CC0 by Ev3nIfItKillsME https://cdn.freesound.org/previews/163/163449_2965712-hq.mp3
+45664 hatc CC0 by pjcohen https://cdn.freesound.org/previews/45/45664_394391-hq.mp3
+104231 hats CC0 by minorr https://cdn.freesound.org/previews/104/104231_1531859-hq.mp3
+104226 hato CC0 by minorr https://cdn.freesound.org/previews/104/104226_1531859-hq.mp3
+566897 ref_kick CC0 by lennartgreen https://cdn.freesound.org/previews/566/566897_3661618-hq.mp3
+566900 ref_snare CC0 by lennartgreen https://cdn.freesound.org/previews/566/566900_3661618-hq.mp3
+566901 ref_rimshot CC0 by lennartgreen https://cdn.freesound.org/previews/566/566901_3661618-hq.mp3
+566896 ref_tomhi CC0 by lennartgreen https://cdn.freesound.org/previews/566/566896_3661618-hq.mp3
+566894 ref_tomlo CC0 by lennartgreen https://cdn.freesound.org/previews/566/566894_3661618-hq.mp3
+566898 ref_hattip CC0 by lennartgreen https://cdn.freesound.org/previews/566/566898_3661618-hq.mp3
+566899 ref_hatshank CC0 by lennartgreen https://cdn.freesound.org/previews/566/566899_3661618-hq.mp3
+566893 ref_hatfoot CC0 by lennartgreen https://cdn.freesound.org/previews/566/566893_3661618-hq.mp3
+566892 ref_hatopen CC0 by lennartgreen https://cdn.freesound.org/previews/566/566892_3661618-hq.mp3
+566895 ref_crash2 CC0 by lennartgreen https://cdn.freesound.org/previews/566/566895_3661618-hq.mp3
+476380 ref_xstick CC0 by mccaslinmusic https://cdn.freesound.org/previews/476/476380_5137552-hq.mp3
+254350 ref_ride_bow20 CC0 by cmorris035 https://cdn.freesound.org/previews/254/254350_2727906-hq.mp3
+493688 ref_ride_crisp CC0 by DreStortion https://cdn.freesound.org/previews/493/493688_10655277-hq.mp3
+696228 ref_ride_meinlB2 CC0 by ankealtd https://cdn.freesound.org/previews/696/696228_2253220-hq.mp3
+696239 ref_ride_meinlH6 CC0 by ankealtd https://cdn.freesound.org/previews/696/696239_2253220-hq.mp3
+171489 ref_ride_savannah CC0 by xIceCoffeex https://cdn.freesound.org/previews/171/171489_2565043-hq.mp3
+15588 ref_ride_lewis CC0 by lewis https://cdn.freesound.org/previews/15/15588_48882-hq.mp3

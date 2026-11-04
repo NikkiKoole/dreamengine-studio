@@ -819,6 +819,13 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
              scrape-check.js the INSTR_SCRAPE gate: renders `scraper` (DE_DEFINES=PROBE) and holds its guiro + quijada to
                              the samples they replace (rate, body 10/50/90%, tooth ring, floor, level shape; 20 checks).
                              `--ref <wav>` measures any recording the same way, `--selfcheck` = 6 known answers + a noise control
+             oneshot-compare.js  tune a ONE-SHOT (drum/cymbal/pluck) against a REAL recording: pitch, energy band
+                             10/50/90, peaks, flatness, ->-20 dB, the early envelope curve, level vs a chosen hit (--rel kick).
+                             `<ref> <ours>` side by side, or `--render <cart> --spec <hits.json>` (examples in
+                             tools/oneshot-specs/). The cr78 / guiro / drumhand method; `--selfcheck` 15 known answers, mutation-tested
+             fetch-refs.js   rebuild build/refs/<set>/ (gitignored reference audio) from the COMMITTED manifest
+                             tools/refs/<set>.txt; re-checks each license on its freesound page, REFUSES non-CC0.
+                             `--check` offline presence · `--selfcheck` 10 known answers. Leads for more sets: tools/refs/README.md
              gen-wavescan.js GENERATE runtime/wavescan_data.h, INSTR_WAVESCAN's 12-shape band-limited table bank, from
                              Plinky's own wave recipes + windowed-sinc mip pyramid (MIT) — NOT its shipped table, whose slots
                              2-15 are WAVs of unknown origin. --check gates staleness · --selfcheck = its saw byte-identical to

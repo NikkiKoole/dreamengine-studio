@@ -1,0 +1,13 @@
+[
+  { "label": "kick",        "at": 11.28, "len": 0.95, "ref": "drums-cc0/ref_kick.wav" },
+  { "label": "snare",       "at": 0.28,  "len": 0.95, "ref": "drums-cc0/ref_snare.wav" },
+  { "label": "rimshot",     "at": 2.28,  "len": 0.95, "ref": "drums-cc0/ref_rimshot.wav" },
+  { "label": "cross-stick", "at": 3.28,  "len": 0.95, "ref": "drums-cc0/ref_xstick.wav" },
+  { "label": "hat tip",     "at": 5.28,  "len": 0.95, "ref": "drums-cc0/ref_hattip.wav" },
+  { "label": "hat shank",   "at": 6.28,  "len": 0.95, "ref": "drums-cc0/ref_hatshank.wav" },
+  { "label": "ride bow",    "at": 7.28,  "len": 1.95, "ref": "drums-cc0/ref_ride_savannah.wav" },
+  { "label": "ride bell",   "at": 9.28,  "len": 1.95, "ref": "drums-cc0/ref_ride_meinlB2.wav" },
+  { "label": "tom high",    "at": 16.28, "len": 0.95, "ref": "drums-cc0/ref_tomhi.wav" },
+  { "label": "floor tom",   "at": 17.28, "len": 0.95, "ref": "drums-cc0/ref_tomlo.wav" },
+  { "label": "crash",       "at": 18.28, "len": 2.6,  "ref": "drums-cc0/crash.wav" }
+]

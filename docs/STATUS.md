@@ -15,6 +15,12 @@ _Last updated: 2026-10-29 — INSTR_SCRAPE: a guiro with teeth. See the top Ship
 
 ## Shipped ✓
 
+- **NOTEOPTS STEP 1: per-note `cents`, `cutoff_oct`, `damp`, `release_ms`, a latched sample region; plus
+  `instrument_release_shape`** (2026-11-04). The first slice of the booked-note layout in
+  [`design/humanized-playing.md`](design/humanized-playing.md) §8: a booked note now carries its own pitch
+  offset, filter, damping, release and sample slice (all 0 = as the slot is, byte-identical), and a slot
+  can fade with an exponential or felt-damper release instead of a straight line.
+
 - **HUMANIZED PLAYING: ten spike carts + three engine calls + a guide** (2026-11-04). Making an
   instrument sound PLAYED, not sequenced: `instrument_vibrato` (switch off the always-on vibrato of
   PIPE/REED/BOWED/BRASS), `MODE_BOW_PLUCK` (a finger pizz: a bass, not a low piano), `instrument_analog`

@@ -1,6 +1,6 @@
 # Humanized playing: a player, not a keyboard
 
-> **STATUS: EXPLORING (2026-11-04)**. Spike carts (`strumhand`, `breathflute`, `tablahand`, `tablalab`,
+> **STATUS: BUILDING (2026-11-04): NoteOpts step 1 shipped (§8.10).** Spike carts (`strumhand`, `breathflute`, `tablahand`, `tablalab`,
 > `reedhand`, `basshand`, `cellohand`, `pianohand`, `drumhand`, `synthhand`, `mouthhand`) and three
 > engine calls shipped (`instrument_vibrato`, `MODE_BOW_PLUCK`, `instrument_analog`). The NEEDS list
 > for booked-note curves (§6) is close to complete and a DRAFT layout is in §8; **building it is ON HOLD** (Nikki,
@@ -602,8 +602,15 @@ Engine side this needs `sound_retrig_voice` to cover BOWED and a signed bow velo
 
 ### 8.10 Order of work, each step accepted by a spike re-done BOOKED
 
-1. Scalars: `cents`, `cutoff_oct`, `damp`, `release_ms`, `origin_ms`, the region. Acceptance:
-   `strumhand` without one slot per string; `tablahand` without the closed slots.
+1. **BUILT (2026-11-04):** `cents`, `cutoff_oct`, `damp`, `release_ms`, the region (latched per note),
+   plus `instrument_release_shape` (linear / exponential / felt damper). `origin_ms` moves to step 3
+   (it only means something once curves exist). Transport: bit 19 of `e1` flags a `NotePay` record,
+   bits 10-18 its index in a 512-slot game-side ring, copied at the drain into one of 64 pen-side slots
+   (one per waiting note). Measured: cents +50 on A4 = 452.9 Hz; cutoff_oct -1/0/+1 = centroid 402 /
+   686 / 1307 Hz; damp 1 stops a string in ~50 ms; two OVERLAPPING notes on one sample slot play two
+   different slices; release shapes at mid-release -26 / -44 / -49 dB. Notes without the new fields
+   take the old path: basshand and synthhand render byte-identical. Acceptance: `strumhand` uses
+   `.cents` (no slot retuning). Still to do with it: `tablahand` / `drumhand` closed strokes via `damp`.
 2. `vib`. Acceptance: `breathflute`'s vibrato on booked notes.
 3. Shapes. Acceptance: `breathflute` fully booked (scoop, swell, fall), the bayan drop booked.
 4. Lanes. Acceptance: `pianohand`'s pedal as `LANE_DAMPER`, `synthhand`'s knob as `LANE_CUTOFF`,

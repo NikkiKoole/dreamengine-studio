@@ -27,8 +27,8 @@ de:meta */
 // The engine side is what dreamengine already has (no new API):
 //   - six INSTR_GUITAR slots = six strings, each instrument_mono (a string rings once)
 //   - schedule_note_at + NoteOpts: per-note gain, timbre (brightness) and morph (mute) offsets
-//   - per-string slot state set just before booking: instrument_tune (cents of intonation and
-//     finger pressure), MODE_STRING_CLICK (pick noise), ENV_PITCH (a hard pluck starts sharp)
+//   - per-note cents in NoteOpts (intonation + finger pressure); per-string slot state set just before
+//     booking: MODE_STRING_CLICK (pick noise), ENV_PITCH (a hard pluck starts sharp)
 // The cart side is the HAND: stroke, grip, drift. That's what this spike is testing.
 //
 // Two things we know are approximations (see the findings at the bottom):
@@ -135,11 +135,12 @@ static void new_grip(int ch) {
 static void pluck(int s, int midi, double t, float gain, float bright, float mute,
                   float cents, float click, float sharp) {
     int sl = SL0 + s;
-    instrument_tune(sl, cents / 100.0f);
     instrument_mode(sl, MODE_STRING_CLICK, click);
     instrument_env(sl, 0, ENV_PITCH, 0, 45, sharp);
     if (gain < 0.04f) gain = 0.04f;                    // NoteOpts gain 0 means FULL
-    NoteOpts o = { .gain = gain, .timbre = bright, .morph = mute };
+    // per-note pitch travels WITH the note (NoteOpts.cents, step 1 of humanized-playing.md §8): it used
+    // to retune the string's SLOT just before booking, which also bent the tail of the note before
+    NoteOpts o = { .gain = gain, .timbre = bright, .morph = mute, .cents = cents };
     schedule_note_at(t, midi, sl, 7, 2600, &o);
     pluck_t[s] = t; pluck_amp[s] = gain; pluck_bright[s] = bright;
     pluck_mute[s] = mute; pluck_cents[s] = cents;

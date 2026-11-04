@@ -29,6 +29,8 @@ correct part into MUSIC. It has its own section, §4; do not skip it.
 |---|---|---|
 | `instrument_vibrato(slot, amount)` | PIPE / REED / BOWED / BRASS give every note a built-in vibrato from the first sample. 0 = off, 1 = as is (default), 2 = deeper. Read live. | Any wind or bowed part you humanize: set 0 and play your own `note_lfo(h, 0, LFO_PITCH, rate, depth)` that blooms late. |
 | `instrument_analog(slot, amount)` | Analog warmth: 8 "voice cards" in rotation (own tuning, cutoff, envelope speed, level) + slow drift. 0 = off (default), 1 = a real analog synth, 2 = tired. | Any synth pad, chord or poly part. One call. Nikki: "much more beautiful". |
+| `instrument_release_shape(slot, shape)` | how notes fade after the key is up: `RELEASE_LINEAR` (default) / `RELEASE_EXP` (a natural curve) / `RELEASE_DAMPER` (a piano's felt: a quick drop, a short tail). | Pianos, plucks, anything whose release sounded like it was cut off. |
+| `NoteOpts` per-note fields | on a BOOKED note: `.cents` (its pitch, ±1200), `.cutoff_oct` (its filter), `.damp` 0..1 (how fast its ring dies; 1 = a closed stroke), `.release_ms`, `.region_start/.region_end` (its sample slice, fixed at note-on). All 0 = as the slot is. | Per-note micro-variation without one slot per string / per stroke type. |
 | `instrument_mode(slot, MODE_BOW_PLUCK, 1)` | INSTR_BOWED pizzicato plucked by a FINGER (strong fundamental) instead of noise (bright, thin). | Upright bass, cello pizz: "a bass instead of a low piano". |
 
 All three default to the old behaviour, bit-identical.
@@ -104,11 +106,12 @@ yet (only held notes, or a whole-slot ride like `instrument_level`); it is a row
   you lose ~17-40 ms of timing precision.
 - **A slide INTO a note, booked:** a pluck under the note, then a legato booked note with `glide_ms` on
   a mono slot (`instrument_mono`). A waveguide string bends UP cleanly, never below where it started.
-- **Per-note cents on a booked note:** give each string / voice its own slot and set `instrument_tune`
-  just before booking (strumhand).
+- **Per-note cents on a booked note:** `NoteOpts.cents` (strumhand). The old trick, retuning a slot just
+  before booking, needed one slot per string and bent the tail of the note before.
 - **Live per-slot rides** (one instrument on its own slot): `instrument_tune` (pitch) and
   `instrument_level` (damping) reach sounding voices; slot macros do NOT (read at note-on only).
-- **Open vs closed strokes:** two slots per drum (long and short release) + `instrument_choke`.
+- **Open vs closed strokes:** `NoteOpts.damp` (1 = stopped at once) on the same slot; or, for strokes
+  that also SOUND different, two slots + `instrument_choke` (tablahand, drumhand).
 - **A late vibrato:** `instrument_vibrato(slot, 0)`, then `note_lfo` depth ramped from 0 after
   0.15-0.4 s, only on notes long enough to have one, rate wandering 5-6 Hz.
 - **Brightness follows force.** The one rule that holds for every instrument: a harder note is a

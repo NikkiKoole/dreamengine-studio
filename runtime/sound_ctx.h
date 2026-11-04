@@ -255,6 +255,7 @@ typedef struct {
     int    pp_idx;                   // bore write index into ks_buf
     int    pp_len;                   // bore delay length; 0 = no note-on init
     float  pp_initfreq;              // freq at note-on (pitch tracking glides off it)
+    float  pp_f0, pp_loopd;          // the note-on pitch + the loop delay (samples) its bore was shortened by
     float  pp_lp;                    // open-end reflection LP state (radiation impedance)
     float  pp_dc_prev, pp_dc_state;  // DC blocker
     float  pp_vib_ph, pp_drift_ph, pp_drift, pp_noise_lp;  // humanized vibrato + breath turbulence/drift

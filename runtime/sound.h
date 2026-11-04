@@ -4427,6 +4427,8 @@ static void sound_pipe_start(Voice *v) {
     int len = ks_seed_bore(v, (int)(targetBore * 2.5f) + 2, 0.05f);   // +2 & louder seed: the jet self-oscillates
     v->pp_len = len; v->pp_idx = 0;
     v->pp_initfreq = f * targetBore / (float)len;            // effLen at curf=f = targetBore (exact, fractional)
+    v->pp_f0 = f;                                            // for the slide correction in sound_pipe_sample
+    v->pp_loopd = (float)SOUND_SAMPLE_RATE / (2.0f * f) - targetBore;   // = loopDelay (unless the bore clamped)
     for (int i = 0; i < 64; i++) v->pp_jet[i] = 0.0f;
     v->pp_jet_idx = 0;
     v->pp_lp = v->pp_dc_prev = v->pp_dc_state = 0.0f;
@@ -4467,6 +4469,13 @@ static inline float sound_pipe_sample(Voice *v, float pitch_mul) {
     // bore delay: fractional read length tracks live pitch + the pitch vibrato (§8.8.1)
     float curf = v->freq * pitch_mul * (1.0f + vib * 0.010f); if (curf < 20.0f) curf = 20.0f;
     float effLen = (float)v->pp_len * v->pp_initfreq / curf;
+    // SLIDES IN TUNE (2026-11-04, found by Playtime's parlour flute): the bore was cut short by the
+    // loop delay (jet + filters), a FIXED number of samples, but the line above scales the WHOLE
+    // note-on bore by f0/curf, so a slide up left it loopd*(1 - f0/curf) samples too long: flat,
+    // more on bigger leaps and higher notes (81->84 -41 c, 81->86 -74 c). This puts the fixed part
+    // back: effLen = SR/(2*curf) - loopd. At the note-on pitch f0/curf is exactly 1, so it adds
+    // exactly 0 (a steady note renders byte-identical); vibrato and bends now track exactly too.
+    effLen += v->pp_loopd * (v->pp_f0 / curf - 1.0f);
     if (effLen < 2.0f) effLen = 2.0f;
     if (effLen > (float)v->pp_len) effLen = (float)v->pp_len;
     float readPos = (float)v->pp_idx - effLen;

@@ -413,6 +413,8 @@ Each was measured; the evidence lives in the section linked. Status: ✓ fixed, 
   inaudible (§6.5)
 - ○ bow position (harmonics) is read at note-on only (§6.5)
 - ○ a slide can go only ~7 semitones under the starting note (2.5x string buffer, capped) (§6.5)
+- ○ the same slide error as PIPE's, smaller: the 0.5-sample loop delay is scaled with the note, so a slide
+  up lands ~1 c flat on a cello fourth, ~4 c up high on a violin (estimated, not measured)
 
 **INSTR_BOWED (pizzicato):**
 - ✓ the noise pluck was bright and thin, fundamental 7-12 dB under harmonics 3-8: `MODE_BOW_PLUCK` (§7)
@@ -421,6 +423,10 @@ Each was measured; the evidence lives in the section linked. Status: ✓ fixed, 
   fundamental sits ~15 cents flat) (§7); centroid still ~2x the recordings
 
 **INSTR_PIPE:**
+- ✓ a note reached by a SLIDE (legato `.glide_ms`, `note_glide` + `note_pitch`) landed flat, the more the
+  bigger the leap and the higher the note (81->84 -42 c, 81->86 -75 c; found by Playtime's parlour flute):
+  the bore is shortened by a FIXED loop delay but the pitch tracking scaled it with the note. Fixed
+  2026-11-04: every slid note within 3 c (`breathflute` `DE_DEFINES=PROBE_SLIDE`); steady notes byte-identical
 - ○ riding the macros detunes a sounding note: harmonics 0.15 pulls -10 to -13 c, timbre (air) -3 to -4 c
   (§8.10 step 2; the engine docs already note harmonics pulls flat); a live player riding brightness
   drifts out of tune. Fix in the engine (compensate the bore delay), or document "ride timbre, not

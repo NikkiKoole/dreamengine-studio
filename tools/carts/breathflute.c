@@ -276,10 +276,24 @@ void init(void) {
     note_on(69, SL, 5);
     playing = false;
 #endif
+#ifdef PROBE_SLIDE   // DE_DEFINES=PROBE_SLIDE: does a SLID note land in tune? (Playtime's parlour flute, 2026-11-04)
+    // pairs, 2 s apart: a tongued note 0.8 s, then a 1 s note SLID to (glide_ms 40). Measure the slid note's
+    // settled f0 from +0.35 s. Pairs: 81->84, 81->86, 79->84, 74->77, 76->79, 83->84 (and 84 attacked as control)
+    {
+        static const int P[][2] = { {81,84}, {81,86}, {79,84}, {74,77}, {76,79}, {83,84}, {84,84} };
+        instrument_vibrato(SL, 0.0f); instrument_mono(SL, 1);
+        double t = audio_time() + 0.3;
+        for (int k = 0; k < 7; k++, t += 2.0) {
+            schedule_note_at(t, P[k][0], SL, 6, 850, &(NoteOpts){0});
+            if (k < 6) schedule_note_at(t + 0.8, P[k][1], SL, 6, 1000, &(NoteOpts){ .glide_ms = 40 });
+        }
+    }
+    playing = false;
+#endif
 }
 
 void update(void) {
-#ifdef PROBE_STILL
+#if defined(PROBE_STILL) || defined(PROBE_SLIDE)
     return;
 #endif
     if (keyp(KEY_SPACE)) { playing = !playing; if (!playing) release(); t_next = t_now + 0.2f; }

@@ -822,6 +822,22 @@
     "lineage": "The SEQUENCER sibling of chordwise (the demand-82 harmony analyzer). chordwise proved the chord-chart + genre-band stack on one flat screen and hit a density ceiling; bandbox is the standalone 160x100 device-face sequencer where every VOICE is a lane of lego-block cells and every cell is p-lockable (Elektron-style per-cell overrides on top of the voice's auto 'follows the chord' default). chordwise did per-cell only for chords; bandbox does it for every voice. Reuses the harmony brain (harmony.h) + chordwise's genre-band maps + rad_bass_to + drumkit.h. Design: docs/design/bandbox.md."
   },
   {
+    "title": "basshand",
+    "description": "A walking bass played by two hands instead of a step grid: each pluck has its own force and spot on the string, some notes slide in from below, the left hand lets notes ring or stops them short, ghost notes and rakes fall between the beats, open strings ring on. TAB flips to the grid version. Twelve-bar F blues, a walking line in quarter notes. The right hand: beat one leans in, two and four are felt a little more than three, the plucking finger wanders along the string (nearer the bridge = brighter), harder plucks are brighter. The left hand: a note is held into the next (legato) or lifted early, an open string rings longer because no finger stops it, and some notes slide in from a semitone or two below. Between the beats: a dead ghost note (the string muted, just the thump) or a rake into the next note. The time sits a hair ahead of the beat and drifts slowly. Keys 1-5 switch each layer on and off. SPACE play/stop · TAB hands / grid · 1 time 2 force 3 touch 4 slides 5 ghosts · UP/DOWN humanity · LEFT/RIGHT tempo · R new take",
+    "file": "basshand.cart.png",
+    "created": "2026-11-04",
+    "kind": [
+      "instrument",
+      "tech-demo"
+    ],
+    "teaches": [
+      "waveguide-synth",
+      "analog-voice-modeling",
+      "swing-timing"
+    ],
+    "lineage": "The fifth humanized-playing spike (docs/design/humanized-playing.md): a walking upright bass, pizzicato INSTR_BOWED voiced exactly as the upright and rootwalk carts voice it. Plucks are BOOKED on the audio clock (tight time), and so are the slides: a pluck under the note plus a legato booked note with glide_ms on the mono slot (the 303 slide), sample-accurate with no per-frame riding."
+  },
+  {
     "title": "Battleship",
     "description": "Classic two-grid naval Battleship against a scheming CPU. Set up your fleet of five ships on the left ocean — a ghost ship snaps to the cursor and turns red when it won't fit — then trade salvos with the hidden enemy grid on the right. Hits flash and shake the screen with a low boom, misses splash, and a major-chord sting rings out when you sink the Carrier, Battleship, Cruiser, Submarine, or Destroyer. The enemy fires back with a hunt-then-target AI: random checkerboard shots until it draws blood, then it probes the neighbours of its last hit until your ship is dead. First fleet sunk loses; wins and losses are tallied across runs. SETUP: move the mouse to aim, click to place, R to rotate, click RANDOM to auto-fill, click READY to fight. BATTLE: click an enemy cell to fire. GAME OVER: click or press Z to play again.",
     "file": "battleship.cart.png",
@@ -1299,6 +1315,22 @@
       "audio-input"
     ],
     "lineage": "The MPC/SP-404 break-chopper: load a drum LOOP and slice it across a pad grid to re-play and rearrange. Sibling of the `sampler` cart (shares INSTR_SAMPLE + chop playback + master crush), but the source is an EXTERNAL loop loaded at runtime (data-tools/breaks/breaks.js → sample_load), not the console's own output — and the slicing is TEMPO-LOCKED (even divisions), not transient/note-on. The whole point is 'throw in your own loop and it's cut correctly'. Falls back to a console-synthesised break so it's self-contained."
+  },
+  {
+    "title": "breathflute",
+    "description": "A flute played by a pair of LUNGS instead of a keyboard: the same original melody with breath that runs out, notes that scoop up into pitch, a vibrato that blooms late, swells on long notes, slurs and tonguing, and a phrase that pushes and broadens. TAB flips to the keyboard version. The player has an air supply. Every note spends some, so late in a phrase the tone gets airier and quieter and the vibrato a little quicker, and a long phrase ahead means a deeper breath (which takes longer, so the time bends by itself). Each note starts a few cents flat and settles; blowing harder pushes it sharp, as a real flute does. Vibrato is off at the start of a note and blooms after a moment, only on notes long enough to have one, with a rate that wanders. Long notes swell and fade. Slurred notes glide on one breath, tongued notes restart it with a chiff. The tempo pushes through the middle of a phrase and broadens at the end. The trace shows the pitch (cents exaggerated) and loudness as it plays. Keys 1-5 switch each layer on and off. SPACE play/stop · TAB lungs / keyboard · 1 time 2 breath 3 pitch 4 vib 5 tongue · UP/DOWN humanity · LEFT/RIGHT tempo · R new take",
+    "file": "breathflute.cart.png",
+    "created": "2026-11-04",
+    "kind": [
+      "instrument",
+      "tech-demo"
+    ],
+    "teaches": [
+      "waveguide-synth",
+      "analog-voice-modeling",
+      "generative-melody"
+    ],
+    "lineage": "The second humanized-playing spike for Playtime, after strumhand (the guitar). Where the guitar was all about the ATTACK, a flute is all about what happens DURING the note, so this one drives held INSTR_PIPE notes live every frame: note_vol, note_pitch, note_timbre, note_lfo. Uses instrument_vibrato (added for these spikes) to switch off the engine's own always-on vibrato."
   },
   {
     "title": "bubble bobble",
@@ -6248,6 +6280,22 @@
     "lineage": "The eighth INSTR_* engine showcase — a bore-delay + pressure-valve self-oscillating reed model; the first held (not struck) waveguide engine in the library, adding mono-slide and live-expressive macros absent from pluck/mallet/membrane carts."
   },
   {
+    "title": "reedhand",
+    "description": "A tenor sax blues line played by a player instead of a sequencer: scoops into notes, ghost notes, a growl when it leans in, falls at the end of a phrase, a vibrato that blooms late on long notes, a swing that lays back and breathes. TAB flips to the sequenced version. The line is written with a jazz player's marks: tongued, slurred, ghosted (swallowed, barely there), accented with a growl, scooped from below, a long note to sing on, and a fall off the end. The lungs run down through a phrase (airier, softer) and a longer phrase ahead takes a deeper breath. Blowing harder brightens the reed and pushes the pitch a little sharp; leaning in growls. The swing ratio wanders and the whole line sits a little behind the beat, more on the long notes. Keys 1-5 switch each layer on and off. SPACE play/stop · TAB player / sequencer · 1 time 2 breath 3 pitch 4 vib 5 marks · UP/DOWN humanity · LEFT/RIGHT tempo · R new take",
+    "file": "reedhand.cart.png",
+    "created": "2026-11-04",
+    "kind": [
+      "instrument",
+      "tech-demo"
+    ],
+    "teaches": [
+      "waveguide-synth",
+      "analog-voice-modeling",
+      "swing-timing"
+    ],
+    "lineage": "The fourth humanized-playing spike (docs/design/humanized-playing.md), after strumhand, breathflute and tablahand: breathflute's lungs model moved to a tenor sax (INSTR_REED, the reed cart's tenor preset) and given a jazz player's vocabulary. Uses instrument_vibrato to switch off the reed's always-on vibrato so the cart owns it."
+  },
+  {
     "title": "beat repeat probe",
     "description": "At 120 bpm a plucked sine plays an 8th-note line of four pitches. At 4.117 s, deliberately 7 frames AFTER a hit, the tank freezes with grains_repeat(1) and the line stops, so everything heard from then on is the repeat. It must keep landing on the 8th-note grid anyway. At 6 s the repeat drops to half a beat while still frozen (a length change, crossfaded), at 8 s it unfreezes and the line comes back. Render it with `node tools/play.js repeatprobe script /dev/null --headless --frames 600 --wav out.wav`.",
     "file": "repeatprobe.cart.png",
@@ -7418,6 +7466,22 @@
     "genre": "tabletop"
   },
   {
+    "title": "strumhand",
+    "description": "A guitarist's HAND, not a keyboard: the same four chords strummed by a model of a player, where every string of every stroke gets its own timing, force, brightness, mute and a few cents of finger pressure. TAB flips to the keyboard strum to hear the difference. Six strings are six mono slots, so a string rings until it is struck again or a finger damps it, like a real one. The hand has state that drifts slowly instead of new dice per note: stroke energy over the phrase, a timing feel that leans ahead or behind, a pick angle, and a GRIP per chord where each finger presses a little differently (a weak finger is slightly muted and less sharp for the whole chord). Downstrokes dig into the bass strings, upstrokes catch only the top few and brighter. On a chord change the fretting hand lifts early (the last upstroke rings open strings), sometimes a wound string squeaks, and strings the new shape does not use get damped. Keys 1-5 switch each layer on and off so you can hear which one matters. SPACE play/stop · TAB human / keyboard · 1 time 2 force 3 tone 4 pitch 5 hand extras · UP/DOWN humanity · LEFT/RIGHT tempo · R new take (seed)",
+    "file": "strumhand.cart.png",
+    "created": "2026-11-04",
+    "kind": [
+      "instrument",
+      "tech-demo"
+    ],
+    "teaches": [
+      "waveguide-synth",
+      "analog-voice-modeling",
+      "swing-timing"
+    ],
+    "lineage": "A spike for Playtime's music (vector-sketch experiments/playtime): can a strummed guitar sound played by a hand instead of a keyboard? Six INSTR_GUITAR slots as six mono strings (the guitar cart's engine), every note booked on the audio clock with schedule_note_at's per-note macro offsets. Close to an Elektron p-lock, but the per-note values come from a model of the hand (stroke energy, a grip with a weak finger, pick angle drift) instead of being written per step."
+  },
+  {
     "title": "stylophone deluxe",
     "description": "The pocket stylus-synth, built to reach two corners of the audio engine no other instrument cart touches. LIVE PULSE-WIDTH: the TONE fader morphs the buzzy square's duty by hand (note_duty), thin/nasal to hollow/fat. THE TRANSPORT: the famous REITER (reiteration) switch retriggers the held note in time with the tempo (bpm + beat + beat_pos) — the cabinet's first tempo-synced instrument; crank RATE up and it machine-guns, flip ARP and the retrigger walks a major arpeggio. Play it with the STYLUS (the mouse): touch the metal keyboard and slide for the classic glissando (note_pitch stepping pad-to-pad). VIBRATO and SUB (sub-octave) are switches, like the real deluxe panel. Watch the BEAT lamp pulse with the transport.",
     "file": "stylophone.cart.png",
@@ -7518,6 +7582,37 @@
       "analog-voice-modeling"
     ],
     "lineage": "Showcase for the INSTR_MEMBRANE engine ported from navkit — six decaying sine modes at circular-membrane vibration ratios with a pitch-bend gliss; novel over 808/909 recipes in using real modal physics rather than a single sine + pitch envelope."
+  },
+  {
+    "title": "tablahand",
+    "description": "Teental on a tabla played by two HANDS instead of a step grid: every bol is a stroke with its own force, timing and spot on the head, dha lands as two hands a few ms apart, the bayan's pitch rises when the wrist presses and sinks when it lets go. TAB flips to the grid version. The vocabulary: na/ta ring on the rim, tin rings on the head, ti/te/ra are closed strokes that stop at once, ge is the open bass whose pitch the wrist bends, ke is the flat closed bass slap; dha = na + ge, dhin = tin + ge. THE LEFT HAND keeps playing after it strikes: each ge gets a wrist gesture (press: up and back; wail: the gumki, up-down-up while it rings; dip: struck pressed, then let go so the pitch falls; meend: a late slow rise; or flat) and a palm that comes down to damp it, soon or late, lightly or fully, and lifts again just before the next stroke. The right hand's resting fingers press a little differently each stroke, so the ring length varies. The hands: the left and right of a dha almost never land together, a fast run like ti-ra-ki-ta is uneven (long-short) with its inner strokes softer, a hand striking twice quickly is a little late and softer the second time, and where each finger lands drifts slowly. The cycle: sam (beat 1) leans hardest, the khali section is lighter and has no bass, every fourth cycle plays a fill, a tihai (one figure three times, landing on sam) or a ke-heavy variation, in turn. Keys 1-5 switch each layer on and off. SPACE play/stop · TAB hands / grid · 1 time 2 force 3 touch 4 left 5 hands · UP/DOWN humanity · LEFT/RIGHT tempo · R new take",
+    "file": "tablahand.cart.png",
+    "created": "2026-11-04",
+    "kind": [
+      "instrument",
+      "tech-demo"
+    ],
+    "teaches": [
+      "drum-synthesis",
+      "step-sequencer",
+      "swing-timing"
+    ],
+    "lineage": "The third humanized-playing spike for Playtime, after strumhand (guitar: the attack) and breathflute (flute: during the note). A tabla is neither one sound nor one hand: a VOCABULARY of strokes (bols) from two hands on two drums, open or damped, with the left hand's wrist bending the bayan's pitch. INSTR_MEMBRANE voiced after the tabla cart's preset (instrument-recipes membrane/tabla). Teental, the 16-mbeat cycle, is the standard public theka."
+  },
+  {
+    "title": "tablalab",
+    "description": "Each tabla stroke built by hand from its measured overtones: which ones ring, how loud, how long each lasts. Na is the 3rd overtone over the 2nd with the fundamental damped; tun is the fundamental alone; tin is the 2nd; the bayan's boom is a pitch falling five semitones. TAB A/Bs every stroke against INSTR_MEMBRANE. Five sine voices are the dayan's overtones (the lowest mode at 314 Hz, then 2, 3, 4, 5 times a 279 Hz series: the measured tuning, where the lowest mode sits above the series). Each stroke sets each voice's loudness and decay from the recordings, so the 2nd overtone can outlast the fundamental as it does on a real drum (t60 2.1 s against 1.3 s), which the membrane engine cannot. Closed strokes are a short low thud, not a quiet ring. The bayan is three voices whose pitch falls about five semitones over 0.2 s after the strike, the measured boom. Probe build (DE_DEFINES=PROBE_BOL=n) renders one stroke for the A/B against the recordings. A tun · S na · D na-open · F tin · G te · H ge · J ke · K dha · L dhin · TAB lab / membrane · SPACE theka on/off",
+    "file": "tablalab.cart.png",
+    "created": "2026-11-04",
+    "kind": [
+      "instrument",
+      "tech-demo"
+    ],
+    "teaches": [
+      "additive-synth",
+      "drum-synthesis"
+    ],
+    "lineage": "A measuring bench for the tabla's STROKES, made after tablahand sounded right in its playing and wrong in its sound. Recipes come from measured single strokes: Freesound CC0 pack 'tabla bols' by mmiron (pack 8162) and the CC BY 4.0 pack by ajaysm (pack 10737), used for measurement only, not shipped. The physics it tests is C.V. Raman's (1920, 1934): the syahi tunes the dayan's overtones into a near-harmonic series, and a stroke is mostly a choice of which overtones the fingers let ring."
   },
   {
     "title": "tango radio",

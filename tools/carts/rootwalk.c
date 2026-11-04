@@ -595,9 +595,9 @@ static void jam_plan(Jam *j, float energy, Bar *o) {
 #define SL_ACID    11
 #define SL_SINE    12
 #define SL_KEYS    13                       // 13..17: one slot per chord figure
-#define KIT_BASE_E 20                       // ELECTRO kit, 8 slots
-#define KIT_BASE_A 28                       // ACOUSTIC kit, 8 slots
-#define SL_SWEEP   36
+#define KIT_BASE_E 20                       // ELECTRO kit, DK_SLOTS (9) slots
+#define KIT_BASE_A 29                       // ACOUSTIC kit, DK_SLOTS slots
+#define SL_SWEEP   38
 static const int VOICE_SLOT[NVOICE] = { SL_UPRIGHT, SL_ACID, SL_SINE };
 
 // the library's 12 roles onto drumkit.h's 8 (groovebook's map, kept identical so the
@@ -611,20 +611,22 @@ static const RoleMap RMAP[DP_NROLES] = {
     [DP_CPS] = { DK_CLAP,   39, 3 }, [DP_TB]  = { DK_HHC,    54, 0 },
     [DP_AC]  = { -1, 0, 0 },
 };
-// groovebook's measured per-kit trims (a dense pattern hit 0 dBFS untrimmed)
+// groovebook's measured per-kit trims (a dense pattern hit 0 dBFS untrimmed). ACOUSTIC carries the
+// real kit's balance itself since 2026-11-04, so its row is one overall volume
 static const float KIT_LVL[2][DK_N] = {
     { [DK_KICK] = 1.00f, [DK_SNARE] = 1.00f, [DK_HHC] = 0.050f, [DK_HHO] = 0.060f,
       [DK_CLAP] = 1.00f, [DK_TOM_LO] = 0.55f, [DK_TOM_HI] = 0.55f, [DK_CRASH] = 0.200f },
-    { [DK_KICK] = 1.00f, [DK_SNARE] = 0.575f, [DK_HHC] = 0.023f, [DK_HHO] = 0.028f,
-      [DK_CLAP] = 0.50f, [DK_TOM_LO] = 0.70f, [DK_TOM_HI] = 0.70f, [DK_CRASH] = 0.045f },
+    { [DK_KICK] = 0.60f, [DK_SNARE] = 0.60f, [DK_HHC] = 0.60f, [DK_HHO] = 0.60f,
+      [DK_CLAP] = 0.50f, [DK_TOM_LO] = 0.60f, [DK_TOM_HI] = 0.60f, [DK_CRASH] = 0.60f },
 };
 static const int KIT_BASE[2] = { KIT_BASE_E, KIT_BASE_A };
+static const DrumKitDef *const KIT_DEF[2] = { &DK_ELECTRO, &DK_ACOUSTIC };
 
 static void setup_sound(void) {
     dk_use(&DK_ELECTRO, KIT_BASE_E);
     dk_use(&DK_ACOUSTIC, KIT_BASE_A);
     for (int k = 0; k < 2; k++)
-        for (int i = 0; i < DK_N; i++) instrument_level(KIT_BASE[k] + i, KIT_LVL[k][i]);
+        for (int i = 0; i < DK_N; i++) dk_level_at(KIT_BASE[k], i, KIT_LVL[k][i]);
 
     // the brush sweep: soft noise, a slow swell, darker than a hat
     instrument(SL_SWEEP, INSTR_NOISE, 180, 400, 0, 300);
@@ -700,7 +702,7 @@ static void drum(int kit, int role, double t, int vel) {
     if (role == R_SW) { schedule_at(t, 70, SL_SWEEP, vel, 500); return; }
     const RoleMap *m = &RMAP[role];
     if (m->role < 0) return;
-    schedule_at(t, m->midi, KIT_BASE[kit] + m->role, vel, DK_ROLE_DUR[m->role]);
+    dk_play_at(KIT_DEF[kit], KIT_BASE[kit], t, m->role, m->midi, vel);
 }
 
 // The chord on step s of this bar, honouring the gap: returns its length in steps, 0 = none.

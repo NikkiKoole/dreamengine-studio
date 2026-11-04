@@ -63,6 +63,7 @@ static const DrumKitDef *KITS[2] = { &DK_ELECTRO, &DK_ACOUSTIC };
 // Measured intrinsic loudness (peak with level and velocity divided out):
 //   ELECTRO  hats -11, crash -20, sine toms -31, sine kick -33, band-noise snare/clap -38
 //   ACOUSTIC hats -11, crash -13, membrane kick/toms -38 to -39, snare/clap/rim -36 to -37
+//   (that was the OLD acoustic kit; the 2026-11-04 one is balanced like the real kit it was tuned on)
 // So a kick-led balance needs the hats pulled ~26 dB down in one kit and ~33 dB in the other, and
 // a single table leaves whichever kit it was not tuned for badly wrong. The ELECTRO table used to
 // be the only one, and on ACOUSTIC it left the toms 13 dB under a leading crash.
@@ -71,14 +72,15 @@ static const float LVL[2][DK_N] = {
         [DK_KICK] = 1.00f, [DK_SNARE] = 1.00f, [DK_HHC] = 0.050f, [DK_HHO] = 0.060f,
         [DK_CLAP] = 1.00f, [DK_TOM_LO] = 0.55f, [DK_TOM_HI] = 0.55f, [DK_CRASH] = 0.200f,
     },
-    {   // ACOUSTIC: membrane kick and toms are far quieter, its crash far louder
-        [DK_KICK] = 1.00f, [DK_SNARE] = 0.575f, [DK_HHC] = 0.023f, [DK_HHO] = 0.028f,
-        [DK_CLAP] = 0.50f, [DK_TOM_LO] = 0.70f, [DK_TOM_HI] = 0.70f, [DK_CRASH] = 0.045f,
-    },
-};
+    {   // ACOUSTIC: since 2026-11-04 the kit carries a real kit's balance itself (drumkit.h), so
+        // this is one overall volume, -4.4 dB to keep the kick where it sat (the clap is not from
+        // that kit and keeps its old trim)
+        [DK_KICK] = 0.60f, [DK_SNARE] = 0.60f, [DK_HHC] = 0.60f, [DK_HHO] = 0.60f,
+        [DK_CLAP] = 0.50f, [DK_TOM_LO] = 0.60f, [DK_TOM_HI] = 0.60f, [DK_CRASH] = 0.60f,
+    },};
 static void use_kit(int k) {
     dk_use(KITS[k], KIT_BASE);
-    for (int i = 0; i < DK_N; i++) instrument_level(KIT_BASE + i, LVL[k][i]);  // gain is 0..1, not 0..7
+    for (int i = 0; i < DK_N; i++) dk_level(i, LVL[k][i]);  // gain is 0..1, not 0..7
 }
 
 static int  grp = 0, pat = 0;          // where the cursor is
@@ -335,10 +337,11 @@ void spec(void) {
     int zerolvl = 0, tomsunder = 0;
     for (int k = 0; k < 2; k++)
         for (int i = 0; i < DK_N; i++) if (!(LVL[k][i] > 0.0f)) zerolvl++;
-    for (int k = 0; k < 2; k++)
-        if (!(LVL[k][DK_TOM_LO] > LVL[k][DK_HHC] && LVL[k][DK_TOM_HI] > LVL[k][DK_HHC])) tomsunder++;
+    // ELECTRO only: since 2026-11-04 ACOUSTIC carries a real kit's balance INSIDE drumkit.h (toms
+    // ~20 dB over the closed hat), so its row is deliberately flat, one overall volume
+    if (!(LVL[0][DK_TOM_LO] > LVL[0][DK_HHC] && LVL[0][DK_TOM_HI] > LVL[0][DK_HHC])) tomsunder++;
     expect(zerolvl == 0, "every role in BOTH kits has a nonzero level (none muted by accident)");
-    expect(tomsunder == 0, "in both kits the toms sit above the closed hat, which plays constantly");
+    expect(tomsunder == 0, "in the ELECTRO table the toms sit above the closed hat, which plays constantly");
     expect(LVL[0][DK_CRASH] != LVL[1][DK_CRASH],
            "the two kits have DIFFERENT tables (one table left the other kit 13 dB out)");
     expect(MAP[DP_LT].vbump > 0 && MAP[DP_MT].vbump > 0 && MAP[DP_HT].vbump > 0,

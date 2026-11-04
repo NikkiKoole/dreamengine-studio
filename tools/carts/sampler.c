@@ -36,8 +36,8 @@ de:meta */
 #define SYN    5          // source synth (feeds the capture ring)
 #define KEYS_S 6          // chromatic sampler voice (KEYS mode)
 #define KIT0   8          // KIT pads use slots KIT0..KIT0+nsl-1
-#define DKIT   20         // drum-kit source (drumkit.h) uses slots DKIT..DKIT+DK_N-1
-#define SONG_V0 28        // SONG pad voices = instrument slots 28..28+SONGPADS-1
+#define DKIT   20         // drum-kit source (drumkit.h) uses slots DKIT..DKIT+DK_SLOTS-1
+#define SONG_V0 29        // SONG pad voices = instrument slots 29..29+SONGPADS-1
 #define ROOT   60         // C4 = original speed
 #define MAXSLICE 12
 #define MAXREC 7.5f

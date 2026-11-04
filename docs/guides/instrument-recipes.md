@@ -1056,7 +1056,30 @@ tubes against a 1969 transistor box and a 1970s chip), so nothing here claims to
 own voice. And the mapping is rotatable in the cart (`V`), because a hint is a hint: the patterns are
 sourced, the voicing is a choice the player can overrule.
 
+### drumkit.h's ACOUSTIC kit (2026-11-04, voiced against a real kit)
+
+Tuned against lennartgreen's CC0 "Vintage Hip Hop" kit (`build/refs/drums-cc0`, recorded at one gain,
+so it gives the balance too); the voices are drumhand's, carried into the 8-role kit. Every stroke is
+booked by the kit's `fire()` hook, levels in the per-note gains (the kit carries the real balance; a
+cart's `dk_level` table is just one overall volume, 0.60 in groovebook/rootwalk).
+
+| role | recipe | ours vs real |
+|---|---|---|
+| kick | MEMBRANE h0.80 t0.12 m0.30 LP6000/1 · notes 31 (g .90) + 44 (g .68, the 2nd mode) + 72 (g .23, 10 ms, the beater slap) | 54 + 118 Hz (-3.4 dB), real the same |
+| snare | head MEMBRANE h0.70 t0.15 m0.10 note 55 g .38 gate 55 + wires (slot DK_L_WIRES) NOISE LP7000/2 g .06 | 205 Hz, -10.2 vs -10.0 dB under the kick |
+| hat closed | METAL h0.70 t0.85 m0.85 dec .66 spr .20 LP12500/4 · note 81 g .037 damp .92 | -17.2 vs -17.3 dB, -20 dB at 65 vs 75 ms |
+| hat open | same bank · note 77 timbre -0.25 g .052 damp .46 · choked by the closed hat | -14.4 vs -14.5 dB, darker than drumhand's |
+| toms | MEMBRANE h0.30 t0.50/0.55 m0.15 · fundamental + a 2nd note 13 semitones up (lo 40 + 53, hi 47 + 60) | lo 86 + 183 Hz, hi 129 + 280 Hz (real 269) |
+| crash | METAL h0.55 t0.30 m0.30 dec .68 spr .15 LP7000/4 mono · note 96 g .06 | -15.1 vs -15.9 dB, -20 dB at 1.2 s |
+| clap | unchanged NOISE BP1500/4 (the reference kit has none) | not measured |
+
+A GM-style note passed to `dk_fire` (groovebook/rootwalk pass 36/38/41...) transposes the drum from
+its anchor (`DK_GM_ANCHOR`), so GM 41 / 48 on TOM_LO are a floor and a rack tom 7 semitones apart.
+
 ### drumkit.h's two kits have DIFFERENT loudness shapes (measured, from groovebook.c)
+
+> **The ACOUSTIC half of this section describes the OLD kit** (before 2026-11-04); the current one
+> carries a real kit's balance, see above. The ELECTRO numbers still hold.
 
 Not a timbre recipe: a mix one, and the kind of thing that costs an afternoon if you assume it away.
 `drumkit.h` ships `DK_ELECTRO` and `DK_ACOUSTIC` behind one role vocabulary, so it is tempting to

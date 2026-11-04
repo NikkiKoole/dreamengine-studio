@@ -222,8 +222,8 @@ runtime/   studio.h (public API: constants + declarations), studio.c (Raylib imp
              drumkit.h   shared PLAYABLE drum kit (the engine has no INSTR_KIT): a role vocab
                          (KICK/SNARE/HAT/OPEN/CLAP/TOM/CRASH) + fixed slot layout + dk_fire(role,midi,vel)
                          with pitch as a param. Header owns the trigger SKELETON; each kit's build()
-                         owns the SOUND (808≠909 stays). Built-in DK_ELECTRO/DK_ACOUSTIC; sampler uses it
-                         to sample drums. A kit is a pad MAP, NOT keybed.h (which pitches one voice).
+                         owns the SOUND (808≠909 stays). Built-in DK_ELECTRO/DK_ACOUSTIC (a real kit, measured);
+                         a kit takes DK_SLOTS (9), trim with dk_level(); sampler uses it to sample drums. A kit is a pad MAP, NOT keybed.h (which pitches one voice).
              acid303.h   the shared TB-303 acid VOICE (extracted because tb303/acidrack had drifted their
                          own copies): an Acid struct + acid_note/acid_ride/acid_gate/acid_off/acid_tie — a
                          FILTER_DIODE held voice with non-retriggering slide, accent kick, two-decay, soft

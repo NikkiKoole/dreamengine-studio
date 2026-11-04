@@ -1,6 +1,6 @@
 # Tuning a drum voice against a real recording
 
-How the CR-78, TR-606, TR-808, TR-909, Mini Pops MP-7 and drumhand voices were made to sound like the
+How the CR-78, TR-606, TR-808, TR-909, Mini Pops MP-7, drumhand and drumkit.h's ACOUSTIC voices were made to sound like the
 real things (2026-11-04), written down so the next machine does not start from scratch. The
 short version: **pick the reference by ear, measure ours against it, fix the biggest difference,
 listen, repeat.** The numbers find the fault; the ear decides whether it is fixed.

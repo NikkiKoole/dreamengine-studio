@@ -201,7 +201,7 @@ static void setup_sound(void) {
     instrument_mode(S_RIDEB, MODE_MODAL_POS, 0.70f);
     instrument_mode(S_RIDEB, MODE_MODAL_DIRECT, 0.15f);
     instrument_mono(S_RIDEB, 1);
-    instrument_eq(S_RIDEB, 12.0f, 12.0f, 12.0f);    // MODAL renders far under METAL; level only cuts
+    instrument_eq(S_RIDEB, 3.0f, 3.0f, 3.0f);       // MODAL rendered far under METAL; level only cuts. Was +12 dB until the MODAL level laws (2026-11-04) lifted a bright material by ~8 dB: re-levelled to sound as before
     // ride bell, aimed at the bell Nikki picked (Meinl Byzance 20" "B2", CC0): a clear, nearly pure
     // ding, partials 3036 / 3435 / 3790 Hz, -20 dB in 345 ms. The bank in a tight spread through a
     // narrow band at 3.4 kHz: ours 3047 / 4016 Hz, -20 dB in 340 ms

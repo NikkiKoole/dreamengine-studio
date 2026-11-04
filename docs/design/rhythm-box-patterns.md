@@ -58,7 +58,9 @@ and can never carry a mark, which doubles as a free noise floor when reading.
 **TR-77.** **32 counter states per bar**, of which the chart rules only the even half as 16 columns.
 Rows are 16 characters, `x` = mark, `/` = a **hatched** column, meaning a state this rhythm does not
 use. Two rhythms (Bolero, Jazz Waltz) put marks on **odd** states, between ruled columns, so 16
-columns is a lossy model of this machine and 32 states is the honest one.
+columns is a lossy model of this machine and 32 states is the honest one. BOLERO is therefore written as
+32 states (a 32-count rhythm, 8 states a beat, stepped twice per column so its tempo matches the
+others'); until 2026-11-04 the generator sized it as 16 and only the first half of its bar played.
 
 **SGS M252.** One character per counter state from 1 to that rhythm's **reset count** (23, 24 or 32,
 stated per rhythm). Lanes are `OUT 1..8`, which are **chip pins, not instruments**: the instrument
@@ -778,8 +780,8 @@ SD     trig 31   states 0,3,4,7,8,11,12,15,16,19,20,23,24,25,26,27,28,31
 LB     trig 31   states 0,3,4,7,8,11,12,15,16,19,20,23,24,25,26,27,28,31   (IDENTICAL to SD -
                  which is why both lanes carry the same trigger number 31)
 BD     trig 3    states 0,8,16,24            (= cols 0,4,8,12: the four beats, dead on the grid)
-Me     (no number printed beside it; the rhythm's right-hand column reads 31 / 31 / 3 / F.B. / 5)
-                 states 0,8,16,24 (quarters)
+Me               states 0,8,16,24            (quarters; no number printed beside it, the rhythm's
+                 right-hand column reads 31 / 31 / 3 / F.B. / 5)
 "F.B."  printed in the number column below BD, above the Me number. Recorded verbatim; I do not
         know what it stands for. The same annotation appears on Fig. 9's triplet-feel rhythms.
 ```

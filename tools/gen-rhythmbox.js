@@ -57,8 +57,9 @@ const SUBDIV = {
   'RB_TR77/BALLAD':     { per_bar: 16, per_beat: 4, bars: 1 },
   // doc §4d: the Hammond waltz's measure divides by THREE (8 pulses per beat), same as the FR-2L's
   'RB_HAM/WALTZ':       { per_bar: 24, per_beat: 8, bars: 2 },
-  // BOLERO is hatched too but the doc says its marks are NOT on a triplet grid (a 3:1 shuffled
-  // sixteenth grid), so it deliberately gets no override: read its `unused` mask instead.
+  // doc §2 TR-77: BOLERO is written over all 32 counter STATES (its marks fall between ruled
+  // columns), so a beat is 8 states. Not a triplet grid: a 3:1 shuffled sixteenth grid.
+  'RB_TR77/BOLERO':     { per_bar: 32, per_beat: 8, bars: 1 },
 };
 
 const doc = fs.readFileSync(DOC, 'utf8');
@@ -184,7 +185,9 @@ for (let i = 0; i < MACHINES.length; i++) {
     }
     let unused = 0n; for (const l of lanes) unused |= (l.unused || 0n);
     const d = SUBDIV[`${mach.id}/${b.name}`] || {};
-    const counts = lens[0] || mach.counts;
+    // a rhythm written ONLY as state lists (the TR-77 BOLERO, whose marks fall on odd states)
+    // runs over the machine's whole 32-state counter, not its 16 ruled columns
+    const counts = lens[0] || (lanes.some(l => l.states) ? 32 : mach.counts);
     // SGS: a reset count below 32 is programmed by crossing the 8TH INSTRUMENT column, which then
     // carries the reset (databook: "the column which now represents the reset output, rather than
     // the 8th instrument"). So that lane is a counter, not a drum. Verified: 7 of 7 short rhythms
@@ -257,6 +260,12 @@ function selfcheck(sets) {
   T('TR77 Cha-Cha + Mambo GU = stroke starts 0,2,3,4,6,7,8,10,11,12,14,15',
     ['CHA-CHA', 'MAMBO'].map(n => on(lane(find('RB_TR77', new RegExp('^' + n + '$')), 'GU'))),
     [[0,2,3,4,6,7,8,10,11,12,14,15], [0,2,3,4,6,7,8,10,11,12,14,15]]);
+  // TR-77, doc §2 + §8.2: BOLERO is 32 states; its snare's last beat is a roll (24..28) and the
+  // metronome lane (a wrapped line) is parsed, not dropped
+  T('TR77 Bolero = 32 counts, SD ends 24..28+31, Me on the quarters',
+    (() => { const r = find('RB_TR77', /^BOLERO$/);
+             return [r.counts, r.per_beat_out, on(lane(r, 'SD')).filter(c => c >= 24), on(lane(r, 'Me'))]; })(),
+    [32, 8, [24, 25, 26, 27, 28, 31], [0, 8, 16, 24]]);
   T('TR77 no mark ever falls on a hatched column',
     sets.find(s => s.mach.id === 'RB_TR77').rhythms.flatMap(r =>
       r.lanes.flatMap(l => on(l).filter(c => (r.unused >> BigInt(c)) & 1n))), []);

@@ -127,6 +127,13 @@ static int   lastfire[SM_NV];
 
 static const RbRhythm *cur(void) { return &MACH[mach].set[rhy]; }
 
+// The TR-77's counter has 32 states a bar; the chart rules 16 columns, one per clock tick here.
+// BOLERO is written over all 32 states (its marks fall between columns), so it steps twice per
+// tick: the same tempo knob, the same tempo, as on the machine.
+static int steps_per_tick(void) {
+    return (MACH[mach].set == RB_TR77 && cur()->counts == 32) ? 2 : 1;
+}
+
 // Does this rhythm drive the accompaniment at all? Only the Hammond patent and the M255
 // chart CHORD/BASS lanes, so on every other machine Z/X/N are inert and the UI says so.
 static bool has_acc(void) {
@@ -230,7 +237,7 @@ void update(void) {
     // hatches them) really is shorter in time, which is where its meter comes from.
     const RbRhythm *r = cur();
     acc += 1.0f / 60.0f;
-    float period = 1.0f / clock_hz;
+    float period = 1.0f / (clock_hz * (float)steps_per_tick());
     while (acc >= period) {
         acc -= period;
         sidx = (sidx + 1) % nord;
@@ -362,7 +369,7 @@ static void draw_panel(void) {
              r->bars, r->bars == 1 ? "" : "s");
     print(buf, 2, 34, CLR_MEDIUM_GREY);
     snprintf(buf, sizeof buf, "clock %.1f/s = %d bpm", clock_hz,
-             (int)(clock_hz * 60.0f / (float)(r->per_beat ? r->per_beat : 1)));
+             (int)(clock_hz * steps_per_tick() * 60.0f / (float)(r->per_beat ? r->per_beat : 1)));
     print(buf, 2, 44, CLR_PEACH);
     if (nord != r->counts) {
         snprintf(buf, sizeof buf, "steps %d of %d (hatched)", nord, r->counts);

@@ -6952,6 +6952,15 @@ static void sound_setup_note_ex(Voice *v, int midi, int slot, int vol, int gate_
     // NoteOpts step 1: this note's own release, its damping, the slot's release SHAPE
     v->rel_shape = ins->rel_shape;
     v->dmp_mul = v->dmp_env = 1.0f;
+    v->vb_cents = 0.0f; v->vb_mul = 1.0f; v->vb_ph = v->vb_wph = 0.0f;
+    if (pay && pay->vib_cents > 0.0f) {          // NoteOpts step 2: this note's own vibrato
+        v->vb_cents  = pay->vib_cents;
+        v->vb_rate   = pay->vib_rate > 0.0f ? pay->vib_rate : 5.5f;
+        v->vb_delay  = ms_samp(pay->vib_delay_ms);
+        v->vb_fade   = ms_samp(pay->vib_fade_ms);
+        v->vb_wander = pay->vib_wander < 0.0f ? 0.0f : (pay->vib_wander > 1.0f ? 1.0f : pay->vib_wander);
+        v->vb_wph    = (float)(midi % 7) * 0.13f;  // each note wanders from its own place
+    }
     if (pay) {
         if (pay->release_ms > 0) v->r_samp = ms_samp(pay->release_ms);
         if (pay->damp > 0.0f) {
@@ -7170,6 +7179,11 @@ static void sound_legato_to(Voice *v, int midi, int vol, int gate, const NoteEx 
     const Instrument *ins = &instr_bank[v->instr_slot];
     v->freq_target = sound_midi_to_freq(midi);
     if (ex->pay && ex->pay->cents != 0.0f) v->freq_target *= de_powf(2.0f, ex->pay->cents / 1200.0f);
+    if (ex->pay && ex->pay->vib_cents > 0.0f) {    // step 2: a slurred note with its own vibrato (it blooms from the slur)
+        v->vb_cents = ex->pay->vib_cents; v->vb_rate = ex->pay->vib_rate > 0.0f ? ex->pay->vib_rate : 5.5f;
+        v->vb_delay = v->step_samples + ms_samp(ex->pay->vib_delay_ms); v->vb_fade = ms_samp(ex->pay->vib_fade_ms);
+        v->vb_wander = ex->pay->vib_wander < 0.0f ? 0.0f : (ex->pay->vib_wander > 1.0f ? 1.0f : ex->pay->vib_wander);
+    }
     v->gl_ms = ex->glide_ms;
     sound_glide_start(v);
     float vv = (vol < 0 ? 0 : vol > 7 ? 7 : vol) / 7.0f * (1.0f + ex->accent * sound_accent_route(ins, ACC_VOL)) * ex->gain;
@@ -8600,6 +8614,22 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
                         v->an_drift_mul = 1.0f + d * 3.0f * v->an_amt * 0.0005778f / 1.6f;   // +-3 cents at amount 1
                     }
                     pitch_mul *= v->an_tune * v->an_drift_mul;
+                }
+                if (v->vb_cents > 0.0f) {      // NoteOpts step 2: the note's own vibrato, refreshed every 32 samples
+                    if ((v->step_samples & 31) == 0) {
+                        const float dt32 = 32.0f / (float)SOUND_SAMPLE_RATE;
+                        float age = (float)(v->step_samples - v->vb_delay);
+                        float k = age <= 0.0f ? 0.0f : (v->vb_fade <= 0 ? 1.0f : age / (float)v->vb_fade);
+                        if (k > 1.0f) k = 1.0f;
+                        k = k * k * (3.0f - 2.0f * k);                                   // blooms, not a ramp
+                        v->vb_wph += 0.7f * dt32;                                        // a slow wander of rate + depth
+                        float w = v->vb_wander * de_sin_turns(v->vb_wph);
+                        v->vb_ph += v->vb_rate * (1.0f + 0.15f * w) * dt32;
+                        if (v->vb_ph >= 1.0f) v->vb_ph -= 1.0f;
+                        float c = v->vb_cents * k * (1.0f + 0.25f * w) * de_sin_turns(v->vb_ph);
+                        v->vb_mul = 1.0f + c * 0.0005778f;                               // 2^(c/1200), small c
+                    }
+                    pitch_mul *= v->vb_mul;
                 }
             }
 
@@ -10702,13 +10732,18 @@ void schedule_note_at(double t, int midi, int instr, int vol, int dur_ms, const 
     // NoteOpts step 1: anything beyond the packed six travels in the ring (only when used, so a note
     // with none of them takes the old path byte for byte)
     if (opts->cents != 0.0f || opts->cutoff_oct != 0.0f || opts->damp > 0.0f || opts->release_ms > 0 ||
-        opts->region_start != 0.0f || opts->region_end != 0.0f) {
+        opts->region_start != 0.0f || opts->region_end != 0.0f || opts->vib.cents > 0.0f) {
         int k = npay_w; npay_w = (npay_w + 1) % NPAY_RING;
         npay_ring[k] = (NotePay){ .cents = opts->cents < -1200.0f ? -1200.0f : (opts->cents > 1200.0f ? 1200.0f : opts->cents),
                                   .cutoff_oct = opts->cutoff_oct < -6.0f ? -6.0f : (opts->cutoff_oct > 6.0f ? 6.0f : opts->cutoff_oct),
                                   .damp = opts->damp < 0.0f ? 0.0f : (opts->damp > 1.0f ? 1.0f : opts->damp),
                                   .release_ms = opts->release_ms < 0 ? 0 : (opts->release_ms > 60000 ? 60000 : opts->release_ms),
-                                  .rg_start = opts->region_start, .rg_end = opts->region_end };
+                                  .rg_start = opts->region_start, .rg_end = opts->region_end,
+                                  .vib_cents = opts->vib.cents > 200.0f ? 200.0f : opts->vib.cents,
+                                  .vib_rate = opts->vib.rate_hz < 0.0f ? 0.0f : (opts->vib.rate_hz > 20.0f ? 20.0f : opts->vib.rate_hz),
+                                  .vib_delay_ms = opts->vib.delay_ms < 0 ? 0 : opts->vib.delay_ms,
+                                  .vib_fade_ms = opts->vib.fade_ms < 0 ? 0 : opts->vib.fade_ms,
+                                  .vib_wander = opts->vib.wander };
         e1 |= NPAY_FLAG | (k << NPAY_SHIFT);
     }
     sound_push((SoundReq){ .kind = SR_NOTE_AT, .a = midi, .b = instr, .c = vol,

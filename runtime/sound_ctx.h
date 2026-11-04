@@ -495,6 +495,9 @@ typedef struct {
     // NoteOpts step 1: per-note damping (multiplier per sample, 1 = off) and a latched sample chop
     float  dmp_mul, dmp_env;
     bool   rg_latched;
+    // NoteOpts step 2: the note's own vibrato (vb_cents 0 = none, skipped), refreshed every 32 samples
+    float  vb_cents, vb_rate, vb_wander, vb_ph, vb_wph, vb_mul;
+    int    vb_delay, vb_fade;           // samples
     int    rel_shape;                   // copied from the slot at note-on
 } Voice;
 #define SOUND_HANDLE_BITS 5                      // slot field width — must hold SOUND_VOICES-1 (32 voices → 0..31 → 5 bits)
@@ -786,7 +789,8 @@ typedef enum {
 typedef struct { SoundReqKind kind; int a, b, c; int delay_samples; int dur_samples; int e0, e1, e2; } SoundReq;
 // NoteOpts step 1 (humanized-playing.md §8.2): the per-note fields that do not fit a SoundReq. Written by
 // schedule_note_at into a game-side ring, copied at the drain into a pen-side slot, applied at note-on.
-typedef struct { float cents, cutoff_oct, damp; int release_ms; float rg_start, rg_end; } NotePay;
+typedef struct { float cents, cutoff_oct, damp; int release_ms; float rg_start, rg_end;
+                 float vib_cents, vib_rate; int vib_delay_ms, vib_fade_ms; float vib_wander; } NotePay;   // + step 2: the note's own vibrato
 #define NPAY_RING 512   // = SOUND_REQ_QUEUE: a ring slot cannot be reused before its request is drained
 #define SOUND_REQ_QUEUE   512   // generous: live held-voice control pushes many setters/frame, and a patch cart's
 #define SOUND_DELAYED_MAX 64    // pending delayed notes (strum/schedule/schedule_hit) — fast sfx steps queue several ahead

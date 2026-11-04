@@ -604,21 +604,21 @@ DOUBLE twin-T (TONE knob crossfades the two resonators). Open-hat decay is tempo
 ### cr78 (machine — 16 voices, from cr78.c)
 
 Every voice retuned 2026-11-04 against a real CR-78 sample set (pitch, energy band, decay, level vs
-the kick); `lvl` = `instrument_level`. The narrow noise bands need the 2026-11-04 per-voice filter fix.
+the kick), and cross-checked against a second pack (CR-78 Kit 06, same pitches and bands); `lvl` = `instrument_level`. The narrow noise bands need the 2026-11-04 per-voice filter fix.
 
 | name | engine | recipe | character |
 |---|---|---|---|
 | cr78/kick | SINE | A0 D140 S0 R40 · LP320/2 · pitch-env →+2 (0/30) · note 36 | Soft round 65 Hz, barely any drop. |
 | cr78/snare-body | SINE | A0 D60 S0 R20 · pitch-env →+2 (0/15) · note 63 · lvl 0.15 | 311 Hz shell, kept low under the rattle. |
 | cr78/snare-rattle | NOISE | A0 D70 S0 R25 · LP8000/6 | Noise to ~10 kHz; a lowpass, since a low-Q bandpass trails to 20 kHz. |
-| cr78/rim | TRI + SINE | TRI A0 D10 S0 R5 · BP1400/6 · note 89 + SINE A0 D12 · note 58 | A 1.4 kHz ping over a low knock, ~10 ms. |
-| cr78/hat-closed | NOISE | A0 D22 S0 R10 · BP8400/14 · lvl 0.51 | The CR-78 swish: a NARROW 7.4-9.7 kHz band. |
-| cr78/hat-open | NOISE | A0 D320 S0 R80 · BP8400/14 · lvl 0.51 | Same band, long (not a real CR-78 voice). |
-| cr78/cymbal | NOISE | A0 D400 S0 R150 · BP8600/14 · lvl 0.25 | The hat band held ~450 ms. |
+| cr78/rim | TRI + SINE | TRI A0 D10 S0 R5 · BP1400/9 · note 89 + SINE A0 D12 · note 58 | A 1.4 kHz ping over a low knock, ~10 ms. |
+| cr78/hat-closed | NOISE | A0 D22 S0 R10 · BP8400/15 · lvl 0.38 | The CR-78 swish: a NARROW 7.4-9.7 kHz band. |
+| cr78/hat-open | NOISE | A0 D290 S0 R150 · BP8400/15 · lvl 0.38 · hit 420 ms | Same band, long; checked against a second CR-78 pack's open hat (-20 dB at ~250 ms). |
+| cr78/cymbal | NOISE | A0 D400 S0 R150 · BP8600/15 · lvl 0.21 | The hat band held ~450 ms. |
 | cr78/tambourine | NOISE | A8 D200 S0 R60 · BP4650/15 · lvl 0.18 | A narrow ring at 4.65 kHz, shaken in. |
 | cr78/cowbell | SQUARE | A0 D55 S0 R25 · LP1100/2 · notes 79 + 73 · lvl 0.35 | Detuned pair lowpassed nearly to two sines. |
 | cr78/claves | SINE | A0 D40 S0 R12 · note 99 · tune -0.23 | A pure 2.46 kHz ping. |
-| cr78/maracas | NOISE | A0 D15 S0 R8 · BP8700/14 · lvl 0.66 | The shortest burst, a narrow 8.7 kHz band. |
+| cr78/maracas | NOISE | A0 D15 S0 R8 · BP8700/15 · lvl 0.47 | The shortest burst, a narrow 8.7 kHz band. |
 | cr78/bongo | SINE | A0 D40 S0 R25 · notes 74 (high) / 67 (low) | Damped sines at 587 / 392 Hz. |
 | cr78/bongo-mode | SINE | A0 D25 S0 R10 · note 99 (with the low bongo) | The low bongo's 2.5 kHz second mode. |
 | cr78/conga | SINE | A0 D160 S0 R60 · note 55 | 196 Hz damped sine. |

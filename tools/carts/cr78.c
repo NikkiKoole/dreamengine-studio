@@ -171,8 +171,9 @@ static const Pat PRESET[] = {
         [V_BONH]  = ".x......x.x.....",
         [V_CLV]   = "x..x..x...x.x...",   // son clave 3-2
       }, "x.......x......." },
-    { "CHA-CHA", 118, {
-        [V_GUIRO] = "x...x...x...x...",
+    { "CHA-CHA", 118, {            // guiro long-short-short, the way a player scrapes it (our
+        [V_GUIROL]= "x...............",   // arrangement: no sourced CR-78 preset data for the guiros)
+        [V_GUIRO] = "........x...x...",
         [V_COW]   = "x...x...x...x...",
         [V_KICK]  = "....x.......x...",
         [V_CONGA] = "......x.......xx",
@@ -237,11 +238,11 @@ static void fire(int v, int boost, int delay) {
         schedule_hit(delay, 60, SL_SNN, vv(6, boost), 120);
         break;
     case V_RIM:   // a click: a 1.4 kHz ping over a low knock, both gone in ~10 ms
-        schedule_hit(delay, 89, SL_RIM,  vv(7, boost), 30);
+        schedule_hit(delay, 89, SL_RIM,  vv(6, boost), 30);
         schedule_hit(delay, 58, SL_RIMT, vv(2, boost), 30);
         break;
     case V_HATC:  schedule_hit(delay, 90, SL_HATC, vv(3, boost), 40); break;
-    case V_HATO:  schedule_hit(delay, 90, SL_HATO, vv(3, boost), 360); break;
+    case V_HATO:  schedule_hit(delay, 90, SL_HATO, vv(3, boost), 420); break;
     case V_CYM:   schedule_hit(delay, 90, SL_CYMN, vv(3, boost), 600); break;   // a long 8.5 kHz band
     case V_METAL: // three tones up where the real one rings: 3.9 / 5.3 / 5.9 kHz
         schedule_hit(delay, 114, SL_MET, vv(4, boost), 120);
@@ -287,19 +288,19 @@ void init(void) {
 
     // rim — a 1.4 kHz ping plus a low knock, both gone in ~10 ms
     instrument(SL_RIM, INSTR_TRI, 0, 10, 0, 5);
-    instrument_filter(SL_RIM, FILTER_BAND, 1400, 6);
+    instrument_filter(SL_RIM, FILTER_BAND, 1400, 9);
     instrument(SL_RIMT, INSTR_SINE, 0, 12, 0, 5);
 
-    // hats — the CR-78 "swish" is a NARROW band, 7.4-9.7 kHz (resonance 14),
+    // hats — the CR-78 "swish" is a NARROW band, 7.4-9.7 kHz (resonance 15),
     // not broad hiss. closed and open are the same band, only the decay differs
     instrument(SL_HATC, INSTR_NOISE, 0, 22, 0, 10);
-    instrument_filter(SL_HATC, FILTER_BAND, 8400, 14);
-    instrument(SL_HATO, INSTR_NOISE, 0, 320, 0, 80);
-    instrument_filter(SL_HATO, FILTER_BAND, 8400, 14);
+    instrument_filter(SL_HATC, FILTER_BAND, 8400, 15);
+    instrument(SL_HATO, INSTR_NOISE, 0, 290, 0, 150);
+    instrument_filter(SL_HATO, FILTER_BAND, 8400, 15);
 
     // cymbal — the same narrow band a little higher (8.5 kHz), long
     instrument(SL_CYMN, INSTR_NOISE, 0, 400, 0, 150);
-    instrument_filter(SL_CYMN, FILTER_BAND, 8600, 14);
+    instrument_filter(SL_CYMN, FILTER_BAND, 8600, 15);
 
     // tambourine — a very narrow ring at 4.65 kHz, shaken in (soft attack)
     instrument(SL_TAMB, INSTR_NOISE, 8, 200, 0, 60);
@@ -316,7 +317,7 @@ void init(void) {
 
     // maracas — the shortest noise burst in the box, a narrow band at 8.7 kHz
     instrument(SL_MAR, INSTR_NOISE, 0, 15, 0, 8);
-    instrument_filter(SL_MAR, FILTER_BAND, 8700, 14);
+    instrument_filter(SL_MAR, FILTER_BAND, 8700, 15);
 
     // bongos / conga — bare damped sines at membrane pitches
     instrument(SL_BON, INSTR_SINE, 0, 40, 0, 25);
@@ -348,13 +349,13 @@ void init(void) {
     // ── the mix: each voice's peak relative to the kick, matched to the real
     // samples (recorded at one gain: every accent hit is ~4.5 dB over its
     // normal hit). Cuts only: instrument_level is 0..1.
-    instrument_level(SL_HATC, 0.51f);    // -5.9 dB
-    instrument_level(SL_HATO, 0.51f);
-    instrument_level(SL_CYMN, 0.25f);    // -11.9 dB
+    instrument_level(SL_HATC, 0.38f);    // -8.4 dB
+    instrument_level(SL_HATO, 0.38f);
+    instrument_level(SL_CYMN, 0.21f);    // -13.6 dB
     instrument_level(SL_MET,  0.36f);    // -8.8 dB
     instrument_level(SL_COW,  0.35f);    // -9.2 dB
     instrument_level(SL_TAMB, 0.18f);    // -14.7 dB
-    instrument_level(SL_MAR,  0.66f);    // -3.6 dB
+    instrument_level(SL_MAR,  0.47f);    // -6.6 dB
 
     load_preset();
 }

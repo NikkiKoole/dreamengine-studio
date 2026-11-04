@@ -395,11 +395,11 @@ static void setup_instruments(void) {
     instrument_filter(SL_SNN, FILTER_LOW, 8000, 6);
 
     instrument(SL_HATC, INSTR_NOISE, 0, 22, 0, 10);          // the swish: a NARROW 7.4-9.7 kHz band
-    instrument_filter(SL_HATC, FILTER_BAND, 8400, 14);
-    instrument_level(SL_HATC, 0.51f);
-    instrument(SL_HATO, INSTR_NOISE, 0, 320, 0, 80);
-    instrument_filter(SL_HATO, FILTER_BAND, 8400, 14);
-    instrument_level(SL_HATO, 0.51f);
+    instrument_filter(SL_HATC, FILTER_BAND, 8400, 15);
+    instrument_level(SL_HATC, 0.38f);
+    instrument(SL_HATO, INSTR_NOISE, 0, 290, 0, 150);
+    instrument_filter(SL_HATO, FILTER_BAND, 8400, 15);
+    instrument_level(SL_HATO, 0.38f);
 
     instrument(SL_MET, INSTR_TRI, 0, 60, 0, 25);             // the metallic beat rings HIGH (5.3-5.9 kHz)
     instrument_filter(SL_MET, FILTER_BAND, 5400, 6);

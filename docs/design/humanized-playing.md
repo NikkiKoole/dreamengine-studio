@@ -398,6 +398,53 @@ New categories in short: events inside a note, curves shared by a whole instrume
 a per-note technique choice, legato on polyphonic slots. The three spikes in bold cover nearly all
 of them; each must report its rows for §6. **All three built 2026-11-04; their rows are §6.5.**
 
+## 7.2 Engine gaps found while spiking: the checklist
+
+Everything the spikes found missing IN THE ENGINES (sound and behaviour, not NoteOpts), in one place.
+Each was measured; the evidence lives in the section linked. Status: ✓ fixed, ○ open.
+
+**INSTR_BOWED (arco):**
+- ✓ always-on vibrato: `instrument_vibrato` (§4.1)
+- ○ `note_retrig` does nothing on a bowed note: `sound_retrig_voice` re-arms onsets for PIPE / REED /
+  BRASS / ORGAN only (§6.5)
+- ○ bow speed has a floor (`bowSpeed = 0.30 + mor*0.60`): the bow cannot stop or reverse, so a bow
+  change cannot happen in the physics (§6.5); with the retrig gap, the engine side of `NEV_REARTIC` (§8.6)
+- ○ pressure (timbre) barely changes the colour: centroid ~1000 -> 1140 Hz, the scratch nearly
+  inaudible (§6.5)
+- ○ bow position (harmonics) is read at note-on only (§6.5)
+- ○ a slide can go only ~7 semitones under the starting note (2.5x string buffer, capped) (§6.5)
+
+**INSTR_BOWED (pizzicato):**
+- ✓ the noise pluck was bright and thin, fundamental 7-12 dB under harmonics 3-8: `MODE_BOW_PLUCK` (§7)
+- ○ no hold after the attack (a real pizz drops ~15 dB then holds for seconds; ours keeps fading),
+  every harmonic decays at one rate (a static spectrum), the overtones are exactly in tune (the real
+  fundamental sits ~15 cents flat) (§7); centroid still ~2x the recordings
+
+**INSTR_PIANO:**
+- ○ the morph "pedal" is latched into the loop loss at note-on and never re-read (a mid-note change
+  renders byte-identical) (§6.5)
+- ○ the treble decays far too fast: C6 down 40 dB in ~0.4 s whatever the pedal setting (§6.5)
+
+**INSTR_MEMBRANE:**
+- ○ one strike-position knob tilts all six modes together and the upper modes always die faster, so a
+  stroke cannot select overtones (tabla na / tun / tin) (§5)
+- ○ the "tuned" head is an exact 1:2:3:4; real tabla puts the lowest mode ~1.1x above its series (§5)
+- ○ the 2nd mode is 17-20 dB down where kit drums have it 1-5 dB down (§6.5)
+- ○ the strike chirp is small and quick (~90 ms); the bayan's boom holds ~90 ms then falls 5 semitones (§5)
+
+**INSTR_METAL:**
+- ○ built-in noise sits at 15-20 kHz: cymbals want a LOWPASS, the bogie recipes high-pass (§6.5)
+
+**All engines / the envelope:**
+- ○ the ADSR decay and release are LINEAR in amplitude (real decays are curves): tails sit 10-15 dB hot,
+  a release plunges at the end and stops in exact silence (§4.3, §6.5); see `instrument_release_shape` (§8.9)
+- ○ release time is copied into the voice at note-on, so a per-note release needs separate slots (§6.5;
+  NoteOpts step 1 `release_ms`)
+
+**Effects:**
+- ○ the formant jumps to a new vowel (no slew) and is not an `fx_mod` target; there is no per-voice
+  formant except `INSTR_VOICE` (§6.7)
+
 ## 8. Proposal: the NoteOpts layout (DRAFT, 2026-11-04, not built)
 
 > Written against the needs in §6 (every spike + Playtime's choir). **Not built: building is on hold**

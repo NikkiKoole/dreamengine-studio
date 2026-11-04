@@ -156,7 +156,7 @@ frequency reads an octave low); very low notes fool simple pitch trackers (treat
 unknown, not as a finding); `click-check` flags every attack that starts from silence, so compare
 against the plain version before blaming a change; match loudness before an A/B, quieter always loses.
 
-Known engine sound gaps (open, see the design doc): `INSTR_MEMBRANE` tilts all modes together and its
+Known engine sound gaps (the full checklist with status: [`design/humanized-playing.md`](../design/humanized-playing.md) §7.2): `INSTR_MEMBRANE` tilts all modes together and its
 2nd mode is too weak for kit drums; the ADSR decay and release are LINEAR (real decays are curves);
 the piano's morph "pedal" is latched at note-on; `note_retrig` does nothing on BOWED; bowed pressure
 barely changes the colour; the piano treble decays too fast; `INSTR_METAL` cymbals want a LOWPASS.

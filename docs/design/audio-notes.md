@@ -754,6 +754,10 @@ mirroring `heldnotes`/`instruments` cart style. These double as the by-ear tunin
 
 ## 12. Instrument gaps — found by building the radio family (2026-06-05)
 
+> **Later gaps (2026-11-04), found by the humanized-playing spikes** (bowed arco and pizz, piano,
+> membrane, metal, the linear envelope, the formant): one checklist with status and evidence in
+> [`humanized-playing.md`](humanized-playing.md) §7.2.
+
 **Empirical, not speculative:** this list is what was actually missing while
 building and planning the ten radio stations (bossa → house) plus the next
 batch's designs (gamelan, Italo, Steely Dan, the Doors). Ranked by how often

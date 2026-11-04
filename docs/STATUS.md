@@ -15,6 +15,11 @@ _Last updated: 2026-10-29 — INSTR_SCRAPE: a guiro with teeth. See the top Ship
 
 ## Shipped ✓
 
+- **NOTEOPTS STEP 5: events inside a booked note, `note_event_at(id, t, event, amount)`** (2026-11-04).
+  `schedule_note_at` now returns a booking id; `NEV_REARTIC` (a BOWED note's bow turns: its velocity goes
+  through zero and reverses, also what `note_retrig` now does on bowed), `NEV_DAMP`, `NEV_RELEASE`.
+  Accepted on `cellohand` (B, every bow change booked). [`design/humanized-playing.md`](design/humanized-playing.md) §8.10.
+
 - **NOTEOPTS STEP 4: lanes, `lane_at(t, slot, lane, value, ramp_ms)`** (2026-11-04). Curves shared by
   every sounding note on a slot, booked on the audio clock and ramped in the engine: `LANE_DAMPER` (a real
   sustain pedal, half pedal included), `LANE_CUTOFF`, `LANE_LEVEL`, `LANE_VIB` (the mod wheel).

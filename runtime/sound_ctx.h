@@ -331,6 +331,8 @@ typedef struct {
     float  bw_initfreq;                 // freq at note-on (bore sized for it; pitch tracking glides off it)
     float  bw_vib_ph, bw_drift_ph, bw_drift, bw_noise_lp;  // humanized pitch-vibrato + bow-noise (rosin) + drift
     int    bw_attack;                   // bow-bite onset samples (the catch at note start)
+    float  bw_dir;                      // step 5: the bow's DIRECTION, +1 / -1 (a bow change flips it)
+    int    bw_bc, bw_bclen;             // step 5: a bow change in progress (countdown / length, samples)
     float  bw_dc_prev, bw_dc_state;     // output DC blocker (steady bow drives a large DC)
     bool   bw_on;                       // note-on init guard
     bool   bw_pizz;                     // PIZZICATO: seed the string with a pluck + bypass the bow
@@ -506,6 +508,7 @@ typedef struct {
     float  sh_pmul, sh_gmul, sh_cmul, sh_h, sh_t, sh_m;   // the current results
     float  ped_acc;                     // step 4: the damper's fractional advance of a released note's gate
     int    rel_shape;                   // copied from the slot at note-on
+    int    booking;                     // step 5: the schedule_note_at() booking id this voice plays (0 = none)
 } Voice;
 #define SOUND_HANDLE_BITS 5                      // slot field width — must hold SOUND_VOICES-1 (32 voices → 0..31 → 5 bits)
 #define SCOPE_LEN 2048
@@ -789,6 +792,8 @@ typedef enum {
     SR_INSTR_MONO = 160,      // a=slot, b=on — MONO: a new note on this slot cuts the slot's sounding voices (instrument_mono)
     SR_LANE_AT = 167,         // a=slot, b=lane, c=value*1000, e0=ramp_ms, delay=ABSOLUTE target sample (lane_at)
     SR_LANE = 168,            // the same, after the drain turned the target into a countdown (fires in the pen)
+    SR_NEV_AT = 169,          // a=booking id, b=NEV_* event, c=amount*1000, delay=ABSOLUTE target sample (note_event_at)
+    SR_NEV = 170,             // the same, after the drain turned the target into a countdown (fires in the pen)
     SR_SHAPE_HDR = 165,       // a=id, b=n points, c=interp — a shape's header (shape_define), sent after its points
     SR_SHAPE_PT = 166,        // a=id, b=point index, c=t_ms, e0=value*1000 — one breakpoint (shape_define)
     SR_INSTR_RELSHAPE = 164,  // a=slot, b=shape — the release curve (instrument_release_shape)
@@ -1105,6 +1110,7 @@ typedef struct {
     int delayed_count;
     NotePay npay_ring[NPAY_RING];       // game-side ring (schedule_note_at writes, the drain reads)
     int     npay_w;                     // game-side write index
+    int     nev_next;                   // step 5: game-side booking-id counter (schedule_note_at returns 1..32767)
     NotePay npay_pen[SOUND_DELAYED_MAX];   // audio-side: one per note waiting in the pen
     unsigned char npay_used[SOUND_DELAYED_MAX];
     ShapeDef shape_tbl[SHAPE_MAX];      // step 3: the shape library (id 1..63; 0 = none)
@@ -1531,6 +1537,7 @@ static _Thread_local DeSound *de_snd = &de_snd_default;
 #define delayed_count        (de_snd->delayed_count)
 #define npay_ring            (de_snd->npay_ring)
 #define npay_w               (de_snd->npay_w)
+#define nev_next             (de_snd->nev_next)
 #define npay_pen             (de_snd->npay_pen)
 #define npay_used            (de_snd->npay_used)
 #define shape_tbl            (de_snd->shape_tbl)

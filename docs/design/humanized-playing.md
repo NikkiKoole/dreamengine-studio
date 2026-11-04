@@ -1,6 +1,6 @@
 # Humanized playing: a player, not a keyboard
 
-> **STATUS: BUILDING (2026-11-04): NoteOpts steps 1-4 shipped (§8.10).** Spike carts (`strumhand`, `breathflute`, `tablahand`, `tablalab`,
+> **STATUS: BUILDING (2026-11-04): NoteOpts steps 1-5 shipped (§8.10).** Spike carts (`strumhand`, `breathflute`, `tablahand`, `tablalab`,
 > `reedhand`, `basshand`, `cellohand`, `pianohand`, `drumhand`, `synthhand`, `mouthhand`) and three
 > engine calls shipped (`instrument_vibrato`, `MODE_BOW_PLUCK`, `instrument_analog`). The NEEDS list
 > for booked-note curves (§6) is close to complete and a DRAFT layout is in §8; **building it is ON HOLD** (Nikki,
@@ -405,10 +405,10 @@ Each was measured; the evidence lives in the section linked. Status: ✓ fixed, 
 
 **INSTR_BOWED (arco):**
 - ✓ always-on vibrato: `instrument_vibrato` (§4.1)
-- ○ `note_retrig` does nothing on a bowed note: `sound_retrig_voice` re-arms onsets for PIPE / REED /
-  BRASS / ORGAN only (§6.5)
-- ○ bow speed has a floor (`bowSpeed = 0.30 + mor*0.60`): the bow cannot stop or reverse, so a bow
-  change cannot happen in the physics (§6.5); with the retrig gap, the engine side of `NEV_REARTIC` (§8.6)
+- ✓ `note_retrig` does nothing on a bowed note: now a BOW CHANGE (`sound_bow_change`, §8.10 step 5)
+- ✓ the bow cannot stop or reverse: a bow change now runs the bow velocity SIGNED through zero and back
+  (`bw_dir`), the engine side of `NEV_REARTIC` (§8.10 step 5). The steady bow speed still has its floor
+  (`0.30 + mor*0.60`); only a change passes through zero
 - ○ pressure (timbre) barely changes the colour: centroid ~1000 -> 1140 Hz, the scratch nearly
   inaudible (§6.5)
 - ○ bow position (harmonics) is read at note-on only (§6.5)
@@ -563,7 +563,8 @@ void note_event_at(int booking, double t, int event, float amount);
 // NEV_RELEASE  end the note at t (key-up decided later than booking)
 ```
 
-Engine side this needs `sound_retrig_voice` to cover BOWED and a signed bow velocity (§6.5).
+Engine side this needs `sound_retrig_voice` to cover BOWED and a signed bow velocity (§6.5). (Built as
+drafted, §8.10 step 5; `amount` on a BOWED `NEV_REARTIC` is how slowly the bow turns, not a dip depth.)
 
 ### 8.7 Plumbing (how it travels)
 
@@ -686,7 +687,26 @@ Engine side this needs `sound_retrig_voice` to cover BOWED and a signed bow velo
    foot SHORTENS a ring (the damper lane lengthens a released one), and the closing is already the chick's
    choke. The pedal's OPENNESS stays per note (read at booking into gate + damp + sizzle), which is right:
    a stroke samples the foot, it does not follow it. Step 4's acceptance tests are all done.
-5. Note events. Acceptance: `cellohand`'s bow change booked, with BOWED retrig.
+5. **BUILT (2026-11-04):** `schedule_note_at` RETURNS a booking id (1..32767, in `e0`'s bits 16-30, so
+   the request struct and every saved session blob keep their size; NULL opts still = `schedule_at`,
+   returns 0), copied into the voice at note-on and taken over by a note that slides it (legato).
+   `note_event_at(id, t, event, amount)` is booked on the audio clock like `lane_at` and, when it fires,
+   finds the voice carrying that id (a note not started or already gone: nothing): `NEV_REARTIC`,
+   `NEV_DAMP` (from t, as `.damp`), `NEV_RELEASE` (key up at t). The BOWED half: a bow change
+   (`sound_bow_change`, also what `note_retrig` now does on a bowed note) multiplies the bow velocity by
+   a direction that sweeps +1 -> 0 -> -1 as cos(pi k) over 25..150 ms (`amount`), re-arming the 30 ms
+   catch at the turn; the friction curve is odd in dv, so the reversed bow is the same physics mirrored.
+   Measured on cellohand's probe (one held D3, `PROBE_BC=BC_RETRIG`, which did NOTHING to the bow on the
+   old engine: byte-identical to no change): a ~3 dB dip for ~40 ms, back by +80 ms, the level either
+   side -24.4 dB and the pitch 147 Hz unchanged; the re-attack it replaces changes colour (centroid
+   ~960 -> ~1400 Hz) and takes far longer to settle. Every booked cart (cellohand, breathflute, tablahand,
+   pianohand, drumhand, strumhand) and tune-check render byte-identical. Acceptance: `cellohand` B =
+   the bow arm BOOKED: each stroke a booked note, slurred and connected notes slide the same voice, every
+   bow change (15 connected + 2 mid-note, when the bow runs out) a `NEV_REARTIC` on the sounding note;
+   dynamics / swell / dig-in / up-bow growth as shapes, the vibrato as `.vib`; nothing ridden per
+   frame (the arm only TRACKS the bow). Against the held-and-ridden take: level contour corr 0.97 over
+   1.5 s windows, means 0.7 dB apart; the changes add no clicks above the string's own background.
+   Not done: the rosin tick on a second slot (the engine's catch replaces it; untested by ear).
 6. With Playtime: the choir booked on `INSTR_SING` (shapes + origin + region), checked by playtime-97.
 
 ### 8.11 Open questions

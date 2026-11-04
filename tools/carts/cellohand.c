@@ -17,7 +17,7 @@
   "description": {
     "summary": "A slow cello line played by a bow arm instead of a keyboard: the bow has a length and runs out, so long notes change bow mid-note without a new attack, down-bows lean in and up-bows grow, bow speed and pressure shape each note's level and colour, the left hand slides on the big shifts and lets the vibrato bloom late. TAB flips to the keyboard version.",
     "detail": "The player keeps track of where the bow is (frog to tip) and which way it travels. Every new stroke turns it round, the player plans each phrase so its accent or longest note lands on a down-bow, a long note gets a full bow, and when a note outlasts the bow it changes direction mid-note: a short dip, a little bite of rosin, the pitch and the vibrato carrying straight through. Down-bows start heavy at the frog and lighten towards the tip, up-bows start light and grow. Bow speed and pressure are curves over each note (a swell on the long ones, an accent that digs in and lets go), and a stroke that must last longer than the bow allows is played slower with more weight. Some notes slide into place, more on big leaps. The time breathes: pushing in a phrase, broadening at its end, a little time taken before a shift. Keys 1-5 switch each layer on and off.",
-    "controls": "SPACE play/stop · TAB bow arm / keyboard · 1 time 2 bow 3 changes 4 shifts 5 vib · UP/DOWN humanity · LEFT/RIGHT tempo · R new take"
+    "controls": "SPACE play/stop · TAB bow arm / keyboard · B booked (every bow change a note_event_at) / held and ridden · 1 time 2 bow 3 changes 4 shifts 5 vib · UP/DOWN humanity · LEFT/RIGHT tempo · R new take"
   }
 }
 de:meta */
@@ -33,6 +33,12 @@ de:meta */
 // string's motion catches again, there is a little dip and a scratch, but no new note and no pitch
 // restart. Probes (DE_DEFINES=PROBE_BC=<method>) render one long D3 with two bow changes per method,
 // for measuring; the cart then plays with BC_METHOD.
+//
+// B = the same bow arm BOOKED (NoteOpts step 5, humanized-playing.md §8.10): every stroke is a
+// schedule_note_at, slurred notes slide on the same voice (.glide_ms), and every bow change, at a
+// connected note or mid-note when the bow runs out, is note_event_at(id, t, NEV_REARTIC, depth): the
+// engine turns the bow (the velocity goes through zero and reverses, the string is caught again), so
+// nothing is ridden per frame. Dynamics, the swell, the dig-in and the vibrato travel as NoteOpts.
 
 #include "studio.h"
 #include <math.h>
@@ -104,6 +110,15 @@ static float vib_delay, vib_depth, vib_rate;
 static float last_vol = -1, last_timb = -1, last_mor = -1, last_vd = -1, last_vr = -1;
 static float shown_vol, shown_pr, shown_sp, shown_cents;
 
+// ---- booked mode (B) ----
+static bool  booked = false;
+static int   b_id;                // the booking id of the sounding note (a slurred note takes the voice over)
+static bool  b_sounding;          // a booked note is (planned to be) sounding
+#define BLOOK 0.06                // how far ahead a stroke is booked (s)
+enum { SH_SWELL = 1, SH_FADE, SH_GROW, SH_DIG };
+static void define_shapes(void);
+static void stop_booked(void);
+
 // trace (pitch + level), like breathflute
 #define TR 300
 static float tr_pitch[TR], tr_vol[TR];
@@ -130,6 +145,14 @@ static void setup_sound(void) {
     instrument_filter(SCRATCH, FILTER_BAND, 2600, 2);
     instrument_reverb(SCRATCH, 0.2f);
     reverb(0.6f, 0.5f);
+    define_shapes();
+}
+
+static void define_shapes(void) {   // the bow's gestures, once; scaled and stretched per note
+    float t1[] = {0, 450, 1000}, v1[] = {-2.5f, 1.2f, -1.0f}; shape_define(SH_SWELL, 3, t1, v1, SHAPE_EASE); // messa di voce (gain dB)
+    float t2[] = {0, 550, 1000}, v2[] = {0, -1.0f, -7.0f};    shape_define(SH_FADE, 3, t2, v2, SHAPE_EASE);  // the last note fades
+    float t3[] = {0, 300},       v3[] = {-1.3f, 0};           shape_define(SH_GROW, 2, t3, v3, SHAPE_EASE);  // an up-bow grows in
+    float t4[] = {0, 70, 250},   v4[] = {0.16f, 0.05f, 0};    shape_define(SH_DIG, 3, t4, v4, SHAPE_EASE);   // a down-bow digs in (pressure)
 }
 
 static void phrase_of(int i, float *pos, int *lo, int *hi, int *peak) {
@@ -197,6 +220,10 @@ static void bow_change(int kind, int midi_now) {
     n_changes++;
     bow_dir = -bow_dir;
     stroke_t0 = t_now;
+    if (booked && human) {   // the engine turns the bow inside the booked note: no new note, nothing ridden
+        if (b_id) note_event_at(b_id, audio_time() + BLOOK, NEV_REARTIC, clamp(bc_depth * 1.2f, 0, 1));
+        return;
+    }
     if (kind == BC_RIDE_SCRATCH) {
         NoteOpts o = { .gain = clamp(0.25f + 0.5f * bc_depth, 0.04f, 1.0f) };
         schedule_note_at(audio_time() + 0.025, 84, SCRATCH, SCRATCH_VOL, 25, &o);
@@ -235,9 +262,40 @@ static void bc_shape(float *gmul, float *mor_add, float *pr_add) {
 }
 
 static void release_all(void) {
+    if (b_sounding || b_id) stop_booked();
     if (h) note_off(h);
     if (h_fade) note_off(h_fade);
     h = h_fade = 0;
+}
+
+// BOOKED (B): one note of the line as a booked note. glide_ms > 0 = it slides the sounding voice (a
+// slurred or connected note), reartic = the bow turns as it arrives (a connected note).
+static void book_note(int i, float dur, float dyn, int glide_ms, bool reartic, float vd, float vdel, float vr) {
+    const N *n = &TUNE[i];
+    float H = humanity;
+    bool B = layer[L_BOW];
+    double at = audio_time() + BLOOK;
+    bool more = !n->end && i + 1 < NT && TUNE[i + 1].art != 't';   // the bow stays on: overlap so the next note finds the key down
+    float hold = more ? dur + 0.12f : dur * 0.97f;
+    float spn = clamp((bow_speed - 0.10f) / 0.6f, 0, 1);
+    float loud = B ? clamp(0.22f + 0.25f * spn + 0.62f * dyn, 0, 1.2f) : 0.6f;
+    float pr = B ? 0.28f + 0.22f * dyn + 0.14f * (0.5f - bow_pos) * H : 0.42f;
+    if (B && bow_speed < bow_want) pr += (bow_want - bow_speed) * 0.5f * H;
+    float mor = B ? 0.30f + 0.50f * spn : 0.55f;
+    NoteOpts o = { .glide_ms = glide_ms,
+                   .gain = clamp((0.8f + 5.6f * loud) / 7.0f, 0.05f, 1.0f),
+                   .timbre = clamp(pr, 0.10f, 0.75f) - 0.42f, .morph = clamp(mor, 0, 1) - 0.55f };
+    int k = 0;
+    if (B && n->end)          o.shape[k++] = (NoteShape){ SH_FADE,  SHP_GAIN, H, dur };
+    else if (B && n->len >= 4) o.shape[k++] = (NoteShape){ SH_SWELL, SHP_GAIN, H, dur };
+    if (B && (n->art == 't' || reartic)) {   // a new stroke's attack: a down-bow digs in, an up-bow grows
+        if (bow_dir > 0) o.shape[k++] = (NoteShape){ SH_DIG, SHP_TIMB, H * (n->mark == '>' ? 1.8f : 1.0f), 1 };
+        else             o.shape[k++] = (NoteShape){ SH_GROW, SHP_GAIN, H, 1 };
+    }
+    if (vd > 0) o.vib = (NoteVib){ .cents = vd * 100.0f, .rate_hz = vr, .delay_ms = (int)(vdel * 1000), .fade_ms = 500, .wander = 0.4f };
+    b_id = schedule_note_at(at, n->midi, CELLO, 7, (int)(hold * 1000), &o);
+    if (reartic) note_event_at(b_id, at, NEV_REARTIC, clamp(bc_depth * 1.2f, 0, 1));
+    b_sounding = true;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -292,6 +350,35 @@ static void start_note(int i) {
         return;
     }
 
+    if (booked) {
+        // the same decisions as the held path, booked: a stroke, a slur, a connected bow change
+        bool slide = b_sounding && n->art != 't';
+        int ms = 0;
+        if (slide) {
+            ms = (shift && n->midi != prev) ? (int)((40 + 5 * abs(leap)) * (0.8f + 0.4f * rnd_float())) : 1;
+            if (ms > 90) ms = 90;
+            if (shift && T) dur += 0.03f * H;
+        }
+        bool reartic = false;
+        if (!slide) {
+            if (phrase_start && B) {
+                bow_dir = plan_phrase_dir(lo, hi);
+                bow_pos = bow_dir > 0 ? 0.04f + 0.04f * rnd_float() : 0.96f - 0.04f * rnd_float();
+            } else bow_dir = -bow_dir;
+            stroke_t0 = t_now;
+            plan_speed(stroke_len(i) * dur / (n->len * e8), dyn, next_stroke(i));
+        } else if (n->art == 'c') {
+            if (C) { b_id = 0; bow_change(BC_METHOD, prev); reartic = true; }   // the bookkeeping only (b_id 0 = no
+            else { bow_dir = -bow_dir; stroke_t0 = t_now; }                     // event there): it lands on the NEW note
+            plan_speed(stroke_len(i) * dur / (n->len * e8), dyn, next_stroke(i));
+        }
+        book_note(i, dur, dyn, ms, reartic, vib_depth, vib_delay, vib_rate);
+        n_start = t_now; n_len = dur; n_i = i; n_dyn = dyn; n_midi_f = n->midi;
+        t_next = t_now + dur;
+        if (n->end) { t_next += (B ? 0.35f + 0.1f * rnd_float() : 0) + e8; }
+        return;
+    }
+
     if (n->art == 't' || !h) {
         // a new stroke with an attack: at a phrase start the player sets the bow (planned direction)
         release_all();
@@ -329,8 +416,41 @@ static void start_note(int i) {
     if (n->end) t_next += (B ? 0.35f + 0.1f * rnd_float() : 0) + e8;   // the bow lifts, a breath
 }
 
+// booked (B): nothing is SENT per frame. The arm still tracks where the bow is (cart state), and when
+// it runs out inside a note the change is booked as an event on that note.
+static void ride_booked(void) {
+    if (!b_sounding) return;
+    if (t_now >= n_start + n_len) { if (TUNE[n_i].end) b_sounding = false; return; }
+    const N *n = &TUNE[n_i];
+    bool B = layer[L_BOW], C = layer[L_CHANGE];
+    float p = clamp((t_now - n_start) / fmaxf(n_len, 0.01f), 0, 1), sp = bow_speed;
+    if (B && n->len >= 4) sp *= 0.82f + 0.32f * sinf(3.14159f * powf(p, 0.85f)) * humanity;
+    bow_pos += bow_dir * sp * dt();
+    stroke_left -= dt();
+    if (bow_pos > 0.985f || bow_pos < 0.015f) {
+        bow_pos = clamp(bow_pos, 0.015f, 0.985f);
+        if (C && stroke_left < 0.4f) bow_speed = 0.10f;
+        else if (C) {
+            n_midchanges++;
+            bow_change(BC_METHOD, n->midi);          // books NEV_REARTIC on the sounding note
+            float rest = fmaxf(0.2f, n_start + n_len - t_now);
+            for (int k = n_i + 1; k < NT && TUNE[k].art == '_'; k++) rest += TUNE[k].len * eighth_s();
+            plan_speed(rest, n_dyn, next_stroke(n_i));
+        }
+    }
+    shown_sp = sp;
+}
+
+static void stop_booked(void) {   // take back what is booked, let the sounding note go
+    double a = audio_time();
+    unschedule(CELLO, a, 0);
+    if (b_id) note_event_at(b_id, a, NEV_RELEASE, 0);
+    b_sounding = false; b_id = 0;
+}
+
 // every frame: the bow travels, the curves shape the note
 static void ride(void) {
+    if (booked && human) { ride_booked(); return; }
     float H = humanity;
     if (h_fade && t_now - fade_t0 > 0.06f) { note_off(h_fade); h_fade = 0; }
     else if (h_fade) note_vol(h_fade, fmaxf(0, shown_vol * (1.0f - (t_now - fade_t0) / 0.06f)));
@@ -458,6 +578,9 @@ static void probe_mac(void) {
 
 void init(void) {
     setup_sound();
+#ifdef BOOKED        // DE_DEFINES=BOOKED: start booked (the step-5 A/B)
+    booked = true;
+#endif
     new_take();
 #ifdef PROBE_MAC
     instrument_vibrato(CELLO, 0.0f);
@@ -480,6 +603,7 @@ void update(void) {
 #endif
     if (keyp(KEY_SPACE)) { playing = !playing; if (!playing) release_all(); t_next = t_now + 0.2f; }
     if (keyp(KEY_TAB)) { human = !human; release_all(); }
+    if (keyp('B')) { release_all(); booked = !booked; t_next = t_now + 0.2f; }
     for (int i = 0; i < NLAYER; i++) if (keyp('1' + i)) layer[i] = !layer[i];
     if (keyp(KEY_UP))    humanity = fminf(1.5f, humanity + 0.25f);
     if (keyp(KEY_DOWN))  humanity = fmaxf(0.0f, humanity - 0.25f);
@@ -493,8 +617,9 @@ void update(void) {
         ride();
     }
 
-    tr_pitch[tr_pos] = h ? n_midi_f + (human ? (shown_cents / 100.0f) * sinf(t_now * 6.28f * vib_rate) : 0) : 0;
-    tr_vol[tr_pos] = h ? (human ? last_vol : 5) : 0;
+    bool snd = h || (booked && human && b_sounding);
+    tr_pitch[tr_pos] = snd ? n_midi_f + (human ? (shown_cents / 100.0f) * sinf(t_now * 6.28f * vib_rate) : 0) : 0;
+    tr_vol[tr_pos] = snd ? (human && !booked ? last_vol : 5) : 0;
     tr_bc[tr_pos] = (t_now - bc_t0) < dt() * 1.5f;
     tr_pos = (tr_pos + 1) % TR;
 #ifdef DE_TRACE
@@ -510,6 +635,7 @@ void draw(void) {
     cls(CLR_DARK_BLUE);
     print(human ? "BOW ARM" : "KEYBOARD", 4, 4, human ? CLR_GREEN : CLR_RED);
     print(str("%d bpm   take %d", tempo, seed), 112, 4, CLR_WHITE);
+    if (human) print(booked ? "B: booked" : "B: ridden", 4, 14, booked ? CLR_YELLOW : CLR_DARK_GREY);
     if (!playing) print("stopped", 260, 4, CLR_LIGHT_GREY);
 
     // pitch trace (cents x6) with the level as thickness; bow changes marked

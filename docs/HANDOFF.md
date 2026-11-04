@@ -47,16 +47,17 @@ a broken doc link or `#section`).
 > **▶ ACTIVE THREAD (2026-11-04) - HUMANIZED PLAYING + the NoteOpts build (booked notes that carry the player's expression).**
 > **Shipped (2026-11-04):** eleven spike carts (`strumhand`, `breathflute`, `reedhand`, `cellohand`, `basshand`,
 > `pianohand`, `tablahand`, `tablalab`, `drumhand`, `synthhand`, `mouthhand`); engine calls `instrument_vibrato`,
-> `MODE_BOW_PLUCK`, `instrument_analog`, `instrument_release_shape`; **NoteOpts steps 1-4**: per-note `cents` /
+> `MODE_BOW_PLUCK`, `instrument_analog`, `instrument_release_shape`; **NoteOpts steps 1-5**: per-note `cents` /
 > `cutoff_oct` / `damp` / `release_ms` / latched sample region, `.vib` (NoteVib), shapes (`shape_define` +
-> `NoteOpts.shape[]` + `origin_ms`), lanes (`lane_at`: DAMPER / CUTOFF / LEVEL / VIB). Nikki's verdicts: booked
+> `NoteOpts.shape[]` + `origin_ms`), lanes (`lane_at`: DAMPER / CUTOFF / LEVEL / VIB), events (`note_event_at`). Nikki's verdicts: booked
 > `breathflute` "sounds much better" (and in tune: riding PIPE's macros detunes it), `synthhand` analog "makes me
 > happy", `drumhand` "much better than before".
 > **Resume at:** [the order of work](design/humanized-playing.md#810-order-of-work-each-step-accepted-by-a-spike-re-done-booked).
-> Next, in order: (a) step 4 is DONE: `synthhand` L (the cutoff knob as `LANE_CUTOFF`, Nikki: "works great,
-> sounds good") and `drumhand` L (the foot's ease-down as `LANE_LEVEL`, waits for Nikki's ear);
-> (b) step 5, events inside a note (`note_event_at` on a booking id), which needs the bowed engine to re-arm its
-> onset on retrig and a bow speed that can reach zero and reverse ([the engine gaps](design/humanized-playing.md#72-engine-gaps-found-while-spiking-the-checklist));
+> Next, in order: (a) steps 4 and 5 are DONE: `synthhand` L (Nikki: "works great, sounds good"), `drumhand` L
+> (the hi-hat foot as `LANE_LEVEL`) and step 5, `note_event_at` + the bowed bow change, accepted on
+> `cellohand` B; drumhand L and cellohand B wait for Nikki's ear;
+> (b) open from step 5: whether booked cellohand still wants the rosin tick, and the other bowed gaps
+> ([the engine gaps](design/humanized-playing.md#72-engine-gaps-found-while-spiking-the-checklist));
 > (c) step 6, the choir on `INSTR_SING` with Playtime (the voice needs in §6.3; playtime-97's session has ended, so
 > brief whichever Playtime session picks it up). The how-to for any session: [humanizing-sounds](guides/humanizing-sounds.md).
 > **Hot files:** `runtime/sound.h` / `sound_ctx.h` are shared with the CR-78/drum-voicing agent (dreamengine-f4):

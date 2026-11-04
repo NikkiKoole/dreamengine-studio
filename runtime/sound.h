@@ -2144,6 +2144,7 @@ static bool sound_req_is_event(SoundReq r) {
         case SR_NOTE_POS: case SR_NOTE_MOTION: case SR_HIT_AT: case SR_NOTE_SYNC:
         case SR_NOTE_RETRIG: case SR_NOTE_GLIDE_SCALE: case SR_CART_SWITCH: case SR_NOTE_AT:
         case SR_LANE_AT: case SR_LANE:   // a lane point is a moment on the clock, like a booked note
+        case SR_NEV_AT: case SR_NEV:     // an event inside a booked note (step 5)
         case SR_UNSCHEDULE:      // takes back booked notes: a moment, not a setting
         case SR_STATE_RESTORE:   // must NOT be recorded: it replays the very log it would land in
             return true;
@@ -4590,6 +4591,7 @@ static void sound_bowed_start(Voice *v) {
     v->bw_vib_ph = v->bw_drift_ph = v->bw_drift = v->bw_noise_lp = 0.0f;
     v->bw_dc_prev = v->bw_dc_state = 0.0f;
     v->bw_attack = (int)(0.030f * (float)SOUND_SAMPLE_RATE);   // ~30ms bow-bite catch at onset
+    v->bw_dir = 1.0f; v->bw_bc = v->bw_bclen = 0;               // step 5: down-bow, no change in progress
     // ── body (§M2) — opt-in via MODE_BOW_BODY; amount 0 leaves the voice byte-identical to before ──
     // Claim the SLOT's shared box (bow_bodies[], sized by MODE_BOW_SIZE). Note this deliberately does
     // NOT clear it: the box is mid-ring from whatever else is held on this slot, and wiping it per
@@ -4635,6 +4637,17 @@ static inline float sound_bowed_sample(Voice *v, float pitch_mul) {
         velocity += velocity * 0.5f * (float)v->bw_attack / (0.030f * SR);
         v->bw_attack--;
     }
+    // BOW CHANGE (step 5, sound_bow_change): the bow SLOWS, STOPS and comes back the other way, so the
+    // velocity is SIGNED and passes through zero: the string is let go (it rings down on its own for those
+    // few ms) and re-caught going the other way, a Helmholtz motion of opposite polarity. The friction
+    // curve is odd in dv, so a reversed bow is the same physics mirrored. Outside a change bw_dir is
+    // exactly +1 or -1 (a note that never changes multiplies by 1.0f: byte-identical).
+    if (v->bw_bc > 0) {
+        float k = 1.0f - (float)v->bw_bc / (float)v->bw_bclen;   // 0 .. 1 through the change
+        velocity *= v->bw_dir * de_sin_turns(0.25f + 0.5f * k);  // cos(pi k): +dir -> 0 -> -dir
+        if (--v->bw_bc == 0) v->bw_dir = -v->bw_dir;
+        if (v->bw_bc == v->bw_bclen / 2) v->bw_attack = (int)(0.030f * SR);   // the re-catch bites as the bow turns
+    } else velocity *= v->bw_dir;
     // pitch tracking: read length scales by initfreq/curf (arp/glide/pitch-LFO all bend it)
     float curf = v->freq * pitch_mul * (1.0f + vib * 0.009f); if (curf < 20.0f) curf = 20.0f;
     float ratio = curf / (v->bw_initfreq > 20.0f ? v->bw_initfreq : 20.0f);
@@ -6668,6 +6681,14 @@ static void sound_begin_release(Voice *v) {
 // Level is continuous, so there is no discontinuity to hear. (a_samp == 0 means an instant attack:
 // the level steps UP to peak, same as the hardware, and an upward step at an onset is the intended
 // transient rather than a splice.)
+// A BOW CHANGE on a sounding bowed note (step 5): note_retrig and NEV_REARTIC. amount 0..1 = how long
+// the bow takes to turn: 0 a quick change (~25 ms), 1 a slow, audible one (~150 ms). Pizzicato has no bow.
+static void sound_bow_change(Voice *v, float amount) {
+    if (v->wave != INSTR_BOWED || !v->bw_on || v->bw_pizz || v->bw_bc > 0) return;
+    float a = amount < 0.0f ? 0.0f : (amount > 1.0f ? 1.0f : amount);
+    v->bw_bclen = v->bw_bc = (int)((0.025f + 0.125f * a) * (float)SOUND_SAMPLE_RATE);
+}
+
 static void sound_retrig_voice(Voice *v) {
     float lvl = sound_adsr_gated(v->step_samples, v->a_samp, v->d_samp, v->sustain);
     v->step_samples = (v->a_samp > 0) ? (int)(lvl * (float)v->a_samp) : 0;
@@ -6682,6 +6703,7 @@ static void sound_retrig_voice(Voice *v) {
     else if (v->wave == INSTR_REED)  v->rd_attack = REED_ONSET_SAMPLES;
     else if (v->wave == INSTR_BRASS) v->br_attack = BRASS_ONSET_SAMPLES;   // the tongued "tah"
     else if (v->wave == INSTR_ORGAN) sound_organ_arm_onset(v);             // key click + percussion chip
+    else if (v->wave == INSTR_BOWED) sound_bow_change(v, 0.3f);            // a bow change (step 5): the bow turns
 }
 
 // Is any OTHER voice on this slot still holding its key down? The Hammond percussion question (§L4).
@@ -6842,7 +6864,9 @@ static void emit_process(int b, float *mixL, float *mixR) {
 //        to the slot's own macro — an offset, not an absolute, so 0 (a zeroed NoteOpts) means "the slot's"
 #define ACC_N        6
 #define NOTE_EX_FLAG (1 << 20)
-typedef struct { int glide_ms; float accent, harm, timb, mor, gain; const NotePay *pay; int pay_slot; } NoteEx;
+typedef struct { int glide_ms; float accent, harm, timb, mor, gain; const NotePay *pay; int pay_slot; int booking; } NoteEx;
+// NoteOpts step 5: e0's bits 16-30 carry the note's BOOKING ID (1..32767, 0 = none), glide_ms its low 16
+// (60000 fits): what note_event_at() addresses. The voice copies it at note-on.
 // NoteOpts step 1 (humanized-playing.md §8.2): bit 19 of e1 says "this note carries a NotePay", bits
 // 10-18 its index: into the game-side ring (npay_ring) until the drain, into the pen-side slots
 // (npay_pen) after it. A note without the new fields never sets bit 19 and takes the old path exactly.
@@ -6860,7 +6884,9 @@ static inline float note_ex_unq10(int bits) {
 }
 static bool note_ex_unpack(const SoundReq *r, NoteEx *ex) {
     if (!(r->e1 & NOTE_EX_FLAG)) return false;
-    ex->glide_ms = r->e0 < 0 ? 0 : (r->e0 > 60000 ? 60000 : r->e0);
+    int gms = r->e0 & 0xFFFF;
+    ex->glide_ms = gms > 60000 ? 60000 : gms;
+    ex->booking  = (r->e0 >> 16) & 0x7FFF;
     ex->accent   = (float)(r->e1 & 0x3FF) / 1000.0f;             // 10 bits: accent is 0..1000
     int gq       = (r->e1 >> 21) & 0x3FF;
     ex->gain     = gq ? (float)gq / 1000.0f : 1.0f;              // 0 = unset = full
@@ -7027,6 +7053,7 @@ static void sound_setup_note_ex(Voice *v, int midi, int slot, int vol, int gate_
     v->vb_cents = 0.0f; v->vb_mul = 1.0f; v->vb_ph = v->vb_wph = 0.0f;
     v->sh_on = false;
     v->ped_acc = 0.0f;
+    v->booking = ex ? ex->booking : 0;                          // step 5: note_event_at() finds the note by it
     if (pay) shapes_take(v, pay, ms_samp(pay->origin_ms));      // NoteOpts step 3 (step_samples starts at 0)
     if (pay && pay->vib_cents > 0.0f) {          // NoteOpts step 2: this note's own vibrato
         v->vb_cents  = pay->vib_cents;
@@ -7264,6 +7291,7 @@ static void sound_legato_to(Voice *v, int midi, int vol, int gate, const NoteEx 
         v->vb_wander = ex->pay->vib_wander < 0.0f ? 0.0f : (ex->pay->vib_wander > 1.0f ? 1.0f : ex->pay->vib_wander);
     }
     v->gl_ms = ex->glide_ms;
+    if (ex->booking) v->booking = ex->booking;     // step 5: a slurred note's events reach the voice it slides
     sound_glide_start(v);
     float vv = (vol < 0 ? 0 : vol > 7 ? 7 : vol) / 7.0f * (1.0f + ex->accent * sound_accent_route(ins, ACC_VOL)) * ex->gain;
     v->vol_target  = vv < 0.0f ? 0.0f : (vv > 1.5f ? 1.5f : vv);
@@ -7457,6 +7485,26 @@ static void sound_fire_req(SoundReq r) {
         lane_len[s][l]  = ms_samp(r.e0 < 0 ? 0 : r.e0);
         lane_pos[s][l]  = 0;
         if (lane_len[s][l] <= 0) { lane_v[s][l] = lane_to[s][l]; lane_len[s][l] = 0; lane_cache(s); }
+    } break;
+    case SR_NEV_AT:    // never arrives here in practice (the drain turns it into an SR_NEV countdown)
+    case SR_NEV: {     // a=booking id, b=NEV_*, c=amount*1000 — an event inside a booked note (step 5)
+        if (r.a <= 0) break;
+        float amt = (float)r.c / 1000.0f;
+        for (int i = 0; i < SOUND_VOICES; i++) {
+            Voice *v = &voices[i];
+            if (!v->active || v->sfx_idx >= 0 || v->booking != r.a) continue;
+            if (r.b == NEV_REARTIC) {
+                if (v->wave == INSTR_BOWED) {   // the bow turns: the envelope stays, the physics re-catches
+                    sound_bow_change(v, amt);
+                } else sound_retrig_voice(v);
+            } else if (r.b == NEV_DAMP) {      // the note's ring dies at this rate from now (as NoteOpts.damp)
+                float d = amt < 0.0f ? 0.0f : (amt > 1.0f ? 1.0f : amt);
+                float tau = 3.0f * (1.0f - d) * (1.0f - d) + 0.02f;
+                v->dmp_mul = d > 0.0f ? de_expf(-1.0f / (tau * (float)SOUND_SAMPLE_RATE)) : 1.0f;
+            } else if (r.b == NEV_RELEASE) {   // key up now (decided after the booking)
+                if (v->step_samples < v->step_len_samples) sound_begin_release(v);
+            }
+        }
     } break;
     case SR_NOTE_AT:   // never arrives here in practice (the drain turns it into an SR_NOTE countdown); play it now if it does
     case SR_NOTE: {
@@ -8523,6 +8571,14 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
                 else di++;
             }
             continue;
+        }
+        if (r.kind == SR_NEV_AT) {    // note_event_at(): an ABSOLUTE target sample -> a countdown (step 5)
+            int now31 = (int)(atomic_load_explicit(&snd_sample_clock, memory_order_relaxed) & 0x7FFFFFFF);
+            long long d = (long long)r.delay_samples - now31;
+            if (d >  0x40000000LL) d -= 0x80000000LL;
+            if (d < -0x40000000LL) d += 0x80000000LL;
+            r.kind = SR_NEV;
+            r.delay_samples = d > 0 ? (int)d : 0;
         }
         if (r.kind == SR_LANE_AT) {   // lane_at(): an ABSOLUTE target sample -> a countdown, like schedule_at
             int now31 = (int)(atomic_load_explicit(&snd_sample_clock, memory_order_relaxed) & 0x7FFFFFFF);
@@ -10874,8 +10930,8 @@ void schedule_at(double t, int midi, int instr, int vol, int dur_ms) {
 // slot's instrument_accent routes or the engine default), and per-note MACRO OFFSETS. All of it travels
 // in the request (see NOTE_EX_FLAG) because a booked note reads its slot only when it STARTS. NULL opts
 // = exactly schedule_at — the same request, bit for bit, so it is safe to route every note through here.
-void schedule_note_at(double t, int midi, int instr, int vol, int dur_ms, const NoteOpts *opts) {
-    if (!opts) { schedule_at(t, midi, instr, vol, dur_ms); return; }
+int schedule_note_at(double t, int midi, int instr, int vol, int dur_ms, const NoteOpts *opts) {
+    if (!opts) { schedule_at(t, midi, instr, vol, dur_ms); return 0; }   // NULL = schedule_at exactly: no id
     long long target = (long long)(t * (double)SOUND_SAMPLE_RATE + 0.5);
     if (target < 0) target = 0;
     int dur = ms_samp(dur_ms);
@@ -10912,9 +10968,26 @@ void schedule_note_at(double t, int midi, int instr, int vol, int dur_ms, const 
         }
         e1 |= NPAY_FLAG | (k << NPAY_SHIFT);
     }
+    nev_next = nev_next % 32767 + 1;                       // step 5: the booking id, 1..32767 (wraps)
+    int id = nev_next;
     sound_push((SoundReq){ .kind = SR_NOTE_AT, .a = midi, .b = instr, .c = vol,
                            .delay_samples = (int)(target & 0x7FFFFFFF), .dur_samples = dur,
-                           .e0 = g, .e1 = e1, .e2 = e2 });
+                           .e0 = g | (id << 16), .e1 = e1, .e2 = e2 });
+    return id;
+}
+
+// EVENTS INSIDE A BOOKED NOTE (NoteOpts step 5): at t on the audio clock, do something to the note
+// schedule_note_at() returned `booking` for, while it sounds (a note already gone, or not yet started,
+// is left alone). NEV_REARTIC re-articulates without a new note: a BOWED note's bow turns (amount 0..1 =
+// how long it takes, 25..150 ms), the wind/organ engines re-arm their onset. NEV_DAMP: its ring dies at
+// this damp (0..1) from t. NEV_RELEASE: key up at t.
+void note_event_at(int booking, double t, int event, float amount) {
+    if (booking <= 0 || event < NEV_REARTIC || event > NEV_RELEASE) return;
+    long long target = (long long)(t * (double)SOUND_SAMPLE_RATE + 0.5);
+    if (target < 0) target = 0;
+    float a = amount < -10.0f ? -10.0f : (amount > 10.0f ? 10.0f : amount);
+    sound_push((SoundReq){ .kind = SR_NEV_AT, .a = booking, .b = event, .c = (int)(a * 1000.0f),
+                           .delay_samples = (int)(target & 0x7FFFFFFF) });
 }
 
 // unschedule(): take back a slot's BOOKED notes whose start falls in [t1, t2) on the audio clock (the same

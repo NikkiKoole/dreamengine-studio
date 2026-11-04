@@ -100,6 +100,11 @@ LANE_DAMPER, value, ramp_ms)`. Ramped in the engine (no frame stepping), followe
 notes alike. `LANE_DAMPER` is a real sustain pedal: released notes ring on while it is down, a half
 pedal slows their release (`pianohand` L).
 
+**Events inside a booked note: `note_event_at`.** `schedule_note_at` returns a booking id; hand it to
+`note_event_at(id, t, NEV_REARTIC / NEV_DAMP / NEV_RELEASE, amount)` to make something happen INSIDE the
+note later: a bow change on a bowed note (the bow slows, stops and turns; amount = how slowly), the onset
+again on the winds and organ, a hand muting it from t, the key coming up at t (`cellohand` B).
+
 ## 5. Techniques that work today
 
 - **Booked vs held.** Book notes (`schedule_note_at`, ~0.12 s lookahead on `audio_time()`) when timing

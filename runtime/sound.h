@@ -6504,9 +6504,16 @@ static inline float svf_step(Voice *v, float in, float cutoff_hz, bool nl_res) {
         if (f > fmax) f = fmax;
         if (f > 0.99f) f = 0.99f;
     }
+    // the HIGHPASS tap is the MEAN of the sub-steps, not the last one (2026-11-04, svf-hpavg). The input
+    // is held, so every tone has an image just under the old sample rate; a lowpass/bandpass kills it,
+    // but a highpass PASSES it, and keeping only the last sub-sample folds it straight back onto the
+    // tone: an INSTR_SQUARE at 786 Hz through HIGH 7000 kept its fundamental at -0.8 dB re its own
+    // harmonics (the TR-808 hats, measured against a real 808, sat at 0.8-4 kHz instead of 6-11).
+    // The mean is a boxcar decimator with a zero exactly at the old rate, so the image dies, the
+    // passband loses <1 dB below 10 kHz. LP/BP read flt_low/flt_band, not this value: byte-identical.
     float high = 0.0f;
-    for (int i = 0; i < n; i++) high = svf_tick(v, in, f, nl_res);
-    return high;
+    for (int i = 0; i < n; i++) high += svf_tick(v, in, f, nl_res);
+    return high / (float)n;
 }
 
 static inline float sound_svf(Voice *v, float in, float cutoff_hz) {

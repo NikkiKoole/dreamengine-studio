@@ -388,7 +388,7 @@ function verdict(cents) {
   const a = Math.abs(cents)
   return a > BAD_CENTS ? 'OUT OF TUNE' : a > WARN_CENTS ? 'off' : 'ok'
 }
-const mark = (v) => v === 'OUT OF TUNE' ? '✗' : v === 'off' ? '⚠' : v === 'no-pitch' ? '?' : '·'
+const mark = (v) => v === 'OUT OF TUNE' ? '✗' : v === 'off' ? '⚠' : v === 'no-pitch' ? '?' : v === MODAL_UNJUDGED ? '–' : '·'
 const octLabel = (o) => o === 0 ? '' : `  (${Math.abs(o)} oct ${o > 0 ? 'high' : 'low'})`
 
 function analyzeRender(wav, trace) {
@@ -447,7 +447,7 @@ function printResults(results, sr, title) {
     .sort((a, b) => Math.abs(b.cents) - Math.abs(a.cents))
   const bad = flagged.filter(r => !r.waived)
   const waived = flagged.filter(r => r.waived)
-  const transposed = results.filter(r => r.octaves !== 0)
+  const transposed = results.filter(r => r.octaves !== 0 && r.verdict !== MODAL_UNJUDGED)
   const paired = results.filter(r => r.stretchMeasured !== undefined)
   const intentBad = paired.filter(r => r.stretchBad)
   console.log()
@@ -490,9 +490,28 @@ function printResults(results, sr, title) {
   }
 }
 
+// MODAL'S PITCH IS JUDGED ON ITS OWN PASS, not on the sweep's default voice (2026-11-04). At the bank
+// default (all three macros 0.5) MODAL is a geometry halfway between string and bar (modes at 1, 2.39,
+// 4.2, 6.5 x) excited by BREATH NOISE, a sound with no clear period: YIN read A3/A5 an octave low and
+// A2/A4 as no pitch, so the gate sat red for months and everyone learned to read past it. A 1 Hz
+// spectrum of the same render puts the strongest energy exactly on the note and nothing at f/2, so it
+// was the DETECTOR. The sweep keeps that default voice (level-check measures its LOUDNESS from the same
+// render, and a struck string is ~15 dB hotter), its MODAL rows are printed but not judged, and the
+// verdict comes from this extra render: the string table (modes 1, 2, 3 ...) struck, read within 1.5 c.
+// It still tests the resonator TUNING, which every geometry shares (geometry only moves the ratios).
+const MODAL_ID = 31
+const MODAL_PITCH_PASS = { engine: 'MODAL', macros: [1 / 3, 0.5, 0], lo: 45, hi: 81, step: 12 }
+const MODAL_UNJUDGED = 'not judged'
+
 function run(opts) {
   const { wav, trace, dir } = opts.recipe ? renderRecipe(opts.recipe, opts.keep) : renderSweep(opts.keep)
   const { results, sr } = analyzeRender(wav, trace)
+  if (!opts.recipe) {
+    for (const r of results) if (r.engine === MODAL_ID) r.verdict = MODAL_UNJUDGED
+    const mp = renderRecipe(MODAL_PITCH_PASS, opts.keep)
+    for (const r of analyzeRender(mp.wav, mp.trace).results)
+      results.push({ ...r, engineName: 'MODAL string geometry, struck (its PITCH pass; the sweep row above is not judged)' })
+  }
   if (!opts.keep) fs.rmSync(dir, { recursive: true, force: true })
   if (!opts.recipe) for (const r of results) {
     const k = residualFor(r)

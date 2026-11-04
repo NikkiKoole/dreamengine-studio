@@ -671,8 +671,13 @@ Engine side this needs `sound_retrig_voice` to cover BOWED and a signed bow velo
    Acceptance: `pianohand` L = every note on ONE piano slot lasting as long as its KEY with its own
    `release_ms`, the planned pedal curve booked as `LANE_DAMPER` ramps (depth -> damper lift); the same
    loudness contour as the five-slot computed-gates version (-30.8 vs -31.4 dB rms), which itself still
-   renders byte-identical to the piano agent's original. Still open: `synthhand`'s knob as `LANE_CUTOFF`,
-   `drumhand`'s hi-hat pedal.
+   renders byte-identical to the piano agent's original. And `synthhand` L = the hand on the cutoff knob
+   as booked `LANE_CUTOFF` ramps (a copy of the same spring-hand planned 120 ms ahead, one 60 ms ramp
+   booked per step on every pad slot + the lead; each voice card's filter offset set ONCE at note-on, the
+   supply sag folded into the lane value) instead of `note_cutoff` on every held voice every frame. The
+   ridden path renders byte-identical to before; the booked sweep tracks it (centroid per 0.5 s within
+   a few %, the lane ~4% brighter at the top of the sweep, not yet explained). Still open: `drumhand`'s
+   hi-hat pedal.
 5. Note events. Acceptance: `cellohand`'s bow change booked, with BOWED retrig.
 6. With Playtime: the choir booked on `INSTR_SING` (shapes + origin + region), checked by playtime-97.
 

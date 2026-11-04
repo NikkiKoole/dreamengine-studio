@@ -16,7 +16,7 @@
   "description": {
     "summary": "An analog polysynth that is ALIVE: a hand rides the filter and the mod wheel, chords land a little apart, and the machine itself is imperfect: every voice slightly different, the oscillators drifting, the power sagging when the chord is big. TAB flips to the perfect digital version.",
     "detail": "Pad and lead on a saw-and-ladder-filter voice. The player: chords spread a few ms, velocity varies, notes overlap into the next chord; the left hand sweeps the cutoff slowly and unevenly through a phrase (overshooting a little), brings the mod-wheel vibrato in late on long lead notes, bends into some notes, and glides on some. The machine: eight VOICE CARDS, each with its own small tuning, cutoff and envelope offsets, handed out in rotation so the same note twice sounds twice; every card drifts slowly in pitch (more while the synth is 'cold' at the start); a big chord sags the level and the filter a touch. Keys 1-5 switch each layer on and off.",
-    "controls": "SPACE play/stop · TAB analog / digital · E engine instrument_analog / cart voice cards · 1 keys 2 knobs 3 cards 4 drift 5 sag · UP/DOWN humanity · R new take"
+    "controls": "SPACE play/stop · TAB analog / digital · E engine instrument_analog / cart voice cards · L knob as booked LANE_CUTOFF ramps / ridden per frame · 1 keys 2 knobs 3 cards 4 drift 5 sag · UP/DOWN humanity · R new take"
   }
 }
 de:meta */
@@ -26,6 +26,12 @@ de:meta */
 // out round-robin. Lead: one mono slot (18), held, ridden every frame. Everything live (note_on +
 // note_pitch / note_cutoff / note_vol / note_lfo), so the frame clock bounds the timing (fine for a
 // pad; the booked twin is the §6 need). The digital version: one slot, no offsets, no rides.
+//
+// L (NoteOpts step 4 acceptance): the hand on the cutoff knob as BOOKED LANE_CUTOFF ramps instead of
+// note_cutoff on every held voice every frame. A second copy of the hand runs LOOK seconds ahead on a
+// fixed step and books a ramp every KNOB_STEP; the engine walks it every 32 samples, so the sweep no
+// longer steps at 60 Hz. The lane multiplies each voice's own cutoff (2^octaves), so a voice card's
+// offset is set ONCE at its note-on and the sag folds into the lane value.
 
 #include "studio.h"
 #include <math.h>
@@ -80,8 +86,27 @@ static int   lead_midi;
 static float knob_cut = 900, knob_target = 900, knob_vel = 0;
 static float shown_cut, shown_sag;
 
+// lane mode (L): the same hand, planned ahead and booked
+#define LOOK      0.12f    // how far ahead the hand is planned (s): the sag folds in this late
+#define KNOB_STEP 0.06f    // one booked ramp per 60 ms: a hand's stroke, interpolated in the engine
+#define PAD_BASE  900.0f   // the pad slots' own filter (patch())
+#define LEAD_BASE 1800.0f  // the lead slot's own filter
+static bool  lane_mode = false;
+static float pk_cut = 900, pk_vel = 0, pk_t = 0, pk_next = 0;   // the planning hand
+
 static float r1(void) { return rnd_float() * 2.0f - 1.0f; }
 static float smooth01(float x) { x = clamp(x, 0, 1); return x * x * (3 - 2 * x); }
+
+// where the hand is heading at time t (the slow uneven sweep through a 4-bar phrase)
+static float knob_aim(float t, float bar) {
+    float phase = fmodf(t / (bar * 4), 1.0f);
+    return 500 + 1900 * smooth01(sinf(3.14159f * phase)) + 250 * (noise(t * 0.4f + seed) * 2 - 1) * humanity;
+}
+static void knob_step(float *cut, float *vel, float target, float h) {   // a hand: springy, a little overshoot
+    float k = 6.0f, d = 3.2f;
+    *vel += (target - *cut) * k * h - *vel * d * h;
+    *cut += *vel * h;
+}
 
 static void patch(int slot, int a, int d, int s7, int r, float detune) {
     instrument(slot, INSTR_SAW, a, d, s7, r);
@@ -118,6 +143,21 @@ static void new_take(void) {
     chord_i = 0; lead_i = 0; next_card = 0;
     t_chord = t_now + 0.3f; t_lead = t_chord;
     knob_cut = knob_target = 900;
+    pk_cut = 900; pk_vel = 0; pk_t = t_now; pk_next = t_now;
+}
+
+static void lanes_reset(void) {   // back to neutral: drop booked points, lanes to 0 octaves
+    double a = audio_time();
+    for (int s = CARD0; s <= ENGSL; s++) { unschedule(s, a, 0); lane_at(a, s, LANE_CUTOFF, 0, 0); }
+    pk_cut = knob_cut; pk_vel = knob_vel; pk_t = t_now; pk_next = t_now;
+}
+
+// book the planned hand on every pad slot + the lead (the lead's knob reads 1.8x, as in the ridden path)
+static void book_knob(double at, float cut, float sag, int ramp_ms) {
+    float pad  = log2f(fmaxf(cut * (1.0f - sag * 0.8f), 20.0f) / PAD_BASE);
+    float lead = log2f(fmaxf(cut * 1.8f, 20.0f) / LEAD_BASE);
+    for (int s = CARD0; s <= ENGSL; s++) lane_at(at, s, LANE_CUTOFF, pad, ramp_ms);
+    lane_at(at, LEAD, LANE_CUTOFF, lead, ramp_ms);
 }
 
 static void release_old(float keep_after) {
@@ -147,6 +187,11 @@ static void start_chord(int ci) {
         // loudness arriving at its own moment instead: lower notes land first
         pv[i].t_on = chord_t + (K ? (0.004f + 0.006f * k) * H + 0.003f * rnd_float() : 0);
         pv[i].t_rel = 0;
+        if (lane_mode) {   // the card's own filter offset, ONCE; the hand arrives through the lane
+            float cut = PAD_BASE;
+            if (pv[i].card >= 0) cut *= 1.0f + (card_cut[pv[i].card] - 1.0f) * H;
+            note_cutoff(pv[i].h, (int)cut);
+        }
     }
 }
 
@@ -179,6 +224,9 @@ void init(void) {
 #ifdef CART_CARDS   // DE_DEFINES=CART_CARDS: start on the cart's eight slots (the A/B)
     engine_cards = false;
 #endif
+#ifdef LANES        // DE_DEFINES=LANES: start with the knob booked as LANE_CUTOFF ramps (the step-4 A/B)
+    lane_mode = true;
+#endif
 #ifdef LAYERS_OFF    // DE_DEFINES=LAYERS_OFF=<bitmask>: start with layers off (bit 0 = keys .. bit 4 = sag), for A/B renders
     for (int i = 0; i < NLAYER; i++) if (LAYERS_OFF & (1 << i)) layer[i] = false;
 #endif
@@ -192,6 +240,7 @@ void update(void) {
     if (keyp(KEY_DOWN)) humanity = fmaxf(0.0f, humanity - 0.25f);
     if (keyp('R')) { seed++; release_old(1e9); setup_sound(); new_take(); }
     if (keyp('E')) { engine_cards = !engine_cards; release_old(1e9); }
+    if (keyp('L')) { lane_mode = !lane_mode; lanes_reset(); }
     {   // the engine's analog: on in ENGINE mode when the cards layer is on (set-and-hold, never per frame)
         float want = (engine_cards && human && layer[L_CARDS]) ? humanity : 0.0f;
         if (want != analog_applied) { instrument_analog(ENGSL, want); instrument_analog(LEAD, want * 0.6f); analog_applied = want; }
@@ -220,18 +269,30 @@ void update(void) {
     if (lead_h && t_now >= lead_end && !(lead_i < NLEAD && LEADL[lead_i].art == '_')) { note_off(lead_h); lead_h = 0; }
 
     // ---- the hand on the cutoff knob: a slow uneven sweep through the phrase, overshooting ----
-    float phase = fmodf(t_now / (bar * 4), 1.0f);
-    if (human && layer[L_KNOBS]) {
-        knob_target = 500 + 1900 * smooth01(sinf(3.14159f * phase)) + 250 * (noise(t_now * 0.4f + seed) * 2 - 1) * H;
-        float k = 6.0f, d = 3.2f;                         // a hand: springy, a little overshoot
-        knob_vel += (knob_target - knob_cut) * k * dt() - knob_vel * d * dt();
-        knob_cut += knob_vel * dt();
+    bool hand = human && layer[L_KNOBS];
+    if (hand) {
+        knob_target = knob_aim(t_now, bar);
+        knob_step(&knob_cut, &knob_vel, knob_target, dt());
     } else knob_cut = 1100;
 
     // ---- the machine: power sag on big chords ----
     int sounding = 0; for (int i = 0; i < NPV; i++) if (pv[i].h) sounding++;
     float sag = (human && layer[L_SAG]) ? fminf(1.0f, sounding / 10.0f) * 0.12f * H : 0;
     float warm = (human && layer[L_DRIFT]) ? 1.0f + 2.0f * expf(-t_now / 20.0f) : 1.0f;   // cold synth drifts more
+
+    if (lane_mode) {   // the planning hand, LOOK ahead on a fixed step, booked every KNOB_STEP
+        const float h = 1.0f / 240.0f;
+        double a_now = audio_time();
+        int ramp = (int)(KNOB_STEP * 1000.0f + 0.5f);
+        while (pk_t < t_now + LOOK) {
+            pk_t += h;
+            if (hand) knob_step(&pk_cut, &pk_vel, knob_aim(pk_t, bar), h); else { pk_cut = 1100; pk_vel = 0; }
+            if (pk_t >= pk_next) {
+                book_knob(a_now + (pk_t - t_now), pk_cut, sag, ramp);
+                pk_next += KNOB_STEP;
+            }
+        }
+    }
 
     for (int i = 0; i < NPV; i++) {
         if (!pv[i].h) continue;
@@ -247,7 +308,7 @@ void update(void) {
         if (human && layer[L_KEYS]) lvl *= smooth01((t_now - pv[i].t_on) / 0.012f + 0.4f);
         lvl *= 1.0f - sag; cut *= 1.0f - sag * 0.8f;
         note_pitch(pv[i].h, pv[i].midi + cents / 100.0f);
-        note_cutoff(pv[i].h, (int)cut);
+        if (!lane_mode) note_cutoff(pv[i].h, (int)cut);   // lane mode: the lane carries the hand + the sag
         note_vol(pv[i].h, clamp(lvl, 0, 7));
     }
     if (lead_h) {
@@ -256,7 +317,7 @@ void update(void) {
         if (lead_bend0 != 0) p += lead_bend0 * expf(-a / 0.07f);
         if (human && layer[L_DRIFT]) p += 0.03f * warm * (noise(t_now * 0.2f + 50) * 2 - 1) * H;
         note_pitch(lead_h, p);
-        note_cutoff(lead_h, (int)(knob_cut * 1.8f));
+        if (!lane_mode) note_cutoff(lead_h, (int)(knob_cut * 1.8f));
         // the mod wheel: vibrato pushed in late on long notes
         note_lfo(lead_h, 0, LFO_PITCH, 5.6f, lead_vib * smooth01((a - 0.35f) / 0.5f));
     }
@@ -298,6 +359,7 @@ void draw(void) {
     circ(kx, ky, 18, CLR_LIGHT_GREY);
     line(kx, ky, kx + (int)(cos_deg(ang) * 16), ky + (int)(sin_deg(ang) * 16), CLR_YELLOW);
     print(str("cutoff %4.0f", shown_cut), 90, 120, CLR_WHITE);
+    print(lane_mode ? "L: booked LANE_CUTOFF ramps" : "L: note_cutoff every frame", 90, 136, lane_mode ? CLR_YELLOW : CLR_LIGHT_GREY);
     if (shown_sag > 0.02f) print(str("sag %.0f%%", shown_sag * 100), 200, 120, CLR_ORANGE);
     int y2 = 176, lx = 4;
     for (int i = 0; i < NLAYER; i++) {

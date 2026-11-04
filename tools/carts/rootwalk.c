@@ -616,8 +616,8 @@ static const RoleMap RMAP[DP_NROLES] = {
 static const float KIT_LVL[2][DK_N] = {
     { [DK_KICK] = 1.00f, [DK_SNARE] = 1.00f, [DK_HHC] = 0.050f, [DK_HHO] = 0.060f,
       [DK_CLAP] = 1.00f, [DK_TOM_LO] = 0.55f, [DK_TOM_HI] = 0.55f, [DK_CRASH] = 0.200f },
-    { [DK_KICK] = 0.60f, [DK_SNARE] = 0.60f, [DK_HHC] = 0.60f, [DK_HHO] = 0.60f,
-      [DK_CLAP] = 0.50f, [DK_TOM_LO] = 0.60f, [DK_TOM_HI] = 0.60f, [DK_CRASH] = 0.60f },
+    { [DK_KICK] = 0.75f, [DK_SNARE] = 0.75f, [DK_HHC] = 0.75f, [DK_HHO] = 0.75f,
+      [DK_CLAP] = 0.40f, [DK_TOM_LO] = 0.75f, [DK_TOM_HI] = 0.75f, [DK_CRASH] = 0.75f },
 };
 static const int KIT_BASE[2] = { KIT_BASE_E, KIT_BASE_A };
 static const DrumKitDef *const KIT_DEF[2] = { &DK_ELECTRO, &DK_ACOUSTIC };

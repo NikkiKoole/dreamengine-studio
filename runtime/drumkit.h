@@ -154,10 +154,15 @@ static const DrumKitDef DK_ELECTRO = { "ELECTRO", dk_build_electro, 0 };
 static void dk_build_acoustic(int b) {
     instrument(b + DK_KICK, INSTR_MEMBRANE, 0, 0, 7, 70);
     instrument_harmonics(b + DK_KICK, 0.80f); instrument_timbre(b + DK_KICK, 0.12f); instrument_morph(b + DK_KICK, 0.30f);
-    instrument_filter(b + DK_KICK, FILTER_LOW, 6000, 1);
+    // A HIGHPASS under every drum (2026-11-04): a struck membrane rings around zero, but a voice
+    // switched on and left to decay leaves a DC THUD under the hit (measured 3-26 dB more energy
+    // below each drum's note than the real kit; the TR-77 taught it, tuning-drum-voices.md). The
+    // kick's old LOWPASS 6000 did nothing a membrane kick needed, so the slot's filter went here.
+    instrument_filter(b + DK_KICK, FILTER_HIGH, 28, 1);
 
     instrument(b + DK_SNARE, INSTR_MEMBRANE, 0, 0, 7, 60);            // the head
     instrument_harmonics(b + DK_SNARE, 0.70f); instrument_timbre(b + DK_SNARE, 0.15f); instrument_morph(b + DK_SNARE, 0.10f);
+    instrument_filter(b + DK_SNARE, FILTER_HIGH, 100, 1);        // no DC thud (see the kick)
     instrument(b + DK_L_WIRES, INSTR_NOISE, 0, 170, 0, 50);            // the wires
     instrument_filter(b + DK_L_WIRES, FILTER_LOW, 7000, 2);
     instrument_accent(b + DK_L_WIRES, ACC_CUTOFF, 1.0f);
@@ -179,8 +184,10 @@ static void dk_build_acoustic(int b) {
 
     instrument(b + DK_TOM_LO, INSTR_MEMBRANE, 0, 0, 7, 80);
     instrument_harmonics(b + DK_TOM_LO, 0.30f); instrument_timbre(b + DK_TOM_LO, 0.50f); instrument_morph(b + DK_TOM_LO, 0.15f);
+    instrument_filter(b + DK_TOM_LO, FILTER_HIGH, 45, 1);        // an octave under the note
     instrument(b + DK_TOM_HI, INSTR_MEMBRANE, 0, 0, 7, 60);
     instrument_harmonics(b + DK_TOM_HI, 0.30f); instrument_timbre(b + DK_TOM_HI, 0.55f); instrument_morph(b + DK_TOM_HI, 0.15f);
+    instrument_filter(b + DK_TOM_HI, FILTER_HIGH, 65, 1);
 
     instrument(b + DK_CRASH, INSTR_METAL, 0, 0, 7, 400);
     instrument_harmonics(b + DK_CRASH, 0.55f); instrument_timbre(b + DK_CRASH, 0.30f); instrument_morph(b + DK_CRASH, 0.30f);
@@ -196,30 +203,38 @@ static void dk_note_(double t, int midi, int slot, int vel, int gate, float gain
 static void dk_fire_acoustic(int b, double t, int role, int midi, int vel) {
     int tr = midi ? midi - DK_GM_ANCHOR[role] : 0;                     // a GM note transposes the drum
     switch (role) {
-    case DK_KICK:   // 54 Hz + the 118 Hz mode + the beater's slap
-        dk_note_(t, 31 + tr, b + DK_KICK, vel, 150, 0.90f, -0.06f, 0, 0, 0, 0);
-        dk_note_(t, 44 + tr, b + DK_KICK, vel,  80, 0.68f, 0, 0, 0, 0, 0);
-        dk_note_(t, 72 + tr, b + DK_KICK, vel,  10, 0.23f, 0.85f, 0.2f, -0.3f, 0, 0);
+    case DK_KICK:   // a short bent attack + the 118 Hz mode + the beater's slap, over a long 40 Hz BOOM
+        // The real kick is two things (re-measured 2026-11-04): an attack that starts near 90 Hz and
+        // drops to ~58 within 30 ms (the membrane BEND, morph 0.5), then a deep boom at ~40 Hz that
+        // carries most of its energy (its spectrum PEAKS at 40 Hz) and is still ringing at -29 dB
+        // after 400 ms. The boom is its own note, with a harmonics offset of -0.40 for a longer
+        // membrane ring (t60 ~1 s against the slot's 0.6). Not reached: the real kick is BROADBAND
+        // from 90 to 350 Hz (head + shell + room, 11-23 dB over ours); membrane notes only add
+        // peaks there, a noise thump would need a slot of its own.
+        dk_note_(t, 31 + tr, b + DK_KICK, vel, 60, 0.57f, -0.06f, 0, 0.5f, 0, 0);
+        dk_note_(t, 44 + tr, b + DK_KICK, vel,  80, 0.65f, 0, 0, 0, 0, 0);
+        dk_note_(t, 72 + tr, b + DK_KICK, vel,  10, 0.15f, 0.85f, 0.2f, -0.3f, 0, 0);
+        dk_note_(t, 27 + tr, b + DK_KICK, vel, 900, 0.40f, 0.0f, -0.40f, 0, 0, 0);
         break;
     case DK_SNARE:  // head + wires
-        dk_note_(t, 55 + tr, b + DK_SNARE,   vel, 55, 0.38f, -0.03f, 0, 0, 0, 0);
-        dk_note_(t, 60,      b + DK_L_WIRES, vel, 55, 0.06f, 0, 0, 0, 0, 0.25f);
+        dk_note_(t, 55 + tr, b + DK_SNARE,   vel, 55, 0.36f, -0.03f, 0, 0, 0, 0);
+        dk_note_(t, 60,      b + DK_L_WIRES, vel, 55, 0.057f, 0, 0, 0, 0, 0.25f);
         break;
     case DK_HHC:    // the tip, closed: -20 dB in ~75 ms
-        dk_note_(t, 81 + tr, b + DK_HHC, vel, 40, 0.037f, -0.03f, 0, 0, 0.92f, 0);
+        dk_note_(t, 81 + tr, b + DK_HHC, vel, 40, 0.028f, -0.03f, 0, 0, 0.92f, 0);
         break;
     case DK_HHO:    // the tip, open
-        dk_note_(t, 77 + tr, b + DK_HHO, vel, 1400, 0.052f, -0.25f, 0, 0, 0.46f, 0);
+        dk_note_(t, 77 + tr, b + DK_HHO, vel, 1400, 0.039f, -0.25f, 0, 0, 0.46f, 0);
         break;
     case DK_TOM_LO: case DK_TOM_HI: {   // fundamental + the strong mode ~2.1x up
         bool hi = role == DK_TOM_HI;
         int n = (hi ? 47 : 40) + tr;
-        dk_note_(t, n,      b + role, vel, hi ? 120 : 80, hi ? 1.0f : 0.7f, 0, 0, 0, 0, 0);
-        dk_note_(t, n + 13, b + role, vel, hi ? 70 : 70,   hi ? 0.65f : 0.75f, 0, 0, 0, 0, 0);
+        dk_note_(t, n,      b + role, vel, hi ? 120 : 80, hi ? 0.95f : 0.63f, 0, 0, 0, 0, 0);
+        dk_note_(t, n + 13, b + role, vel, hi ? 70 : 70,   hi ? 0.62f : 0.68f, 0, 0, 0, 0, 0);
         break;
     }
     case DK_CRASH:
-        dk_note_(t, 96 + tr, b + DK_CRASH, vel, 2600, 0.06f, 0, 0, 0, 0, 0);
+        dk_note_(t, 96 + tr, b + DK_CRASH, vel, 2600, 0.042f, 0, 0, 0, 0, 0);
         break;
     default:
         schedule_at(t, midi ? midi : DK_ROLE_MIDI[role], b + role, vel, DK_ROLE_DUR[role]);

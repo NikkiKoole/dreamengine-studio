@@ -32,10 +32,11 @@ static const float LVL[2][DK_N] = {
         [DK_CLAP] = 1.00f, [DK_TOM_LO] = 0.55f, [DK_TOM_HI] = 0.55f, [DK_CRASH] = 0.200f,
     },
     {   // ACOUSTIC: since 2026-11-04 the kit carries a real kit's balance itself (drumkit.h), so
-        // this is one overall volume, -4.4 dB to keep the kick where it sat (the clap is not from
-        // that kit and keeps its old trim)
-        [DK_KICK] = 0.60f, [DK_SNARE] = 0.60f, [DK_HHC] = 0.60f, [DK_HHO] = 0.60f,
-        [DK_CLAP] = 0.50f, [DK_TOM_LO] = 0.60f, [DK_TOM_HI] = 0.60f, [DK_CRASH] = 0.60f,
+        // this is one overall volume, -2.5 dB to keep the kick where it sat (the clap is not from
+        // that kit; it keeps its old absolute level. The kick lost 2.5 dB of peak when its DC
+        // thud was taken out, hence 0.75 where it was 0.60)
+        [DK_KICK] = 0.75f, [DK_SNARE] = 0.75f, [DK_HHC] = 0.75f, [DK_HHO] = 0.75f,
+        [DK_CLAP] = 0.40f, [DK_TOM_LO] = 0.75f, [DK_TOM_HI] = 0.75f, [DK_CRASH] = 0.75f,
     },};
 // the pitch and velocity each drumpat role fires with in groovebook
 typedef struct { const char *lane; int role, midi, vel; } Shot;

@@ -686,7 +686,8 @@ drafted, §8.10 step 5; `amount` on a BOWED `NEV_REARTIC` is how slowly the bow 
    ramp in dB vs the old smoothstep in amplitude). **Not `LANE_DAMPER`, as §8 proposed:** on a hat the
    foot SHORTENS a ring (the damper lane lengthens a released one), and the closing is already the chick's
    choke. The pedal's OPENNESS stays per note (read at booking into gate + damp + sizzle), which is right:
-   a stroke samples the foot, it does not follow it. Step 4's acceptance tests are all done.
+   a stroke samples the foot, it does not follow it. **Nikki: "drumhand better too."** Step 4's acceptance
+   tests are all done.
 5. **BUILT (2026-11-04):** `schedule_note_at` RETURNS a booking id (1..32767, in `e0`'s bits 16-30, so
    the request struct and every saved session blob keep their size; NULL opts still = `schedule_at`,
    returns 0), copied into the voice at note-on and taken over by a note that slides it (legato).

@@ -1343,6 +1343,8 @@ music cart, **imagine the ideal band from the genre BEFORE reading any existing 
 **Keep the recipe docs current when you ship** (a rule): radio → `radio-voices.md` +
 `instrument-presets.md`; other music carts → `instrument-recipes.md`; engine effects →
 `effects-recipes.md` (+ §17 ledger in `audio-notes.md` for new effect functions).
+**Sounds like a keyboard / sequencer / cheap synth?** [`docs/guides/humanizing-sounds.md`](docs/guides/humanizing-sounds.md):
+the player-model pattern, `instrument_vibrato` / `instrument_analog` / `MODE_BOW_PLUCK`, ten template carts, measuring against CC0 recordings.
 
 **Adding a cart** (full walkthrough: [`docs/guides/cart-authoring.md`](docs/guides/cart-authoring.md)):
 

@@ -6,6 +6,8 @@
 > that one shape fits every instrument and the sampled voices. Built since: a reed and an upright bass; next: cello (arco), piano with pedal, drum kit (§7.1).
 > Written together with Playtime's choir spike (playtime `docs/CHOIR.md`, commit f876a6b3).
 
+**The how-to for using all this:** [`guides/humanizing-sounds.md`](../guides/humanizing-sounds.md).
+
 Related: [`audio-timing.md`](audio-timing.md) (booking notes on the audio clock, which every spike here
 relies on), [`instrument-engines.md`](instrument-engines.md) (the engines being played),
 [`dreamengine-playtime-convergence.md`](dreamengine-playtime-convergence.md) (why Playtime matters here).
@@ -300,6 +302,10 @@ INSTRUMENT.
   is hard to hear on its own "but it feels nicer on too" (below the threshold of noticing, felt as
   aliveness). So the machine half is worth an engine feature: `instrument_analog(slot, amount)` with
   per-voice offsets as the main ingredient and a small drift folded in, not a separate call.
+- **Built: `instrument_analog`** (`84ebf1ba`, 2026-11-04): 8 voice cards round-robin at note-on, offsets
+  hashed from (slot, card) and scaled by amount (tune +-7 cents, cutoff +-10%, envelope speed +-15%,
+  level +-0.7 dB at 1), drift +-3 cents refreshed every 64 samples. 0 = byte-identical. The same note 8
+  times at 1: pitch -5..+4 cents, level +-0.6 dB, centroid 584-649 Hz.
 
 ## 7. Next
 

@@ -477,8 +477,8 @@ static void voice_kit(const Plan *P) {
     morph_ride(&kit);
     // (kit levels: set by the style MIX block at the end of voice_track — after the ride, which resets the hats)
     // the percussion slots every style shares a shape of
-    inst(I_RIM, INSTR_MODAL, 0, 0, 7, 30, 0.55f, 0.70f, 0.04f);
-    instrument_level(I_RIM, 0.28f); instrument_filter(I_RIM, FILTER_HIGH, 300, 0); instrument_reverb(I_RIM, 0.30f); instrument_pan(I_RIM, -0.15f);
+    inst(I_RIM, INSTR_MODAL, 0, 0, 7, 30, 0.55f, 0.70f, 0.04f);   // levels on MODAL slots re-set 2026-11-04 (engine level laws), each measured to sound as before
+    instrument_level(I_RIM, 0.64f); instrument_filter(I_RIM, FILTER_HIGH, 300, 0); instrument_reverb(I_RIM, 0.30f); instrument_pan(I_RIM, -0.15f);
     inst(I_SHAKER, INSTR_NOISE, 4, 40, 0, 20, 0.5f, 0.5f, 0.5f);
     instrument_filter(I_SHAKER, FILTER_HIGH, is(P, S_SYNTH) ? (int)kv(P, "drums.perc.shaker.hp") : 5200, 1);
     instrument_level(I_SHAKER, 0.35f); instrument_pan(I_SHAKER, 0.3f);
@@ -504,10 +504,10 @@ static void voice_kit(const Plan *P) {
         instrument_filter(I_BLOCK, FILTER_HIGH, 6500, 0); instrument_level(I_BLOCK, 0.28f); instrument_pan(I_BLOCK, 0.3f);
     } else {                           // a woodblock
         inst(I_BLOCK, INSTR_MODAL, 0, 0, 7, 30, 0.62f, 0.75f, 0.04f);
-        instrument_level(I_BLOCK, 0.28f); instrument_pan(I_BLOCK, 0.15f);
+        instrument_level(I_BLOCK, 0.52f); instrument_pan(I_BLOCK, 0.15f);
     }
     if (is(P, S_BOSSA)) { // the clave (rimF) + the surdo
-        inst(I_RIM, INSTR_MODAL, 0, 0, 7, 25, 0.62f, 0.55f, 0.04f); instrument_level(I_RIM, 0.30f); instrument_pan(I_RIM, -0.18f);
+        inst(I_RIM, INSTR_MODAL, 0, 0, 7, 25, 0.62f, 0.55f, 0.04f); instrument_level(I_RIM, 0.36f); instrument_pan(I_RIM, -0.18f);
         inst(I_TOM, INSTR_MEMBRANE, 0, 0, 7, 120, 0.1f, 0.15f, 0.35f); instrument_level(I_TOM, 0.55f);
     }
     if (is(P, S_MEDIEVAL)) { // the frame drum: doum (centre) on the tom slot, the slap on the clap slot

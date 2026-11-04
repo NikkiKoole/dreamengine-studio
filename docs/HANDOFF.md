@@ -55,7 +55,7 @@ a broken doc link or `#section`).
 > **Resume at:** [the order of work](design/humanized-playing.md#810-order-of-work-each-step-accepted-by-a-spike-re-done-booked).
 > Next, in order: (a) steps 4 and 5 are DONE: `synthhand` L (Nikki: "works great, sounds good"), `drumhand` L
 > (the hi-hat foot as `LANE_LEVEL`) and step 5, `note_event_at` + the bowed bow change, accepted on
-> `cellohand` B; drumhand L and cellohand B wait for Nikki's ear;
+> `cellohand` B (Nikki: "I like the booked cello"); drumhand L waits for Nikki's ear;
 > (b) open from step 5: whether booked cellohand still wants the rosin tick, and the other bowed gaps
 > ([the engine gaps](design/humanized-playing.md#72-engine-gaps-found-while-spiking-the-checklist));
 > (c) step 6, the choir on `INSTR_SING` with Playtime (the voice needs in §6.3; playtime-97's session has ended, so

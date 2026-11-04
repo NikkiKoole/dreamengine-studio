@@ -706,7 +706,8 @@ drafted, §8.10 step 5; `amount` on a BOWED `NEV_REARTIC` is how slowly the bow 
    dynamics / swell / dig-in / up-bow growth as shapes, the vibrato as `.vib`; nothing ridden per
    frame (the arm only TRACKS the bow). Against the held-and-ridden take: level contour corr 0.97 over
    1.5 s windows, means 0.7 dB apart; the changes add no clicks above the string's own background.
-   Not done: the rosin tick on a second slot (the engine's catch replaces it; untested by ear).
+   **Nikki: "I like the booked cello."** Not done: the rosin tick on a second slot (the engine's catch
+   replaces it).
 6. With Playtime: the choir booked on `INSTR_SING` (shapes + origin + region), checked by playtime-97.
 
 ### 8.11 Open questions

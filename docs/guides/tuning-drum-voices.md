@@ -32,6 +32,8 @@ listen, repeat.** The numbers find the fault; the ear decides whether it is fixe
 | Symptom by ear | What was measured | Fix |
 |---|---|---|
 | hiss, harsh, "hard to listen to" | energy up to 15-20 kHz (a real cymbal or hat stops at ~11-14) | **low-pass** the METAL bank (its bright noise lives at 15-20 kHz); a high-pass keeps exactly that. For noise voices use a **resonant** band (a 2-pole band's 6 dB/oct skirt runs on to 20 kHz), centred ~0.75x the real median |
+| a dark ride "in a certain pitch", "tones to it" (drumhand, 2026-11-05) | flatness 0.01: the energy in a dozen square modes, whatever their tuning | a cymbal is a **struck resonator**, not a chord: a short noise stroke sent fully into a private reverb tank (`reverb_bus` + `instrument_reverb_bus(slot, tank, 1)` + `reverb_bus_fx(FX_EQ)` to colour the tail). The tank's dense modes are the wash; nothing has a pitch |
+| "too much hiss" in the groove though one hit matched | the level drops 6.5 dB between strokes, the real ride 10: the tails PILE UP into a bed | measure the **groove stem** (`--solo-slot`), not one hit: octave bands + the dip between strokes. A fast-dropping stroke with a quiet tail, not a swell |
 | a pitched ring / a chord in a hat | flatness ~0.02, peaks at single harmonics of one square | hats as **noise** (the real 808 mixes six oscillators into a dense hiss, not two) |
 | "a locomotive", a drone on eighth notes | the ride stem louder than the kick, pulsing | **one physical cymbal = one voice** (`instrument_mono`); and a ride needs a bright shimmer layer, not only a low body |
 | "woodblock" | a rim that rings a pitched tone for 10+ ms | a rim is a **click**: one swing and a damped ring, gone in ~5 ms |

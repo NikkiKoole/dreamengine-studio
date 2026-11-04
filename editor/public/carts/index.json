@@ -7617,6 +7617,21 @@
     "lineage": "The external-clock self-test cart, the sync.h twin of soundcheck: it shows and sounds whatever clock is driving the engine (MIDI clock from a DAW or hardware today; an AUv3 host or Ableton Link later) so 'is the clock reaching us, and is my step counter locked to it' is one look and one listen instead of a guess."
   },
   {
+    "title": "synthhand",
+    "description": "An analog polysynth that is ALIVE: a hand rides the filter and the mod wheel, chords land a little apart, and the machine itself is imperfect: every voice slightly different, the oscillators drifting, the power sagging when the chord is big. TAB flips to the perfect digital version. Pad and lead on a saw-and-ladder-filter voice. The player: chords spread a few ms, velocity varies, notes overlap into the next chord; the left hand sweeps the cutoff slowly and unevenly through a phrase (overshooting a little), brings the mod-wheel vibrato in late on long lead notes, bends into some notes, and glides on some. The machine: eight VOICE CARDS, each with its own small tuning, cutoff and envelope offsets, handed out in rotation so the same note twice sounds twice; every card drifts slowly in pitch (more while the synth is 'cold' at the start); a big chord sags the level and the filter a touch. Keys 1-5 switch each layer on and off. SPACE play/stop · TAB analog / digital · 1 keys 2 knobs 3 cards 4 drift 5 sag · UP/DOWN humanity · R new take",
+    "file": "synthhand.cart.png",
+    "created": "2026-11-04",
+    "kind": [
+      "instrument",
+      "tech-demo"
+    ],
+    "teaches": [
+      "subtractive-synth",
+      "analog-voice-modeling"
+    ],
+    "lineage": "The tenth humanized-playing spike (docs/design/humanized-playing.md), the first where the INSTRUMENT is imperfect and not only the player: a Prophet-style analog polysynth pad and a mono lead. Two halves: the player (keys, and a hand on the cutoff knob, the mod wheel and the pitch bend) and the machine (every voice slightly different like an Oberheim/Prophet voice card, oscillators drifting, the supply sagging on big chords). The voice cards are faked cart-side by rotating notes through eight slots with their own offsets: the evidence for or against an engine 'analog' amount."
+  },
+  {
     "title": "tabla",
     "description": "INSTR_MEMBRANE showcase - the seventh modeled ENGINE: a struck drumhead. Six decaying sine modes at a circular membrane's vibration ratios plus a slap contact click, buffer-free. One id covers tabla / conga / bongo / djembe / tom - hand percussion the analog 808/909 recipes structurally can't reach, because it's REAL membrane modes plus a pitch bend, not one sine plus a pitch envelope. The three engine macros: instrument_harmonics = head character (0 = tuned harmonic tabla, pitched and longer-ringing; 1 = inharmonic djembe/conga thud), instrument_timbre = strike position (0 = center thump; 1 = edge ring plus slap click - open/slap/mute in one knob, navkit's live circular-membrane weighting), instrument_morph = pitch bend (0 = flat; up = the membrane chirp / tabla bayan gliss - pitch starts raised off the strike and settles, bending all six modes together). A struck engine self-decays, so it has no ADSR (unlike fm/pd, which hold); the cart's fourth slider is instead a cart-side RING control (mute to open) - the hit() gate length, a tight palm-damped thwack to a stroke left to ring out, which is how hand percussion is actually played. The drumhead on the left shows the syahi tuning patch on the tabla side, a marker for where timbre strikes (center to edge), and ripples on every hit; the panel prints the exact instrument() call to copy into your cart. Five presets (1 tabla, 2 conga, 3 bongo, 4 djembe, 5 tom). A S D F G H J K strike a tuned low ladder, Z/X tune, 1..5 kits, drag a slider (or LEFT/RIGHT + UP/DOWN), SPACE roll, M autoplay groove on/off. Multitouch: drum with several fingers, sweep the pads for a roll.",
     "file": "tabla.cart.png",

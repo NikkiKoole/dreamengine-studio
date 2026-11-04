@@ -47,6 +47,7 @@ Every spike, and Playtime's choir independently, landed on the same three ideas:
 | `cellohand` | arco cello, held `INSTR_BOWED` | a BOW ARM (position, direction, planned speed, mid-note changes), bow pressure/speed curves, shifts, late vibrato | none | not judged yet |
 | `pianohand` | piano, booked `INSTR_PIANO` | a sustain PEDAL computed by the cart (legato re-pedalling, half pedal, a slow lift), note endings via 5 release slots, melody lead, chord spread | none | not judged yet |
 | `drumhand` | acoustic kit, booked | a drummer with LIMBS, a technique per stroke (centre/edge/rimshot/cross-stick/ghost, hat tip/shank, ride bow/bell), a hi-hat PEDAL | none | not judged yet |
+| `synthhand` | analog polysynth pad + mono lead (SAW + ladder) | the PLAYER at a synth (a hand on the cutoff, mod-wheel vibrato late, bends, glides, chord spread, legato) AND the MACHINE (8 voice cards with their own tune/cutoff/env/level offsets in rotation, slow drift more when cold, power sag) | none | Nikki: "this analog is much more beautiful"; layer A/B: "I like what cards is doing", drift hard to hear "but it feels nicer on too" |
 | `basshand` | walking upright, pizz `INSTR_BOWED`, booked | per-pluck force and spot, left-hand note length, open strings ringing, slides in from below (booked legato glides), ghost notes and rakes | `instrument_vibrato` (off) | not judged yet |
 
 Playtime's choir spike (`scripts/spikes/choir.playtime.lua` there) is the voice member of the set: a
@@ -265,6 +266,40 @@ All measured, none judged by ear yet. Engine facts below were checked against `r
   the piano's treble decays far too fast (C6 down 40 dB in ~0.4 s whatever the pedal setting).
 - Slides inside a legato pair are bookable today (mono slot + `glide_ms`), but a bowed string can only
   go ~7 semitones under its start (the 2.5x string buffer, capped).
+- **The kit voiced against CC0 recordings** (dreamengine-f4, `64ef3ec3`; references in
+  `build/refs/drums-cc0/`, lennartgreen's "Vintage Hip Hop" kit + a cross-stick, with the cymbals):
+  - **Per-note FILTER, now with evidence:** the ride bow wants a LOWPASS ~1.5 kHz (its wash is
+    0.4-2 kHz) and the bell a BAND ~5 kHz, so the bell had to move to its own slot (`S_BELL`): one
+    technique bundle on one cymbal, opposite filters.
+  - **`INSTR_MEMBRANE`'s second mode is too weak for kit drums:** real kick, rack and floor tom each
+    carry a mode ~2.1x up at only 1-5 dB down (kick 118 Hz, rack 269, floor 183); the membrane leaves it
+    17-20 dB down at any strike position, so it is booked as a second voice (+13 semitones). An
+    engine-side mode-balance control would remove that (engine sound gap, not NoteOpts).
+  - **`INSTR_METAL`'s built-in noise sits at 15-20 kHz, so cymbals need a LOWPASS;** the bogie recipes
+    HIGH-pass, which is what made the first cymbals hiss (the crash was 3-20 kHz, spectral flatness
+    0.82). The `metal/*` rows in `guides/instrument-recipes.md` may deserve a note.
+
+### 6.6 A synth: humanizing the MACHINE (2026-11-04, `synthhand`)
+
+A synthesized sound has no body, but it has a player's HANDS and a MACHINE that is imperfect, and the
+second half is a different kind of need: not per note, not chosen by the player, a property of the
+INSTRUMENT.
+
+- **The player's knobs are curves shared by the instrument**: a hand riding the cutoff (slow, uneven,
+  a little springy overshoot) moved the brightness between ~390 and ~1380 Hz through a phrase, the
+  digital version sat flat at ~700 Hz. The same row as the piano pedal (§6.5). Plus mod-wheel vibrato
+  arriving late, bends into notes, glide on some notes: all covered by §6.1's curves.
+- **The machine: VOICE CARDS.** Real analog polysynths give each voice its own small offsets (tuning
+  a few cents, cutoff ~10%, envelope speed ~15%, level) and hand notes out in rotation, so the same
+  note twice sounds twice; oscillators DRIFT (more while cold); a big chord SAGS the supply. Our
+  engine plays every voice identically and exactly in tune. `synthhand` fakes it cart-side with eight
+  slots of one patch, each offset, round-robin, ridden every frame. Proposed if it proves to carry
+  the beauty: **`instrument_analog(slot, amount)`**, an instrument property (like `instrument_vibrato`):
+  per-voice fixed offsets + slow drift (+ maybe sag), one slot instead of eight. Not a NoteOpts field.
+- **The layer A/B (Nikki, 2026-11-04): the voice CARDS carry it** ("I like what cards is doing"); drift
+  is hard to hear on its own "but it feels nicer on too" (below the threshold of noticing, felt as
+  aliveness). So the machine half is worth an engine feature: `instrument_analog(slot, amount)` with
+  per-voice offsets as the main ingredient and a small drift folded in, not a separate call.
 
 ## 7. Next
 

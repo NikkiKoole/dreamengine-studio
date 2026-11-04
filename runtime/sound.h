@@ -2191,7 +2191,7 @@ static CtxKey sound_ctx_key(SoundReqKind k) {
         case SR_EQ_INST: case SR_CRUSH_INST: case SR_TAPE_INST: case SR_FILTER_INST: case SR_DRIVE_INST:
         case SR_INSTR_GLIDE: case SR_INSTR_GLIDE_SCALE: case SR_INSTR_TRIGGER:   // a=slot, like their neighbours
         case SR_INSTR_TAPE_WARBLE: case SR_INSTR_GRAINS_REPEAT: case SR_INSTR_WIDTH:
-        case SR_INSTR_GROUP: case SR_REVERB_BUS_INTO: case SR_INSTR_FX_FILTER: case SR_INSTR_MONO: case SR_INSTR_VIBRATO: case SR_INSTR_ANALOG:   // a=slot / a=tank
+        case SR_INSTR_GROUP: case SR_REVERB_BUS_INTO: case SR_INSTR_FX_FILTER: case SR_INSTR_MONO: case SR_INSTR_VIBRATO: case SR_INSTR_ANALOG: case SR_INSTR_RELSHAPE:   // a=slot / a=tank
             return CTXK_KA;
         // a+b name the target
         case SR_WAVE_SET:                          // a=which table, b=start index (chunked writes)
@@ -5743,7 +5743,7 @@ static inline float sound_sample_sample(Voice *v, float pitch_mul) {
     // region read LIVE from the instrument bank (like tune_mul/level) so dragging the chop moves a
     // sounding voice's bounds in real time — a live loop scrubber. Falls back to the voice snapshot.
     float startf = v->smp_start_f, endf = v->smp_end_f;
-    if (v->instr_slot >= 0 && v->instr_slot < SOUND_INSTR_SLOTS) {
+    if (!v->rg_latched && v->instr_slot >= 0 && v->instr_slot < SOUND_INSTR_SLOTS) {
         startf = instr_bank[v->instr_slot].smp_start;
         endf   = instr_bank[v->instr_slot].smp_end;
     }
@@ -5858,7 +5858,7 @@ static inline float sound_grain_sample(Voice *v, float pitch_mul) {
     const SoundSample *s = &sound_samples[v->smp_idx];
     if (!s->loaded || !s->data || s->len < 2) return 0.0f;
     float startf = v->smp_start_f, endf = v->smp_end_f;       // the chop, read live (INSTR_SAMPLE's rule)
-    if (v->instr_slot >= 0 && v->instr_slot < SOUND_INSTR_SLOTS) {
+    if (!v->rg_latched && v->instr_slot >= 0 && v->instr_slot < SOUND_INSTR_SLOTS) {
         startf = instr_bank[v->instr_slot].smp_start;
         endf   = instr_bank[v->instr_slot].smp_end;
     }
@@ -5991,7 +5991,7 @@ static inline float sound_sing_sample(Voice *v, float pitch_mul) {
     const SoundSample *s = &sound_samples[v->smp_idx];
     if (!s->loaded || !s->data || s->len < 2) return 0.0f;
     float startf = v->smp_start_f, endf = v->smp_end_f;       // the chop, read live (INSTR_SAMPLE's rule)
-    if (v->instr_slot >= 0 && v->instr_slot < SOUND_INSTR_SLOTS) {
+    if (!v->rg_latched && v->instr_slot >= 0 && v->instr_slot < SOUND_INSTR_SLOTS) {
         startf = instr_bank[v->instr_slot].smp_start;
         endf   = instr_bank[v->instr_slot].smp_end;
     }
@@ -6833,7 +6833,13 @@ static void emit_process(int b, float *mixL, float *mixR) {
 //        to the slot's own macro — an offset, not an absolute, so 0 (a zeroed NoteOpts) means "the slot's"
 #define ACC_N        6
 #define NOTE_EX_FLAG (1 << 20)
-typedef struct { int glide_ms; float accent, harm, timb, mor, gain; } NoteEx;
+typedef struct { int glide_ms; float accent, harm, timb, mor, gain; const NotePay *pay; int pay_slot; } NoteEx;
+// NoteOpts step 1 (humanized-playing.md §8.2): bit 19 of e1 says "this note carries a NotePay", bits
+// 10-18 its index: into the game-side ring (npay_ring) until the drain, into the pen-side slots
+// (npay_pen) after it. A note without the new fields never sets bit 19 and takes the old path exactly.
+#define NPAY_FLAG    (1 << 19)
+#define NPAY_SHIFT   10
+#define NPAY_MASK    (0x1FF << NPAY_SHIFT)
 static inline int note_ex_q10(float x) {
     x = x < -1.0f ? -1.0f : (x > 1.0f ? 1.0f : x);
     int q = (int)(x * 511.0f + (x < 0.0f ? -0.5f : 0.5f));
@@ -6852,7 +6858,16 @@ static bool note_ex_unpack(const SoundReq *r, NoteEx *ex) {
     ex->harm     = note_ex_unq10(r->e2);
     ex->timb     = note_ex_unq10(r->e2 >> 10);
     ex->mor      = note_ex_unq10(r->e2 >> 20);
+    ex->pay = NULL; ex->pay_slot = -1;
+    if (r->e1 & NPAY_FLAG) {                                     // pen-side slot, set at the drain
+        int j = (r->e1 & NPAY_MASK) >> NPAY_SHIFT;
+        if (j >= 0 && j < SOUND_DELAYED_MAX && npay_used[j]) { ex->pay = &npay_pen[j]; ex->pay_slot = j; }
+    }
     return true;
+}
+
+static inline void npay_release(const SoundReq *r) {        // a pen-side NotePay slot back to the pool
+    if (r->e1 & NPAY_FLAG) { int j = (r->e1 & NPAY_MASK) >> NPAY_SHIFT; if (j >= 0 && j < SOUND_DELAYED_MAX) npay_used[j] = 0; }
 }
 
 // ACCENT DEFAULTS — what an accented note does on a slot nobody configured with instrument_accent().
@@ -6902,6 +6917,8 @@ static void sound_setup_note_ex(Voice *v, int midi, int slot, int vol, int gate_
     v->instr_slot  = slot;
     v->phase      = 0.0f;
     v->freq       = v->freq_target   = sound_midi_to_freq(midi);
+    const NotePay *pay = ex ? ex->pay : NULL;                   // NoteOpts step 1 fields (NULL = none)
+    if (pay && pay->cents != 0.0f) v->freq = v->freq_target = v->freq * de_powf(2.0f, pay->cents / 1200.0f);
     v->vol        = v->vol_target    = (vol < 0 ? 0 : vol > 7 ? 7 : vol) / 7.0f;
     v->wave       = ins->wave;
     v->duty       = v->duty_target   = ins->duty;
@@ -6924,6 +6941,18 @@ static void sound_setup_note_ex(Voice *v, int midi, int slot, int vol, int gate_
         float es   = 1.0f + u[3] * 0.15f * a;
         v->a_samp = (int)((float)v->a_samp * es); v->d_samp = (int)((float)v->d_samp * es); v->r_samp = (int)((float)v->r_samp * es);
         v->an_ph = (float)card * 0.137f;                 // each card drifts from its own place
+    }
+    // NoteOpts step 1: this note's own release, its damping, the slot's release SHAPE
+    v->rel_shape = ins->rel_shape;
+    v->dmp_mul = v->dmp_env = 1.0f;
+    if (pay) {
+        if (pay->release_ms > 0) v->r_samp = ms_samp(pay->release_ms);
+        if (pay->damp > 0.0f) {
+            // damp 0..1 -> the note's ring time constant: 1 = stopped in ~20 ms, 0.5 ~0.8 s, small = barely
+            float d = pay->damp > 1.0f ? 1.0f : pay->damp;
+            float tau = 3.0f * (1.0f - d) * (1.0f - d) + 0.02f;
+            v->dmp_mul = de_expf(-1.0f / (tau * (float)SOUND_SAMPLE_RATE));
+        }
     }
     // deterministic per-voice seed for the stateful LFO shapes (S&H/random): a counter advanced per
     // voice-start → distinct per note yet identical run-to-run (so --det stays byte-reproducible).
@@ -6962,6 +6991,7 @@ static void sound_setup_note_ex(Voice *v, int midi, int slot, int vol, int gate_
     float kt_cut = ins->flt_cutoff;
     if (ins->flt_keytrack != 0.0f)
         kt_cut *= de_powf(2.0f, ins->flt_keytrack * (float)(midi - 60) / 12.0f);
+    if (pay && pay->cutoff_oct != 0.0f) kt_cut *= de_powf(2.0f, pay->cutoff_oct);   // NoteOpts: this note's filter
     v->flt_cutoff     = v->cutoff_target = kt_cut;
     v->flt_q          = v->flt_q_target  = ins->flt_q;
     v->flt_low        = 0.0f;
@@ -7022,6 +7052,12 @@ static void sound_setup_note_ex(Voice *v, int midi, int slot, int vol, int gate_
     v->smp_start_f = ins->smp_start;                   // chop bounds (fractions) — resolved to sample indices in the start hook / render
     v->smp_mode    = ins->smp_mode;
     v->smp_end_f   = ins->smp_end;
+    v->rg_latched  = false;                            // NoteOpts: a per-note chop is LATCHED (not read live)
+    if (pay && (pay->rg_start != 0.0f || pay->rg_end != 0.0f)) {
+        v->smp_start_f = pay->rg_start < 0.0f ? 0.0f : (pay->rg_start > 1.0f ? 1.0f : pay->rg_start);
+        v->smp_end_f   = (pay->rg_end > 0.0f && pay->rg_end <= 1.0f) ? pay->rg_end : 1.0f;
+        v->rg_latched  = true;
+    }
     v->drv_dc_x1 = v->drv_dc_y1 = 0.0f;
     v->eko  = v->eko_target  = ins->echo;
     v->rvb  = v->rvb_target  = ins->reverb;
@@ -7126,6 +7162,7 @@ static Voice *sound_legato_voice(int slot) {
 static void sound_legato_to(Voice *v, int midi, int vol, int gate, const NoteEx *ex) {
     const Instrument *ins = &instr_bank[v->instr_slot];
     v->freq_target = sound_midi_to_freq(midi);
+    if (ex->pay && ex->pay->cents != 0.0f) v->freq_target *= de_powf(2.0f, ex->pay->cents / 1200.0f);
     v->gl_ms = ex->glide_ms;
     sound_glide_start(v);
     float vv = (vol < 0 ? 0 : vol > 7 ? 7 : vol) / 7.0f * (1.0f + ex->accent * sound_accent_route(ins, ACC_VOL)) * ex->gain;
@@ -7321,6 +7358,7 @@ static void sound_fire_req(SoundReq r) {
                 sve_push_v(SVE_ON, r.b, r.a, (int)(lv - voices), -1, r.c, gate);   // a played note, on the SAME voice
 #endif
                 sound_legato_to(lv, r.a, r.c, gate, &ex);
+                if (ex.pay_slot >= 0) npay_used[ex.pay_slot] = 0;
                 break;
             }
         }
@@ -7330,6 +7368,7 @@ static void sound_fire_req(SoundReq r) {
         sve_push_v(SVE_ON, r.b, r.a, vi, -1, r.c, gate);   // fire-and-forget note() — victim -1 (no handle)
 #endif
         sound_setup_note_ex(&voices[vi], r.a, r.b, r.c, gate, has_ex ? &ex : NULL);
+        if (has_ex && ex.pay_slot >= 0) npay_used[ex.pay_slot] = 0;   // the voice copied it: slot free
     } break;
     case SR_NOTE_ON: {    // held / sustained — e0 = handle slot, e1 = generation
         int slot = r.e0, gen = r.e1;
@@ -8162,6 +8201,11 @@ static void sound_fire_req(SoundReq r) {
         if (x < 0.0f) x = 0.0f;
         instr_bank[slot].level = x;
     } break;
+    case SR_INSTR_RELSHAPE: { // a=slot, b=shape — the release curve, read at note-on
+        int slot = r.a;
+        if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
+        instr_bank[slot].rel_shape = (r.b < 0 || r.b > 2) ? 0 : r.b;
+    } break;
     case SR_INSTR_ANALOG: {   // a=slot, b=amount*1000 — voice cards + drift, read at each note-on
         int slot = r.a;
         if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
@@ -8349,8 +8393,10 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
             if (to   < -0x40000000LL) to   += 0x80000000LL;
             for (int di = 0; di < delayed_count; ) {
                 long long at = delayed[di].delay_samples;
-                if (delayed[di].kind == SR_NOTE && delayed[di].b == r.a && at >= from && (r.e2 || at < to))
+                if (delayed[di].kind == SR_NOTE && delayed[di].b == r.a && at >= from && (r.e2 || at < to)) {
+                    npay_release(&delayed[di]);                 // its NoteOpts payload slot, if any
                     delayed[di] = delayed[--delayed_count];   // swap-remove, as the pen does when a note fires
+                }
                 else di++;
             }
             continue;
@@ -8366,12 +8412,22 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
             if (d < -0x40000000LL) d += 0x80000000LL;
             r.kind = SR_NOTE;
             r.delay_samples = d > 0 ? (int)d : 0;
+            if (r.e1 & NPAY_FLAG) {
+                // NoteOpts step 1: copy the game-side record into a pen-side slot NOW (the ring slot may be
+                // reused once the queue moves on); no free slot = the note plays without its extras
+                int k = (r.e1 & NPAY_MASK) >> NPAY_SHIFT, j = 0;
+                while (j < SOUND_DELAYED_MAX && npay_used[j]) j++;
+                r.e1 &= ~NPAY_MASK;
+                if (j < SOUND_DELAYED_MAX && k < NPAY_RING) { npay_pen[j] = npay_ring[k]; npay_used[j] = 1; r.e1 |= j << NPAY_SHIFT; }
+                else r.e1 &= ~NPAY_FLAG;
+            }
         }
         if (r.delay_samples <= 0) {
             sound_fire_req(r);
         } else if (delayed_count < SOUND_DELAYED_MAX) {
             delayed[delayed_count++] = r;
         } else {
+            npay_release(&r);
             atomic_fetch_add_explicit(&sound_dropped, 1, memory_order_relaxed);   // delayed pen full — a scheduled note was lost (tripwire)
         }
     }
@@ -8458,7 +8514,10 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
             } else {
                 int rs = v->step_samples - v->step_len_samples;                              // release
                 if (v->r_samp <= 0 || rs >= v->r_samp) { v->active = false; sound_unclaim_held(vi); continue; }
-                env = v->rel_start * (1.0f - (float)rs / (float)v->r_samp);
+                float x = (float)rs / (float)v->r_samp;
+                if (v->rel_shape == 1)      env = v->rel_start * (1.0f - x) * de_expf(-4.0f * x);                          // EXPONENTIAL: a natural fade, still reaching 0
+                else if (v->rel_shape == 2) env = v->rel_start * (1.0f - x) * (1.0f - x) * (0.15f + 0.85f * de_expf(-10.0f * x)); // FELT DAMPER: a quick drop, a short tail
+                else                        env = v->rel_start * (1.0f - x);                                              // LINEAR (default, byte-identical)
             }
 
             // LFOs (one-shot notes only): up to 3 routable sines → pitch / duty / volume / cutoff
@@ -8606,6 +8665,11 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
             }
             float contrib = s * v->vol * env * trem * v->sp_gain * 0.2f;   // sp_gain = 1.0 = byte-identical bypass
             if (v->an_amt > 0.0f) contrib *= v->an_lvl;   // ANALOG voice card: its own level (instrument_analog)
+            if (v->dmp_mul < 1.0f) {                       // NoteOpts damp: this note's ring dies at its own rate
+                v->dmp_env *= v->dmp_mul;
+                contrib *= v->dmp_env;
+                if (v->dmp_env < 0.0001f && !v->held) v->active = false;   // gone: free the voice
+            }
             if (v->instr_slot >= 0 && v->instr_slot < SOUND_INSTR_SLOTS)
                 contrib *= instr_bank[v->instr_slot].level;   // per-slot output level (instrument_level); read LIVE, 1.0 = byte-identical bypass
             // choke ramp-out: fade the LIVE (still-oscillating) voice to silence over CHOKE_FADE_LEN
@@ -9215,6 +9279,15 @@ void instrument_level(int slot, float gain) {
 // (tune +-7 cents, cutoff +-10%, envelope speed +-15%, level +-0.7 dB at 1), and a slow pitch drift
 // (+-3 cents at 1). 0 = off (the default, byte-identical). Read at each note-on. Measured as the part
 // that made the synthhand spike "much more beautiful" (2026-11-04, design/humanized-playing.md §6.6).
+// RELEASE SHAPE: how a note fades after its key is up. The engine's release was a straight line in
+// amplitude (it stays loud, then plunges, then stops in exact silence); real things fade on a curve, and
+// a piano's felt damper drops quickly then leaves a short tail (measured in pianohand, 2026-11-04).
+// RELEASE_LINEAR (default, byte-identical) / RELEASE_EXP / RELEASE_DAMPER. Read at note-on.
+void instrument_release_shape(int slot, int shape) {
+    if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
+    sound_push_ctrl(SR_INSTR_RELSHAPE, slot, shape, 0, 0, 0, 0);
+}
+
 void instrument_analog(int slot, float amount) {
     if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
     if (amount < 0.0f) amount = 0.0f;
@@ -10618,9 +10691,22 @@ void schedule_note_at(double t, int midi, int instr, int vol, int dur_ms, const 
     // gain: 0 = unset (full). Anything above 0 keeps at least 1/1000, so a tiny gain never reads as "unset"
     int gq = opts->gain <= 0.0f ? 0 : opts->gain >= 1.0f ? 1000 : (int)(opts->gain * 1000.0f + 0.5f);
     if (opts->gain > 0.0f && gq < 1) gq = 1;
+    int e1 = NOTE_EX_FLAG | (int)(a * 1000.0f + 0.5f) | (gq << 21);
+    // NoteOpts step 1: anything beyond the packed six travels in the ring (only when used, so a note
+    // with none of them takes the old path byte for byte)
+    if (opts->cents != 0.0f || opts->cutoff_oct != 0.0f || opts->damp > 0.0f || opts->release_ms > 0 ||
+        opts->region_start != 0.0f || opts->region_end != 0.0f) {
+        int k = npay_w; npay_w = (npay_w + 1) % NPAY_RING;
+        npay_ring[k] = (NotePay){ .cents = opts->cents < -1200.0f ? -1200.0f : (opts->cents > 1200.0f ? 1200.0f : opts->cents),
+                                  .cutoff_oct = opts->cutoff_oct < -6.0f ? -6.0f : (opts->cutoff_oct > 6.0f ? 6.0f : opts->cutoff_oct),
+                                  .damp = opts->damp < 0.0f ? 0.0f : (opts->damp > 1.0f ? 1.0f : opts->damp),
+                                  .release_ms = opts->release_ms < 0 ? 0 : (opts->release_ms > 60000 ? 60000 : opts->release_ms),
+                                  .rg_start = opts->region_start, .rg_end = opts->region_end };
+        e1 |= NPAY_FLAG | (k << NPAY_SHIFT);
+    }
     sound_push((SoundReq){ .kind = SR_NOTE_AT, .a = midi, .b = instr, .c = vol,
                            .delay_samples = (int)(target & 0x7FFFFFFF), .dur_samples = dur,
-                           .e0 = g, .e1 = NOTE_EX_FLAG | (int)(a * 1000.0f + 0.5f) | (gq << 21), .e2 = e2 });
+                           .e0 = g, .e1 = e1, .e2 = e2 });
 }
 
 // unschedule(): take back a slot's BOOKED notes whose start falls in [t1, t2) on the audio clock (the same
@@ -10796,6 +10882,7 @@ static void sound_reset_state(void) {
         instr_bank[i].level      = 1.0f;   // unity until instrument_level() — old carts byte-identical
         instr_bank[i].vib_amt    = 1.0f;
         instr_bank[i].analog_amt = 0.0f;   // every voice identical until instrument_analog()
+        instr_bank[i].rel_shape  = 0;      // the linear release until instrument_release_shape()
         instr_bank[i].analog_next = 0;   // built-in vibrato as the engine plays it until instrument_vibrato()
         instr_bank[i].gl_ms      = 0;      // no portamento until instrument_glide() — old carts unchanged
         instr_bank[i].gl_scale   = 0.0f;   // constant time (the byte-identical path skips powf entirely)

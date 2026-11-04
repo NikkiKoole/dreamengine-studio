@@ -15,9 +15,9 @@
     "analog-voice-modeling",
     "swing-timing"
   ],
-  "lineage": "Roland CR-78 (1978) homage; extends drummachine's grid by rebuilding each analog voice from its circuit description — one shared noise source filtered per voice, beating detuned squares for metal, and INSTR_SCRAPE for the guiro (it began as a 36Hz volume-LFO chop on noise; measured against a real CR-78 guiro sample that had the wrong rate, body and no gaps).",
+  "lineage": "Roland CR-78 (1978) homage; extends drummachine's grid by rebuilding each analog voice from its circuit description — one shared noise source filtered per voice, beating detuned squares for metal, and INSTR_SCRAPE for the guiro (it began as a 36Hz volume-LFO chop on noise; measured against a real CR-78 guiro sample that had the wrong rate, body and no gaps). 2026-11-04: every voice retuned against a real CR-78 sample set (pitch, band, decay and level), once an engine filter fix made its narrow 8 kHz hat band reachable.",
   "homage": "Roland CR-78 CompuRhythm (1978)",
-  "description": "All 15 voices of the Roland CR-78 (1978) rebuilt from their analog circuits with the synth API: damped-sine membranes (kick/bongos/congas), one noise source shaped per voice by different filters (the famous swishy bandpassed hats, highpassed maracas, resonant tambourine jingle), detuned square pairs/triples for cowbell and the metallic beat, and the guiro's ratcheting scrape — 75 teeth a second, each its own click ringing a 6 kHz gourd (INSTR_SCRAPE, fitted to a real CR-78 guiro sample). Plays eight classic presets including Disco-2 (In the Air Tonight), the Mambo+Beguine blend (Heart of Glass), and the triplet-feel Shuffle and Swing — plus the knob the original never got: Z/X sets swing 50-66% by scheduling the offbeat 8ths late (adjustable swing didn't exist until the LM-1 in 1980). The grid is editable: click/drag cells to toggle, click the orange strip to move accents, click a label to audition; accent steps are a volume boost, just like the real knob. Q-G play voices by hand, LEFT/RIGHT preset, UP/DOWN tempo, SPACE start/stop."
+  "description": "All 15 voices of the Roland CR-78 (1978) rebuilt from their analog circuits with the synth API: damped-sine membranes (kick/bongos/congas), one noise source shaped per voice by different filters (the famous swishy hats are a narrow band at 8.4 kHz, the tambourine an even narrower ring at 4.65 kHz), a detuned square pair for the cowbell and three high tones for the metallic beat, every voice tuned and levelled against a real CR-78 sample set, and the guiro's ratcheting scrape — 75 teeth a second, each its own click ringing a 6 kHz gourd (INSTR_SCRAPE, fitted to a real CR-78 guiro sample). Plays eight classic presets including Disco-2 (In the Air Tonight), the Mambo+Beguine blend (Heart of Glass), and the triplet-feel Shuffle and Swing — plus the knob the original never got: Z/X sets swing 50-66% by scheduling the offbeat 8ths late (adjustable swing didn't exist until the LM-1 in 1980). The grid is editable: click/drag cells to toggle, click the orange strip to move accents, click a label to audition; accent steps are a volume boost, just like the real knob. Q-G play voices by hand, LEFT/RIGHT preset, UP/DOWN tempo, SPACE start/stop."
 }
 de:meta */
 #include "studio.h"
@@ -34,20 +34,28 @@ de:meta */
 //
 //   tuned voices (kick, bongos, congas, rim, claves)
 //     a "bridged-T" network — a damped sine that rings at a fixed pitch when
-//     kicked by a trigger pulse.  →  INSTR_SINE/TRI, fast-decay amp envelope,
-//     plus a small downward ENV_PITCH sweep for the membrane "thump".
+//     kicked by a trigger pulse.  →  INSTR_SINE/TRI, fast-decay amp envelope.
+//     Pitches measured off the real machine: kick 65 Hz, conga 196, bongos
+//     587 and 392 (the low one with a second mode at 2.5 kHz), claves 2.46 kHz.
 //
-//   noise voices (hats, maracas, tambourine, snare rattle)
+//   noise voices (hats, cymbal, maracas, tambourine, snare rattle)
 //     ONE white-noise source, shaped per voice by a different filter.
-//     →  INSTR_NOISE through instrument_filter(); the filter IS the voice:
-//        hats = gentle bandpass ~7-8kHz (the famous CR-78 "swish" — softer
-//        than an 808), maracas = highpass, tambourine = narrow resonant band.
+//     →  INSTR_NOISE through instrument_filter(); the filter IS the voice.
+//        The CR-78 "swish" is NARROW, not broad hiss: hats 7.4-9.7 kHz,
+//        cymbal the same band held long, maracas ~8.7 kHz, tambourine a ring
+//        at 4.65 kHz. (Before 2026-11-04 the engine's filter could not reach
+//        these: it screamed at ~20 kHz above ~6 kHz, see svf_step.)
 //
-//   metallic voices (cowbell, metallic beat, cymbal)
-//     detuned square waves beating against each other, bandpassed. The CR-78
-//     metallic beat is confirmed to be THREE filtered squares (the 808 cymbal
-//     uses six — that's why the CR-78 clangs simpler and buzzier).
-//     →  several hit()s on one square slot at enharmonic pitches.
+//   metallic voices (cowbell, metallic beat)
+//     the cowbell is a detuned square pair (554 / 784 Hz) lowpassed until it
+//     is nearly two sines. The metallic beat rings HIGH: tones at 3.9, 5.4 and
+//     5.9 kHz on the real machine, so three triangle hits up there.
+//
+//   how the numbers were found: each voice rendered once and measured
+//     against its real CR-78 one-shot (Boxed Ear's free pack): pitch, the
+//     10/50/90% energy band, time to -20 dB, and peak level relative to the
+//     kick (the pack was recorded at one gain: each accent hit is ~4.5 dB
+//     over its normal hit), then the levels matched with instrument_level().
 //
 //   guiro — the strangest circuit in the box
 //     a noise burst whose loudness is chopped into rapid "teeth" to make the
@@ -103,8 +111,9 @@ enum {
 
 // instrument slots (5..31 are free; 5-8 are the user waves, start at 9)
 enum {
-    SL_KICK = 9, SL_SNB, SL_SNN, SL_RIM, SL_HATC, SL_HATO, SL_CYMT,
-    SL_CYMN, SL_TAMB, SL_COW, SL_CLV, SL_MAR, SL_BON, SL_CON, SL_GUI, SL_MET
+    SL_KICK = 9, SL_SNB, SL_SNN, SL_RIM, SL_HATC, SL_HATO,
+    SL_CYMN, SL_TAMB, SL_COW, SL_CLV, SL_MAR, SL_BON, SL_CON, SL_GUI, SL_MET,
+    SL_BONP, SL_RIMT
 };
 
 static const char *VNAME[NV] = {
@@ -222,106 +231,121 @@ static int vv(int base, int boost) {
 // several hit()s — the detuned pairs/triples ARE the metallic timbres.
 static void fire(int v, int boost, int delay) {
     switch (v) {
-    case V_KICK:  schedule_hit(delay, 33, SL_KICK, vv(5, boost), 220); break;
-    case V_SNARE: // tonal shell + bandpassed rattle, the two-layer recipe
-        schedule_hit(delay, 53, SL_SNB, vv(4, boost), 100);
-        schedule_hit(delay, 60, SL_SNN, vv(4, boost), 170);
+    case V_KICK:  schedule_hit(delay, 36, SL_KICK, vv(5, boost), 220); break;   // 65 Hz
+    case V_SNARE: // tonal shell (311 Hz) + a rattle as loud as the shell, 2-10 kHz
+        schedule_hit(delay, 63, SL_SNB, vv(3, boost), 100);
+        schedule_hit(delay, 60, SL_SNN, vv(6, boost), 120);
         break;
-    case V_RIM:   schedule_hit(delay, 94, SL_RIM, vv(4, boost), 45); break;
-    case V_HATC:  schedule_hit(delay, 90, SL_HATC, vv(3, boost), 60); break;
+    case V_RIM:   // a click: a 1.4 kHz ping over a low knock, both gone in ~10 ms
+        schedule_hit(delay, 89, SL_RIM,  vv(7, boost), 30);
+        schedule_hit(delay, 58, SL_RIMT, vv(2, boost), 30);
+        break;
+    case V_HATC:  schedule_hit(delay, 90, SL_HATC, vv(3, boost), 40); break;
     case V_HATO:  schedule_hit(delay, 90, SL_HATO, vv(3, boost), 360); break;
-    case V_CYM:   // two detuned squares + a long noise wash
-        schedule_hit(delay, 90, SL_CYMT, vv(3, boost), 500);
-        schedule_hit(delay, 95, SL_CYMT, vv(2, boost), 500);
-        schedule_hit(delay, 70, SL_CYMN, vv(3, boost), 600);
+    case V_CYM:   schedule_hit(delay, 90, SL_CYMN, vv(3, boost), 600); break;   // a long 8.5 kHz band
+    case V_METAL: // three tones up where the real one rings: 3.9 / 5.3 / 5.9 kHz
+        schedule_hit(delay, 114, SL_MET, vv(4, boost), 120);
+        schedule_hit(delay, 112, SL_MET, vv(4, boost), 120);
+        schedule_hit(delay, 107, SL_MET, vv(1, boost), 120);
         break;
-    case V_METAL: // confirmed CR-78 recipe: THREE filtered squares
-        schedule_hit(delay, 88, SL_MET, vv(3, boost), 210);
-        schedule_hit(delay, 93, SL_MET, vv(3, boost), 210);
-        schedule_hit(delay, 97, SL_MET, vv(2, boost), 210);
+    case V_COW:   // detuned pair 554 / 784 Hz (the sample: 549 / 775) — the beating IS the cowbell
+        schedule_hit(delay, 79, SL_COW, vv(4, boost), 150);
+        schedule_hit(delay, 73, SL_COW, vv(3, boost), 150);
         break;
-    case V_COW:   // detuned pair beating ~1.4:1 — the beating IS the cowbell
-        schedule_hit(delay, 74, SL_COW, vv(4, boost), 250);
-        schedule_hit(delay, 80, SL_COW, vv(3, boost), 250);
-        break;
-    case V_TAMB:  schedule_hit(delay, 80, SL_TAMB, vv(3, boost), 120); break;
-    case V_MAR:   schedule_hit(delay, 90, SL_MAR, vv(3, boost), 40); break;
-    case V_CLV:   schedule_hit(delay, 97, SL_CLV, vv(4, boost), 55); break;
+    case V_TAMB:  schedule_hit(delay, 80, SL_TAMB, vv(3, boost), 300); break;
+    case V_MAR:   schedule_hit(delay, 90, SL_MAR, vv(3, boost), 30); break;
+    case V_CLV:   schedule_hit(delay, 99, SL_CLV, vv(4, boost), 60); break;    // 2.46 kHz
     case V_GUIRO: schedule_hit(delay, 60, SL_GUI, vv(4, boost), 270); break;   // C4 = SCRAPE's body as voiced; ~270 ms = the sample's scrape
-    case V_BONH:  schedule_hit(delay, 64, SL_BON, vv(4, boost), 140); break;
-    case V_BONL:  schedule_hit(delay, 59, SL_BON, vv(4, boost), 150); break;
-    case V_CONGA: schedule_hit(delay, 52, SL_CON, vv(4, boost), 250); break;
+    case V_BONH:  schedule_hit(delay, 74, SL_BON, vv(4, boost), 140); break;   // 587 Hz
+    case V_BONL:  // 392 Hz with a bright second mode at 2.5 kHz, 5 dB down
+        schedule_hit(delay, 67, SL_BON,  vv(3, boost), 80);
+        schedule_hit(delay, 99, SL_BONP, vv(3, boost), 40);
+        break;
+    case V_CONGA: schedule_hit(delay, 55, SL_CON, vv(4, boost), 300); break;   // 196 Hz
     }
 }
 
 void init(void) {
     // ── the voice circuits ──────────────────────────────────────────────
-    // kick — soft and round (NOT an 808 punch): low sine, lowpassed, with a
-    // quick pitch drop from ~+13 semitones for the gentle "thump"
-    instrument(SL_KICK, INSTR_SINE, 0, 170, 0, 40);
+    // Every number below was measured off a real CR-78 one-shot (the Boxed Ear
+    // pack): pitch, band and decay per voice. See the header for the method.
+    // kick — a soft round 65 Hz sine, barely any pitch drop (NOT an 808 punch)
+    instrument(SL_KICK, INSTR_SINE, 0, 140, 0, 40);
     instrument_filter(SL_KICK, FILTER_LOW, 320, 2);
-    instrument_env(SL_KICK, 0, ENV_PITCH, 0, 45, 13.0f);
+    instrument_env(SL_KICK, 0, ENV_PITCH, 0, 30, 2.0f);
 
-    // snare shell — short damped sine with a tiny pitch blip
-    instrument(SL_SNB, INSTR_SINE, 0, 70, 0, 25);
-    instrument_filter(SL_SNB, FILTER_LOW, 900, 1);
-    instrument_env(SL_SNB, 0, ENV_PITCH, 0, 25, 5.0f);
-    // snare rattle — bandpassed noise that opens then closes
-    instrument(SL_SNN, INSTR_NOISE, 0, 130, 0, 35);
-    instrument_filter(SL_SNN, FILTER_BAND, 1700, 3);
-    instrument_env(SL_SNN, 0, ENV_CUTOFF, 0, 90, 900.0f);
+    // snare shell — a short 311 Hz ring
+    instrument(SL_SNB, INSTR_SINE, 0, 60, 0, 20);
+    instrument_env(SL_SNB, 0, ENV_PITCH, 0, 15, 2.0f);
+    instrument_level(SL_SNB, 0.15f);      // the rattle carries the snare: its midpoint sits at ~5 kHz
+    // snare rattle — noise up to ~10 kHz, far louder than the shell. A LOWPASS
+    // with a resonant edge, not a bandpass: a low-Q bandpass leaves a long tail
+    // to 16-20 kHz, which the real rattle does not have
+    instrument(SL_SNN, INSTR_NOISE, 0, 70, 0, 25);
+    instrument_filter(SL_SNN, FILTER_LOW, 8000, 6);
 
-    // rim — very short triangle ring through a resonant band: woody "tick"
-    instrument(SL_RIM, INSTR_TRI, 0, 28, 0, 12);
-    instrument_filter(SL_RIM, FILTER_BAND, 1700, 9);
+    // rim — a 1.4 kHz ping plus a low knock, both gone in ~10 ms
+    instrument(SL_RIM, INSTR_TRI, 0, 10, 0, 5);
+    instrument_filter(SL_RIM, FILTER_BAND, 1400, 6);
+    instrument(SL_RIMT, INSTR_SINE, 0, 12, 0, 5);
 
-    // hats — the famous swishy CR-78 hat: GENTLE bandpass, breathy not sizzly.
-    // closed and open are the same filter, only the decay differs
-    instrument(SL_HATC, INSTR_NOISE, 0, 40, 0, 18);
-    instrument_filter(SL_HATC, FILTER_BAND, 7800, 4);
+    // hats — the CR-78 "swish" is a NARROW band, 7.4-9.7 kHz (resonance 14),
+    // not broad hiss. closed and open are the same band, only the decay differs
+    instrument(SL_HATC, INSTR_NOISE, 0, 22, 0, 10);
+    instrument_filter(SL_HATC, FILTER_BAND, 8400, 14);
     instrument(SL_HATO, INSTR_NOISE, 0, 320, 0, 80);
-    instrument_filter(SL_HATO, FILTER_BAND, 7200, 4);
+    instrument_filter(SL_HATO, FILTER_BAND, 8400, 14);
 
-    // cymbal — highpassed square cluster + noise shimmer on top
-    instrument(SL_CYMT, INSTR_SQUARE, 0, 450, 0, 120);
-    instrument_filter(SL_CYMT, FILTER_HIGH, 5200, 5);
-    instrument(SL_CYMN, INSTR_NOISE, 0, 550, 0, 150);
-    instrument_filter(SL_CYMN, FILTER_HIGH, 6500, 2);
+    // cymbal — the same narrow band a little higher (8.5 kHz), long
+    instrument(SL_CYMN, INSTR_NOISE, 0, 400, 0, 150);
+    instrument_filter(SL_CYMN, FILTER_BAND, 8600, 14);
 
-    // tambourine — noise through a NARROW resonant band: the jingle ring
-    instrument(SL_TAMB, INSTR_NOISE, 0, 90, 0, 30);
-    instrument_filter(SL_TAMB, FILTER_BAND, 8400, 10);
+    // tambourine — a very narrow ring at 4.65 kHz, shaken in (soft attack)
+    instrument(SL_TAMB, INSTR_NOISE, 8, 200, 0, 60);
+    instrument_filter(SL_TAMB, FILTER_BAND, 4650, 15);
 
-    // cowbell — square slot, fired twice detuned (see fire())
-    instrument(SL_COW, INSTR_SQUARE, 0, 220, 0, 60);
-    instrument_filter(SL_COW, FILTER_BAND, 2600, 5);
+    // cowbell — square slot, fired twice detuned (see fire()), lowpassed until
+    // it is nearly two sines: the real one's 3rd harmonics sit 11-16 dB down
+    instrument(SL_COW, INSTR_SQUARE, 0, 55, 0, 25);
+    instrument_filter(SL_COW, FILTER_LOW, 1100, 2);
 
-    // claves — single high triangle ping, lowpassed: pure woody click
-    instrument(SL_CLV, INSTR_TRI, 0, 36, 0, 14);
-    instrument_filter(SL_CLV, FILTER_LOW, 3600, 6);
+    // claves — a pure 2.46 kHz ping
+    instrument(SL_CLV, INSTR_SINE, 0, 40, 0, 12);
+    instrument_tune(SL_CLV, -0.23f);
 
-    // maracas — the shortest noise burst in the box, highpassed
-    instrument(SL_MAR, INSTR_NOISE, 0, 26, 0, 12);
-    instrument_filter(SL_MAR, FILTER_HIGH, 6000, 2);
+    // maracas — the shortest noise burst in the box, a narrow band at 8.7 kHz
+    instrument(SL_MAR, INSTR_NOISE, 0, 15, 0, 8);
+    instrument_filter(SL_MAR, FILTER_BAND, 8700, 14);
 
-    // bongos / conga — bare damped sines at membrane pitches, small pitch drop
-    instrument(SL_BON, INSTR_SINE, 0, 110, 0, 30);
-    instrument_env(SL_BON, 0, ENV_PITCH, 0, 18, 3.0f);
-    instrument(SL_CON, INSTR_SINE, 0, 210, 0, 50);
-    instrument_env(SL_CON, 0, ENV_PITCH, 0, 22, 3.0f);
+    // bongos / conga — bare damped sines at membrane pitches
+    instrument(SL_BON, INSTR_SINE, 0, 40, 0, 25);
+    instrument(SL_BONP, INSTR_SINE, 0, 25, 0, 10);       // low bongo's 2.5 kHz mode
+    instrument(SL_CON, INSTR_SINE, 0, 160, 0, 60);
 
     // guiro — teeth through a gourd: the scrape-check fit to a real CR-78
-    // guiro sample (75 teeth/s, 6 kHz body). Level 0.9 = the old LFO patch's
-    // RMS at the same trigger volume, so the mix does not move
+    // guiro sample (75 teeth/s, 6 kHz body)
     instrument(SL_GUI, INSTR_SCRAPE, 0, 0, 7, 30);
     instrument_harmonics(SL_GUI, 0.0f);    // BODY: gourd
     instrument_timbre(SL_GUI, 0.87f);      // RATE: ~75 teeth/s
     instrument_morph(SL_GUI, 0.0f);        // GESTURE: a steady scrape
-    instrument_level(SL_GUI, 0.9f);
+    instrument_level(SL_GUI, 0.81f);     // 0.9 matched the old LFO patch; -0.9 dB more to sit at the sample's level
 
-    // metallic beat — one square slot, fired three times enharmonically
-    instrument(SL_MET, INSTR_SQUARE, 0, 180, 0, 60);
-    instrument_filter(SL_MET, FILTER_BAND, 3300, 6);
+    // metallic beat — one triangle slot, fired three times up at 3.9-5.9 kHz,
+    // through a band that keeps the fundamentals and drops their harmonics
+    // (a square's 3rd harmonic of 5.9 kHz landed at 17.7 kHz, 7 dB down)
+    instrument(SL_MET, INSTR_TRI, 0, 60, 0, 25);
+    instrument_filter(SL_MET, FILTER_BAND, 5400, 6);
+
+    // ── the mix: each voice's peak relative to the kick, matched to the real
+    // samples (recorded at one gain: every accent hit is ~4.5 dB over its
+    // normal hit). Cuts only: instrument_level is 0..1.
+    instrument_level(SL_HATC, 0.51f);    // -5.9 dB
+    instrument_level(SL_HATO, 0.51f);
+    instrument_level(SL_CYMN, 0.25f);    // -11.9 dB
+    instrument_level(SL_MET,  0.36f);    // -8.8 dB
+    instrument_level(SL_COW,  0.35f);    // -9.2 dB
+    instrument_level(SL_TAMB, 0.18f);    // -14.7 dB
+    instrument_level(SL_MAR,  0.66f);    // -3.6 dB
 
     load_preset();
 }

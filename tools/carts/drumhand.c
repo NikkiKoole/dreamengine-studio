@@ -191,9 +191,9 @@ static void setup_sound(void) {
     // STACKED the rings into a pulsing drone.
     instrument(S_RIDE, INSTR_METAL, 0, 45, 4, 300);    // D45 S4: the stick's HIT, -6 dB by 40 ms then the ring (Savannah's curve; full sustain had no attack)
     instrument_harmonics(S_RIDE, 0.62f); instrument_timbre(S_RIDE, 0.15f); instrument_morph(S_RIDE, 0.30f);   // timbre = noise mix: 0.35 hissed (Nikki), 0.15 by ear
-    instrument_mode(S_RIDE, MODE_METAL_DECAY, 0.48f);
+    instrument_mode(S_RIDE, MODE_METAL_DECAY, 0.34f);   // 0.48 until 2026-11-04 (Nikki: "ringy pingy metallic plonky"; picked by ear from 5 versions: shorter + darker + quieter body)
     instrument_mode(S_RIDE, MODE_METAL_SPREAD, 0.30f);
-    instrument_filter(S_RIDE, FILTER_LOW, 11000, 2);
+    instrument_filter(S_RIDE, FILTER_LOW, 6500, 0);      // 11000 res 2 until 2026-11-04: the top end read as pingy / metallic
     instrument_mono(S_RIDE, 1);
     instrument(S_RIDEB, INSTR_MODAL, 0, 45, 4, 600);
     instrument_harmonics(S_RIDEB, 0.05f); instrument_timbre(S_RIDEB, 0.10f); instrument_morph(S_RIDEB, 0.0f);
@@ -201,7 +201,7 @@ static void setup_sound(void) {
     instrument_mode(S_RIDEB, MODE_MODAL_POS, 0.70f);
     instrument_mode(S_RIDEB, MODE_MODAL_DIRECT, 0.15f);
     instrument_mono(S_RIDEB, 1);
-    instrument_eq(S_RIDEB, 3.0f, 3.0f, 3.0f);       // MODAL rendered far under METAL; level only cuts. Was +12 dB until the MODAL level laws (2026-11-04) lifted a bright material by ~8 dB: re-levelled to sound as before
+    instrument_eq(S_RIDEB, -6.0f, -6.0f, -6.0f);    // the body tone 9 dB under its old level (it read as "plonky", 2026-11-04). History: +12 dB until the MODAL level laws, then +3 dB to sound as before
     // ride bell, aimed at the bell Nikki picked (Meinl Byzance 20" "B2", CC0): a clear, nearly pure
     // ding, partials 3036 / 3435 / 3790 Hz, -20 dB in 345 ms. The bank in a tight spread through a
     // narrow band at 3.4 kHz: ours 3047 / 4016 Hz, -20 dB in 340 ms

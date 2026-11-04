@@ -64,7 +64,10 @@ a broken doc link or `#section`).
 > (d) BRIEFED to playtime-90 (2026-11-04): Playtime's binding catches up (its FFI `NoteOpts` is still the 6-field
 > struct: a dylib rebuilt against today's engine would read cents / damp / shapes from past the 24 bytes it
 > allocates) and then a showcase song with one audible part per feature (flute shapes + vib, cello bow
-> changes, piano pedal lane, pad knob lane + analog, drummer damp + hi-hat foot), plan to Nikki first. The how-to for any session: [humanizing-sounds](guides/humanizing-sounds.md).
+> changes, piano pedal lane, pad knob lane + analog, drummer damp + hi-hat foot), plan to Nikki first. DONE by
+> playtime-90: binding Playtime `6ba19f6f` (struct size guarded by `de_note_opts_size()`), the showcase = Playtime's
+> `parlour` style `dbd5b6b1` (src/music-parlour.lua, a music-panel `humanize` row A/Bs it), dylib rebuilt from
+> 10f4de3f. Waits for Nikki's ear. The how-to for any session: [humanizing-sounds](guides/humanizing-sounds.md).
 > **Hot files:** `runtime/sound.h` / `sound_ctx.h` are shared with the CR-78/drum-voicing agent (dreamengine-f4):
 > announce before editing, commit only your own hunks by pathspec, and when a foreign untracked cart is in
 > `tools/carts/` the pre-commit index gate forces a splice or a wait (it regenerates `index.json` from the tree).

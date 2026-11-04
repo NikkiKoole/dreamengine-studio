@@ -17,7 +17,7 @@
   "description": {
     "summary": "A short original piece for two hands on INSTR_PIANO, played by a model of a pianist: a sustain pedal that changes just AFTER each new chord (legato pedalling), a dry passage, a half-pedal passage, a final chord let go by a slow lift. Melody voiced over the accompaniment, chords slightly apart, a phrase that breathes. TAB flips to the sequenced version.",
     "detail": "The left hand plays broken chords, the right hand a melody. The pianist plans each phrase: where it swells, how much the melody sings over the accompaniment, how the tempo pushes and broadens. The pedal is a curve: pressed after the first note, lifted a moment after each new bass note so the old harmony clears without a gap, held at half depth in a misty passage, and raised slowly over the last chord. Every note ends when its damper falls: when the key comes up with the pedal up, or later when the pedal lifts. Staccato keys let go fast, bass dampers are slower, the top octave has no dampers at all. Keys 1-5 switch each layer on and off.",
-    "controls": "SPACE play/stop · TAB pianist / sequenced · 1 time 2 dynamics 3 pedal 4 endings 5 pedal noise+halo · UP/DOWN humanity · LEFT/RIGHT tempo · R new take"
+    "controls": "SPACE play/stop · TAB pianist / sequenced · L pedal as a lane (one slot) / computed gates · 1 time 2 dynamics 3 pedal 4 endings 5 pedal noise+halo · UP/DOWN humanity · LEFT/RIGHT tempo · R new take"
   }
 }
 de:meta */
@@ -92,6 +92,7 @@ enum { L_TIME, L_DYN, L_PEDAL, L_END, L_EXTRA, NLAYER };
 static const char *LAYER_NAME[NLAYER] = { "time", "dyn", "pedal", "ends", "extra" };
 static bool  playing = true;
 static bool human = true;
+static bool lane_mode = false;   // L: the pedal as LANE_DAMPER on ONE piano slot (NoteOpts step 4) instead of computed gates
 static bool  layer[NLAYER] = { true, true, true, true, true };
 static float humanity = 1.0f;
 static int   tempo = 72;
@@ -134,6 +135,7 @@ static void ped_add(float b, float d) {
 typedef struct {
     double t;            // onset, piece seconds
     double t_up;         // key up, piece seconds (display)
+    float  key_rel;      // the key's own release, ms (lane mode: the pedal lane does the rest)
     double t_damp;       // damper starts (gate end), piece seconds
     int    midi, slot, gate_ms, hand;   // hand 0 LH 1 RH 2 halo 3 pedal noise
     float  gain, timb;
@@ -143,6 +145,7 @@ static Ev ev[NEV];
 static int nev;
 static int ev_next;              // next event to book
 static double piece_t0;          // audio time of beat 0
+static int ped_next;              // lane mode: the next pedal breakpoint to book
 static double piece_len;
 static int max_voices;
 
@@ -288,6 +291,11 @@ static void book_note(float k0, float k1, int midi, int hand, float gain, float 
     e->t_damp = (fabs(tdamp - time_of(k1)) < 1e-9) ? e->t_up : tdamp;   // at key up: the key's own timing
     if (e->t_damp < e->t_up) e->t_damp = e->t_up;
     e->midi = midi; e->hand = hand; e->slot = slot_for_rel(rel);
+    {   // the key's own release, as damper() would give it at key-up with the pedal up (lane mode)
+        bool E = H_on && layer[L_END];
+        float reg = E ? 1.0f + clamp((60 - midi) / 24.0f, 0, 1.2f) : 1.0f;
+        e->key_rel = (E && midi >= 89) ? 1100.0f : key_rel_ms * reg;      // the top octave has no dampers
+    }
     e->gain = clamp(gain, 0.04f, 1.0f);                     // NoteOpts gain 0 means FULL
     e->timb = timb;
 }
@@ -467,21 +475,48 @@ static void rebuild(void) {
     double now_a = audio_time();
     float b_now = beat_of(now_a - piece_t0);
     if (now_a - piece_t0 < 0) b_now = 0;
-    for (int s = SL_P0; s <= SL_PNOISE; s++) unschedule(s, now_a, 0);
+    for (int s = SL_P0; s <= SL_PNOISE; s++) unschedule(s, now_a, 0);   // notes AND booked lane points
+    lane_at(now_a, SL_P0, LANE_DAMPER, 0, 0);
     build();
     if (b_now > 0 && b_now < PIECE_BEATS) piece_t0 = now_a + 0.05 - time_of(b_now);
     ev_next = 0;
     while (ev_next < nev && piece_t0 + ev[ev_next].t < now_a + 0.02) ev_next++;
+    ped_next = 0;
+    while (ped_next < nped && piece_t0 + time_of(ped_b[ped_next]) < now_a) ped_next++;
+    if (ped_next > 0) ped_next--;   // re-book the segment we are inside
 }
+
+// lane mode: the pedal curve itself, booked as LANE_DAMPER ramps on the piano slot. Pedal DEPTH -> damper
+// lift: full contact below 0.15, free above 0.7, the contact zone between = half pedal (a slower release)
+static float damper_of(float depth) { return clamp((depth - 0.15f) / 0.55f, 0, 1); }
 
 static void book_ahead(void) {
     double now_a = audio_time();
-    if (now_a > piece_t0 + piece_len + 1.5) { piece_t0 = now_a + 0.4; ev_next = 0; }   // loop the piece
+    if (now_a > piece_t0 + piece_len + 1.5) { piece_t0 = now_a + 0.4; ev_next = 0; ped_next = 0; }   // loop the piece
+    if (lane_mode) {
+        while (ped_next < nped && piece_t0 + time_of(ped_b[ped_next]) < now_a + LOOKAHEAD) {
+            int i = ped_next++;
+            double t = piece_t0 + time_of(ped_b[i]);
+            if (t < now_a) t = now_a;
+            if (i + 1 < nped) {   // ramp from this breakpoint's depth to the next one's
+                int ramp = (int)((time_of(ped_b[i + 1]) - time_of(ped_b[i])) * 1000.0);
+                lane_at(t, SL_P0, LANE_DAMPER, damper_of(ped_d[i]), 0);
+                lane_at(t, SL_P0, LANE_DAMPER, damper_of(ped_d[i + 1]), ramp);
+            } else lane_at(t, SL_P0, LANE_DAMPER, damper_of(ped_d[i]), 0);
+        }
+    }
     while (ev_next < nev && piece_t0 + ev[ev_next].t < now_a + LOOKAHEAD) {
         Ev *e = &ev[ev_next++];
         double t = piece_t0 + e->t;
         if (t < now_a) continue;
         NoteOpts o = { .gain = e->gain, .timbre = e->timb };
+        if (lane_mode && (e->hand == 0 || e->hand == 1)) {
+            // ONE piano slot: the note lasts as long as its KEY, with the key's own release; the pedal lane holds it
+            o.release_ms = (int)e->key_rel;
+            int key_ms = (int)((e->t_up - e->t) * 1000.0); if (key_ms < 20) key_ms = 20;
+            schedule_note_at(t, e->midi, SL_P0, 7, key_ms, &o);
+            continue;
+        }
         schedule_note_at(t, e->midi, e->slot, 7, e->gate_ms, &o);
     }
 }
@@ -540,6 +575,9 @@ void init(void) {
     build();
     piece_t0 = audio_time() + 0.3;
     ev_next = 0;
+#ifdef LANE_MODE
+    lane_mode = true;
+#endif
 #ifdef PROBE
     probe_init();
 #endif
@@ -558,6 +596,7 @@ void update(void) {
     bool rb = false;
     if (keyp(KEY_SPACE)) { playing = !playing; if (playing) { piece_t0 = audio_time() + 0.2; ev_next = 0; } else note_off_all(); }
     if (keyp(KEY_TAB)) { human = !human; rb = true; }
+    if (keyp('L')) { lane_mode = !lane_mode; rb = true; }
     for (int i = 0; i < NLAYER; i++) if (keyp('1' + i)) { layer[i] = !layer[i]; rb = true; }
     if (keyp(KEY_UP))    { humanity = fminf(1.5f, humanity + 0.25f); rb = true; }
     if (keyp(KEY_DOWN))  { humanity = fmaxf(0.0f, humanity - 0.25f); rb = true; }
@@ -586,6 +625,7 @@ void draw(void) {
     float bnow = beat_of(at);
     int sec = section_of(bnow);
     print(human ? "PIANIST" : "SEQUENCED", 4, 4, human ? CLR_GREEN : CLR_RED);
+    print(lane_mode ? "L: pedal LANE, 1 slot" : "L: computed gates, 5 slots", 180, 4, lane_mode ? CLR_YELLOW : CLR_DARK_GREY);
     print(str("%s  bar %d  %d  #%d", SEC_NAME[sec], (int)(bnow / 4) + 1, tempo, seed), 84, 4, CLR_WHITE);
 
     // piano roll: 7 s window, now at x = 70; thick = key down, thin = held by the pedal, dots = release

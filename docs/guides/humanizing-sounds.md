@@ -94,9 +94,11 @@ and `instrument_tune()` are built to be ridden every frame. The effect calls (`c
 them every frame STUTTERS (CLAUDE.md, `tools/lint-fx-frame.js`): change those only when the value
 actually changes.
 
-**The engine gap:** a knob is a curve SHARED by every sounding note, and a BOOKED note cannot follow it
-yet (only held notes, or a whole-slot ride like `instrument_level`); it is a row of the needs list
-(design doc §6.5 / §6.6).
+**Booked knobs and pedals: `lane_at`.** A knob or pedal is a curve SHARED by every sounding note; book
+it on the audio clock like the notes: `lane_at(t, slot, LANE_CUTOFF / LANE_LEVEL / LANE_VIB /
+LANE_DAMPER, value, ramp_ms)`. Ramped in the engine (no frame stepping), followed by held and booked
+notes alike. `LANE_DAMPER` is a real sustain pedal: released notes ring on while it is down, a half
+pedal slows their release (`pianohand` L).
 
 ## 5. Techniques that work today
 

@@ -1,6 +1,6 @@
 # Humanized playing: a player, not a keyboard
 
-> **STATUS: BUILDING (2026-11-04): NoteOpts steps 1-3 shipped (§8.10).** Spike carts (`strumhand`, `breathflute`, `tablahand`, `tablalab`,
+> **STATUS: BUILDING (2026-11-04): NoteOpts steps 1-4 shipped (§8.10).** Spike carts (`strumhand`, `breathflute`, `tablahand`, `tablalab`,
 > `reedhand`, `basshand`, `cellohand`, `pianohand`, `drumhand`, `synthhand`, `mouthhand`) and three
 > engine calls shipped (`instrument_vibrato`, `MODE_BOW_PLUCK`, `instrument_analog`). The NEEDS list
 > for booked-note curves (§6) is close to complete and a DRAFT layout is in §8; **building it is ON HOLD** (Nikki,
@@ -658,7 +658,20 @@ Engine side this needs `sound_retrig_voice` to cover BOWED and a signed bow velo
    per note. Pitch track: holds ~108-112 Hz for ~90 ms then falls (the real dhin holds 117, falls to 89);
    the old per-frame slot riding (kept on B, byte-identical) fell at once from 96 Hz. No slot riding,
    so it no longer depends on there being ONE bayan.
-4. Lanes. Acceptance: `pianohand`'s pedal as `LANE_DAMPER`, `synthhand`'s knob as `LANE_CUTOFF`,
+4. **BUILT (2026-11-04):** `lane_at(t, slot, lane, value, ramp_ms)`, booked on the audio clock
+   (an absolute target turned into a countdown at the drain, firing in the pen like a note; an event,
+   never logged as config), ramped from where the lane is, refreshed every 32 samples; nothing runs
+   until the first lane event. `LANE_DAMPER` advances a RELEASED note's gate by the damper amount each
+   sample (1 = the release clock stands still, 0.5 = half speed: a half pedal; a held key ignores it),
+   `LANE_CUTOFF` (octaves) and `LANE_LEVEL` (dB) on every voice of the slot, `LANE_VIB` scales the notes'
+   own vibrato. `unschedule()` now also takes back a slot's pending lane points. `LANE_VOWEL` deferred
+   (needs a per-voice formant). Measured: a 300 ms note held 1.4 s by the pedal then released on the
+   lift; half pedal doubles a 300 ms release; cutoff +2 oct centroid 413 -> 1183 Hz; level exactly
+   -12.0 dB; vibrato 0.1 c with the wheel down, 30.1 c (asked 30) up. Byte-identical without lanes.
+   Acceptance: `pianohand` L = every note on ONE piano slot lasting as long as its KEY with its own
+   `release_ms`, the planned pedal curve booked as `LANE_DAMPER` ramps (depth -> damper lift); the same
+   loudness contour as the five-slot computed-gates version (-30.8 vs -31.4 dB rms), which itself still
+   renders byte-identical to the piano agent's original. Still open: `synthhand`'s knob as `LANE_CUTOFF`,
    `drumhand`'s hi-hat pedal.
 5. Note events. Acceptance: `cellohand`'s bow change booked, with BOWED retrig.
 6. With Playtime: the choir booked on `INSTR_SING` (shapes + origin + region), checked by playtime-97.

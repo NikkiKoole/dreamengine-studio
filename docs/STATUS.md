@@ -15,6 +15,11 @@ _Last updated: 2026-10-29 — INSTR_SCRAPE: a guiro with teeth. See the top Ship
 
 ## Shipped ✓
 
+- **NOTEOPTS STEP 4: lanes, `lane_at(t, slot, lane, value, ramp_ms)`** (2026-11-04). Curves shared by
+  every sounding note on a slot, booked on the audio clock and ramped in the engine: `LANE_DAMPER` (a real
+  sustain pedal, half pedal included), `LANE_CUTOFF`, `LANE_LEVEL`, `LANE_VIB` (the mod wheel).
+  `unschedule()` also takes back pending lane points. [`design/humanized-playing.md`](design/humanized-playing.md) §8.10.
+
 - **NOTEOPTS STEP 3: curves on booked notes, `shape_define` + `NoteOpts.shape[]` + `origin_ms`**
   (2026-11-04). A gesture (scoop, swell, fade, breath puff, filter close) is defined once and referenced
   per note, scaled and stretched, on pitch / gain / the three macros / the filter; evaluated in the

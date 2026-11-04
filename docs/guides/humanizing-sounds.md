@@ -154,6 +154,12 @@ The method that worked:
    the first 300 ms, energy between the harmonics, spectral centroid, the level envelope.
 3. **Fix the biggest difference first,** measure again, then render for the ear.
 
+Tools for it (dreamengine-f4, 2026-11-04): `node tools/fetch-refs.js` rebuilds a reference set from a
+committed manifest (`tools/refs/*.txt`, e.g. the drum kit's), so `build/refs/` is reproducible on any
+machine; `node tools/oneshot-compare.js` measures one-shot hits against their references from a spec
+(`tools/oneshot-specs/*.json`), e.g. `--render drumhand --define PROBE_TECH,SYNTH_KIT --spec
+tools/oneshot-specs/drumhand.json --rel kick` (each hit vs the real kit's balance to the kick, ~10 s).
+
 Pitfalls that cost time: `play.js --wav` renders are STEREO (downmix before analysis, or every
 frequency reads an octave low); very low notes fool simple pitch trackers (treat noisy tracks as
 unknown, not as a finding); `click-check` flags every attack that starts from silence, so compare

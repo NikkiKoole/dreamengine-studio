@@ -625,6 +625,11 @@ Engine side this needs `sound_retrig_voice` to cover BOWED and a signed bow velo
    BOOKED with `.vib` (+ `.cents`, `.gain`, legato `.glide_ms`, no per-frame riding): vibrato in 75% of
    windows at a median 8.2 c wobble vs 77% / 9.1 c held-and-ridden. Still missing booked: the scoop,
    the swell, the chiff decay (step 3).
+   **Nikki: "breathflute booked sounds much better!"**, even WITHOUT the scoop and swell. Likely why:
+   booked notes start on the exact sample (held ones on the frame clock, up to ~17-40 ms off) and the
+   booked vibrato is computed inside the engine every 32 samples, where riding a held note steps pitch /
+   vibrato / level 60 times a second. Lesson: per-frame riding has a cost of its own, so steps 3-5 (curves,
+   lanes, events) are worth building to bring the scoop / swell / knobs back WITHOUT the stepping.
 3. Shapes. Acceptance: `breathflute` fully booked (scoop, swell, fall), the bayan drop booked.
 4. Lanes. Acceptance: `pianohand`'s pedal as `LANE_DAMPER`, `synthhand`'s knob as `LANE_CUTOFF`,
    `drumhand`'s hi-hat pedal.

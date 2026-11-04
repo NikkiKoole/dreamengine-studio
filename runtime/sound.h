@@ -5539,6 +5539,16 @@ static void pn_solve_dispersion(float freq, float bTarget, float *cOut, float *c
 // note-on — navkit playStifKarp verbatim: ONE-period KS buffer + fractional-delay allpass tuning,
 // hammer-shaped excitation, AVERAGING strike comb, per-voicing brightness/damping, dispersion,
 // soundboard, optional detuned 2nd string.
+// §I4d: the PHASE ADVANCE (samples) of the piano loop's brightness blend, y = a*x[n-L] + b*x[n-L+1] with
+// b = 0.5*(1-ksb), a = 1-b, at frequency f: the loop runs that much SHORT of its delay line. Exact at f
+// (b at DC; it differs up the keyboard, which is where §I4d was largest).
+static float pn_blend_advance(float f, float ksb) {
+    float b = 0.5f * (1.0f - ksb), a = 1.0f - b;
+    float w = 6.28318531f * f / (float)SOUND_SAMPLE_RATE;
+    if (w < 1e-4f) return b;
+    return de_atan2f(b * de_sinf(w), a + b * de_cosf(w)) / w;
+}
+
 static void sound_piano_start(Voice *v) {
     int vi = (int)(v->harm * 5.999f);
     if (vi < 0) vi = 0; if (vi > 5) vi = 5;
@@ -5568,7 +5578,13 @@ static void sound_piano_start(Voice *v) {
     pn_solve_dispersion(freq, PN_B_AT_STIFF_25 * (pv->stiff / 0.25f) * (v->eng_p[5] * 2.0f), &pn_c, &pn_comp);
     // pn_comp comes OUT of the delay line, here and for the 2nd string below — both go through the same
     // allpasses, so compensating only one leaves them ~80¢ apart (that bug read as "scattered partials").
-    float ideal = (float)SOUND_SAMPLE_RATE / freq - pn_comp;   // one period, allpass for the remainder
+    // §I4d (2026-11-04): the loop's BRIGHTNESS BLEND reads the next-newer sample too ((cur+nxt)/2, pulled
+    // back toward cur by ksb), which shortens the loop by its phase advance at this frequency, about
+    // 0.5*(1-ksb) samples: every note rang sharp, +1 c in the bass to +5 c in the treble, ON TOP of the
+    // intended stretch (synth-secrets-plan.md §I4d). Put that advance back. Exact phase at the note's own
+    // frequency, at the SETTLED brightness (the strike's brighter bloom relaxes into it in ~0.3 s).
+    float pn_adv = pn_blend_advance(freq, PIANO_BRIGHT[vi]);
+    float ideal = (float)SOUND_SAMPLE_RATE / freq - pn_comp + pn_adv;   // one period, allpass for the remainder
     int len = (int)ideal;
     if (len > SOUND_KS_MAX - 1) len = SOUND_KS_MAX - 1;
     if (len < 2) len = 2;
@@ -5638,7 +5654,8 @@ static void sound_piano_start(Voice *v) {
     v->pn_detune  = pv->detune;
     v->pn_dc_prev = v->pn_dc_state = 0.0f;
     if (pv->detune > 1.00001f) {                       // 2nd string: own detuned length + allpass
-        float ideal2 = (float)SOUND_SAMPLE_RATE / (freq * pv->detune) - pn_comp;   // SAME compensation
+        float ideal2 = (float)SOUND_SAMPLE_RATE / (freq * pv->detune) - pn_comp
+                     + pn_blend_advance(freq * pv->detune, PIANO_BRIGHT[vi]);   // SAME compensation (+ §I4d)
         int len2 = (int)ideal2;
         if (len2 > SOUND_KS_MAX - 1) len2 = SOUND_KS_MAX - 1;
         if (len2 < 2) len2 = 2;

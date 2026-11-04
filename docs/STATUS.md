@@ -15,6 +15,10 @@ _Last updated: 2026-10-29 — INSTR_SCRAPE: a guiro with teeth. See the top Ship
 
 ## Shipped ✓
 
+- **PIANO §I4d: the loop's own tuning offset fixed** (2026-11-04). The brightness blend shortened the
+  loop by its phase advance, so every note ran +1 c (bass) to +5 c (treble) sharp on top of the intended
+  stretch; now within ~0.5 c of the curve. Also PIPE slides in tune (`399976bd`). [`design/synth-secrets-plan.md`](design/synth-secrets-plan.md) §I4d.
+
 - **NOTEOPTS STEP 5: events inside a booked note, `note_event_at(id, t, event, amount)`** (2026-11-04).
   `schedule_note_at` now returns a booking id; `NEV_REARTIC` (a BOWED note's bow turns: its velocity goes
   through zero and reverses, also what `note_retrig` now does on bowed), `NEV_DAMP`, `NEV_RELEASE`.

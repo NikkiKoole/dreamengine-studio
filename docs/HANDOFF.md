@@ -1903,7 +1903,7 @@ a broken doc link or `#section`).
 > 2. **Re-voice the other five piano voicings' `B` by ear.** Cheap, no new mechanism. They currently scale
 >    from `PianoVoicing.stiff` (celesta 2.4e-4 down to clavichord 4.4e-5 — plausible ordering) but **only
 >    the grand was ear-checked**. Use the `stiff` slider in the `piano` cart.
-> 3. **§I4d** — with no stretch the loop still runs +1.3→+4.0¢ sharp (its own uncompensated delay
+> 3. **§I4d** — FIXED 2026-11-04 (synth-secrets-plan §I4d). Was: with no stretch the loop still runs +1.3→+4.0¢ sharp (its own uncompensated delay
 >    bookkeeping). Note the offset is **window-dependent**, because the brightness bloom moves `ksb` and
 >    hence the loop delay *within* a note, so any blessed residual is per-measurement-window.
 > 4. **Two gates, both cheap and both earned by this thread.** An **A/B comparability gate** (refuse to call

@@ -1118,7 +1118,21 @@ red, verify that it IS red — a passing gate under a "this will fail by design"
 *"that clash is what makes plain dispersion read as sour metal"*. With no dispersion there was no clash to
 hear, and with only half a stretch there was nothing holding the dispersion honest.
 
-#### §I4d — the loop has its own uncompensated tuning offset (new, smaller, still open)
+#### §I4d — the loop has its own uncompensated tuning offset — FIXED 2026-11-04
+
+> **FIXED (2026-11-04).** The brightness blend (`(cur+nxt)/2`, pulled back toward `cur` by `ksb`) reads
+> the next-newer sample, so the loop runs short by its PHASE ADVANCE at the note's frequency, about
+> `0.5*(1-ksb)` samples. `sound_piano_start` now adds it back (`pn_blend_advance`: exact at f, at the
+> SETTLED brightness; both strings). Measured with `inharm-spec` (the FUNDAMENTAL; never YIN while
+> `MODE_PIANO_STIFF` is on, it follows the sharp upper partials and read Playtime's parlour piano +27 c
+> at G2 when the fundamental was -3 c), stretch and stiffness off: +0.2 c at G2 to -0.4 c at A5 (was
+> +1.3 to +4.8), the top notes -1 to -2 c (the fractional allpass's own phase error). Five of six
+> voicings within ~1 c; "dulcimer" C5 is unreadable before and after (two detuned strings). tune-check's
+> stretch differential still passes. Inaudible on its own (Nikki: "very hard to hear"); committed as a
+> correctness fix so ensembles stop stacking offsets, and Playtime's parlour drops its interim cents.
+> `tune-check --engine PIANO --mode MODE_PIANO_STRETCH=0 --mode MODE_PIANO_STIFF=0` splits it again.
+
+*(The original finding, kept:)*
 
 Measuring the variants exposed a third thing. With the mechanism fixed and `K=0` (no stretch at all),
 PIANO is **not** in equal temperament: on the `--engine PIANO --range 45-79` view it runs **+1.3¢ at A2

@@ -329,14 +329,15 @@ void init(void) {
     instrument_harmonics(SL_GUI, 0.0f);    // BODY: gourd
     instrument_timbre(SL_GUI, 0.87f);      // RATE: ~75 teeth/s
     instrument_morph(SL_GUI, 0.0f);        // GESTURE: a steady scrape
-    instrument_level(SL_GUI, 0.81f);      // 0.9 matched the old LFO patch; -0.9 dB more to sit at the sample's level
+    instrument_level(SL_GUI, 0.99f);      // matched to the sample's level vs the kick (-1.9 dB)
     // the long guiro — the machine's second guiro sound (Guiro 2 in the pack):
     // the same gourd, one steady stroke held ~820 ms, a touch faster (83/s)
     instrument(SL_GUIL, INSTR_SCRAPE, 0, 0, 7, 30);
     instrument_harmonics(SL_GUIL, 0.0f);   // BODY: gourd
     instrument_timbre(SL_GUIL, 0.92f);     // RATE: 10 * 10^0.92 = 83 teeth/s
     instrument_morph(SL_GUIL, 0.0f);       // GESTURE: a steady scrape
-    instrument_level(SL_GUIL, 0.56f);     // the real long scrape sits 1.9 dB under the short one
+    instrument_tune(SL_GUIL, -0.5f);       // the body half a semitone down: the real long scrape is a touch darker
+    instrument_level(SL_GUIL, 0.75f);     // the real long scrape sits 1.9 dB under the short one
 
     // metallic beat — one triangle slot, fired three times up at 3.9-5.9 kHz,
     // through a band that keeps the fundamentals and drops their harmonics

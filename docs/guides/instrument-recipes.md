@@ -622,8 +622,8 @@ the kick); `lvl` = `instrument_level`. The narrow noise bands need the 2026-11-0
 | cr78/bongo | SINE | A0 D40 S0 R25 · notes 74 (high) / 67 (low) | Damped sines at 587 / 392 Hz. |
 | cr78/bongo-mode | SINE | A0 D25 S0 R10 · note 99 (with the low bongo) | The low bongo's 2.5 kHz second mode. |
 | cr78/conga | SINE | A0 D160 S0 R60 · note 55 | 196 Hz damped sine. |
-| cr78/guiro | SCRAPE | = scrape/guiro (body 0 · rate 0.87 · gesture 0) · level 0.81 · note 60 · hit 270 ms | The ratchet, now measured against a real CR-78 guiro sample. It was bandpassed noise chopped by a 36Hz LFO (BP2800/7 · LFO_VOL 36Hz); that patch scraped at half the machine's rate through a 2.8-17 kHz hiss with no gaps between teeth. |
-| cr78/guiro-long | SCRAPE | scrape/guiro with rate 0.92 (83 teeth/s) · level 0.56 · note 60 · hit 820 ms | The machine's second guiro: one steady stroke held ~820 ms, measured against the pack's Guiro 2 (77 teeth, 83/s, same 6 kHz body). |
+| cr78/guiro | SCRAPE | = scrape/guiro (body 0 · rate 0.87 · gesture 0) · level 0.99 · note 60 · hit 270 ms | The ratchet, now measured against a real CR-78 guiro sample. It was bandpassed noise chopped by a 36Hz LFO (BP2800/7 · LFO_VOL 36Hz); that patch scraped at half the machine's rate through a 2.8-17 kHz hiss with no gaps between teeth. |
+| cr78/guiro-long | SCRAPE | scrape/guiro with rate 0.92 (83 teeth/s) · tune -0.5 · level 0.75 · note 60 · hit 820 ms | The machine's second guiro: one steady stroke held ~820 ms, measured against the pack's Guiro 2 (77 teeth, 83/s, same 6 kHz body). |
 | cr78/metal-beat | TRI | A0 D60 S0 R25 · BP5400/6 · notes 114 + 112 + 107 · lvl 0.36 | Three high tones (5.9 / 5.3 / 3.9 kHz), as the real one rings. |
 
 > **Cross-ref:** cr78.c is a confirmed showcase-cart lineage — ymo lifts the *whole* CR-78

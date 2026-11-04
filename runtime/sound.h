@@ -6121,7 +6121,7 @@ typedef struct { float f1, q1, f2, q2, g2, tau_ms, noise, fjit, fric; } ScrBody;
 // scattered 0.12-0.68 where the sample's sit at 0.42-1.0. Metal is the exception: cabasa beads hiss more
 // than they ring, so that anchor is mostly noise through a low-Q band.
 static const ScrBody SCR_BODY[3] = {
-    { 6000.0f, 24.0f, 4700.0f, 8.0f, 0.15f, 2.2f, 0.30f, 0.065f, 0.0006f },  // gourd: the guiro
+    { 6200.0f, 17.0f, 4700.0f, 8.0f, 0.12f, 1.4f, 0.20f, 0.11f, 0.0013f },  // gourd: the guiro (retuned 2026-11-04, it read soft: ring 3.9→2.7 ms, floor -49→-53 dB, 90% 6.46→6.76 kHz; guiro1 3.0 / -55 / 6.87)
     { 2550.0f,  6.0f, 1950.0f, 4.0f, 0.30f, 0.6f, 0.15f, 0.05f,  0.0040f },  // bone / box: the quijada
     { 9500.0f,  3.0f,13000.0f, 4.0f, 0.60f, 1.2f, 0.85f, 0.03f,  0.0020f },  // metal: cabasa beads, a ratchet's pawl
 };

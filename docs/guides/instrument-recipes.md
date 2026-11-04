@@ -585,8 +585,8 @@ by setting the slot's decay per hit; tom/conga TUNE spans ±2 semitones like the
 | 808/maracas | NOISE | 0/24/0/10 · BP8500/13 | Real: 6.7 / 10.6 / 15.5 kHz. |
 | 808/cowbell | SQUARE | 0/250/0/60 · BP900/6 (831 + 554 Hz, the 554 ~15 dB under) | A narrow 0.8 kHz clank (a real 808's: 807-840 Hz). |
 | 808/cymbal | SQUARE | low band decay from the knob (295..600 ms) · BAND 5000/9 + mid BAND 6200 + high BAND 7100 | Three bands decaying unequally (Part 39). |
-| 808/hat-open | SQUARE | decay from the knob (80..500 ms) · BAND 7500/11 (2-osc 79/72) | Real: 6.2 / 7.3 / 11.3 kHz. A resonant band: a 2-pole band's 6 dB/oct skirt let the squares' 786 Hz fundamental back in. |
-| 808/hat-closed | SQUARE | 0/42/0/16 · BAND 7500/11 (2-osc 79/72) | ~40 ms, chokes the open hat. |
+| 808/hat-open | NOISE | decay from the knob (80..500 ms), a STRAIGHT-LINE decay · BP6600/14 | Real: 6.2 / 7.3 / 11.3 kHz, a steady loud burst that then shuts. Squares rang (a chord of one tone's harmonics); an exponential fade lost the impact and grew a tail. |
+| 808/hat-closed | NOISE | 0/42/0/16 · BP8800/14 | ~40 ms, brighter (real 6.7 / 11.5 / 15.3 kHz), chokes the open hat. |
 
 ### morphdrum (morphing — 6 voices, from morphdrum.h)
 

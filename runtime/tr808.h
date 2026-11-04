@@ -323,10 +323,18 @@ static void tr808_build(int base) {
     // hats — bank squares through ~7kHz highpass; open vs closed = decay
     // a BAND, not a highpass: a real 808's hats sit at 6.2 / 7.3 / 11.3 kHz (10/50/90% energy, Fischer's
     // set); with the highpass actually working (svf-hpavg) it passed the squares' harmonics to 20 kHz
-    instrument(base + TRS_HATO, INSTR_SQUARE, 0, 340, 0, 90);
-    instrument_filter(base + TRS_HATO, FILTER_BAND, 7500, 11);
-    instrument(base + TRS_HATC, INSTR_SQUARE, 0, 42, 0, 16);
-    instrument_filter(base + TRS_HATC, FILTER_BAND, 7500, 11);
+    // HATS (2026-11-04, by ear against a real 808's): "an impact, a powerful hiss fading out". Two
+    // squares picked out single harmonics of 786 Hz = a pitched RINGING chord; the METAL bank, mostly
+    // tonal, beat (two partials 43 Hz apart: the envelope wobbled 4.4 dB, the real one's 0.9). What
+    // works is NOISE through a resonant band: open hat 6.0 / 7.1 / 10.5 kHz (real 6.2 / 7.3 / 11.3).
+    // ENVELOPE: a straight-line decay, NOT an exponential one. The real open hat is a loud steady burst
+    // (only -10 dB over 300 ms) that then SHUTS (-14 / -25 / -47 dB at 320 / 340 / 360 ms); an
+    // exponential fade fell fast early and trailed out past half a second ("less impact, more tail",
+    // by ear). A faint metal layer on top was tried and taken out by ear.
+    instrument(base + TRS_HATO, INSTR_NOISE, 0, 340, 0, 90);
+    instrument_filter(base + TRS_HATO, FILTER_BAND, 6600, 14);
+    instrument(base + TRS_HATC, INSTR_NOISE, 0, 42, 0, 16);     // real closed hat: brighter (6.7 / 11.5 / 15.3 kHz), -20 dB in 40 ms
+    instrument_filter(base + TRS_HATC, FILTER_BAND, 8800, 14);
     instrument_choke(base + TRS_HATC, base + TRS_HATO);  // closed hat chokes the open hat
 }
 
@@ -430,14 +438,12 @@ static void tr808_fire_semi(int base, int v, int boost, int delay,
     }
     case TR_OH: {  // two bank members; RING fades warm↔bright
         int dd = tr808__decay_slot(tr808__knob5(kdecay[v], TR808_OH_T20));
-        instrument(base + TRS_HATO, INSTR_SQUARE, 0, dd, 0, 90);
-        schedule_hit(delay, M(79), base + TRS_HATO, VV(CV(0, 6) + 1), dd);
-        schedule_hit(delay, M(72), base + TRS_HATO, VV(CV(5, 0) + 1), dd);
+        instrument(base + TRS_HATO, INSTR_NOISE, 0, dd, 0, 90);      // a straight-line decay: steady, then it shuts
+        schedule_hit(delay, 60, base + TRS_HATO, VV(2), dd);
         break;
     }
     case TR_CH:  // same two, ~50ms
-        schedule_hit(delay, M(79), base + TRS_HATC, VV(4), D(50));
-        schedule_hit(delay, M(72), base + TRS_HATC, VV(3), D(50));
+        schedule_hit(delay, 60, base + TRS_HATC, VV(2), D(50));
         break;
     }
     #undef M

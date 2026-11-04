@@ -4715,6 +4715,24 @@
     "homage": "Minesweeper (1990)"
   },
   {
+    "title": "mini pops mp-7",
+    "description": "The Korg Mini Pops MP-7 (1966), the little preset rhythm box Jean-Michel Jarre ran through Oxygène, rebuilt from synth voices and tuned against the real machine's one-shots: a short round 54 Hz kick, two snares that are pure filtered noise (no drum body at all, the sound of the era), three bongos as bare sine pings, a pure 851 Hz cowbell, a two-tone clave, maracas, a narrow ringing tambourine, a short and a long cymbal, and the two scrapers the box was famous for, a metal guira and a rattling quijada (jawbone). Ten rhythms in the styles 1960s rhythm boxes offered (bossa nova, samba, cha-cha, mambo, rumba, beguine, tango, slow rock, swing, march): our own arrangements, not the machine's preset data. The grid is editable: click/drag cells, click the orange strip to move accents, click a label to audition. Q-G play voices by hand, LEFT/RIGHT preset, UP/DOWN tempo, Z/X swing, SPACE start/stop.",
+    "file": "minipops.cart.png",
+    "created": "2026-11-04",
+    "kind": [
+      "instrument"
+    ],
+    "teaches": [
+      "step-sequencer",
+      "subtractive-synth",
+      "drum-synthesis",
+      "analog-voice-modeling",
+      "swing-timing"
+    ],
+    "lineage": "Korg Mini Pops MP-7 (1966) homage on the cr78 chassis (the same editable 16-step grid, accent strip and swing knob); every voice synthesized and measured against the real MP-7's one-shots (tools/oneshot-compare.js), the guira and quijada on INSTR_SCRAPE.",
+    "homage": "Korg Mini Pops MP-7 (1966)"
+  },
+  {
     "title": "Missile Command",
     "description": "ICBMs streak down a night sky in long glowing diagonals, each one falling toward one of your six cities. You command three batteries with limited ammo per wave; aim the crosshair and click, and a counter-missile launches from the nearest battery with shells to spare, races to the cursor, and blooms into an expanding ring that vaporizes any warhead it touches — chain-detonating into more rings as it goes. Survive the wave to refill ammo and bank a bonus for every city and shell left standing; each wave throws more missiles, faster. When the last city falls it's the end. Mouse to aim, left-click to fire from the nearest battery, click or SPACE to defend again.",
     "file": "missilecmd.cart.png",

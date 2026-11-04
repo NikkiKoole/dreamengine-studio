@@ -21,6 +21,7 @@ left here — that rule is what keeps this doc from regrowing).
 | An idea about… | goes to |
 |---|---|
 | engine/synthesis wants, parameter placement, gaps | **here** (§12 gaps, §4 placement, §9 open questions) |
+| making an instrument sound PLAYED / human, not sequenced (feel, knobs, analog warmth, vibrato, measuring against recordings) | how-to: [`../guides/humanizing-sounds.md`](../guides/humanizing-sounds.md); why + the booked-note NEEDS list: [`humanized-playing.md`](humanized-playing.md) |
 | a new modeled instrument (organ, reed, membrane…) | [`instrument-engines.md`](instrument-engines.md) — the navkit port program: §8.9 catalog, §8.8.2 playbook, §8.10 effects layer |
 | "is our synth architecture *right*?" — theory cross-check, missing classics | [`synth-secrets-audit.md`](synth-secrets-audit.md) — the engine vs Gordon Reid's 63-part **Synth Secrets**: what already matches (§A), ten drifts with book ref + `sound.h` line + audible-home cart (§B), twelve candidate additions (§C). **Read §B7 alongside §17 below** — Reid sources the "everything sounds clean" complaint to the *voice allocator*, not the effects chain |
 | a musical style / generative recipe | [`../guides/game-music.md`](../guides/game-music.md) (recipes, brain catalog, style cheat-sheet) |

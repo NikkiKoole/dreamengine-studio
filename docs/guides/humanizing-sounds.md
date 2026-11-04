@@ -1,5 +1,9 @@
 # Humanizing sounds: making an instrument sound PLAYED
 
+*Search words: humanize, humanise, human feel, groove, sounds robotic / mechanical / like a keyboard /
+like a sequencer / synthetic, make it alive / realistic / expressive, expression, articulation,
+analog warmth, voice cards, drift, ride the knobs, filter sweep, mod wheel, vibrato, p-lock.*
+
 > The how-to. The why, every measurement and the open engine needs live in
 > [`design/humanized-playing.md`](../design/humanized-playing.md); this page is what to DO when a cart's
 > instrument sounds like a keyboard, a sequencer or a cheap synth. Built from ten spike carts

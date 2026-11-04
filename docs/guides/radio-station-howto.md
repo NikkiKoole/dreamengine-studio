@@ -6,6 +6,9 @@ no recipes or API detail: each phase is a few lines + a link to the authoritativ
 Follow it top to bottom; don't skip ahead (Phase 0 exists because the natural instinct —
 "open a similar cart and copy it" — is the one thing that quietly wrecks the result).
 
+> **Making the band sound PLAYED, not sequenced** (per-note feel, a hand on the knobs, analog warmth,
+> a late vibrato, measuring a voice against real recordings): [`humanizing-sounds.md`](humanizing-sounds.md).
+
 > **What a station IS:** an *auto-composing* cart built on [`radio.h`](../../runtime/radio.h)
 > — it plays itself forever from a seed, and the player tunes it (SPACE = new song, feel/
 > tempo/tone knobs, the B band panel). **36 ship today** (`node tools/collections.js radio` for the

@@ -1,10 +1,12 @@
 # Humanized playing: a player, not a keyboard
 
-> **STATUS: EXPLORING (2026-11-04)**. Four spike carts (`strumhand`, `breathflute`, `tablahand`,
-> `tablalab`) and one small engine call (`instrument_vibrato`). Gathering NEEDS across instruments and
-> voices; **building the engine side is ON HOLD** (Nikki, 2026-11-04) until the picture is full enough
-> that one shape fits every instrument and the sampled voices. Built since: a reed and an upright bass; next: cello (arco), piano with pedal, drum kit (§7.1).
-> Written together with Playtime's choir spike (playtime `docs/CHOIR.md`, commit f876a6b3).
+> **STATUS: EXPLORING (2026-11-04)**. Ten spike carts (`strumhand`, `breathflute`, `tablahand`,
+> `tablalab`, `reedhand`, `basshand`, `cellohand`, `pianohand`, `drumhand`, `synthhand`) and three
+> engine calls shipped (`instrument_vibrato`, `MODE_BOW_PLUCK`, `instrument_analog`). The NEEDS list
+> for booked-note curves (§6) is close to complete; **building that part is ON HOLD** (Nikki,
+> 2026-11-04) until one shape fits every instrument and the sampled voices. Written together with
+> Playtime's choir spike (playtime `docs/CHOIR.md`). Search words: humanize, humanise, human feel,
+> expression, analog warmth, NoteOpts curves.
 
 **The how-to for using all this:** [`guides/humanizing-sounds.md`](../guides/humanizing-sounds.md).
 

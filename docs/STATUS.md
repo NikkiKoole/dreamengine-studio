@@ -15,6 +15,12 @@ _Last updated: 2026-10-29 — INSTR_SCRAPE: a guiro with teeth. See the top Ship
 
 ## Shipped ✓
 
+- **HUMANIZED PLAYING: ten spike carts + three engine calls + a guide** (2026-11-04). Making an
+  instrument sound PLAYED, not sequenced: `instrument_vibrato` (switch off the always-on vibrato of
+  PIPE/REED/BOWED/BRASS), `MODE_BOW_PLUCK` (a finger pizz: a bass, not a low piano), `instrument_analog`
+  (analog warmth: per-voice cards + drift; "much more beautiful"). How-to: [`guides/humanizing-sounds.md`](guides/humanizing-sounds.md);
+  the needs list for booked-note curves (building ON HOLD): [`design/humanized-playing.md`](design/humanized-playing.md).
+
 - **PER-VOICE FILTER FIXED ABOVE ~6 kHz** (2026-11-04, found comparing `cr78` to real CR-78 samples). The
   Chamberlin SVF behind `instrument_filter` (and the Steiner modes) rang at Nyquist or went unstable at high
   cutoffs (BAND 7800 res 4 on noise: +12 dB, all of it at 18-22 kHz), so bright hats/cymbals/maracas sat at

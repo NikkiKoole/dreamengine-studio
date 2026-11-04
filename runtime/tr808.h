@@ -74,7 +74,7 @@ enum { TRS_BD, TRS_SDB, TRS_SDN, TRS_TOM, TRS_TOMN, TRS_CON, TRS_RS, TRS_CLV,
 // cart shipped with for a year and a byte-identical render proves it is still exactly that.
 #define TR808_STATE(X) \
     X(int, tr808_cym3,         , 1) \
-    X(int, tr808_cym3_mid_hz,  , 5200) \
+    X(int, tr808_cym3_mid_hz,  , 6200) \
     X(int, tr808_cym3_hi_hz,   , 7100) \
     X(int, tr808_cym3_vel,     , -3) \
     X(int, tr808_cym3_members, , 3) \
@@ -88,7 +88,7 @@ DE_CTX_BLOCK_SAVED(tr808, Tr808, TR808_STATE)   // voicing config a cart changes
 // expand to `c->(tr808_ctx_()->x)`.
 static void tr808_ctx_init_(Tr808Ctx *c) {
     c->tr808_cym3 = 1;
-    c->tr808_cym3_mid_hz = 5200;
+    c->tr808_cym3_mid_hz = 6200;
     c->tr808_cym3_hi_hz = 7100;
     c->tr808_cym3_vel = -3;
     c->tr808_cym3_members = 3;
@@ -126,7 +126,7 @@ static void tr808_ctx_init_(Tr808Ctx *c) {
 // decay times allows the TR808 to change the mix … as the sound progresses". Named so tr808_selfcheck()
 // can assert the ordering holds: if someone ever equalises them the migration silently disappears and
 // the cymbal goes back to a static spectrum while still sounding perfectly fine.
-#define TR808_CY_HP_LO     3440   // the low band's highpass — the shipped voice's only filter
+#define TR808_CY_HP_LO     5000   // the low band's corner (a BAND since 2026-11-04: real 808 cymbal 4.7/6.8/12.5 kHz)
 #define TR808_CY_DECAY_LO   850   // longest: this band alone IS the tail
 #define TR808_CY_DECAY_MID  420
 #define TR808_CY_DECAY_HI   150   // shortest, so the highs die first and the spectrum walks down
@@ -207,9 +207,30 @@ static int tr808__snare_tilt(int boost) {
 }
 
 // ── per-voice knob maths (arrays are the CART's; 0.5 = neutral) ───────────────
-static int tr808__midi(const float *ktune, int v, int base) {           // ±12 semitones
-    return base + (int)((ktune[v] - 0.5f) * 24.0f + 0.5f);
+static int tr808__midi(const float *ktune, int v, int base) {           // ±12 semitones; toms/congas ±2
+    // The real TUNING knob on a tom or conga is NARROW: measured off a real TR-808 at its five marks
+    // (Fischer's 1994 sample set, tools/oneshot-compare.js), the high conga runs 377 / 388 / 409 / 441 /
+    // 463 Hz and the low tom 86 -> 97 Hz: about two semitones either side. ±12 swept a tom over two
+    // octaves. The other voices keep ±12 (acidcandy's keybed + tr808_fire_semi rely on it, and the real
+    // bass drum / snare have no tuning knob to measure against)
+    float span = (v >= TR_LT && v <= TR_HC) ? 4.0f : 24.0f;
+    return base + (int)((ktune[v] - 0.5f) * span + (ktune[v] >= 0.5f ? 0.5f : -0.5f));
 }
+// the decay knob, as MEASURED on a real TR-808 at its five marks (0 / 2.5 / 5 / 7.5 / 10): time from the
+// peak to -20 dB. A gate cannot do this alone: the slot's own decay envelope caps the sound however long
+// the note is held (ours stopped growing at the knob's middle). So the knob sets the SLOT's decay too, the
+// way the real knob changes the circuit; redefining a slot keeps its filter / envelopes / drive.
+static float tr808__knob5(float k, const float t[5]) {
+    if (k <= 0.0f) return t[0];
+    if (k >= 1.0f) return t[4];
+    float x = k * 4.0f; int i = (int)x; float f = x - (float)i;
+    return t[i] + (t[i + 1] - t[i]) * f;
+}
+static const float TR808_BD_T20[5] = { 40, 95, 320, 480, 765 };   // BD50xx: tone 5, decay 0..10
+static const float TR808_OH_T20[5] = { 80, 180, 330, 455, 500 };  // OH00..OH10
+static const float TR808_CY_T20[5] = { 295, 345, 525, 585, 600 };  // CY50xx: tone 5, decay 0..10 (the LOW band, which is the tail)
+// a linear decay to zero crosses -20 dB at 0.9 of its length
+static int tr808__decay_slot(float t20) { return (int)(t20 / 0.9f * 1.1f + 0.5f); }   // ×1.1: the pitch env's fall reads early
 static int tr808__dur(const float *kdecay, int v, int base) {           // 0.25×..4× decay, 1× at 0.5
     float s = de_powf(4.0f, (kdecay[v] - 0.5f) * 2.0f);
     int d = (int)(base * s + 0.5f);
@@ -236,7 +257,7 @@ static void tr808_build(int base) {
     instrument_env(base + TRS_SDB, 0, ENV_PITCH, 0, 20, 3.0f);
     // snare "snappy" — highpassed noise
     instrument(base + TRS_SDN, INSTR_NOISE, 0, 130, 0, 40);
-    instrument_filter(base + TRS_SDN, FILTER_HIGH, 1800, 2);
+    instrument_filter(base + TRS_SDN, FILTER_LOW, 7500, 4);   // real snappy energy 3.7-8.5 kHz; a band's skirt ran on to 19 kHz   // real snappy: 3.7-8.5 kHz (a highpass ran to 20 kHz)
 
     // toms — sine with a pitch drop + a separate low noise thud
     instrument(base + TRS_TOM, INSTR_SINE, 0, 260, 0, 50);
@@ -245,11 +266,11 @@ static void tr808_build(int base) {
     instrument_filter(base + TRS_TOMN, FILTER_BAND, 900, 2);
 
     // congas — the tom circuit without the noise, shorter
-    instrument(base + TRS_CON, INSTR_SINE, 0, 150, 0, 30);
+    instrument(base + TRS_CON, INSTR_SINE, 0, 260, 0, 30);   // long enough for the low conga's 220
     instrument_env(base + TRS_CON, 0, ENV_PITCH, 0, 25, 4.0f);
 
     // rimshot — both bridged-T modes through a highpass (keeps 455 AND 1667)
-    instrument(base + TRS_RS, INSTR_TRI, 0, 45, 0, 15);
+    instrument(base + TRS_RS, INSTR_TRI, 0, 18, 0, 8);
     instrument_filter(base + TRS_RS, FILTER_HIGH, 500, 3);
 
     // claves — single 2500Hz ping
@@ -258,19 +279,19 @@ static void tr808_build(int base) {
 
     // handclap — bandpassed noise; the retriggers in tr808_fire() make the clap
     instrument(base + TRS_CP, INSTR_NOISE, 0, 110, 0, 50);
-    instrument_filter(base + TRS_CP, FILTER_BAND, 1100, 5);
+    instrument_filter(base + TRS_CP, FILTER_BAND, 1100, 8);   // real clap: 0.9 / 1.5 / 4.5 kHz
 
     // maracas
     instrument(base + TRS_MAR, INSTR_NOISE, 0, 24, 0, 10);
-    instrument_filter(base + TRS_MAR, FILTER_HIGH, 6500, 2);
+    instrument_filter(base + TRS_MAR, FILTER_BAND, 8500, 13);   // real: 6.7 / 10.6 / 15.5 kHz
 
     // cowbell — square pair through the classic ~2.6kHz bandpass
     instrument(base + TRS_CB, INSTR_SQUARE, 0, 250, 0, 60);
-    instrument_filter(base + TRS_CB, FILTER_BAND, 2640, 5);
+    instrument_filter(base + TRS_CB, FILTER_BAND, 900, 6);   // real 808 cowbell: a narrow 807-840 Hz (2.64 kHz let the squares' harmonics through)
 
     // cymbal — bank squares through the 3440Hz region, very long ring
     instrument(base + TRS_CYT, INSTR_SQUARE, 0, TR808_CY_DECAY_LO, 0, 200);
-    instrument_filter(base + TRS_CYT, FILTER_HIGH, TR808_CY_HP_LO, 3);
+    instrument_filter(base + TRS_CYT, FILTER_BAND, TR808_CY_HP_LO, 9);   // a RESONANT band (was a highpass, open to 19 kHz): a 2-pole band falls 6 dB/oct, so only a resonant one keeps the squares' fundamentals out
     // …plus the schematic's upper two bands (§J5). Higher corner ⇒ shorter decay: the highs die first,
     // so the surviving spectrum walks downward through the tail instead of holding still. Always built;
     // tr808_cym3 decides whether a crash fires them.
@@ -300,10 +321,12 @@ static void tr808_build(int base) {
     // change to the part of the sound this item is not about.
 
     // hats — bank squares through ~7kHz highpass; open vs closed = decay
+    // a BAND, not a highpass: a real 808's hats sit at 6.2 / 7.3 / 11.3 kHz (10/50/90% energy, Fischer's
+    // set); with the highpass actually working (svf-hpavg) it passed the squares' harmonics to 20 kHz
     instrument(base + TRS_HATO, INSTR_SQUARE, 0, 340, 0, 90);
-    instrument_filter(base + TRS_HATO, FILTER_HIGH, 7000, 3);
+    instrument_filter(base + TRS_HATO, FILTER_BAND, 7500, 11);
     instrument(base + TRS_HATC, INSTR_SQUARE, 0, 42, 0, 16);
-    instrument_filter(base + TRS_HATC, FILTER_HIGH, 7000, 3);
+    instrument_filter(base + TRS_HATC, FILTER_BAND, 7500, 11);
     instrument_choke(base + TRS_HATC, base + TRS_HATO);  // closed hat chokes the open hat
 }
 
@@ -334,50 +357,62 @@ static void tr808_fire_semi(int base, int v, int boost, int delay,
     #define CV(lo,hi) tr808__cv(kcolor,   v, (lo), (hi))
     #define VV(bs)    tr808__vv((bs), boost)
     switch (v) {
-    case TR_BD:  // ~50Hz bridged-T with the decay-knob boom
-        schedule_hit(delay, M(31), base + TRS_BD, VV(6), D(500));
+    case TR_BD: {  // ~50Hz bridged-T with the decay-knob boom
+        int dd = tr808__decay_slot(tr808__knob5(kdecay[v], TR808_BD_T20));
+        instrument(base + TRS_BD, INSTR_SINE, 0, dd, 0, 60);
+        schedule_hit(delay, M(31), base + TRS_BD, VV(6), dd);
         break;
+    }
     case TR_SD: {  // 180Hz + 330Hz modes; SNPY knob fades body↔noise
-        int body = CV(8, 0), snpy = CV(0, 8);
+        int body = CV(8, 0) - 1, snpy = CV(0, 8) - 1;   // -1: the snare sat ~3 dB over a real 808's balance to the kick
         int tilt = tr808__snare_tilt(boost);   // §J9: a harder hit tips body→noise, not just louder
         schedule_hit(delay, M(54), base + TRS_SDB, VV(body - tilt), D(110));
-        schedule_hit(delay, M(64), base + TRS_SDB, VV(body - tilt), D(110));
+        schedule_hit(delay, M(64), base + TRS_SDB, VV(body - tilt - 2), D(110));   // the 330 Hz mode sits ~10 dB under 180 on a real 808
         schedule_hit(delay, M(60), base + TRS_SDN, VV(snpy + tilt), D(140));
         break;
     }
     case TR_LT: case TR_MT: case TR_HT: {  // sine drop + THUD knob controls noise thud level
-        int m = v == TR_LT ? 40 : v == TR_MT ? 45 : 52;
-        schedule_hit(delay, M(m),  base + TRS_TOM,  VV(4), D(280));
+        // pitch + length measured off a real 808 at the knob's centre: 86 / 140 / 194 Hz, -20 dB in
+        // 210 / 130 / 105 ms (was 40/45/52 + one 280 ms length: the mid + high toms 2-3 semitones flat)
+        int m = v == TR_LT ? 40 : v == TR_MT ? 48 : 54;
+        int len = v == TR_LT ? 280 : v == TR_MT ? 110 : 80;     // the 50 ms release adds to the gate
+        schedule_hit(delay, M(m),  base + TRS_TOM,  VV(5), D(len));
         schedule_hit(delay, M(60), base + TRS_TOMN, VV(CV(0, 5)), D(30));
         break;
     }
     case TR_LC: case TR_MC: case TR_HC: {  // same circuit, cleaner + shorter
-        int m = v == TR_LC ? 52 : v == TR_MC ? 57 : 63;
-        schedule_hit(delay, M(m), base + TRS_CON, VV(4), D(160));
+        // real 808 congas: 205 / 280 / 409 Hz, -20 dB in 185 / 95 / 85 ms (were 4-5 semitones flat)
+        int m = v == TR_LC ? 56 : v == TR_MC ? 61 : 68;
+        int len = v == TR_LC ? 180 : v == TR_MC ? 80 : 70;
+        schedule_hit(delay, M(m), base + TRS_CON, VV(5), D(len));
         break;
     }
     case TR_RS:  // dual bridged-T: 1667Hz (midi 92) + 455Hz (midi 70)
-        schedule_hit(delay, M(92), base + TRS_RS, VV(4), D(50));
-        schedule_hit(delay, M(70), base + TRS_RS, VV(3), D(50));
+        // a real 808 rimshot is mostly its LOW mode (474 Hz, the 1712 Hz one 7 dB under) and gone in ~10 ms
+        schedule_hit(delay, M(92), base + TRS_RS, VV(1), D(15));
+        schedule_hit(delay, M(70), base + TRS_RS, VV(4), D(15));
         break;
     case TR_CLV: // the rimshot circuit retuned to 2500Hz = midi 99 exactly
-        schedule_hit(delay, M(99), base + TRS_CLV, VV(4), D(45));
+        schedule_hit(delay, M(99), base + TRS_CLV, VV(6), D(45));
         break;
     case TR_CP:  // three retriggers ~10ms apart + a soft room tail
-        schedule_hit(delay,      M(60), base + TRS_CP, VV(4), 12);
-        schedule_hit(delay + 10, M(60), base + TRS_CP, VV(4), 12);
-        schedule_hit(delay + 20, M(60), base + TRS_CP, VV(4), 12);
-        schedule_hit(delay + 28, M(60), base + TRS_CP, VV(3), D(140));
+        schedule_hit(delay,      M(60), base + TRS_CP, VV(6), 12);
+        schedule_hit(delay + 10, M(60), base + TRS_CP, VV(6), 12);
+        schedule_hit(delay + 20, M(60), base + TRS_CP, VV(6), 12);
+        schedule_hit(delay + 28, M(60), base + TRS_CP, VV(5), D(140));
         break;
-    case TR_MA:  schedule_hit(delay, M(90), base + TRS_MAR, VV(3), D(30)); break;
+    case TR_MA:  schedule_hit(delay, M(90), base + TRS_MAR, VV(4), D(30)); break;
     case TR_CB:  // bank osc 1+2; TONE fades 540Hz↔800Hz emphasis
-        schedule_hit(delay, M(73), base + TRS_CB, VV(CV(7, 0)), D(220));
-        schedule_hit(delay, M(79), base + TRS_CB, VV(CV(0, 7)), D(220));
+        // real 808: 829 Hz on top, the 540 Hz partial ~15 dB under; -20 dB in ~90 ms
+        schedule_hit(delay, M(73), base + TRS_CB, VV(CV(7, 0) - 3), D(70));
+        schedule_hit(delay, M(80), base + TRS_CB, VV(CV(0, 7) + 3), D(70));   // 831 Hz: a real 808's is 829
         break;
-    case TR_CY:  // three bank members; TONE fades warm↔bright
-        schedule_hit(delay, M(79), base + TRS_CYT, VV(CV(0, 6)), D(900));
-        schedule_hit(delay, M(72), base + TRS_CYT, VV(2), D(900));
-        schedule_hit(delay, M(66), base + TRS_CYT, VV(CV(5, 0)), D(900));
+    case TR_CY: {  // three bank members; TONE fades warm↔bright
+        int dd = tr808__decay_slot(tr808__knob5(kdecay[v], TR808_CY_T20));
+        instrument(base + TRS_CYT, INSTR_SQUARE, 0, dd, 0, 200);
+        schedule_hit(delay, M(79), base + TRS_CYT, VV(CV(0, 6) + 2), dd);
+        schedule_hit(delay, M(72), base + TRS_CYT, VV(4), dd);
+        schedule_hit(delay, M(66), base + TRS_CYT, VV(CV(5, 0) + 2), dd);
         if (tr808_cym3) {
             // the SAME members into the upper two bands — the migration comes from one source decaying
             // at three rates, not from three different tones (which would just be three sounds)
@@ -392,13 +427,17 @@ static void tr808_fire_semi(int base, int v, int boost, int delay,
             }
         }
         break;
-    case TR_OH:  // two bank members; RING fades warm↔bright
-        schedule_hit(delay, M(79), base + TRS_HATO, VV(CV(0, 6)), D(360));
-        schedule_hit(delay, M(72), base + TRS_HATO, VV(CV(5, 0)), D(360));
+    }
+    case TR_OH: {  // two bank members; RING fades warm↔bright
+        int dd = tr808__decay_slot(tr808__knob5(kdecay[v], TR808_OH_T20));
+        instrument(base + TRS_HATO, INSTR_SQUARE, 0, dd, 0, 90);
+        schedule_hit(delay, M(79), base + TRS_HATO, VV(CV(0, 6) + 1), dd);
+        schedule_hit(delay, M(72), base + TRS_HATO, VV(CV(5, 0) + 1), dd);
         break;
+    }
     case TR_CH:  // same two, ~50ms
-        schedule_hit(delay, M(79), base + TRS_HATC, VV(3), D(50));
-        schedule_hit(delay, M(72), base + TRS_HATC, VV(2), D(50));
+        schedule_hit(delay, M(79), base + TRS_HATC, VV(4), D(50));
+        schedule_hit(delay, M(72), base + TRS_HATC, VV(3), D(50));
         break;
     }
     #undef M

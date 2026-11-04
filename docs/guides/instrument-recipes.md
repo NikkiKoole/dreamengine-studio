@@ -549,22 +549,25 @@ the additive synths, whimsical toys, and live synth patches.
 
 Voices use raw waves (SINE/NOISE/TRI/SQUARE), some layered. Per-voice TUNE/DECAY/character
 knobs add live variation; 6 pattern presets (PLANET ROCK, HEALING, HOUSE, ELECTRO, BOOM BAP,
-COWBELL JAM) are grids, not recipes.
+COWBELL JAM) are grids, not recipes. **Measured 2026-11-04 against a real TR-808** (Michael Fischer's
+free 1994 set: every voice at five knob marks, `tools/oneshot-compare.js`): pitches, bands and decays
+below match it, and the DECAY knobs (kick, open hat, cymbal) follow the real machine's measured curve
+by setting the slot's decay per hit; tom/conga TUNE spans ±2 semitones like the real knob.
 
 | name | engine | recipe | character |
 |---|---|---|---|
-| 808/kick | SINE | 0/480/0/60 · LP 250/3 · pitch-env →+26 (0/50) · drive 0.28 | Boomy 808 sub kick, saturated low-end thump, ~50Hz. |
-| 808/snare | SINE+NOISE | body 0/100/0/30 LP1200/1 + snappy 0/130/0/40 HP1800/2 | 180+330Hz sine modes + highpassed noise, tunable body↔snap. |
-| 808/tom-lo/mid/hi | SINE+NOISE | sine 0/260/0/50 pitch-env →+6 (0/80) + thud 0/28/0/12 BP900/2 | Three toms (midi 40/45/52), sine pitch drop + optional noise thud. |
-| 808/conga-lo/mid/hi | SINE | 0/150/0/30 · pitch-env →+4 (0/25) | Three congas (midi 52/57/63), clean sine drop, no noise. |
-| 808/rimshot | TRI | 0/45/0/15 · HP500/3 (dual bridged-T 1667+455Hz) | Dual-tone rimshot, bright highpassed triangular punch. |
-| 808/claves | TRI | 0/40/0/14 · LP4000/5 (2500Hz) | Sharp wooden clave ping, vocal hollow tone. |
-| 808/clap | NOISE | 0/110/0/50 · BP1100/5 · 3× retrigger ~10ms + 140ms tail | Bandpassed noise with retrigger burst + reverb decay. |
-| 808/maracas | NOISE | 0/24/0/10 · HP6500/2 | Bright quick highpassed maracas with a tiny body. |
-| 808/cowbell | SQUARE | 0/250/0/60 · BP2640/5 (dual 540+800Hz, tone xfade) | The 2.6kHz bandpassed square pair, tunable emphasis. |
-| 808/cymbal | SQUARE | 0/850/0/200 · HP3440/3 (3-osc bank 79/72/66Hz) | Bright metallic sustain, shimmering tail. |
-| 808/hat-open | SQUARE | 0/340/0/90 · HP7000/3 (2-osc 79/72Hz) | Bright square hats, ~360ms sustain, warm↔bright knob. |
-| 808/hat-closed | SQUARE | 0/42/0/16 · HP7000/3 (2-osc 79/72Hz) | Tight ~50ms snap, chokes the open hat. |
+| 808/kick | SINE | decay from the knob (-20 dB 40/95/320/480/765 ms at marks 0..10) · LP 250/3 · pitch-env →+26 (0/50) · drive 0.28 | Boomy 808 sub kick, ~54 Hz. |
+| 808/snare | SINE+NOISE | body 0/100/0/30 LP1200/1 (180 Hz + 330 Hz ~10 dB under) + snappy 0/130/0/40 LP7500/4 | Body↔snap knob; real snappy sits at 3.7-8.5 kHz. |
+| 808/tom-lo/mid/hi | SINE+NOISE | sine 0/260/0/50 pitch-env →+6 (0/80) + thud 0/28/0/12 BP900/2 | midi 40/48/54 = 86/140/194 Hz, -20 dB in ~210/130/105 ms. |
+| 808/conga-lo/mid/hi | SINE | 0/260/0/30 · pitch-env →+4 (0/25) | midi 56/61/68 = 205/280/409 Hz, short. |
+| 808/rimshot | TRI | 0/18/0/8 · HP500/3 (455 Hz loud + 1667 Hz ~7 dB under) | A ~10 ms knock, mostly its low mode. |
+| 808/claves | TRI | 0/40/0/14 · LP4000/5 (2500Hz) | Sharp wooden clave ping. |
+| 808/clap | NOISE | 0/110/0/50 · BP1100/8 · 3× retrigger ~10ms + 140ms tail | Real clap: 0.9 / 1.5 / 4.5 kHz. |
+| 808/maracas | NOISE | 0/24/0/10 · BP8500/13 | Real: 6.7 / 10.6 / 15.5 kHz. |
+| 808/cowbell | SQUARE | 0/250/0/60 · BP900/6 (831 + 554 Hz, the 554 ~15 dB under) | A narrow 0.8 kHz clank (a real 808's: 807-840 Hz). |
+| 808/cymbal | SQUARE | low band decay from the knob (295..600 ms) · BAND 5000/9 + mid BAND 6200 + high BAND 7100 | Three bands decaying unequally (Part 39). |
+| 808/hat-open | SQUARE | decay from the knob (80..500 ms) · BAND 7500/11 (2-osc 79/72) | Real: 6.2 / 7.3 / 11.3 kHz. A resonant band: a 2-pole band's 6 dB/oct skirt let the squares' 786 Hz fundamental back in. |
+| 808/hat-closed | SQUARE | 0/42/0/16 · BAND 7500/11 (2-osc 79/72) | ~40 ms, chokes the open hat. |
 
 ### morphdrum (morphing — 6 voices, from morphdrum.h)
 

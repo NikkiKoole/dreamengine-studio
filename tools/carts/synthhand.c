@@ -16,7 +16,7 @@
   "description": {
     "summary": "An analog polysynth that is ALIVE: a hand rides the filter and the mod wheel, chords land a little apart, and the machine itself is imperfect: every voice slightly different, the oscillators drifting, the power sagging when the chord is big. TAB flips to the perfect digital version.",
     "detail": "Pad and lead on a saw-and-ladder-filter voice. The player: chords spread a few ms, velocity varies, notes overlap into the next chord; the left hand sweeps the cutoff slowly and unevenly through a phrase (overshooting a little), brings the mod-wheel vibrato in late on long lead notes, bends into some notes, and glides on some. The machine: eight VOICE CARDS, each with its own small tuning, cutoff and envelope offsets, handed out in rotation so the same note twice sounds twice; every card drifts slowly in pitch (more while the synth is 'cold' at the start); a big chord sags the level and the filter a touch. Keys 1-5 switch each layer on and off.",
-    "controls": "SPACE play/stop · TAB analog / digital · 1 keys 2 knobs 3 cards 4 drift 5 sag · UP/DOWN humanity · R new take"
+    "controls": "SPACE play/stop · TAB analog / digital · E engine instrument_analog / cart voice cards · 1 keys 2 knobs 3 cards 4 drift 5 sag · UP/DOWN humanity · R new take"
   }
 }
 de:meta */
@@ -34,12 +34,15 @@ de:meta */
 #define CARD0  10
 #define NCARD  8
 #define LEAD   18
+#define ENGSL  19          // ONE neutral pad slot for the engine's own instrument_analog
 #define NPV    16          // pad voices we track
 
 enum { L_KEYS, L_KNOBS, L_CARDS, L_DRIFT, L_SAG, NLAYER };
 static const char *LAYER_NAME[NLAYER] = { "keys", "knobs", "cards", "drift", "sag" };
 
 static bool  playing = true, human = true;
+static bool  engine_cards = true;   // E: the engine's instrument_analog (one slot) vs the cart's eight offset slots
+static float analog_applied = -1;   // set-and-hold: instrument_analog is re-sent only on a change
 static bool  layer[NLAYER] = { true, true, true, true, true };
 static float humanity = 1.0f;
 static int   tempo = 92;
@@ -100,6 +103,8 @@ static void setup_sound(void) {
         patch(cs, (int)(380 * card_env[c]), (int)(900 * card_env[c]), 5, (int)(1300 * card_env[c]), 0.08f + 0.04f * rnd_float());
         instrument_pan(cs, (c - 3.5f) * 0.08f);
     }
+    patch(ENGSL, 380, 900, 5, 1300, 0.10f);              // neutral: the engine adds the voice cards
+    analog_applied = -1;
     patch(LEAD, 8, 300, 6, 180, 0.06f);
     instrument_mono(LEAD, 1);
     instrument_filter(LEAD, FILTER_LADDER, 1800, 6);
@@ -129,13 +134,15 @@ static void start_chord(int ci) {
     // the keys: the old chord lets go a moment AFTER the new one lands (legato), or at once
     for (int k = 0; k < 4; k++) {
         int m = CHORDS[ci][k];
-        int card = C ? next_card : 0;                     // round-robin through the cards
-        if (C) next_card = (next_card + 1) % NCARD;
-        int slot = (human && C) ? CARD0 + card : CARD0;   // digital: one slot, every voice the same
+        bool cart_cards = C && !engine_cards;
+        int card = cart_cards ? next_card : 0;            // round-robin through the cart's cards
+        if (cart_cards) next_card = (next_card + 1) % NCARD;
+        // ENGINE mode: every note to one slot, instrument_analog hands out the cards inside the engine
+        int slot = engine_cards ? ENGSL : (cart_cards ? CARD0 + card : CARD0);
         float vel = K ? 0.70f + 0.15f * r1() * H + (k == 3 ? 0.08f : 0) : 0.75f;
         int i = free_pv();
         pv[i].h = note_on(m, slot, (int)(vel * 7.0f));
-        pv[i].card = C ? card : -1; pv[i].midi = m; pv[i].vel = vel;
+        pv[i].card = cart_cards ? card : -1; pv[i].midi = m; pv[i].vel = vel;
         // note_on cannot start inside a frame, so the KEYS layer spreads the chord by each voice's
         // loudness arriving at its own moment instead: lower notes land first
         pv[i].t_on = chord_t + (K ? (0.004f + 0.006f * k) * H + 0.003f * rnd_float() : 0);
@@ -169,6 +176,9 @@ static void lead_start(int li) {
 
 void init(void) {
     setup_sound(); new_take();
+#ifdef CART_CARDS   // DE_DEFINES=CART_CARDS: start on the cart's eight slots (the A/B)
+    engine_cards = false;
+#endif
 #ifdef LAYERS_OFF    // DE_DEFINES=LAYERS_OFF=<bitmask>: start with layers off (bit 0 = keys .. bit 4 = sag), for A/B renders
     for (int i = 0; i < NLAYER; i++) if (LAYERS_OFF & (1 << i)) layer[i] = false;
 #endif
@@ -181,6 +191,11 @@ void update(void) {
     if (keyp(KEY_UP))   humanity = fminf(1.5f, humanity + 0.25f);
     if (keyp(KEY_DOWN)) humanity = fmaxf(0.0f, humanity - 0.25f);
     if (keyp('R')) { seed++; release_old(1e9); setup_sound(); new_take(); }
+    if (keyp('E')) { engine_cards = !engine_cards; release_old(1e9); }
+    {   // the engine's analog: on in ENGINE mode when the cards layer is on (set-and-hold, never per frame)
+        float want = (engine_cards && human && layer[L_CARDS]) ? humanity : 0.0f;
+        if (want != analog_applied) { instrument_analog(ENGSL, want); instrument_analog(LEAD, want * 0.6f); analog_applied = want; }
+    }
     t_now += dt();
     if (!playing) return;
     float H = humanity;
@@ -255,8 +270,15 @@ void update(void) {
 void draw(void) {
     cls(CLR_DARK_BLUE);
     print(human ? "ANALOG" : "DIGITAL", 4, 4, human ? CLR_GREEN : CLR_RED);
+    print(engine_cards ? "E: engine instrument_analog" : "E: cart voice cards", 4, 96, engine_cards ? CLR_YELLOW : CLR_LIGHT_GREY);
     print(str("%d bpm  take %d", tempo, seed), 120, 4, CLR_WHITE);
     // the eight voice cards: lit when sounding, their offsets as little marks
+    if (engine_cards) {
+        rect(12, 30, 296, 50, CLR_DARK_GREY);
+        print("ONE slot + instrument_analog", 22, 40, CLR_YELLOW);
+        print("8 cards + drift, in the engine", 22, 54, CLR_LIGHT_GREY);
+        print(str("amount %.2f", analog_applied < 0 ? 0 : analog_applied), 22, 66, CLR_WHITE);
+    } else
     for (int c = 0; c < NCARD; c++) {
         int x = 12 + c * 37, y = 30;
         bool on = false; for (int i = 0; i < NPV; i++) if (pv[i].h && pv[i].card == c) on = true;
@@ -270,7 +292,7 @@ void draw(void) {
         int ey = y + 25 - (int)((card_env[c] - 1) * 60);
         line(x + 22, ey, x + 27, ey, CLR_PINK);                       // envelope
     }
-    print("voice cards: tune / cutoff / env", 12, 84, CLR_LIGHT_GREY);
+    if (!engine_cards) print("voice cards: tune / cutoff / env", 12, 84, CLR_LIGHT_GREY);
     // the cutoff knob
     int kx = 60, ky = 125; float ang = -225 + 270 * clamp((shown_cut - 300) / 2400, 0, 1);
     circ(kx, ky, 18, CLR_LIGHT_GREY);

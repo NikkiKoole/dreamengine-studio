@@ -649,7 +649,7 @@ the kick), and cross-checked against a second pack (CR-78 Kit 06, same pitches a
 | cr78/kick | SINE | A0 D140 S0 R40 · LP320/2 · pitch-env →+2 (0/30) · note 36 | Soft round 65 Hz, barely any drop. |
 | cr78/snare-body | SINE | A0 D60 S0 R20 · pitch-env →+2 (0/15) · note 63 · lvl 0.15 | 311 Hz shell, kept low under the rattle. |
 | cr78/snare-rattle | NOISE | A0 D70 S0 R25 · LP8000/6 | Noise to ~10 kHz; a lowpass, since a low-Q bandpass trails to 20 kHz. |
-| cr78/rim | TRI + SINE | TRI A0 D10 S0 R5 · BP1400/9 · note 89 + SINE A0 D12 · note 58 | A 1.4 kHz ping over a low knock, ~10 ms. |
+| cr78/rim | TRI + SINE | TRI 0/0/7/6 RELEASE_EXP · BP1500/2 · note 90, 1 ms gate + SINE 0/0/7/8 exp · note 57 (faint) | A CLICK: one swing + a damped ~1.5 kHz ring, -20 dB in ~4 ms like the real one. A 10 ms resonant ping read as a woodblock. |
 | cr78/hat-closed | NOISE | A0 D22 S0 R10 · BP8400/15 · lvl 0.38 | The CR-78 swish: a NARROW 7.4-9.7 kHz band. |
 | cr78/hat-open | NOISE | A0 D290 S0 R150 · BP8400/15 · lvl 0.38 · hit 420 ms | Same band, long; checked against a second CR-78 pack's open hat (-20 dB at ~250 ms). |
 | cr78/cymbal | NOISE | A0 D400 S0 R150 · BP8600/15 · lvl 0.21 | The hat band held ~450 ms. |

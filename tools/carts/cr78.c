@@ -237,9 +237,9 @@ static void fire(int v, int boost, int delay) {
         schedule_hit(delay, 63, SL_SNB, vv(3, boost), 100);
         schedule_hit(delay, 60, SL_SNN, vv(6, boost), 120);
         break;
-    case V_RIM:   // a click: a 1.4 kHz ping over a low knock, both gone in ~10 ms
-        schedule_hit(delay, 89, SL_RIM,  vv(6, boost), 30);
-        schedule_hit(delay, 58, SL_RIMT, vv(2, boost), 30);
+    case V_RIM:   // a click: a damped ~1.5 kHz swing over a faint low knock, gone in ~5 ms
+        schedule_hit(delay, 90, SL_RIM,  vv(7, boost), 1);
+        schedule_hit(delay, 57, SL_RIMT, vv(1, boost), 1);
         break;
     case V_HATC:  schedule_hit(delay, 90, SL_HATC, vv(3, boost), 40); break;
     case V_HATO:  schedule_hit(delay, 90, SL_HATO, vv(3, boost), 420); break;
@@ -286,10 +286,14 @@ void init(void) {
     instrument(SL_SNN, INSTR_NOISE, 0, 70, 0, 25);
     instrument_filter(SL_SNN, FILTER_LOW, 8000, 6);
 
-    // rim — a 1.4 kHz ping plus a low knock, both gone in ~10 ms
-    instrument(SL_RIM, INSTR_TRI, 0, 10, 0, 5);
-    instrument_filter(SL_RIM, FILTER_BAND, 1400, 9);
-    instrument(SL_RIMT, INSTR_SINE, 0, 12, 0, 5);
+    // rim — a CLICK, not a tone: the real one is one big swing then a heavily damped ~1.5 kHz ring,
+    // -22 dB in 2 ms, -50 in 5 ms. As a 10 ms resonant ping + a 233 Hz knock it read as a WOODBLOCK
+    // (Nikki, A/B'ing the bossa against the real samples). A 1 ms gate into a ~6 ms exponential release.
+    instrument(SL_RIM, INSTR_TRI, 0, 0, 7, 6);
+    instrument_filter(SL_RIM, FILTER_BAND, 1500, 2);
+    instrument_release_shape(SL_RIM, RELEASE_EXP);
+    instrument(SL_RIMT, INSTR_SINE, 0, 0, 7, 8);              // the faint low knock (215 Hz, ~14 dB under)
+    instrument_release_shape(SL_RIMT, RELEASE_EXP);
 
     // hats — the CR-78 "swish" is a NARROW band, 7.4-9.7 kHz (resonance 15),
     // not broad hiss. closed and open are the same band, only the decay differs

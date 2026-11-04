@@ -420,6 +420,12 @@ Each was measured; the evidence lives in the section linked. Status: ✓ fixed, 
   every harmonic decays at one rate (a static spectrum), the overtones are exactly in tune (the real
   fundamental sits ~15 cents flat) (§7); centroid still ~2x the recordings
 
+**INSTR_PIPE:**
+- ○ riding the macros detunes a sounding note: harmonics 0.15 pulls -10 to -13 c, timbre (air) -3 to -4 c
+  (§8.10 step 2; the engine docs already note harmonics pulls flat); a live player riding brightness
+  drifts out of tune. Fix in the engine (compensate the bore delay), or document "ride timbre, not
+  harmonics"
+
 **INSTR_PIANO:**
 - ○ the morph "pedal" is latched into the loop loss at note-on and never re-read (a mid-note change
   renders byte-identical) (§6.5)
@@ -630,6 +636,11 @@ Engine side this needs `sound_retrig_voice` to cover BOWED and a signed bow velo
    booked vibrato is computed inside the engine every 32 samples, where riding a held note steps pitch /
    vibrato / level 60 times a second. Lesson: per-frame riding has a cost of its own, so steps 3-5 (curves,
    lanes, events) are worth building to bring the scoop / swell / knobs back WITHOUT the stepping.
+   **And Nikki heard the held version go OUT OF TUNE** (measured: held notes off by a median 18 c, 17 of 30
+   notes more than 12 c off, up to +-43 c; booked a median 2.3 c, none). Cause, measured on a held PIPE
+   note: riding the macros moves the pitch: harmonics 0.15 (what breathflute rides on loud notes, for
+   brightness) pulls -10 c on D5 and -13 c on G5, timbre (breath air) 0.38 -> 0.70 pulls -3 to -4 c; plus
+   the frame-stepped scoop and breath-sharp. Booked notes do not ride them, so they stay in tune.
 3. Shapes. Acceptance: `breathflute` fully booked (scoop, swell, fall), the bayan drop booked.
 4. Lanes. Acceptance: `pianohand`'s pedal as `LANE_DAMPER`, `synthhand`'s knob as `LANE_CUTOFF`,
    `drumhand`'s hi-hat pedal.

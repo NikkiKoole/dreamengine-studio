@@ -134,6 +134,10 @@ yet (only held notes, or a whole-slot ride like `instrument_level`); it is a row
   [Dunlop](https://www.jimdunlop.com/content/manuals/MRT01.pdf)); the sawtooth source
   ([gfworks](https://gfworks.jp/talkbox/how_to_play.html)); Bootsy's Mu-Tron III envelope filter
   ([Guitar World](https://www.guitarworld.com/features/the-mu-tron-iii-without-it-there-aint-no-bootsy)).
+- **Riding a waveguide's macros can detune it.** On `INSTR_PIPE` harmonics 0.15 pulls a sounding note
+  ~10-13 cents flat (breath air a few cents): a held flute ridden for brightness drifted out of tune
+  where the booked one stayed within ~2 cents. Prefer booked notes; when riding live, keep harmonics
+  still or correct with `note_pitch`.
 - **One physical object = one voice.** A cymbal, a string, a drum head rings ONCE: a new stroke
   replaces the old ring, it does not stack on it. Give it a mono slot (`instrument_mono`). A ride whose
   strokes each rang 1.3 s on its own voice turned eighth notes into a low drone ("a train locomotive").

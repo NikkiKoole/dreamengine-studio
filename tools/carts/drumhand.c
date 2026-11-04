@@ -17,7 +17,7 @@
   "description": {
     "summary": "An 8-bar soul groove played by a DRUMMER instead of a grid: two hands and two feet, a technique per stroke, a hi-hat pedal that every hat hit reads, ghost notes, flams, a buzz and a fill that builds and lands on the crash. TAB flips to the grid version.",
     "detail": "Four limbs. The right hand keeps the hats (or the ride) on top of the beat, the left hand plays the backbeat a hair behind it and the ghost notes in between, the right foot the kick, the left foot the hi-hat PEDAL. Each stroke is a TECHNIQUE: the snare is struck in the centre, near the edge, as a rimshot (stick on head and rim at once), as a cross-stick (stick laid across the rim) or as a ghost; the hat is hit with the tip (a light tick) or the shank (a thick chunk); the ride on the bow or the bell; the kick is buried (beater held into the head, short) or bounced (it rings). The pedal is a continuous openness every hat hit reads: closed tick, half-open sizzle, open wash, and when the foot closes it makes its own chick and stops a ringing open hat. The drummer has a body: a hand cannot be on the hat and the snare at once, so the hats stop in a fill and the fill alternates right and left; a quick second stroke by the same hand is a little late and softer; the energy builds over the eight bars into the fill and the crash, and over a long take the left hand tires (lighter ghosts, a little dragging). Keys 1-5 switch each layer on and off.",
-    "controls": "SPACE play/stop · TAB drummer / grid · 1 time 2 dynamics 3 technique 4 pedal 5 limbs · UP/DOWN humanity · LEFT/RIGHT tempo · R new take"
+    "controls": "SPACE play/stop · TAB drummer / grid · L foot ease-down as booked LANE_LEVEL ramps / ridden per frame · 1 time 2 dynamics 3 technique 4 pedal 5 limbs · UP/DOWN humanity · LEFT/RIGHT tempo · R new take"
   }
 }
 de:meta */
@@ -34,6 +34,8 @@ de:meta */
 //     length + a noise offset. The foot closing books a chick on its own slot that CHOKES the hat
 //     (instrument_choke). Easing the foot down on a ringing open hat can only be done by riding the
 //     hat SLOT's level per frame (instrument_level), which is the shared-control gap.
+//   - L (NoteOpts step 4 acceptance): that ease-down BOOKED instead, as LANE_LEVEL ramps on the hat
+//     slot, placed when the chick is booked (down over the 100 ms before it, back to 0 dB on it).
 //
 // The DRUMMER (four limbs, a phrase, a body) lives entirely in this cart.
 
@@ -128,6 +130,9 @@ typedef struct { double t; int cur_bar, step, limb, kind; float gain, dev; char 
 static Dot dots[NDOT];
 static int ndot;
 static float shown_pedal;
+static bool  lane_mode = false;   // L: the foot's ease-down as booked LANE_LEVEL ramps
+#define EASE_S   0.10             // the foot eases down over the last 100 ms before the chick
+#define EASE_DB  (-6.94f)         // to 0.45 of the level (the ridden path's 1 - 0.55)
 enum { D_KICK, D_SNARE, D_HAT, D_RIDE, D_TOM, D_CRASH, D_CHICK, ND };
 static const char *DK_NAME[ND] = { "kick", "snare", "hat", "ride", "toms", "crash", "foot" };
 static const int   DK_COL[ND]  = { CLR_ORANGE, CLR_WHITE, CLR_YELLOW, CLR_PEACH, CLR_PINK, CLR_GREEN, CLR_BLUE };
@@ -369,6 +374,15 @@ static void hat_stroke(double t, bool shank, float g, float open, float spot) {
     else       book_damp(S_HAT, 81, t, g * 0.70f, gate, spot * 0.05f, sizzle * 0.4f, 0, hat_damp);
 }
 
+// lane mode: book the ease-down on the hat slot, ending ON the chick (which chokes the ring), then level back
+static void book_ease(double tc) {
+    double now_a = audio_time(), t0 = tc - EASE_S;
+    if (t0 < now_a) t0 = now_a;
+    if (tc <= t0) return;
+    lane_at(t0, S_HAT, LANE_LEVEL, EASE_DB, (int)((tc - t0) * 1000.0 + 0.5));
+    lane_at(tc, S_HAT, LANE_LEVEL, 0, 0);
+}
+
 static void chick(double t, float g) {
     book(S_CHICK, 55, t, g, 40, 0, 0, 0, 0);
 }
@@ -476,7 +490,10 @@ static void play_step(double t, double steplen) {
         double tc = t + limb_feel(LF, D_CHICK, 'c', t);
         float g = L(L_DYN) ? chick_g * (0.85f + 0.2f * energy) + 0.05f * r1() : chick_g;
         chick(tc, g);
-        if (L(L_PEDAL) && was > 0.3f) { close_t[nclose % NCLOSE] = tc; nclose++; }   // ease the foot down first
+        if (L(L_PEDAL) && was > 0.3f) {   // ease the foot down first
+            if (lane_mode) book_ease(tc);
+            else { close_t[nclose % NCLOSE] = tc; nclose++; }
+        }
         dot(tc, LF, D_CHICK, g, (float)(tc - t), 'c');
         last_hit[LF] = tc;
     }
@@ -605,7 +622,7 @@ static void schedule_ahead(void) {
 // every frame: the foot easing down on a ringing open hat, the one thing a booked note cannot do
 static void ride_pedal(void) {
     float lv = 1.0f;
-    if (L(L_PEDAL)) {
+    if (L(L_PEDAL) && !lane_mode) {
         double now_a = audio_time();
         for (int k = 0; k < NCLOSE && k < nclose; k++) {
             double until = close_t[k] - now_a;
@@ -645,7 +662,7 @@ static void probe(void) {
     for (int i = 0; i < 7; i++) hat_stroke(t0 + i, false, 0.7f, i * 0.15f, 0);
     hat_stroke(t0 + 7, false, 0.7f, 0.85f, 0); chick(t0 + 7.25, 0.8f);
     hat_stroke(t0 + 8, false, 0.7f, 0.85f, 0); chick(t0 + 8.30, 0.8f);
-    close_t[0] = t0 + 8.30; nclose = 1;
+    if (lane_mode) book_ease(t0 + 8.30); else { close_t[0] = t0 + 8.30; nclose = 1; }
     chick(t0 + 9, 0.8f);
 #endif
 }
@@ -656,6 +673,9 @@ void init(void) {
     setup_recorded();
 #ifdef SYNTH_KIT
     rec_kit = false;
+#endif
+#ifdef LANES        // DE_DEFINES=LANES: start with the ease-down booked as LANE_LEVEL ramps (the step-4 A/B)
+    lane_mode = true;
 #endif
     new_take();
 #if defined(PROBE_TECH) || defined(PROBE_PEDAL)
@@ -670,6 +690,7 @@ void update(void) {
     if (keyp(KEY_SPACE)) { playing = !playing; t_step = audio_time() + 0.15; }
     if (keyp(KEY_TAB)) human = !human;
     if (keyp('K')) rec_kit = !rec_kit;
+    if (keyp('L')) { lane_mode = !lane_mode; nclose = 0; lane_at(audio_time(), S_HAT, LANE_LEVEL, 0, 0); }
     for (int i = 0; i < NLAYER; i++) if (keyp('1' + i)) layer[i] = !layer[i];
     if (keyp(KEY_UP))    humanity = fminf(1.5f, humanity + 0.25f);
     if (keyp(KEY_DOWN))  humanity = fmaxf(0.0f, humanity - 0.25f);
@@ -697,6 +718,7 @@ void draw(void) {
     print(human ? "DRUMMER" : "GRID", 4, 4, human ? CLR_GREEN : CLR_RED);
     print(!rec_ok ? "synth cymbals" : rec_kit ? "K: recorded cymbals" : "K: synth cymbals", 4, 192, rec_ok && rec_kit ? CLR_YELLOW : CLR_DARK_GREY);
     print(str("%d bpm  bar %d/8  take %d", tempo, cur_bar + 1, seed), 76, 4, CLR_WHITE);
+    print(lane_mode ? "L: lane" : "L: ridden", 200, 192, lane_mode ? CLR_YELLOW : CLR_DARK_GREY);
 
     // the bar as a grid: one row per drum, each stroke where it actually landed (offset = feel)
     int gx = 44, gy = 18, cw = 16, rh = 10;

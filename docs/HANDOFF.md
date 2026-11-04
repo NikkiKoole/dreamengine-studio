@@ -53,8 +53,8 @@ a broken doc link or `#section`).
 > `breathflute` "sounds much better" (and in tune: riding PIPE's macros detunes it), `synthhand` analog "makes me
 > happy", `drumhand` "much better than before".
 > **Resume at:** [the order of work](design/humanized-playing.md#810-order-of-work-each-step-accepted-by-a-spike-re-done-booked).
-> Next, in order: (a) the last step-4 acceptance test: `drumhand`'s hi-hat pedal as a lane (`synthhand` L,
-> the cutoff knob as booked `LANE_CUTOFF` ramps, landed 2026-11-04, Nikki: "works great, sounds good");
+> Next, in order: (a) step 4 is DONE: `synthhand` L (the cutoff knob as `LANE_CUTOFF`, Nikki: "works great,
+> sounds good") and `drumhand` L (the foot's ease-down as `LANE_LEVEL`, waits for Nikki's ear);
 > (b) step 5, events inside a note (`note_event_at` on a booking id), which needs the bowed engine to re-arm its
 > onset on retrig and a bow speed that can reach zero and reverse ([the engine gaps](design/humanized-playing.md#72-engine-gaps-found-while-spiking-the-checklist));
 > (c) step 6, the choir on `INSTR_SING` with Playtime (the voice needs in §6.3; playtime-97's session has ended, so

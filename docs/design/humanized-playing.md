@@ -544,7 +544,8 @@ void lane_at(double t, int slot, int lane, float value, int ramp_ms);
 // LANE_VOWEL   the slot's formant vowel, slewed (a talk box; fixes the formant's jump, §6.7)
 ```
 
-The hi-hat pedal is `LANE_DAMPER` on the hat slot; the piano pedal the same on the piano. It replaces
+The hi-hat pedal is `LANE_DAMPER` on the hat slot; the piano pedal the same on the piano. (As built, the
+hat's ease-down is `LANE_LEVEL`, not the damper: see §8.10 step 4.) It replaces
 the per-frame `instrument_level` / `instrument_tune` riding three spikes used, which steps at frame rate
 and lands ~17 ms late (§6.5).
 
@@ -676,8 +677,15 @@ Engine side this needs `sound_retrig_voice` to cover BOWED and a signed bow velo
    booked per step on every pad slot + the lead; each voice card's filter offset set ONCE at note-on, the
    supply sag folded into the lane value) instead of `note_cutoff` on every held voice every frame. The
    ridden path renders byte-identical to before; the booked sweep tracks it (centroid per 0.5 s within
-   a few %, the lane ~4% brighter at the top of the sweep, not yet explained). **Nikki: "works great, sounds good."** Still open: `drumhand`'s
-   hi-hat pedal.
+   a few %, the lane ~4% brighter at the top of the sweep, not yet explained). **Nikki: "works great, sounds good."** And `drumhand` L = the foot
+   easing down on a ringing open hat (the one thing its booked kit still rode per frame, through
+   `instrument_level`) booked as `LANE_LEVEL` on the hat slot when the chick is booked: down to -6.9 dB
+   over the 100 ms before the chick, back to 0 dB on it. The ridden path renders byte-identical; on the
+   pedal probe both start 100 ms out and end within 0.4 dB, the lane up to 1.7 dB deeper mid-ease (an even
+   ramp in dB vs the old smoothstep in amplitude). **Not `LANE_DAMPER`, as §8 proposed:** on a hat the
+   foot SHORTENS a ring (the damper lane lengthens a released one), and the closing is already the chick's
+   choke. The pedal's OPENNESS stays per note (read at booking into gate + damp + sizzle), which is right:
+   a stroke samples the foot, it does not follow it. Step 4's acceptance tests are all done.
 5. Note events. Acceptance: `cellohand`'s bow change booked, with BOWED retrig.
 6. With Playtime: the choir booked on `INSTR_SING` (shapes + origin + region), checked by playtime-97.
 

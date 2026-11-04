@@ -55,6 +55,7 @@ de:meta */
 #define S_TOMHI  18
 #define S_TOMLO  19
 #define S_BELL   26     // the ride's BELL: its own slot, since it wants the opposite filter to the bow
+#define S_RIDEB  27     // the ride bow's BODY tone (~590 Hz), under the shimmer on S_RIDE
 // RECORDED cymbals (2026-11-04, Nikki: "an awful cymbal and ride sound"): CC0 one-shots loaded at
 // runtime from build/refs/drums-cc0/*.f32 (the binary runs with cwd = build/), the breakchop route.
 // Missing files = the synthesized cymbals, so the cart never breaks. K switches kits.
@@ -173,21 +174,37 @@ static void setup_sound(void) {
     instrument_mode(S_CHICK, MODE_METAL_DECAY, 0.10f);
     instrument_filter(S_CHICK, FILTER_BAND, 2400, 1);
     instrument_choke(S_CHICK, S_HAT);
-    // ride bow: a real ride's wash is LOW (its partials 409 / 495 / 549 Hz, energy 0.39-2 kHz), not a
-    // fizz. The bank at note 63 with a tight spread puts its lowest modes at 398 / 538 Hz; no noise,
-    // the lows live longest (morph 0), a gentle lowpass. Was 1-18 kHz with noise
+    // RIDE, aimed at a real ping ride Nikki picked by ear ("Savannah Ride", CC0, ref_ride_savannah):
+    // a BODY tone at 571 Hz (the strongest single peak, a small share of the energy) under a bright
+    // SHIMMER whose median sits at 7.6 kHz, flatness 0.25, -20 dB in ~0.5 s. One METAL bank cannot
+    // do it: its six squares fill 0.65-2.7 kHz, exactly where a ride is nearly empty. So two voices:
+    //   shimmer: the bank played very HIGH (note 108; peaks 5.5 / 7.6 / 10.5 kHz), lowpassed at 11 kHz
+    //   body:    a struck MODAL plate at ~590 Hz
+    // (First pass matched a dark modified "wash" ride whose energy sits at 0.4-2 kHz: a low drone with
+    // no ping, which on eighth notes read as "a train locomotive comes by".)
+    // MONO, both: a ride is ONE plate, a stroke re-excites it. As separate voices, eighth notes
+    // STACKED the rings into a pulsing drone.
     instrument(S_RIDE, INSTR_METAL, 0, 0, 7, 300);
-    instrument_harmonics(S_RIDE, 0.62f); instrument_timbre(S_RIDE, 0.10f); instrument_morph(S_RIDE, 0.0f);
-    instrument_mode(S_RIDE, MODE_METAL_DECAY, 0.92f);
-    instrument_mode(S_RIDE, MODE_METAL_SPREAD, 0.05f);
-    instrument_filter(S_RIDE, FILTER_LOW, 1500, 0);
-    // ride bell: BRIGHT and short where the bow is low and long (real: strongest at 3068 Hz, -20 dB in
-    // 405 ms). Bell ratios spread wide, a wide band around 5 kHz keeps the squares' tops off 12 kHz
+    instrument_harmonics(S_RIDE, 0.62f); instrument_timbre(S_RIDE, 0.35f); instrument_morph(S_RIDE, 0.30f);
+    instrument_mode(S_RIDE, MODE_METAL_DECAY, 0.48f);
+    instrument_mode(S_RIDE, MODE_METAL_SPREAD, 0.30f);
+    instrument_filter(S_RIDE, FILTER_LOW, 11000, 2);
+    instrument_mono(S_RIDE, 1);
+    instrument(S_RIDEB, INSTR_MODAL, 0, 0, 7, 600);
+    instrument_harmonics(S_RIDEB, 0.05f); instrument_timbre(S_RIDEB, 0.10f); instrument_morph(S_RIDEB, 0.0f);
+    instrument_mode(S_RIDEB, MODE_MODAL_MODES, 1.0f);
+    instrument_mode(S_RIDEB, MODE_MODAL_POS, 0.70f);
+    instrument_mode(S_RIDEB, MODE_MODAL_DIRECT, 0.15f);
+    instrument_mono(S_RIDEB, 1);
+    instrument_eq(S_RIDEB, 12.0f, 12.0f, 12.0f);    // MODAL renders far under METAL; level only cuts
+    // ride bell, aimed at the bell Nikki picked (Meinl Byzance 20" "B2", CC0): a clear, nearly pure
+    // ding, partials 3036 / 3435 / 3790 Hz, -20 dB in 345 ms. The bank in a tight spread through a
+    // narrow band at 3.4 kHz: ours 3047 / 4016 Hz, -20 dB in 340 ms
     instrument(S_BELL, INSTR_METAL, 0, 0, 7, 300);
-    instrument_harmonics(S_BELL, 0.90f); instrument_timbre(S_BELL, 0.10f); instrument_morph(S_BELL, 0.20f);
-    instrument_mode(S_BELL, MODE_METAL_DECAY, 0.45f);
-    instrument_mode(S_BELL, MODE_METAL_SPREAD, 0.40f);
-    instrument_filter(S_BELL, FILTER_BAND, 5000, 0);
+    instrument_harmonics(S_BELL, 0.60f); instrument_timbre(S_BELL, 0.05f); instrument_morph(S_BELL, 0.30f);
+    instrument_mode(S_BELL, MODE_METAL_DECAY, 0.42f);
+    instrument_mode(S_BELL, MODE_METAL_SPREAD, 0.0f);
+    instrument_filter(S_BELL, FILTER_BAND, 3400, 10);
     // crash: its partials cluster at 3.5-5.5 kHz (an 18" crash: 4145 / 5469 Hz), so the bank sits HIGH
     // (note 100), little noise, lowpassed at 8.5 kHz, -20 dB in about a second
     instrument(S_CRASH, INSTR_METAL, 0, 0, 7, 400);
@@ -203,7 +220,7 @@ static void setup_sound(void) {
 
     // the room and the drummer's-view stereo picture
     instrument_pan(S_HAT, -0.35f); instrument_pan(S_CHICK, -0.35f);
-    instrument_pan(S_RIDE, 0.38f); instrument_pan(S_BELL, 0.38f); instrument_pan(S_CRASH, -0.45f);
+    instrument_pan(S_RIDE, 0.38f); instrument_pan(S_RIDEB, 0.38f); instrument_pan(S_BELL, 0.38f); instrument_pan(S_CRASH, -0.45f);
     instrument_pan(S_TOMHI, -0.15f); instrument_pan(S_TOMLO, 0.30f);
     instrument_pan(S_RIM, 0.05f);
     instrument_level(S_KICK, 0.9f);    // the 118 Hz second-mode voice made it fuller; keep the peak off 0 dBFS
@@ -212,13 +229,14 @@ static void setup_sound(void) {
     instrument_level(S_RIM, 0.80f);
     instrument_level(S_CHICK, 0.25f);
     instrument_level(S_HAT, HAT_LVL);
-    instrument_level(S_RIDE, 0.36f);
-    instrument_level(S_BELL, 0.48f);
+    instrument_level(S_RIDE, 0.67f);
+    instrument_level(S_BELL, 0.15f);
+    instrument_level(S_RIDEB, 0.56f);
     instrument_level(S_CRASH, 0.25f);
     instrument_level(S_TOMHI, 0.85f); instrument_level(S_TOMLO, 0.9f);
-    int s[] = { S_KICK, S_HEAD, S_WIRE, S_RIM, S_HAT, S_CHICK, S_RIDE, S_CRASH, S_TOMHI, S_TOMLO, S_BELL };
-    float send[] = { 0.06f, 0.18f, 0.18f, 0.12f, 0.08f, 0.06f, 0.12f, 0.15f, 0.14f, 0.14f, 0.12f };
-    for (int i = 0; i < 11; i++) instrument_reverb(s[i], send[i]);
+    int s[] = { S_KICK, S_HEAD, S_WIRE, S_RIM, S_HAT, S_CHICK, S_RIDE, S_CRASH, S_TOMHI, S_TOMLO, S_BELL, S_RIDEB };
+    float send[] = { 0.06f, 0.18f, 0.18f, 0.12f, 0.08f, 0.06f, 0.12f, 0.15f, 0.14f, 0.14f, 0.12f, 0.12f };
+    for (int i = 0; i < 12; i++) instrument_reverb(s[i], send[i]);
     reverb(0.28f, 0.45f);
     eq(14.0f, 10.0f, 5.0f);     // no master volume: the master EQ is the fader (membranes are quiet)
 }
@@ -302,9 +320,9 @@ static void snare_stroke(double t, char tech, float g, float spot) {
         break;
     case 'X':  // cross-stick: the stick laid across, a woody tock, hardly any head or wire
         // (CC0 ref: a low knock ~90-120 Hz under a 1.5 kHz click, gone in ~45 ms)
-        book(S_RIM, 91, t, g * 0.3f, 30, -0.1f, 0, 0, 0);
-        book(S_HEAD, 45, t, g * 0.5f, 35, 0, tb + 0.30f, 0, 0);
-        book(S_WIRE, 60, t, g * 0.10f, 30, 0, 0, 0, 0);
+        book(S_RIM, 91, t, g * 0.3f, 15, -0.1f, 0, 0, 0);
+        book(S_HEAD, 45, t, g * 0.5f, 18, 0, tb + 0.30f, 0, 0);
+        book(S_WIRE, 60, t, g * 0.10f, 18, 0, 0, 0, 0);
         break;
     case 'g':  // ghost: a soft tap, mostly wires, short
     default:
@@ -337,8 +355,11 @@ static void chick(double t, float g) {
 
 static void ride_stroke(double t, bool bell, float g, float spot) {
     if (rec_ok && rec_kit) { book(bell ? R_BELL : R_RIDE, 60, t, g * (bell ? 0.95f : 0.8f), bell ? 2600 : 3000, 0, 0, 0, 0); return; }
-    if (bell) book(S_BELL, 86, t, g * 1.05f, 1400, 0, 0, 0, 0);
-    else      book(S_RIDE, 63, t, g * 0.7f, 1300, spot * 0.05f, spot * 0.06f, 0, 0);
+    if (bell) book(S_BELL, 88, t, g * 1.05f, 900, 0, 0, 0, 0);
+    else {    // the bow: shimmer + body, one stroke
+        book(S_RIDE, 110, t, g * 0.7f, 900, spot * 0.05f, spot * 0.06f, 0, 0);
+        book(S_RIDEB, 74, t, g * 0.7f, 900, 0, spot * 0.05f, 0, 0);
+    }
 }
 
 static void kick_stroke(double t, char tech, float g, float spot) {

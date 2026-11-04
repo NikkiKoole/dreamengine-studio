@@ -17,7 +17,7 @@
   ],
   "lineage": "Roland CR-78 (1978) homage; extends drummachine's grid by rebuilding each analog voice from its circuit description — one shared noise source filtered per voice, beating detuned squares for metal, and INSTR_SCRAPE for the guiro (it began as a 36Hz volume-LFO chop on noise; measured against a real CR-78 guiro sample that had the wrong rate, body and no gaps). 2026-11-04: every voice retuned against a real CR-78 sample set (pitch, band, decay and level), once an engine filter fix made its narrow 8 kHz hat band reachable.",
   "homage": "Roland CR-78 CompuRhythm (1978)",
-  "description": "All 15 voices of the Roland CR-78 (1978) rebuilt from their analog circuits with the synth API: damped-sine membranes (kick/bongos/congas), one noise source shaped per voice by different filters (the famous swishy hats are a narrow band at 8.4 kHz, the tambourine an even narrower ring at 4.65 kHz), a detuned square pair for the cowbell and three high tones for the metallic beat, every voice tuned and levelled against a real CR-78 sample set, and the guiro's ratcheting scrape — 75 teeth a second, each its own click ringing a 6 kHz gourd (INSTR_SCRAPE, fitted to a real CR-78 guiro sample). Plays eight classic presets including Disco-2 (In the Air Tonight), the Mambo+Beguine blend (Heart of Glass), and the triplet-feel Shuffle and Swing — plus the knob the original never got: Z/X sets swing 50-66% by scheduling the offbeat 8ths late (adjustable swing didn't exist until the LM-1 in 1980). The grid is editable: click/drag cells to toggle, click the orange strip to move accents, click a label to audition; accent steps are a volume boost, just like the real knob. Q-G play voices by hand, LEFT/RIGHT preset, UP/DOWN tempo, SPACE start/stop."
+  "description": "All the voices of the Roland CR-78 (1978) rebuilt from their analog circuits with the synth API: damped-sine membranes (kick/bongos/congas), one noise source shaped per voice by different filters (the famous swishy hats are a narrow band at 8.4 kHz, the tambourine an even narrower ring at 4.65 kHz), a detuned square pair for the cowbell and three high tones for the metallic beat, every voice tuned and levelled against a real CR-78 sample set, and the guiro's ratcheting scrape — 75 teeth a second, each its own click ringing a 6 kHz gourd, plus the machine's second, LONG guiro: one stroke held 820 ms (INSTR_SCRAPE, both fitted to real CR-78 guiro samples). Plays eight classic presets including Disco-2 (In the Air Tonight), the Mambo+Beguine blend (Heart of Glass), and the triplet-feel Shuffle and Swing — plus the knob the original never got: Z/X sets swing 50-66% by scheduling the offbeat 8ths late (adjustable swing didn't exist until the LM-1 in 1980). The grid is editable: click/drag cells to toggle, click the orange strip to move accents, click a label to audition; accent steps are a volume boost, just like the real knob. Q-H play voices by hand, LEFT/RIGHT preset, UP/DOWN tempo, SPACE start/stop."
 }
 de:meta */
 #include "studio.h"
@@ -76,7 +76,7 @@ de:meta */
 //     original never got: Z/X sets swing 50 (straight) to 66 (full triplet)
 //     by scheduling the offbeat 8ths late. Shuffle/Swing presets load at 66.
 //
-//   Q W E R T Y U I O P A S D F G   play each voice by hand
+//   Q W E R T Y U I O P A S D F G H   play each voice by hand
 //   LEFT / RIGHT  preset (or tap the < > arrows on the label)
 //   UP / DOWN  tempo      SPACE  start / stop
 //   Z / X  swing down / up
@@ -106,27 +106,27 @@ de:meta */
 // voices — named indices, never raw numbers (house rule)
 enum {
     V_KICK, V_SNARE, V_RIM, V_HATC, V_HATO, V_CYM, V_METAL, V_COW,
-    V_TAMB, V_MAR, V_CLV, V_GUIRO, V_BONH, V_BONL, V_CONGA, NV
+    V_TAMB, V_MAR, V_CLV, V_GUIRO, V_BONH, V_BONL, V_CONGA, V_GUIROL, NV
 };
 
 // instrument slots (5..31 are free; 5-8 are the user waves, start at 9)
 enum {
     SL_KICK = 9, SL_SNB, SL_SNN, SL_RIM, SL_HATC, SL_HATO,
     SL_CYMN, SL_TAMB, SL_COW, SL_CLV, SL_MAR, SL_BON, SL_CON, SL_GUI, SL_MET,
-    SL_BONP, SL_RIMT
+    SL_BONP, SL_RIMT, SL_GUIL
 };
 
 static const char *VNAME[NV] = {
     "KICK", "SNARE", "RIM", "HAT CL", "HAT OP", "CYMBAL", "METAL", "COWBELL",
-    "TAMB", "MARACAS", "CLAVES", "GUIRO", "BONGO H", "BONGO L", "CONGA"
+    "TAMB", "MARACAS", "CLAVES", "GUIRO", "BONGO H", "BONGO L", "CONGA", "GUIRO L"
 };
 static const char VKEY[NV] = {
-    'Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P', 'A', 'S', 'D', 'F', 'G'
+    'Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P', 'A', 'S', 'D', 'F', 'G', 'H'
 };
 static const int VCLR[NV] = {
     CLR_RED, CLR_ORANGE, CLR_PEACH, CLR_YELLOW, CLR_LIGHT_YELLOW, CLR_WHITE,
     CLR_BLUE, CLR_GREEN, CLR_PINK, CLR_LIGHT_PEACH, CLR_DARK_ORANGE,
-    CLR_LIME_GREEN, CLR_INDIGO, CLR_INDIGO, CLR_DARK_PEACH
+    CLR_LIME_GREEN, CLR_INDIGO, CLR_INDIGO, CLR_DARK_PEACH, CLR_LIME_GREEN
 };
 
 #define STEPS 16
@@ -262,6 +262,7 @@ static void fire(int v, int boost, int delay) {
         schedule_hit(delay, 99, SL_BONP, vv(3, boost), 40);
         break;
     case V_CONGA: schedule_hit(delay, 55, SL_CON, vv(4, boost), 300); break;   // 196 Hz
+    case V_GUIROL: schedule_hit(delay, 60, SL_GUIL, vv(4, boost), 820); break; // the LONG scrape: ~820 ms, 83 teeth/s
     }
 }
 
@@ -328,7 +329,14 @@ void init(void) {
     instrument_harmonics(SL_GUI, 0.0f);    // BODY: gourd
     instrument_timbre(SL_GUI, 0.87f);      // RATE: ~75 teeth/s
     instrument_morph(SL_GUI, 0.0f);        // GESTURE: a steady scrape
-    instrument_level(SL_GUI, 0.81f);     // 0.9 matched the old LFO patch; -0.9 dB more to sit at the sample's level
+    instrument_level(SL_GUI, 0.81f);      // 0.9 matched the old LFO patch; -0.9 dB more to sit at the sample's level
+    // the long guiro — the machine's second guiro sound (Guiro 2 in the pack):
+    // the same gourd, one steady stroke held ~820 ms, a touch faster (83/s)
+    instrument(SL_GUIL, INSTR_SCRAPE, 0, 0, 7, 30);
+    instrument_harmonics(SL_GUIL, 0.0f);   // BODY: gourd
+    instrument_timbre(SL_GUIL, 0.92f);     // RATE: 10 * 10^0.92 = 83 teeth/s
+    instrument_morph(SL_GUIL, 0.0f);       // GESTURE: a steady scrape
+    instrument_level(SL_GUIL, 0.56f);     // the real long scrape sits 1.9 dB under the short one
 
     // metallic beat — one triangle slot, fired three times up at 3.9-5.9 kHz,
     // through a band that keeps the fundamentals and drops their harmonics
@@ -437,8 +445,8 @@ void draw(void) {
     // walnut cabinet + black panel
     cls(CLR_DARK_BROWN);
     for (int y = 3; y < 200; y += 7) line(0, y, 319, y, CLR_BROWNISH_BLACK);
-    rectfill(8, 10, 304, 182, CLR_BLACK);
-    rect(8, 10, 304, 182, CLR_DARK_GREY);
+    rectfill(8, 10, 304, 186, CLR_BLACK);
+    rect(8, 10, 304, 186, CLR_DARK_GREY);
 
     print("COMPURHYTHM CR-78", 16, 16, CLR_LIGHT_GREY);
     sprintf(buf, "SW%2d", swing);
@@ -477,5 +485,5 @@ void draw(void) {
         if (flash[v] > 0) flash[v]--;
     }
 
-    print("CLICK TO EDIT  <> PRESET  ^v BPM  SPC", 14, 184, CLR_MEDIUM_GREY);
+    print("CLICK TO EDIT  <> PRESET  ^v BPM  SPC", 14, 187, CLR_MEDIUM_GREY);
 }

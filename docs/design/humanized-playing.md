@@ -1,6 +1,6 @@
 # Humanized playing: a player, not a keyboard
 
-> **STATUS: BUILDING (2026-11-04): NoteOpts step 1 shipped (§8.10).** Spike carts (`strumhand`, `breathflute`, `tablahand`, `tablalab`,
+> **STATUS: BUILDING (2026-11-04): NoteOpts steps 1-2 shipped (§8.10).** Spike carts (`strumhand`, `breathflute`, `tablahand`, `tablalab`,
 > `reedhand`, `basshand`, `cellohand`, `pianohand`, `drumhand`, `synthhand`, `mouthhand`) and three
 > engine calls shipped (`instrument_vibrato`, `MODE_BOW_PLUCK`, `instrument_analog`). The NEEDS list
 > for booked-note curves (§6) is close to complete and a DRAFT layout is in §8; **building it is ON HOLD** (Nikki,
@@ -616,7 +616,15 @@ Engine side this needs `sound_retrig_voice` to cover BOWED and a signed bow velo
    kick, cross-stick exact, hats within 1 dB; the rimshot still ~5 dB quiet, its gains at the cap).
    **Found: `.cutoff_oct` cannot merge the ride bow and bell into one slot,** because they want different
    filter TYPES (low-pass vs band-pass), not different cutoffs: a per-note filter MODE would be needed.
-2. `vib`. Acceptance: `breathflute`'s vibrato on booked notes.
+2. **BUILT (2026-11-04):** `vib` = `NoteVib { cents, rate_hz, delay_ms, fade_ms, wander }`, its own
+   per-voice generator (not one of the slot's 3 LFOs), refreshed every 32 samples, a smoothstep bloom,
+   a slow rate + depth wander; carried in the same NotePay record as step 1; a legato note can bring its
+   own. Measured on a booked sine: straight until 300 ms, then 7 / 13 / 20.1 cents (asked 20), rate
+   5.51 Hz (asked 5.5); with wander the depth varies per cycle (3.6 c spread vs 0). basshand, drumhand,
+   synthhand and breathflute (held) render byte-identical. Acceptance: `breathflute` B = the line played
+   BOOKED with `.vib` (+ `.cents`, `.gain`, legato `.glide_ms`, no per-frame riding): vibrato in 75% of
+   windows at a median 8.2 c wobble vs 77% / 9.1 c held-and-ridden. Still missing booked: the scoop,
+   the swell, the chiff decay (step 3).
 3. Shapes. Acceptance: `breathflute` fully booked (scoop, swell, fall), the bayan drop booked.
 4. Lanes. Acceptance: `pianohand`'s pedal as `LANE_DAMPER`, `synthhand`'s knob as `LANE_CUTOFF`,
    `drumhand`'s hi-hat pedal.

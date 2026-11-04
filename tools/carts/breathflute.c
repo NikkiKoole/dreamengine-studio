@@ -17,7 +17,7 @@
   "description": {
     "summary": "A flute played by a pair of LUNGS instead of a keyboard: the same original melody with breath that runs out, notes that scoop up into pitch, a vibrato that blooms late, swells on long notes, slurs and tonguing, and a phrase that pushes and broadens. TAB flips to the keyboard version.",
     "detail": "The player has an air supply. Every note spends some, so late in a phrase the tone gets airier and quieter and the vibrato a little quicker, and a long phrase ahead means a deeper breath (which takes longer, so the time bends by itself). Each note starts a few cents flat and settles; blowing harder pushes it sharp, as a real flute does. Vibrato is off at the start of a note and blooms after a moment, only on notes long enough to have one, with a rate that wanders. Long notes swell and fade. Slurred notes glide on one breath, tongued notes restart it with a chiff. The tempo pushes through the middle of a phrase and broadens at the end. The trace shows the pitch (cents exaggerated) and loudness as it plays. Keys 1-5 switch each layer on and off.",
-    "controls": "SPACE play/stop · TAB lungs / keyboard · 1 time 2 breath 3 pitch 4 vib 5 tongue · UP/DOWN humanity · LEFT/RIGHT tempo · R new take"
+    "controls": "SPACE play/stop · TAB lungs / keyboard · B booked (NoteOpts) / held · 1 time 2 breath 3 pitch 4 vib 5 tongue · UP/DOWN humanity · LEFT/RIGHT tempo · R new take"
   }
 }
 de:meta */
@@ -56,6 +56,7 @@ enum { L_TIME, L_BREATH, L_PITCH, L_VIB, L_TONGUE, NLAYER };
 static const char *LAYER_NAME[NLAYER] = { "time", "breath", "pitch", "vib", "tongue" };
 
 static bool  playing = true, human = true;
+static bool  booked = false;   // B: play the line as BOOKED notes (NoteOpts step 2: .vib), no per-frame riding
 static bool  layer[NLAYER] = { true, true, true, true, true };
 static float humanity = 1.0f;
 static int   tempo = 76;
@@ -174,6 +175,18 @@ static void start_note(int i) {
     n_end = t_now + dur - (n->breath ? 0 : gap);
     if (!human) n_end = t_now + dur * 0.9f;
     t_next = t_now + dur;
+    if (booked && human) {
+        // BOOKED (the acceptance test for NoteOpts step 2): the same plan, carried BY the note. Level,
+        // breath-sharp cents, the slur and the late-blooming vibrato travel with it; nothing is ridden.
+        // What booking cannot carry yet (step 3, curves): the scoop settling in, the swell, the chiff decay.
+        release();
+        NoteOpts o = { .gain = clamp(vol / 7.0f, 0.05f, 1.0f), .cents = n_sharp,
+                       .glide_ms = (slur && layer[L_TONGUE]) ? 40 : 0,
+                       .vib = { .cents = n_vib_depth * 100.0f, .rate_hz = n_vib_rate,
+                                .delay_ms = (int)(n_vib_delay * 1000.0f), .fade_ms = 400, .wander = 0.5f } };
+        schedule_note_at(audio_time() + 0.03, n->midi, SL, 7, (int)((n_end - n_start) * 1000.0f), &o);
+        h = 0;                                   // nothing to ride
+    }
 
     // breath before the next phrase: a longer phrase ahead = a deeper breath = more time
     if (n->breath) {
@@ -240,6 +253,10 @@ static void ride(void) {
 void init(void) {
     setup_sound();
     new_take();
+#ifdef BOOKED
+    booked = true;
+    instrument_mono(SL, 1);
+#endif
 #ifdef PROBE_STILL   // DE_DEFINES=PROBE_STILL=0|1: one held A4, 1 = instrument_vibrato 0, to measure the switch
     instrument_vibrato(SL, PROBE_STILL ? 0.0f : 1.0f);
     note_on(69, SL, 5);
@@ -253,6 +270,7 @@ void update(void) {
 #endif
     if (keyp(KEY_SPACE)) { playing = !playing; if (!playing) release(); t_next = t_now + 0.2f; }
     if (keyp(KEY_TAB)) { human = !human; release(); }
+    if (keyp('B')) { booked = !booked; release(); instrument_mono(SL, booked ? 1 : 0); }   // booked slurs glide one mono voice
     for (int i = 0; i < NLAYER; i++) if (keyp('1' + i)) layer[i] = !layer[i];
     if (keyp(KEY_UP))    humanity = fminf(1.5f, humanity + 0.25f);
     if (keyp(KEY_DOWN))  humanity = fmaxf(0.0f, humanity - 0.25f);
@@ -285,6 +303,7 @@ void update(void) {
 void draw(void) {
     cls(CLR_DARK_BLUE);
     print(human ? "LUNGS" : "KEYBOARD", 4, 4, human ? CLR_GREEN : CLR_RED);
+    if (human) print(booked ? "B: BOOKED (step 2)" : "B: held + ridden", 150, 160, booked ? CLR_YELLOW : CLR_DARK_GREY);
     print(str("%d bpm   take %d", tempo, seed), 100, 4, CLR_WHITE);
     if (!playing) print("stopped", 260, 4, CLR_LIGHT_GREY);
 

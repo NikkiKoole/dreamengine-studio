@@ -15,6 +15,10 @@ _Last updated: 2026-10-29 — INSTR_SCRAPE: a guiro with teeth. See the top Ship
 
 ## Shipped ✓
 
+- **NOTEOPTS STEP 2: a booked note's own vibrato, `NoteOpts.vib` (`NoteVib`)** (2026-11-04). Depth,
+  rate, a delay, a bloom-in time and a wander, on a per-voice generator; a booked flute line now carries
+  the late-blooming vibrato that used to need a held note ridden every frame. [`design/humanized-playing.md`](design/humanized-playing.md) §8.10.
+
 - **NOTEOPTS STEP 1: per-note `cents`, `cutoff_oct`, `damp`, `release_ms`, a latched sample region; plus
   `instrument_release_shape`** (2026-11-04). The first slice of the booked-note layout in
   [`design/humanized-playing.md`](design/humanized-playing.md) §8: a booked note now carries its own pitch

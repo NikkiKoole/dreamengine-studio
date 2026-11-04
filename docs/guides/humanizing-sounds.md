@@ -112,8 +112,10 @@ yet (only held notes, or a whole-slot ride like `instrument_level`); it is a row
   `instrument_level` (damping) reach sounding voices; slot macros do NOT (read at note-on only).
 - **Open vs closed strokes:** `NoteOpts.damp` (1 = stopped at once) on the same slot; or, for strokes
   that also SOUND different, two slots + `instrument_choke` (tablahand, drumhand).
-- **A late vibrato:** `instrument_vibrato(slot, 0)`, then `note_lfo` depth ramped from 0 after
-  0.15-0.4 s, only on notes long enough to have one, rate wandering 5-6 Hz.
+- **A late vibrato:** `instrument_vibrato(slot, 0)`, then either on a BOOKED note `NoteOpts.vib`
+  (`{ .cents, .rate_hz, .delay_ms, .fade_ms, .wander }`: straight, then blooming; `breathflute` B) or on a
+  held note `note_lfo` depth ramped from 0 after 0.15-0.4 s. Only on notes long enough to have one, rate
+  wandering 5-6 Hz.
 - **Brightness follows force.** The one rule that holds for every instrument: a harder note is a
   BRIGHTER note (strings, hammers, breath, lips all behave this way, and it is exactly what a funk
   touch-wah does). Tie each note's cutoff / timbre offset to its force (booked: `NoteOpts.timbre`; held:

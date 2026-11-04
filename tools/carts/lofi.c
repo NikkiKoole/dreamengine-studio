@@ -801,8 +801,8 @@ static void voice_kit(void) {
     instrument_level(KIT_BASE + MDS_SNB, 0.8f); instrument_level(KIT_BASE + MDS_SNN, 0.45f);
     for (int s = MDS_HC; s <= MDS_HO; s++) { instrument_level(KIT_BASE + s, 0.55f); instrument_pan(KIT_BASE + s, 0.2f); instrument_reverb(KIT_BASE + s, 0.08f); }
     instrument_reverb(KIT_BASE + MDS_SNB, 0.25f); instrument_reverb(KIT_BASE + MDS_SNN, 0.25f);
-    inst(I_RIM, INSTR_MODAL, 0, 0, 7, 30, 0.55f, 0.70f, 0.04f);
-    instrument_level(I_RIM, 0.28f); instrument_filter(I_RIM, FILTER_HIGH, 300, 0); instrument_reverb(I_RIM, 0.30f); instrument_pan(I_RIM, -0.15f);
+    inst(I_RIM, INSTR_MODAL, 0, 0, 7, 30, 0.55f, 0.70f, 0.04f);   // level 0.28 -> 0.79 (+9.0 dB): the MODAL level laws (2026-11-04) took the high-note heat out, re-levelled to sound as before
+    instrument_level(I_RIM, 0.79f); instrument_filter(I_RIM, FILTER_HIGH, 300, 0); instrument_reverb(I_RIM, 0.30f); instrument_pan(I_RIM, -0.15f);
 }
 // the kit's layered voices at a planned volume (morph_fire only takes a coarse boost), on the sample clock
 static void fire_kick(double t, int v) {

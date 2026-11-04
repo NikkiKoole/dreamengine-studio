@@ -200,6 +200,19 @@ Sung mipomi syllables: one recorded take per syllable, 0.2-0.7 s, three speakers
     next syllable starts while the last one's tail still sounds. A singer's slot must not be mono or
     choke itself: at least 2 voices per slot, or the tails are cut, audible as clipped vowels.
 
+**Update (2026-11-04, playtime-97, the WORLD vocoder; Nikki: "very promising", "I really like the
+world ones"):** item 1 is now met WITHOUT the engine by baking offline: `claudetools/voice-bake.py`
+(Playtime) re-tunes every sung syllable with WORLD (pitch curve moved, spectral envelope and length
+kept) to a pitch every 3 semitones; the game plays the nearest and resamples the rest (at most 1
+semitone). As in tune as resampling (42/42 notes within half a semitone), lengths x1.00-1.02 instead of
+x0.63-1.19, no chipmunk; 1023 files / 7.7 MB for 31 syllables x 3 speakers. So for tuning the voice no
+longer needs `INSTR_SING`; what still needs the engine (or more baking) is a per-note SIZE and anything
+continuous. Item 10 grows: ~1000 short takes instead of ~120. A possible need, not a request:
+**morphing between takes** (one syllable turning into another, one speaker into another, a fixed 50%
+blend that lands between two voices; a crossfade sounds like two voices), offline only today; live it
+would mean two takes per note with a blend curve, i.e. analysis-domain (envelope + f0) playback, not
+PCM. Details: Playtime `docs/CHOIR.md` "WORLD".
+
 Not needed by the voice: overtone selection, the onset flash, exponential decay (drum needs; the voice's
 timbre comes from the take).
 

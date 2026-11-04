@@ -38,6 +38,8 @@ de:meta */
 // The DRUMMER (four limbs, a phrase, a body) lives entirely in this cart.
 
 #include "studio.h"
+#include <stdio.h>
+#include <stdlib.h>
 #include <math.h>
 #include <string.h>
 
@@ -52,6 +54,21 @@ de:meta */
 #define S_CRASH  17
 #define S_TOMHI  18
 #define S_TOMLO  19
+// RECORDED cymbals (2026-11-04, Nikki: "an awful cymbal and ride sound"): CC0 one-shots loaded at
+// runtime from build/refs/drums-cc0/*.f32 (the binary runs with cwd = build/), the breakchop route.
+// Missing files = the synthesized cymbals, so the cart never breaks. K switches kits.
+#define R_RIDE   20
+#define R_BELL   21
+#define R_CRASH  22
+#define R_HATC   23
+#define R_HATS   24
+#define R_HATO   25
+#define NREC     6
+static const char *REC_FILE[NREC] = { "refs/drums-cc0/ride.f32", "refs/drums-cc0/bell.f32", "refs/drums-cc0/crash.f32",
+                                      "refs/drums-cc0/hatc.f32", "refs/drums-cc0/hats.f32", "refs/drums-cc0/hato.f32" };
+static const float REC_LVL[NREC] = { 0.16f, 0.20f, 0.18f, 0.32f, 0.32f, 0.30f };   // under the +14 dB master EQ
+static bool rec_ok = false;        // all six loaded
+static bool rec_kit = true;        // use them (K)
 #define LOOKAHEAD 0.12
 #define HAT_LVL   0.16f
 
@@ -189,6 +206,43 @@ static void setup_sound(void) {
     eq(14.0f, 10.0f, 5.0f);     // no master volume: the master EQ is the fader (membranes are quiet)
 }
 
+static bool load_f32(const char *path, int sample_slot) {
+    FILE *f = fopen(path, "rb");
+    if (!f) return false;
+    fseek(f, 0, SEEK_END); long n = ftell(f) / 4; fseek(f, 0, SEEK_SET);
+    if (n < 64) { fclose(f); return false; }
+    float *buf = (float *)malloc((size_t)n * sizeof(float));
+    if (!buf) { fclose(f); return false; }
+    size_t got = fread(buf, sizeof(float), (size_t)n, f);
+    fclose(f);
+    float pk = 0; for (size_t i = 0; i < got; i++) pk = fmaxf(pk, fabsf(buf[i]));
+    if (pk > 0.0001f) for (size_t i = 0; i < got; i++) buf[i] *= 0.9f / pk;
+    sample_load(sample_slot, buf, (int)got);
+    free(buf);
+    return got >= 64;
+}
+
+static void setup_recorded(void) {
+    rec_ok = true;
+    for (int i = 0; i < NREC; i++) if (!load_f32(REC_FILE[i], i)) { rec_ok = false; break; }
+    if (!rec_ok) return;
+    for (int i = 0; i < NREC; i++) {
+        int sl = R_RIDE + i;
+        bool hat = sl >= R_HATC;
+        instrument(sl, INSTR_SAMPLE, 0, 0, 7, hat ? 35 : 120);
+        instrument_sample(sl, i, 60);                // played at note 60 = as recorded
+        instrument_level(sl, REC_LVL[i]);
+        instrument_reverb(sl, hat ? 0.06f : 0.12f);
+        instrument_pan(sl, hat ? -0.35f : sl == R_CRASH ? -0.45f : 0.38f);
+    }
+    // one pair of hats: any new hat sound stops the one ringing, and the foot closing stops them all
+    for (int a = R_HATC; a <= R_HATO; a++) {
+        for (int b = R_HATC; b <= R_HATO; b++) if (a != b) instrument_choke(a, b);
+        instrument_choke(S_CHICK, a);
+        instrument_mono(a, 1);
+    }
+}
+
 static void new_take(void) {
     rnd_seed(seed);
     step = 0; cur_bar = 0; cycle = 0; sticking = 0; nclose = 0; pedal = 0;
@@ -243,6 +297,13 @@ static void snare_stroke(double t, char tech, float g, float spot) {
 }
 
 static void hat_stroke(double t, bool shank, float g, float open, float spot) {
+    if (rec_ok && rec_kit) {
+        // recorded: the pedal picks the take (closed / half / open); the gate chokes it, as the foot does
+        int sl = open < 0.12f ? R_HATC : open < 0.55f ? R_HATS : R_HATO;
+        int gate = 30 + (int)(900.0f * powf(open, 1.6f));
+        book(sl, 60, t, g * (shank ? 1.15f : 0.8f), gate, 0, 0, 0, 0);
+        return;
+    }
     // openness → how long the cymbals ring (the gate) and how much they sizzle (noise)
     int gate = 16 + (int)(700.0f * powf(open, 1.6f));
     float sizzle = 0.35f * sinf(3.14159f * fminf(open, 1.0f)) - 0.08f * (1.0f - open);
@@ -256,6 +317,7 @@ static void chick(double t, float g) {
 }
 
 static void ride_stroke(double t, bool bell, float g, float spot) {
+    if (rec_ok && rec_kit) { book(bell ? R_BELL : R_RIDE, 60, t, g * (bell ? 0.95f : 0.8f), bell ? 2600 : 3000, 0, 0, 0, 0); return; }
     if (bell) book(S_RIDE, 72, t, g * 1.05f, 1400, 0.30f, -0.22f, 0.1f, 0);
     else      book(S_RIDE, 64, t, g * 0.7f, 1300, spot * 0.05f, spot * 0.06f, 0, 0);
 }
@@ -276,6 +338,7 @@ static void tom_stroke(double t, bool hi, float g, float spot) {
 }
 
 static void crash_stroke(double t, float g) {
+    if (rec_ok && rec_kit) { book(R_CRASH, 60, t, g, 3000, 0, 0, 0, 0); return; }
     book(S_CRASH, 62, t, g, 2600, 0, 0, 0, 0);
 }
 
@@ -521,6 +584,10 @@ static void probe(void) {
 
 void init(void) {
     setup_sound();
+    setup_recorded();
+#ifdef SYNTH_KIT
+    rec_kit = false;
+#endif
     new_take();
 #if defined(PROBE_TECH) || defined(PROBE_PEDAL)
     probe();
@@ -533,6 +600,7 @@ void init(void) {
 void update(void) {
     if (keyp(KEY_SPACE)) { playing = !playing; t_step = audio_time() + 0.15; }
     if (keyp(KEY_TAB)) human = !human;
+    if (keyp('K')) rec_kit = !rec_kit;
     for (int i = 0; i < NLAYER; i++) if (keyp('1' + i)) layer[i] = !layer[i];
     if (keyp(KEY_UP))    humanity = fminf(1.5f, humanity + 0.25f);
     if (keyp(KEY_DOWN))  humanity = fmaxf(0.0f, humanity - 0.25f);
@@ -546,6 +614,7 @@ void update(void) {
     ride_pedal();
 #endif
 #ifdef DE_TRACE
+    watch("rec", "%d%d", rec_ok, rec_kit);
     watch("bar", "%d", cur_bar);
     watch("pedal", "%.2f", shown_pedal);
     watch("energy", "%.2f", energy);
@@ -557,6 +626,7 @@ void draw(void) {
     cls(CLR_DARKER_GREY);
     double at = audio_time();
     print(human ? "DRUMMER" : "GRID", 4, 4, human ? CLR_GREEN : CLR_RED);
+    print(!rec_ok ? "synth cymbals" : rec_kit ? "K: recorded cymbals" : "K: synth cymbals", 4, 192, rec_ok && rec_kit ? CLR_YELLOW : CLR_DARK_GREY);
     print(str("%d bpm  bar %d/8  take %d", tempo, cur_bar + 1, seed), 76, 4, CLR_WHITE);
 
     // the bar as a grid: one row per drum, each stroke where it actually landed (offset = feel)

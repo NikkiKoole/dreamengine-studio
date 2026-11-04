@@ -98,6 +98,7 @@ static int   bc_kind;           // which method fired it
 static int   h = 0, h_fade = 0;
 static float fade_t0;
 static float n_start, n_len, n_dyn, n_midi_f;
+static float shift_t0 = -10, shift_len;   // an audible shift: the bow lightens while the finger slides
 static int   n_i;
 static float vib_delay, vib_depth, vib_rate;
 static float last_vol = -1, last_timb = -1, last_mor = -1, last_vd = -1, last_vr = -1;
@@ -268,7 +269,9 @@ static void start_note(int i) {
 
     bool phrase_start = (i == 0 || TUNE[i - 1].end);
     bool same_voice = h && n->art != 't';
-    bool shift = S && same_voice && (abs(leap) >= 3 || (abs(leap) >= 2 && rnd_float() < 0.3f * H));
+    // an AUDIBLE shift is an expressive choice, not every leap (Nikki: "the cello sounds a bit more
+    // synth with the way it glides"): mostly on bigger leaps, about half the time
+    bool shift = S && same_voice && abs(leap) >= 4 && rnd_float() < 0.55f * fmaxf(H, 0.3f);
 
     // VIBRATO plan: only on notes with time for it, blooming late, wider on long notes
     vib_depth = 0; vib_delay = 0; vib_rate = 5.4f;
@@ -308,12 +311,17 @@ static void start_note(int i) {
                last_vol = last_timb = last_mor = last_vd = last_vr = -999; }
         plan_speed(stroke_len(i) * dur / (n->len * e8), dyn, next_stroke(i));
     }
-    // the left hand: a finger lands (quick glide), a shift slides (slower, more on big leaps)
+    // the left hand: a finger LANDING is a step (no glide: a finger in position does not slide);
+    // a shift is QUICK (40-90 ms, a little longer on bigger leaps) and the bow lightens while the
+    // finger travels, so the slide is a colour under the arrival, not a portamento. Was: every
+    // slurred note 14-24 ms of glide and every leap of 3+ a constant-speed 70-200 ms slide.
     if (same_voice && n->midi != prev) {
-        int ms = shift ? (int)((70 + 18 * abs(leap)) * (0.8f + 0.4f * rnd_float())) : 14 + rnd(10);
+        int ms = shift ? (int)((40 + 5 * abs(leap)) * (0.8f + 0.4f * rnd_float())) : 0;
+        if (ms > 90) ms = 90;
         note_glide(h, ms);
         note_pitch(h, (float)n->midi);
-        if (shift && T) dur += 0.05f * H;                         // a shift takes a little time
+        if (shift) { shift_t0 = t_now; shift_len = ms / 1000.0f; }
+        if (shift && T) dur += 0.03f * H;                         // a shift takes a little time
     } else if (h && n->art != 't') note_pitch(h, (float)n->midi);
 
     n_start = t_now; n_len = dur; n_i = i; n_dyn = dyn; n_midi_f = n->midi;
@@ -383,6 +391,8 @@ static void ride(void) {
     float timb = clamp(B ? pr : 0.42f + pr_add, 0.10f, 0.75f);
     float loud = B ? clamp(0.22f + 0.25f * spn + 0.62f * n_dyn * note_curve, 0, 1.2f) : 0.6f;
     float vol = (0.8f + 5.6f * loud) * gm * gmul;
+    { float sa = t_now - shift_t0;                                    // the bow lightens during a shift
+      if (sa >= 0 && sa < shift_len + 0.03f) vol *= 1.0f - 0.35f * sinf(3.14159f * clamp(sa / (shift_len + 0.03f), 0, 1)); }
     if (n->end && !B) vol *= 1.0f;
 
     // VIBRATO: blooms after its delay; the rate wanders; it carries straight through a bow change

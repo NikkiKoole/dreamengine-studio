@@ -7136,6 +7136,7 @@ static void sound_setup_note_ex(Voice *v, int midi, int slot, int vol, int gate_
     if (ins->flt_keytrack != 0.0f)
         kt_cut *= de_powf(2.0f, ins->flt_keytrack * (float)(midi - 60) / 12.0f);
     if (pay && pay->cutoff_oct != 0.0f) kt_cut *= de_powf(2.0f, pay->cutoff_oct);   // NoteOpts: this note's filter
+    if (pay && pay->flt) v->flt_mode = pay->flt < 0 ? FILTER_OFF : pay->flt;      // NoteOpts.filter: its own TYPE (latched; a legato note keeps the phrase's)
     v->flt_cutoff     = v->cutoff_target = kt_cut;
     v->flt_q          = v->flt_q_target  = ins->flt_q;
     v->flt_low        = 0.0f;
@@ -10973,7 +10974,7 @@ int schedule_note_at(double t, int midi, int instr, int vol, int dur_ms, const N
     // with none of them takes the old path byte for byte)
     if (opts->cents != 0.0f || opts->cutoff_oct != 0.0f || opts->damp > 0.0f || opts->release_ms > 0 ||
         opts->region_start != 0.0f || opts->region_end != 0.0f || opts->vib.cents > 0.0f || opts->origin_ms > 0 ||
-        opts->shape[0].id || opts->shape[1].id || opts->shape[2].id) {
+        opts->shape[0].id || opts->shape[1].id || opts->shape[2].id || opts->filter != 0) {
         int k = npay_w; npay_w = (npay_w + 1) % NPAY_RING;
         npay_ring[k] = (NotePay){ .cents = opts->cents < -1200.0f ? -1200.0f : (opts->cents > 1200.0f ? 1200.0f : opts->cents),
                                   .cutoff_oct = opts->cutoff_oct < -6.0f ? -6.0f : (opts->cutoff_oct > 6.0f ? 6.0f : opts->cutoff_oct),
@@ -10985,7 +10986,8 @@ int schedule_note_at(double t, int midi, int instr, int vol, int dur_ms, const N
                                   .vib_delay_ms = opts->vib.delay_ms < 0 ? 0 : opts->vib.delay_ms,
                                   .vib_fade_ms = opts->vib.fade_ms < 0 ? 0 : opts->vib.fade_ms,
                                   .vib_wander = opts->vib.wander,
-                                  .origin_ms = opts->origin_ms < 0 ? 0 : opts->origin_ms };
+                                  .origin_ms = opts->origin_ms < 0 ? 0 : opts->origin_ms,
+                                  .flt = opts->filter < NOTE_FILTER_OFF || opts->filter > FILTER_DIODE ? 0 : opts->filter };
         for (int sk = 0; sk < 3; sk++) {
             npay_ring[k].sh_id[sk]  = opts->shape[sk].id < SHAPE_MAX ? opts->shape[sk].id : 0;
             npay_ring[k].sh_tgt[sk] = opts->shape[sk].target <= 6 ? opts->shape[sk].target : 0;

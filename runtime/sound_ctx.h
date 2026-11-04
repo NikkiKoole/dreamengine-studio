@@ -808,7 +808,8 @@ typedef struct { SoundReqKind kind; int a, b, c; int delay_samples; int dur_samp
 // schedule_note_at into a game-side ring, copied at the drain into a pen-side slot, applied at note-on.
 typedef struct { float cents, cutoff_oct, damp; int release_ms; float rg_start, rg_end;
                  float vib_cents, vib_rate; int vib_delay_ms, vib_fade_ms; float vib_wander;
-                 unsigned char sh_id[3], sh_tgt[3]; float sh_scale[3], sh_stretch[3]; int origin_ms; } NotePay;   // + step 3: shapes
+                 unsigned char sh_id[3], sh_tgt[3]; float sh_scale[3], sh_stretch[3]; int origin_ms;
+                 int flt; } NotePay;   // + step 3: shapes · + flt: the note's FILTER_* (0 = the slot's, -1 = none)
 // step 3: a SHAPE (shape_define): up to 6 breakpoints in ms, interpolated, the last value holds
 #define SHAPE_MAX  64
 #define SHAPE_PTS  6

@@ -15,6 +15,11 @@ _Last updated: 2026-10-29 — INSTR_SCRAPE: a guiro with teeth. See the top Ship
 
 ## Shipped ✓
 
+- **NoteOpts.filter: a booked note's own filter TYPE** (2026-11-04). `FILTER_*` per note (0 = the
+  slot's, `NOTE_FILTER_OFF` = none), latched at note-on, free per sample. `wahhand` (funk guitar,
+  scratch high-pass / stab band-pass / hold low-pass under a wah lane) renders byte-identical to the
+  18-slot, 36-choke build it replaces. [`design/humanized-playing.md`](design/humanized-playing.md) §8.11.
+
 - **PIANO §I4d: the loop's own tuning offset fixed** (2026-11-04). The brightness blend shortened the
   loop by its phase advance, so every note ran +1 c (bass) to +5 c (treble) sharp on top of the intended
   stretch; now within ~0.5 c of the curve. Also PIPE slides in tune (`399976bd`). [`design/synth-secrets-plan.md`](design/synth-secrets-plan.md) §I4d.

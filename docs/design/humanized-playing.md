@@ -764,6 +764,15 @@ drafted, §8.10 step 5; `amount` on a BOWED `NEV_REARTIC` is how slowly the bow 
   the group.)
 - Curve sample rate (every 32 samples = 0.7 ms) vs cost on a phone with 32 voices.
 - A take index into a sample bank (the choir's ~1000 takes) needs the sample-slot story first.
-- A per-note filter MODE (low-pass / band-pass / high-pass), not only a cutoff: the ride bow and bell
-  want opposite filter types on one cymbal (found while accepting step 1 on `drumhand`).
+- ✓ BUILT (2026-11-04): a per-note filter TYPE, `NoteOpts.filter` (a `FILTER_*`; 0 = the slot's,
+  `NOTE_FILTER_OFF` = unfiltered), latched at note-on; the slot's cutoff and resonance still apply, a
+  legato note keeps its phrase's. Free per sample (every voice already runs its own filter and mode).
+  Accepted on `wahhand`, a funk guitar on six mono strings whose strokes each pick a type (scratch
+  high-pass, stab band-pass, held note low-pass) under a wah lane: it renders BYTE-IDENTICAL to the
+  same guitar built without the field (18 slots, one per string per type, 36 `instrument_choke` pairs,
+  the lane booked 18 times), and the control without `.filter` differs (centroid 1757 vs 5629 Hz). So
+  the field buys plumbing, not a new sound: 6 slots instead of 18. Every booked cart byte-identical.
+  The `drumhand` cymbal that raised it was NOT moved: its synth bell differs from the bow in spread,
+  decay, resonance and level too (slot-level, not per note), and the cart plays recorded cymbals by
+  default.
 

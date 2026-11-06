@@ -34,6 +34,7 @@ listen, repeat.** The numbers find the fault; the ear decides whether it is fixe
 | hiss, harsh, "hard to listen to" | energy up to 15-20 kHz (a real cymbal or hat stops at ~11-14) | **low-pass** the METAL bank (its bright noise lives at 15-20 kHz); a high-pass keeps exactly that. For noise voices use a **resonant** band (a 2-pole band's 6 dB/oct skirt runs on to 20 kHz), centred ~0.75x the real median |
 | a dark ride "in a certain pitch", "tones to it" (drumhand, 2026-11-05) | flatness 0.01: the energy in a dozen square modes, whatever their tuning | a cymbal is a **struck resonator**, not a chord: a short noise stroke sent fully into a private reverb tank (`reverb_bus` + `instrument_reverb_bus(slot, tank, 1)` + `reverb_bus_fx(FX_EQ)` to colour the tail). The tank's dense modes are the wash; nothing has a pitch |
 | "too much hiss" in the groove though one hit matched | the level drops 6.5 dB between strokes, the real ride 10: the tails PILE UP into a bed | measure the **groove stem** (`--solo-slot`), not one hit: octave bands + the dip between strokes. A fast-dropping stroke with a quiet tail, not a swell |
+| the struck-resonator ride is right in every band but "missing the real realistic sound" (drumhand, 2026-11-06) | a real ride is ~2000 decaying modes, ~300 of them in close beating PAIRS; a reverb tank has dense modes but not a plate's | take the cymbal's **own modes** from the recording and play them (see [Taking a cymbal's modes](#taking-a-cymbals-modes)): 50 was the first count that sounded like one by ear |
 | a pitched ring / a chord in a hat | flatness ~0.02, peaks at single harmonics of one square | hats as **noise** (the real 808 mixes six oscillators into a dense hiss, not two) |
 | "a locomotive", a drone on eighth notes | the ride stem louder than the kick, pulsing | **one physical cymbal = one voice** (`instrument_mono`); and a ride needs a bright shimmer layer, not only a low body |
 | "woodblock" | a rim that rings a pitched tone for 10+ ms | a rim is a **click**: one swing and a damped ring, gone in ~5 ms |
@@ -42,6 +43,35 @@ listen, repeat.** The numbers find the fault; the ear decides whether it is fixe
 | the 909's ROM hats sounding like FM | FM sidebands at 8-21 kHz whatever the filter | the METAL bank, low-passed |
 | a knob that "stops working" halfway | decay stopped growing above the middle | the slot's own decay envelope caps any gate: set the slot's decay **per hit** from a table measured at the real knob's marks |
 | a tune knob that sweeps octaves | real tom/snare tune spans ~2-10 semitones, unevenly | a measured table per voice |
+
+## Taking a cymbal's modes
+
+When a cymbal has to sound *real* rather than plausible, stop building it out of generic parts and read
+its modes off a recording: `python3 -I tools/mode-extract.py <one-hit.wav> --top 50 --out <dir> --wavs` (~24 min for a 6 s hit; `--fast` ~3 min, less exact, for exploring).
+It prints a C table for `instrument_modes()` (Hz, amplitude at the strike, decay) and one for
+`instrument_modes_noise()` (per octave a 6 ms stick TICK and a decaying BED for the modes too weak to
+list), then you play them on an `INSTR_MODAL` slot made mono, so one cymbal is one voice and every
+stroke strikes the bank already ringing. `drumhand`'s ride (K) is the worked example.
+
+What the ride (`build/refs/drums-cc0/ride.wav`) taught, 2026-11-06:
+
+- **It is ~2000 modes, and the count you need is set by ear, not by the error.** Half the modal energy
+  sits in 9 modes (a cluster at 400-550 Hz), 90% in 129, 99% in 474; but 25 modes sounded like a bank
+  of oscillators and **50 was the first count that sounded like a cymbal**. Render the counts
+  (`--wavs`) and listen next to the original before choosing.
+- **The noise is what the modes leave, measured, not added for "air".** The 50 modes hold almost
+  nothing above 3.3 kHz; the recording's 1-16 kHz is 60-99% "noise" (the weak modes), decaying 4-15 dB/s
+  below 8 kHz and ~37 dB/s above. Fit it per octave as band energy of recording minus modes.
+- **A soft bow stroke is LINEAR.** Its 2 kHz band swells around 0.5 s, which looked like the energy
+  cascade of a nonlinear plate, but the linear modes reproduce it: it is close pairs beating. Expect
+  the cascade (a hit that blooms brighter) on a hard crash, which a linear bank cannot make.
+- **Peak-picking an FFT lies on a cymbal**: it counts one beating pair two or three times. Use the tool.
+- **Mind the filter skirts.** A 2-pole band-pass's 6 dB/oct skirt let the 250 Hz tick leak 10 dB of
+  bass into 125 Hz (the recording has nothing there); two stages plus a 4-pole high-pass at 180 Hz
+  fixed it. The engine's own high-pass at resonance 0 is critically damped (Q 0.5): use resonance ~4
+  (Q ~0.7) or it eats the octave above the cutoff too.
+- **Give every noise band its own noise.** Fed one shared sample, neighbouring band-passes (near opposite
+  phase where their skirts overlap) cancelled, and the wash measured 3-6 dB thin between the octaves.
 
 ## The envelope SHAPE matters as much as the decay time
 

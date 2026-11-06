@@ -30,6 +30,9 @@
 #define SOUND_INSTR_SLOTS  128  // 0-4 = the raw waves; 5-127 cart-defined (rich patch carts like modrack want banks per wave + many macro engines; Playtime's drum jam wants an 808 + a 909 beside a full band). ~430 B/slot (Instrument 344 + the lanes + the sing mirrors): 128 slots = ~55 KB. Was 48 until 2026-11-04
 #define SOUND_KS_MAX       1024   // Karplus-Strong delay line cap (~4KB/voice) — bottoms out around 43Hz / MIDI 29
 #define SOUND_MODAL_MAX    12     // INSTR_MODAL resonator budget (4 is the floor; MODE_MODAL_MODES spends this)
+#define SOUND_MT_MODES     64     // INSTR_MODAL + instrument_modes(): MEASURED modes per table (a ride needed 50, by ear)
+#define SOUND_MT_NOISE     16     // ... + instrument_modes_noise(): decaying noise bands per table (tick + wash, 7 octaves x 2)
+#define SOUND_MT_TABLES    4      // tables in the engine (one per cymbal-like slot that uses them)
 #define SOUND_MME_BANDS    20     // INSTR_MME vocoder model: filter-bank width (Warps' 20)
 #define SOUND_METAL_MODES  6      // INSTR_METAL: the six-square bank (the 808's six oscillators)
 #define ORGAN_SCAN         64     // INSTR_ORGAN scanner-chorus delay taps (~1.5ms; borrows ks_buf's head — organ never uses the Karplus path)
@@ -114,6 +117,12 @@ typedef struct {
 } Instrument;
 #define SOUND_UNISON_MAX 7   // JP-8000 Super Saw = 7 detuned voices; the max unison stack per slot
 typedef struct { float b0, b1, b2, a1, a2, z1, z2; } SoundBiquad;
+// a MEASURED mode table (instrument_modes / _noise): owner = slot + 1 (0 = free). Modes ring at Hz with an
+// amplitude at the strike and a decay; noise bands are band-limited noise struck to `namp` (pre-normalised to
+// unit-power noise on the game thread) decaying at `ndec`. Note 60 plays the table as written.
+typedef struct { int owner, n, nn;
+                 float hz[SOUND_MT_MODES], amp[SOUND_MT_MODES], dec[SOUND_MT_MODES];
+                 float nhz[SOUND_MT_NOISE], namp[SOUND_MT_NOISE], ndec[SOUND_MT_NOISE]; } ModeTable;
 typedef struct {
     bool   active;
     int    choke_fade;         // >0 = ramping out over a choke (counts down to 0, then deactivates) — a declick fade, not a hard cut
@@ -410,6 +419,15 @@ typedef struct {
     float  mo_norm;                     // equal-loudness scale across geometry / mode count
     float  mo_strike, mo_blow, mo_bow;  // live exciter mix (0..1 each, not a selector)
     bool   mo_on;                       // note-on init guard (engine id without a strike → silent)
+    // INSTR_MODAL with a MEASURED table (instrument_modes): each mode a decaying complex phasor, struck by
+    // writing into it, so a mono slot's next note adds to the ringing bank (one cymbal = one voice).
+    float  mt_re[SOUND_MT_MODES], mt_im[SOUND_MT_MODES];   // mode state (real part = the output)
+    float  mt_cr[SOUND_MT_MODES], mt_ci[SOUND_MT_MODES];   // mode pole r*e^(jw), from Hz/decay/pitch/damping
+    SoundBiquad mt_nbq[SOUND_MT_NOISE][2];                 // noise band: two band-pass stages
+    float  mt_nenv[SOUND_MT_NOISE], mt_nk[SOUND_MT_NOISE]; // noise band envelope + its per-sample decay
+    int    mt_tab;                      // table index + 1 (0 = geometry, the classic engine)
+    float  mt_mul, mt_dmp;              // pitch multiplier + damping the poles were computed for
+    bool   mt_keep;                     // set by the drain when a mono slot RESTRIKES this voice (keep the bank)
     // MME (INSTR_MME): two oscillators through seven cross-modulation models + AC-only feedback.
     // Osc A rides v->phase; only osc B + the feedback / vocoder states live here (sound_mme_sample).
     float  mme_phB, mme_prevA;          // osc B phase (turns) + A's last phase (the SYNC model watches A wrap)
@@ -823,6 +841,8 @@ typedef enum {
     SR_SYMP = 171,            // a=amount*1000, b=decay*1000, c=bright*1000 — the sympathetic resonator (resonator)
     SR_SYMP_TUNE = 172,       // a=string 0..SYMP_STRINGS-1, b=MIDI note (-1 = off) (resonator_tune)
     SR_INSTR_SYMP = 173,      // a=slot, b=send*1000 (instrument_resonator)
+    SR_MODES_ROW = 174,       // a=slot, b=row (0..63 mode, 64..79 noise band), c/e0/e1 = FLOAT BITS of Hz / amplitude / decay dB/s (instrument_modes)
+    SR_MODES_N = 175,         // a=slot, b=0 modes / 1 noise bands, c=count — sent after the rows (instrument_modes / _noise); 0 = off
     SR_SHAPE_HDR = 165,       // a=id, b=n points, c=interp — a shape's header (shape_define), sent after its points
     SR_SHAPE_PT = 166,        // a=id, b=point index, c=t_ms, e0=value*1000 — one breakpoint (shape_define)
     SR_INSTR_RELSHAPE = 164,  // a=slot, b=shape — the release curve (instrument_release_shape)
@@ -884,6 +904,7 @@ typedef struct {
     Sfx sfx_bank[SOUND_SFX_SLOTS];
     Instrument instr_bank[SOUND_INSTR_SLOTS];
     float user_wave[SOUND_USER_WAVES][SOUND_WAVE_LEN];
+    ModeTable mode_tab[SOUND_MT_TABLES];
     BowBody bow_bodies[SOUND_BOW_BODIES];
     int bow_body_next;
     int bow_body_overflow;
@@ -1312,6 +1333,7 @@ static _Thread_local DeSound *de_snd = &de_snd_default;
 #define sfx_bank             (de_snd->sfx_bank)
 #define instr_bank           (de_snd->instr_bank)
 #define user_wave            (de_snd->user_wave)
+#define mode_tab             (de_snd->mode_tab)
 #define bow_bodies           (de_snd->bow_bodies)
 #define bow_body_next        (de_snd->bow_body_next)
 #define bow_body_overflow    (de_snd->bow_body_overflow)

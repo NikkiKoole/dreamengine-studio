@@ -2203,6 +2203,8 @@ static CtxKey sound_ctx_key(SoundReqKind k) {
         case SR_ENG_TUNE:                          // a=slot, b=param idx
         case SR_INSTR_ACCENT:                      // a=slot, b=ACC_* route
         case SR_SHAPE_PT:                          // a=shape id, b=point index
+        case SR_MODES_ROW:                         // a=slot, b=row
+        case SR_MODES_N:                           // a=slot, b=modes / noise
             return CTXK_KAB;
         // a+c name the target
         case SR_FX_MOD: case SR_FX_LFO:            // a=target, c=bus
@@ -2846,7 +2848,154 @@ static void sound_modal_set(SoundBiquad *bq, float fc, float radius) {
     bq->b2 = -bq->b0;
 }
 
+// ── INSTR_MODAL with a MEASURED table (instrument_modes, 2026-11-06) ──────────
+// The geometry axis gives 4..12 modes at published RATIOS; a cymbal needs ~50 at the Hz they were MEASURED
+// at (a ride by sub-band ESPRIT: 50 is the first count that sounds like one). So a slot can carry a table
+// instead: each row a mode's Hz, its amplitude at the strike and its decay. Each mode is a decaying complex
+// PHASOR (4 mul + 2 add a sample; the pole is computed only when pitch or damping MOVES, never per sample,
+// which is what lets 64 modes cost less than the geometry bank's 12 cos() a sample). Noise BANDS ride along
+// (the stick tick, and the wash of the hundreds of modes too weak to list), each two band-pass stages on
+// the voice's noise with its own decaying envelope.
+// A STRIKE writes into the modes rather than restarting them. On an instrument_mono() slot the next note
+// lands on the voice already ringing (the drain sets mt_keep), so one cymbal is ONE voice and its cost does
+// not grow with the tempo. (A linear bank summed per stroke would sound the same: the point is the cost,
+// strokes computed live, and a shared state for any nonlinearity later.)
+// Macros, all "as measured" at 0.5: harmonics = strike SPOT (each mode re-weighted, up to ~+-3 dB, by a
+// fixed pseudo mode shape whose spatial frequency grows with sqrt(Hz), as on a plate) · timbre = stick
+// HARDNESS (amplitude ~ (f/1 kHz)^(+-0.6)) · morph = DAMPING (<0.5 rings up to 2x longer, >0.5 a hand on it,
+// up to 25x faster; live). Velocity goes into the strike, so a soft stroke does not duck the ringing tail.
+#define MT_REF_HZ 261.62558f      // note 60 plays the table as written
+
+static int modes_table_for(int slot) {
+    for (int t = 0; t < SOUND_MT_TABLES; t++) if (mode_tab[t].owner == slot + 1) return t;
+    return -1;
+}
+
+static void modes_poles(Voice *v, const ModeTable *T, float mul, float mor) {
+    const float sr = (float)SOUND_SAMPLE_RATE;
+    float x = mor - 0.5f;
+    float dscale = x <= 0.0f ? 1.0f + x : 1.0f + 24.0f * (2.0f * x) * (2.0f * x);
+    int n = T->n < SOUND_MT_MODES ? T->n : SOUND_MT_MODES;
+    for (int m = 0; m < n; m++) {
+        float f = T->hz[m] * mul;
+        if (f <= 0.0f || f >= MODAL_NYQ * sr) { v->mt_cr[m] = v->mt_ci[m] = 0.0f; continue; }   // zero pole: silent
+        float r = de_powf(10.0f, -T->dec[m] * dscale / (20.0f * sr));
+        if (r > 0.999999f) r = 0.999999f;
+        float w = SOUND_TWO_PI * f / sr;
+        v->mt_cr[m] = r * de_cosf(w);
+        v->mt_ci[m] = r * de_sinf(w);
+    }
+    int nn = T->nn < SOUND_MT_NOISE ? T->nn : SOUND_MT_NOISE;
+    for (int k = 0; k < nn; k++) {
+        float f = T->nhz[k] * mul;
+        if (f < 20.0f) f = 20.0f;
+        if (f > MODAL_NYQ * sr) f = MODAL_NYQ * sr;
+        float w = SOUND_TWO_PI * f / sr, al = de_sinf(w) / (2.0f * 0.9f), a0 = 1.0f + al;   // RBJ band-pass, Q 0.9
+        for (int s = 0; s < 2; s++) {                    // coefficients only: a ringing band keeps its state
+            SoundBiquad *q = &v->mt_nbq[k][s];
+            q->b0 = al / a0; q->b1 = 0.0f; q->b2 = -al / a0;
+            q->a1 = -2.0f * de_cosf(w) / a0; q->a2 = (1.0f - al) / a0;
+        }
+        v->mt_nk[k] = de_powf(10.0f, -T->ndec[k] * dscale / (20.0f * sr));
+    }
+    v->mt_mul = mul; v->mt_dmp = mor;
+}
+
+static void modes_strike(Voice *v, const ModeTable *T, float gain) {
+    float pos  = clamp01(v->harm) - 0.5f;
+    float tilt = (clamp01(v->timb) - 0.5f) * 1.2f;
+    int n = T->n < SOUND_MT_MODES ? T->n : SOUND_MT_MODES;
+    float f0 = 0.0f;
+    for (int m = 0; m < n; m++) if (T->hz[m] > 0.0f && (f0 == 0.0f || T->hz[m] < f0)) f0 = T->hz[m];
+    for (int m = 0; m < n; m++) {
+        if (T->hz[m] <= 0.0f) continue;
+        unsigned h = (unsigned)(m + 1) * 2654435761u;
+        float th = (float)(h >> 8) * (SOUND_TWO_PI / 16777216.0f);
+        float k  = 1.5f * sqrtf(T->hz[m] / f0);
+        float w  = de_expf(0.35f * (de_sinf(SOUND_TWO_PI * k * pos + th) - de_sinf(th)));
+        float a  = T->amp[m] * w * gain;
+        if (tilt != 0.0f) a *= de_powf(T->hz[m] / 1000.0f, tilt);
+        v->mt_im[m] -= a;                                // a SINE start: Re(-j a e^(jwt)) = a sin(wt)
+    }
+    int nn = T->nn < SOUND_MT_NOISE ? T->nn : SOUND_MT_NOISE;
+    float pw = v->mt_mul > 0.0f ? 1.0f / sqrtf(v->mt_mul) : 1.0f;   // constant-Q noise power grows with the band
+    for (int k = 0; k < nn; k++) {
+        float a = T->namp[k] * gain * pw;
+        if (tilt != 0.0f) a *= de_powf(T->nhz[k] / 1000.0f, tilt);
+        v->mt_nenv[k] = sqrtf(v->mt_nenv[k] * v->mt_nenv[k] + a * a);   // noise adds by POWER
+    }
+}
+
+// note-on. False = no table on this slot (the classic geometry engine runs).
+static bool sound_modes_start(Voice *v) {
+    int t = modes_table_for(v->instr_slot);
+    if (t < 0 || mode_tab[t].n + mode_tab[t].nn == 0) { v->mt_tab = 0; v->mt_keep = false; return false; }
+    const ModeTable *T = &mode_tab[t];
+    float gain = v->vol;
+    v->vol = v->vol_target = 1.0f;                       // the STRIKE carries the velocity, not the voice level
+    if (!(v->mt_keep && v->mt_tab == t + 1)) {           // a fresh voice: a still bank
+        for (int m = 0; m < SOUND_MT_MODES; m++) v->mt_re[m] = v->mt_im[m] = 0.0f;
+        for (int k = 0; k < SOUND_MT_NOISE; k++) {
+            v->mt_nenv[k] = 0.0f;
+            v->mt_nbq[k][0].z1 = v->mt_nbq[k][0].z2 = v->mt_nbq[k][1].z1 = v->mt_nbq[k][1].z2 = 0.0f;
+        }
+        v->mt_mul = -1.0f;
+    }
+    v->mt_keep = false;
+    v->mt_tab  = t + 1;
+    float mul = v->freq / MT_REF_HZ, mor = clamp01(v->mor);
+    if (v->mt_mul != mul || v->mt_dmp != mor) modes_poles(v, T, mul, mor);
+    modes_strike(v, T, gain);
+    v->mo_on = true;
+    return true;
+}
+
+static inline float sound_modes_sample(Voice *v, float pitch_mul) {
+    const ModeTable *T = &mode_tab[v->mt_tab - 1];
+    float mul = v->freq * pitch_mul / MT_REF_HZ, mor = clamp01(v->mor);
+    if (fabsf(mul - v->mt_mul) > 1e-5f * mul || fabsf(mor - v->mt_dmp) > 1e-4f) modes_poles(v, T, mul, mor);
+    int n = T->n < SOUND_MT_MODES ? T->n : SOUND_MT_MODES;
+    float out = 0.0f;
+    for (int m = 0; m < n; m++) {
+        float re = v->mt_re[m], im = v->mt_im[m], cr = v->mt_cr[m], ci = v->mt_ci[m];
+        out += re;
+        v->mt_re[m] = re * cr - im * ci;
+        v->mt_im[m] = re * ci + im * cr;
+    }
+    if ((v->step_samples & 63) == 0)                     // flush rung-out modes before they go denormal
+        for (int m = 0; m < n; m++)
+            if (fabsf(v->mt_re[m]) + fabsf(v->mt_im[m]) < 1e-9f) v->mt_re[m] = v->mt_im[m] = 0.0f;
+    int nn = T->nn < SOUND_MT_NOISE ? T->nn : SOUND_MT_NOISE;
+    if (nn > 0) {
+        for (int k = 0; k < nn; k++) {
+            if (v->mt_nenv[k] < 1e-7f) { v->mt_nenv[k] = 0.0f; continue; }
+            // its OWN noise sample per band: fed one shared sample, neighbouring bands (near opposite phase where
+            // their skirts overlap) partly cancelled, and the wash measured 3-6 dB thin between the octaves
+            float w = voice_white(v);
+            float y = sound_biquad_run(&v->mt_nbq[k][1], sound_biquad_run(&v->mt_nbq[k][0], w));
+            out += y * v->mt_nenv[k];
+            v->mt_nenv[k] *= v->mt_nk[k];
+        }
+    }
+    return out;
+}
+
+// a note on a MONO slot that carries a table: the voice already ringing it, to strike again (-1 = none)
+static int sound_modes_restrike_voice(int slot) {
+    if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return -1;
+    if (instr_bank[slot].wave != INSTR_MODAL || !instr_bank[slot].mono) return -1;
+    int t = modes_table_for(slot);
+    if (t < 0) return -1;
+    for (int i = 0; i < SOUND_VOICES; i++) {
+        Voice *o = &voices[i];
+        if (o->active && o->instr_slot == slot && o->sfx_idx < 0 && !o->held && !o->choke_fade
+            && o->wave == INSTR_MODAL && o->mt_tab == t + 1) return i;
+    }
+    return -1;
+}
+
 static void sound_modal_start(Voice *v) {
+    if (sound_modes_start(v)) return;                    // a MEASURED table on this slot
     int n = 4 + (int)(clamp01(v->eng_p[MODE_MODAL_MODES]) * (float)(SOUND_MODAL_MAX - 4) + 0.5f);
     if (n < 4) n = 4;
     if (n > SOUND_MODAL_MAX) n = SOUND_MODAL_MAX;
@@ -2867,6 +3016,7 @@ static void sound_modal_start(Voice *v) {
 
 static inline float sound_modal_sample(Voice *v, float pitch_mul) {
     if (!v->mo_on) return 0.0f;
+    if (v->mt_tab) return sound_modes_sample(v, pitch_mul);
     const float sr = (float)SOUND_SAMPLE_RATE;
     const float dt = 1.0f / sr;
     int n = v->mo_n;
@@ -7470,7 +7620,7 @@ static void sound_choke_group(int instr_slot) {
         int vs = voices[i].instr_slot;
         bool choked = cmask && vs >= 0 && vs < SOUND_INSTR_SLOTS && ((cmask[vs >> 5] >> (vs & 31)) & 1u);
         if (voices[i].active && !voices[i].choke_fade
-            && (choked || (mono && voices[i].instr_slot == instr_slot && voices[i].sfx_idx < 0))) {
+            && (choked || (mono && voices[i].instr_slot == instr_slot && voices[i].sfx_idx < 0 && !voices[i].mt_keep))) {
             if (voices[i].held && voices[i].owner_slot >= 0) held_voice[voices[i].owner_slot] = -1;
             voices[i].choke_fade = CHOKE_FADE_LEN;   // ramp out over ~3ms (applied in the voice loop) → no cliff
 #ifdef DE_TRACE
@@ -7682,8 +7832,10 @@ static void sound_fire_req(SoundReq r) {
                 break;
             }
         }
+        int vi = sound_modes_restrike_voice(r.b);   // a MONO slot with a measured table: strike the bank already ringing
+        if (vi >= 0) voices[vi].mt_keep = true;      // (set BEFORE the choke: the mono self-cut skips it)
         sound_choke_group(r.b);
-        int vi = sound_find_voice();
+        if (vi < 0) vi = sound_find_voice();
 #ifdef DE_TRACE
         sve_push_v(SVE_ON, r.b, r.a, vi, -1, r.c, gate);   // fire-and-forget note() — victim -1 (no handle)
 #endif
@@ -7925,6 +8077,27 @@ static void sound_fire_req(SoundReq r) {
     case SR_INSTR_CHOKE: {  // a=slot_a, b=slot_b
         if (r.a >= 0 && r.a < SOUND_INSTR_SLOTS && r.b >= 0 && r.b < SOUND_INSTR_SLOTS)
             instr_bank[r.a].choke_mask[r.b >> 5] |= (1u << (r.b & 31));
+    } break;
+    case SR_MODES_ROW: {    // a=slot, b=row (0..63 mode, 64.. noise band), c/e0/e1 = float bits (instrument_modes)
+        if (r.a < 0 || r.a >= SOUND_INSTR_SLOTS) break;
+        int t = modes_table_for(r.a);
+        if (t < 0) for (int k = 0; k < SOUND_MT_TABLES; k++) if (mode_tab[k].owner == 0) { t = k; break; }
+        if (t < 0) break;                                    // every table taken: dropped (the API caps tables)
+        mode_tab[t].owner = r.a + 1;
+        float hz, amp, dec; memcpy(&hz, &r.c, 4); memcpy(&amp, &r.e0, 4); memcpy(&dec, &r.e1, 4);
+        if (r.b >= 0 && r.b < SOUND_MT_MODES) { mode_tab[t].hz[r.b] = hz; mode_tab[t].amp[r.b] = amp; mode_tab[t].dec[r.b] = dec; }
+        else if (r.b >= SOUND_MT_MODES && r.b < SOUND_MT_MODES + SOUND_MT_NOISE) {
+            int k = r.b - SOUND_MT_MODES;
+            mode_tab[t].nhz[k] = hz; mode_tab[t].namp[k] = amp; mode_tab[t].ndec[k] = dec;
+        }
+    } break;
+    case SR_MODES_N: {      // a=slot, b=0 modes / 1 noise, c=count (0 = off; both off frees the table)
+        if (r.a < 0 || r.a >= SOUND_INSTR_SLOTS) break;
+        int t = modes_table_for(r.a);
+        if (t < 0) break;                                    // no rows were ever sent for this slot
+        int cap = r.b ? SOUND_MT_NOISE : SOUND_MT_MODES, c = r.c < 0 ? 0 : (r.c > cap ? cap : r.c);
+        if (r.b) mode_tab[t].nn = c; else mode_tab[t].n = c;
+        if (mode_tab[t].n == 0 && mode_tab[t].nn == 0) mode_tab[t].owner = 0;
     } break;
     case SR_INSTR_MONO: {   // a=slot, b=on
         if (r.a >= 0 && r.a < SOUND_INSTR_SLOTS) instr_bank[r.a].mono = r.b ? 1 : 0;
@@ -10487,6 +10660,38 @@ void instrument_mono(int slot, int on) {
     if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
     sound_push_ctrl(SR_INSTR_MONO, slot, on ? 1 : 0, 0, 0, 0, 0);
 }
+// MEASURED MODES on an INSTR_MODAL slot (see "INSTR_MODAL with a MEASURED table" above). A row is
+// {Hz, amplitude at the strike, decay dB/s}; floats ride the queue as their BITS, one request a row, so the
+// table is exact and replays from the context log like any define. n = 0 switches the table off.
+static void modes_send(int slot, const float *rows, int n, int which) {
+    if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
+    int cap = which ? SOUND_MT_NOISE : SOUND_MT_MODES;
+    if (!rows || n < 0) n = 0;
+    if (n > cap) n = cap;
+    for (int i = 0; i < n; i++) {
+        float hz = rows[i * 3], amp = rows[i * 3 + 1], dec = rows[i * 3 + 2];
+        if (which) {
+            // the level is the band's RMS; normalise the two band-pass stages to unit power HERE, on the game
+            // thread, by running the voice's own noise through them (a closed form for a cascade is a trap)
+            float sr = (float)SOUND_SAMPLE_RATE, f = hz < 20.0f ? 20.0f : (hz > MODAL_NYQ * sr ? MODAL_NYQ * sr : hz);
+            float w = SOUND_TWO_PI * f / sr, al = de_sinf(w) / (2.0f * 0.9f), a0 = 1.0f + al;
+            SoundBiquad q = { al / a0, 0.0f, -al / a0, -2.0f * de_cosf(w) / a0, (1.0f - al) / a0, 0.0f, 0.0f }, q2 = q;
+            int st = 12345; double ms = 0.0;
+            for (int k = 0; k < 16384; k++) {
+                float y = sound_biquad_run(&q2, sound_biquad_run(&q, white8(&st)));
+                if (k >= 2048) ms += (double)y * y;
+            }
+            float rms = (float)sqrt(ms / 14336.0);
+            amp = rms > 1e-9f ? amp / rms : 0.0f;
+        }
+        int c, e0, e1;
+        memcpy(&c, &hz, 4); memcpy(&e0, &amp, 4); memcpy(&e1, &dec, 4);
+        sound_push_ctrl(SR_MODES_ROW, slot, (which ? SOUND_MT_MODES : 0) + i, c, e0, e1, 0);
+    }
+    sound_push_ctrl(SR_MODES_N, slot, which, n, 0, 0, 0);
+}
+void instrument_modes(int slot, const float *modes, int n)       { modes_send(slot, modes, n, 0); }
+void instrument_modes_noise(int slot, const float *bands, int n) { modes_send(slot, bands, n, 1); }
 void instrument_choke(int slot_a, int slot_b) {
     if (slot_a < 0 || slot_a >= SOUND_INSTR_SLOTS) return;
     if (slot_b < 0 || slot_b >= SOUND_INSTR_SLOTS) return;
@@ -11316,6 +11521,7 @@ static void sound_reset_state(void) {
     sound_bpm = 120;   // boot default; a cart context's own bpm() is replayed from its log after this reset
     memset(voices,     0, sizeof(voices));
     memset(sfx_bank,   0, sizeof(sfx_bank));
+    memset(mode_tab,   0, sizeof(mode_tab));       // instrument_modes tables: replayed from the log like any define
     for (int i = 0; i < SOUND_VOICES;     i++) { voices[i].noise_state = 12345 + i; voices[i].owner_slot = -1; }
     for (int i = 0; i < SOUND_VOICES;     i++) held_voice[i] = -1;
 

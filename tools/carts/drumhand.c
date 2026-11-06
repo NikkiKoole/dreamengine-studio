@@ -17,11 +17,12 @@
   "description": {
     "summary": "An 8-bar soul groove played by a DRUMMER instead of a grid: two hands and two feet, a technique per stroke, a hi-hat pedal that every hat hit reads, ghost notes, flams, a buzz and a fill that builds and lands on the crash. TAB flips to the grid version.",
     "detail": "Four limbs. The right hand keeps the hats (or the ride) on top of the beat, the left hand plays the backbeat a hair behind it and the ghost notes in between, the right foot the kick, the left foot the hi-hat PEDAL. Each stroke is a TECHNIQUE: the snare is struck in the centre, near the edge, as a rimshot (stick on head and rim at once), as a cross-stick (stick laid across the rim) or as a ghost; the hat is hit with the tip (a light tick) or the shank (a thick chunk); the ride on the bow or the bell; the kick is buried (beater held into the head, short) or bounced (it rings). The pedal is a continuous openness every hat hit reads: closed tick, half-open sizzle, open wash, and when the foot closes it makes its own chick and stops a ringing open hat. The drummer has a body: a hand cannot be on the hat and the snare at once, so the hats stop in a fill and the fill alternates right and left; a quick second stroke by the same hand is a little late and softer; the energy builds over the eight bars into the fill and the crash, and over a long take the left hand tires (lighter ghosts, a little dragging). Keys 1-5 switch each layer on and off.",
-    "controls": "SPACE play/stop · TAB drummer / grid · L foot ease-down as booked LANE_LEVEL ramps / ridden per frame · 1 time 2 dynamics 3 technique 4 pedal 5 limbs · UP/DOWN humanity · LEFT/RIGHT tempo · R new take"
+    "controls": "SPACE play/stop · TAB drummer / grid · L foot ease-down as booked LANE_LEVEL ramps / ridden per frame · 1 time 2 dynamics 3 technique 4 pedal 5 limbs · UP/DOWN humanity · LEFT/RIGHT tempo · R new take · K cymbals: recorded / MODAL ride (50 measured modes) / synth"
   },
   "todo": [
     "Synth ride: the deepest bass is still ~9 dB heavy against the recording (125 Hz octave -27 vs -36 dB re 500 Hz, measured on the groove stem).",
-    "Synth ride BELL is still the old tone build (a band-passed METAL bank); give it the struck-resonator treatment the bow got (583ccae6)."
+    "Synth ride BELL is still the old tone build (a band-passed METAL bank); give it the struck-resonator treatment the bow got (583ccae6).",
+    "MODAL ride (K, 2026-11-06 prototype): 50 measured modes + tick + noise bed pre-rendered as 6 variants. Listen in the groove vs the recording; if it holds, the live version needs an engine voice with a pinned-mode table (INSTR_MODAL stops at 12 modes by geometry). Measured vs the recorded ride stem: 250 Hz -4 dB, 4 kHz -3, 16 kHz -4."
   ]
 }
 de:meta */
@@ -77,7 +78,9 @@ static const char *REC_FILE[NREC] = { "refs/drums-cc0/ride.f32", "refs/drums-cc0
                                       "refs/drums-cc0/hatc.f32", "refs/drums-cc0/hats.f32", "refs/drums-cc0/hato.f32" };
 static const float REC_LVL[NREC] = { 0.16f, 0.20f, 0.18f, 0.18f, 0.18f, 0.17f };   // hats -5 dB: oneshot-compare vs the same real kit (2026-11-04)   // under the +14 dB master EQ
 static bool rec_ok = false;        // all six loaded
-static bool rec_kit = true;        // use them (K)
+enum { KIT_REC, KIT_MODAL, KIT_SYNTH, NKIT };
+static int kit = KIT_REC;          // K cycles: recorded cymbals / recorded + the MODAL ride bow / all synth
+#define rec_kit (kit != KIT_SYNTH)  // the recorded cymbals play in both REC and MODAL
 #define LOOKAHEAD 0.12
 #define HAT_LVL   0.094f    // -8 dB: oneshot-compare had the synth hats 8-11 dB hot vs the real kit
 
@@ -294,6 +297,136 @@ static void setup_recorded(void) {
     }
 }
 
+// ---- MODAL RIDE (2026-11-06, a prototype: plan A of the ride-realism thread) ----
+// The recorded ride (build/refs/drums-cc0/ride.wav) taken apart by sub-band ESPRIT into ~2000 decaying
+// modes; by ear, the 50 strongest are the first count that sounds like a cymbal (Nikki: 25 no, 50 yes).
+// Each stroke = those 50 modes + a short stick TICK + a decaying NOISE BED per octave standing in for the
+// ~1950 weaker modes (mostly 1-16 kHz). All three are MEASURED off the recording, nothing tuned by ear yet.
+// No engine voice can play 50 pinned modes today (INSTR_MODAL tops out at 12, by geometry), so the strokes
+// are RENDERED at init into two sample slots, six variants (three per slot, cut apart by sample regions):
+// each its own strike spot (every mode re-weighted, +-3 dB random) and fresh phases (the 305 close pairs
+// beat differently), odd variants a harder, brighter stroke. Question it answers: is 50 modes + tick +
+// noise a ride IN THE GROOVE? If yes, the live version is an engine job (a pinned-mode table).
+#define M_RIDE0  30        // instrument slots 30..35
+#define NMV      6
+#define MV_SAMP0 6         // sample slots 6, 7 (0..5 hold the recorded cymbals)
+#define MV_SECS  2.6f      // per variant; three fit the 8 s a sample slot holds
+#define MV_LVL   0.29f     // level-matched to the recorded ride on the groove stem (rms; peaks are normalised on the TICK)
+static const float RIDE_MODES[50][3] = {   // Hz, amplitude at the strike (re full scale), decay dB/s
+    {271.48f,0.020841f,26.3f}, {281.39f,0.018577f,30.4f}, {299.89f,0.012944f,13.2f}, {302.29f,0.016145f,7.0f}, {394.51f,0.013168f,14.2f},
+    {396.37f,0.036118f,61.8f}, {400.15f,0.019246f,18.8f}, {403.47f,0.044503f,18.7f}, {404.62f,0.011643f,9.2f}, {407.30f,0.014438f,15.7f},
+    {408.71f,0.013877f,6.6f}, {409.22f,0.020245f,9.7f}, {410.78f,0.047421f,24.7f}, {412.45f,0.102211f,61.4f}, {417.62f,0.108029f,41.5f},
+    {419.08f,0.024084f,8.9f}, {420.03f,0.066433f,20.8f}, {421.54f,0.009215f,6.0f}, {422.09f,0.015217f,7.2f}, {422.86f,0.035567f,17.7f},
+    {430.49f,0.029429f,34.0f}, {493.64f,0.058680f,8.4f}, {493.73f,0.115340f,24.3f}, {501.88f,0.021466f,23.5f}, {507.15f,0.020745f,18.2f},
+    {524.66f,0.045398f,76.4f}, {526.48f,0.021971f,18.2f}, {544.27f,0.040076f,19.4f}, {545.16f,0.068541f,36.7f}, {547.95f,0.014419f,13.1f},
+    {578.62f,0.005522f,2.0f}, {579.03f,0.017926f,9.5f}, {664.81f,0.007209f,4.5f}, {665.62f,0.022248f,38.4f}, {669.00f,0.020433f,33.6f},
+    {1305.83f,0.015336f,9.7f}, {1465.76f,0.008017f,6.2f}, {1925.80f,0.008150f,5.6f}, {1926.21f,0.018254f,12.5f}, {2335.43f,0.053583f,14.4f},
+    {2335.62f,0.057691f,15.6f}, {2347.33f,0.014172f,18.4f}, {2518.58f,0.019376f,17.2f}, {2519.54f,0.036684f,22.3f}, {2520.22f,0.018490f,11.4f},
+    {2598.92f,0.009257f,6.7f}, {3053.90f,0.021724f,32.9f}, {3257.73f,0.015013f,13.2f}, {3298.08f,0.017596f,16.9f}, {3312.81f,0.013380f,8.4f},
+};
+// per octave band: centre Hz, TICK power over the first 20 ms (dB), noise BED power at the strike (dB),
+// bed decay (dB/s). The bed = the recording's band energy minus the 50 modes' (fit 0.02-3 s; 8k/16k over
+// 0.02-1.5 s, where they hit the MP3's floor). The tick = the recording's first 20 ms, which no mode fits.
+static const float RIDE_NOISE[7][4] = {
+    {  250, -33.0f, -40.0f,  8.0f }, {  500, -24.0f, -30.0f,  9.0f }, { 1000, -33.0f, -34.0f,  6.5f },
+    { 2000, -41.0f, -36.5f,  4.0f }, { 4000, -34.5f, -34.5f,  5.0f }, { 8000, -33.5f, -40.0f, 13.6f },
+    {16000, -36.0f, -50.4f, 37.0f },
+};
+static bool modal_ok = false;
+static int mv_last = -1;
+static unsigned mv_rng;
+static float mv_rand(void) { mv_rng = mv_rng * 1664525u + 1013904223u; return (float)(mv_rng >> 8) * (1.0f / 16777216.0f); }
+static float mv_gauss(void) { float s = 0; for (int i = 0; i < 4; i++) s += mv_rand(); return (s - 2.0f) * 1.732f; }
+
+typedef struct { float b0, b1, b2, a1, a2, x1, x2, y1, y2; } MvBq;
+static void mv_band(MvBq *q, float fc, float Q) {          // RBJ band-pass, 0 dB peak
+    float w = 6.2831853f * fc / 44100.0f, al = sinf(w) / (2.0f * Q), a0 = 1.0f + al;
+    *q = (MvBq){ al / a0, 0, -al / a0, -2.0f * cosf(w) / a0, (1.0f - al) / a0, 0, 0, 0, 0 };
+}
+static float mv_run(MvBq *q, float x) {
+    float y = q->b0 * x + q->b1 * q->x1 + q->b2 * q->x2 - q->a1 * q->y1 - q->a2 * q->y2;
+    q->x2 = q->x1; q->x1 = x; q->y2 = q->y1; q->y1 = y; return y;
+}
+
+static void mv_render(float *out, int n, int v) {
+    const float sr = 44100.0f;
+    mv_rng = 0x9e3779b9u * (unsigned)(v + 1);
+    bool hard = v & 1;
+    float tilt = hard ? 0.15f : -0.15f;                     // amplitude ~ (f/500)^tilt
+    for (int i = 0; i < n; i++) out[i] = 0;
+    for (int m = 0; m < 50; m++) {                          // the modes: a rotating phasor each
+        float f = RIDE_MODES[m][0];
+        double a = RIDE_MODES[m][1] * expf(0.35f * mv_gauss()) * powf(f / 500.0f, tilt);
+        double r = pow(10.0, -RIDE_MODES[m][2] / 20.0 / sr), ph = 6.283185307 * mv_rand();
+        double c = cos(6.283185307 * f / sr), s = sin(6.283185307 * f / sr), re = cos(ph), im = sin(ph);
+        for (int i = 0; i < n; i++) {
+            out[i] += (float)(a * re);
+            double nr = re * c - im * s; im = re * s + im * c; re = nr; a *= r;
+        }
+    }
+    const float tau = 0.006f;                               // the tick: e^(-t/tau), its 0-20 ms mean = the table
+    float tick_norm = sqrtf((2.0f * 0.02f) / (tau * (1.0f - expf(-0.04f / tau))));
+    for (int b = 0; b < 7; b++) {
+        float fc = RIDE_NOISE[b][0], tdb = 20.0f * log10f(powf(fc / 500.0f, tilt));
+        // two band-pass stages (12 dB/oct skirts): one stage let the 250/500 Hz noise leak 10 dB into 125 Hz
+        MvBq q, q2; mv_band(&q, fc > 15000 ? 15000 : fc, 0.9f); q2 = q;
+        float ms = 0;                                       // unit-power band noise: measure the filter's gain
+        for (int i = 0; i < 22050; i++) { float y = mv_run(&q2, mv_run(&q, mv_rand() * 2.0f - 1.0f)); if (i > 2000) ms += y * y; }
+        q.x1 = q.x2 = q.y1 = q.y2 = 0; q2 = q;
+        float g = 1.0f / sqrtf(ms / 20049.0f);
+        float tick = powf(10.0f, (RIDE_NOISE[b][1] + tdb + (hard ? 3.0f : 0.0f)) / 20.0f) * tick_norm;
+        float bed = powf(10.0f, (RIDE_NOISE[b][2] + tdb) / 20.0f);
+        float tk_k = expf(-1.0f / (tau * sr)), bd_k = powf(10.0f, -RIDE_NOISE[b][3] / 20.0f / sr);
+        for (int i = 0; i < n; i++) {
+            out[i] += g * mv_run(&q2, mv_run(&q, mv_rand() * 2.0f - 1.0f)) * (tick + bed);
+            tick *= tk_k; bed *= bd_k;
+        }
+    }
+    // a 4th-order high-pass at 180 Hz: the 250 Hz tick's skirt kept 125 Hz 8 dB heavy (the recording has
+    // nothing there); the lowest mode, 271 Hz, loses 0.2 dB
+    {
+        float w = 6.2831853f * 180.0f / sr, al = sinf(w) / (2.0f * 0.7071f), a0 = 1.0f + al, cw = cosf(w);
+        MvBq h = { (1 + cw) / 2 / a0, -(1 + cw) / a0, (1 + cw) / 2 / a0, -2 * cw / a0, (1 - al) / a0, 0, 0, 0, 0 }, h2 = h;
+        for (int i = 0; i < n; i++) out[i] = mv_run(&h2, mv_run(&h, out[i]));
+    }
+    int fade = (int)(0.3f * sr);                            // the variant's end: a short fade, not a cut
+    for (int i = 0; i < fade; i++) out[n - 1 - i] *= 0.5f - 0.5f * cosf(3.14159265f * (float)i / (float)fade);
+}
+
+static void setup_modal_ride(void) {
+    int per = (int)(MV_SECS * 44100.0f), nslot = NMV / 2;
+    float *buf = (float *)malloc((size_t)per * nslot * 2 * sizeof(float));
+    if (!buf) return;
+    for (int v = 0; v < NMV; v++) mv_render(buf + (size_t)per * v, per, v);
+    float pk = 0;                                           // one factor for all six: 0.9 peak, as load_f32 does
+    for (size_t i = 0; i < (size_t)per * NMV; i++) pk = fmaxf(pk, fabsf(buf[i]));
+    for (size_t i = 0; i < (size_t)per * NMV; i++) buf[i] *= 0.9f / pk;
+    for (int k = 0; k < 2; k++) sample_load(MV_SAMP0 + k, buf + (size_t)per * nslot * k, per * nslot);
+    free(buf);
+    for (int v = 0; v < NMV; v++) {
+        int sl = M_RIDE0 + v, j = v % nslot;
+        instrument(sl, INSTR_SAMPLE, 0, 0, 7, 120);
+        instrument_sample(sl, MV_SAMP0 + v / nslot, 60);
+        instrument_sample_region(sl, (float)j / nslot, (float)(j + 1) / nslot);
+        instrument_level(sl, MV_LVL);
+        instrument_reverb(sl, 0.12f);
+        instrument_pan(sl, 0.38f);
+    }
+    modal_ok = true;
+}
+
+// a variant per stroke: harder strokes take the bright (odd) ones, the stick's drift picks among three,
+// never the same one twice running. A hash, not rnd(): the take's random stream stays untouched
+static int mv_pick(float g, float spot, double t) {
+    unsigned h = (unsigned)(t * 1000.0) * 2654435761u;
+    int base = g > 0.68f ? 1 : 0;
+    int j = (int)((spot + 1.0f) * 1.5f + (float)(h >> 30) * 0.4f) % 3;
+    int v = base + 2 * j;
+    if (v == mv_last) v = base + 2 * ((j + 1) % 3);
+    mv_last = v;
+    return v;
+}
+
 static void new_take(void) {
     rnd_seed(seed);
     step = 0; cur_bar = 0; cycle = 0; sticking = 0; nclose = 0; pedal = 0;
@@ -406,6 +539,7 @@ static void chick(double t, float g) {
 }
 
 static void ride_stroke(double t, bool bell, float g, float spot) {
+    if (!bell && kit == KIT_MODAL && modal_ok) { book(M_RIDE0 + mv_pick(g, spot, t), 60, t, g * 0.8f, 3000, 0, 0, 0, 0); return; }
     if (rec_ok && rec_kit) { book(bell ? R_BELL : R_RIDE, 60, t, g * (bell ? 0.95f : 0.8f), bell ? 2600 : 3000, 0, 0, 0, 0); return; }
     if (bell) book(S_BELL, 88, t, g * 1.05f, 900, 0, 0, 0, 0);
     else {    // the bow: shimmer + body, one stroke
@@ -693,8 +827,12 @@ static void probe(void) {
 void init(void) {
     setup_sound();
     setup_recorded();
+    setup_modal_ride();
 #ifdef SYNTH_KIT
-    rec_kit = false;
+    kit = KIT_SYNTH;
+#endif
+#ifdef MODAL_KIT   // DE_DEFINES=MODAL_KIT: start on the modal ride (the A/B renders)
+    kit = KIT_MODAL;
 #endif
 #ifdef LANES        // DE_DEFINES=LANES: start with the ease-down booked as LANE_LEVEL ramps (the step-4 A/B)
     lane_mode = true;
@@ -711,7 +849,7 @@ void init(void) {
 void update(void) {
     if (keyp(KEY_SPACE)) { playing = !playing; t_step = audio_time() + 0.15; }
     if (keyp(KEY_TAB)) human = !human;
-    if (keyp('K')) rec_kit = !rec_kit;
+    if (keyp('K')) kit = (kit + 1) % NKIT;
     if (keyp('L')) { lane_mode = !lane_mode; nclose = 0; lane_at(audio_time(), S_HAT, LANE_LEVEL, 0, 0); }
     for (int i = 0; i < NLAYER; i++) if (keyp('1' + i)) layer[i] = !layer[i];
     if (keyp(KEY_UP))    humanity = fminf(1.5f, humanity + 0.25f);
@@ -726,7 +864,7 @@ void update(void) {
     ride_pedal();
 #endif
 #ifdef DE_TRACE
-    watch("rec", "%d%d", rec_ok, rec_kit);
+    watch("rec", "%d%d", rec_ok, kit);
     watch("bar", "%d", cur_bar);
     watch("pedal", "%.2f", shown_pedal);
     watch("energy", "%.2f", energy);
@@ -738,7 +876,7 @@ void draw(void) {
     cls(CLR_DARKER_GREY);
     double at = audio_time();
     print(human ? "DRUMMER" : "GRID", 4, 4, human ? CLR_GREEN : CLR_RED);
-    print(!rec_ok ? "synth cymbals" : rec_kit ? "K: recorded cymbals" : "K: synth cymbals", 4, 192, rec_ok && rec_kit ? CLR_YELLOW : CLR_DARK_GREY);
+    print(kit == KIT_MODAL ? "K: modal ride (50 modes)" : !rec_ok ? "synth cymbals" : kit == KIT_REC ? "K: recorded cymbals" : "K: synth cymbals", 4, 192, kit == KIT_MODAL ? CLR_GREEN : rec_ok && rec_kit ? CLR_YELLOW : CLR_DARK_GREY);
     print(str("%d bpm  bar %d/8  take %d", tempo, cur_bar + 1, seed), 76, 4, CLR_WHITE);
     print(lane_mode ? "L: lane" : "L: ridden", 200, 192, lane_mode ? CLR_YELLOW : CLR_DARK_GREY);
 

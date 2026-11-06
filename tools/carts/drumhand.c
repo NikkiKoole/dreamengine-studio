@@ -21,7 +21,9 @@
   },
   "todo": [
     "Synth ride: the deepest bass is still ~9 dB heavy against the recording (125 Hz octave -27 vs -36 dB re 500 Hz, measured on the groove stem).",
-    "Synth ride BELL is still the old tone build (a band-passed METAL bank); give it the struck-resonator treatment the bow got (583ccae6).",
+    "Ride BELL, measured: still the old tone build (a band-passed METAL bank), now the weakest part next to the 400-mode bow. Run tools/mode-extract.py on the bell recording (Meinl B2, build/refs/drums-cc0/ref_ride_meinlB2.wav), pick the count by ear (--wavs), and load it on the SAME mono voice as the bow (M_RIDE) so a bell hit rings the one cymbal.",
+    "Ride stick ATTACK: the first 0.3 s of a 400-mode stroke is 3-5 dB bright at 1-4 kHz vs the recorded hit (single-hit A/B via PROBE_TECH). Only worth chasing if the ride sounds clicky.",
+    "Crash + hats, measured: the same route as the ride (mode-extract.py + instrument_modes), each cymbal one mono voice; the hats' pedal would ride damping (morph). Refs in build/refs/drums-cc0/ (crash, ref_crash2, hats/hatc/hato, ref_hat*).",
     "MODAL ride (K): the recorded ride's 400 strongest modes (measured phases) + half-octave washes + ticks, played live by INSTR_MODAL + instrument_modes on one mono voice (~2% of a core). Single hit vs the recording: 250 Hz-4 kHz within 1-4 dB over 3 s; the first 0.3 s 3-5 dB bright at 1-4 kHz, and 8 kHz rings long past ~1.5 s (+13 dB at 2.7 s, ~50 dB down: one straight decay per band, the real wash curves). By ear 2026-11-06: 50 modes better than the struck-resonator ride (Nikki), but 'the real one is richer'; 400 = the first count as rich as the recording (200 not); the 400-mode version with measured phases + half-octave washes: 'much better' (Nikki, 2026-11-06). Next steps: the BELL from its own recording, and an energy cascade (the swell after a hard hit), which a linear bank cannot make."
   ]
 }

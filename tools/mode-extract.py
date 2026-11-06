@@ -1,16 +1,17 @@
 #!/usr/bin/env python3
 """mode-extract.py: a struck object's MODES from a recording, ready for instrument_modes().
 
-    python3 -I tools/mode-extract.py <one-hit.wav> [--top 50] [--out <dir>] [--tlen <s>] [--wavs] [--fast]
+    python3 -I tools/mode-extract.py <one-hit.wav> [--top 50] [--out <dir>] [--tlen <s>] [--wavs] [--fast] [--from <modes.json>]
 
 WHAT IT GIVES YOU
-  The decaying sinusoids a recording is made of (Hz, amplitude at the strike, decay dB/s), found by
-  SUB-BAND ESPRIT, plus the NOISE the strongest --top modes leave out, fitted per octave as two rows
-  each (a short TICK for the first 20 ms, which no mode fits, and a decaying BED for the hundreds of
-  modes too weak to list). It prints both as C tables in exactly the shape instrument_modes() and
+  The decaying sinusoids a recording is made of (Hz, amplitude at the strike, decay dB/s, starting
+  phase), found by SUB-BAND ESPRIT, plus the NOISE the strongest --top modes leave out: a decaying wash
+  BED per half octave for the modes too weak to list, and a 6 ms TICK where the modes do not already
+  supply the first 20 ms. It prints both as C tables in exactly the shape instrument_modes() and
   instrument_modes_noise() take, and how much of the recording the modes explain at several counts.
   --out writes modes.json (every mode, strongest first); --wavs also writes a resynthesis per count
-  (and the residual) so the right count can be picked BY EAR, which is how drumhand's ride got 50.
+  (and the residual) so the right count can be picked BY EAR, which is how drumhand's ride got 400
+  (50 = the first count that sounds like a cymbal, 400 = the first as rich as the recording).
 
 WHY ESPRIT, AND WHY SUB-BANDS
   A cymbal is ~2000 modes and full of near-identical PAIRS (a ride: 305 of its 708 strong modes sit
@@ -24,13 +25,18 @@ WHY ESPRIT, AND WHY SUB-BANDS
   (all-modes band error 2.9 dB vs 2.2; the 271 Hz mode missing from the top 50). Explore with --fast,
   make the table you ship without it.
 
-  THREE things it does that the obvious build gets wrong, each of which cost a wrong result once:
+  FIVE things it does that the obvious build gets wrong, each of which cost a wrong result once:
+  - every mode keeps its measured STARTING PHASE (the 4th column). A cymbal's close pairs start out of
+    phase and swell into phase after the hit; started all together, the ride's 2 kHz band came out 10 dB
+    hot for the first 0.3 s, a swell turned into a spike.
   - poles decaying faster than 150 dB/s are DROPPED and the amplitudes re-solved without them. They are
     the attack, not the plate, and projected back to t=0 they explode (one came out +44 dB at 14 kHz).
   - modes are anchored at T0 (20 ms, after the stick contact) and the phase is referenced with the
     BASEBAND offset, not the absolute Hz (that bug left the waveform residual at 117%).
   - the noise rows are measured as band ENERGY of (recording minus the top-N modes); noise is
     incoherent, so subtracting waveforms would be meaningless for it.
+  - and UNMIXED through the engine's own band shapes (non-negative least squares per frame): fitted one
+    octave at a time, the 4 kHz wash's skirt was taken for the 8 kHz wash and the top rang 7-20 dB long.
 
 WHAT IT CANNOT SEE
   Anything nonlinear (a hard crash BLOOMING brighter after the hit: on drumhand's soft ride stroke the
@@ -39,8 +45,7 @@ WHAT IT CANNOT SEE
 
   Measured on build/refs/drums-cc0/ride.wav (2026-11-06, this tool, 24 min): 2005 modes; all of them
   explain 79% of the waveform from 20 ms on and match the octave bands within 2.2 dB over 0-3 s;
-  50/90/99% of the modal energy sits in 8/128/469 modes. drumhand's table is that run's top 50 (by an earlier, slower copy of
-  this code; its noise rows were hand-rounded, so a rerun prints close but not identical numbers).
+  50/90/99% of the modal energy sits in 8/128/469 modes. drumhand's table = `--top 400 --from` that run's modes.json.
   Needs numpy + scipy. Design: docs/guides/tuning-drum-voices.md "Taking a cymbal's modes".
 """
 import sys, os, json, argparse
@@ -58,6 +63,7 @@ ap.add_argument('--top', type=int, default=50, help='modes in the emitted table 
 ap.add_argument('--out', default=None, help='directory for modes.json (+ WAVs with --wavs)')
 ap.add_argument('--tlen', type=float, default=0, help='seconds ESPRIT sees (default: the whole file after 20 ms)')
 ap.add_argument('--wavs', action='store_true', help='write resynthesis WAVs per mode count + the residual')
+ap.add_argument('--from', dest='from_json', default=None, help="reuse a modes.json (--out of an earlier run): skip ESPRIT, refit the noise for a new --top in ~a minute")
 ap.add_argument('--fast', action='store_true', help='cap the ESPRIT window at 512 rows: ~3 min, close pairs less resolved')
 A = ap.parse_args()
 
@@ -76,7 +82,7 @@ TLEN = A.tlen if A.tlen > 0 else (N / sr - T0 - 0.05)
 h = firwin(801, 140, fs=sr); gd = (len(h) - 1) // 2
 
 modes = []
-for fc in np.arange(W / 2 + 40, min(17000, 0.45 * sr), W):
+for fc in ([] if A.from_json else np.arange(W / 2 + 40, min(17000, 0.45 * sr), W)):
     zf = lfilter(h, 1, np.concatenate([x * np.exp(-2j * np.pi * fc * t), np.zeros(gd)]))[gd:]
     zd = zf[::DEC]
     s0 = int(round(T0 * R)); y = zd[s0:s0 + int(TLEN * R)]
@@ -98,6 +104,7 @@ for fc in np.arange(W / 2 + 40, min(17000, 0.45 * sr), W):
         if abs(f_) <= W / 2 and 2 * abs(a_) > 1e-5:
             modes.append(dict(f=float(fc + f_), amp=float(2 * abs(a_)), decay_db_s=float(d_),
                               phase=float(np.angle(a_) - 2 * np.pi * f_ * T0)))
+if A.from_json: modes = json.load(open(A.from_json))
 for m in modes: m['energy'] = m['amp'] ** 2 / max(m['decay_db_s'], 0.5)
 modes.sort(key=lambda m: -m['energy'])
 
@@ -108,8 +115,9 @@ def resynth(ms):
     return y
 
 OCT = [250, 500, 1000, 2000, 4000, 8000, 16000]
-def band_env(s, lo, frame=441):
-    Y = np.fft.rfft(s); f = np.fft.rfftfreq(len(s), 1 / sr); Y[(f < lo / 1.414) | (f >= lo * 1.414)] = 0
+def band_env(s, lo, frame=441, oct=1.0):
+    e = 2 ** (oct / 2)
+    Y = np.fft.rfft(s); f = np.fft.rfftfreq(len(s), 1 / sr); Y[(f < lo / e) | (f >= lo * e)] = 0
     b = np.fft.irfft(Y, len(s)); return (b[:len(b) // frame * frame].reshape(-1, frame) ** 2).mean(1)
 
 seg = slice(int(T0 * sr), N)
@@ -136,32 +144,57 @@ yt = resynth(top)
 y0 = np.zeros(N)
 for m in top:
     a0 = m['amp'] * 10 ** (m['decay_db_s'] * T0 / 20)
-    y0 += a0 * 10 ** (-m['decay_db_s'] * t / 20) * np.sin(2 * np.pi * m['f'] * t)
-rows = []
+    y0 += a0 * 10 ** (-m['decay_db_s'] * t / 20) * np.cos(2 * np.pi * m['f'] * t + m['phase'])   # as the engine plays them
+# The engine plays each noise row through TWO band-pass stages, so a band LEAKS into its neighbours. Two
+# lessons, both measured on the ride: (1) fit one octave at a time and the 4 kHz wash's skirt is taken for
+# the 8 kHz wash, so the bands are UNMIXED per frame by non-negative least squares through the engine's own
+# filter shapes (G[i][k] = the share of band k's power landing in band i); (2) even unmixed, OCTAVE bands
+# cannot follow a decay rate that changes steeply with frequency (this ride: ~7 dB/s at 4 kHz, ~14 at 8):
+# late in the tail the slow band's spill alone out-rings the fast one, which no non-negative fit can
+# remove. So the wash is fitted in HALF-OCTAVE bands. The tick rows go only where the fit finds a tick.
+from scipy.optimize import nnls
+WID = 0.5
+GRID = [250 * 2 ** (k * WID) for k in range(int(round(np.log2(16000 / 250) / WID)) + 1)]
+def stage_q(oct):
+    x = 2 ** (0.5 * oct); return 0.6428 / (x - 1 / x)     # = the engine's modes_band_q
+Qs = stage_q(WID)
+ff = np.linspace(1.0, sr / 2, 200000)
+G = np.zeros((len(GRID), len(GRID)))
+for k, fc in enumerate(GRID):
+    fc_ = min(fc, 0.45 * sr)
+    H4 = (1.0 / (1.0 + Qs * Qs * (ff / fc_ - fc_ / ff) ** 2)) ** 2
+    for i, c in enumerate(GRID):
+        e = 2 ** (WID / 2); G[i, k] = H4[(ff >= c / e) & (ff < c * e)].sum() / H4.sum()
+EO = np.array([band_env(x, c, oct=WID) for c in GRID]); EY = np.array([band_env(yt, c, oct=WID) for c in GRID])
+E0 = np.array([band_env(y0, c, oct=WID) for c in GRID])
 nt = int(T0 * sr / 441)
-for lo in OCT:
-    eo, ey, e0 = band_env(x, lo), band_env(yt, lo), band_env(y0, lo)
-    hz = min(lo, 15000)                                   # MP3 previews hold little above ~16 kHz
-    # tick: an e^(-t/6 ms) burst whose 0..T0 mean power = what the modes do not already supply
-    pt = max(eo[:nt].mean() - e0[:nt].mean(), eo[:nt].mean() * 0.02)
-    tau = 0.006
-    peak = np.sqrt(pt * 2 * T0 / (tau * (1 - np.exp(-2 * T0 / tau))))
-    rows.append((hz, peak, 20 * np.log10(np.e) / tau, 'tick'))
-    d = np.clip(eo - ey, eo * 0.02, None); db = 10 * np.log10(d); tt = np.arange(len(db)) * 0.01
-    s = (tt >= T0) & (tt < 3.0)
-    s &= db >= db[s][0] - 40                              # stop at the floor (MP3 previews have one)
-    sl, ic = np.polyfit(tt[s], db[s], 1)
-    rows.append((hz, 10 ** ((ic + sl * T0) / 20), max(-sl, 0.5), 'bed'))
+tick_p = nnls(G, np.clip(EO[:, :nt].mean(1) - E0[:, :nt].mean(1), 0, None))[0]
+D = np.clip(EO - EY, 0, None)
+Lk = np.array([nnls(G, D[:, f])[0] for f in range(D.shape[1])]).T    # per band, per 10 ms frame
+tt = np.arange(Lk.shape[1]) * 0.01
+rows = []
+tau = 0.006
+for k, hz in enumerate(GRID):
+    L = Lk[k]; s_ = (tt >= T0) & (tt < 3.0) & (L > 0)
+    if s_.sum() < 10: continue                            # neighbours explain this band: no row
+    db = 10 * np.log10(L[s_]); t_ = tt[s_]
+    keep = db >= db[:5].mean() - 40                       # stop at the floor (MP3 previews have one)
+    sl, ic = np.polyfit(t_[keep], db[keep], 1)
+    rows.append((round(hz), 10 ** ((ic + sl * T0) / 20), max(-sl, 0.5), 'bed'))
+for k, hz in enumerate(GRID):
+    if tick_p[k] > 0.01 * tick_p.max():
+        rows.append((round(hz), np.sqrt(tick_p[k] * 2 * T0 / (tau * (1 - np.exp(-2 * T0 / tau)))), 20 * np.log10(np.e) / tau, 'tick'))
 
 tm = sorted(top, key=lambda m: m['f'])
-print(f"\n// {A.top} strongest modes of {os.path.basename(A.wav)}: Hz, amplitude at the strike, decay dB/s")
-print(f"static const float MODES[{len(tm)}][3] = {{")
-cells = ['{%.2ff,%.6ff,%.1ff}' % (m['f'], m['amp'] * 10 ** (m['decay_db_s'] * T0 / 20), m['decay_db_s']) for m in tm]
-for i in range(0, len(cells), 5): print('    ' + ', '.join(cells[i:i + 5]) + ',')
+print(f"\n// {A.top} strongest modes of {os.path.basename(A.wav)}: Hz, amplitude at the strike, decay dB/s, starting phase (turns)")
+print(f"static const float MODES[{len(tm)}][4] = {{")
+cells = ['{%.2ff,%.6ff,%.1ff,%.3ff}' % (m['f'], m['amp'] * 10 ** (m['decay_db_s'] * T0 / 20), m['decay_db_s'],
+                                      (m['phase'] / (2 * np.pi)) % 1.0) for m in tm]
+for i in range(0, len(cells), 4): print('    ' + ', '.join(cells[i:i + 4]) + ',')
 print("};")
-print(f"// the noise those {A.top} leave, per octave: a 6 ms TICK and a decaying BED (band RMS)")
-print(f"static const float BANDS[{len(rows)}][3] = {{")
-for hz, a, d, kind in rows: print(f"    {{ {hz:5d}, {a:.6f}f, {d:7.1f}f }},   // {kind}")
+print(f"// the noise those {A.top} leave, per half octave: a decaying wash BED, and a 6 ms TICK where one is left (band RMS)")
+print(f"static const float BANDS[{len(rows)}][4] = {{")
+for hz, a, d, kind in rows: print(f"    {{ {hz:5d}, {a:.6f}f, {d:7.1f}f, {WID}f }},   // {kind}")
 print("};")
 print("// instrument_modes(slot, &MODES[0][0], N); instrument_modes_noise(slot, &BANDS[0][0], N);")
 

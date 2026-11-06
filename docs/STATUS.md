@@ -16,10 +16,11 @@ _Last updated: 2026-10-29 — INSTR_SCRAPE: a guiro with teeth. See the top Ship
 ## Shipped ✓
 
 - **INSTR_MODAL plays MEASURED modes: `instrument_modes` / `instrument_modes_noise`** (2026-11-06). A
-  slot can carry up to 64 modes in Hz (+16 struck noise bands) instead of the 4-12 geometry ratios; a
-  mono slot's next note strikes the ringing bank (one cymbal = one voice). `tools/mode-extract.py` reads
-  them off a recording (sub-band ESPRIT). drumhand's ride (K) plays the recorded ride's 50 strongest
-  modes, within 4 dB of it per octave. Every other cart byte-identical (refactor-guard 6/6).
+  slot can carry up to 512 modes in Hz, each from its measured phase (+32 struck noise bands of any
+  width) instead of the 4-12 geometry ratios; a mono slot's next note strikes the ringing bank (one
+  cymbal = one voice). `tools/mode-extract.py` reads them off a recording (sub-band ESPRIT). drumhand's
+  ride (K) plays the recorded ride's 400 strongest modes (~2% of a core), a single hit within ~1-4 dB of
+  it per octave over 3 s. Every other cart byte-identical (refactor-guard 6/6).
   [`guides/tuning-drum-voices.md`](guides/tuning-drum-voices.md#taking-a-cymbals-modes).
 
 - **INSTR_MODAL level laws** (2026-11-04). Its loudness spread 36 dB across the macros and fell ~6 dB

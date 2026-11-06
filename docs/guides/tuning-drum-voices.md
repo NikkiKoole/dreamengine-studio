@@ -47,23 +47,30 @@ listen, repeat.** The numbers find the fault; the ear decides whether it is fixe
 ## Taking a cymbal's modes
 
 When a cymbal has to sound *real* rather than plausible, stop building it out of generic parts and read
-its modes off a recording: `python3 -I tools/mode-extract.py <one-hit.wav> --top 50 --out <dir> --wavs` (~24 min for a 6 s hit; `--fast` ~3 min, less exact, for exploring).
-It prints a C table for `instrument_modes()` (Hz, amplitude at the strike, decay) and one for
-`instrument_modes_noise()` (per octave a 6 ms stick TICK and a decaying BED for the modes too weak to
-list), then you play them on an `INSTR_MODAL` slot made mono, so one cymbal is one voice and every
+its modes off a recording: `python3 -I tools/mode-extract.py <one-hit.wav> --top 400 --out <dir> --wavs` (~24 min for a 6 s hit; `--fast` ~3 min, less exact, for exploring; `--from <dir>/modes.json` refits a different `--top` in ~20 s).
+It prints a C table for `instrument_modes()` (Hz, amplitude at the strike, decay, starting phase) and one
+for `instrument_modes_noise()` (half-octave decaying wash BEDS for the modes too weak to list, and 6 ms
+stick TICKs where the modes leave one), then you play them on an `INSTR_MODAL` slot made mono, so one cymbal is one voice and every
 stroke strikes the bank already ringing. `drumhand`'s ride (K) is the worked example.
 
 What the ride (`build/refs/drums-cc0/ride.wav`) taught, 2026-11-06:
 
 - **It is ~2000 modes, and the count you need is set by ear, not by the error.** Half the modal energy
   sits in 9 modes (a cluster at 400-550 Hz), 90% in 129, 99% in 474; but 25 modes sounded like a bank
-  of oscillators and **50 was the first count that sounded like a cymbal**. Render the counts
-  (`--wavs`) and listen next to the original before choosing.
-- **The noise is what the modes leave, measured, not added for "air".** The 50 modes hold almost
-  nothing above 3.3 kHz; the recording's 1-16 kHz is 60-99% "noise" (the weak modes), decaying 4-15 dB/s
-  below 8 kHz and ~37 dB/s above. Fit it per octave as band energy of recording minus modes.
+  of oscillators, **50 was the first count that sounded like a cymbal, and 400 the first as RICH as the
+  recording** (200 was not). Two different bars: ask which one you are tuning for. Render the counts
+  (`--wavs`) and listen next to the original before choosing. 400 modes cost ~2% of a core.
+- **The noise is what the modes leave, measured, not added for "air".** 50 modes hold almost
+  nothing above 3.3 kHz; the recording's 1-16 kHz is 60-99% "noise" (the weak modes). Its decay rate
+  changes STEEPLY with frequency (~6 dB/s at 4 kHz, 11 at 5.7, 17 at 8, 54 at 11), so **fit it in
+  half-octave bands**: in octave bands, the slow 4 kHz wash's spill out-rang the real 8 kHz wash by
+  10-20 dB late in the tail, and no fit could subtract it. The bands are also UNMIXED through the
+  engine's own filter shapes (each band leaks into its neighbours), not fitted one at a time.
+- **Keep every mode's measured starting PHASE.** A cymbal's close pairs start out of phase and swell
+  into phase: the ride's 2 kHz band rises ~12 dB over the first second. Started all in phase, the same
+  modes made a 2 kHz spike 10 dB hot in the first 0.3 s and no swell.
 - **A soft bow stroke is LINEAR.** Its 2 kHz band swells around 0.5 s, which looked like the energy
-  cascade of a nonlinear plate, but the linear modes reproduce it: it is close pairs beating. Expect
+  cascade of a nonlinear plate, but the linear modes reproduce it (given their phases): it is close pairs beating. Expect
   the cascade (a hit that blooms brighter) on a hard crash, which a linear bank cannot make.
 - **Peak-picking an FFT lies on a cymbal**: it counts one beating pair two or three times. Use the tool.
 - **Mind the filter skirts.** A 2-pole band-pass's 6 dB/oct skirt let the 250 Hz tick leak 10 dB of
@@ -72,6 +79,11 @@ What the ride (`build/refs/drums-cc0/ride.wav`) taught, 2026-11-06:
   (Q ~0.7) or it eats the octave above the cutoff too.
 - **Give every noise band its own noise.** Fed one shared sample, neighbouring band-passes (near opposite
   phase where their skirts overlap) cancelled, and the wash measured 3-6 dB thin between the octaves.
+- **Compare a SINGLE hit through the same chain, not the groove.** In drumhand the recorded ride plays
+  through a sample slot gated at 3 s, so in the groove its tails are cut and a voice that rings out
+  naturally reads 2-4 dB "hot" in the slow bands. Render one stroke of each (`PROBE_TECH`) instead.
+- Still off on the ride: the first 0.3 s is 3-5 dB bright at 1-4 kHz, and 8 kHz rings long after ~1.5 s
+  (~50 dB down): one straight-line decay per band, where the real wash curves.
 
 ## The envelope SHAPE matters as much as the decay time
 

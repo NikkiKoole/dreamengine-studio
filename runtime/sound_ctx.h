@@ -30,8 +30,8 @@
 #define SOUND_INSTR_SLOTS  128  // 0-4 = the raw waves; 5-127 cart-defined (rich patch carts like modrack want banks per wave + many macro engines; Playtime's drum jam wants an 808 + a 909 beside a full band). ~430 B/slot (Instrument 344 + the lanes + the sing mirrors): 128 slots = ~55 KB. Was 48 until 2026-11-04
 #define SOUND_KS_MAX       1024   // Karplus-Strong delay line cap (~4KB/voice) — bottoms out around 43Hz / MIDI 29
 #define SOUND_MODAL_MAX    12     // INSTR_MODAL resonator budget (4 is the floor; MODE_MODAL_MODES spends this)
-#define SOUND_MT_MODES     64     // INSTR_MODAL + instrument_modes(): MEASURED modes per table (a ride needed 50, by ear)
-#define SOUND_MT_NOISE     16     // ... + instrument_modes_noise(): decaying noise bands per table (tick + wash, 7 octaves x 2)
+#define SOUND_MT_MODES     512    // INSTR_MODAL + instrument_modes(): MEASURED modes per table (a ride: 50 = a cymbal, 400 = as rich as the recording, by ear)
+#define SOUND_MT_NOISE     32     // ... + instrument_modes_noise(): decaying noise bands per table (a ride: 13 half-octave washes + its ticks)
 #define SOUND_MT_TABLES    4      // tables in the engine (one per cymbal-like slot that uses them)
 #define SOUND_MME_BANDS    20     // INSTR_MME vocoder model: filter-bank width (Warps' 20)
 #define SOUND_METAL_MODES  6      // INSTR_METAL: the six-square bank (the 808's six oscillators)
@@ -119,10 +119,13 @@ typedef struct {
 typedef struct { float b0, b1, b2, a1, a2, z1, z2; } SoundBiquad;
 // a MEASURED mode table (instrument_modes / _noise): owner = slot + 1 (0 = free). Modes ring at Hz with an
 // amplitude at the strike and a decay; noise bands are band-limited noise struck to `namp` (pre-normalised to
-// unit-power noise on the game thread) decaying at `ndec`. Note 60 plays the table as written.
+// unit-power noise on the game thread) decaying at `ndec`. Note 60 plays the table as written. Each mode
+// starts at its measured PHASE (pc/ps): a cymbal's close pairs start out of phase and SWELL into phase,
+// and starting them all together put that swell at the strike instead (2 kHz 10 dB hot for 0.3 s).
 typedef struct { int owner, n, nn;
                  float hz[SOUND_MT_MODES], amp[SOUND_MT_MODES], dec[SOUND_MT_MODES];
-                 float nhz[SOUND_MT_NOISE], namp[SOUND_MT_NOISE], ndec[SOUND_MT_NOISE]; } ModeTable;
+                 float pc[SOUND_MT_MODES], ps[SOUND_MT_MODES];      // cos/sin of each mode's starting phase
+                 float nhz[SOUND_MT_NOISE], namp[SOUND_MT_NOISE], ndec[SOUND_MT_NOISE], nq[SOUND_MT_NOISE]; } ModeTable;   // nq = per-stage Q from the band's width
 typedef struct {
     bool   active;
     int    choke_fade;         // >0 = ramping out over a choke (counts down to 0, then deactivates) — a declick fade, not a hard cut
@@ -841,7 +844,7 @@ typedef enum {
     SR_SYMP = 171,            // a=amount*1000, b=decay*1000, c=bright*1000 — the sympathetic resonator (resonator)
     SR_SYMP_TUNE = 172,       // a=string 0..SYMP_STRINGS-1, b=MIDI note (-1 = off) (resonator_tune)
     SR_INSTR_SYMP = 173,      // a=slot, b=send*1000 (instrument_resonator)
-    SR_MODES_ROW = 174,       // a=slot, b=row (0..63 mode, 64..79 noise band), c/e0/e1 = FLOAT BITS of Hz / amplitude / decay dB/s (instrument_modes)
+    SR_MODES_ROW = 174,       // a=slot | first row<<8 (0..511 modes, 512..527 noise), b=rows in it (1-2); per row (Hz*100 | phase*1024<<22) + (dB*100 | decay*10<<16) (instrument_modes)
     SR_MODES_N = 175,         // a=slot, b=0 modes / 1 noise bands, c=count — sent after the rows (instrument_modes / _noise); 0 = off
     SR_SHAPE_HDR = 165,       // a=id, b=n points, c=interp — a shape's header (shape_define), sent after its points
     SR_SHAPE_PT = 166,        // a=id, b=point index, c=t_ms, e0=value*1000 — one breakpoint (shape_define)

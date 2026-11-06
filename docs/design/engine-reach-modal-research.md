@@ -9,8 +9,8 @@
 > (macro-mapping §2c option 1) — v1 does not implement `MODE_PIN`.
 >
 > **2026-11-06: MEASURED modes shipped beside the geometry axis**, not as `MODE_PIN`:
-> `instrument_modes(slot, rows, n)` replaces the ratio table with up to 64 modes in absolute Hz
-> (+ `instrument_modes_noise` for struck noise bands), read off a recording by
+> `instrument_modes(slot, rows, n)` replaces the ratio table with up to 512 modes in absolute Hz, each
+> starting at its measured phase (+ `instrument_modes_noise` for struck noise bands), read off a recording by
 > `tools/mode-extract.py`. Different mechanism from the bank above: each mode is a decaying complex
 > phasor with its pole computed only when pitch or damping moves (the geometry bank recomputes 12
 > cosines a sample), and a mono slot's next note strikes the bank already ringing. First use:

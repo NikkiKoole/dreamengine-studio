@@ -686,8 +686,9 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
                              (won't self-oscillate). ⚠ STK+luthier are MIT (borrow WITH attribution, as
                              BOW_BODY_HZ does); flute-lv2 is GPL-2.0 — measure against, never copy
              mode-extract.py a struck object's MODES from a one-hit recording (sub-band ESPRIT, numpy+scipy) →
-                             C tables for instrument_modes() + instrument_modes_noise() (tick + wash per octave);
-                             `--wavs` renders each mode count to pick it BY EAR. drumhand's ride; guides/tuning-drum-voices.md
+                             C tables for instrument_modes() (with measured phases) + instrument_modes_noise() (half-octave
+                             washes + ticks, unmixed through the engine's band shapes); `--wavs` renders each mode count to pick
+                             it BY EAR, `--from modes.json` refits a new count in ~20 s. drumhand's ride; guides/tuning-drum-voices.md
              patch-match/    SYNPLANT-style PATCH MATCHING: a sample in, EIGHT dreamengine patches out
                              (`bash tools/patch-match/build.sh tools/patch-match/pm.c build/pm && ./build/pm <x.wav>`;
                              bench.c = the render-protocol gate + its `-shared` negative control, detents.c = the

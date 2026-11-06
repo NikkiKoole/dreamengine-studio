@@ -22,7 +22,7 @@
   "todo": [
     "Synth ride: the deepest bass is still ~9 dB heavy against the recording (125 Hz octave -27 vs -36 dB re 500 Hz, measured on the groove stem).",
     "Synth ride BELL is still the old tone build (a band-passed METAL bank); give it the struck-resonator treatment the bow got (583ccae6).",
-    "MODAL ride (K): the recorded ride's 50 strongest modes + tick + wash, played live by INSTR_MODAL + instrument_modes on one mono voice. Measured vs the recorded ride stem: 2 kHz +4 dB, 250 Hz / 4 kHz -3 to -5. Listen in the groove; next steps: the BELL from its own recording, and an energy cascade (the swell after a hard hit), which a linear bank cannot make."
+    "MODAL ride (K): the recorded ride's 50 strongest modes + tick + wash, played live by INSTR_MODAL + instrument_modes on one mono voice. Measured vs the recorded ride stem: 2 kHz +4 dB, 250 Hz / 4 kHz -3 to -5. By ear 2026-11-06: better than the struck-resonator ride before it (Nikki). Next steps: the BELL from its own recording, and an energy cascade (the swell after a hard hit), which a linear bank cannot make."
   ]
 }
 de:meta */

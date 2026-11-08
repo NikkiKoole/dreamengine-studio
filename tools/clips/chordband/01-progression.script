@@ -1,0 +1,27 @@
+# chord band: C - Dm - F - G in POP, each chord held briefly then latched.
+# QWERTY whites from C3: A=C3 S=D3 D=E3 F=F3 G=G3 H=A3 J=B3 K=C4 L=D4
+# frames 1100
+down 10 A
+down 10 D
+down 10 G
+up 30 A
+up 30 D
+up 30 G
+down 290 S
+down 290 F
+down 290 H
+up 310 S
+up 310 F
+up 310 H
+down 578 F
+down 578 H
+down 578 K
+up 598 F
+up 598 H
+up 598 K
+down 866 G
+down 866 J
+down 866 L
+up 886 G
+up 886 J
+up 886 L

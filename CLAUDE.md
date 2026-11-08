@@ -675,7 +675,7 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
                              workhorse for design/synth-secrets-plan.md; measures, never judges
              ref-render/     render a note from somebody ELSE'S physical model, so ours has something to
                              be WRONG against — `run.sh stk <Brass|Flute|Clarinet|Bowed>` or `run.sh luthier
-                             <gut|steel|…>`, fetched+built on demand, output timed to match tools/carts/bowprobe.c
+                             <gut|steel|…>` or `run.sh open303` (an acid PATTERN vs tools/carts/acidref.c), fetched+built on demand, output timed to match tools/carts/bowprobe.c
                              so both drop into the same oracles. Every other gate checks an OUTPUT PROPERTY (in
                              tune, right level, no clicks); NONE asks whether the MECHANISM is sane, which is how
                              INSTR_BOWED ran for months with a friction coefficient ABOVE 1.0 behind a green

@@ -5,6 +5,7 @@
 #   bash tools/ref-render/run.sh stk <Brass|Flute|Clarinet|Bowed|ModalBar> [hz] [amp] [lipCC|preset]
 #   bash tools/ref-render/run.sh stk <TubeBell|Rhodey|Wurley|HevyMetl|BeeThree|PercFlut|FMVoices> [hz] [amp]
 #   bash tools/ref-render/run.sh luthier <steel|nylon|gut|glass> [hz]
+#   bash tools/ref-render/run.sh open303 [cutoff_hz res_pct envmod_pct decay_ms accent_pct]
 #   bash tools/ref-render/run.sh clean
 #
 # Output lands in build/ref-render/<name>.wav (44.1k mono, note ON at 0.5s, OFF at 6.0s, 7s long)
@@ -57,6 +58,23 @@
 #                ⚠ Its exciter is a RECORDED STRIKE (rawwaves/marmstk1.raw through an envelope and a
 #                one-pole), not a synthetic burst, so the attack is not something we can port.
 #   luthier   ✅ USABLE. FDTD stiff string. `gut` is the voicing the maker preferred by ear.
+#   open303   ✅ USABLE (measured 2026-11-08). Robin Schmidt's TB-303 model, MIT; its filter-env
+#                mapping is fitted to measurements of a real unit. Against runtime/acid303.h in
+#                acid_stock() voicing, every core knob at 0.5 on both sides (tools/carts/acidref.c):
+#                (a) HELD NOTES: Open303's VCA DECAYS while the gate is held (0.93 → 0.11 in 2 s, the
+#                    real 303's behaviour); ours HOLDS FLAT (acid_define's sustain 6 of 7).
+#                (b) ACCENT LEVEL: +6.6 dB over a plain note on Open303, +2.6 dB on ours (vol 7 vs 5).
+#                (c) ACCENT DECAY: Open303 uses a FIXED short decay (200 ms) on accents whatever the
+#                    DECAY knob says, the documented 303 trait; our classic mode decays an accent
+#                    like a normal note (a deliberate choice in acid303.h, now contradicted).
+#                (d) RANGES: Open303 uses the stock pots, cutoff 314..2394 Hz and decay 200..2000 ms
+#                    (exp); ours is cutoff 60..3840 Hz and decay 30..530 ms. At 12 o'clock the filter
+#                    sweep dies ~3x sooner on ours (280 vs 632 ms) and sits darker (480 vs 867 Hz),
+#                    which is why our SLID steps (no env retrigger) go dull: 417-506 Hz centroid vs
+#                    963-1081 Hz on Open303.
+#                The accented peak brightness MATCHES (1671 vs 1630 Hz centroid). These are
+#                measurements, not verdicts: acid303.h feeds tb303/acidrack/acidcandy and nothing
+#                above has been changed. Decide by ear.
 #
 # LICENCES. STK is Cook/Scavone, MIT-equivalent ("without restriction") — borrowing a constant is
 # fine WITH ATTRIBUTION, which is how runtime/sound.h's BOW_BODY_HZ table cites luthier (also MIT).
@@ -102,6 +120,24 @@ luthier)
   # against a cart with MODE_BOW_BODY at 0.
   ( cd "$OUT" && node ../../tools/ref-render/luthier-render.js "$HZ" "$MAT" 0.20 1050 "luthier_$MAT.wav" )
   echo "wrote $OUT/luthier_$MAT.wav"
+  ;;
+open303)
+  # Robin Schmidt's Open303 (MIT), the TB-303 model X0X and schwung-303 port. NOT the note-on-at-0.5s
+  # shape above: it plays the ACID PROBE PATTERN (a 16-step line twice, then a long plain note and a
+  # long accented one) on the same 735-sample frame grid tools/carts/acidref.c plays through
+  # runtime/acid303.h, so the two WAVs line up sample for sample. Ours:
+  #   node tools/play.js acidref run --headless --frames 704 --wav build/ref-render/acidref.wav
+  [ -d "$OUT/open303" ] || git clone --depth 1 -q https://github.com/RobinSchmidt/Open303.git "$OUT/open303"
+  if [ ! -x "$OUT/open303render" ]; then
+    D="$OUT/open303/Source/DSPCode"
+    files=(); for f in "$D"/*.cpp; do files+=("$f"); done
+    clang++ -O2 -std=c++11 -w -I "$D" -o "$OUT/open303render" tools/ref-render/open303render.cpp "${files[@]}"
+  fi
+  shift || true
+  "$OUT/open303render" "$@" > "$OUT/raw.f32"
+  ffmpeg -v error -y -f f32le -ar 44100 -ac 1 -i "$OUT/raw.f32" "$OUT/open303.wav"
+  rm -f "$OUT/raw.f32"
+  echo "wrote $OUT/open303.wav"
   ;;
 clean)
   rm -rf "$OUT"; echo "removed $OUT"

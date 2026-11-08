@@ -515,7 +515,7 @@ static void relax_drivability(V2 *ctrl, int nc) {
 // lane geometry: lane centre as a lateral offset from the centre line, and the
 // reverse — which lane a lateral offset falls in. Lanes tile the road full width.
 static float lane_offset(int lane) { return (lane + 0.5f) * S->lane_w - (float)S->half; }
-static int   lane_at(float lateral) {
+static int   lane_of_lateral(float lateral) {
     int l = (int)((lateral + (float)S->half) / S->lane_w);
     if (l < 0) l = 0; if (l >= S->nlanes) l = S->nlanes - 1;
     return l;
@@ -555,7 +555,7 @@ static void put_car_at_start(Car *c, int slot) {
     c->prog = s; c->cp = 0; c->lap = 0; c->offtrack = false; c->road = 0; c->lastx = -1; c->target = -1; c->reckless = false; c->kt = 0;
     c->drift = false; c->wob = (float)slot * 7.0f; c->place = slot + 1;
     c->mass = (slot == 0) ? 1.0f : PERS[c->pers].mass;   // player baseline; AI by personality
-    c->lane = c->want_lane = lane_at(lateral);
+    c->lane = c->want_lane = lane_of_lateral(lateral);
 }
 
 // traffic placement: spread cars evenly all the way around the loop, one per lane
@@ -857,7 +857,7 @@ static void step_car(Car *c, float turn_in, float throttle, bool drift) {
     // traffic too: an AI behind you in your lane will follow and brake for you.
     V2 bc = road_cl(rd, bi), bn = road_nl(rd, bi);
     float lateral = (c->px - bc.x) * bn.x + (c->py - bc.y) * bn.y;
-    c->lane = lane_at(lateral);
+    c->lane = lane_of_lateral(lateral);
 
     // checkpoints & laps — by QUADRANT of prog (not a spatial gate point): a car
     // must pass through the four quarter-arcs in order, so an offset racing line

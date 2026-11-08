@@ -73,14 +73,14 @@
 #                    which is why our SLID steps (no env retrigger) go dull: 417-506 Hz centroid vs
 #                    963-1081 Hz on Open303.
 #                The accented peak brightness MATCHES (1671 vs 1630 Hz centroid).
-#                A/B BY EAR: acidref takes DE_DEFINES AB_AMP / AB_ACC / AB_ADEC / AB_RANGE, one per
-#                difference above (all off = byte-identical to acid303.h, checked). All four together
-#                land at accent +6.4 dB, held note -9.7 dB at 1.7 s, slid step 894 Hz (Open303: +5.7,
-#                -12.0, 987). ⚠ AB_AMP rides note_vol per frame because the engine's own DECAY stage is
-#                the wrong SHAPE for a VCA: near flat, then a drop. No decay time matched both -4.9 dB
-#                at 0.7 s and -12 dB at 1.7 s; a 303 (an RC discharge) falls fastest at the start. These are
-#                measurements, not verdicts: acid303.h feeds tb303/acidrack/acidcandy and nothing
-#                above has been changed. Decide by ear.
+#                ✔ ADOPTED 2026-11-08, all four, by ear (build/ab303): acid303.h's STOCK voicing
+#                (acid_stock / the `classic` flip) now does (a)-(d); the Devil Fish voicing renders
+#                byte-identical to before (acidrack, acidtheremin, acidcandy checked). Together they land
+#                at accent +6.4 dB, held note -9.7 dB at 1.7 s, slid step 894 Hz (Open303: +5.7, -12.0,
+#                987). ⚠ The fade rides note_vol per frame (acid_ride) because the engine's own DECAY
+#                stage is the wrong SHAPE for a VCA: near flat, then a drop. No decay time matched both
+#                -4.9 dB at 0.7 s and -12 dB at 1.7 s; a 303 (an RC discharge) falls fastest at the start.
+#                acidref now renders the header itself, so re-running this A/B measures what ships.
 #
 # LICENCES. STK is Cook/Scavone, MIT-equivalent ("without restriction") — borrowing a constant is
 # fine WITH ATTRIBUTION, which is how runtime/sound.h's BOW_BODY_HZ table cites luthier (also MIT).

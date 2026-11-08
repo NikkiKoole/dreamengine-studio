@@ -229,7 +229,8 @@ runtime/   studio.h (public API: constants + declarations), studio.c (Raylib imp
                          FILTER_DIODE held voice with non-retriggering slide, accent kick, two-decay, soft
                          attack, filter tracking + octave-down sub-osc (acidrack's superset). Params floats
                          0..1 (ACID_* enum). Cart owns the PATTERN, header owns the SOUND. acid_stock() =
-                         vanilla voicing (cut_top 6.0 + slapback), else Devil Fish wide — BOTH from one header,
+                         vanilla voicing (cut_top 6.0 + slapback + the REAL-303 traits measured vs Open303: held notes
+                         fade, accent +6.6 dB, fixed 200 ms accent decay, stock pot ranges), else Devil Fish wide — BOTH from one header,
                          chosen by data. Used by tb303 + acidrack (both byte-identical A/B, 1.00000) + acidcandy.
                          NOT drumkit.h (that's the pad MAP, this pitches one voice).
              tr808.h     the shared TR-808 VOICE BANK (the acid303.h move, for drums — a faithful machine, not

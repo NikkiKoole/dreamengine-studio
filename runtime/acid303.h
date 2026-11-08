@@ -27,6 +27,7 @@
 #ifndef ACID303_H
 #define ACID303_H
 #include <math.h>   // powf
+#include "cart_ctx.h"   // per-instance state seam (docs/design/engine-context.md)
 
 enum { ACID_CUT, ACID_RES, ACID_ENV, ACID_DEC, ACID_ACC, ACID_DRV, ACID_SQL,
        ACID_ADEC, ACID_SLDT, ACID_ATK, ACID_TRK, ACID_SUB, ACID_NPARAM };
@@ -60,12 +61,46 @@ typedef struct {
     float _ld;                    // last drift pushed (change-guard, so DRIFT can ride live)
 } Acid;
 
+// ── THE REAL-303 BEHAVIOURS (2026-11-08) ──────────────────────────────────────
+// Measured against Robin Schmidt's Open303 (MIT; its filter-env mapping is fitted to a real unit)
+// with tools/ref-render/run.sh open303 + tools/carts/acidref.c, then accepted BY EAR (build/ab303):
+//   1. held notes FADE — the VCA decays (tau 1230 ms) even while the gate is held, as a 303 does
+//   2. accent +6.6 dB over a plain note (plain plays at 3.27, accent at 7), not +2.9 dB
+//   3. an accent's filter decays in a FIXED 200 ms, whatever DECAY says (a 303 bypasses the knob)
+//   4. the stock POT RANGES: cutoff 314..2394 Hz and decay 200..2000 ms, both exponential
+// ON for the STOCK voicing only: acid_stock() (cut_top 6.0) or the live `classic` flip. The Devil
+// Fish voicing (acid_init's default) is untouched, byte for byte. Keyed off EXISTING fields on
+// purpose: acidcandy SAVES an Acid in the middle of its session state, so a new field would shift
+// every field after it and old saves would restore into the wrong ones (tools/lint-saved-state.js).
+static int acid_real303(Acid *a) { return a->classic || a->cut_top <= 6.0f; }
+
+// the fade needs to know when each voice's VCA last restarted. Kept BESIDE the Acid, keyed by its
+// address, for the reason above. 8 voices is more than any cart holds; a cart with more just loses
+// the fade on the extra ones (they sustain, the old behaviour).
+#define ACID_FADE_N 8
+typedef struct { const Acid *who; int frames; float vol; } AcidFade;
+#define ACID303_STATE(X) X(AcidFade, acid_fade_, [ACID_FADE_N], {{0}})
+#ifndef DE_CART_CTX
+DE_CTX_STATICS(ACID303_STATE)
+#else
+// SCRATCH, deliberately: it holds Acid ADDRESSES, which mean nothing in another process, and a
+// restored rack starts with no note sounding anyway (so no fade in flight to carry over).
+DE_CTX_BLOCK(acid, Acid303, ACID303_STATE)
+static void acid_ctx_init_(Acid303Ctx *c) { (void)c; }
+#define acid_fade_ (acid_ctx_()->acid_fade_)
+#endif
+static int acid_fade_slot_(const Acid *a) {
+    for (int i = 0; i < ACID_FADE_N; i++) if (acid_fade_[i].who == a) return i;
+    for (int i = 0; i < ACID_FADE_N; i++) if (!acid_fade_[i].who) { acid_fade_[i].who = a; return i; }
+    return -1;
+}
+
 // ── param → engine-unit mappings (acidrack's superset curves) ────────────────
-static int   acid_cut_hz(Acid *a)   { float top = a->classic ? 6.0f : a->cut_top; return (int)(60.0f * de_powf(2.0f, a->p[ACID_CUT] * top)); } // range: classic pins vanilla 6.0, else cut_top (6.38 DF)
+static int   acid_cut_hz(Acid *a)   { if (acid_real303(a)) return (int)(314.0f * de_powf(7.625f, a->p[ACID_CUT])); float top = a->cut_top; return (int)(60.0f * de_powf(2.0f, a->p[ACID_CUT] * top)); } // real 303: the stock pot, 314..2394 Hz exp; Devil Fish: 60 Hz .. cut_top octaves up
 static int   acid_res_q(Acid *a)    { return (int)(a->p[ACID_RES] * 15.0f); }                     // 0..15 Q (int — instrument_filter's baseline)
 static float acid_res_f(Acid *a)    { return a->p[ACID_RES] * 15.0f; }                            // 0..15 CONTINUOUS — the live note_res ride (analog res, no 16-step stepping)
 static float acid_env_hz(Acid *a)   { return a->p[ACID_ENV] * 3000.0f; }                          // filter-env depth Hz
-static int   acid_dec_ms(Acid *a)   { return 30 + (int)(a->p[ACID_DEC]  * 500.0f); }              // 30..530 ms
+static int   acid_dec_ms(Acid *a)   { if (acid_real303(a)) return (int)(200.0f * de_powf(10.0f, a->p[ACID_DEC])); return 30 + (int)(a->p[ACID_DEC] * 500.0f); }   // real 303: 200..2000 ms exp; Devil Fish: 30..530 ms
 static int   acid_adec_ms(Acid *a)  { return 30 + (int)(a->p[ACID_ADEC] * 500.0f); }              // accent's own decay (two-decay)
 static int   acid_slide_ms(Acid *a) { return a->classic ? 60 : 20 + (int)(a->p[ACID_SLDT] * 280.0f); } // portamento 20..300 (classic = vanilla's fixed 60)
 static int   acid_atk_ms(Acid *a)   { return a->classic ? 2 : (int)(0.5f + a->p[ACID_ATK] * 29.5f); } // amp attack 0.5..30 ms (classic = vanilla's 2ms)
@@ -129,7 +164,7 @@ static void acid_init(Acid *a, int slot, int subslot) {
 static void acid_stock(Acid *a) {
     a->cut_top       = 6.0f;                        // vanilla ceiling ~3840 Hz
     a->p[ACID_SLDT]  = 0.143f;                      // exactly 60 ms slide (vanilla's fixed glide)
-    a->p[ACID_ADEC]  = a->p[ACID_DEC];              // accent decays like a normal note (two-decay off — see GOTCHA above)
+    a->p[ACID_ADEC]  = a->p[ACID_DEC];              // two-decay off (the stock voicing's accent decay is the FIXED 200 ms, see the real-303 block)
     a->p[ACID_ATK]   = 0.051f;                      // exactly 2 ms attack (matches vanilla's define)
     a->p[ACID_TRK]   = 0.0f;                        // no filter tracking
     a->p[ACID_SUB]   = 0.0f;                        // no sub-osc
@@ -145,6 +180,10 @@ static void acid_ride(Acid *a) {
     if (c != a->_lc || r != a->_lr) { instrument_filter(a->slot, FILTER_DIODE, c, r); a->_lc = c; a->_lr = r; }
     if (a->drift != a->_ld) acid_set_drift(a);     // DRIFT rides live (re-apply the wander LFOs only on change)
     if (a->h >= 0) { note_cutoff(a->h, c); note_res(a->h, acid_res_f(a)); note_drive(a->h, a->p[ACID_DRV]); }
+    if (a->h >= 0 && acid_real303(a)) {            // (1) the VCA decays while held: one frame per call
+        int k = acid_fade_slot_(a);
+        if (k >= 0) { note_vol(a->h, acid_fade_[k].vol * de_expf(-acid_fade_[k].frames / (60.0f * 1.23f))); acid_fade_[k].frames++; }
+    }
 }
 
 // release everything (rest / stop / pattern switch)
@@ -157,16 +196,20 @@ static void acid_off(Acid *a) {
 // trigger a step. midi = absolute note; accent/slide = 0/1. A slid step glides the
 // held voice (no retrigger); otherwise a fresh note with the filter-env kick.
 static void acid_note(Acid *a, int midi, int accent, int slide) {
-    int vol = accent ? 7 : 5;
+    float vol = accent ? 7.0f : (acid_real303(a) ? 3.27f : 5.0f);   // (2) real 303: accent +6.6 dB over plain
     if (a->h >= 0 && a->prev_slide) {                       // SLIDE — hold + glide, env does NOT refire
         int g = acid_slide_ms(a);
-        note_glide(a->h, g); note_pitch(a->h, (float)midi); note_vol(a->h, vol);
+        note_glide(a->h, g); note_pitch(a->h, (float)midi);
+        float fv = vol;                                       // real 303: a slide keeps the VCA's fade going
+        if (acid_real303(a)) { int k = acid_fade_slot_(a); if (k >= 0) fv = vol * de_expf(-acid_fade_[k].frames / (60.0f * 1.23f)); }
+        note_vol(a->h, fv);
         if (a->hsub >= 0) { note_glide(a->hsub, g); note_pitch(a->hsub, (float)midi - 12); }
     } else {
         if (a->h    >= 0) note_off(a->h);
         if (a->hsub >= 0) { note_off(a->hsub); a->hsub = -1; }
         float e    = acid_env_hz(a) * acid_sq_mul(a) * (accent ? acid_acc_mul(a) : 1.0f);
-        int   dec  = (accent && !a->classic) ? acid_adec_ms(a) : acid_dec_ms(a);  // two-decay (classic: accent decays like a normal note)
+        int   dec  = (accent && acid_real303(a)) ? 200                            // (3) real 303: an accent's decay is FIXED
+                   : (accent && !a->classic) ? acid_adec_ms(a) : acid_dec_ms(a);  // Devil Fish two-decay
         int   soft = acid_atk_ms(a) - 2; if (soft < 0) soft = 0;      // soft attack rounds the filter onset too
         int   atk  = (accent && !a->classic) ? acid_sweep_atk(a) : 0; // accent-sweep onset (classic: no sweep)
         if (soft > atk) atk = soft;
@@ -174,13 +217,16 @@ static void acid_note(Acid *a, int midi, int accent, int slide) {
         if (!a->classic && a->p[ACID_TRK] > 0.001f) { cut += (int)(a->p[ACID_TRK] * (midi - a->base) * 170.0f); if (cut < 30) cut = 30; }  // classic: no filter-tracking
         instrument_filter(a->slot, FILTER_DIODE, cut, acid_res_q(a)); a->_lc = cut; a->_lr = acid_res_q(a);
         instrument_env(a->slot, 0, ENV_CUTOFF, atk, dec, (int)e);
-        a->h = note_on(midi, a->slot, vol); note_glide(a->h, 0);
+        a->h = note_on(midi, a->slot, (int)vol); note_glide(a->h, 0);
+        if (vol != (float)(int)vol) note_vol(a->h, vol);
+        if (acid_real303(a)) { int k = acid_fade_slot_(a); if (k >= 0) acid_fade_[k].frames = 0; }   // a fresh note restarts the VCA
         float sl = a->classic ? 0.0f : a->p[ACID_SUB];                // sub-osc, an octave down (classic: no sub)
         if (a->subslot >= 0 && sl > 0.001f) {
             a->hsub = note_on(midi - 12, a->subslot, 0);
             note_vol(a->hsub, vol * sl); note_glide(a->hsub, 0);
         }
     }
+    if (acid_real303(a)) { int k = acid_fade_slot_(a); if (k >= 0) acid_fade_[k].vol = vol; }   // a slide keeps fading from where it is
     a->prev_slide = slide;
 }
 

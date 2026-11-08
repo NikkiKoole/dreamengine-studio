@@ -27,55 +27,10 @@ static const int S[16] = { 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0 };
 
 static Acid a;
 static int f;
-static int amp_f0;          // AB_AMP: the frame the VCA envelope last restarted
-static float amp_vol;
 
-// ── A/B switches (DE_DEFINES), each one of the differences Open303 showed. All off = acid303.h exactly
-// (ab_note below is acid_note's own logic, minus the sub-osc/tracking/sweep the stock voicing parks).
-//   AB_AMP   held notes FADE: the VCA decays exponentially (tau 1230 ms, Open303's) instead of sustaining at 6/7.
-//            Ridden per frame with note_vol: the engine's own decay stage is the WRONG SHAPE for this (it stays
-//            near flat then drops; measured, no decay time matches both -4.9 dB at 0.7 s and -12 dB at 1.7 s)
-//   AB_ACC   accent +6.6 dB over a plain note (plain drops to vol 3.27, accent stays 7) instead of +2.9
-//   AB_ADEC  an accent's filter decays in a FIXED 200 ms, whatever DECAY says
-//   AB_RANGE the stock pot ranges at 12 o'clock: cutoff 867 Hz, decay 632 ms (ours: 480 Hz, 280 ms)
-static void ab_define(void) {
-    acid_define(&a);
-}
-
-static void ab_note(int midi, int accent, int slide) {
-#ifdef AB_ACC
-    float vol = accent ? 7.0f : 3.27f;
-#else
-    float vol = accent ? 7.0f : 5.0f;
-#endif
-    if (a.h >= 0 && a.prev_slide) {
-        note_glide(a.h, acid_slide_ms(&a)); note_pitch(a.h, (float)midi); note_vol(a.h, vol);
-    } else {
-        if (a.h >= 0) note_off(a.h);
-        float e = acid_env_hz(&a) * acid_sq_mul(&a) * (accent ? acid_acc_mul(&a) : 1.0f);
-#ifdef AB_RANGE
-        int dec = 632;
-#else
-        int dec = acid_dec_ms(&a);
-#endif
-        if (accent) {
-#ifdef AB_ADEC
-            dec = 200;
-#else
-            dec = acid_adec_ms(&a);
-#endif
-        }
-        instrument_filter(a.slot, FILTER_DIODE, acid_cut_hz(&a), acid_res_q(&a));
-        a._lc = acid_cut_hz(&a); a._lr = acid_res_q(&a);
-        instrument_env(a.slot, 0, ENV_CUTOFF, 0, dec, (int)e);
-        a.h = note_on(midi, a.slot, (int)vol);
-        if (vol != (int)vol) note_vol(a.h, vol);
-        note_glide(a.h, 0);
-        amp_f0 = f;                  // a fresh note restarts the VCA; a slide does not
-    }
-    amp_vol = vol;
-    a.prev_slide = slide;
-}
+// The four differences Open303 showed (held-note fade, accent level, fixed accent decay, stock pot
+// ranges) were A/B'd here with DE_DEFINES switches, accepted by ear, and now live in acid303.h for the
+// stock voicing. This probe renders the header itself, so it measures what the carts play.
 
 void init(void) {
     acid_init(&a, 6, -1);
@@ -87,10 +42,7 @@ void init(void) {
     a.p[ACID_CUT] = a.p[ACID_RES] = a.p[ACID_ENV] = a.p[ACID_DEC] = a.p[ACID_ACC] = ACID_KNOB;
     a.p[ACID_DRV] = 0.0f;
     a.p[ACID_ADEC] = a.p[ACID_DEC];
-#ifdef AB_RANGE
-    a.p[ACID_CUT] = 0.642f;          // 60 * 2^(0.642 * 6) = 867 Hz, the stock pot's middle
-#endif
-    ab_define();
+    acid_define(&a);
 }
 
 void update(void) {
@@ -98,16 +50,13 @@ void update(void) {
     acid_ride(&a);
     if (st < 32) {
         int k = st % 16;
-        if (sub == 0) ab_note(BASE + N[k], A[k], S[k]);
+        if (sub == 0) acid_note(&a, BASE + N[k], A[k], S[k]);
         if (sub == 5 && (!S[k] || st == 31)) acid_off(&a);
     } else if ((st == LONG_A || st == LONG_B) && sub == 0) {
-        ab_note(BASE + 12, st == LONG_B, 0);
+        acid_note(&a, BASE + 12, st == LONG_B, 0);
     } else if ((st == LONG_A + LONG_LEN || st == LONG_B + LONG_LEN) && sub == 5) {
         acid_off(&a);
     }
-#ifdef AB_AMP
-    if (a.h >= 0) note_vol(a.h, amp_vol * expf(-(f - amp_f0) / (60.0f * 1.23f)));
-#endif
     f++;
 }
 

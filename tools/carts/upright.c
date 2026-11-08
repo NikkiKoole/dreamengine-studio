@@ -169,7 +169,7 @@ void init(void) {
 static int   slot_for(int mode) { return mode == ARCO ? ARCOS : BASS; }
 static float midi_of (int lane, float pos) { return SBASE[lane] + pos; }
 
-static int   lane_at(int y) { int l = (y - STRIP_H) / LANE_H; return l < 0 ? 0 : (l > 3 ? 3 : l); }
+static int   lane_of_y(int y) { int l = (y - STRIP_H) / LANE_H; return l < 0 ? 0 : (l > 3 ? 3 : l); }
 static int   cy_of(int lane) { return STRIP_H + lane * LANE_H + LANE_H / 2; }   // string center line
 #define GRAB_PX 13                         // press within this of a string = grab it; else a pick
 static float pos_at (int x) { return clamp((float)(x - NECK_X0) / (NECK_X1 - NECK_X0), 0, 1) * SPAN; }

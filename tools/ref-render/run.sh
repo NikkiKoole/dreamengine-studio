@@ -72,7 +72,13 @@
 #                    sweep dies ~3x sooner on ours (280 vs 632 ms) and sits darker (480 vs 867 Hz),
 #                    which is why our SLID steps (no env retrigger) go dull: 417-506 Hz centroid vs
 #                    963-1081 Hz on Open303.
-#                The accented peak brightness MATCHES (1671 vs 1630 Hz centroid). These are
+#                The accented peak brightness MATCHES (1671 vs 1630 Hz centroid).
+#                A/B BY EAR: acidref takes DE_DEFINES AB_AMP / AB_ACC / AB_ADEC / AB_RANGE, one per
+#                difference above (all off = byte-identical to acid303.h, checked). All four together
+#                land at accent +6.4 dB, held note -9.7 dB at 1.7 s, slid step 894 Hz (Open303: +5.7,
+#                -12.0, 987). ⚠ AB_AMP rides note_vol per frame because the engine's own DECAY stage is
+#                the wrong SHAPE for a VCA: near flat, then a drop. No decay time matched both -4.9 dB
+#                at 0.7 s and -12 dB at 1.7 s; a 303 (an RC discharge) falls fastest at the start. These are
 #                measurements, not verdicts: acid303.h feeds tb303/acidrack/acidcandy and nothing
 #                above has been changed. Decide by ear.
 #

@@ -400,13 +400,31 @@ static void apply_scene(void) {
     }
 }
 
+// Every note here is BOOKED (schedule_note_at) with its own length, and note_off_all() only
+// releases HELD notes, so a booked drone or resonator would ring on into the next biome for its
+// whole decay (up to 30 s). Keep each booking id and damp the ones still sounding instead
+// (NEV_DAMP 1 = a ~20 ms fade: a hand on the strings, no click).
+#define LIVE_N 512
+static int live_id[LIVE_N]; static double live_end[LIVE_N]; static int live_w;
+static void track_booking(int id, double end) {
+    if (id <= 0) return;
+    live_id[live_w] = id; live_end[live_w] = end; live_w = (live_w + 1) % LIVE_N;
+}
+static void unbook_all(void);
+static void silence_all(void) {
+    double at = audio_time();
+    unbook_all();                                  // notes not started yet never play
+    for (int k = 0; k < LIVE_N; k++)               // notes already sounding fade out now
+        if (live_id[k] > 0 && live_end[k] > at) note_event_at(live_id[k], at, NEV_DAMP, 1);
+    memset(live_id, 0, sizeof live_id);
+    note_off_all();
+}
 static void unbook_all(void) {
     for (int i = 0; i < 6; i++) { unschedule(SL_TRACK + i, 0, 0); unschedule(SL_LAYER + i, 0, 0); }
     for (int p = 0; p < 8; p++) unschedule(SL_PAD + p, 0, 0);
 }
 static void load_biome(int id) {
-    unbook_all();
-    note_off_all();
+    silence_all();
     cur = id; scene(id); apply_scene();
     for (int i = 0; i < 6; i++) muted[i] = S.b.tr[i].mute;
     step = 0; seed = (unsigned)S.b.seed; seqrng = seed;
@@ -426,6 +444,8 @@ static void fire(int i, int note, float vel, double t, int gate_ms) {
     float breathe = unit(tr->breathe) * sinf(ph * 6.2831853f);
     float tide = 0;
     if (S.tides[i]) { float tp = (float)fmod(t / (.5 + unit(S.tides_rate[i]) * 19.5), 1.0); tide = unit(S.tides[i]) * (1 - 4 * fabsf(tp - .5f)); }
+    // when it can last be heard: its length, plus a release / a resonator's own ring
+    double end = t + dur / 1000.0 + (m == M_RINGS || m == M_ELEMENTS ? 7.0 : 1.0);
     NoteOpts o = {0};
     o.gain = fmaxf(.05f, fminf(1, vel));
     o.cutoff_oct = (breathe * .13f + tide * .2f) * 7.0f;
@@ -435,15 +455,15 @@ static void fire(int i, int note, float vel, double t, int gate_ms) {
         float spread = unit(tr->shape) * (.15f + .11f * breathe) * 100;
         for (int j = 0; j < 3; j++) {
             NoteOpts c = o; c.cents = (j - 1) * spread; c.gain = o.gain * (j ? .62f : 1);
-            schedule_note_at(t, quantize(note + chord[ci][j], S.b.root, S.b.scale), s, 7, dur, &c);
+            track_booking(schedule_note_at(t, quantize(note + chord[ci][j], S.b.root, S.b.scale), s, 7, dur, &c), end);
         }
     } else {
         int pn = note;
         if (m == M_KICK || m == M_SNARE) pn = note;         // the drum's tuned body sits at its note
-        schedule_note_at(t, pn, s, 7, dur, &o);
-        if (m == M_SNARE) schedule_note_at(t, note + 12, l, 7, dur, &o);
-        if (m == M_BASS)  schedule_note_at(t, note - 12, l, 7, dur, &o);
-        if (m == M_BREATH) schedule_note_at(t, note, l, 7, dur, &o);
+        track_booking(schedule_note_at(t, pn, s, 7, dur, &o), end);
+        if (m == M_SNARE)  track_booking(schedule_note_at(t, note + 12, l, 7, dur, &o), end);
+        if (m == M_BASS)   track_booking(schedule_note_at(t, note - 12, l, 7, dur, &o), end);
+        if (m == M_BREATH) track_booking(schedule_note_at(t, note, l, 7, dur, &o), end);
     }
     mark_hit(i, t);
 }
@@ -451,7 +471,7 @@ static int kit_hits;
 static void kit_fire(int pad, float vel, double t) {
     kit_hits++;
     NoteOpts o = {0}; o.gain = vel;
-    schedule_note_at(t, 60, SL_PAD + pad, 7, 900, &o);
+    track_booking(schedule_note_at(t, 60, SL_PAD + pad, 7, 900, &o), t + 1.0);
     mark_hit(3, t);
 }
 
@@ -514,7 +534,7 @@ void init(void) {
 void update(void) {
     if (btnp(0, BTN_RIGHT)) go(1);
     if (btnp(0, BTN_LEFT))  go(-1);
-    if (keyp(KEY_SPACE)) { playing = !playing; if (playing) { t_next = audio_time() + .05; } else { unbook_all(); note_off_all(); } }
+    if (keyp(KEY_SPACE)) { playing = !playing; if (playing) { t_next = audio_time() + .05; } else { silence_all(); } }
     for (int i = 0; i < 6; i++) if (keyp('1' + i)) muted[i] = !muted[i];
     if (playing) while (t_next < audio_time() + LOOKAHEAD) { double t = t_next; t_next += step_dur(step); tick(t); }
 #ifdef DE_TRACE
@@ -592,7 +612,7 @@ void draw(void) {
     if (ui_button(4, by, 60, 22, "< PREV")) go(-1);
     if (ui_button(70, by, 60, 22, playing ? "STOP" : "PLAY")) {
         playing = !playing;
-        if (playing) t_next = audio_time() + .05; else { unbook_all(); note_off_all(); }
+        if (playing) t_next = audio_time() + .05; else { silence_all(); }
     }
     if (ui_button(136, by, 60, 22, "NEXT >")) go(1);
     print("<> browse  SPACE play", 204, by + 4, CLR_DARK_GREY);

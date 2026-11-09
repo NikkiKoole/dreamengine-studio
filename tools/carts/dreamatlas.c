@@ -9,7 +9,7 @@
   "lineage": "A port of the BIOME atlas from Mutable Dreams 1.4 (Kid Bunka / Christoph Link, free firmware for the M-VAVE FM-1, itself built on Mutable Instruments' Plaits/Rings/Elements). The 157 scenes are the upstream's own factory data (MIT), generated into runtime/dreamatlas/biomes.h; the sequencer (Euclid hits/length/rotate per track, seeded rolls, chord journeys, scale masks, the Lo-Fi kit) is ported line by line from app/dsp/dreams.cpp. The fifteen VOICES are NOT ported: each is mapped onto the nearest engine dreamengine already ships, which is the experiment.",
   "homage": "Mutable Dreams (Kid Bunka) / Mutable Instruments",
   "description": {
-    "summary": "157 small generative worlds from Mutable Dreams, plus one of our own: six drifting Euclidean tracks, chord journeys and a Lo-Fi kit, played on dreamengine's own voices.",
+    "summary": "157 small generative worlds from Mutable Dreams, plus a few of our own (a house jam, a tabla-and-guiro bazaar): six drifting Euclidean tracks, chord journeys and a Lo-Fi kit, played on dreamengine's own voices.",
     "detail": "Each BIOME is one scene: six tracks, each a voice (Plaits-style drums, FM, analog, Rings and Elements resonators, a sine choir, a round bass...) with its OWN rhythm, k hits spread over n steps. The lengths differ (16, 19, 13...), so the tracks slide against each other and the loop takes minutes to come round. Some biomes walk a chord progression under it, some swap three tracks for a crunchy 16 kHz Lo-Fi drum kit. Browse in the curated order: neighbours are meant to feel genuinely different. The scenes are the original's factory data; the sounds are this engine's nearest voices, so it is a translation, not a copy.",
     "controls": "LEFT/RIGHT or the arrows: next / previous biome · SPACE or PLAY: start / stop · 1-6: mute a track · tap a track row to mute it"
   },
@@ -41,9 +41,10 @@ de:meta */
 
 // ── upstream constants ───────────────────────────────────────────────────────
 enum { M_KICK, M_SNARE, M_HAT, M_FM, M_VA, M_RINGS, M_HARMONIC, M_CHOIR, M_BASS, M_ELEMENTS,
-       M_MELLOW, M_SATIN, M_VELVET, M_SPECTRAL, M_BREATH };
-static const char *const MODEL_NAME[15] = { "KICK", "SNARE", "HAT", "FM", "ANALOG", "RINGS", "HARMONIC",
-    "CHOIR", "BASS", "ELEMENTS", "MELLOW", "SATIN", "VELVET KEYS", "SPECTRAL", "BREATH" };
+       M_MELLOW, M_SATIN, M_VELVET, M_SPECTRAL, M_BREATH,
+       M_TABLA, M_SCRAPE, M_MODELS };   // the last two are OURS (no upstream model): only our own biomes use them
+static const char *const MODEL_NAME[M_MODELS] = { "KICK", "SNARE", "HAT", "FM", "ANALOG", "RINGS", "HARMONIC",
+    "CHOIR", "BASS", "ELEMENTS", "MELLOW", "SATIN", "VELVET KEYS", "SPECTRAL", "BREATH", "TABLA", "SCRAPE" };
 static const char *const KIT_NAME[5] = { "DUST", "CRATE", "SOFT", "FOUND OBJECTS", "VELOUR TAPE" };
 static const char *const SCALE_NAME[13] = { "chromatic", "minor", "major", "dorian", "minor pent", "major pent",
     "whole tone", "phrygian", "ukr dorian", "harm minor", "dbl harm min", "harm major", "dbl harm maj" };
@@ -93,7 +94,7 @@ typedef struct {
     int chord_pattern, chord_bars, chord_tracks;
     int seq_on[6], seq_len[6]; Step seq[6][16];
     int kit, kit_bank; unsigned kit_gates[8];
-    int jam, jam_phrase, jam_break, jam_out[6]; unsigned jam_rng;   // our own biomes' live arranger
+    int jam, jam_phrase, jam_break, jam_out[6]; unsigned jam_rng;   // our own biomes' live arranger (jam = JamCfg index + 1)
 } Scene;
 static Scene S;
 // ── our own biomes, after the 157 factory ones (ids DA_BIOMES..): same format, same sequencer ──
@@ -103,16 +104,38 @@ static Scene S;
 // every kick), 4 lead (a Rings pluck, 5 in 13: the one odd length, so it drifts against the bar),
 // 5 keys (3 in 8 at eighths = the tresillo). I-vi-IV-V, two bars a chord. The randomness is the
 // factory kind: per-hit chance, the jump macro, a seed re-rolled every two bars (locked 0).
-#define DA_OWN 1
+// LANTERN BAZAAR is the hand-percussion one, on our two extra engines: a low tabla (bayan, with
+// its pitch swoop) 3 in 16 and a high one (dayan, tuned, wandering with the jump macro) 7 in 16, a
+// guiro scraping the tresillo, a round bass, a Rings marimba 5 in 12 (three against the bar's four)
+// and a quijada that rattles once every two bars, just before the turnaround. D dorian at 100,
+// i-IV-i-v. Its jam builds from the bayan and the guiro; the high tabla plays the fills.
+// LEVELS in our biomes are set by measured stems, not the factory fit: upstream's balance puts its
+// quiet Plaits kick ~20 dB under a loud round bass, which is wrong for a groove. Solo RMS (100 s,
+// DA_SOLO): kick ≈ bass ≈ -36 dB, keys/lead/tabla a few dB under, transients (guiro, quijada) by peak.
+#define DA_OWN 2
 #define DA_ALL (DA_BIOMES + DA_OWN)
 static const DaBiome DA_OWN_BIOME[DA_OWN] = {
  {"Marmalade Jam",8,125,7,2,125125,0,0,650,200,100,0,120,0,0,0,380,300,{500,260,520,60},{
-  /* kick */ {0,300,250,380,760,0,4,16,0,1000,31,500,0,1,0,1,150,150,850,100,0,0},
+  /* kick */ {0,300,250,380,1000,0,4,16,0,1000,31,500,0,1,0,1,150,150,850,100,0,0},
   /* hat  */ {2,620,300,120,430,60,4,16,2,920,72,620,0,1,0,1,350,150,850,100,0,0},
   /* clap */ {1,450,820,300,560,120,2,16,4,1000,50,440,0,1,0,1,200,150,850,100,0,0},
-  /* bass */ {8,350,400,180,620,0,6,16,1,880,43,500,0,1,0,1,250,500,700,200,1,0},
+  /* bass */ {8,350,400,180,125,0,6,16,1,880,43,500,0,1,0,1,250,500,700,200,1,0},
   /* lead */ {5,600,250,300,470,220,5,13,0,850,67,680,0,1,0,1,300,150,850,100,0,120},
-  /* keys */ {12,450,300,260,420,200,3,8,0,800,59,330,0,2,0,1,200,400,800,100,0,150}}},
+  /* keys */ {12,450,300,260,120,200,3,8,0,800,59,330,0,2,0,1,200,400,800,100,0,150}}},
+ {"Lantern Bazaar",8,100,2,3,100100,0,0,650,200,100,0,200,0,0,-1,0,300,{500,300,500,80},{
+  /* bayan   */ {15,250,150,600,720,0,3,16,0,950,38,450,0,1,0,1,250,650,850,100,0,0},
+  /* dayan   */ {15,520,80,420,560,60,7,16,2,800,62,600,0,1,0,1,350,120,850,100,0,0},
+  /* guiro   */ {16,870,0,440,700,80,3,8,0,900,60,350,0,1,0,1,250,0,850,100,0,0},
+  /* bass    */ {8,300,450,220,80,0,5,16,0,880,38,500,0,1,0,1,250,500,650,200,1,0},
+  /* marimba */ {5,650,150,350,450,260,5,12,0,850,69,680,0,1,0,1,300,150,850,100,0,120},
+  /* quijada */ {16,350,500,700,520,120,1,32,4,1000,60,520,0,1,0,1,0,1000,850,100,0,0}}},
+};
+// how each of our biomes JAMS (Playtime's drum jam): the order its layers enter, who may rest a
+// phrase, who a breakdown takes out, which track plays the phrase-end fill, which lets go before the one
+typedef struct { int chord_pattern, chord_tracks, build[6], rest[4], break_mask, fill, letgo; } JamCfg;
+static const JamCfg DA_OWN_JAM[DA_OWN] = {
+    { 2, 0x38, {0, 1, 3, 2, 5, 4}, {1, 2, 4, 5}, 1 << 0 | 1 << 2 | 1 << 3, 2, 1 },   // Marmalade: I-vi-IV-V
+    { 1, 0x18, {0, 2, 3, 1, 4, 5}, {1, 2, 4, 5}, 1 << 0 | 1 << 3,          1, 2 },   // Bazaar: i-IV-i-v
 };
 static const DaBiome *biome_row(int id) { return id < DA_BIOMES ? &DA_BIOME[id] : &DA_OWN_BIOME[id - DA_BIOMES]; }
 static int browse_id(int k) { return k < DA_BIOMES ? DA_BROWSE[k] : k; }   // ours come last, in order
@@ -296,9 +319,10 @@ static void scene(int id) {
             set_phrase(lead, ph[(var + arch) % 3], 76, 53, 22, 64, 31, 5, var);
         }
     }
-    if (id == DA_BIOMES) {           // Marmalade Jam: its chords and its arranger
-        S.chord_pattern = 2; S.chord_bars = 2; S.chord_tracks = 0x38;   // I-vi-IV-V on bass, lead, keys
-        S.jam = 1; S.jam_rng = (unsigned)S.b.seed * 2654435761u | 1;
+    if (id >= DA_BIOMES) {           // ours: their chords and their arranger
+        const JamCfg *j = &DA_OWN_JAM[id - DA_BIOMES];
+        S.chord_pattern = j->chord_pattern; S.chord_bars = 2; S.chord_tracks = j->chord_tracks;
+        S.jam = id - DA_BIOMES + 1; S.jam_rng = (unsigned)S.b.seed * 2654435761u | 1;
     }
 #ifdef DA_DRY                        // A/B switch: no fx return, no grain tape (= mdrender --dry)
     S.fx_level = 0; S.b.macro[3] = 0;
@@ -326,10 +350,10 @@ static int env_decay_ms(int i) {  // upstream: exponential, time constant .06 + 
 // KICK was −22 while it was a mapped sine; since it became the PORTED Plaits drum (kick_render)
 // the re-fit is +3.4 over 11 tracks, centroid 0.86×, crest within 1 dB. SNARE likewise: −2.5 as a
 // noise+triangle mapping (centroid 4.8×), +5.0 as the ported drum (snare_render), centroid 0.97×.
-static const float VOICE_TRIM_DB[15] = {
+static const float VOICE_TRIM_DB[M_MODELS] = {
     /* KICK SNARE HAT */ 3.4f, 5.0f, 3.9f,  /* FM VA RINGS */ 6.0f, 2.7f, -1.7f,
     /* HARMONIC CHOIR BASS */ 9.4f, -5.8f, 0,  /* ELEMENTS MELLOW SATIN */ 0, 0, 0,
-    /* VELVET SPECTRAL BREATH */ 3.3f, 0, 3.2f };
+    /* VELVET SPECTRAL BREATH */ 3.3f, 0, 3.2f,  /* TABLA SCRAPE: ours, no upstream to fit */ 0, 0 };
 
 // ── KICK: Plaits' AnalogBassDrum, PORTED (Emilie Gillet, MIT), the trigger path only ─────────
 // Mapping it onto INSTR_SINE gave a sustained thump with no click, 20 dB too loud in the balance.
@@ -544,6 +568,15 @@ static void config_track(int i) {
         instrument(s, INSTR_FM, A, D, 0, 80);
         instrument_harmonics(s, harm * .3f); instrument_timbre(s, .05f + tone * .35f); instrument_morph(s, 0);
         instrument_env(s, 0, ENV_TIMBRE, 0, 240, .3f + .6f * tone); break;
+    // ── ours: engines Mutable Dreams never had, for our own biomes ──
+    case M_TABLA:     // INSTR_MEMBRANE: harm = HEAD (0 tuned tabla → 1 djembe thud), tone = STRIKE
+                      // (centre thump → edge slap), shape = the bayan's pitch swoop, decay = ring (gate)
+        instrument(s, INSTR_MEMBRANE, 1, 0, 7, 250);
+        instrument_harmonics(s, harm); instrument_timbre(s, tone); instrument_morph(s, shape); break;
+    case M_SCRAPE:    // INSTR_SCRAPE: harm = BODY (gourd guiro → bone quijada → metal cabasa), tone =
+                      // TOOTH RATE, shape = GESTURE (steady scrape → bouncing rattle), decay = stroke length
+        instrument(s, INSTR_SCRAPE, 0, 0, 7, 30);
+        instrument_harmonics(s, harm); instrument_timbre(s, tone); instrument_morph(s, shape); break;
     default:          // BREATH: a pitched sine reed crossfaded (harm) with lowpassed air
         instrument(s, INSTR_SINE, A, D, 0, 120); instrument_level(s, 1 - harm);
         instrument(l, INSTR_NOISE, A, D, 0, 120);
@@ -646,6 +679,9 @@ static void fire(int i, int note, float vel, double t, int gate_ms) {
     const DaTrack *tr = &S.b.tr[i];
     int s = SL_TRACK + i, l = SL_LAYER + i, m = tr->model;
     int dur = gate_ms > 0 ? gate_ms : has_env(m) ? env_attack_ms(i) + env_decay_ms(i) : 2000;
+    float du = unit(tr->decay);
+    if (m == M_TABLA)  dur = (int)(55 * powf(1800.0f / 55, du));   // the tabla cart's RING: the hit IS the gate
+    if (m == M_SCRAPE) dur = (int)(40 * powf(20, du));             // 40 ms tick .. 800 ms long scrape
     // Breathe: a 7..20 s sine per track that drifts the cutoff; sampled at the note (their drift
     // is continuous, ours lands per note). Tides on ambient tracks add a second, slower sway.
     float ph = (float)fmod(t / (7.0 + i * 2.3) + i * .137, 1.0);
@@ -696,15 +732,15 @@ static double step_dur(unsigned st) { return 60.0 / (S.b.tempo * 4.0) * (1 + (st
 // rising roll out of a breakdown) and the hats let go before the one. Its rolls come from its OWN
 // rng, so the tracks' chance rolls stay exactly the factory sequencer's.
 static void jam_phrase(void) {
-    static const int build[6] = { 0, 1, 3, 2, 5, 4 };   // kick + hat, then bass, clap, keys, lead
-    static const int rest[4] = { 1, 2, 4, 5 };          // who may sit a phrase out
+    const JamCfg *j = &DA_OWN_JAM[S.jam - 1];
+    const int *build = j->build, *rest = j->rest;
     int p = S.jam_phrase++, was_break = S.jam_break;
     unsigned r = rword(&S.jam_rng);
     S.jam_break = 0;
     for (int i = 0; i < 6; i++) S.jam_out[i] = 0;
     if (p < 5) { for (int k = p + 2; k < 6; k++) S.jam_out[build[k]] = 1; return; }
     if (was_break) return;                               // the drop: everyone back at once
-    if (r % 100 < 18) { S.jam_break = 1; S.jam_out[0] = S.jam_out[2] = S.jam_out[3] = 1; return; }
+    if (r % 100 < 18) { S.jam_break = 1; for (int i = 0; i < 6; i++) S.jam_out[i] = (j->break_mask >> i) & 1; return; }
     if ((r >> 8) % 100 < 55) S.jam_out[rest[(r >> 16) % 4]] = 1;
 }
 
@@ -712,6 +748,7 @@ static void tick(double t) {
     double dur = step_dur(step);
     if (S.jam && step % 128 == 0) jam_phrase();
     int bar_step = step % 16, fill = S.jam && step % 128 >= 112 && S.jam_phrase > 3;
+    int fill_tr = S.jam ? DA_OWN_JAM[S.jam - 1].fill : -1, letgo_tr = S.jam ? DA_OWN_JAM[S.jam - 1].letgo : -1;
     if (step % 32 == 0) { if (S.b.locked) seqrng = seed; else seed = rword(&seqrng) | 1; }
     static const int degree[7] = { 0, 2, 3, 5, 7, 10, 12 };
     for (int i = 0; i < (S.kit ? 4 : 6); i++) {
@@ -740,7 +777,7 @@ static void tick(double t) {
             continue;
         }
         if (md_hit(local, hits, tr->length, tr->rotate) && roll % 1000 < (unsigned)tr->prob && !muted[i]
-            && !S.jam_out[i] && !(fill && i == 1 && bar_step >= 14)) {
+            && !S.jam_out[i] && !(fill && i == letgo_tr && bar_step >= 14)) {
             int note = tr->note;
             if (tr->model >= M_FM) {
                 if ((roll >> 10) % 1000 < (unsigned)S.b.macro[1]) note += degree[(roll >> 20) % 7];
@@ -752,9 +789,17 @@ static void tick(double t) {
             for (int r = 0; r < rat; r++) fire(i, note, vel, t + r * dur / rat, 0);
         }
     }
-    if (fill && !muted[2] && S.b.tr[2].model == M_SNARE) {   // the clap's fill
+    if (fill && fill_tr >= 0 && !muted[fill_tr]) {   // the phrase-end fill: a run-up, or a roll out of a breakdown
+        const DaTrack *ft = &S.b.tr[fill_tr];
+        int sp = ft->speed < 1 ? 1 : ft->speed;
+        int on_beat = step % sp == 0 && md_hit(step / sp, bound(ft->hits + (S.b.macro[0] - 500) * ft->length / 1500, 0, ft->length), ft->length, ft->rotate);
         float g = S.jam_break ? .25f + .6f * bar_step / 15 : bar_step == 13 ? .45f : bar_step == 14 ? .6f : bar_step == 15 ? .75f : 0;
-        if (g > 0 && (S.jam_break || bar_step != 12)) { snare_gain = g; fire(2, S.b.tr[2].note, .8f, t, 0); snare_gain = 1; }
+        if (g > 0 && (S.jam_break || !on_beat)) {     // never doubles a hit the track plays anyway
+            int note = ft->note;
+            if (ft->model >= M_FM) note = quantize(note + (S.jam_break ? bar_step / 4 * 2 : 0) + S.b.transpose, S.b.root, S.b.scale);
+            if (ft->model == M_SNARE) { snare_gain = g; fire(fill_tr, note, .8f, t, 0); snare_gain = 1; }
+            else fire(fill_tr, note, g, t, 0);
+        }
     }
     step_t[step & 63] = t; step_n[step & 63] = step;
     step++;

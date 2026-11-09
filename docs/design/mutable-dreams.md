@@ -129,6 +129,20 @@ takes kick, clap and bass out and the next phrase drops them all back. The last 
 fill: the clap runs up its last steps (a rising roll out of a breakdown), the hats let go before the one.
 Its rolls use its own rng, so the tracks' chance rolls are exactly the factory sequencer's.
 
+The second is **Lantern Bazaar**, hand percussion on two engines Mutable Dreams never had, added as
+models 16-17 for our biomes only: **TABLA** (`INSTR_MEMBRANE`: harm = head, tone = strike position,
+shape = the bayan's pitch swoop, decay = ring length 55 ms-1.8 s) and **SCRAPE** (`INSTR_SCRAPE`: harm
+= body gourd/bone/metal, tone = tooth rate, shape = steady scrape to bouncing rattle, decay = stroke
+length 40-800 ms). A low tabla 3 in 16 and a high one 7 in 16 (tuned, wandering with the jump macro),
+a guiro on the tresillo, a round bass, a Rings marimba 5 in 12, and a quijada rattling once every two
+bars. D dorian at 100, i-IV-i-v. Each of our biomes carries a `JamCfg`: the order its layers enter,
+who may rest, who a breakdown removes, which track plays the fill (here the high tabla) and which lets
+go before the one.
+
+LEVELS in our biomes come from measured solo stems (`DE_DEFINES=DA_ID=<id>,DA_SOLO=<n>`), not the
+factory fit: upstream's balance puts the quiet Plaits kick ~20 dB under a loud round bass, which a
+four-on-the-floor cannot take. Kick and bass now sit within a few dB of each other.
+
 ## Next
 
 1. Listen: the fit moves the BALANCE toward the original, but numbers are not the bar (the kick

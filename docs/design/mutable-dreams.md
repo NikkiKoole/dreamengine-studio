@@ -178,6 +178,18 @@ voicings (`JamCfg.gtr`; checked from the trace: Gm9 Bb-F-A, C9 E-Bb-D, Fmaj9 A-E
 the surdo (root and fifth with the kick), ii-V-I-vi in F at 128, two bars a chord. The cycles are
 the maracas, 10 in 12 against the bar, and a Velvet keys melody 3 in 10.
 
+The seventh, **Drift Garden**, composes itself (`JamCfg.evolve`, `evolve_step()`): it starts sparse
+in D major pentatonic (a drum 3 in 16, a shaker 5 in 12, Rings 3 in 7, a bass 2 in 9, Velvet keys 2 in
+11, a bell 1 in 13) and every 4 bars makes ONE mutation from its own rng: a hit more or less, a
+rotation, a cycle a step longer or shorter (5..16), a melody note a scale step or two (at most a fifth
+from home), a tone nudge, or a CANON (a track takes another's rhythm, a step behind). A quarter of the
+time it instead steps one changed value back toward HOME (`S.home`, the planted biome): the rubber
+band that lets it walk without dissolving. At least three tracks always sound. The screen shows the
+generation and the last move. A 10-minute render made 52 moves, e.g. the drum growing 3→6 hits, the
+bell going silent and returning, the bass echoing the drum, the rubber band pulling the bass home.
+Because a biome is 153 numbers, any generation is a ~500-character snapshot: the obvious next step is
+to show or save the current genome so a moment of the walk can be kept or shared.
+
 Mipo Band's triangle was a single pitch and got old; a lone BELL now wanders with the jump macro
 like a melody (a bell in a `pair`, Slow Brew's agogo, still keeps its two pitches). Note the cart
 clamps melodic notes to 24..96 (quantize), which had been pinning the triangle at 96.

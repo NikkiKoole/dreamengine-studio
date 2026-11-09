@@ -9,7 +9,7 @@
   "lineage": "A port of the BIOME atlas from Mutable Dreams 1.4 (Kid Bunka / Christoph Link, free firmware for the M-VAVE FM-1, itself built on Mutable Instruments' Plaits/Rings/Elements). The 157 scenes are the upstream's own factory data (MIT), generated into runtime/dreamatlas/biomes.h; the sequencer (Euclid hits/length/rotate per track, seeded rolls, chord journeys, scale masks, the Lo-Fi kit) is ported line by line from app/dsp/dreams.cpp. The fifteen VOICES are NOT ported: each is mapped onto the nearest engine dreamengine already ships, which is the experiment.",
   "homage": "Mutable Dreams (Kid Bunka) / Mutable Instruments",
   "description": {
-    "summary": "157 small generative worlds from Mutable Dreams, plus a few of our own (a house jam, a tabla-and-guiro bazaar, Moon Meadow with tablas, a slow organ-and-upright brew, the Puppetmaker band, a CR-78 bossa): six drifting Euclidean tracks, chord journeys and a Lo-Fi kit, played on dreamengine's own voices.",
+    "summary": "157 small generative worlds from Mutable Dreams, plus a few of our own (a house jam, a tabla-and-guiro bazaar, Moon Meadow with tablas, a slow organ-and-upright brew, the Puppetmaker band, a CR-78 bossa, and one that evolves by itself): six drifting Euclidean tracks, chord journeys and a Lo-Fi kit, played on dreamengine's own voices.",
     "detail": "Each BIOME is one scene: six tracks, each a voice (Plaits-style drums, FM, analog, Rings and Elements resonators, a sine choir, a round bass...) with its OWN rhythm, k hits spread over n steps. The lengths differ (16, 19, 13...), so the tracks slide against each other and the loop takes minutes to come round. Some biomes walk a chord progression under it, some swap three tracks for a crunchy 16 kHz Lo-Fi drum kit. Browse in the curated order: neighbours are meant to feel genuinely different. The scenes are the original's factory data; the sounds are this engine's nearest voices, so it is a translation, not a copy.",
     "controls": "LEFT/RIGHT or the arrows: next / previous biome · SPACE or PLAY: start / stop · 1-6: mute a track · tap a track row to mute it"
   },
@@ -24,6 +24,7 @@ de:meta */
 #include "ui.h"
 #include <math.h>
 #include <string.h>
+#include <stdlib.h>
 #include "dreamatlas/biomes.h"
 
 // DREAM ATLAS — the biome browser from Mutable Dreams 1.4, on dreamengine voices.
@@ -98,6 +99,7 @@ typedef struct {
     int seq_on[6], seq_len[6]; Step seq[6][16];
     int kit, kit_bank; unsigned kit_gates[8];
     int jam, jam_phrase, jam_break, jam_out[6]; unsigned jam_rng;   // our own biomes' live arranger (jam = JamCfg index + 1)
+    DaTrack home[6]; int gen; char change[48];   // an EVOLVING biome: where it started, its generation, its last move
 } Scene;
 static Scene S;
 // ── our own biomes, after the 157 factory ones (ids DA_BIOMES..): same format, same sequencer ──
@@ -145,7 +147,14 @@ static Scene S;
 // upright playing the surdo, root and fifth with the kick. ii-V-I-vi in F, two bars a chord. The
 // cycles: the maracas shake 10 in 12 against the bar and Velvet keys float a melody 3 in 10.
 _Static_assert(M_CRKICK == 23 && M_NYLON == 26, "the CR-78 Bossa row names its models by number");
-#define DA_OWN 6
+// DRIFT GARDEN composes itself: it starts sparse (a low drum 3 in 16, a shaker 5 in 12, a Rings
+// pluck 3 in 7, a bass 2 in 9, Velvet keys 2 in 11, a bell 1 in 13; D major pentatonic, where any
+// note sits fine against any other) and every 4 bars makes ONE small mutation (evolve_step): a hit
+// more or less, a rotation, a cycle a step longer or shorter, a melody note a scale step or two, a
+// tone nudge, or one track taking another's rhythm a step behind (a canon). A quarter of the time
+// it moves one changed value back toward HOME instead (a rubber band, so it walks somewhere without
+// dissolving), at least three tracks always sound, and no note strays past a fifth from home.
+#define DA_OWN 7
 #define DA_ALL (DA_BIOMES + DA_OWN)
 static const DaBiome DA_OWN_BIOME[DA_OWN] = {
  {"Marmalade Jam",8,125,7,2,125125,0,0,650,200,100,0,120,0,0,0,380,300,{500,260,520,60},{
@@ -190,6 +199,13 @@ static const DaBiome DA_OWN_BIOME[DA_OWN] = {
   /* bass    (upright)   */ {17,300,300,400,400,0,0,16,0,950,41,480,0,1,0,1,0,450,850,100,0,0},
   /* nylon   (bossa)     */ {26,150,400,350,550,200,0,16,0,900,53,560,0,1,0,1,0,450,850,100,0,0},
   /* keys    (Velvet)    */ {12,400,250,500,50,250,3,10,0,800,72,380,0,2,0,1,200,350,800,100,0,150}}},
+ {"Drift Garden",7,84,2,5,51515,0,0,650,200,100,0,120,0,0,-1,0,300,{500,250,500,120},{
+  /* drum    */ {15,250,300,500,900,0,3,16,0,950,38,480,0,1,0,1,200,300,850,100,0,0},
+  /* shaker  */ {25,0,0,0,140,40,5,12,0,850,90,620,0,1,0,1,300,0,850,100,0,0},
+  /* rings   */ {5,550,200,400,450,260,3,7,0,900,69,640,0,1,0,1,200,150,850,100,0,120},
+  /* bass    */ {8,300,400,250,90,0,2,9,0,900,38,500,0,1,0,1,200,500,700,200,1,0},
+  /* keys    */ {12,400,250,500,60,250,2,11,0,850,62,380,0,1,0,1,200,350,800,100,0,150},
+  /* bell    */ {20,600,600,300,630,300,1,13,0,900,81,560,0,1,0,1,150,300,850,100,0,0}}},
 };
 // how each of our biomes JAMS (Playtime's drum jam): the order its layers enter, who may rest a
 // phrase, who a breakdown takes out, which track plays the phrase-end fill, which lets go before the one
@@ -202,6 +218,7 @@ typedef struct { int chord_pattern, chord_tracks, build[6], rest[4], break_mask,
                                             // '.' rest, 'x' a hit, 'X' accented, '5' a hit a fifth up; each step
                                             // still rolls the track's chance, as a factory phrase does
                  signed char gtr[3];        // the guitar's chord, scale degrees over the root (0,0,0 = 2 4 7)
+                 int evolve;                // 1 = no layer arranger: the biome MUTATES itself every 4 bars
                } JamCfg;
 static const JamCfg DA_OWN_JAM[DA_OWN] = {
     { 2, 0x38, {0, 1, 3, 2, 5, 4}, {1, 2, 4, 5}, 1 << 0 | 1 << 2 | 1 << 3, 2, 1,     // Marmalade: I-vi-IV-V
@@ -218,6 +235,8 @@ static const JamCfg DA_OWN_JAM[DA_OWN] = {
       { "KICK", "RIM", "MARACAS", "BASS", "NYLON", "KEYS" }, { 1, 4, 0, 5 }, 4, 2, {0},
       { "X.....x.X.....x.", "x..x..x...x..x..", 0, "x.....5.x.....5.", "x..x..x...x..x..", 0 },   // the CR-78 preset
       { 2, 6, 8 } },                                                                           // 3 7 9, rootless
+    { 0, 0,    {0, 1, 2, 3, 4, 5}, {0}, 0, -1, -1,                                     // Drift Garden: it evolves
+      { "DRUM", "SHAKER", "RINGS", "BASS", "KEYS", "BELL" }, {0}, 0, 0, {0}, {0}, {0}, 1 },
 };
 static const DaBiome *biome_row(int id) { return id < DA_BIOMES ? &DA_BIOME[id] : &DA_OWN_BIOME[id - DA_BIOMES]; }
 static int browse_id(int k) { return k < DA_BIOMES ? DA_BROWSE[k] : k; }   // ours come last, in order
@@ -409,6 +428,7 @@ static void scene(int id) {
         const JamCfg *j = &DA_OWN_JAM[id - DA_BIOMES];
         S.chord_pattern = j->chord_pattern; S.chord_bars = 2; S.chord_tracks = j->chord_tracks;
         S.jam = id - DA_BIOMES + 1; S.jam_rng = (unsigned)S.b.seed * 2654435761u | 1;
+        memcpy(S.home, S.b.tr, sizeof S.home); S.gen = 0; S.change[0] = 0;
         for (int i = 0; i < 6; i++) if (j->pat[i]) {    // a fixed pattern rides the phrase sequencer
             int n = (int)strlen(j->pat[i]); if (n > 16) n = 16;
             S.seq_on[i] = 1; S.seq_len[i] = n;
@@ -934,10 +954,66 @@ static void jam_phrase(void) {
     if ((r >> 8) % 100 < 55) S.jam_out[rest[(r >> 16) % 4]] = 1;
 }
 
+// ── an EVOLVING biome: one small mutation every 4 bars ──────────────────────────────────────────
+static int pitched(int m) { return m != M_KICK && m != M_SNARE && m != M_HAT && m != M_SCRAPE && m != M_TAMB && m < M_CRKICK; }
+static int scale_step(int note, int k) {          // move a note k steps along the scale (k < 0 = down)
+    for (int n = 0; n < (k < 0 ? -k : k); n++) {
+        note += k < 0 ? -1 : 1;
+        while (quantize(note, S.b.root, S.b.scale) != note) note += k < 0 ? -1 : 1;
+    }
+    return note;
+}
+static void config_track(int i);
+static void evolve_step(void) {
+    const char *name[6]; for (int k = 0; k < 6; k++) name[k] = DA_OWN_JAM[S.jam - 1].names[k];
+    unsigned r = rword(&S.jam_rng), r2 = rword(&S.jam_rng);
+    int i = r % 6, up = (r >> 4) & 1, op = (r >> 8) % 100;
+    DaTrack *t = &S.b.tr[i]; const DaTrack *h = &S.home[i];
+    int sounding = 0; for (int k = 0; k < 6; k++) sounding += S.b.tr[k].hits > 0;
+    S.gen++;
+    if (op < 25) {                                   // the rubber band: one changed value steps back home
+        for (int n = 0; n < 6; n++) {
+            int k = (i + n) % 6; DaTrack *u = &S.b.tr[k]; const DaTrack *hk = &S.home[k];
+            if (u->hits != hk->hits)     { u->hits += u->hits < hk->hits ? 1 : -1; snprintf(S.change, sizeof S.change, "%s back toward %d hits", name[k], hk->hits); return; }
+            if (u->length != hk->length) { u->length += u->length < hk->length ? 1 : -1; if (u->hits > u->length) u->hits = u->length; snprintf(S.change, sizeof S.change, "%s back toward %d steps", name[k], hk->length); return; }
+            if (u->note != hk->note)     { u->note = scale_step(u->note, u->note < hk->note ? 1 : -1); snprintf(S.change, sizeof S.change, "%s steps back home", name[k]); return; }
+            if (u->rotate != hk->rotate) { u->rotate = hk->rotate; snprintf(S.change, sizeof S.change, "%s back in place", name[k]); return; }
+            if (u->tone != hk->tone)     { u->tone += u->tone < hk->tone ? 50 : -50; if (abs(u->tone - hk->tone) < 50) u->tone = hk->tone; config_track(k); snprintf(S.change, sizeof S.change, "%s colour settles", name[k]); return; }
+        }
+        op = 25 + (r2 % 75);                         // nothing to relax: mutate after all
+    }
+    if (op >= 88 && op < 94 && t->model >= M_CRKICK) op = 0;   // the CR-78 voices have no tone knob: a hit instead
+    if (op < 50) {                                   // a hit more, or one less (never below three tracks sounding)
+        if (!up && t->hits <= 1 && sounding <= 3) up = 1;
+        if (up && t->hits < t->length - 1) t->hits++; else if (t->hits > 0) t->hits--; else t->hits++;
+        snprintf(S.change, sizeof S.change, "%s now %d in %d", name[i], t->hits, t->length);
+    } else if (op < 64) {                            // the pattern turns
+        t->rotate = (t->rotate + 1 + r2 % 3) % (t->length ? t->length : 1);
+        snprintf(S.change, sizeof S.change, "%s shifts its pattern", name[i]);
+    } else if (op < 76) {                            // the cycle grows or shrinks (5..16 steps)
+        t->length = bound(t->length + (up ? 1 : -1), 5, 16);
+        if (t->hits > t->length - 1) t->hits = t->length - 1;
+        snprintf(S.change, sizeof S.change, "%s cycle now %d steps", name[i], t->length);
+    } else if (op < 88 && pitched(t->model)) {       // a melody note moves, at most a fifth from home
+        int n = scale_step(t->note, (up ? 1 : -1) * (1 + (int)(r2 % 2)));
+        if (abs(n - h->note) <= 7) t->note = n;
+        snprintf(S.change, sizeof S.change, "%s note moves %s", name[i], up ? "up" : "down");
+    } else if (op < 94) {                            // a tone nudge
+        t->tone = bound(t->tone + (up ? 80 : -80), 50, 950); config_track(i);
+        snprintf(S.change, sizeof S.change, "%s turns %s", name[i], up ? "brighter" : "darker");
+    } else {                                         // a canon: take another track's rhythm, a step behind
+        int j = (i + 1 + (int)(r2 % 5)) % 6; const DaTrack *o = &S.b.tr[j];
+        if (o->hits > 0) { t->hits = o->hits; t->length = o->length; t->rotate = (o->rotate + o->length - 1) % o->length; }
+        snprintf(S.change, sizeof S.change, "%s echoes %s", name[i], name[j]);
+    }
+}
+
 static void tick(double t) {
     double dur = step_dur(step);
-    if (S.jam && step % 128 == 0) jam_phrase();
-    int bar_step = step % 16, fill = S.jam && step % 128 >= 112 && S.jam_phrase > 3;
+    int evolving = S.jam && DA_OWN_JAM[S.jam - 1].evolve;
+    if (evolving) { if (step && step % 64 == 0) evolve_step(); }
+    else if (S.jam && step % 128 == 0) jam_phrase();
+    int bar_step = step % 16, fill = S.jam && !evolving && step % 128 >= 112 && S.jam_phrase > 3;
     int fill_tr = S.jam ? DA_OWN_JAM[S.jam - 1].fill : -1, letgo_tr = S.jam ? DA_OWN_JAM[S.jam - 1].letgo : -1;
     if (step % 32 == 0) { if (S.b.locked) seqrng = seed; else seed = rword(&seqrng) | 1; }
     static const int degree[7] = { 0, 2, 3, 5, 7, 10, 12 };
@@ -1021,6 +1097,7 @@ void update(void) {
     watch("biome", "%d", cur);
     watch("step", "%u", step);
     watch("kit", "%d %d %d", S.kit, kit_hits, muted[3]);
+    watch("gen", "%d %s", S.gen, S.change);
     watch("jam", "%d %d %d%d%d%d%d%d", S.jam_phrase, S.jam_break, S.jam_out[0], S.jam_out[1], S.jam_out[2], S.jam_out[3], S.jam_out[4], S.jam_out[5]);
 #endif
 }
@@ -1057,7 +1134,9 @@ void draw(void) {
     print(fam, 7, 30, CLR_BROWNISH_BLACK);
     print(str("%d BPM  %s %s%s", S.b.tempo, NOTE_NAME[bound(S.b.root, 0, 11)], SCALE_NAME[bound(S.b.scale, 0, 12)],
               S.chord_pattern ? "  chords" : ""), (int)strlen(fam) * 4 + 14, 30, CLR_LIGHT_GREY);
-    if (S.jam) print_right(str("phrase %d%s", S.jam_phrase, S.jam_break ? "  breakdown" : ""), 316, 30, fc);
+    if (S.jam && DA_OWN_JAM[S.jam - 1].evolve)
+        print_right(S.gen ? str("gen %d  %s", S.gen, S.change) : "gen 0  as planted", 316, 30, fc);
+    else if (S.jam) print_right(str("phrase %d%s", S.jam_phrase, S.jam_break ? "  breakdown" : ""), 316, 30, fc);
 
     int cur_step = sounding_step();
     ui_begin();

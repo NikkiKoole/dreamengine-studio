@@ -5643,7 +5643,7 @@ static const float PIANO_BODYB[6]  = { 0.50f, 0.65f, 0.70f, 0.60f, 0.35f, 0.50f 
 static const float PIANO_HFLOSS[6] = { PN_HFLOSS_GRAND, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f };
 
 // FELT HAMMER (2026-11-09, step 2 of matching the Steinway). A real hammer does not hit the string with
-// noise: the felt stays in contact for a few ms and pushes it with one smooth pulse, longer in the bass
+// noise: the felt stays in contact for a few ms and pushes it with one lopsided pulse, longer in the bass
 // (~4 ms) than the treble (<1 ms), shorter when struck harder. That pulse length IS the tone: it sets
 // how many partials get energy, scaled to the note. The old excitation (white noise, lowpassed at the
 // SAME cutoff on every key) put near-equal energy into every partial, which measured as half the energy
@@ -5652,8 +5652,25 @@ static const float PIANO_HFLOSS[6] = { PN_HFLOSS_GRAND, 0.0f, 0.0f, 0.0f, 0.0f, 
 // keyboard. 0 = the noise burst, bit-exact, which every voicing but the grand keeps.
 // Override for a sweep: DE_DEFINES=PN_FELT_GRAND=<ms>.
 #ifndef PN_FELT_GRAND
-#define PN_FELT_GRAND 2.0f
+#define PN_FELT_GRAND 1.0f
 #endif
+#ifndef PN_FELT_SLOPE             // contact time scales 2^(-SLOPE * octaves from C4)
+#define PN_FELT_SLOPE 0.4f
+#endif
+
+// ONSET RAMP (2026-11-09). The Steinway's first 2.5 ms sit 18-25 dB under the peak and the sound BUILDS
+// for ~3-10 ms (the felt compressing, the soundboard getting going); a waveguide preloaded with its
+// excitation starts at full level on sample one, which the owner heard as a "thump" to kick each note
+// off. A raised-cosine fade-in on the string's output AND the knock, as a multiple of the hammer's contact
+// time, so longer in the bass (5x: ~9 ms at C2, ~5 ms at C4). The knock rides it too: unramped, it
+// cracked at full level before the string had built, and was most of the thump. Ramped, the KNOCK knob
+// still works. Fit on the first 30 ms of the Steinway (C3 now -17/-7 dB vs its -19/-7 in 2.5 ms steps).
+// 0 = off (every voicing but the grand).
+// Override for a sweep: DE_DEFINES=PN_ONSET_GRAND=<x contact time>.
+#ifndef PN_ONSET_GRAND
+#define PN_ONSET_GRAND 5.0f
+#endif
+static const float PIANO_ONSET[6] = { PN_ONSET_GRAND, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f };
 static const float PIANO_FELT[6] = { PN_FELT_GRAND, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f };
 
 // DECAY FLOOR (2026-11-09, step 3, forced by the felt hammer). The loop loses a FIXED amount per period
@@ -5900,18 +5917,25 @@ static void sound_piano_start(Voice *v) {
     // (bank-default 0.5 → 1.0×; cart knob 0..1 → 0..2× via idx 3); VELOCITY scales it (soft press barely
     // thumps, hard strike cracks).
     v->pn_knock = pv->knock * (v->eng_p[3] * 2.0f) * (0.25f + 0.85f * vel);
+    float pn_tc_ms = 0.0f;                             // the hammer's contact time (felt only): sizes the ONSET RAMP
     if (PIANO_FELT[vi] > 0.0f) {
-        // FELT HAMMER: one raised-cosine push of the contact time, wrapped round the one-period line (in
+        // FELT HAMMER: one push of the contact time, wrapped round the one-period line (in
         // the treble the contact outlasts a period). `hard` (timbre + velocity, above) shortens it.
         float soct = de_log2f(freq / 261.63f);
-        float tc = PIANO_FELT[vi] * de_powf(2.0f, -0.4f * soct) * (1.6f - 1.2f * hard);
+        float tc = PIANO_FELT[vi] * de_powf(2.0f, -PN_FELT_SLOPE * soct) * (1.6f - 1.2f * hard);
+        pn_tc_ms = tc;
         float W = tc * 0.001f * (float)SOUND_SAMPLE_RATE;
         if (W < 2.0f) W = 2.0f;
         for (int i = 0; i < len; i++) v->ks_buf[i] = 0.0f;
-        int wn = (int)W;
+        // LOPSIDED push t*e^(-t/tau): builds fast, lets go slower, like compressed felt. Its spectrum
+        // falls a smooth 12 dB/oct with NO nulls. (A raised cosine was tried first: its nulls landed on
+        // whole partials, C4's h4 sat 28 dB down at the onset against the Steinway's 10, and the owner
+        // heard the dull onset as "farty, missing the bell".) tau = contact/4; 10 tau of tail.
+        float tau = 0.25f * W;
+        int wn = (int)(10.0f * tau);
         for (int j = 0; j <= wn; j++) {
-            float x = (float)j / W;                              // 0..1 across the contact
-            v->ks_buf[j % len] += 0.5f - 0.5f * de_cosf(6.28318531f * x);
+            float t = (float)j / tau;
+            v->ks_buf[j % len] += t * de_expf(-t);
         }
     } else {
         float cut = 0.05f + 0.85f * hard, lp = 0.0f;
@@ -5956,6 +5980,8 @@ static void sound_piano_start(Voice *v) {
     v->pn_symp    = pv->symp;
     v->pn_detune  = pv->detune;
     v->pn_dc_prev = v->pn_dc_state = 0.0f;
+    v->pn_on_n = 0;
+    v->pn_on_len = (int)(PIANO_ONSET[vi] * pn_tc_ms * 0.001f * (float)SOUND_SAMPLE_RATE);
     if (pv->detune > 1.00001f) {                       // 2nd string: own detuned length + allpass
         float ideal2 = (float)SOUND_SAMPLE_RATE / (freq * pv->detune) - pn_comp
                      + pn_blend_advance(freq * pv->detune, ksb_set)             // SAME compensation (+ §I4d)
@@ -6060,6 +6086,12 @@ static inline float sound_piano_sample(Voice *v, float pitch_mul) {
     float dc = out - v->pn_dc_prev + 0.995f * v->pn_dc_state;        // gentle DC safety
     v->pn_dc_prev  = out;
     v->pn_dc_state = dc;
+    float onr = 1.0f;                                                // ONSET RAMP (PIANO_ONSET): the sound BUILDS
+    if (v->pn_on_n < v->pn_on_len) {
+        onr = 0.5f - 0.5f * de_cosf(3.14159265f * (float)v->pn_on_n / (float)v->pn_on_len);
+        dc *= onr;
+        v->pn_on_n++;
+    }
     // optional fundamental weight + attack (instrument_mode; default 0 = off, so this A/Bs against navkit)
     float aenv = fabsf(out);
     v->eng_env = aenv > v->eng_env ? aenv : v->eng_env * 0.9997f;
@@ -6070,7 +6102,8 @@ static inline float sound_piano_sample(Voice *v, float pitch_mul) {
     if (v->eng_click > 0) {
         float n = voice_white(v);
         float ce = (float)v->eng_click / 700.0f;
-        res += (v->eng_p[1] * 1.3f + v->pn_knock) * n * ce * ce;     // cart-tunable pick noise + the default HAMMER KNOCK
+        res += (v->eng_p[1] * 1.3f + v->pn_knock) * n * ce * ce * onr;   // cart-tunable pick noise + the default HAMMER KNOCK
+                                                                     // (under the ONSET RAMP too, or it cracks before the string builds)
         v->eng_click--;
     }
     return res;

@@ -250,8 +250,10 @@ a big pitch swoop) 2 in 11, tree frogs (scrape, rattling) 3 in 7, crickets 5 in 
 2 in 13, none of them lining up; under them an upright walking slowly and the Rhodes in quartal
 voicings. C major heard as two modes, four bars on F (lydian: F B E A, the raised fourth) and four on D
 (dorian: D G C F), checked from the trace, with the jump macro planing the shape onto other degrees.
-The crickets are a tiny high bell RATCHETED 4 times a step (a chirp's pulses), trilling a whole tone
-(`pair`): the scrape engine pitched that high came out ~40 dB down. Night falls as it builds; a
+The crickets are the CR-78 maracas' narrow noise band RATCHETED 3 times a step (a chirp's pulses),
+3 in 13, quiet and wet so they sit far off. Two tries before it: the scrape pitched that high came out
+~40 dB down, and a tiny high bell ratcheted and trilling was "super annoying" (a tonal beep repeating
+all night wears thin; real crickets at a distance are soft and barely pitched). Night falls as it builds; a
 breakdown stops the band and leaves the pond.
 
 Mipo Band's triangle was a single pitch and got old; a lone BELL now wanders with the jump macro

@@ -158,6 +158,25 @@ Dbmaj9, checked from the trace) every three beats, the guitar strums on a 10-eig
 plays 5 in 12. Its jam builds like brew's intro (drums, bells, then the band) and its breakdown is
 brew's break: drums and bells alone. `JamCfg.names[]` relabels the tracks (the drumhead reads KICK).
 
+The fifth, **Mipo Band**, is Puppetmaker 2's band (playtime `docs/PUPPETMAKER-SOUND.md` §1a, its
+`puppetmaker` style and patches): 60 BPM in 16ths, swing 52, chromatic, nothing resolves. Three more
+models: **TAMB** (noise high-passed at 6.5 kHz), **RHODES** (the `rhodes` EPIANO patch, playing
+babirhodes' rhodes2 as measured: ONE rolled six-note chord, root + 0 7 16 19 21 24, up-strummed +29
++23 +23 +76 +40 ms, ringing 3 s, at a wandering root) and **VOICE** (the singing: mostly the Mipos'
+"pi" and "po", now and then babirhodes' "ba" or "bi", at Puppetmaker's own sample lengths). The
+conga and the two bongos (one track, alternating low/high via `JamCfg.pair[]`) are the conga patch on
+the drumhead, the guiro is the scrape. The triangles and the "biep" bends have no track left.
+
+⚠ **An engine bug the singing works around** (not fixed here: `sound.h` is shared, and the fix changes
+every voice cart): at note-on, `sound.h` runs `vox_apply_macros()` and THEN `sound_voice_start()`,
+which resets the voice to a neutral "ah". So an `INSTR_VOICE` note started by `schedule_note_at` (or
+`hit`/`note`) ignores its slot's harmonics/timbre/morph AND its NoteOpts offsets, and its shapes never
+reach the vowel either; and a booked note cannot take `voice_consonant`. The cart therefore queues
+each syllable and starts it LIVE from `update()` (`sing_due()`), then sets vowel, size, effort and
+consonant through `note_harmonics/_timbre/_morph` + `voice_consonant` (measured: "pi" ~830 Hz centroid,
+"po" ~450 Hz, against ~630 Hz for every note before). Fixing it = calling `vox_apply_macros(v)` at
+the end of `sound_voice_start()`.
+
 LEVELS in our biomes come from measured solo stems (`DE_DEFINES=DA_ID=<id>,DA_SOLO=<n>`), not the
 factory fit: upstream's balance puts the quiet Plaits kick ~20 dB under a loud round bass, which a
 four-on-the-floor cannot take. Kick and bass now sit within a few dB of each other.

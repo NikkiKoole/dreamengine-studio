@@ -1212,8 +1212,8 @@ Detail lives in the linked design doc in every case; that is where it was always
   sympathetic resonator by far over our synth piano (`openstrings`, P/R). Left to do, in order: (1) BAKE
   the 13 notes from `assets/samples/steinway/` into carts so web/app builds play them (today they are read
   from disk at runtime: editor + play.js only), shrunk the Flyfish way (per-register length 3.1 s → 0.7 s,
-  22 kHz, maybe ADPCM: 3.5 MB → ~0.25-1 MB); (2) a real MULTISAMPLE instrument (one slot, zones by key)
-  instead of a slot per zone; (3) VELOCITY layers from Princeton's original 16 (soft = darker, not just
+  22 kHz, maybe ADPCM: 3.5 MB → ~0.25-1 MB); ~~(2) a real MULTISAMPLE instrument (one slot, zones by key)
+  instead of a slot per zone~~ (made unnecessary by the hybrid: one piano slot holds every zone); (3) VELOCITY layers from Princeton's original 16 (soft = darker, not just
   quieter; mind CC BY credit); (4) `pianohand`'s hand-built halo → the resonator; (5) THE ALTERNATIVE ROUTE: a measuring pass
   to bring INSTR_PIANO closer to these notes (oneshot-compare / inharm-spec / patch-match, the samples as
   reference), and if tuning cannot close the gap, a second piano engine (e.g. commuted synthesis: the
@@ -1222,8 +1222,9 @@ Detail lives in the linked design doc in every case; that is where it was always
   knock off; tail good by ear, onset not yet); probe `pianoref` (S = A/B). (1) + the HYBRID DONE 2026-11-09: `runtime/steinway.h`
   (generated, `tools/gen-steinway.js`) bakes all 13 notes in as 4-bit ADPCM (896 KB, 35-49 dB SNR; trimming was not possible,
   the bass is still only ~20 dB under its peak at 3.1 s), and `instrument_piano_attack` fades each recording into the model at
-  2.6 s ("sounds great"; a 70-300 ms splice was plainly audible). `openstrings` plays it by default (P = model alone). Left:
-  (3) velocity layers. Design + measurements:
+  2.6 s ("sounds great"; a 70-300 ms splice was plainly audible). `openstrings` plays it by default (P = model alone); `grandkeys` plays it from a keybed with sustain + SOFT
+  pedals and a PLEYEL voicing (filter + fade, no new samples). Left: (3) velocity layers (needs the full library
+  download + engine work: 16 sample slots, and zones have no velocity axis). Design + measurements:
   [sympathetic-resonator.md](design/sympathetic-resonator.md).
 - **TWO GATES ARE RED on master, from before 2026-11-03** (found 2026-11-03). `refactor-guard` flags
   `acidcandy` because its baseline predates the commits since (re-bless on a settled tree after checking the

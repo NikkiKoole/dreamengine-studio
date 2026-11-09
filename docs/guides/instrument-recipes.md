@@ -504,6 +504,7 @@ voicing/stiffness / hammer-softness / pedal-sustain.
 > HYBRID below.
 
 | piano/steinway hybrid | openstrings.c, pianoref.c | as piano/steinway + `#include "steinway.h"` → `steinway_attach(slot, 0)` | A REAL Steinway D per note (13 recordings baked in, ~0.9 MB ADPCM, CC BY 4.0: show `STEINWAY_CREDIT`), fading into the modelled string at 2.6 s so held notes ring on past the 3.2 s recording. By ear: "sounds great". |
+| piano/pleyel + soft pedal | grandkeys.c | the steinway hybrid + per NOTE: `instrument_filter(slot, FILTER_LOW, …)` then `note_cutoff` / `note_filter(h, FILTER_OFF)` + `note_vol` | No new samples. PLEYEL (after the 1840s piano Chopin played; Flyfish's idea, our numbers): a low-pass at 7x the fundamental (900-5000 Hz), 6 dB/s extra fade ridden with `note_vol`, 0.85 touch. SOFT PEDAL (una corda), applied at the strike: x0.65 volume and a low-pass at 9x the fundamental (1200-6000 Hz). ⚠ A note needing no darkening must play with its filter OFF: an "open" 18 kHz low-pass took 2.4 dB off the Steinway's top. |
 
 > **The hybrid** (`instrument_piano_attack(slot, sample_slot, root_midi, splice_ms, xfade_ms)`, wrapped by
 > `steinway.h`): the recording plays from the strike, the model runs silently beside it, and at the splice

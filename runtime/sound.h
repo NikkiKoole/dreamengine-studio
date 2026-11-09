@@ -5917,6 +5917,14 @@ static void sound_piano_start(Voice *v) {
     // (bank-default 0.5 → 1.0×; cart knob 0..1 → 0..2× via idx 3); VELOCITY scales it (soft press barely
     // thumps, hard strike cracks).
     v->pn_knock = pv->knock * (v->eng_p[3] * 2.0f) * (0.25f + 0.85f * vel);
+    // FELT voicings: the knock is OFF at the knob's centre and the upper half brings it back (1.0 = the old
+    // centre's amount). Measured: its white burst put energy above 8 kHz into the first 20 ms 35-50 dB over
+    // the Steinway (C2: -12 vs -64 dB), the "click" the owner kept hearing; with it off the string's own
+    // onset matches the recording band for band. Remapped, not zeroed, so a KNOCK slider stays live.
+    if (PIANO_FELT[vi] > 0.0f) {
+        float kk = v->eng_p[3] * 2.0f - 1.0f;
+        v->pn_knock = (kk > 0.0f) ? pv->knock * kk * (0.25f + 0.85f * vel) : 0.0f;
+    }
     float pn_tc_ms = 0.0f;                             // the hammer's contact time (felt only): sizes the ONSET RAMP
     if (PIANO_FELT[vi] > 0.0f) {
         // FELT HAMMER: one push of the contact time, wrapped round the one-period line (in

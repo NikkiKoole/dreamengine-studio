@@ -694,6 +694,13 @@ void reverb_spring(float amount);                                 // give the re
 void reverb_spring_tone(float x);                                 // the spring's "boing" CHARACTER — the dispersion amount. 0 = looser/duller, 1 = tighter/twangier/more metallic. Ride it live. Default ~0.6
 void reverb_plate(float amount);                                  // give the reverb a PLATE voice: a sheet of steel, so the tail is DENSE, bright, has no sub and no room echoes at all — and it comes back WIDE, because a plate has two pickups in different places. The lush studio reverb. amount 0 = clean digital reverb (default), 1 = full plate. Affects every reverb tank (reverb()/reverb_bus()/reverb_insert())
 void reverb_plate_width(float x);                                 // how far apart the plate's two pickups sit — 0 = both in the middle (mono), 1 = fully spread. Ride it live. Default 0.55. Only does anything while reverb_plate() is up
+// SYMPATHETIC RESONATOR — a bank of up to 8 tuned STRINGS on a send. Slots that send into it make
+// the strings ring at the notes you tune them to: the open strings of a pedalled piano, a sitar's
+// drones, a harp's undamped neighbours. One shared bank, so the ring costs no voices — short notes
+// plus a resonator tuned to the harmony sound like a held pedal. Retune on each chord change.
+void resonator(float amount, float decay, float bright);   // the resonator's level 0..1 (0 = silent), ring time 0..1 (0.3 s → ~10 s at A3; high strings ring shorter), brightness 0..1 (dull felt → bright wire)
+void resonator_tune(const int *notes, int n);              // tune the strings to up to 8 MIDI notes (the rest go off). A string kept on the same note rings on; a changed one is damped (~25 ms) then retuned — a pedal change. resonator_tune(0, 0) = all off
+void instrument_resonator(int slot, float send);           // how much this slot excites the resonator 0..1 (0 = not at all, default)
 
 // chorus — THE master chorus (there is exactly one), applied to the whole mix: a BBD/Juno-style
 // modulated delay that thickens + widens everything into a lush shimmer. Master-wide (not per-slot).

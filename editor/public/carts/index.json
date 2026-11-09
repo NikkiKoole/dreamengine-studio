@@ -5256,6 +5256,21 @@
     ]
   },
   {
+    "title": "openstrings",
+    "description": "A rolling piano arpeggio of SHORT, dry notes, and a bank of eight open strings tuned to each chord that rings under it like a held sustain pedal. R switches the strings off and on, so you hear what they do. Every piano note here is cut short (the damper falls after 180 ms), so on its own it sounds like a dry, plinky piano. The pedal comes from the resonator: eight delay-loop strings, retuned at each chord change to the bass, its fifth and the chord tones over three octaves. The piano's sound excites them, and they ring on at those notes. Strings that keep their note across a change ring on; the rest are damped for 25 ms and retuned, like a pedal change. The strings on screen show which notes are tuned and ring with the chord. R strings on/off · UP/DOWN ring time · LEFT/RIGHT brightness · SPACE stop/play",
+    "file": "openstrings.cart.png",
+    "created": "2026-11-09",
+    "kind": [
+      "instrument",
+      "tech-demo"
+    ],
+    "teaches": [
+      "waveguide-synth",
+      "chord-voicing"
+    ],
+    "lineage": "The first cart on resonator(): a SYMPATHETIC RESONATOR, a bank of tuned strings on a send. The idea comes from Flyfish/Tuna on the M-VAVE FM-1 (GPL-3.0; the idea only, no code), where 8 voices cannot hold a pedalled arpeggio, so each note is short and a resonator tuned to the harmony makes the pedal. docs/design/sympathetic-resonator.md"
+  },
+  {
     "title": "operation wolf",
     "description": "An on-rails light-gun shooter, mouse to the core. The world scrolls past on a rail — one tile map() recolored per stage with pal() (jungle, enemy camp, airfield) — while soldiers rise from the treeline, telegraph with a raised rifle, then loose bullets and lobbed grenades that come AT the screen; shoot them out of the air. LEFT mouse is the magazine machine gun, RIGHT is the scarce rocket, and you RELOAD by shooting the drifting supply crates. Don't gun down the hands-up civilians — it costs health and score. Wave-based across three stages with a health bar (no lives), best score saved. Muzzle flash, recoil, brass casings, tracer, white hit-flash, fillp explosion rings, screen shake, a damage flash and a low-health alarm. Move mouse to aim, LEFT shoot, RIGHT rocket, shoot a crate to reload.",
     "file": "opwolf.cart.png",

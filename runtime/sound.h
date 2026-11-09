@@ -2174,7 +2174,7 @@ static CtxKey sound_ctx_key(SoundReqKind k) {
         case SR_ECHO_INS_BBD: case SR_REVERB_SPRING: case SR_REVERB_SPRING_TONE: case SR_DRIVE_VOICE:
         case SR_MULTIBAND: case SR_HARMONIZE_MIC: case SR_INPUT_MONITOR:
         case SR_REVERB_PLATE: case SR_REVERB_PLATE_WIDTH: case SR_TAPE_WARBLE: case SR_GRAINS_REPEAT:
-        case SR_WIDTH:
+        case SR_WIDTH: case SR_SYMP:
             return CTXK_K;
         // a = slot / instance / bus / tank / target id
         case SR_INSTR: case SR_INSTR_DUTY: case SR_INSTR_LFO: case SR_INSTR_FILTER:
@@ -2194,6 +2194,7 @@ static CtxKey sound_ctx_key(SoundReqKind k) {
         case SR_INSTR_GLIDE: case SR_INSTR_GLIDE_SCALE: case SR_INSTR_TRIGGER:   // a=slot, like their neighbours
         case SR_INSTR_TAPE_WARBLE: case SR_INSTR_GRAINS_REPEAT: case SR_INSTR_WIDTH:
         case SR_INSTR_GROUP: case SR_REVERB_BUS_INTO: case SR_INSTR_FX_FILTER: case SR_INSTR_MONO: case SR_INSTR_VIBRATO: case SR_INSTR_ANALOG: case SR_INSTR_RELSHAPE: case SR_SHAPE_HDR:   // a=slot / a=tank
+        case SR_SYMP_TUNE: case SR_INSTR_SYMP:     // a=string / a=slot
             return CTXK_KA;
         // a+b name the target
         case SR_WAVE_SET:                          // a=which table, b=start index (chunked writes)
@@ -7479,6 +7480,113 @@ static void sound_choke_group(int instr_slot) {
     }
 }
 
+// ── SYMPATHETIC RESONATOR (resonator / resonator_tune / instrument_resonator) ─────────────────────
+// Each string is a delay loop with a one-pole low-pass inside it (a Karplus-Strong string with no
+// pluck: only the send excites it). Two things the obvious build gets wrong, both handled here:
+//  · TUNING. The low-pass delays the loop too, by its PHASE DELAY at the fundamental, so a line of
+//    exactly SR/hz samples plays FLAT (by tens of cents when dark). That delay is taken out of the line.
+//  · DECAY. The low-pass also loses level every pass, so the loop gain is set so that gain × |H(f0)|
+//    gives the asked RT60 at the fundamental; the low-pass then only decides how fast the UPPER
+//    partials die (that is what `bright` means). RT60 shortens with pitch, √(220/hz): a high string
+//    rings shorter, as a real one does.
+// Retuning a ringing string drops its dampers first (~25 ms fast decay), THEN moves it: a pedal change,
+// not a glissando. A string asked for the note it already holds keeps ringing (common tones carry over).
+#define SYMP_DAMP_SAMPLES (SOUND_SAMPLE_RATE / 40)   // 25 ms of dampers down before a retune lands
+static void symp_coeffs(int k) {
+    SympRes *R = &symp_res;
+    float hz = 440.0f * de_powf(2.0f, (float)(R->note[k] - 69) / 12.0f);
+    float P  = (float)SOUND_SAMPLE_RATE / hz;
+    while (P > (float)(SYMP_LINE - 4)) { P *= 0.5f; hz *= 2.0f; }   // too low for the line: an octave up
+    float a = R->bright, c = 1.0f - a, w = 6.28318530718f * hz / (float)SOUND_SAMPLE_RATE;
+    float cw = de_cosf(w), sw = de_sinf(w);
+    float tau = de_atan2f(c * sw, 1.0f - c * cw) / w;               // the low-pass's phase delay at f0
+    float mag = a / sqrtf(1.0f - 2.0f * c * cw + c * c);            // and its gain there
+    float d = P - tau;
+    if (d < 2.0f) d = 2.0f;
+    R->d_to[k] = d;
+    float rt = R->decay_s * sqrtf(220.0f / hz);
+    if (rt < 0.05f) rt = 0.05f;
+    float G = de_powf(2.0f, -9.9658f * P / ((float)SOUND_SAMPLE_RATE * rt));   // 60 dB over rt seconds
+    float g = G / mag;
+    if (g > 0.9995f) g = 0.9995f;
+    R->g[k]  = g;
+    R->ig[k] = (1.0f - G) * 4.0f;                                   // a long ring gets less input
+    if (R->ig[k] > 1.0f) R->ig[k] = 1.0f;
+    float Gd = de_powf(2.0f, -9.9658f * P / ((float)SOUND_SAMPLE_RATE * 0.03f));   // dampers: 30 ms RT60
+    R->gd[k] = Gd / mag;
+}
+static void symp_tune(int k, int note) {
+    SympRes *R = &symp_res;
+    if (k < 0 || k >= SYMP_STRINGS) return;
+    if (note < 0 || note > 127) {                                   // off: dampers down for good
+        if (R->on[k]) { R->on[k] = false; R->damp_n[k] = 0x7fffffff; }
+        return;
+    }
+    if (R->on[k] && R->note[k] == note) return;                     // same note: it rings on
+    bool ringing = R->on[k] || R->damp_n[k] > 0;
+    R->note[k] = note;
+    symp_coeffs(k);
+    if (ringing) R->damp_n[k] = SYMP_DAMP_SAMPLES;                  // damp what rings, then move
+    else {                                                           // silent: start in tune at once
+        R->d[k] = R->d_to[k]; R->lp[k] = 0.0f; R->damp_n[k] = 0;
+        memset(R->line[k], 0, sizeof R->line[k]);
+    }
+    R->on[k] = true;
+}
+static void symp_config(float amount, float decay, float bright) {
+    SympRes *R = &symp_res;
+    R->amount  = clamp01(amount);
+    R->decay_s = 0.3f * de_powf(2.0f, 5.0f * clamp01(decay));       // 0.3 s .. 9.6 s at 220 Hz
+    R->bright  = 0.15f + 0.8f * clamp01(bright);
+    for (int k = 0; k < SYMP_STRINGS; k++) if (R->on[k] || R->damp_n[k] > 0) {
+        symp_coeffs(k);                                             // a brightness change moves the filter's
+        if (R->damp_n[k] == 0) R->d[k] = R->d_to[k];                 // delay: retune in place
+    }
+}
+// one sample: the mono send in, a stereo pair added to *L/*R (even strings lean left, odd right)
+static inline void symp_process(float in, float *L, float *R_) {
+    SympRes *R = &symp_res;
+    float y = in - R->dcx + 0.995f * R->dcy;                        // DC blocker (a ringing loop would hold DC)
+    R->dcx = in; R->dcy = y;
+    int wp = R->wp;
+    float sl = 0.0f, sr = 0.0f;
+    for (int k = 0; k < SYMP_STRINGS; k++) {
+        float g = R->g[k], ig = R->ig[k];
+        if (R->damp_n[k] > 0) {
+            g = R->gd[k]; ig = 0.0f;
+            if (R->damp_n[k] != 0x7fffffff && --R->damp_n[k] == 0) R->d[k] = R->d_to[k];   // dampers lift: the retune lands
+            if (!R->on[k] && R->lp[k] > -1e-6f && R->lp[k] < 1e-6f) {   // off and silent: stop for good
+                R->damp_n[k] = 0; R->lp[k] = 0.0f; memset(R->line[k], 0, sizeof R->line[k]);
+                continue;
+            }
+        } else if (!R->on[k]) continue;
+        float rp = (float)wp - R->d[k];
+        if (rp < 0.0f) rp += (float)SYMP_LINE;
+        int   i0 = (int)rp;
+        float fr = rp - (float)i0;
+        int   i1 = (i0 + 1) & (SYMP_LINE - 1);
+        i0 &= (SYMP_LINE - 1);
+        const float *ln = R->line[k];
+        float s = ln[i0] + (ln[i1] - ln[i0]) * fr;                  // reading back from i0 → i1 shortens by fr
+        R->lp[k] += (s - R->lp[k]) * R->bright;
+        float v = R->lp[k] * g + y * ig;
+        if (v > -1e-15f && v < 1e-15f) v = 0.0f;                    // no denormals in a decaying loop
+        R->line[k][wp] = v;
+        if (k & 1) { sr += 0.75f * R->lp[k]; sl += 0.25f * R->lp[k]; }
+        else       { sl += 0.75f * R->lp[k]; sr += 0.25f * R->lp[k]; }
+    }
+    R->wp = (wp + 1) & (SYMP_LINE - 1);
+    *L  += sl * R->amount * 1.5f;                                   // amount 1 ≈ the strings level with a dry
+    *R_ += sr * R->amount * 1.5f;                                   // piano sending 0.6 (measured, openstrings)
+}
+
+static void symp_refresh_rvb(void) {        // after any change to a slot's resonator or reverb send
+    float m = 0.0f;
+    for (int i = 0; i < SOUND_INSTR_SLOTS; i++)
+        if (instr_bank[i].symp_send > 0.0f && instr_bank[i].rvb_tank < 0 && instr_bank[i].reverb > m) m = instr_bank[i].reverb;
+    symp_res.rvb = m;
+}
+
 static void sound_fire_req(SoundReq r);     // sound_ctx_activate replays a log THROUGH it
 
 // Reset to a boot-clean slate and replay ONE context's config log over it — the whole of both
@@ -7949,6 +8057,20 @@ static void sound_fire_req(SoundReq r) {
         damp = clamp01(damp);
         rvb_tanks[0].damp = damp;
     } break;
+    case SR_SYMP: {         // a=amount*1000, b=decay*1000, c=bright*1000 — the sympathetic resonator
+        symp_res.used = true;
+        symp_config(r.a / 1000.0f, r.b / 1000.0f, r.c / 1000.0f);
+    } break;
+    case SR_SYMP_TUNE: {    // a=string, b=MIDI note (-1 = off)
+        if (!symp_res.used) { symp_res.used = true; symp_config(0.5f, 0.5f, 0.5f); }
+        symp_tune(r.a, r.b);
+    } break;
+    case SR_INSTR_SYMP: {   // a=slot, b=send*1000
+        if (r.a < 0 || r.a >= SOUND_INSTR_SLOTS) return;
+        instr_bank[r.a].symp_send = clamp01(r.b / 1000.0f);
+        if (!symp_res.used) { symp_res.used = true; symp_config(0.5f, 0.5f, 0.5f); }
+        symp_refresh_rvb();
+    } break;
     case SR_INSTR_REVERB: { // a=slot, b=send*1000
         int slot = r.a;
         if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
@@ -7956,6 +8078,7 @@ static void sound_fire_req(SoundReq r) {
         x = clamp01(x);
         instr_bank[slot].reverb = x;
         reverb_used = true;
+        if (symp_res.used) symp_refresh_rvb();
     } break;
     case SR_NOTE_REVERB: {  // a=val*1000 (live, slewed)
         reverb_used = true;
@@ -8685,6 +8808,7 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
         float busL[SOUND_FX_BUSES] = {0.0f}, busR[SOUND_FX_BUSES] = {0.0f};   // per-insert-bus stereo accumulators (bus 0 = master)
         float echo_in   = 0.0f; // this sample's summed sends into the echo bus   (MONO — centered in v1)
         float reverb_in = 0.0f; // this sample's summed sends into the reverb bus (MONO — centered in v1)
+        float symp_in   = 0.0f; // this sample's summed sends into the sympathetic resonator (MONO)
         for (int sk = 0; sk < N_SC_KEYS; sk++) sc_key_lvl[sk] = 0.0f;   // sidechain trigger sums, refilled below
         voc_mod = 0.0f;                                                // vocoder modulator send, refilled below
         fxmod_tick();   // ride sweep-safe effect params from CV / engine LFOs (fx_mod/fx_lfo) — no-op until first use
@@ -8986,6 +9110,7 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
                 else { float rs = contrib * v->rvb; busL[v->rvb_bus] += rs; busR[v->rvb_bus] += rs; }  // into a reverb send-bus (FX_REVERB wet-replaces it)
             }
             if (v->sfx_idx < 0 && v->sc_send > 0.0005f) sc_key_lvl[v->sc_key] += contrib * v->sc_send;  // sidechain trigger send (MONO, pre-pan)
+            if (v->sfx_idx < 0 && symp_res.used) symp_in += contrib * instr_bank[v->instr_slot].symp_send;   // resonator send (MONO, pre-pan)
 
             float ph_inc = v->freq * pitch_mul / (float)SOUND_SAMPLE_RATE;
             v->phase += ph_inc;
@@ -9097,6 +9222,15 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
             echo_buf[echo_widx] = de_tanhf(echo_in + echo_wet * echo_fb);
             if (++echo_widx >= SOUND_ECHO_MAX) echo_widx = 0;
             mixL += echo_wet; mixR += echo_wet;   // echo is a MONO bus in v1 — wet adds to both channels equally (centered)
+        }
+
+        // SEND RETURN 1b — the SYMPATHETIC RESONATOR (dormant until its first API call). Its ring goes
+        // into the reverb at the average send of the slots exciting it, so the room hears the open strings.
+        if (symp_res.used) {
+            float rl = 0.0f, rr = 0.0f;
+            symp_process(symp_in, &rl, &rr);
+            mixL += rl; mixR += rr;
+            if (reverb_used) reverb_in += (rl + rr) * 0.5f * symp_res.rvb;
         }
 
         // SEND RETURN 2 — THE reverb bus (dormant until the first reverb API call)
@@ -10539,6 +10673,19 @@ void reverb(float size, float damping) {
     sound_push_ctrl(SR_REVERB, (int)(size * 1000.0f), (int)(damping * 1000.0f), 0, 0, 0, 0);
 }
 
+// the SYMPATHETIC RESONATOR — a bank of tuned strings on a send (see symp_coeffs above)
+void resonator(float amount, float decay, float bright) {
+    sound_push_ctrl(SR_SYMP, (int)(clamp01(amount) * 1000.0f), (int)(clamp01(decay) * 1000.0f), (int)(clamp01(bright) * 1000.0f), 0, 0, 0);
+}
+void resonator_tune(const int *notes, int n) {
+    for (int k = 0; k < SYMP_STRINGS; k++)
+        sound_push_ctrl(SR_SYMP_TUNE, k, (notes && k < n) ? notes[k] : -1, 0, 0, 0, 0);
+}
+void instrument_resonator(int slot, float send) {
+    if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
+    sound_push_ctrl(SR_INSTR_SYMP, slot, (int)(clamp01(send) * 1000.0f), 0, 0, 0, 0);
+}
+
 void instrument_reverb(int slot, float send) {
     if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
     sound_push_ctrl(SR_INSTR_REVERB, slot, (int)(send * 1000.0f), 0, 0, 0, 0);
@@ -11214,6 +11361,7 @@ static void sound_reset_state(void) {
         instr_bank[i].sync_ratio = 0.0f;   // hard sync off until instrument_sync() — old carts unchanged
         instr_bank[i].echo       = 0.0f;   // dry until instrument_echo() — old carts unchanged
         instr_bank[i].reverb     = 0.0f;   // dry until instrument_reverb() — old carts unchanged
+        instr_bank[i].symp_send  = 0.0f;   // dry until instrument_resonator()
         instr_bank[i].level      = 1.0f;   // unity until instrument_level() — old carts byte-identical
         instr_bank[i].vib_amt    = 1.0f;
         instr_bank[i].analog_amt = 0.0f;   // every voice identical until instrument_analog()
@@ -11275,6 +11423,7 @@ static void sound_reset_state(void) {
         rvb_tanks[t].used = false;
     }
     reverb_used = false;
+    memset(&symp_res, 0, sizeof(symp_res));   // the resonator: dormant, every string off
     for (int i = 0; i < SOUND_REVERB_TANKS; i++) tank_bus[i] = 0;   // tank → aux bus, 0 = unallocated
     for (int b = 0; b < SOUND_FX_BUSES; b++)     bus_tank[b] = -1;  // bus → tank, -1 = not a reverb-bus
     for (int b = 0; b < SOUND_FX_BUSES; b++)     grain_tank_of[b] = -1;   // bus → grain tank, -1 = none

@@ -818,6 +818,18 @@ the reverb/echo returns, so their tails narrow too. Check the result with `tools
 | tame a wide pad | `instrument_stereo_width(slot, 0.5f)` | a chorused/plate-heavy part pulled in so it stops crowding the sides | — |
 | widen the master | `stereo_width(1.5f)` | more side — check `stereo-check`'s mono-fold loss, a wide mix loses level summed to mono | — |
 
+## sympathetic resonator — `resonator(amount, decay, bright)` · `resonator_tune(notes, n)` · `instrument_resonator(slot, send)`
+
+A bank of up to 8 tuned **strings on a send**: the slots that send into it make them ring at the notes
+you tune them to. Retune on every chord change; a string kept on its note rings on, a changed one is
+damped ~25 ms and moved (a pedal change). The ring goes on into the reverb too. Short notes + this =
+a held pedal that costs no voices. Design: [sympathetic-resonator.md](../design/sympathetic-resonator.md).
+
+| recipe | call | character | used by |
+|---|---|---|---|
+| the pedalled piano | `resonator(0.6f, 0.7f, 0.45f)` + `instrument_resonator(piano, 0.6f)`, tuned to bass, fifth, root, the chord tones in octave 4, root on top; the piano's own notes short (`instrument_morph` ~0.15, 180 ms hits) | dry notes, a soft open halo under them that changes with the harmony | `openstrings` |
+| sitar / tanpura drones | `resonator(0.7f, 0.9f, 0.8f)`, tuned once to Sa-Pa-Sa' (and Ma or Ni), never retuned | bright, long, a shimmer behind every plucked note | — |
+
 ## leslie — `leslie(speed, drive, balance, doppler, mix)` · `instrument_leslie(slot, …)`
 
 THE rotary-speaker cabinet — the organ's voice. A spinning treble **HORN** (pitch wobble via a

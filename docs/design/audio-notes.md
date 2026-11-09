@@ -2030,6 +2030,13 @@ v1, document it on the panel.
     47; widened with the slot count to 128 on 2026-11-04) and has no way to be cleared, which a SHARED slot needs. Measured (a throwaway probe): A4 held under an
     E5 reads -17 dB poly, -65 dB mono; the glide to G5 still slides; no click at the cut. tr808 / tr909 /
     fingerdrums / acidrack / groovebox render byte-identical to before.
+45. **SYMPATHETIC RESONATOR (`resonator` / `resonator_tune` / `instrument_resonator`)** — **✓ SHIPPED
+    2026-11-09**, the idea from Flyfish/Tuna on the FM-1 (an 8-voice device playing a pedalled arpeggio):
+    short notes, and one bank of 8 tuned delay-loop strings on a send, retuned to the harmony, makes the
+    pedal. A primitive, not a recipe: nothing shipped tunes to a HARMONY on a send. The loop low-pass's
+    phase delay is taken out of the line (strings ±4 c, measured) and its loss out of the loop gain.
+    Dormant until called: bossa / pianohand / drawall byte-identical. `openstrings` is the A/B;
+    [sympathetic-resonator.md](sympathetic-resonator.md).
 
 One-line version: **we built a very good modular synth and forgot to build the
 broken speaker it should play through.**

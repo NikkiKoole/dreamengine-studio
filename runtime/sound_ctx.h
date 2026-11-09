@@ -77,6 +77,7 @@ typedef struct {
     float sync_ratio;               // oscillator hard sync: slave:master freq ratio (0 = off, default — old carts unchanged)
     float echo;                     // send to THE echo bus 0..1; 0 = dry (default — old carts unchanged)
     float reverb;                   // reverb send 0..1; 0 = dry (default — old carts unchanged). Target = rvb_tank below
+    float symp_send;                // send into the SYMPATHETIC RESONATOR 0..1 (instrument_resonator); 0 = dry (default)
     int   rvb_tank;                 // which reverb tank the send feeds: -1 = the master send (default), 1.. = a reverb_bus() send-bus
     int   sc_key;                   // sidechain trigger key this slot feeds (0..3), via sidechain_key()
     float sc_send;                  // how much this slot drives that key 0..1; 0 = not a trigger (default)
@@ -569,6 +570,30 @@ typedef struct {
     float mix;                       // dry/wet blend at the insert: 1 = wet-replace (a dedicated send-bus), <1 = in-line (reverb_insert)
     bool  used;                      // per-tank dormancy: a dormant tank is skipped (costs zero)
 } ReverbTank;
+// SYMPATHETIC RESONATOR (resonator()/resonator_tune()): a small bank of tuned delay-loop STRINGS on a
+// send. The whole mix of the slots that send into it excites them; they ring at the notes the cart
+// tunes them to — the open strings of a pedalled piano, the drones of a sitar, a harp's undamped
+// neighbours. One bank for every voice, so the ring costs no polyphony. docs/design/sympathetic-resonator.md
+#define SYMP_STRINGS 8
+#define SYMP_LINE    1024            // per string; ~43 Hz at 44.1k — a lower note folds up an octave
+typedef struct {
+    bool  used;                      // dormant until resonator()/resonator_tune()/instrument_resonator()
+    float amount, decay_s, bright;   // config: output level 0..1, RT60 at 220 Hz in seconds, loop low-pass coef
+    float line[SYMP_STRINGS][SYMP_LINE];
+    int   wp;                        // shared write position
+    bool  on[SYMP_STRINGS];          // tuned (false = off: dampers down, rings out fast)
+    int   note[SYMP_STRINGS];        // the MIDI note it is tuned to (valid when on)
+    float d[SYMP_STRINGS];           // the loop's read delay in samples (filter delay already taken out)
+    float d_to[SYMP_STRINGS];        // where it goes once the dampers lift (a retune)
+    float g[SYMP_STRINGS];           // loop gain per pass (from the RT60)
+    float ig[SYMP_STRINGS];          // input gain (so a long string does not swell louder than a short one)
+    float gd[SYMP_STRINGS];          // loop gain while the dampers are down (a retune / off)
+    int   damp_n[SYMP_STRINGS];      // >0: dampers down for this many more samples, then the retune lands
+    float lp[SYMP_STRINGS];          // the loop low-pass state (= the string's output)
+    float dcx, dcy;                  // DC blocker on the input
+    float rvb;                       // how much of the ring goes on into the reverb: the largest master-reverb
+                                     // send among the slots exciting it (the room hears what those slots hear)
+} SympRes;
 #define SOUND_FX_BUSES   8         // bus 0 master + 7 aux (per-instrument). ~82KB of buffers total
 #define CHORUS_BUF_LEN   2048      // ~46ms @44100 Hz
 #define FLANGER_BUF_LEN   512        // ~11ms @44100 Hz
@@ -795,6 +820,9 @@ typedef enum {
     SR_LANE = 168,            // the same, after the drain turned the target into a countdown (fires in the pen)
     SR_NEV_AT = 169,          // a=booking id, b=NEV_* event, c=amount*1000, delay=ABSOLUTE target sample (note_event_at)
     SR_NEV = 170,             // the same, after the drain turned the target into a countdown (fires in the pen)
+    SR_SYMP = 171,            // a=amount*1000, b=decay*1000, c=bright*1000 — the sympathetic resonator (resonator)
+    SR_SYMP_TUNE = 172,       // a=string 0..SYMP_STRINGS-1, b=MIDI note (-1 = off) (resonator_tune)
+    SR_INSTR_SYMP = 173,      // a=slot, b=send*1000 (instrument_resonator)
     SR_SHAPE_HDR = 165,       // a=id, b=n points, c=interp — a shape's header (shape_define), sent after its points
     SR_SHAPE_PT = 166,        // a=id, b=point index, c=t_ms, e0=value*1000 — one breakpoint (shape_define)
     SR_INSTR_RELSHAPE = 164,  // a=slot, b=shape — the release curve (instrument_release_shape)
@@ -889,6 +917,7 @@ typedef struct {
     float rvb_plate_w;
     ReverbTank rvb_tanks[SOUND_REVERB_TANKS];
     bool reverb_used;
+    SympRes symp_res;                // the sympathetic resonator (one bank, a send)
     int fx_next_bus;
     int8_t bus_tank[SOUND_FX_BUSES];
     int tank_bus[SOUND_REVERB_TANKS];
@@ -1316,6 +1345,7 @@ static _Thread_local DeSound *de_snd = &de_snd_default;
 #define rvb_plate_w          (de_snd->rvb_plate_w)
 #define rvb_tanks            (de_snd->rvb_tanks)
 #define reverb_used          (de_snd->reverb_used)
+#define symp_res             (de_snd->symp_res)
 #define fx_next_bus          (de_snd->fx_next_bus)
 #define bus_tank             (de_snd->bus_tank)
 #define tank_bus             (de_snd->tank_bus)

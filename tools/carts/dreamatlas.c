@@ -9,7 +9,7 @@
   "lineage": "A port of the BIOME atlas from Mutable Dreams 1.4 (Kid Bunka / Christoph Link, free firmware for the M-VAVE FM-1, itself built on Mutable Instruments' Plaits/Rings/Elements). The 157 scenes are the upstream's own factory data (MIT), generated into runtime/dreamatlas/biomes.h; the sequencer (Euclid hits/length/rotate per track, seeded rolls, chord journeys, scale masks, the Lo-Fi kit) is ported line by line from app/dsp/dreams.cpp. The fifteen VOICES are NOT ported: each is mapped onto the nearest engine dreamengine already ships, which is the experiment.",
   "homage": "Mutable Dreams (Kid Bunka) / Mutable Instruments",
   "description": {
-    "summary": "157 small generative worlds from Mutable Dreams, plus a few of our own (a house jam, a tabla-and-guiro bazaar, Moon Meadow with tablas, a slow organ-and-upright brew, the Puppetmaker band, a CR-78 bossa, one that evolves by itself, a world-rhythm atlas, a slow modal jazz drone, a Reich-style phase piece, cool jazz in 5/4 and an organ boogaloo): six drifting Euclidean tracks, chord journeys and a Lo-Fi kit, played on dreamengine's own voices.",
+    "summary": "157 small generative worlds from Mutable Dreams, plus a few of our own (a house jam, a tabla-and-guiro bazaar, Moon Meadow with tablas, a slow organ-and-upright brew, the Puppetmaker band, a CR-78 bossa, one that evolves by itself, a world-rhythm atlas, a slow modal jazz drone, a Reich-style phase piece, cool jazz in 5/4, an organ boogaloo and a frog pond at dusk): six drifting Euclidean tracks, chord journeys and a Lo-Fi kit, played on dreamengine's own voices.",
     "detail": "Each BIOME is one scene: six tracks, each a voice (Plaits-style drums, FM, analog, Rings and Elements resonators, a sine choir, a round bass...) with its OWN rhythm, k hits spread over n steps. The lengths differ (16, 19, 13...), so the tracks slide against each other and the loop takes minutes to come round. Some biomes walk a chord progression under it, some swap three tracks for a crunchy 16 kHz Lo-Fi drum kit. Browse in the curated order: neighbours are meant to feel genuinely different. The scenes are the original's factory data; the sounds are this engine's nearest voices, so it is a translation, not a copy.",
     "controls": "LEFT/RIGHT or the arrows: next / previous biome · SPACE or PLAY: start / stop · 1-6: mute a track · tap a track row to mute it"
   },
@@ -198,7 +198,15 @@ _Static_assert(M_CRKICK == 23 && M_NYLON == 26, "the CR-78 Bossa row names its m
 // a round bass walks root-fifth-seventh-octave in a fixed funk line, brew's organ (its slow Leslie)
 // stabs rootless voicings on the offbeats, and a guitar chicken-scratches chords 7 in 12, a cross-
 // rhythm drifting against the bar. Breakdown: bass and organ out, the drums and the scratch carry it.
-#define DA_OWN 14
+// POND AT DUSK is modal jazz with the pond as the rhythm section: no kit, the animals keep time on
+// cycles that never line up. A bullfrog (the drumhead, low, a big pitch swoop) croaks 2 in 11, tree
+// frogs (the scrape, a rattling gesture) 3 in 7, crickets chirp 5 in 12 (a tiny high bell RATCHETED 4
+// times a step, the pulses of a chirp, trilling a whole tone: the scrape pitched that high came out
+// 40 dB down), water drops (Rings plinks) fall 2 in 13. The trio: an upright walking slowly and the Rhodes in
+// quartal voicings every bar and a half. C major heard as two MODES: four bars on F (lydian, the raised
+// fourth) and four on D (dorian). Night falls as it builds (water and crickets first, the Rhodes last);
+// a breakdown stops the band and leaves the pond, and a frog sometimes sits a phrase out.
+#define DA_OWN 15
 #define DA_ALL (DA_BIOMES + DA_OWN)
 static const DaBiome DA_OWN_BIOME[DA_OWN] = {
  {"Marmalade Jam",8,125,7,2,125125,0,0,650,200,100,0,120,0,0,0,380,300,{500,260,520,60},{
@@ -299,6 +307,13 @@ static const DaBiome DA_OWN_BIOME[DA_OWN] = {
   /* bass    (round)     */ {8,320,400,200,245,0,0,16,0,980,34,500,0,1,0,1,0,500,700,200,1,0},
   /* organ   (brewOrgan) */ {18,600,100,200,450,200,0,16,0,950,53,420,0,1,0,1,0,250,850,100,0,0},
   /* scratch (guitar)    */ {19,350,400,30,280,80,7,12,0,850,60,620,0,1,0,1,300,100,850,100,0,0}}},
+ {"Pond at Dusk",0,70,0,2,70707,0,0,700,250,150,0,0,0,0,-1,0,300,{500,350,480,140},{
+  /* bullfrog (drumhead) */ {15,150,300,350,900,250,2,11,0,800,33,300,0,1,0,1,200,900,850,100,0,0},
+  /* tree frogs (scrape) */ {16,500,200,300,1000,300,3,7,0,650,76,720,0,1,0,1,200,700,850,100,0,0},
+  /* crickets (a high bell, ratchet 4 = a chirp's pulses) */ {20,900,1000,25,300,350,5,12,0,800,96,600,0,1,0,4,200,500,850,100,0,0},
+  /* upright             */ {17,280,300,600,350,0,3,16,0,800,36,480,0,1,0,1,200,450,850,100,0,0},
+  /* rhodes  (quartal)   */ {22,200,150,1000,450,300,1,12,0,950,48,520,0,2,0,1,0,120,850,100,0,200},
+  /* drops   (Rings)     */ {5,750,100,250,400,400,2,13,0,800,84,450,0,1,0,1,200,150,850,100,0,0}}},
 };
 // how each of our biomes JAMS (Playtime's drum jam): the order its layers enter, who may rest a
 // phrase, who a breakdown takes out, which track plays the phrase-end fill, which lets go before the one
@@ -363,6 +378,9 @@ static const JamCfg DA_OWN_JAM[DA_OWN] = {
     { 1, 0x18, {0, 2, 1, 3, 4, 5}, {2, 4, 5, 1}, 1 << 3 | 1 << 4, 1, 2,             // Organ Boogaloo: i9 - IV9, 2 bars each
       { "KICK", "SNARE", "HATS", "BASS", "ORGAN", "SCRATCH" }, { 0, 3 }, 2, 2, {0},
       { "X..x...x..x.....", "....X.-.-..-X..-", 0, "a..a..e.h..g.e..", "....x..x....x...", 0 } },
+    { 1, 0x18, {5, 2, 1, 0, 3, 4}, {0, 1, 2, 5}, 1 << 3 | 1 << 4, 1, -1,            // Pond at Dusk: F lydian, D dorian
+      { "BULLFROG", "TREE FROGS", "CRICKETS", "UPRIGHT", "RHODES", "DROPS" }, { 3, 1 }, 2, 4, { 0, 0, -2, 0, 0, 0 }, {0}, {0}, 0, {0},
+      { 0, 3, 6, 9 } },                                             // quartal: F B E A, D G C F
 };
 static const DaBiome *biome_row(int id) { return id < DA_BIOMES ? &DA_BIOME[id] : &DA_OWN_BIOME[id - DA_BIOMES]; }
 static int browse_id(int k) { return k < DA_BIOMES ? DA_BROWSE[k] : k; }   // ours come last, in order

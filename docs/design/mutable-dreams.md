@@ -245,6 +245,15 @@ backbeat -19 dBFS against ghosts -26. 16th hats, a round bass in a fixed root-fi
 line, brew's organ with its Leslie stabbing rootless voicings on the offbeats, and a guitar chicken-
 scratching chords 7 in 12, a cross-rhythm drifting against the bar.
 
+**Pond at Dusk** is modal jazz with the pond as the rhythm section, no kit: a bullfrog (drumhead, low,
+a big pitch swoop) 2 in 11, tree frogs (scrape, rattling) 3 in 7, crickets 5 in 12, water drops (Rings)
+2 in 13, none of them lining up; under them an upright walking slowly and the Rhodes in quartal
+voicings. C major heard as two modes, four bars on F (lydian: F B E A, the raised fourth) and four on D
+(dorian: D G C F), checked from the trace, with the jump macro planing the shape onto other degrees.
+The crickets are a tiny high bell RATCHETED 4 times a step (a chirp's pulses), trilling a whole tone
+(`pair`): the scrape engine pitched that high came out ~40 dB down. Night falls as it builds; a
+breakdown stops the band and leaves the pond.
+
 Mipo Band's triangle was a single pitch and got old; a lone BELL now wanders with the jump macro
 like a melody (a bell in a `pair`, Slow Brew's agogo, still keeps its two pitches). Note the cart
 clamps melodic notes to 24..96 (quantize), which had been pinning the triangle at 96.

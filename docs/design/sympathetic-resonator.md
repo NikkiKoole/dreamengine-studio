@@ -6,14 +6,12 @@
 > **First listen (2026-11-09): the maker prefers the SAMPLED Steinway + strings by far** over our
 > synthesized INSTR_PIANO + strings. So openstrings' P key plays 13 Steinway notes (bitKlavier Grand,
 > CC BY 4.0) from [`assets/samples/steinway/`](../../assets/samples/steinway/README.md), and
-> `SOUND_SAMPLE_SLOTS` went 8 → 16 to hold them. Open: (1) a SHIPPABLE form — today the cart reads
-> the WAVs at runtime, which works in the editor and play.js but not in web/app builds; bake them in,
-> shrunk the Flyfish way (per-register length 3.1 s → 0.7 s, 22 kHz, maybe ADPCM: ~3.5 MB → ~0.25-1 MB);
-> (2) a real multisample instrument (one slot, zones by key) instead of one instrument slot per
-> zone; (3) velocity layers (one layer today: soft is only quieter, not darker); (4) whether
-> `pianohand`'s hand-built halo gives way to the resonator; (5) or the other route: measure INSTR_PIANO
-> against these 13 notes and close the gap, by tuning or as a second piano engine (commuted synthesis is
-> the textbook candidate), which would make (1)-(3) unnecessary.
+> `SOUND_SAMPLE_SLOTS` went 8 → 16 to hold them. **Since then (2026-11-09):** route (5) and (1) both
+> landed as the HYBRID: each note plays the real recording and fades into the Steinway-matched model at
+> 2.6 s, baked in as `runtime/steinway.h` (896 KB ADPCM, works on web), so openstrings' P is now the hybrid
+> vs the model alone, and (2) became unnecessary (one piano slot holds every zone). Story + measurements:
+> [piano-engine.md](piano-engine.md#the-steinway-match-and-the-hybrid-2026-11-09); play it in `grandkeys`.
+> Still open: (3) velocity layers; (4) whether `pianohand`'s hand-built halo gives way to the resonator.
 
 ## Where the idea comes from
 

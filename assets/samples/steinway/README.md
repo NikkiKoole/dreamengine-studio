@@ -14,5 +14,8 @@ Anything that ships these sounds (a cart, an app, the web gallery) must carry th
 
 > Piano: bitKlavier Grand Sample Library, Daniel Trueman, Princeton University (CC BY 4.0)
 
-Used by: `openstrings` (P switches synth ↔ Steinway). Loaded at runtime from this folder; a
-web/app build needs them baked in first (not done yet, see docs/design/sympathetic-resonator.md).
+Used by: `runtime/steinway.h` (GENERATED from these files by `tools/gen-steinway.js`: 4-bit IMA ADPCM,
+896 KB, so web/app builds play them; rerun the tool if a file here changes) and through it `grandkeys`
+(a playable keybed, with Pleyel voicing + soft pedal) and `openstrings`. `pianoref` (the measuring probe)
+still reads these WAVs directly, for the 16-bit reference. How they are used: the hybrid grand,
+[docs/design/piano-engine.md](../../../docs/design/piano-engine.md#the-steinway-match-and-the-hybrid-2026-11-09).

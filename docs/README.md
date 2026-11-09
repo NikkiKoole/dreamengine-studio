@@ -241,6 +241,7 @@ docs/
 ├── guides/            how-to
 │   ├── editor-features.md        ★ the capability INDEX for the EDITOR (Make/Promote/Ship) — "can the editor already do X?", one line per surface (code/sprite/map editors · run modes · Promote tab: record/bake/9:16 ratio-variants/trailer builder/tribes · ⇪ Share popover · Apps ASO lab), each pointing at its design doc. The editor-side twin of CLAUDE.md's tools/ list — check it before rebuilding an editor feature
 │   ├── cart-authoring.md         the make-cart.js / tools/carts toolchain
+│   ├── tool-shelf-notes.md       the LONG per-tool / per-header notes moved out of CLAUDE.md (2026-11-09, frozen snapshot; file headers are the source of truth)
 │   ├── cart-authoring-prompt.md  reusable AI prompt for designing a new cart
 │   ├── reality-audit-prompt.md   ★ reusable AI prompt for the ONE class no linter here can see: docs that are confidently, checkably wrong about the STATE OF THE WORLD (every existing check asserts internal consistency — links, §-refs, index sync — and none asks whether a well-formed sentence is still TRUE). Four shapes (a status claim overtaken by events · a SILENT ledger, the hard one, where nothing is written to find · a date contradicting its own content · a class closed for one instance and left open for its siblings), the verify-both-sides bar, and the exemptions without which it is noise (marked-historical prose, ADRs, rejected options, fixtures)
 │   ├── AGENT-MESSAGE.md          parallel-build add-on: paste into each agent session alongside its brief + spec

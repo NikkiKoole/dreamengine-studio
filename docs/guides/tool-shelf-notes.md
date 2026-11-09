@@ -1,0 +1,1158 @@
+# Tool + shelf notes (the long form)
+
+STATUS: reference (frozen snapshot, 2026-11-09)
+
+These are the long per-entry notes that used to live in CLAUDE.md's "Project structure" block,
+moved here verbatim on 2026-11-09 when CLAUDE.md went over its 150k-char load limit. CLAUDE.md now
+keeps ONE line per tool/header. **The source of truth is each file's own header comment**; this page
+is a searchable snapshot of the gotchas, measurements and history that were written next to the
+index, and it is not kept in sync. If you find a fact here that its file header lacks, move it into
+the header.
+
+```
+runtime/   studio.h (public API: constants + declarations), studio.c (Raylib impl + main()),
+           + library headers — cart-land capabilities the engine deliberately doesn't own
+           (ADR-0006). CHECK HERE before hand-rolling input/UI plumbing in a cart:
+             lay.h       immediate-mode responsive layout — a `Box` + CSS-flavoured helpers
+                         (split/at/cell/grid/wrap/aspect/fluid/pad + lay_lane = shared COLUMN REGISTER,
+                         align stacked strips) that replace hand-rolled rect math for HUDs/panels/menus;
+                         rect-in/rect-out, reflows live. See docs/design/device-adaptive-layout.md; demos respond/rackfit/acidfit
+             ui.h        widgets (ui_button/ui_spr_button/ui_slider/ui_knob + Box/cell-sized twins
+                         ui_button_cell/ui_knob_cell) — per-finger capture, fat-finger hit pads, focus
+                         ring; ui_loupe() magnifier; ui_get_widgets() live rects
+             face.h      the device-face GRAMMAR over lay.h: declare a FaceZone[] (BAND/LANE/HERO) and
+                         face_layout() owns the chunky resize + safe-area box + zone-carving + shared
+                         register, ENFORCING the rules (bands top/bottom only = no side-rail; hero = the
+                         remainder). facedemo = grammar demo; deviceface = the raw-lay.h mechanism. Layer 3
+                         of responsive-first-device-face.md
+             disclose.h  device-adaptive panel DISCLOSURE over lay.h: a priority + finger-footprint
+                         BUDGET pass (disclose_shape/_budget/_stack) that shows the panel you're on
+                         EXPANDED, promotes the rest FOLDED→COMPACT while the budget allows, and
+                         reflows as the viewport changes. For a rack with more panels than a phone
+                         fits; it decides WHERE + HOW BIG, the cart draws the contents. acidwire
+             gestures.h  per-finger swipes judged at lift + pinch_scale (whole-view zoom)
+             pointer.h   multi-finger pointer pool (PTR_CLEAR/ACQUIRE/FIND) — layer below ui.h,
+                         for bespoke per-finger targets, not widgets
+             cursor.h    pixel MOUSE CURSOR in the canvas — cursor_draw(CUR_HAND/GRAB/ARROW/CROSS/MOVE)
+                         + _tint; auto-hides the OS arrow ONLY when a real mouse is seen (no-op on touch),
+                         call LAST in draw(); shows in screenshots/GIFs (the OS cursor never does)
+             pro.h       the IN-APP-PURCHASE gate a cart asks: pro_unlocked() / pro_for_sale() /
+                         pro_can_purchase() + pro_buy/_restore + a SHARED Pro sheet (ProSheet is the
+                         CART's struct, so the header stays stateless). A cart never names a product id:
+                         which product at what price comes from the app manifest via a GENERATED
+                         app_pro.h, so the same cart runs inside a paid app, in the free web gallery and
+                         in the editor. Owns the ONE copy of the weak Store_* bridge (tinyjam-menu.c used
+                         to declare its own) + pro_module_* for Tiny Jam's per-rack CONTENT axis.
+                         ⚠ FAILS OPEN by design (a build with no store links weak stubs answering
+                         "unlocked" — that IS the editor/web case), so a target with a paywall that
+                         forgets to link the real answer gives Pro away SILENTLY: exactly what every
+                         AUv3 target did until 2026-08-19. tools/pro-check.js is the gate that catches
+                         it. ADR-0035 · docs/design/pro-unlock.md
+             fxicons.h   the shared VISUAL LANGUAGE for the engine effects: one icon + body/accent
+                         colour per FX_* kind, so every cart's "pedals" read the same. Drawing an
+                         effect toggle/stompbox/mode chip? Reuse the glyph, don't redraw it.
+                         pedalboard/epiano/pedalicon. Sibling of ampcab.h (the TONE half)
+             shadermath.h a GLSL-vocabulary toolkit for CPU SHADERS: vec2/vec3 + dot/normalize/cross, the
+                         scalar idioms studio.h lacks (fract/smoothstep/mix/step/sat), colour helpers
+                         (rgb/hsv/palette = the IQ cosine palette) + SDF primitives & combinators
+                         (sd_sphere/box/torus/plane, op_union/sub/smin). For a cart drawing per-pixel
+                         through pset_rgb/rectfill_rgb that wants to read like Shadertoy. raymarch
+             demath.h    DETERMINISTIC float math — the same BITS on arm64/x86-64/wasm: de_sinf/cosf/
+                         tanf/expf/logf/powf/tanhf/atan2f/asinf/acosf/hypotf + de_sin_turns (takes TURNS,
+                         the phase-accumulator form: exact reduction, 45% faster than libm). Auto-included
+                         by studio.h. WHY: IEEE 754 pins down + - * / and sqrt but says NOTHING about the
+                         transcendentals, so every libm rounds them differently — which silently breaks
+                         replays/ghosts/lockstep and made carts sound different in the browser. Reach for
+                         de_* in a cart whose OUTPUT is COMPARED (a spec() oracle, a replay, a golden
+                         image); plain libm is fine for decoration. sqrtf/fabsf/floorf/fmodf/fminf/fmaxf
+                         are ALREADY bit-exact by spec — no de_ version, none needed. Pairs with the
+                         FP_CONTRACT pragma in studio.h (both are required; neither alone works).
+                         Gated by det-probes/demath.c. docs/design/determinism.md
+             keybed.h    polyphonic chromatic keybed (touch+mouse+QWERTY+MIDI) — every keybed
+                         cart copies it (epiano/moog/touchpiano/mellotron); NOT ribbons/radio strip
+             mono.h      MONOSYNTH KEY ASSIGN (audit §B3): which held note sounds (priority LAST/LOW/
+                         HIGH/FIRST) and whether a press restarts the envelope (trigger SINGLE/MULTI/ANY),
+                         as one Mono struct + mono_press/_release returning START/GLIDE/RETRIG/STOP. Reid
+                         calls this what decides whether a synth feels playable; tb303/acidrack/moog/sh101
+                         each hand-rolled a different answer. Pure logic, no engine surface, no UI — so it
+                         carries its OWN spec (mono_selfcheck, Part 18's four-priority table). sh101 drives
+                         it (PRIO/TRIG on the panel); acidcandy's PTCH lens uses it for live-played 303 lines. NOT keybed.h (the widget) or solo.h (the radio strip)
+             patgen.h    LATCHED PATTERN GENERATOR (CHOMPI TEMPO, MIT): held keys → orders SEQ/UP/DOWN/PINGPONG/RANDOM ·
+                         rest masks that take a STEP not a NOTE (the gap drifts) · octave chance; pure logic + patgen_selfcheck. latchbox
+             tonnetz.h   CHORDS AS PLACES (O&C Harrington 1200/Automatonnetz, MIT): P/L/R/N/S/H moves that change ONE voice
+                         (returns which) · the triangle map · tz_jump · the 5×5 vector automaton; tonnetz_selfcheck. tonnetz cart
+             solo.h      scale-locked solo strip the player drives over a radio (pairs radio.h)
+             radio.h     radio-station chrome (chassis, seeded songs, draggable control knobs)
+             improv.h    melodic improvisation for the radio stations (auto-solo)
+             cards.h     shared playing-card rendering (blackjack/poker/solitaire/strippoker)
+             endcard.h   the shared WIN/LOSE end-screen treatment (dither curtain + pop-in card) —
+                         use it, never hand-roll fade(0.5)+box (the recurring "end-fade issue")
+             worldnet.h  the infinite deterministic WORLD SPINE (terrain + ranked lattice + spline
+                         links + the wn_road_at() edge-graph query) — roadnet2 = home, sloop drives
+                         it (N). ONE data model: query this, never re-roll a street field
+             roadkit.h   the shared AT-GRADE JUNCTION GEOMETRY (pure, param-driven): curb_return
+                         (tangent-arc fillet) + edge_corner + rk_count_corners(brg,n) + rk_cross_hw
+                         + the N-arm-native FIELD (RkField + rk_field_build/rk_field_road = arm-union ∪
+                         fillets ∪ disc, space-agnostic). A junction = N arms at bearings; caller
+                         supplies the array. streetlab = spec-locked source (104/0, scans in screen px);
+                         citydrive draws curb-return junctions through it in ground metres (J). B4 grade
+                         dispatch (roadlab interchanges) = WIP
+             citygen.h   the calibrated procedural CITY GRAMMAR (worldgen rungs 2–5): density field
+                         + tensor-field arterials + district minor-street fill, SNDi-matched to real
+                         Rotterdam; citygen_road_at() = the drive seam. citygrow = tuning bench/home;
+                         SLOOP DRIVES IT (press M — a bounded generated city, grip on/off street).
+                         Open: reconciling its world model with worldnet.h so N-spine + M-city are one
+             physics.h   tiny shared VERLET toolkit — PhysPt + phys_integrate/link/collide/bounds/aim
+                         (ropes/cloth/ragdolls/blobs/pseudo-solids). Cart owns its arrays+step loop; NOT
+                         a rigid-body engine (that's the Layer-1 seam parked in design/physics-notes.md).
+                         verlet=demo, physics=inline teacher; used by ragdoll/linerider/coaster/jelly/sloop/tentacle/waterjar (PBD fluid)
+             boxrig.h    the "sprite region → ≤8-vert Box2D polygon + texture" toolkit (the puppetmaker
+                         representation): boxrig_hull (sprite alpha → b2Hull) + boxrig_draw (tritex the
+                         polygon from its OWN verts so paint covers the hull exactly) + point_in_body +
+                         boxrig_resolve_box/poly (verlet↔rigid coupling with physics.h). Cart still owns
+                         body/joint/density policy. Needs box2d/box2d.h (build-box2d.sh); takes ppm +
+                         screenH, no globals. puppet/boxlab/boxjelly; design/box2d-integration.md
+             drumkit.h   shared PLAYABLE drum kit (the engine has no INSTR_KIT): a role vocab
+                         (KICK/SNARE/HAT/OPEN/CLAP/TOM/CRASH) + fixed slot layout + dk_fire(role,midi,vel)
+                         with pitch as a param. Header owns the trigger SKELETON; each kit's build()
+                         owns the SOUND (808≠909 stays). Built-in DK_ELECTRO/DK_ACOUSTIC (a real kit, measured);
+                         a kit takes DK_SLOTS (9), trim with dk_level(); sampler uses it to sample drums. A kit is a pad MAP, NOT keybed.h (which pitches one voice).
+             acid303.h   the shared TB-303 acid VOICE (extracted because tb303/acidrack had drifted their
+                         own copies): an Acid struct + acid_note/acid_ride/acid_gate/acid_off/acid_tie — a
+                         FILTER_DIODE held voice with non-retriggering slide, accent kick, two-decay, soft
+                         attack, filter tracking + octave-down sub-osc (acidrack's superset). Params floats
+                         0..1 (ACID_* enum). Cart owns the PATTERN, header owns the SOUND. acid_stock() =
+                         vanilla voicing (cut_top 6.0 + slapback + the REAL-303 traits measured vs Open303: held notes
+                         fade, accent +6.6 dB, fixed 200 ms accent decay, stock pot ranges), else Devil Fish wide — BOTH from one header,
+                         chosen by data. Used by tb303 + acidrack (both byte-identical A/B, 1.00000) + acidcandy.
+                         NOT drumkit.h (that's the pad MAP, this pitches one voice).
+             tr808.h     the shared TR-808 VOICE BANK (the acid303.h move, for drums — a faithful machine, not
+                         the generic drumkit.h): tr808_build(base) = the 14-slot bank from the reverse-engineered
+                         circuit values; tr808_fire(base,role,boost,delay,kt,kd,kc) = the layered trigger + tune/
+                         decay/colour knob maths; tr808_fire_semi adds a SEMITONE offset on top for a KEYBOARD,
+                         since the TUNE knob is ±12 by construction (tr808_fire is now its zero-offset wrapper). TR_* 16-voice roster; cart owns the knob arrays. tr808 + acidcandy.
+             tr909.h     the shared TR-909 VOICE BANK: tr909_build + tr909_metal (metal-highpass XY) + tr909_fire
+                         (+ _semi, the keyboard's wider pitch path) + tr909_fire_stroke (flam/drag/ratchet). TR9_* 11-voice roster. tr909 + acidcandy.
+             morphdrum.h the MORPHING DRUM VOICE bank, the honest core of "supergroovebox": an 808 kick and a
+                         909 kick are the SAME structure at different parameter values, so each voice is ONE
+                         parametric synth with a deep knob panel. CHARACTER (0=808…1=909) morphs the structural
+                         voicing; the rest are absolute controls reaching PAST both machines. morph_build/_ride/
+                         _fire, params 0..1 by MD_*, MD_PANEL[] = the knobs to lay out. NOT tr808/tr909.h (two
+                         FIXED faithful recipes) and NOT drumkit.h (a pad MAP): this is the SPACE between. morphbox
+             sideman.h   the shared WURLITZER SIDE MAN (1959) VOICE BANK: ten vacuum-tube circuits, the FIRST
+                         drum machine ever sold and the oldest drum sound here by two decades. sideman_build/_fire
+                         + the SIDEMAN_V voice table; SM_* 10-voice roster (BASS/TOM I+II/WOOD/TEMPLE I+II/CLAVES/
+                         BRUSH/MARACAS/CYMBAL). FOUR of the ten voices are struck WOOD, which is why the era reads
+                         as a "plock" and not as a beat: one damped ring through a resonant band, no noise, no
+                         layers, hard front, fast clean decay. The FULLNESS is not reverb, it is (1) every voice
+                         through DRIVE_ASYM at 0.45 and (2) the machine's ~60Hz-6kHz band limit (which IS the
+                         circuit, not the box: the coupling cap and the tube's bandwidth). ⚠ MEASURED, correcting
+                         what this line first claimed: DRIVE_ASYM is a tanh with an asymmetric PRE-GAIN, so the ODD
+                         partials lead the evens by 25-30 dB at every amount on every voice. The evens merely EXIST
+                         where they otherwise would not (h2 -94 dB bypassed → -39 dB driven), which is what
+                         separates it from DRIVE_SOFT. The fullness is the whole LADDER, not its even half.
+                         Deliberately does NOT own the
+                         BOX: the real unit had no speaker, it fed the organ's amp and cabinet, so that stage is the
+                         cart's, via outboard.h. sideman cart; design/sideman.md
+             tr77.h      the Roland TR-77 (1972) VOICE BANK, tuned against real TR-77 samples (sideman.h's shape):
+                         tr77_build/_fire/_fire_len + tr77_lane(label) = "CB+LB" fires BOTH drums. autorhythm
+             drumpat.h   GENERATED (tools/gen-drumpat.js) from tools/drum-patterns.json: 565 MODERN
+                         16-STEP patterns in 92 named groups (CR78, the classic-genre set, then rock/funk/
+                         disco/reggae/house/hiphop/dnb/dubstep/EDM/breaks…), bit-packed one uint16 per role
+                         per pattern, so the library is 36 KB of rodata; read with dp_hit/dp_flam/dp_accent.
+                         DP_AC is a VELOCITY lane, not a drum, and some steps are FLAMS (a hit that wants a
+                         doubled stroke). ⚠ NOT the same thing as rhythmbox.h: this is 16 sixteenths, a
+                         step-sequencer grid, which structurally cannot express what the organ-era boxes did
+                         (24 counts a bar, six per beat, held gates, skipped states, two-bar claves) — so use
+                         rhythmbox.h for period hardware and this for a big modern vocabulary. Provenance is
+                         UNEVEN and the header says so: converted from the maker's own drum-patterns.lua,
+                         which cites "Drum Machine - 260 Patterns" for its core set and nothing for the later
+                         groups. --import re-parses that Lua file; --selfcheck round-trips every row.
+                         READER: the groovebook cart (92 groups, any LETTER jumps to the first group
+                         starting with it, plays while you scrub, thumbnails of a whole group at once)
+             rhythmbox.h GENERATED (tools/gen-rhythmbox.js) from design/rhythm-box-patterns.md: 101 PRESET
+                         RHYTHMS read off three manufacturers' OWN documents, the sourced answer to what an
+                         organ-era rhythm box actually plays. RB_FR2L[16] (Ace Tone Rhythm Ace FR-2L, c.1969,
+                         the units Ace Tone sold Hammond to build INTO organs) · RB_TR77[18] (Roland TR-77,
+                         1972) · RB_SGS[30] (SGS M252 LSI, both published factory masks, the chip that put
+                         AUTO RHYTHM inside cheap Italian organs) · RB_HAM[3] (a 1969 HAMMOND PATENT, the only
+                         source here with CHORD and BASS lanes: they GATE the notes the player holds, and the
+                         data shows the alternating root-fifth bass) · RB_M255[6] (pins NAMED on the datasheet,
+                         so FIFTH and CHORD TRIGGER are labelled accompaniment) · RB_M254[16] (eight of its
+                         twelve outputs feed the M251 accompaniment chip, so it is MOSTLY chord/bass content) ·
+                         RB_M253[12] (the sibling chip's mask AA; its OTHER
+                         mask is byte-identical to an M252 one and is deliberately NOT included, so the library
+                         holds no duplicates). A lane is a 48-bit MASK over counts, so the
+                         whole library is a few KB; read it with rb_trigger (NOT rb_hit: on the SGS the chip
+                         fires on a ROM bit's RISING edge, so adjacent marks do not sound twice and 66 of its
+                         955 marks are already sounding) / rb_used / rb_beat_of. THREE things a
+                         player must respect or it plays nonsense: per_beat and bars are PER RHYTHM (the FR-2L
+                         waltz divides its 24-count bar by THREE, its slow rock reads all 48 as one 12/8 bar),
+                         `unused` marks counts a rhythm SKIPS (the TR-77 hatches them), and RB_GATE lanes are
+                         HELD not struck (a brush swish, a guiro), and lane ROLE bits say whether a lane is a
+                         drum or gates a CHORD / LOW BASS / HIGH BASS. ⚠ FR-2L lane LABELS are provisional (75 dpi
+                         scan, the letterforms are interpolation) — lane ORDER is reliable, the letters are
+                         not, so assign voices by order and never claim which voice plays which lane. Elgam's
+                         own patterns are NOT here and cannot be: custom mask ROMs, never published (doc §5).
+                         By contrast sideman's twelve rhythms are RECONSTRUCTIONS, now labelled as such
+             steinway.h  GENERATED (tools/gen-steinway.js): a real Steinway D BAKED IN for INSTR_PIANO's HYBRID
+                         grand (13 notes C1-C7, IMA ADPCM, ~0.9 MB): steinway_attach(slot, first_sample_slot) = every
+                         note plays the recording, then fades into the modelled string at 2.6 s (an early splice is
+                         AUDIBLE). Uses 13 of 16 sample slots. CC BY 4.0: show STEINWAY_CREDIT. grandkeys/openstrings/pianoref
+             ampcab.h    the shared guitar AMP/CABINET voicing table: five amps as preset BUNDLES of effects we
+                         already ship (instrument_drive + a DRIVE_* shaper + eq + glue), pinned like leslie, NOT
+                         new DSP. ONE truth so the standalone amp + pinned cabinet agree. combo/pedalboard/
+                         afrobeat/mixbooth/wba; design/effects-bus-architecture.md §E. Sibling of fxicons.h (LOOK)
+             outboard.h  the ampcab.h move for the MASTER bus: the four-stage ANALOG OUTBOARD CHAIN as one
+                         voicing table (EQ = eq_inst(0) · IRON = drive_insert(DRIVE_ASYM), the odd+even shaper ·
+                         COMP = an eq_inst(1) INPUT boost + glue(), since a FET unit has no threshold and is driven
+                         by its input · PLATE = reverb() + per-slot sends). Reach for it when a cart or app wants
+                         "the analog output chain" instead of hand-tuning eq/drive/glue per cart. TWO measured facts
+                         it carries so nobody re-derives them: the comp is PINNED after the inserts (so the only
+                         achievable order is EQ→IRON→COMP, never comp-first), and METER RMS on the comp, not
+                         peak — RMS is what moves (measured: at the hardest ratio glue takes 6.3 dB off the CREST
+                         and hands +2.3 dB of RMS back; before it gained makeup + a program-dependent release on
+                         2026-08-19 it did the OPPOSITE, so any older prose calling it "a ducker, not a limiter" is
+                         describing the old engine). Every stage bypasses BIT-EXACT (verified by diffing two
+                         renders, not asserted; the plate reconverges ~3.5s later because a reverb tail is real).
+                         ⚠ outboard_apply() OWNS the master insert order. outboard cart + tools/bypass-check.js;
+                         design/analog-outboard-chain.md
+             harmony.h   the shared HARMONY BRAIN (bidirectional): 13-function roman-numeral vocab + per-style
+                         Markov tables (HB_BOSSA/HB_COCKTAIL, byte-exact) — hb_pick (generate) + hb_suggest
+                         (ranked next chords + reason) + hb_analyze (key-in numerals, -1 = honest ?). Voicing
+                         stays rad_lead_to. bossa + cocktail + chordwise; design/harmony-brain.md
+             json.h      EXPERIMENTAL cart-land JSON reader (jsmn, zero-alloc tokenizer): slurp
+                         de_data_path() (the --data flag / $DE_DATA) + walk it, so a cart loads its data at
+                         RUNTIME instead of baking C arrays. Swap the file, don't regenerate the cart.
+                         citydrive/floorplan/roadview; design/external-data-carts.md. Not committed API.
+             pmbreed.h   cart-land face of tools/patch-match/pmpatch.h: pm_mutate() in 0..1 space (detents
+                         step, they do not nudge) + pm_apply_slot(). patchbench option B. No scoring.
+           Full table + contract: docs/guides/cart-authoring.md → "Cart-land library headers".
+           Sound/instrument cart? docs/guides/instrument-carts.md indexes the shelf by block copied.
+           cart_ctx.h  the shared half of "a cart-land header's state can be PER-INSTANCE" — an AUv3
+                       runs several instances in ONE process and a cart is ONE translation unit, so two
+                       racks share whatever its headers declare `static`. A header declares its state
+                       ONCE as an X-list, then forks: DE_CTX_STATICS(LIST) by DEFAULT (exactly the
+                       statics that were there, so every cart pays nothing) or DE_CTX_BLOCK(...) when
+                       a cart defines DE_CART_CTX (a per-instance slice via de_state_for, keyed by an
+                       ADDRESS so headers cannot collide). Done: the 8 headers measured in 2026-08-14's
+                       sweep. ⚠ NOT a closed class — the shelf is 32 now (cart-land-headers.js) and
+                       worldnet.h + citygen.h hold mutable file-scope state with no macro and no
+                       recorded exception; two instances of a cart driving them share one world cache.
+                       Recipe + the compile-order trap: docs/design/engine-context.md
+           lockup/    NOT shelf — ONE cart's private modules (the `lockup` prison sim), on the
+                      include path only because -I runtime already is. model.h is a FROZEN CONTRACT
+                      (types + signatures + the data tables + the sprite slot map); grid/path/actors/
+                      econ/art/score/hud each implement one slice, include ONLY the contract, and
+                      prefix every static (lkg_/lkp_/lka_/lke_/lkr_/lks_/lkh_) because it is all one
+                      translation unit. Written by 8 parallel agents; the pattern is ADR-0034.
+                      Don't #include these from another cart — copy what you need.
+           tenement/  same pattern, NOT shelf: the frozen contract for the `tenement` sim (several
+                      households in one building), specced + compile-checked, and DRIVEN by tools/carts/tenement.c
+                      (12 modules wired, spec() 249/249).
+                      Its ONE rule: nothing enumerates instances, everything matches on TAGS —
+                      no place owns a recipe, nothing switches on an object kind. docs/design/tenement.md
+           loficity/  same pattern, NOT shelf: the `loficity` cart's port of Lofi Cities' arranger (arranger.h core,
+                      style_<id>.h per style, *_data.h/words.h GENERATED from their live objects). Bit-exact vs their planner.
+           dreamatlas/ same pattern, NOT shelf: GENERATED (tools/gen-dreamatlas.js) — Mutable Dreams' 157 factory
+                      biomes for the `dreamatlas` cart. docs/design/mutable-dreams.md
+           isoroom/   generated (tools/voxel-bake.js --emit-c), not hand-edited: the baked rotation
+                      cell table for the `isoroom` probe. docs/design/iso-rooms.md
+editor/    electron/ (main.cjs compiles+runs carts; preload.cjs exposes window.studio.*),
+           src/ (shell.js IDE chrome, main.js CodeMirror+cmd-click, navigate.js engine-source
+           viewer, outline.js, sprite-editor.js, map-editor.js, studioDocs.js = single source for
+           API docs, settings.js, theme.js), public/ (fonts, dos_8x8.png, palettes/pico32.json),
+           vite.config.js (serveDocs plugin → Docs tab + engine-source viewer), index.html.
+           **What the editor can DO** (record/bake clips, 9:16 ratio-variants, the trailer builder,
+           the Apps ASO lab, Share) → the capability index docs/guides/editor-features.md — check it
+           before hand-building an editor feature (the tools/ list below covers CLI tools only)
+Makefile   `make` kills stale processes + starts editor, +floorplan `--serve` fetch-bridge if a token is set (targets: make / start / serve / install / help)
+tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read the file header for
+           the full contract:
+             make-cart.js    build/bake .cart.png from tools/carts/<name>.c; also a lib for play.js
+             play.js         debug harness driver (record/replay/script + trace + --wav + --solo-slot stem
+                             + --midi-note = a SYNTHETIC host note + --param = a SYNTHETIC host PARAMETER write; the only
+                             ways to put host MIDI / automation into a headless run)
+             make-gif.js     capture an animated clip of a cart (webm/webp/gif/mp4/apng + audio)
+             dress-clip.js   DRESS a clip into a 9:16 Short with hand-typed text in the letterbox bars —
+                             drawn in the REAL engine dos_8x8 pixel font with BOIL + a tween-in entrance (bakes two
+                             titlecard cards on magic-green + colour-keys them into the bars, framed console; --bg/
+                             --accent, --boil/--breathe/--anim, --mp4|webm; --preview <png> = fast drawtext LAYOUT
+                             still, --secs <n> = short motion preview). The "add text" step of record→bake→dress→post;
+                             DRIVEABLE FROM THE EDITOR (Promote §A ✨ dress → modal: layout preview + ▶ preview motion +
+                             kinetic knobs). Reuses titlecard (the trailer text renderer). Follow-up: youtube-push
+                             --dress. Design: docs/design/export-ratios.md "Dressed composite"
+             compose-clips.js stitch baked clips into one reel (ffmpeg xfade) from a .reel manifest; bakes @card
+                             text parts + composites timed `over` overlays (colorkey); `# frame letterbox` = the
+                             DRESSED style (console centred + device frame + bars; pos top/center/bottom = bar/
+                             over-console/bar) — the multi-overlay twin of dress-clip.js
+             build-app-reel.js  APP TRAILER: apps/<name>/app.json carts[] → bake a clip per rack (skips racks with
+                             no committed clip) → generate tools/reels/<name>.reel → compose-clips → one reel. The
+                             multi-cart video unit; the .reel is committed + hand-editable. Design: docs/design/demand-generation.md
+             net-relay.js    lockstep-netplay RELAY for web/wasm carts (zero-dep hand-rolled WS): rooms by code,
+                             BLIND byte-forwarding (never parses game packets — one relay serves every cart);
+                             --serve <dir> = the one-wifi-box setup (cart + relay in one process); --check
+                             self-test. Rung 5a — docs/design/multiplayer-research.md
+             midi-check/     the MIDI gate, BOTH DIRECTIONS (`zsh tools/midi-check/run.sh`, `-v` keeps the logs).
+                             Phase A (OUT): runs the `midiout` cart plus a REAL CoreMIDI listener (`listen.c`) in a
+                             SECOND PROCESS and asserts what arrived — channel, note, velocity, controller, no stuck
+                             notes, clock at 24ppqn — plus a **negative control** (the same run without `--midi-out`
+                             must publish NOTHING, the only way to tell "correctly gated" from "not gated at all").
+                             Phase B (IN): `send-cc.c` publishes a virtual SOURCE (the engine listens to sources and
+                             is never a destination, so an output port has nothing to push into) sending CC on
+                             channels 1/10/16, asserted out of the cart's `--trace`; the check that carries the
+                             weight is **channel ISOLATION** — cc74 read on ch2 must be -1, since per-cc checks
+                             alone cannot see a dropped channel nibble. Phase C (CART TO CART): `epianojam`
+                             sends, `epiano` RECEIVES and renders to a WAV that must be loud — the only
+                             end-to-end cover of the NOTE input path (parse → ring → midi_get → keybed.h →
+                             a voice), which A and B never touch. Its control turns epiano's AUTOPLAY off
+                             (on by default, a triad every 2 beats), without which "it made noise" proves
+                             nothing; that control measures peak -inf. Needs NO IAC bus and no DAW, unlike
+                             sync-spike. Run after touching runtime/midi_output.h or midi_input.h.
+                             THREE traps it documents, each of which made a healthy engine look broken: det-turbo
+                             compressing a 7s run into ~100ms (the port is born and disposed between polls — hence
+                             no `--headless` on the timed runs) · `CFRunLoopRunInMode` returning INSTANTLY when the
+                             run loop has no sources, so a "wait 12s" loop finishes in microseconds · and a
+                             long-lived CoreMIDI client needing a NOTIFY PROC + a pumped run loop, or
+                             `MIDIGetNumberOfSources()` answers 0 forever while a fresh process sees the port fine.
+                             Plus THREE the gate itself got wrong: `kill`ing a play.js PID leaves the CART
+                             orphaned and still sending (so phase C runs its control FIRST rather than
+                             managing the race), MIDIReceived is ASYNC so disposing the endpoint right
+                             after the shutdown note-offs drops them — which made "no stuck notes" pass by luck
+                             — and phase B's sender lived a FIXED 12s of wall clock while the cart's start
+                             time is a VARIABLE compile (3.9s idle, 13.7s under three concurrent build-alls),
+                             so on a busy machine the cart booted after the sender exited and all six
+                             assertions failed together, looking like a broken CC parser. Fixed 2026-08-14:
+                             the sender outlives any compile and run.sh now reports `THE GATE RACED, not
+                             the engine`. ⚠ Windows are DELIBERATE (no `--headless`, see det-turbo above):
+                             you see ONE cart window through phases A/B, and TWO during phase C's paired
+                             run (epianojam + epiano overlapping) — that is the gate working, not a bug
+             midi-note-check/  the gate for host MIDI NOTES reaching a CART (`bash tools/midi-note-check/run.sh`,
+                             27 assertions) — the input sibling of midi-check/, one layer up: that one proves the
+                             bytes arrive at the ENGINE, this proves a cart does the right thing with them. Covers
+                             acidcandy's whole mapping (docs/design/host-midi-notes.md): a note names a SOUND (transpose the
+                             acid lines / play the KIT through the GM map the rack already sends on) or a PITCH (play
+                             the acid line / one drum chromatically), switched by the per-machine PTCH lens.
+                             Runs headless because `--midi-note` pushes into the same ring an AUv3 host feeds, so
+                             no DAW, no cable, no keyboard. THREE CONTROLS, each stopping a different way of
+                             passing for the wrong reason: two untouched renders must be byte-IDENTICAL (or every
+                             "the audio differs" below is noise) · holding the panel's OWN root must be
+                             byte-identical (the override is EXACT, not merely present) · a note OUTSIDE the kit
+                             must change NOTHING (else the kit test passes on any MIDI traffic rather than on the
+                             map). Direction is measured on the 303 STEM, never the mix — a whole-rack centroid
+                             sits at the HATS and drifts the WRONG WAY as the bassline rises. ⚠ It clears
+                             build/saves/acidcandy before every run: the rack AUTOSAVES, so run N+1 boots from run
+                             N and two "identical" renders differ. Mutation-tested TWICE (drop the drain → 9 red;
+                             pin the PITCH lens off → 8 red — and both times the survivors are exactly the controls)
+             param-check/    the gate for HOST PARAMETERS reaching a cart's knobs (`bash tools/param-check/run.sh`,
+                             9 assertions) — the ENGINE half of docs/design/host-parameters.md: the declaration table,
+                             the queue, the frame drain, the range clamp, and that a written value reaches the DSP and
+                             not merely the variable. Runs headless because `--param <addr>@<frame>=<value>` goes through
+                             de_param_set, the same queue a DAW automation lane writes into. TWO NEGATIVE CONTROLS: two
+                             untouched renders must be byte-IDENTICAL, and a write to an addr NOBODY BOUND must change
+                             nothing (else any traffic through the queue looks like a working parameter). ⚠ ENGINE HALF
+                             ONLY — that a HOST sees the tree is proven out of process by `./au-transport-check --params`
+                             in ios/mac.sh, and a green run here says nothing about it. Clears build/saves/acidcandy per
+                             run (the rack autosaves; same trap as midi-note-check)
+             net-check.js    the one-liner LOCKSTEP GATE (netplay twin of tune-check): echo-mirror + netdemo
+                             pair + relay wire-protocol sim, PASS/FAIL; run after touching net.h / the net seams
+             webrtc-spike/   PASSED probe (multiplayer rung 5b): browser WebRTC P2P DataChannel, Mac↔iPhone at
+                             ~12ms over wifi (index.html — open on both peers). The relay-free twin of net-relay;
+                             design/multiplayer-research.md
+             input-ring-check/  THREAD-SAFETY gate for the host→engine INPUT RING (`de_touch_*`/`de_key_event`
+                             → `de_input_beginframe`, in runtime/raylib_compat.c). `bash run.sh` · `-tsan` (the
+                             real gate: ThreadSanitizer sees the race even on a run that wins) · `-bypass` (the
+                             NEGATIVE CONTROL — rebuilds with the producer writing engine state directly, the
+                             pre-ring design, and FAILS as it must). #includes raylib_compat.c so it gates the
+                             shipping code, and plays host + engine on two real threads because the race only
+                             exists where de_frame runs off the input thread = the AUv3. Also pins the
+                             ONE-FRAME PRESS rule (a tap arriving between two frames must still be visible)
+             present-race-check/  THREAD-SAFETY gate for the other half of that split: `de_copy_frame`
+                             (the published frame SNAPSHOT) + the DEFERRED resize path in studio.c. Builds the
+                             REAL engine like build-nr.sh, then blits + resizes from a second thread while the
+                             engine draws. `-tsan` (the real gate — it caught a pointer published outside the
+                             seqlock) · `-bypass` (negative control: the naive host reading the LIVE canvas,
+                             which tears). WHY: de_resize reallocs the framebuffer, so a plug-in view doing
+                             the obvious thing is a use-after-free in the HOST, blamed on us
+             ui-audit.js     UI bug finder (off-screen text, overlaps, dead widgets, hidden panels).
+                             `--selfcheck` = known-answer fixture (31 assertions, runs NO cart: the
+                             analyzer is pure, so it judges synthetic draw records) covering every
+                             finding kind AND every exempt class (clip / occlusion / identical strings /
+                             the ≤3px widget threshold / slivers / transients) + the whole
+                             `// ui-audit-ignore` waiver subsystem, which no cart exercises. In repo-doctor
+             mirror-diff.js  golden-pixel-diff harness: assert a render's symmetry invariant headless
+             canvas-diff.js  GPU-vs-software-canvas render oracle: A/Bs a cart in both modes + pixel-diffs;
+                             guards the sw_force_gpu/DE_CPU_RASTER gotchas; --bytecheck (sha) / --raw / --max / --heatmap
+             road-check.js   correctness oracle for coverage-based roads: framebuffer invariants (no naked
+                             edges / strays / floating kerb) at ANY angle; --all = config-matrix gate; --overlay
+             sndi-check.js   street-network METRIC oracle (worldgen-plan rung 0): the SNDi composite (degree
+                             shares/dendricity/circuity/sinuosity/orient-entropy) from a real .rvb OR a
+                             generated-graph JSON; multiple files = side-by-side A/B; --check self-test.
+                             THE realism number for procedural roadgen (generated matches real = done)
+             build-site.js / publish-cart.sh   build wasm carts + gallery → site/; publish + push
+             publish-all.js  batch publish in ONE deploy — run it bare: it CHECKS cart-status, then
+                             PROMPTS (smart=not-published+stale / +engine-stale / --all / build-all gate).
+                             Resilient build, reuses publish-cart.sh; -y non-interactive, --dry-run preview
+             mobile-lint.js  static report card: can a phone play this cart? The verdict is a
+                             PRECEDENCE chain (best input path a phone can use, not worst) over source that
+                             is comment-stripped + library-header-inlined with studio.h SKIPPED (its
+                             prototypes name every input fn, so inlining it makes EVERY cart read
+                             touch-ready). `--selfcheck` = known-answer fixture, 27 assertions
+             aso-research.js App Store keyword research from FREE public data (iTunes Search API, no account):
+                             per term a difficulty proxy + top competitors + your own rank (--app) + mined
+                             keyword candidates; --json snapshots. The Search-Term-Rank popularity column waits
+                             on Apple's beta. Design: docs/design/store-agents.md §ASO
+             aso-suggest.js  the DEMAND-side twin of aso-research (which measures competition): free stand-in for
+                             Apple's popularity column via Google Autocomplete ("alphabet soup" — no key/account).
+                             Two outputs: single WORDS → the App Store keyword field (→ aso-compose) + natural
+                             PHRASES → website/press-kit SEO. --quick/--json. Design: docs/design/store-agents.md §ASO
+             aso-brief.js    the PALETTE: generate a committed SEO worksheet (apps/<name>/seo-brief.md) you write
+                             press.md + the listing AGAINST — char budgets, store WORDS (→ compose), press PHRASES,
+                             a competition table. Seeds from de:meta; runs research+suggest. Emits vocabulary, NEVER
+                             prose (no AI-generated press kits). Design: docs/design/store-agents.md §"palette + mirror"
+             aso-coverage.js the MIRROR: check finished press.md + listing vs seo-brief.md — phrase/word coverage +
+                             a STUFFING warning (exits nonzero only on stuffing: fails you for reading robotic, not
+                             for a missed keyword). The ADR-0022 two-part bar on the store page. §"palette + mirror"
+             aso-score.js    SCORE a listing (title/subtitle/keywords) + A/B a TWEAK against the committed one with
+                             deltas, in the terminal for the tweak→score→tweak loop WITH the agent. budget + hygiene
+                             (aso-lint rules as penalties) + reach (seo-brief demand-word coverage) + WINNABILITY
+                             (--deep: per-keyword difficulty from aso-research — flags HARD terms a new app can't
+                             rank for). CLI drives the A/B tweak loop; editor Apps card has a 📊 score GLANCE
+                             (renders the scorecard WITH its gotchas). Design: docs/design/store-agents.md §"palette + mirror"
+             aso-lint.js     lint App Store metadata FIELDS (offline): title/subtitle/keyword char limits, wasted
+                             comma-spaces + stopwords + multi-word entries, cross-field repeats (a word only ranks
+                             once), and --research coverage. The deterministic half of the metadata composer (agent
+                             owns the taste). Design: docs/design/store-agents.md §ASO
+             aso-compose.js  PACK the 100-char keyword field deterministically: given title+subtitle + a priority-
+                             ordered candidate pool, drop stopwords + words already visible, split multi-word entries
+                             (Apple auto-combines), greedy-fill to the limit, and report what got CUT. The mechanical
+                             core of the composer; agent writes title/subtitle. Design: docs/design/store-agents.md §ASO
+             store-shots.js  native cart frame → App Store screenshots at EXACT device sizes (iphone69/ipad13/…).
+                             Solves the aspect-ratio gap by COMPOSITING not stretching: crisp integer-upscaled cart
+                             centered on a bg + caption (Comic Mono Bold, the editor font) in the breathing room; --font
+                             swaps it (Bungee etc). Zero engine work. ffmpeg-based,
+                             no node deps. Feed it a play.js --dump frame. Design: docs/design/store-agents.md §1
+             icon-mask.js    the APP-ICON MASK template + "which pixels get cut off" oracle. The mask is MEASURED
+                             from Apple's own renderer (Xcode 26's Icon Composer `ictool`: the alpha of a flat
+                             full-bleed render IS the mask), committed as tools/icon-masks/ios26-2048.png; `--check`
+                             re-derives + diffs it (repo-doctor gate, skips without Xcode). `template` = the guide you
+                             draw against (red = gone; --overlay = a transparent LAYER; --inset px = the offset curve to
+                             put your own chassis border ON, because a hand-drawn rounded rect has circular corners
+                             where the mask has continuous ones and gets shaved, the trap that bit two apps in review) ·
+                             `check <icon.png>` = per-corner flat-background-vs-lost-detail report + a 3-up proof PNG,
+                             --quiet gates a release · `preview` = what it will LOOK like, masked + shrunk to every
+                             real display size (1024 store · 192 home · 120 Spotlight · 87 Settings · 60 notif),
+                             light + dark, which is where a lo-fi icon dies · `device` = GROUND TRUTH, installs the
+                             icon into a booted iOS 26 simulator and crops what the home screen actually drew (the
+                             mask matched it to mean 0.13px, and a flat PNG gets NO gloss). Runs itself from
+                             build-app.js icon staging + the editor Apps tab 🎨 icon button. SAFE RULE: the
+                             inscribed circle is entirely inside the mask. Design: docs/design/app-icon-mask.md
+             store-contact.js  build a labelled CONTACT SHEET from a play.js --dump dir (evenly-sampled, numbered
+                             tiles + a tile→frame map) so an agent eyeballs a whole clip and PICKS the hero shots to
+                             feed store-shots.js — the deterministic half of §1's hero-frame director (agent chooses).
+                             ffmpeg-based, no node deps. Design: docs/design/store-agents.md §1
+             press-kit.js    generate a self-contained presskit()-style PRESS PAGE + assets zip for an app, from
+                             apps/<name>/app.json + apps/<name>/press.md + apps/studio.md + store-shots/make-gif assets
+                             (prose in markdown, structured in flat frontmatter; no node deps). Channel-A own-domain
+                             artifact. Design: docs/design/press-kit.md
+             asc-push.js     PUSH the non-cart product surface to App Store Connect from apps/<name>/app.json — the
+                             in-house upload tool ADR-0026 chose over Fastlane (zero deps: Node fetch + ES256 JWT).
+                             --metadata (title/subtitle/keywords/desc/promo/URLs/copyright) · --screenshots · --iap
+                             (create→localize→price→availability→review-shot→1024² promo image → READY_TO_SUBMIT,
+                             idempotent; images from apps/<app>/iap-images/<slug>.png) · --promote (mark IAPs
+                             promoted purchases → product-page + search surface; pairs with Store.swift PurchaseIntent) ·
+                             --new-version (a LIVE app has nothing editable, so an UPDATE starts by creating the
+                             next version; idempotent) · --screenshots --replace (an update INHERITS the old
+                             shots and upload APPENDS) · --dry-run GETs live + diffs · --check offline gate.
+                             Auth: ~/.appstoreconnect/ (.p8 + config.json), never git.
+                             Design: docs/design/store-agents.md §"ASC upload + TestFlight tool"
+             leads.js        the local MARKETEER (demand GENERATION, the twin of the aso-* capture tools): maps a
+                             cart's de:meta to its TRIBE(s) + the venues where that tribe gathers (`match`), hunts
+                             NEW venues (`discover` = ready search urls + Google-autocomplete community signals; Reddit's
+                             free API is dead), scaffolds a gift-first post from the cart's OWN words + the tribe hook
+                             (`draft` — no invented prose, per store-agents' rule), and tracks outreach (`track add`).
+                             Ledger: tools/leads-ledger.json (committed, hand-editable; seeded from tinyjam-marketing §3.9).
+                             Design: docs/design/demand-generation.md (lever #3 "showing up in the tribe")
+             reddit-gaps.js  demand DISCOVERY (what to BUILD next; the third demand tool after aso-* capture +
+                             leads.js generation): mine a tribe's public RSS (listing + `search.rss` wish-probes —
+                             the API is approval-gated + broken, RSS is the open front door) → wish-mine (regex
+                             patterns) → cluster by topic → cross-reference the cart shelf → rank GAPS (high
+                             demand × low coverage × on-grain). No score in RSS → ranks by CLUSTER SIZE. No
+                             auth/deps; polite+cached; `--check` self-test; `--drip` = fetch the stalest sub
+                             (for a cron/launchd drip); `--ingest <file>` = paste-bridge for browser-saved RSS.
+                             THREE passes, each blind to what the others see: wishes (what the tribe ASKED
+                             for) · `--showcase` (what it UPVOTED — needs a post old enough to have trended) ·
+                             `--launches` (who SHIPPED into our lane, date-windowed — a build from this week
+                             has no ask and no time to trend, so the other two CANNOT see it; runs in the drip
+                             log too, since supply news rots in days). `THIN` (◐) = covered on paper but
+                             demand ≥3× our carts — on a shelf this size `GAP` is nearly extinct and THIN is
+                             where the next candidate comes from. Design: docs/design/demand-discovery.md
+             reddit-gaps-drip.sh  the scheduled-drip RUNNER for reddit-gaps (loaded by the macOS LaunchAgent
+                             com.dreamengine.reddit-gaps-drip): resolves node under launchd's bare env + fires
+                             `reddit-gaps.js --drip` (stalest sub in reddit-gaps-subs.txt) every 6h. `zsh tools/reddit-gaps-drip.sh` to fire once
+             youtube-push.js the DISTRIBUTION last mile of demand lever #2 (twin of asc-push, ADR-0033): recipe →
+                             bake mp4 (make-gif) → composite a 9:16 SHORT (integer-upscale + pad, never stretch; >60s
+                             refused) → resumable upload → URL back. --landscape = full 16:10; --reel <app> = an app
+                             trailer; metadata derived from cart de:meta / app listing (no hand-typed copy). OAuth2
+                             creds in ~/.youtube/ (--auth one-time), NEVER git. --dry-run plan / --check offline gate.
+                             Design: docs/design/video-distribution.md
+             wav-analyze.js / tune-check.js / dc-check.js / level-check.js / fx-check.js /
+                             soak-check.js / web-audio-check.js   audio gates (see "Key things to know").
+                             web-audio-check carries TWO controls because neither covers the other's half:
+                             --selfcheck (31 answers) judges the ANALYSER and builds nothing, so it runs
+                             anywhere; --bypass rebuilds the wasm side with -ffast-math and requires the gate
+                             to go RED (16/16 engines diverge) — the only proof the comparison reaches the DSP
+             schedule-check/ the gate for `schedule_at()`/`audio_time()` + radio.h's `rad_audio_*` grid (`bash tools/schedule-check/run.sh`): frames at 60 Hz +
+                             audio in 1024 blocks (what `--wav` can't show); booked clicks must land 0 samples off; old way = control
+             insert-latency.js  how long a sample takes from `de_audio_input()` to the OUTPUT — the number
+                             that decides whether a cart can be an INSERT EFFECT (auv3-plugin-types.md §4.1's
+                             first caveat: the mic ring was built for ANALYSIS, latency unmeasured). Feeds
+                             IMPULSES through the real path via the harness's DE_MIC_WAV hook (a sine's phase
+                             is ambiguous by whole periods — the exact ambiguity that makes a latency figure
+                             wrong by a round number) and reports delay · whether it is CONSTANT (a host can
+                             only compensate a fixed latency) · whether anything was DROPPED · and unity gain
+                             for free, since 0.5 stays under the soft-clip knee. Probe cart = `inslat`.
+                             MEASURED 2026-08-17: 0 samples, constant, unity, nothing dropped. ⚠ That 0 is a
+                             property of push-then-render at 1:1 — which is what an AU render block does, so it
+                             is the right model, but the AU wiring must preserve the ordering. `--check` = 10
+                             known answers over SYNTHETIC signals (so a broken analyser and a broken engine
+                             cannot print the same table), incl. the two that matter: silence must yield NO
+                             arrivals (a dead render must not look fast) and a dropped impulse must read as
+                             missing rather than as delay 0
+             click-check.js  the CLICK/SPLICE oracle: waveform DISCONTINUITIES in a WAV and WHERE (first
+                             difference vs the LOCAL step-rms, so a saw's flyback isn't a false positive; a cart's
+                             own slope ≈2-3x, an audible click 6-20x). `--quiet` = PASS/FAIL gate. Run it after any
+                             mid-note wave_set / table swap / envelope-shape edit — an envelope plot cannot tell a
+                             clean ramp from a splice, which is how martenot's 8-step morph shipped crackling
+             stereo-check.js the STEREO oracle — the ONLY gate that reads L and R apart. Every other audio
+                             tool's `readWavMono()` averages the channels at the door, so autopan / pan_law /
+                             the stereo soft-clip / chorus width had ZERO coverage; worse, a mono downmix is
+                             actively BLIND to antiphase panning (gL+gR ≈ constant, so summing removes it).
+                             Reports corr · width (side/mid) · balance · mono-fold loss · a pan TRACE over
+                             time (excursion + LFO rate — a hard-sweeping pan and a dead-centre file have the
+                             same MEAN pan). `--expect mono|wide|decorrelated|autopan [--rate hz]` = PASS/FAIL
+                             gate, `--check` = self-test vs synthetic signals (RUN IT FIRST — a broken analyser
+                             and a mono file print the same thing). Run after any pan/width/stereo edit
+             bypass-check.js the RECONVERGENCE oracle: switch an effect OUT and does the mix come back
+                             BIT-EXACT, and how long does it take? Nothing else asserts that. Renders the
+                             SAME run twice (a stage IN then switched out at frame N, vs never in) and locates
+                             the LAST DIFFERING SAMPLE, because a whole-file sha only ever says "differs" (every
+                             stage differs while it is IN, that is its job) and the question is whether the two
+                             RECONVERGE, and when. Tolerance is a TIME + a residual CEILING per stage, not a
+                             boolean: EQ and IRON return on the switching sample, COMP within 1 LSB inside 17 ms
+                             (a nulled `eq_inst` is an ALGEBRAIC null, not a float-exact one), PLATE 3.1 s later
+                             because a reverb tail is real. FOUR ways it refuses to pass vacuously — a
+                             byte-identical pair reads INCONCLUSIVE not PASS (the toggle never reached the DSP) ·
+                             a difference still going when the render ENDS is the render length, not a
+                             reconvergence · a sub-audible or 0.2%-of-samples difference means the stage was
+                             inert · and the baseline is rendered TWICE and must be byte-identical, or the whole
+                             comparison is measuring nondeterminism. Also fingerprints runtime/ before and after
+                             and reports THE ENGINE MOVED rather than a finding, since a parallel agent landing
+                             in sound.h mid-run compares two different builds (that happened). `--quiet` gates,
+                             `--selfcheck` = 30 known answers on constructed WAV pairs (no cart, no engine),
+                             mutation-tested. docs/design/analog-outboard-chain.md §4
+             arrange-score.js  the ARRANGEMENT scorecard: reads the notes a music cart PLAYED (DE_TRACE voice events,
+                             sample-stamped) and scores lead clashes (wrong scale), per-part bar repetition, section
+                             contrast, pocket, phrasing, harmony; side by side vs a reference (`lofi loficity`). Needs
+                             only a per-cart ROLE map. `--sound` adds the half notes can't show: music-mix crest (the
+                             squash tell) + centroid + bass-heavy % and per-part STEM balance vs keys, measured while
+                             sounding. `--selfcheck` (17). docs/design/radio-arranger-lessons.md §5-6
+             voice-trace.js  read a --trace run's voice-allocation events (on/off/reuse/steal/choke, naming the
+                             victim) → why a voice stopped; twin of play.js --solo-slot (stem render). For "a solo got
+                             cut off by another instrument". Design: docs/design/audio-voice-debugging.md
+             wav-correlate.js / wav-envelope.js / wav-modrate.js / harmonic-spec.js   WAV A/B
+                             analysis (sample correlation / amp+brightness+spectral-centroid envelope,
+                             `--from/--to` region / LFO rate+depth / harmonic series) — for A/B-ing a
+                             render against navkit (or before/after an fx like crush/filter/EQ)
+             ab-render.js    A/B a cart against ITSELF: flip one file-scope value (`static x = …;` or
+                             `#define x …`), render each variant, print sha+peak+brightness+centroid in one
+                             table, and ALWAYS restore the source (finally-block, survives Ctrl-C). Use it
+                             instead of hand-sedding a flag — it EXITS 2 and shouts if two variants render
+                             byte-identical audio, i.e. the flag never reached the DSP and the numbers are
+                             meaningless (that bug already cost a bogus finding once). The LISTEN-item
+                             workhorse for design/synth-secrets-plan.md; measures, never judges
+             ref-render/     render a note from somebody ELSE'S physical model, so ours has something to
+                             be WRONG against — `run.sh stk <Brass|Flute|Clarinet|Bowed>` or `run.sh luthier
+                             <gut|steel|…>` or `run.sh open303` (an acid PATTERN vs tools/carts/acidref.c), fetched+built on demand, output timed to match tools/carts/bowprobe.c
+                             so both drop into the same oracles. Every other gate checks an OUTPUT PROPERTY (in
+                             tune, right level, no clicks); NONE asks whether the MECHANISM is sane, which is how
+                             INSTR_BOWED ran for months with a friction coefficient ABOVE 1.0 behind a green
+                             board. A second implementation is what caught it. Carries peaks.js (partial
+                             frequencies at 0.33 Hz, the LONG window — inharm-spec's 0.3s one ALIASES our own
+                             ±15.5¢ vibrato and invents a partial stretch) + a per-reference state table:
+                             Clarinet ✅, Flute ◐ (+28¢, its own "fudge correction"), Bowed ◐ (octave), Brass ✗
+                             (won't self-oscillate). ⚠ STK+luthier are MIT (borrow WITH attribution, as
+                             BOW_BODY_HZ does); flute-lv2 is GPL-2.0 — measure against, never copy
+             mode-extract.py a struck object's MODES from a one-hit recording (sub-band ESPRIT, numpy+scipy) →
+                             C tables for instrument_modes() (with measured phases) + instrument_modes_noise() (half-octave
+                             washes + ticks, unmixed through the engine's band shapes); `--wavs` renders each mode count to pick
+                             it BY EAR, `--from modes.json` refits a new count in ~20 s. drumhand's ride; guides/tuning-drum-voices.md
+             patch-match/    SYNPLANT-style PATCH MATCHING: a sample in, EIGHT dreamengine patches out
+                             (`bash tools/patch-match/build.sh tools/patch-match/pm.c build/pm && ./build/pm <x.wav>`;
+                             bench.c = the render-protocol gate + its `-shared` negative control, detents.c = the
+                             snapped-macro map + `--check`).
+                             Analysis-by-synthesis, no ML — a multi-resolution log-mel L1 distance + differential
+                             evolution driving the REAL engine headless. THREE stages, because the biggest decision
+                             is DISCRETE and an optimizer should not have to rediscover it through a wall of
+                             continuous knobs: ENGINE RACE (all 18, short window; the output is a RANKING, often the
+                             more useful answer) → VOICE REFINE (top 3 × 3 seeds, seeded from the race winner) →
+                             FX FIT with the voice FROZEN, so you can read WHICH HALF did the work. Emits pasteable
+                             instrument()/instrument_tape() blocks + a WAV per candidate to A/B against the target.
+                             FOUR things MEASURED that the design hangs on, each of which the obvious build gets
+                             wrong: a candidate must render on a FRESH de_instance_create (the same patch renders
+                             DIFFERENTLY note-to-note inside one instance — per-voice state, not a tail, so a longer
+                             flush does not help — and a fresh engine is CHEAPER than flushing anyway) · the RENDER
+                             is the bottleneck (26ms per second of audio) and the loss is NOT (5.7ms), the opposite
+                             of the usual advice · the fx stage seeds individual 0 with BYPASS, without which its
+                             "best" can be WORSE than adding nothing (bypass is in the space; the search just never
+                             found the off switch across 23 random dims) · and dimensions split by WHAT A DIAL DOES,
+                             not which API owns it — every periodic modulation (vibrato, tape wow/flutter, tremolo)
+                             competes in ONE stage, or whichever stage runs first takes the wobble and a cassette's
+                             flutter is reported as an 0.85-semitone "vibrato". `--selftest <ENGINE>` = THE ORACLE
+                             (render a known patch, throw the params away, find them again): the ONLY thing that
+                             separates "the engine genuinely cannot make that sample" from "the search is broken",
+                             since here the answer is reachable by construction. MEASURED over 24 runs (6 engines ×
+                             4 seeds): the right engine is in the TOP THREE 24/24 but FIRST only 21/24, and PD is
+                             NEVER first (its phase-distortion tones are reachable by SAW, so it is genuinely
+                             ambiguous, not badly searched) — which is why stage 2 refines 3 engines even in
+                             --quick, since PD ranked 3rd on one seed and a top-2 shortlist throws the answer away.
+                             Continuous macros come back to ~3 decimals. SNAPPED macro axes (FM 10 detents / ORGAN 8
+                             / PD 8 / PIANO 6 / EPIANO 3, all on `harmonics`) are MEASURED not guessed by
+                             detents.c — a snapped axis quantizes before the DSP, so every value inside a detent
+                             renders BYTE-IDENTICALLY and grouping identical renders recovers the boundaries
+                             exactly; `detents.c --check` gates the table against engine drift. The search then
+                             ENUMERATES the positions (DE cannot climb a staircase it expects to be a slope): net
+                             win, biggest on PIANO (0.165 → 0.092), and `--no-polish` A/Bs it. ⚠ On a snapped axis a
+                             RAW-VALUE difference is not an error — 0.620 vs 0.694 is the same FM detent, i.e. an
+                             exact hit; the oracle prints the detent index for this reason. ⚠ INSTR_VOICE ignores
+                             all 3 macros set on the SLOT (sound_voice_start() rewrites vox_p/vox_s at every
+                             note-on); only the live note_harmonics/_timbre/_morph face reaches it — found here,
+                             NOT fixed. ⚠ A "neutral" 0.5 on a MODE_* dial is a TRAP: MODE_BOW_PIZZ is a >= 0.5
+                             THRESHOLD, so 0.5 made every BOWED candidate a PIZZICATO — a patch now writes only the
+                             MODE dials the search OWNS, which is safe because each candidate gets a fresh instance.
+                             ⚠ A loss is only readable against its scale:
+                             0 = identical, ~1.0 = an UNRELATED real sample, 1.65 = noise — so 0.18 is a good match
+                             and 0.42 is the engine telling you it does not have that sound
+             filter-spec.js  measure a per-voice FILTER's actual response (slope dB/oct, resonance peak,
+                             bass drain per res step) via a generated probe cart — acceptance evidence for
+                             any sound.h filter change; born from the 303-fidelity spike (audio-notes §25)
+             disp-model.js   the DESIGN counterpart to inharm-spec (which measures a render): what a
+                             dispersion allpass cascade does to a waveguide's partials, computed
+                             ANALYTICALLY from the loop phase condition. Solves the coefficient for a
+                             target inharmonicity B per note/stage-count + reports the phase delay it
+                             adds at the fundamental (which must come OUT of the delay line or the note
+                             plays flat) and what is left of the line. `--curve` = forward sweep,
+                             `--check` = self-test incl. an engine-validated point. Use it INSTEAD of
+                             patching sound.h to search a grid — that is slow, and it holds a shared
+                             engine broken while parallel agents compile (it bit twice; a timeout's
+                             SIGTERM skips the restore). Patch the engine only to CONFIRM one point.
+                             `--body` = the §M2 COMB BODY half (an instrument body is a small reverberant
+                             room): resonances + colouring for a set of 1-4 ms lines, and `--lowest <hz>`
+                             SIZES the set for a bigger instrument (violin air ~280 Hz, cello ~110) while
+                             reporting the BUFFER BUDGET — which is the constraint: a cello needs 401
+                             samples/line against the engine's 256 stride, so it does not fit pn_ks2
+             inharm-spec.js  WHERE the partials sit, in cents vs the ideal n·f0 — the third leg beside
+                             harmonic-spec (how LOUD) and filter-spec (what the filter did). Fits the
+                             stiff-string B of f_n = n·f0·√(1+Bn²) + prints the residual, so "the partials
+                             moved, but not the way a string moves them" is visible. Probe mode = any engine
+                             × velocity × time-window (does inharmonicity respond to LEVEL, does it RELAX);
+                             WAV mode for any region. `--check` self-tests against synthetic known-B spectra —
+                             RUN IT BEFORE BELIEVING A NULL, since a broken tool and an harmonic engine print
+                             the same table. Found audit §I4b/§I4c/§I4d (PIANO's dispersion inert + only half
+                             its Railsback stretch reaching the sound + a loop tuning offset). Modal engines
+                             (MALLET/MEMBRANE) are out of frame — they have no energy at n·f0 at all.
+                             `--decay` = PER-PARTIAL decay rate (dB/s): wav-envelope gives the whole
+                             signal, which cannot tell "the fundamental dies faster" (a loop bug) from
+                             "only the upper partials do" (spectral). That distinction settled the §I4b
+                             sustain scare — reach for it whenever sustain changes and you need to know
+                             WHERE the energy went
+             formant-check.js  the VOICE oracle: f0 (autocorrelation, mean + WOBBLE) + F1/F2/F3 formant
+                             peaks (Welch-smoothed spectral envelope) of a WAV region — the pitch-moved-AND-
+                             formants-held gate for sample_autotune / any pitch-shift (design/transparent-autotune.md)
+             psola-check.js  the ARTIFACT oracle for the PSOLA pitch engine — the "does it CLICK" twin of
+                             formant-check's "is it in TUNE". Renders voxshift's four takes and runs THREE
+                             detectors, because each is blind to a defect the others catch: SPLICE (first
+                             difference) · PERIODICITY (x[n]-x[n-T] vs the RAW take as CONTROL) · DOUBLING
+                             (f0 vs expected — the only one that sees period doubling, which is still
+                             perfectly periodic so PERIODICITY scores it as an IMPROVEMENT). Run it before
+                             AND after any at_psola_slot edit; --quiet = CI, --save re-blesses (and now
+                             REFUSES to bless a red render); --selfcheck = 53 known answers, --measure dumps
+                             what the probes read before you change one. ⚠ SPLICE reads 0/0.0000 on all four
+                             takes of a HEALTHY render — a dead detector prints the same rows. It killed a
+                             bad epoch-marking change in one command that had previously cost several
+                             listen-and-report rounds. contemporary-rebirth.md §"Rung B … postscript"
+             sprite-draw.js  reusable 2D pixel-canvas API for programmatic .cart.js sprites
+             sprite-preview.js  render a .cart.js's sprites to one labelled PNG (no compile/run) — the tight loop for code-drawn sprites
+             pixelsnap.js    clean up "AI pixel art": snap soft/off-grid pixels onto a real grid + posterize
+                             to a small palette (median-cut / --palette pico32 / --two ink,paper), OKLab match,
+                             FS or ordered/diagonal dither, --clean despeckle; never overwrites the input
+             voxel-bake.js   bake tiny ASCII VOXEL models (`tools/voxel-models/*.js`) into ROTATED sprite
+                             cells + a packed atlas. Solves the art wall under a rotating isometric view:
+                             8 rotations hand-drawn is 8 drawings per sofa, and rendering voxels with
+                             tritex every frame is the one thing measured too slow on device (ADR-0024).
+                             So author once, bake all rotations at BUILD time, runtime is sspr() + a
+                             painter's sort. LIGHT IS FIXED IN SCREEN SPACE (shade by world normal and it
+                             appears to rotate with the room). Reports TOTAL ATLAS PIXELS, which is a
+                             BUDGET not a wall: make-cart.js DEFAULTS a sheet to 128×128/64 slots and a
+                             .cart.js may declare a bigger one (`sheet: {w,h}` / `sheet: 256`) since
+                             2026-08-12 — generator carts only, the sprite editor still assumes the 8×8
+                             grid. `--check` = 34 known
+                             answers. docs/design/iso-rooms.md
+             font-bake.js    bake real-TTF text into sprite-draw canvases at build time
+             gen-rom-font.js bake the "extra" bitmap fonts (ROM dumps + EPX) into the shared atlas
+             gen-drumpat.js  GENERATE runtime/drumpat.h from tools/drum-patterns.json (the committed parse
+                             of the maker's own drum-patterns.lua, which lives outside this repo; --import
+                             <file.lua> refreshes it). --check gates staleness · --selfcheck rebuilds every row
+                             string FROM THE EMITTED TEXT and diffs it against the JSON (565 patterns, 7345
+                             role slots) so it tests what ships rather than what is in memory, plus two
+                             liveness answers (a bass drum lands on step 0 somewhere; flams survive)
+             gen-rhythmbox.js  GENERATE runtime/rhythmbox.h from docs/design/rhythm-box-patterns.md (the
+                             doc is the source of truth: it carries the provenance and the confidence markers,
+                             the header carries only the bits). Parses FIVE lane notations the doc actually uses
+                             and REFUSES to write a partial header: an unparsable lane line is reported and the
+                             run fails, because a silently dropped lane would be a lie about a sourced dataset.
+                             --check gates staleness · --dry parses and reports · --selfcheck = 14 known
+                             answers taken from findings the doc states in PROSE, so a wrong regex cannot ship
+                             (two are whole-corpus structural invariants: no FR-2L mark may fall on an UNRULED
+                             count, no TR-77 mark on a HATCHED column). It has already earned its keep twice:
+                             it caught two 25-character rows in a 24-count bar in the committed doc, and a v1
+                             that stamped every FR-2L rhythm with a 6-count beat, which would have played the
+                             waltz wrong. Per-rhythm subdivisions live in a SUBDIV table, each entry citing the
+                             doc section that states it; a rhythm the doc does not pin keeps its machine default
+             grain-check.js  the INSTR_GRAIN gate: renders the `grainprobe` cart (a sine SWEEP as the sample, since a sweep's
+                             pitch IS its position) and asserts 1× = plain playback (corr ≥ .99), FROZEN holds still, an
+                             octave up = 2.00× at the same timing, scatter/detune stay finite. T1's sweep is the control
+             scrape-check.js the INSTR_SCRAPE gate: renders `scraper` (DE_DEFINES=PROBE) and holds its guiro + quijada to
+                             the samples they replace (rate, body 10/50/90%, tooth ring, floor, level shape; 20 checks).
+                             `--ref <wav>` measures any recording the same way, `--selfcheck` = 6 known answers + a noise control
+             oneshot-compare.js  tune a ONE-SHOT (drum/cymbal/pluck) against a REAL recording: pitch, energy band
+                             10/50/90, peaks, flatness, ->-20 dB, the early envelope curve, level vs a chosen hit (--rel kick).
+                             `<ref> <ours>` side by side, or `--render <cart> --spec <hits.json>` (examples in
+                             tools/oneshot-specs/). The cr78 / guiro / drumhand method; `--selfcheck` 15 known answers, mutation-tested
+             fetch-refs.js   rebuild build/refs/<set>/ (gitignored reference audio) from the COMMITTED manifest
+                             tools/refs/<set>.txt; re-checks each license on its freesound page, REFUSES non-CC0.
+                             `--check` offline presence · `--selfcheck` 10 known answers. Leads for more sets: tools/refs/README.md
+             gen-dreamatlas.js GENERATE runtime/dreamatlas/biomes.h from Mutable Dreams' presets/catalog.json —
+                             `--fetch` pulls it at the PINNED commit into build/ (not committed); --check gates staleness
+             gen-wavescan.js GENERATE runtime/wavescan_data.h, INSTR_WAVESCAN's 12-shape band-limited table bank, from
+                             Plinky's own wave recipes + windowed-sinc mip pyramid (MIT) — NOT its shipped table, whose slots
+                             2-15 are WAVs of unknown origin. --check gates staleness · --selfcheck = its saw byte-identical to
+                             Plinky's shipped one + a band-limit test with a raw-saw negative control · --report = centroids
+             gen-steinway.js GENERATE runtime/steinway.h from assets/samples/steinway/ (IMA ADPCM 4-bit, 896 KB); --check
+                             gates staleness · --selfcheck = per-zone SNR ≥30 dB + a corrupted-byte control + the
+                             header's C decoder compiled and diffed bit-exact against the tool's own
+             build-cart-index.js  GENERATE editor/public/carts/index.json from each cart's de:meta block
+                             (cart owns its metadata; index.json is a derived view); --check gates staleness
+             lint-carts.js   validate each cart's de:meta (tags/status/created/description) + assert
+                             index.json in sync; owns the tag vocabulary. Also the SOURCE hazards
+                             (promoted gotchas): watch() 2nd-arg-must-be-format-string + built-in shadowing
+                             + hand-rolled finger pools. `--selfcheck` = known-answer fixture (48 assertions:
+                             every hazard AND every one of its exempt classes — comment / struct field /
+                             waiver / grandfathered cart / paren-nested arg — plus the de:meta case table),
+                             gated in repo-doctor
+             collections-vocab.js  the CONTROLLED, DOC-ANCHORED vocab for cart collection[] — the
+                             cross-cutting research THREADS ({slug,title,doc,blurb}, like teaches-vocab.js).
+                             A collection = a sprawling experiment that owns a doc; every slug MUST point at
+                             one (lint-carts asserts it exists). Field/design: design/cart-metadata.md, 003-curation
+             collections.js  the roll-up view over cart collection[] (node tools/collections.js [slug] /
+                             --counts / --json): "show me the road stuff / the radio stations", each with its doc
+             backfill-slug.js  add the canonical `slug` (=filename stem) to every cart's de:meta + re-embed
+                             de:source — the .cart.png→.c provenance anchor (design/editor-cart-workflow.md
+                             Gap 1b); dry-run by default, `--write` to apply (BACKFILL COMPLETE 2026-07-10 — 0 pending;
+                             lint-carts now ENFORCES the slug↔filename match, so this is kept as the
+                             re-embed helper, not an open chore)
+             spec.js         run each cart's spec() — the gameplay-logic gate (twin of tune-check)
+             squishy-features.js  feature×brush COVERAGE oracle for the squishy cart (renders its matrix
+                             grid, pixel-diffs each cell vs baseline → flags silently-no-op features).
+                             `--json`; `--selfcheck` = known-answer fixture (21 assertions over SYNTHETIC
+                             grid PNGs, runs no cart) — incl. all five PNG scanline filters through its
+                             hand-rolled decoder, which nothing else in the repo covers
+             build-context.js  assemble a reading briefing for ONE cart: de:meta + todos + related carts +
+                             every doc/note that MENTIONS it (with the line) — finds the differently-named home
+             cart-outline.js a per-cart READING MAP (twin of build-context, for the SOURCE): data shapes
+                             verbatim + global state + a FUNCTION INDEX (line · sig · role) + entry-point line
+                             ranges — understand/navigate a 1–3k-line cart at ~1/7th the tokens of reading it.
+                             --fn <name> dumps ONE function's body (no guessing the end line); --full adds macro values
+             orient.js       go cold on a cart in ONE call: build-context + cart-outline back to back (the pair you
+                             always want first). Flags pass through to the outline (--full / --fn <name>).
+                             BARE (no cart) = the SESSION front door — starting cold or resuming? run it:
+                             active handoff lanes + the repo-doctor health strip + what's pending, counts only
+             topic-brief.js  the HORIZONTAL twin of build-context: a FEATURE/theme dossier across the whole repo
+                             from a term-set — design docs (with STATUS + plan progress) + ADRs + ledger + the
+                             engine seam + carts that demo/want it + related tools. `node tools/topic-brief.js "touch controls" gamepad`
+             design-board.js ONE overview of every design doc + ADR and what phase it's in (ready/building/
+                             exploring/shipped) — derived from each doc's STATUS line. Headlines the READY-TO-BUILD
+                             backlog (specced work nobody's on). `--lint` = docs with no/off-vocabulary status
+             doc-status.js   (lib, not CLI) shared STATUS-line parse + the lifecycle-phase vocabulary; owned here,
+                             used by topic-brief.js + design-board.js
+             api.js          one-shot studio.h API lookup — sig + doc for a fn/constant (exact, else substring →
+                             discovery) without reading the ~500-entry studioDocs.js or an LSP round trip
+             cart-info.js    orient on ONE cart: screen/GW×GH, embedded de:source DRIFT vs the .c, registration
+             cart-status.js  what's out of date (rebake / publish / stale / compendium)
+             cart-commit.js  the per-cart COMMIT helper: re-embed + lint + regen views + SCOPE-CHECK
+                             (refuses to sweep a foreign cart out of index.json) + commit by a derived
+                             pathspec. Dry-run by default; `-m "…" --commit` to fire. Bakes the two
+                             commit hazards (missed file / foreign-registry sweep) in as guards
+             cart-todos.js   the navigable view over every cart's de:meta.todo[] polish punch-list (--grep/--count/<name>)
+             cart-analyze.js complexity + global-state report; ranks spec-worthiness. The verdict is a
+                             FALL-THROUGH chain whose ORDER is the judgement (`simple` is tested first, so a
+                             tiny widget cart is simple, not reactive). `--selfcheck` = known-answer fixture,
+                             23 assertions incl. the score formula recomputed from the metrics
+             cart-index.js   computed technique index ("what cart teaches X") + coverage
+             cart-dupes.js   cross-cart duplication finder → refactor / drift candidates. Its power is
+                             NORMALIZATION: cart-local identifiers collapse to V while the engine vocab
+                             (every identifier in runtime/*.h CODE — decommented, or 56% of the "vocabulary"
+                             is header PROSE) stays literal, so API calls are the fingerprint. `--selfcheck`
+                             = known-answer fixture (20 assertions) pinning that trick in BOTH directions
+             build-compendium.js  generate docs/cart-compendium.html (--check gates staleness)
+             build-design-board.js  generate docs/design-board.html — the VISUAL ★ designs page (every design
+                             doc + ADR by lifecycle phase, clickable cards) from design-board.js; --check gates staleness
+             build-reflections.js  generate docs/reflections.html — the VISUAL ★ reflections page (the research
+                             journal by lifecycle) from build-field-notes.js's collectNotes(); --check gates staleness
+             build-band-briefs.js  generate docs/band-briefs.html — the VISUAL ★ briefs page: every blind band
+                             brief (docs/design/*-blind-brief.md) paired with the radio cart it became; --check gates staleness
+             build-field-notes.js  GENERATE docs/field-notes/FIELD-NOTES.md — navigable index of the research
+                             journal (lifecycle board / timeline / related-note graph / conformance); --check gates staleness
+             build-book.js   generate docs/learn-you-a-dreamengine.html — the illustrated "Learn You a Haskell"-style
+                             field guide to the studio.h API; every illustration is REAL harness output (carts in
+                             tools/carts/book/, stills via play.js --dump / anims via make-gif) so it can't drift
+             build-all.js    compile-check every cart vs current studio.h (catches API rot)
+             build-nr.sh     build+run a cart with the DE_NO_RAYLIB software engine (no Raylib/frameworks) — the desktop twin of the iOS build (ios/)
+             build-box2d.sh  build the vendored Box2D v3 (runtime/box2d/) into build/box2d/<target>/libbox2d.a per platform (--mac/--win/--wasm/--ios, --check runs a drop-box smoke test). Pure-C rigid-body lib for the physics experiment; opt-in, not in the default cart build. See docs/design/box2d-integration.md
+             mac-app.sh      bundle an exported cart binary into a signed + notarized + stapled .app that opens on ANY Mac (Gatekeeper-clean); needs a Developer ID cert + a notarytool cred profile (header has the one-time setup)
+             bundle-spike/   PASSED probe: TWO carts in ONE binary (per-TU -Ddraw=<slug>_draw renames + a dispatcher shim; carts unmodified) — the Tinyjam multi-cart app shape (design/share-panel.md §spike); proof-sound.sh = the de_switch_cart round-trip oracle
+             tls-spike/      MEASURED probe for the per-instance-context refactor's one open design
+                             question: how should `ctx` get into scope? `bash tools/tls-spike/run.sh` times
+                             the SAME per-sample DSP text compiled three ways — plain statics (today) ·
+                             a `_Thread_local` pointer · an explicit `ctx` parameter — so the delta is the
+                             access mechanism and nothing else. VERDICT: the parameter is FREE (+0.8%);
+                             the thread-local costs **+0.83 ns per opaque function ENTRY** (not per
+                             access — clang hoists the lookup out of loops, and it vanishes entirely when
+                             the stage inlines). Also prints the arm64 TLS thunk it is talking about.
+                             ⚠ Its own output-equality assertion caught the first version measuring the
+                             BASELINE 3× slow (unreset echo state decaying into denormals) — a benchmark
+                             whose variants do not start from identical state measures nothing
+             instance-check/run-uictx.sh  the CART-LAND half: does a cart-land header's state become
+                             PER-INSTANCE when a cart opts in (`-DDE_CART_CTX`)? Builds the probe TWICE and
+                             asserts OPPOSITE things — the DEFAULT path must stay shared (that is what all
+                             every cart compiles, and it must not change), the opted-in path must not. A seam
+                             checked only in its enabled state is half a seam. Pattern + how to do the next
+                             header: docs/design/engine-context.md → "Cart-land"
+             pro-check.js    THE GATE for the Pro entitlement seam (runtime/pro.h + ios/Sources/
+                             Entitlements.swift): compiles pro.h four ways and asserts BOTH DIRECTIONS
+                             (a strongly-linked "no" must LOCK, a strongly-linked "yes" must UNLOCK —
+                             without the second, a probe that always says locked scores full marks),
+                             then the STRUCTURAL half: every AU_EXT target in the git-TRACKED
+                             ios/project*.yml must link Entitlements.swift + AppGroup.swift. That half is
+                             the one that matters, because pro.h fails OPEN: an extension with no
+                             entitlement source linked compiles, runs, looks perfect and hands Pro to
+                             everyone. Four negative controls (no store must read unlocked · a strong
+                             "yes" must unlock · the bridge must be REACHED carrying the manifest's own
+                             product id · a mutated yml must go red). --quiet gates, --selfcheck = 5
+                             known answers for the yml parser in both directions
+             state-check/    THE ACCEPTANCE TEST for SESSION STATE — does a saved rack come back?
+                             (`bash tools/state-check/run.sh`, 20 assertions.) Backs the AU's `fullState`:
+                             `de_save_state`/`de_load_state` serialise INTENT — the sound config log +
+                             the cart slices marked `de_state_for_saved` — never the ~4 MB context
+                             struct, which is pointers, GPU handles and DSP scratch. Uses its OWN probe
+                             cart holding one slice of EACH kind, because the gate has to prove both
+                             halves: saved comes back, SCRATCH DOES NOT. Four negative controls, each
+                             stopping a different way of passing for the wrong reason — a FRESH instance
+                             must be at defaults (else "B matches A" also passes when they share one
+                             block) · the scratch slice must NOT travel (else saving EVERYTHING, incl.
+                             live voice handles, looks perfect) · a mangled FINGERPRINT must be REFUSED
+                             and leave the rack alone · a TRUNCATED blob too. Also asserts
+                             save(restore(save(A))) == save(A). Also gates MIGRATION — the update cliff —
+                             by building the probe TWICE (`-DSC_GROWN` appends a field = "the next
+                             release") and moving a blob between the builds through a FILE, because a
+                             build cannot grow its own struct: an older/shorter blob must prefix-restore
+                             (returning 2) with the added field at its DEFAULT rather than bytes read past
+                             the end, a LARGER blob must be refused (the struct shrank), and a v1
+                             pre-migration blob must still restore exactly. ⚠ The Swift half is gated
+                             separately by `./au-transport-check --state` in ios/mac.sh
+             instance-check/  THE ACCEPTANCE TEST for the per-instance engine work: can ONE process run N
+                             INDEPENDENT engines? `bash tools/instance-check/run.sh` creates two via
+                             `de_instance_create`, drives them with DIFFERENT transport, and asserts their
+                             frames and audio differ. ⚠ This is the thing `refactor-guard` structurally
+                             CANNOT check — the guard runs ONE instance, so it proves a state move changed
+                             nothing and can never prove two instances are strangers (a variable wrongly left
+                             SHARED does not change a single-instance render). NEGATIVE CONTROL: two fresh
+                             instances driven the SAME must be byte-identical, else "they differ" is measuring
+                             noise. Also gates DESTROY (8 create/destroy rounds must leave the heap flat,
+                             `-bypass` control) and SAMPLE-EXACT interleaving (an engine must render the same
+                             whether or not another steps between its frames). ⚠ That last one is only
+                             meaningful for a `DE_CART_CTX` cart, and does NOT gate a modulator seed — both
+                             measured, see the probe. Sibling of engine-dylib-spike, same assertions from the other mechanism —
+                             that one gets separation from dyld (K copies, hard cap), this from the context
+                             (one image, no cap). The probe's own footer lists what a PASS does NOT cover
+             engine-dylib-spike/  PASSED probe: **K independent engines in ONE process**, by loading the
+                             engine as a dylib K times instead of refactoring its globals. `bash run.sh`.
+                             WHY: two AUv3 instances land in one extension process (measured) and engine
+                             state is process-global (~200 mutable statics in studio.c/sound.h + each cart's own),
+                             so two DAW tracks fight over one rack. dyld keys images by FILE, so two
+                             COPIES of one dylib are two data segments — every static duplicated, ZERO
+                             changes to studio.c/sound.h/any cart. Ships as K pre-signed copies in the
+                             bundle (no runtime copy = no "may a sandboxed appex dlopen what it wrote").
+                             Carries a NEGATIVE CONTROL (same path twice must come back byte-identical,
+                             reproducing the defect so the main assertion can go red) + a BONUS assertion
+                             that two DIFFERENT carts run side by side at their own canvas sizes — which
+                             de_switch_cart cannot do. 9 MB for two engines. NOT covered: dlopen from
+                             inside the sandboxed .appex, the Swift-side frame worker (one static per
+                             process today), K same-named CoreMIDI virtual sources, K instances sharing
+                             one cart.blob. docs/design/ios-plan.md
+             sync-spike/     the two MIDI-CLOCK probes + the end-to-end gate for external sync
+                             (runtime/sync.h): midimon = LISTEN, naming every transport byte on the wire ·
+                             midisend = SEND a clock to the IAC bus, and `midisend <bpm> <secs>` WITHOUT
+                             `start` reproduces the case that shipped broken (a DAW already playing, so the
+                             cart joins mid-flow and never sees a START → tempo-only, see sync_transport).
+                             `run.sh` bare = builds both + asserts the whole arc (arrive → START → run →
+                             STOP → hand back) through synccheck's trace, so the REAL CoreMIDI path has a
+                             gate too — the synthetic --midi-clock one can't cover it, since a deterministic
+                             run ignores real MIDI by design. Needs IAC online; macOS only
+             mic-spike/      THE MIC SHIPPED — this is the original probe, kept for the trail. The engine
+                             HEARS and SPEAKS through studio.h: mic_start/_stop/_active/_level/_pitch +
+                             mic_record* (capture), and vocoder_mic / autotune_mic / harmonize_mic /
+                             input_monitor / sample_autotune on top. mic_pitch is a YIN detector and is
+                             octave-SAFE; the spike's own note below predates it by two detectors.
+                             docs/design/mic-and-sampling.md. ▼ the probe, as run: miniaudio mic capture →
+                             live mic_level()/mic_pitch(); run.sh fetches miniaudio.h + builds; CONFIRMED
+                             LIVE on Mac (webcam mic, peak −17 dBFS — level clean, zero-crossing pitch is
+                             octave-noisy)
+             build-app.js    build a MULTI-CART app from apps/<name>/app.json: per-TU renames + generated dispatcher + per-cart sound/video/sheet contexts (de_switch_cart umbrella) — adding a rack = one manifest line. Bare = a native binary; --mac wraps it signed+notarized via mac-app.sh; --ios stages the set for the Xcode build (ios/device.sh|build.sh APP=<name>).
+                             **`--check` = THE STORE-PATH GATE** (repo-doctor row): every apps/*/app.json through the real front half (`--dry` = validate+generate, stop before clang), one child each so a broken app reports and the sweep continues. WHY: nothing here ran build-app.js except a human about to ship, so when SOUND_CART_CTX moved into the generated sound_ctx.h and the parser still grepped sound.h, EVERY app build was dead for weeks behind a green board, behind an error that named the symbol and blamed the wrong file. ⚠ It stops before the first clang, so a cart that no longer COMPILES still breaks an archive and this stays green — that half is build-all.js; this covers what build-all cannot see (manifest, roster, ctx cap, icon path, the engine constants the builder reads). `--selfcheck` = known-answer fixture, 20 assertions over a temp tree of apps each broken a different way plus a control, mutation-tested (blind the fan-out to child exit status → 11 red)
+             profile-fleet.js batch CPU-profile a set of carts → which engine primitive is hottest
+             status-check.js the front+back door for docs/STATUS.md, the shipped/open/cut LEDGER — the one
+                             doc everything tells you to TRUST and the only one held to no standard (both
+                             linters carve it out; neither can see a ledger losing sync with the repo,
+                             because none of it is a broken link). Bare = the index it lacks (counts,
+                             shipped newest-first, the REAL open list). `--check` = drift: a DONE marker
+                             inside Open (38% of the backlog on day one), an over-long entry, an undated
+                             one, Shipped out of order, numbering inversions, a bloated headline, a dead
+                             "see Decided-against" pointer. ⚠ NEVER renumber to fix an inversion — ~30
+                             `STATUS #N` refs across docs/tools/carts resolve today; reorder instead.
+                             `--selfcheck` = the KNOWN-ANSWER fixture (tools/fixtures/status-check/): asserts
+                             the checker itself, incl. regression guards for the two false-positive shapes that
+                             fooled v1. Gated in repo-doctor. Copy this pattern into any linter that JUDGES
+             ctx-gen.js      the EDIT half of the per-instance-context refactor: moves engine state into
+                             a context struct, mechanically. Reads the static list from `engine-statics
+                             --list` + the exceptions from `ctx-classification.json`, emits runtime/
+                             sound_ctx.h (struct + macro block) and rewrites sound.h. `--primitive` =
+                             batch 1 (no type-hoist needed) · `--probe` compiles it on a COPY in four
+                             build configs · `--write` applies · `--check` = 28 known answers ·
+                             **`--verify` = the CLASS check**: every engine static must be moved OR written
+                             down in ctx-classification.json with a reason (`--quiet` gates, repo-doctor row).
+                             It asserts BOOKKEEPING, not correctness — but it is what catches a group moved
+                             HALF way, and it found two whole files never classified at all. The move is
+                             PURE because the default instance is a `static` with DESIGNATED INITIALISERS —
+                             values still set at link time, so there is no init-order risk and no init
+                             function to call. ⚠ Its `--probe` carries a SENTINEL (`#error` in the
+                             generated header) because a quoted `#include "sound.h"` resolves relative to
+                             studio.c's OWN directory before any `-I`, so the probe reported ok four times
+                             for a build that never read the generated file. Anything it cannot parse with
+                             certainty is SKIPPED and reported, never guessed. Verify with refactor-guard.js
+             refactor-guard.js  "I moved state around — did ANY output change?" The safety net for a
+                             PURE REFACTOR (born for the per-instance-context/AUv3 work): `--bless` records
+                             a baseline, bare compares, `--quiet` gates, `--full` adds the semantic gates as
+                             a second opinion. Fingerprints THREE independent streams per probe cart (WAV ·
+                             frame dump · watch() trace), each as a whole-stream sha PLUS per-chunk shas, so
+                             a failure says WHERE — "audio diverges at 3.1s", "frame 137" — not just that a
+                             hash moved. Unlike tune-check/spec/canvas-diff (which assert SEMANTIC properties
+                             and so have tolerances a state move can slip inside), this asserts nothing
+                             changed at all. ⚠ Its real enemy is a VACUOUS PASS, so every probe carries
+                             LIVENESS assertions (audio must have signal, frames must have more than one
+                             colour, a trace must actually evolve) and a dead probe FAILS rather than
+                             passing quietly — which caught 2 of the first 6 probes. Proven to go red on a
+                             real `sound.h` edit; `--check` = 32 known answers incl. a live negative control. Also names WHY a red
+                             may not be yours: it re-hashes every recorded input and, when HEAD has MOVED since the
+                             blessing, says so (in `--quiet` too) — three agents commit to this branch and somebody
+                             else's `runtime/studio.c` landing mid-loop used to read as "your refactor is a bug".
+                             ⚠ Still EXITS 1 either way: a note is not an excuse, or a real regression coinciding
+                             with an unrelated edit would go green
+             engine-statics.js  how much PROCESS-GLOBAL MUTABLE STATE the engine still holds — the
+                             measurement the per-instance-context (AUv3 multi-instance) refactor is paced by,
+                             and its progress meter: every file-scope static is state two plug-in instances
+                             SHARE, so each number falling to 0 is a file made per-instance. Per engine file:
+                             statics · NON-ZERO initialisers (the only hand work — zero/NULL come free from a
+                             calloc) · function-local statics (a `#define` cannot fix those, the declaration
+                             must move) · and the `#define name (ctx->name)` COLLISIONS, the one thing that
+                             would make the technique miserable (measured: 0 today, 2 when the technique was
+                             chosen). Asks CLANG'S AST, not a grep —
+                             the figure it replaces missed every declaration with a trailing comment and
+                             undercounted 2.7×. `--quiet`/`--json`; `--check` = 18 known answers
+             lint-aux-params.js  the per-engine AUX PARAM channel (`instrument_mode`/`eng_p[]`) writes its
+                             width in FIVE places that must agree (both `eng_p[]` decls, BOTH `idx >= N`
+                             bounds — the setter AND the SR_ENG_TUNE handler — the note-on copy, and every
+                             MODE_* constant + its 4-place registration). Miss one and the parameter
+                             SILENTLY does nothing: the setter accepts it, queues it, the handler drops it.
+                             Has bitten twice (piano decay/knock dead for months; MODE_PIANO_STRETCH read
+                             as 0). `--quiet` = CI, `--json`. Run after touching instrument_mode or adding a
+                             MODE_*. `--selfcheck` = known-answer fixture (17 assertions): every check here is
+                             a regex over C, and THREE of the five pass VACUOUSLY on zero matches (no bounds
+                             found → "all bounds equal the width"), so a rotted pattern prints the same green
+                             ✓ as a healthy engine — the fixture pins those guards. Gated in repo-doctor
+             lint-docs.js    validate docs/ cross-references (links resolve, §-refs) + the two
+                             DISCOVERABILITY gates: every tools/* and every cart-land runtime/*.h is
+                             indexed in CLAUDE.md (headers also in cart-authoring's table) — the "it
+                             exists but no agent finds it, so they hand-roll it again" class.
+                             `--json`; `--selfcheck` = known-answer fixture (pins the HARD-vs-SOFT §-ref split:
+                             a parent-resolved ref is a NOTE, never an error), gated in repo-doctor
+             cart-land-headers.js  (lib, not CLI) the ONE split of runtime/*.h into the cart-land SHELF
+                             (ADR-0006) vs engine internals / platform seams / generated. Owned here so
+                             lint-docs (the discoverability gate) and api-usage (the call-site scan) can't
+                             drift; same lib shape as doc-status.js + capability-roster.js. A NEW header is
+                             shelf by default — the direction that fails loudly. Run it bare to see the
+                             classification with a reason per allowlisted file
+             lint-engine-seam.js  the HOST↔ENGINE boundary, from three bugs that shipped in one day
+                             because the per-instance refactor changed what host code MEANS without
+                             changing what it SAYS. (A) TWO ENGINES IN ONE HOST — `de_instance_create`
+                             used to return a SINGLETON so it never mattered who asked; it ALLOCATES
+                             now, and three components were each booting their own rack (the AUv3
+                             panel = the flickering, AudioEngine = total SILENCE on device, GameHost =
+                             a third engine to ask two questions). A file may create one only if it
+                             says `de:engine-owner` (`multi` for the instance probes) — a marker, not
+                             an allowlist, so a new host cannot forget to be added. (B) A SEAM
+                             FUNCTION THAT IGNORES ITS HANDLE: six found in a day, each taking a
+                             `DeInstance *`, dropping it with `(void)in` and reading the thread-local,
+                             which on a HOST thread names the DEFAULT engine — it never fails loudly,
+                             and the handle in the signature makes it READ as done. Waive with
+                             `seam-lint-ignore` + a REASON. (C) A CART DECLARING ITS OWN `extern` for
+                             an engine function: `face.h` + 7 carts had `extern void de_resize(int,
+                             int)` against a 3-arg definition — UB no compiler sees across TUs, which
+                             surfaced as a crash with `in = 0xa7` (167 = the canvas width it asked
+                             for). If a cart needs an extern, THE SEAM IS MISSING AN API (that is how
+                             `canvas_resize` was born). Arity is read FROM the header, so it cannot
+                             drift. `--selfcheck` = 22 known answers, both directions per check
+             lint-saved-state.js  nothing in a SAVED session-state slice (`de_state_for_saved` /
+                             `DE_CTX_BLOCK_SAVED`) may be meaningful only to the instance that wrote it —
+                             the blob is restored into ANOTHER process. Two tiers, honest about their own
+                             strength: a POINTER is an ERROR (the type says so), a LIVE VOICE HANDLE is
+                             ADVISORY and matched by NAME, because a handle is a plain `int` and no static
+                             check can tell it from any other int. That second tier is why a pointer-only
+                             lint would not do: keybed.h/solo.h/radio.h all hold handles, which is exactly
+                             why they are SCRATCH. Found a real one on its FIRST run — `acidcandy`'s
+                             `nav_poison[6]`, an array of WIDGET POINTERS inside the saved CartState,
+                             committed an hour earlier under a comment claiming there were none.
+                             Also enforces **APPEND-ONLY** against a committed layout snapshot
+                             (`tools/saved-state-layout.json`, `--bless-layout` to re-record). WHY: the
+                             engine matches a blob to its slice by (index, SIZE), so it catches a slice
+                             that GREW and is structurally blind to a REORDER — same size, fingerprint
+                             still matches, every restored value lands in the wrong field, silently.
+                             Only a record of the old order can see that. RECURSIVE, because the
+                             top-level view missed the point: `SaveBlob`/`P808`/`P909` are NESTED in
+                             acidcandy's `CartState` and hold most of the saved bytes. Unparsable member
+                             lines are REPORTED, never dropped — which is how a real parser bug was
+                             found (a `//` comment containing a `;` split mid-comment).
+                             `--selfcheck` = 23 known answers in BOTH DIRECTIONS (the same list on the
+                             SCRATCH macro must be silent), because this lint's failure mode is not a
+                             false positive but going quietly blind. Runtime behaviour: tools/state-check
+             lint-fxicons.js every `FX_*` insert kind must have a shared GLYPH in runtime/fxicons.h
+                             (body colour + accent + name + icon). The failure is SILENT and worse than
+                             blank: an unregistered kind falls through fx_icon()'s `else` and draws a
+                             convincing REVERB pedal labelled "FX" — which FX_DRIVE + FX_MULTIBAND both
+                             did for six weeks, while TWO carts hand-rolled a private `od_icon()` for
+                             FX_DRIVE (the copy-paste fxicons.h exists to prevent). The fallback kind is
+                             DERIVED from the `else` comment, not hardcoded. `--strict` gates in
+                             repo-doctor; `--selfcheck` = known-answer fixture. Sits at ZERO
+             lint-capability-claims.js  docs that say we CAN'T do something we now CAN — the INVERSE of
+                             stale-doc-check (which finds docs citing code that once existed and is gone).
+                             "missing (no reverb engine)", "not a vocoder — a future effect once the
+                             sidechain lands": true when written, now a lie an agent believes and routes
+                             around, hand-rolling a workaround for a shipped effect. Precision comes from
+                             6 discriminators, chiefly: a capability must PROVABLY ship (a studio.h proof
+                             symbol, so "no octaver" is never flagged) and a PARAGRAPH-scope acknowledgement
+                             ("reverb ✓ SHIPPED") silences it — which is also the escape hatch for
+                             deliberately-historical prose. ADVISORY by design (it judges prose);
+                             `--selfcheck` = 26 known answers (recall AND suppression), gated in repo-doctor.
+                             Roster shared with wants-check via capability-roster.js
+             wants-check.js  what a `*-wants.md` doc is ACTUALLY still waiting on — the STRUCTURED twin of
+                             lint-capability-claims (which reads prose and therefore has a recall ceiling: it
+                             missed afrobeat entirely, because this repo denies a capability by SCHEDULING it,
+                             "still open: wah, tape, leslie"). This one never reads prose. It parses the
+                             `unblocked by` TABLE COLUMN the genre already writes — that column IS the
+                             dependency list — and reports a want only when THREE facts hold: the doc declares
+                             it blocked on X · X ships (a studio.h proof symbol) · the CART makes no call that
+                             would use it. So the output is a work-list, not a nag, and a row clears itself
+                             when the cart wires it. ⧗ STILL BLOCKED = the doc is telling the truth. Also
+                             cross-checks the doc's own STATUS line (parked in exploring/building while every
+                             want ships = stale by definition, no phrasing involved). `--todo` = actionable
+                             rows only, `--strict` gates, `--selfcheck` = 11 known answers
+             capability-roster.js  (lib, not CLI) the shared capability list: cap → the studio.h `proof`
+                             symbol that shows we ship it → the `wire` symbols that mean a CART used it.
+                             Owned here so lint-capability-claims + wants-check can't drift; same lib shape as
+                             doc-status.js. Drop an API and the capability leaves both tools automatically
+             lint-xrefs.js   the inverse of lint-docs: find docs that SHOULD cross-link but don't —
+                             unlinked doc-name mentions + missing backlinks (A→B but not B→A). Advisory;
+                             scope to a feature (`node tools/lint-xrefs.js touch`) to act on it.
+                             `--json`; `--selfcheck` = known-answer fixture (both tiers + the HUB and
+                             fenced-code exempt classes), gated in repo-doctor
+             stale-doc-check.js  doc-freshness finder. BROKEN REFERENCES tier = a doc cites a code path
+                             that ONCE EXISTED and is now gone (renamed/deleted — prose left behind by a move), or
+                             a dead `tool --flag`. A never-built file and another repo's path are NOT that and are
+                             suppressed with a count (`--all` lists them) — before that discriminator landed the
+                             tier was 47 findings at a 0% true-positive rate, all proposals; mtime tiers = nudges (TOOL DRIFT:
+                             a doc names a tool changed after it; DOC CHURN, --docs). `--driftable` = the CURATED
+                             tier: docs that declare a `de:driftable` snapshot of a tool's output, flagged when the
+                             tool's inputs moved after the snapshot (see docs/design/driftable-docs.md; surfaced by
+                             cart-status.js). grep + git dates, no dep graph; advisory. `--all` lists what the
+                             broken-refs tier SUPPRESSED (proposals / other repos' paths — it always prints the
+                             count); `--selfcheck` = known-answer fixture, gated in repo-doctor
+             handoff.js      the ACTIVE-LANE tracker for docs/HANDOFF.md — keeps it recent + the reliable place to
+                             resume complex in-flight work. Bare = FRONT DOOR: list the ▶ ACTIVE THREAD lanes + age
+                             (wired into orient.js). --check = BACK DOOR: flag lanes >2wk old / a lane whose BODY WAS
+                             EDITED AFTER its date (git blame per lane — the AGE check is structurally blind to this,
+                             and it is the commoner drift: two commits wrote a whole app submission into one lane and
+                             neither bumped the header, so the front door aged today's work at 2d) / broken doc links /
+                             broken #section anchors (write Resume-ats as [text](doc.md#section) so a renamed section
+                             is caught; surfaced by cart-status.js). Same two-door pattern as driftable-docs.
+                             `--selfcheck` = known-answer fixture (all five lane judgements + all three false
+                             positives this tool once shipped; dates are TEMPLATED so it can't rot), gated
+             gate-controls.js  which of our GATES can prove they are able to FAIL? A gate never seen to go
+                             red is indistinguishable from one gone BLIND, and nothing tells you which — so
+                             this counts the ones carrying evidence (a `--selfcheck` known-answer fixture, or
+                             a NEGATIVE CONTROL / `-bypass` that must fail). `--list` = the work-list ·
+                             `--excluded` = what it dropped · `--quiet` = the repo-doctor row. ADVISORY: a
+                             missing control is a QUESTION, not a defect (loud failures need none) — spend one
+                             where PASS is the steady state and failure is SILENT (timing, threading,
+                             suppressing guards). Born from three assertions that were green while the thing
+                             they named was broken, each differently: a pair-counter blind to TIMING, a guard
+                             inert inside an `#ifdef`, and a flush that won a RACE. Two precision rules it
+                             learned: a control must be STRUCTURAL (the word "control" in prose does not
+                             count) and exiting nonzero on BAD USAGE is not judging (that draft reported 60
+                             "gates", half of them generators). `--selfcheck` = 11 known answers, mutation-
+                             tested. docs/guides/checks-and-oracles.md → "The OTHER way a green check lies"
+             repo-doctor.js  ONE health strip over every meta-check (lint-docs/lint-carts + the build-* --check
+                             staleness gates as ✗, the advisory linters as ⚠) run in parallel, counts only —
+                             listings via --full or the named tool itself; embedded in bare orient. --quiet = CI
+             gen-tcc-symbols.js   regenerate runtime/studio_tcc_symbols.h from studio.h (libtcc)
+             build-history.js     generate docs/history.html from git + the spine; --check = spine edited after page
+             api-usage.js    bulk "how often is X used"; cross-checks studio.h ↔ docs ↔ shell.js.
+                             TWO corpora: `carts` (tools/carts/*.c) + `elsewhere` (the cart-land shelf,
+                             generated cart contexts, private cart modules, the app shim) — so a zero in
+                             both means nobody calls it ANYWHERE; `--where <fn>` names the files. Both
+                             halves of that were silent bugs: it read carts only (so de_state_for, the
+                             seam the AUv3 work sits on, read as dead weight) and matched RAW source (so
+                             2306 comment/string hits counted as calls, incl. two carts whose only "use"
+                             is prose saying the fn is NOT used). Numbers here feed a CUT LIST, so a
+                             plausible-but-wrong count is the expensive kind. `--selfcheck` = 21 known
+                             answers, mutation-tested
+           det-probes/  standalone cross-compile DETERMINISM oracles + design-exploration probes for the
+                    software canvas (run.sh = bit-identical arm64/x86/wasm gate; rotfill/rotline/rotspr/
+                    stritex/… are the rotated-primitive studies that already settled the SW conventions).
+                    README is the index. CHECK HERE before re-researching a software-rasterizer question.
+           carts/   <name>.c (+ optional <name>.cart.js config). .cart.js exports
+                    { sprites, map, charMap, mapW, mapH }; three sprite patterns — see
+                    docs/guides/cart-authoring.md.
+apps/      multi-cart APP manifests (apps/<name>/app.json — carts, bundle id, later store metadata
+           per ADR-0026's next-to-manifest layout); tools/build-app.js turns one into a binary
+data-tools/ per-cart DATA-acquisition tools (NOT general — that's tools/). Each subfolder feeds a
+           few specific carts with external data; see data-tools/README.md. Growing collection:
+             fmltools/   Floorplanner .fml → playable top-down level (fml2cart/fml-assets/fml-sprites,
+                         floorplanner.js fetches by project id, make-floor.sh runs the pipeline) — feeds
+                         floorwalker/seinelaan/floorplan. Has its own README + TODO + cache/ + samples/.
+             roadview/   osm-roads.js — EXPERIMENTAL: fetch real OSM road geometry → "vector features"
+                         JSON/.rvb the roadview cart loads at RUNTIME (--bbox/--place/--demo/--convert);
+                         swap cities by swapping files, no cart regen (docs/design/external-data-carts.md).
+build/     compile output (cart.c, binary, sprites.png, fonts, traces; .bake/ for live inspection)
+docs/      all project docs — start at docs/README.md. VISION.md / STATUS.md, decisions/ (ADR-lite),
+           design/ (api-notes, audio-notes), guides/ (cart-authoring, sharing, debug-harness).
+```

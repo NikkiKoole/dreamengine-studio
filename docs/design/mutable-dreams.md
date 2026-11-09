@@ -231,8 +231,11 @@ byte-identical with bar = 16). The Rhodes comps `X..x..x.x.` in rootless 3-5-7-9
 (Gb Bb Db F) and Bbm9 (Db F Ab C) a bar each (checked from the trace), the upright plays root and
 fifth, a ride swings, the brush lands on 2 and 4, vibes improvise 4 in 15 (a bar and a half), an Eb
 drone sits under two bars at a time. The Rhodes' ring now follows its decay knob (1000 = the old 3 s).
-⚠ A lesson for Late Modal: swing shifts every ODD SIXTEENTH, so tracks at speed 2 (eighths) are
-never swung there; Cool in Five swings properly because its steps ARE the eighths.
+⚠ Swing shifts every ODD STEP, so a track at speed 2 (eighths over 16th steps) is never swung: Late
+Modal's ride sat dead straight until Late Modal was moved to eighth steps too (row tempo 32, bar 8,
+every track's pattern rescaled to land where it did); its ride now measures 1.00 / 0.64 / 0.36 beats,
+"ding, ding-a" with the "a" late, where it was 0.5 / 0.5. Any biome that wants swung eighths needs
+its steps to BE the eighths.
 
 Mipo Band's triangle was a single pitch and got old; a lone BELL now wanders with the jump macro
 like a melody (a bell in a `pair`, Slow Brew's agogo, still keeps its two pitches). Note the cart

@@ -174,8 +174,9 @@ _Static_assert(M_CRKICK == 23 && M_NYLON == 26, "the CR-78 Bossa row names its m
 // scale, a ride playing "ding, ding-a" (E(3,4) in eighths, swung, is the jazz ride figure), the
 // scrape as a metal brush sweeping 2 and 4, the bell as a sparse vibraphone line, and Playtime's
 // Rhodes playing the modal-jazz voicing (four stacked fourths and a third, D G C F A in D dorian),
-// rolled, every bar and a half, planing up and down the scale with the jump macro. 64 BPM, a deep
-// swing, family Drone (the ambient sends). It builds from the drone and the Rhodes; its breakdown
+// rolled, every bar and a half, planing up and down the scale with the jump macro. 64 BPM, family
+// Drone (the ambient sends). A STEP is a swung EIGHTH (row tempo 32, bar 8): the cart's swing delays
+// every odd step, so only tracks whose steps ARE the eighths swing (at 16ths the ride never did). It builds from the drone and the Rhodes; its breakdown
 // takes the bass, ride and brush away and leaves the drone, the Rhodes and the vibes.
 // TWELVE AGAINST THIRTEEN is phase music (after Steve Reich's Piano Phase, with our own figure): two
 // Velvet "pianos", hard left and right, play the SAME 12-note figure in eighths, but the right one's
@@ -264,12 +265,12 @@ static const DaBiome DA_OWN_BIOME[DA_OWN] = {
   /* khafif    E(2,5)  */ {17,300,300,400,400,0,2,5,3,950,38,480,0,1,0,1,250,450,850,100,0,0},
   /* agsag     E(5,9)  */ {5,600,250,300,450,220,5,9,0,850,62,640,0,1,0,1,200,150,850,100,0,120},
   /* Zappa     E(4,11) */ {12,400,250,450,50,220,4,11,0,850,74,380,0,1,0,1,200,350,800,100,0,150}}},
- {"Late Modal",1,64,2,3,64646,0,0,700,250,150,0,560,0,0,-1,0,300,{500,350,450,120},{
-  /* drone   (Moon Meadow's harmonic) */ {6,25,510,910,45,350,1,16,0,1000,38,500,0,1,600,1,0,800,775,0,1,300},
-  /* upright (hUpright)  */ {17,280,300,600,350,0,4,16,0,750,38,470,0,1,0,1,200,450,850,100,0,0},
-  /* ride    (metal)     */ {2,700,450,700,300,150,3,4,0,900,72,620,0,2,0,1,300,0,850,100,0,0},
-  /* brush   (scrape)    */ {16,400,1000,600,900,200,2,16,4,900,60,400,0,1,0,1,150,0,850,100,0,0},
-  /* rhodes  (rhodes)    */ {22,200,150,1000,450,300,1,12,0,950,50,520,0,2,0,1,0,120,850,100,0,200},
+ {"Late Modal",1,32,2,3,64646,0,0,700,250,150,0,560,0,0,-1,0,300,{500,350,450,120},{   // tempo 32 = 64 in swung 8ths
+  /* drone   (Moon Meadow's harmonic) */ {6,25,510,910,45,350,1,8,0,1000,38,500,0,1,600,1,0,800,775,0,1,300},
+  /* upright (hUpright)  */ {17,280,300,600,350,0,4,8,0,750,38,470,0,1,0,1,200,450,850,100,0,0},
+  /* ride    (metal)     */ {2,700,450,700,300,150,3,4,0,900,72,620,0,1,0,1,300,0,850,100,0,0},
+  /* brush   (scrape)    */ {16,400,1000,600,900,200,2,8,2,900,60,400,0,1,0,1,150,0,850,100,0,0},
+  /* rhodes  (rhodes)    */ {22,200,150,1000,450,300,1,12,0,950,50,520,0,1,0,1,0,120,850,100,0,200},
   /* vibes   (bell)      */ {20,450,600,700,560,300,3,13,2,800,74,600,0,1,0,1,200,300,850,100,0,0}}},
  {"Twelve Against Thirteen",7,80,4,3,121313,1,0,650,200,100,0,0,0,0,-1,0,300,{500,0,500,80},{
   /* piano L (Velvet)    */ {12,450,250,350,125,150,0,16,0,1000,64,120,0,2,0,1,0,350,800,100,0,0},
@@ -337,7 +338,7 @@ static const JamCfg DA_OWN_JAM[DA_OWN] = {
       {0}, {0}, {0}, 0, { "Turkey", "Bulgaria", "Arabic", "Persia", "Arabic", "Zappa" } },
     { 0, 0,    {0, 4, 1, 2, 3, 5}, {1, 2, 3, 5}, 1 << 1 | 1 << 2 | 1 << 3, 3, 2,     // Late Modal: a D dorian drone
       { "DRONE", "UPRIGHT", "RIDE", "BRUSH", "RHODES", "VIBES" }, {0}, 0, 0, {0}, {0}, {0}, 0, {0},
-      { 0, 3, 6, 9, 11 } },                                         // the "So What" voicing: four 4ths + a 3rd
+      { 0, 3, 6, 9, 11 }, 0, 0, 8, 64 },                            // the "So What" voicing; a step = a swung 8th
     { 0, 0,    {0, 1, 3, 2, 4, 5}, {0}, 0, -1, -1,                                     // Twelve Against Thirteen
       { "PIANO L", "PIANO R", "MARIMBA", "PULSE", "SHAKER", "BELL" }, {0}, 0, 0, {0},
       { "acebdeacbedc", "acebdeacbedc.", "acebdeacbedc", "x.x.5.x.x.x.5.x.", 0, 0 },   // R: the same figure + a rest

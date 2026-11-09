@@ -830,8 +830,8 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
              fetch-refs.js   rebuild build/refs/<set>/ (gitignored reference audio) from the COMMITTED manifest
                              tools/refs/<set>.txt; re-checks each license on its freesound page, REFUSES non-CC0.
                              `--check` offline presence · `--selfcheck` 10 known answers. Leads for more sets: tools/refs/README.md
-             gen-dreamatlas.js GENERATE runtime/dreamatlas/biomes.h from a Mutable Dreams v1.4 presets/catalog.json
-                             (not committed — clone the tag); --check gates staleness against that file
+             gen-dreamatlas.js GENERATE runtime/dreamatlas/biomes.h from Mutable Dreams' presets/catalog.json —
+                             `--fetch` pulls it at the PINNED commit into build/ (not committed); --check gates staleness
              gen-wavescan.js GENERATE runtime/wavescan_data.h, INSTR_WAVESCAN's 12-shape band-limited table bank, from
                              Plinky's own wave recipes + windowed-sinc mip pyramid (MIT) — NOT its shipped table, whose slots
                              2-15 are WAVs of unknown origin. --check gates staleness · --selfcheck = its saw byte-identical to

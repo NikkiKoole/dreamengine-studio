@@ -102,6 +102,10 @@ typedef struct {
     float smp_root;                 // INSTR_SAMPLE: the buffer's root freq (Hz) — the pitch at playback speed 1.0
     float smp_start, smp_end;       // INSTR_SAMPLE: the CHOP — play from start..end as fractions 0..1 (default 0,1 = whole). instrument_sample_region()
     int   smp_mode;                 // INSTR_SAMPLE playback: SAMPLE_NORMAL(0)/REVERSE/LOOP/PINGPONG. instrument_sample_mode()
+    int   pna_n;                    // INSTR_PIANO HYBRID ATTACK zones (instrument_piano_attack): how many, 0 = none (default)
+    signed char   pna_smp[16];      //   each zone's sound_samples[] slot (the real recording of that root)
+    unsigned char pna_root[16];     //   its root MIDI note (a played note uses the nearest root)
+    short pna_splice[16], pna_xf[16];   // where the model takes over (ms after note-on) + the cross-fade length (ms)
     int   gl_ms;                    // PORTAMENTO for this patch (instrument_glide): slide time in ms; 0 = no glide (default)
     float gl_scale;                 // GLIDE SCALE amount (instrument_glide_scale): 0 = constant time (default), 1 = per octave
     int   trig;                     // TRIGGER POLICY (instrument_trigger), audit §L4: TRIG_MULTI (0, default —
@@ -324,6 +328,10 @@ typedef struct {
     float  pn_ksb_cur;                  // brightness ENVELOPE: strikes bright, settles to pn_ksb (the piano "bloom")
     float  pn_lfp, pn_lf, pn_lf2;       // HF LOSS filter in the loop (1-pole LP coeff + per-string state; 0 = off). PIANO_HFLOSS
     int    pn_on_n, pn_on_len;          // ONSET RAMP: samples done / total (0 = off). PIANO_ONSET
+    int    pa_smp;                      // HYBRID ATTACK: the sound_samples[] slot playing the real attack; -1 = off, -2 = spliced (model only)
+    int    pa_n, pa_T, pa_X, pa_W;      // samples since note-on / splice point / cross-fade length / level-match window
+    float  pa_pos, pa_rate, pa_sg;      // position in the recording + its speed (pitch) + its gain
+    float  pa_tgt, pa_e, pa_mg;         // the recording's rms at the splice / the model's energy there / the model gain that matches them
     float  pn_apc, pn_aps;              // fractional-delay allpass coeff + state (pitch tuning)
     float  pn_initf;                    // freq at note-on (pitch-tracking reference)
     float  pn_dampg, pn_damps;          // damper gain (pedal) + slewed state
@@ -848,6 +856,7 @@ typedef enum {
     SR_INSTR_SYMP = 173,      // a=slot, b=send*1000 (instrument_resonator)
     SR_MODES_ROW = 174,       // a=slot | first row<<8 (0..511 modes, 512..527 noise), b=rows in it (1-2); per row (Hz*100 | phase*1024<<22) + (dB*100 | decay*10<<16) (instrument_modes)
     SR_MODES_N = 175,         // a=slot, b=0 modes / 1 noise bands, c=count — sent after the rows (instrument_modes / _noise); 0 = off
+    SR_INSTR_PNATK = 176,     // a=slot, b=root midi, c=sample slot (-1 = remove that zone), e0=splice ms, e1=cross-fade ms (instrument_piano_attack)
     SR_SHAPE_HDR = 165,       // a=id, b=n points, c=interp — a shape's header (shape_define), sent after its points
     SR_SHAPE_PT = 166,        // a=id, b=point index, c=t_ms, e0=value*1000 — one breakpoint (shape_define)
     SR_INSTR_RELSHAPE = 164,  // a=slot, b=shape — the release curve (instrument_release_shape)

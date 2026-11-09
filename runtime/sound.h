@@ -2205,6 +2205,7 @@ static CtxKey sound_ctx_key(SoundReqKind k) {
         case SR_INSTR_ACCENT:                      // a=slot, b=ACC_* route
         case SR_SHAPE_PT:                          // a=shape id, b=point index
         case SR_MODES_N:                           // a=slot, b=modes / noise
+        case SR_INSTR_PNATK:                       // a=slot, b=root midi (one zone per root)
             return CTXK_KAB;
         // a+c name the target
         case SR_FX_MOD: case SR_FX_LFO:            // a=target, c=bus
@@ -5671,6 +5672,12 @@ static const float PIANO_HFLOSS[6] = { PN_HFLOSS_GRAND, 0.0f, 0.0f, 0.0f, 0.0f, 
 #define PN_ONSET_GRAND 5.0f
 #endif
 static const float PIANO_ONSET[6] = { PN_ONSET_GRAND, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f };
+
+// HYBRID ATTACK gain: the recording's level relative to the modelled string (instrument_piano_attack). The
+// string is level-matched TO the recording at the splice, so this sets the whole hybrid note's loudness.
+#ifndef PN_ATK_GAIN
+#define PN_ATK_GAIN 3.4f
+#endif
 static const float PIANO_FELT[6] = { PN_FELT_GRAND, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f };
 
 // DECAY FLOOR (2026-11-09, step 3, forced by the felt hammer). The loop loses a FIXED amount per period
@@ -5851,6 +5858,7 @@ static void sound_piano_start(Voice *v) {
     float pn_sig  = pn_mdl ? PIANO_SIGMA[vi]  : 0.0f;
     float pn_ons  = pn_mdl ? PIANO_ONSET[vi]  : 0.0f;
     float freq = v->freq > 20.0f ? v->freq : 20.0f;
+    float pa_fnom = freq;                              // HYBRID ATTACK: the played pitch BEFORE the stretch (picks the zone)
     // STRETCHED-TUNING SEAM (see piano_stretch_freq). eng_p[4] (MODE_PIANO_STRETCH) scales K: bank
     // default 0.5 → 1.0× = exactly PIANO_STRETCH_K, so the default is bit-identical to before it was
     // a parameter; 0 = equal temperament; 1.0 = 2× the curve.
@@ -6015,12 +6023,80 @@ static void sound_piano_start(Voice *v) {
     }
     v->eng_subph = v->eng_env = 0.0f;
     v->eng_click = 700;
+    // HYBRID ATTACK (2026-11-09, commuted synthesis: the maker heard the modelled tail as good and its onset
+    // as never quite right). A slot with recorded attack zones (instrument_piano_attack) on MODE_PIANO_MODEL
+    // plays the REAL recording from note-on, while this string runs unheard beside it; at the zone's splice
+    // point the string's level is matched to the recording's (rms over a few periods just before) and an
+    // equal-power cross-fade hands over. The splice is per zone because the attack is not one length: the
+    // Steinway's hammer + soundboard noise settles by ~20-40 ms from C4 up but ~100-200 ms in the bass.
+    v->pa_smp = -1;
+    if (pn_mdl) {
+        const Instrument *pins = &instr_bank[v->instr_slot];
+        if (pins->pna_n > 0) {
+            float midi = 69.0f + 12.0f * de_log2f(pa_fnom / 440.0f);
+            int z = 0; float best = 1e9f;
+            for (int k = 0; k < pins->pna_n; k++) {
+                float d = fabsf(midi - (float)pins->pna_root[k]);
+                if (d < best) { best = d; z = k; }
+            }
+            int si = pins->pna_smp[z];
+            if (si >= 0 && si < SOUND_SAMPLE_SLOTS && sound_samples[si].loaded) {
+                const SoundSample *ss = &sound_samples[si];
+                float rootf = 440.0f * de_powf(2.0f, ((float)pins->pna_root[z] - 69.0f) / 12.0f);
+                float rate = freq / piano_stretch_freq(rootf, PIANO_STRETCH_K * (v->eng_p[4] * 2.0f));
+                int T = (int)(pins->pna_splice[z] * 0.001f * (float)SOUND_SAMPLE_RATE);
+                int X = (int)(pins->pna_xf[z] * 0.001f * (float)SOUND_SAMPLE_RATE);
+                int W = (int)(3.0f * (float)SOUND_SAMPLE_RATE / freq);          // match over ~3 periods
+                if (W < SOUND_SAMPLE_RATE / 100) W = SOUND_SAMPLE_RATE / 100;
+                if (W > T / 2) W = T / 2;
+                if (W >= 1 && (float)(T + X + 2) * rate < (float)ss->len) {   // the recording must outlast the cross-fade
+                    double e = 0.0;
+                    for (int k = T - W; k < T; k++) {
+                        float p = (float)k * rate; int i = (int)p; float fr = p - (float)i;
+                        float sv = ss->data[i] + fr * (ss->data[i + 1] - ss->data[i]);
+                        e += (double)sv * sv;
+                    }
+                    v->pa_smp = si; v->pa_pos = 0.0f; v->pa_rate = rate; v->pa_sg = PN_ATK_GAIN;
+                    v->pa_n = 0; v->pa_T = T; v->pa_X = X; v->pa_W = W;
+                    v->pa_tgt = sqrtf((float)(e / (double)W)); v->pa_e = 0.0f; v->pa_mg = 1.0f;
+                }
+            }
+        }
+    }
     v->pn_on = true;
 }
 
 // per-sample — navkit processStifKarpOscillator verbatim: near-lossless KS loop (avg → brightness
 // blend → effectiveDamping → dispersion → allpass tuning), one-period delay, optional 2nd string,
 // tone-filter, soundboard crossfade, sympathetic tap. Decay is the amp envelope, not the loop.
+// HYBRID ATTACK mix (see sound_piano_start): `m` is the modelled string's sample. Before the splice the
+// recording plays alone (the string runs unheard, its energy gathered over the last W samples); at the
+// splice the string's gain is set so its rms matches the recording's there; then an equal-power cross-fade.
+static inline float pn_attack_mix(Voice *v, float m) {
+    if (v->pa_smp == -2) return v->pa_mg * m;                     // spliced: the string alone
+    const SoundSample *ss = &sound_samples[v->pa_smp];
+    float sv = 0.0f;
+    int i = (int)v->pa_pos;
+    if (ss->loaded && i + 1 < ss->len) { float fr = v->pa_pos - (float)i; sv = (ss->data[i] + fr * (ss->data[i + 1] - ss->data[i])) * v->pa_sg; }
+    v->pa_pos += v->pa_rate;
+    int n = v->pa_n++;
+    if (n < v->pa_T) {
+        if (n >= v->pa_T - v->pa_W) v->pa_e += m * m;
+        if (n == v->pa_T - 1) {
+            float mr = sqrtf(v->pa_e / (float)v->pa_W);
+            float g = (mr > 1e-9f) ? v->pa_tgt * v->pa_sg / mr : 1.0f;
+            v->pa_mg = clampf(0.02f, 50.0f, g);
+        }
+        return sv;
+    }
+    if (n < v->pa_T + v->pa_X) {
+        float th = 1.57079633f * (float)(n - v->pa_T) / (float)v->pa_X;
+        return sv * de_cosf(th) + v->pa_mg * m * de_sinf(th);
+    }
+    v->pa_smp = -2;
+    return v->pa_mg * m;
+}
+
 static inline float sound_piano_sample(Voice *v, float pitch_mul) {
     int len = v->ks_len;
     if (len < 2 || !v->pn_on) return 0.0f;       // engine id without a note-on init → silent
@@ -6123,6 +6199,7 @@ static inline float sound_piano_sample(Voice *v, float pitch_mul) {
                                                                      // (under the ONSET RAMP too, or it cracks before the string builds)
         v->eng_click--;
     }
+    if (v->pa_smp != -1) res = pn_attack_mix(v, res);              // HYBRID ATTACK: the real onset, then the string
     return res;
 }
 
@@ -8941,6 +9018,26 @@ static void sound_fire_req(SoundReq r) {
         if (instr_bank[slot].wave == INSTR_SING && r.b >= 0 && r.b < SOUND_SAMPLE_SLOTS && sing_an[r.b].nep == 0)
             sing_an[r.b].want = 1;      // INSTR_SING: ask sound_tick for the analysis (covers a replayed binding)
     } break;
+    case SR_INSTR_PNATK: {   // a=slot, b=root midi, c=sample slot (-1 = remove), e0=splice ms, e1=xfade ms
+        int slot = r.a;
+        if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
+        Instrument *in = &instr_bank[slot];
+        int z = 0;
+        while (z < in->pna_n && in->pna_root[z] != r.b) z++;
+        if (r.c < 0) {                                   // remove that root's zone
+            if (z < in->pna_n) {
+                for (int k = z; k < in->pna_n - 1; k++) {
+                    in->pna_root[k] = in->pna_root[k + 1]; in->pna_smp[k] = in->pna_smp[k + 1];
+                    in->pna_splice[k] = in->pna_splice[k + 1]; in->pna_xf[k] = in->pna_xf[k + 1];
+                }
+                in->pna_n--;
+            }
+            break;
+        }
+        if (z == in->pna_n) { if (in->pna_n >= 16) break; in->pna_n++; }
+        in->pna_root[z] = (unsigned char)r.b; in->pna_smp[z] = (signed char)r.c;
+        in->pna_splice[z] = (short)r.e0;      in->pna_xf[z] = (short)r.e1;
+    } break;
     case SR_INSTR_SAMPLE_REGION: {  // a=slot, b=start*1e6, c=end*1e6 — the chop bounds (fractions 0..1)
         int slot = r.a;
         if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
@@ -10715,6 +10812,14 @@ void instrument_sample(int slot, int sample_slot, int root_midi) {
     sound_push_ctrl(SR_INSTR_SAMPLE, slot, sample_slot, (int)(root * 1000.0f), 0, 0, 0);
     sing_smp1[slot] = (sample_slot >= 0 && sample_slot < SOUND_SAMPLE_SLOTS) ? (signed char)(sample_slot + 1) : 0;
     if (sing_inst[slot] && sing_smp1[slot]) sing_analyze(sample_slot);   // INSTR_SING: analyse NOW, so a note this frame sings
+}
+
+void instrument_piano_attack(int slot, int sample_slot, int root_midi, int splice_ms, int xfade_ms) {
+    if (slot < 0 || slot >= SOUND_INSTR_SLOTS || root_midi < 0 || root_midi > 127) return;
+    if (sample_slot >= SOUND_SAMPLE_SLOTS) return;
+    if (splice_ms < 1) splice_ms = 1;   if (splice_ms > 3000) splice_ms = 3000;
+    if (xfade_ms < 1) xfade_ms = 1;     if (xfade_ms > 1000) xfade_ms = 1000;
+    sound_push_ctrl(SR_INSTR_PNATK, slot, root_midi, sample_slot < 0 ? -1 : sample_slot, splice_ms, xfade_ms, 0);
 }
 
 void instrument_sample_region(int slot, float start, float end) {

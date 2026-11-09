@@ -7,7 +7,7 @@
   "kind": ["probe"],
   "teaches": ["waveguide-synth"],
   "lineage": "INSTR_PIANO's half of an A/B against a real Steinway D: the 13 notes in assets/samples/steinway/ (bitKlavier Grand, Daniel Trueman, Princeton, CC BY 4.0). Same shape as acidref (the 303 vs Open303): play exactly what the reference holds, on a fixed grid, so both drop into the same oracles. openstrings' fifth todo.",
-  "description": "Not a toy: a measurement probe. Plays C1, F#1, C2 ... F#6, C7 (MIDI 24 + 6k, the Steinway sample grid) on INSTR_PIANO's grand voicing, each held 3.3 s with a 0.2 s gap, one note every 3.5 s. Compare with node tools/oneshot-compare.js --render pianoref --spec tools/oneshot-specs/pianoref.json. DE_DEFINES: PR_VOL (note_on vol 0-7, default 5 = the samples' layer 12 of 16), PR_HARM / PR_TIMB / PR_MORPH (the macros), PR_STIFF / PR_DECAY / PR_KNOCK (instrument_mode 0..1, 0.5 = the engine default), PR_MODEL (MODE_PIANO_MODEL, default 1 = the Steinway-matched grand; 0 = the classic engine, for a before/after). LISTEN: press S to hear each note twice, ours then the real Steinway, looping (credit: bitKlavier Grand Sample Library, Daniel Trueman, Princeton University, CC BY 4.0)."
+  "description": "Not a toy: a measurement probe. Plays C1, F#1, C2 ... F#6, C7 (MIDI 24 + 6k, the Steinway sample grid) on INSTR_PIANO's grand voicing, each held 3.3 s with a 0.2 s gap, one note every 3.5 s. Compare with node tools/oneshot-compare.js --render pianoref --spec tools/oneshot-specs/pianoref.json. DE_DEFINES: PR_VOL (note_on vol 0-7, default 5 = the samples' layer 12 of 16), PR_HARM / PR_TIMB / PR_MORPH (the macros), PR_STIFF / PR_DECAY / PR_KNOCK (instrument_mode 0..1, 0.5 = the engine default), PR_MODEL (MODE_PIANO_MODEL, default 1 = the Steinway-matched grand; 0 = the classic engine, for a before/after), PR_HYBRID (default 1 = the real Steinway attack spliced into the modelled string via instrument_piano_attack; 0 = the model alone). LISTEN: press S to hear each note twice, ours then the real Steinway, looping (credit: bitKlavier Grand Sample Library, Daniel Trueman, Princeton University, CC BY 4.0)."
 }
 de:meta */
 #include "studio.h"
@@ -41,6 +41,9 @@ de:meta */
 #ifndef PR_MODEL
 #define PR_MODEL 1.0f           // MODE_PIANO_MODEL: 1 = the Steinway-matched grand, 0 = the classic engine
 #endif
+#ifndef PR_HYBRID
+#define PR_HYBRID 1             // 1 = the HYBRID: the real Steinway attack, then the modelled string (instrument_piano_attack)
+#endif
 
 static int f = -1, held = -1;
 
@@ -51,6 +54,11 @@ static int f = -1, held = -1;
 static const char *ZF[NZ] = { "C1", "Fs1", "C2", "Fs2", "C3", "Fs3", "C4", "Fs4", "C5", "Fs5", "C6", "Fs6", "C7" };
 static float zbuf[4 * 44100];
 static bool listen = false, samples_ok = false;
+// HYBRID splice per zone (ms after the strike) + cross-fade (ms), from measuring when each note's hammer and
+// soundboard noise between the partials settles under -20 dB: ~190 ms F#1, ~100 ms C2-F#2, ~50 ms C3-F#3,
+// 20-40 ms C4 up (C1 never fully settles). Splices sit a little past those; cross-fades span a few periods.
+static const int ZSPLICE[NZ] = { 300, 300, 150, 150, 100, 100, 70, 70, 70, 70, 70, 70, 70 };
+static const int ZXFADE[NZ]  = {  80,  80,  50,  50,  30,  30, 15, 15, 15, 15, 15, 15, 15 };
 static int lf = 0;                  // listen-mode frame counter
 
 static int load_wav16(const char *path, float *out, int max) {   // mono 16-bit PCM → -1..1
@@ -95,6 +103,11 @@ void init(void) {
     instrument_mode(5, MODE_PIANO_DECAY, PR_DECAY);
     instrument_mode(5, MODE_PIANO_KNOCK, PR_KNOCK);
     instrument_mode(5, MODE_PIANO_MODEL, PR_MODEL);
+#if PR_HYBRID
+    load_samples();             // the 13 recordings (also the listen-mode reference)
+    if (samples_ok)
+        for (int z = 0; z < NZ; z++) instrument_piano_attack(5, z, 24 + 6 * z, ZSPLICE[z], ZXFADE[z]);
+#endif
 }
 
 void update(void) {
@@ -137,5 +150,6 @@ void draw(void) {
         snprintf(b, sizeof b, "note %d of %d  midi %d", z + 1, NZ, 24 + 6 * z);
         print(z < NZ ? b : "done", 8, 24, CLR_LIGHT_GREY);
     }
+    print(PR_HYBRID ? "OURS = hybrid: real attack, modelled tail" : "OURS = the modelled grand", 8, SCREEN_H - 24, CLR_DARK_GREY);
     print("S: listen A/B (ours, then Steinway)", 8, SCREEN_H - 12, CLR_DARK_GREY);
 }

@@ -128,7 +128,7 @@ a saw through `FILTER_DIODE`, the live mix into a waterfall ribbon
 Quiet drone keeps the face alive at rest; the keybed is the instrument.
 Not `shadelab` (a lesson), not `wavecandy` (a meter), not `cloudhold` (that
 picture is the freeze-cloud). `pget_rgb` smears when the last-frame snapshot
-is live; the software-canvas path has no snapshot, so the picture is the
+is live; the [software-canvas](software-canvas.md) path has no snapshot, so the picture is the
 scope ring (cart-land floats, not a second RGB buffer). Idea #5 stays parked.
 [#31](https://github.com/NikkiKoole/dreamengine-studio/issues/31) · live
 `https://mipolai.com/dreamengine/ladderface/` · Linux proof

@@ -347,6 +347,8 @@ one-shot shaping a filter pluck). Only sound.h change in the batch was the maste
 
 ## Existing carts to not duplicate
 
+(Real hardware: [`hardware-cv.md`](hardware-cv.md) explores CV/gate jacks out to physical synths, with modrack as their natural home.)
+
 - `drummachine.c` — 16-step grid already exists; DRUMS module here is just 4 trigger inputs, no internal sequencer
 - `omnichord.c` — already has its own drum sequencer; this cart's CLOCK could drive it eventually
 - `mariopaint.c` — melodic grid; this cart's QUANT + VOICE replaces that with generative rather than composed melody

@@ -145,7 +145,7 @@ through the four-places ritual and live in `studio.h` + `studioDocs.js` + `shell
 
 The grand measured against a real Steinway D (13 notes, C1 to C7 every 6 semitones, bitKlavier Grand, Daniel
 Trueman, Princeton, CC BY 4.0, in [`assets/samples/steinway/`](../../assets/samples/steinway/README.md)), then
-given a real attack. Ends in **`grandkeys`** (play it), **`openstrings`** (with the resonator) and the probe
+given a real attack. Ends in **`grandkeys`** (play it), **`openstrings`** (with the [resonator](sympathetic-resonator.md)) and the probe
 **`pianoref`**. Recipes: [`instrument-recipes.md`](../guides/instrument-recipes.md) (piano/steinway rows).
 
 **1. The model, matched (opt-in: `instrument_mode(slot, MODE_PIANO_MODEL, 1)`; 0 = the classic grand, bit-exact).**

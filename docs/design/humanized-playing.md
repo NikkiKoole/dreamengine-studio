@@ -334,10 +334,10 @@ The question: can a moving formant (a vowel filter) humanize ANY sound, the way 
   by how HARD each note is hit (Bootsy's Mu-Tron III). Brass wah-wah is a plunger opened and closed in
   rhythm (Bubber Miley, Cootie Williams, Tricky Sam Nanton's "ya-ya").
 - **Those are two specific effects, and both mostly exist already:** talking = the vocoder with a
-  voice-engine modulator speaking consonants (`vocode`; `INSTR_VOICE` + `voice_consonant`/`voice_coda`,
+  [voice-engine](voice-engine.md) modulator speaking consonants (`vocode`; `INSTR_VOICE` + `voice_consonant`/`voice_coda`,
   `say`, `vox`), the touch-wah = `instrument_wah` (in `clavinet`, `epiano`, `afrobeat`, `pedalboard`).
   A talking synth is a cart/feature goal of its own (the parked "talkbox / Dalek" toy in
-  `cart-library-direction.md`), not a humanizer.
+  [`cart-library-direction.md`](cart-library-direction.md)), not a humanizer.
 - **The general lesson that DOES apply to every instrument: brightness follows force.** A harder note
   is a brighter note (that is the touch-wah, and it is how strings, hammers, breath and lips behave);
   ride the cutoff / timbre with each note's force. In the guide (§5).

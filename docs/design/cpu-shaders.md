@@ -73,6 +73,8 @@ single-canvas read-back is the pragmatic stand-in.
 
 ## Related
 
+- [`depth-tested-triangles.md`](depth-tested-triangles.md): the triangle path to 3D (a z-buffer +
+  near-plane clip), the other way to draw depth besides marching per pixel here.
 - Identity, not a lesson: [`ladderface`](../../tools/carts/ladderface.c) ships the
   compound-blindspot §3 picture — `scope_read` into this toolkit so a diode-ladder
   rack is recognisable with the knobs off. The waterfall is a cart-land scope ring

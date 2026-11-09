@@ -163,7 +163,7 @@ Correctness has one definition: **the software rasterizer.**
     of `sw_force_gpu`. The cart chooses what it draws; the platform chooses how.
   - Recommendation: (b), behind a probe, because switching mid-frame needs care. The first frame can
     simply be drawn in software from the start if the switch is decided before `draw()`.
-- **Separately worth deciding:** make the web build software-canvas by default, as the `studio.c`
+- **Separately worth deciding:** make the web build [software-canvas](software-canvas.md) by default, as the `studio.c`
   comment says was intended. Then web matches iOS for 2D too. That is a different decision; this
   design only needs (b).
 - **No Metal or GPU 3D backend** (ADR-0036).

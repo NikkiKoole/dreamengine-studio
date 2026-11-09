@@ -168,6 +168,7 @@ Requirements that follow:
 Items 1 and 2 are for the ear, and §4 exists so they can be answered that way.
 
 ## See also
+- [`web-publishing-ci.md`](web-publishing-ci.md) - CI web builds, so these A/B forks can be heard from a link
 
 - [`engine-reach.md`](engine-reach.md) - the root doc, §7 the two engines
 - [`engine-reach-modal-research.md`](engine-reach-modal-research.md) - the §5 round behind §2 here

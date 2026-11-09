@@ -181,6 +181,7 @@ is a different question from implementing the technique.
 - `runtime/sound.h` `sound_fm_sample` read locally; renders measured with `tools/wav-envelope.js`
 
 ## See also
+- [`engine-reach-macro-mapping.md`](engine-reach-macro-mapping.md) - the macro-mapping round that builds §3 on this research
 
 - [`engine-reach.md`](engine-reach.md) - the root doc; §5 the rule this answers, §7.2 the engine
 - [`engine-reach-modal-research.md`](engine-reach-modal-research.md) - the sibling round, for §7.1

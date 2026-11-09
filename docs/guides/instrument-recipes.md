@@ -214,7 +214,7 @@ and any highpass on `instrument_filter`.
 >   `instrument_modes` = the recorded ride's 400 strongest modes with their measured phases +
 >   `instrument_modes_noise` = 12 half-octave washes + 5 ticks (all from `tools/mode-extract.py`), HP 180
 >   res 4 + `instrument_fx_filter` HP 180, level .316. Per stroke: harmonics +0.45×spot (where the stick
->   lands), timbre +0.4×(force-0.68). A single hit within ~1-4 dB of the recording per octave over 3 s. Guide: tuning-drum-voices.md "Taking a cymbal's modes"
+>   lands), timbre +0.4×(force-0.68). A single hit within ~1-4 dB of the recording per octave over 3 s. Guide: [tuning-drum-voices.md](tuning-drum-voices.md) "Taking a cymbal's modes"
 > - **every cymbal `instrument_mono`**: one physical cymbal = one voice. As separate voices, eighth-note
 >   ride strokes stacked into a pulsing drone (heard as "a train locomotive")
 > - **pick the reference by ear first**: matched to a dark "wash" ride, the ride came out all body, no ping

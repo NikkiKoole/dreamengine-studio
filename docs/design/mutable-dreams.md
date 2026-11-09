@@ -223,6 +223,17 @@ and fifth, a shaker keeps sixteenths, a bell rings now and then. Two new `JamCfg
 how far R has drifted behind L). Fixed patterns gained MELODY: `'a'..'p'` are scale steps over the
 track's note (uppercase accented).
 
+**Cool in Five** is a 5/4 cool-jazz piece in the spirit of *Take Five* (the meter, Eb minor, a
+two-chord minor vamp, ~170 BPM; not its melody or its vamp figure), instrumented like Late Modal. A
+step here is a swung EIGHTH (row tempo 86, shown as 172 via `JamCfg.bpm`) and a bar is 10 steps
+(`JamCfg.bar`, new: chords, phrases and fills used to assume 16-step bars; the existing biomes render
+byte-identical with bar = 16). The Rhodes comps `X..x..x.x.` in rootless 3-5-7-9 voicings, Ebm9
+(Gb Bb Db F) and Bbm9 (Db F Ab C) a bar each (checked from the trace), the upright plays root and
+fifth, a ride swings, the brush lands on 2 and 4, vibes improvise 4 in 15 (a bar and a half), an Eb
+drone sits under two bars at a time. The Rhodes' ring now follows its decay knob (1000 = the old 3 s).
+⚠ A lesson for Late Modal: swing shifts every ODD SIXTEENTH, so tracks at speed 2 (eighths) are
+never swung there; Cool in Five swings properly because its steps ARE the eighths.
+
 Mipo Band's triangle was a single pitch and got old; a lone BELL now wanders with the jump macro
 like a melody (a bell in a `pair`, Slow Brew's agogo, still keeps its two pitches). Note the cart
 clamps melodic notes to 24..96 (quantize), which had been pinning the triangle at 96.

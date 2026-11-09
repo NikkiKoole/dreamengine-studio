@@ -9,7 +9,7 @@
   "lineage": "A port of the BIOME atlas from Mutable Dreams 1.4 (Kid Bunka / Christoph Link, free firmware for the M-VAVE FM-1, itself built on Mutable Instruments' Plaits/Rings/Elements). The 157 scenes are the upstream's own factory data (MIT), generated into runtime/dreamatlas/biomes.h; the sequencer (Euclid hits/length/rotate per track, seeded rolls, chord journeys, scale masks, the Lo-Fi kit) is ported line by line from app/dsp/dreams.cpp. The fifteen VOICES are NOT ported: each is mapped onto the nearest engine dreamengine already ships, which is the experiment.",
   "homage": "Mutable Dreams (Kid Bunka) / Mutable Instruments",
   "description": {
-    "summary": "157 small generative worlds from Mutable Dreams, plus a few of our own (a house jam, a tabla-and-guiro bazaar, Moon Meadow with tablas, a slow organ-and-upright brew, the Puppetmaker band, a CR-78 bossa, one that evolves by itself, a world-rhythm atlas, a slow modal jazz drone and a Reich-style phase piece): six drifting Euclidean tracks, chord journeys and a Lo-Fi kit, played on dreamengine's own voices.",
+    "summary": "157 small generative worlds from Mutable Dreams, plus a few of our own (a house jam, a tabla-and-guiro bazaar, Moon Meadow with tablas, a slow organ-and-upright brew, the Puppetmaker band, a CR-78 bossa, one that evolves by itself, a world-rhythm atlas, a slow modal jazz drone, a Reich-style phase piece and some cool jazz in 5/4): six drifting Euclidean tracks, chord journeys and a Lo-Fi kit, played on dreamengine's own voices.",
     "detail": "Each BIOME is one scene: six tracks, each a voice (Plaits-style drums, FM, analog, Rings and Elements resonators, a sine choir, a round bass...) with its OWN rhythm, k hits spread over n steps. The lengths differ (16, 19, 13...), so the tracks slide against each other and the loop takes minutes to come round. Some biomes walk a chord progression under it, some swap three tracks for a crunchy 16 kHz Lo-Fi drum kit. Browse in the curated order: neighbours are meant to feel genuinely different. The scenes are the original's factory data; the sounds are this engine's nearest voices, so it is a translation, not a copy.",
     "controls": "LEFT/RIGHT or the arrows: next / previous biome · SPACE or PLAY: start / stop · 1-6: mute a track · tap a track row to mute it"
   },
@@ -184,7 +184,14 @@ _Static_assert(M_CRKICK == 23 && M_NYLON == 26, "the CR-78 Bossa row names its m
 // Under it a Rings marimba plays the figure four times slower (an augmentation canon), a bass pulses
 // root and fifth in eighths, a shaker keeps sixteenths and a bell rings now and then. E dorian, 80.
 // It builds layer by layer and then STAYS (JamCfg.calm): the phasing is the development.
-#define DA_OWN 12
+// COOL IN FIVE is a 5/4 cool-jazz piece in the spirit of Take Five (the meter, Eb minor, a two-chord
+// minor vamp, ~170 BPM; NOT its melody or its vamp figure), instrumented like Late Modal. A STEP here
+// is a swung EIGHTH (tempo 86 = quarter 172) and a bar is 10 steps (JamCfg.bar), which is where the
+// chords change and the phrases and fills fall. The Rhodes comps "X..x..x.x." in rootless 3-5-7-9
+// voicings (Ebm9, Bbm9, alternating a bar each), the upright plays root and fifth, a ride swings
+// "x.xx.xx.x.", the brush lands on 2 and 4, vibes improvise 4 in 15 (a bar and a half), and an Eb
+// drone sits under it two bars at a time. The breakdown takes bass and brush: the vamp, ride, vibes.
+#define DA_OWN 13
 #define DA_ALL (DA_BIOMES + DA_OWN)
 static const DaBiome DA_OWN_BIOME[DA_OWN] = {
  {"Marmalade Jam",8,125,7,2,125125,0,0,650,200,100,0,120,0,0,0,380,300,{500,260,520,60},{
@@ -271,6 +278,13 @@ static const DaBiome DA_OWN_BIOME[DA_OWN] = {
   /* pulse   (bass)      */ {8,300,400,200,140,0,0,16,0,1000,40,500,0,1,0,1,0,500,700,200,1,0},
   /* shaker  (CR-78)     */ {25,0,0,0,120,40,16,16,0,950,90,560,0,1,0,1,300,0,850,100,0,0},
   /* bell                */ {20,600,600,300,450,300,2,13,5,850,88,560,0,1,0,1,150,300,850,100,0,0}}},
+ {"Cool in Five",0,86,3,3,55555,0,0,650,200,100,0,620,0,0,-1,0,300,{500,350,450,80},{
+  /* rhodes  (vamp)      */ {22,200,150,170,160,250,0,10,0,950,51,520,0,1,0,1,0,120,850,100,0,150},
+  /* upright             */ {17,280,300,450,350,0,0,10,0,950,39,470,0,1,0,1,0,450,850,100,0,0},
+  /* ride    (metal)     */ {2,700,450,700,300,150,0,10,0,900,72,620,0,1,0,1,0,0,850,100,0,0},
+  /* brush   (scrape)    */ {16,400,1000,500,800,200,0,10,0,900,60,400,0,1,0,1,0,0,850,100,0,0},
+  /* vibes   (bell)      */ {20,450,600,700,560,300,4,15,0,850,75,600,0,1,0,1,200,300,850,100,0,0},
+  /* drone   (harmonic)  */ {6,25,510,910,28,350,1,20,0,1000,39,500,0,1,600,1,0,800,775,0,1,300}}},
 };
 // how each of our biomes JAMS (Playtime's drum jam): the order its layers enter, who may rest a
 // phrase, who a breakdown takes out, which track plays the phrase-end fill, which lets go before the one
@@ -290,6 +304,8 @@ typedef struct { int chord_pattern, chord_tracks, build[6], rest[4], break_mask,
                                             // 0-terminated after the first (all 0 = babirhodes' fixed chord)
                  int calm;                  // 1 = the layers build in, then stay: no rests, no breakdowns
                  int phase;                 // 1 = show how far track 1 has drifted behind track 0 (phase music)
+                 int bar;                   // steps in a bar for chords, phrases and fills (0 = 16; 10 = 5/4 in 8ths)
+                 int bpm;                   // the tempo to SHOW when a step is not a 16th (0 = the row's tempo)
                } JamCfg;
 static const JamCfg DA_OWN_JAM[DA_OWN] = {
     { 2, 0x38, {0, 1, 3, 2, 5, 4}, {1, 2, 4, 5}, 1 << 0 | 1 << 2 | 1 << 3, 2, 1,     // Marmalade: I-vi-IV-V
@@ -326,6 +342,10 @@ static const JamCfg DA_OWN_JAM[DA_OWN] = {
       { "PIANO L", "PIANO R", "MARIMBA", "PULSE", "SHAKER", "BELL" }, {0}, 0, 0, {0},
       { "acebdeacbedc", "acebdeacbedc.", "acebdeacbedc", "x.x.5.x.x.x.5.x.", 0, 0 },   // R: the same figure + a rest
       {0}, 0, {0}, {0}, 1, 1 },
+    { 1, 0x31, {0, 2, 1, 3, 4, 5}, {3, 4, 5, 2}, 1 << 1 | 1 << 3, 3, 2,             // Cool in Five: i-v, a bar each
+      { "RHODES", "UPRIGHT", "RIDE", "BRUSH", "VIBES", "DRONE" }, { 0, 4 }, 2, 1, {0},
+      { "X..x..x.x.", "x.....5.x.", "x.xx.xx.x.", "..x...x...", 0, 0 }, {0}, 0, {0},
+      { 2, 4, 6, 8 }, 0, 0, 10, 172 },                               // rootless 3-5-7-9; a bar = 10 eighths
 };
 static const DaBiome *biome_row(int id) { return id < DA_BIOMES ? &DA_BIOME[id] : &DA_OWN_BIOME[id - DA_BIOMES]; }
 static int browse_id(int k) { return k < DA_BIOMES ? DA_BROWSE[k] : k; }   // ours come last, in order
@@ -354,7 +374,7 @@ static int chord_offset(void) {
         {0,2,4,5,7,8,11},{0,1,4,5,7,8,11}};
     if (S.jam && DA_OWN_JAM[S.jam - 1].prog_len) {      // one of ours with its own chord cycle
         const JamCfg *j = &DA_OWN_JAM[S.jam - 1];
-        return iv[bound(S.b.scale, 0, 12)][j->prog[(step / (16 * j->prog_bars)) % j->prog_len]];
+        return iv[bound(S.b.scale, 0, 12)][j->prog[(step / ((j->bar ? j->bar : 16) * j->prog_bars)) % j->prog_len]];
     }
     int p = S.chord_pattern;
     int d = JOURNEY[p][(step / (16 * S.chord_bars)) % (p > 4 ? 8 : 4)];
@@ -952,7 +972,7 @@ static void fire(int i, int note, float vel, double t, int gate_ms) {
     if (m == M_GUITAR) dur = (int)(150 * powf(12, du));
     if (m == M_BELL)   dur = bound(tr->decay * 2, 20, 2000) + 40;
     if (m == M_TAMB)   dur = 290;
-    if (m == M_RHODES) dur = 3000;
+    if (m == M_RHODES) dur = bound(tr->decay * 3, 100, 3000);     // decay 1000 = the 3 s ring; less = comping stabs
     if (m == M_CRKICK) dur = 220;
     if (m == M_CRRIM)  dur = 1;
     if (m == M_CRMAR)  dur = 30;
@@ -1115,8 +1135,9 @@ static void tick(double t) {
     double dur = step_dur(step);
     int evolving = S.jam && DA_OWN_JAM[S.jam - 1].evolve;
     if (evolving) { if (step && step % 64 == 0) evolve_step(); }
-    else if (S.jam && step % 128 == 0) jam_phrase();
-    int bar_step = step % 16, fill = S.jam && !evolving && step % 128 >= 112 && S.jam_phrase > 3;
+    int bar = S.jam && DA_OWN_JAM[S.jam - 1].bar ? DA_OWN_JAM[S.jam - 1].bar : 16;   // a phrase = 8 bars
+    if (!evolving && S.jam && step % (8 * bar) == 0) jam_phrase();
+    int bar_step = step % bar, fill = S.jam && !evolving && step % (8 * bar) >= 7 * bar && S.jam_phrase > 3;
     int fill_tr = S.jam ? DA_OWN_JAM[S.jam - 1].fill : -1, letgo_tr = S.jam ? DA_OWN_JAM[S.jam - 1].letgo : -1;
     if (step % 32 == 0) { if (S.b.locked) seqrng = seed; else seed = rword(&seqrng) | 1; }
     static const int degree[7] = { 0, 2, 3, 5, 7, 10, 12 };
@@ -1146,7 +1167,7 @@ static void tick(double t) {
             continue;
         }
         if (md_hit(local, hits, tr->length, tr->rotate) && roll % 1000 < (unsigned)tr->prob && !muted[i]
-            && !S.jam_out[i] && !(fill && i == letgo_tr && bar_step >= 14)) {
+            && !S.jam_out[i] && !(fill && i == letgo_tr && bar_step >= bar - 2)) {
             int note = tr->note;
             if (tr->model >= M_FM) {
                 // chords, pitched pairs and the CR-78 voices keep their pitch; a lone bell (Mipo Band's
@@ -1166,7 +1187,7 @@ static void tick(double t) {
         const DaTrack *ft = &S.b.tr[fill_tr];
         int sp = ft->speed < 1 ? 1 : ft->speed;
         int on_beat = step % sp == 0 && md_hit(step / sp, bound(ft->hits + (S.b.macro[0] - 500) * ft->length / 1500, 0, ft->length), ft->length, ft->rotate);
-        float g = S.jam_break ? .25f + .6f * bar_step / 15 : bar_step == 13 ? .45f : bar_step == 14 ? .6f : bar_step == 15 ? .75f : 0;
+        float g = S.jam_break ? .25f + .6f * bar_step / (bar - 1) : bar_step == bar - 3 ? .45f : bar_step == bar - 2 ? .6f : bar_step == bar - 1 ? .75f : 0;
         if (g > 0 && (S.jam_break || !on_beat)) {     // never doubles a hit the track plays anyway
             int note = ft->note;
             if (ft->model >= M_FM) note = quantize(note + (S.jam_break ? bar_step / 4 * 2 : 0) + S.b.transpose, S.b.root, S.b.scale);
@@ -1235,7 +1256,7 @@ void draw(void) {
     const char *fam = cur >= DA_BIOMES ? "OURS" : DA_FAMILY_SHORT[S.b.family];
     rectfill(4, 28, (int)strlen(fam) * 4 + 5, 9, fc);
     print(fam, 7, 30, CLR_BROWNISH_BLACK);
-    print(str("%d BPM  %s %s%s", S.b.tempo, NOTE_NAME[bound(S.b.root, 0, 11)], SCALE_NAME[bound(S.b.scale, 0, 12)],
+    print(str("%d BPM  %s %s%s", S.jam && DA_OWN_JAM[S.jam - 1].bpm ? DA_OWN_JAM[S.jam - 1].bpm : S.b.tempo, NOTE_NAME[bound(S.b.root, 0, 11)], SCALE_NAME[bound(S.b.scale, 0, 12)],
               S.chord_pattern ? "  chords" : ""), (int)strlen(fam) * 4 + 14, 30, CLR_LIGHT_GREY);
     if (S.jam && DA_OWN_JAM[S.jam - 1].phase && step > 0) {   // how far R has drifted behind L
         int la = S.seq_on[0] ? S.seq_len[0] : S.b.tr[0].length, lb = S.seq_on[1] ? S.seq_len[1] : S.b.tr[1].length;

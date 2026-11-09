@@ -9,7 +9,7 @@
   "lineage": "A port of the BIOME atlas from Mutable Dreams 1.4 (Kid Bunka / Christoph Link, free firmware for the M-VAVE FM-1, itself built on Mutable Instruments' Plaits/Rings/Elements). The 157 scenes are the upstream's own factory data (MIT), generated into runtime/dreamatlas/biomes.h; the sequencer (Euclid hits/length/rotate per track, seeded rolls, chord journeys, scale masks, the Lo-Fi kit) is ported line by line from app/dsp/dreams.cpp. The fifteen VOICES are NOT ported: each is mapped onto the nearest engine dreamengine already ships, which is the experiment.",
   "homage": "Mutable Dreams (Kid Bunka) / Mutable Instruments",
   "description": {
-    "summary": "157 small generative worlds from Mutable Dreams, plus a few of our own (a house jam, a tabla-and-guiro bazaar, Moon Meadow with tablas, a slow organ-and-upright brew, the Puppetmaker band with singing Mipos): six drifting Euclidean tracks, chord journeys and a Lo-Fi kit, played on dreamengine's own voices.",
+    "summary": "157 small generative worlds from Mutable Dreams, plus a few of our own (a house jam, a tabla-and-guiro bazaar, Moon Meadow with tablas, a slow organ-and-upright brew, the Puppetmaker band): six drifting Euclidean tracks, chord journeys and a Lo-Fi kit, played on dreamengine's own voices.",
     "detail": "Each BIOME is one scene: six tracks, each a voice (Plaits-style drums, FM, analog, Rings and Elements resonators, a sine choir, a round bass...) with its OWN rhythm, k hits spread over n steps. The lengths differ (16, 19, 13...), so the tracks slide against each other and the loop takes minutes to come round. Some biomes walk a chord progression under it, some swap three tracks for a crunchy 16 kHz Lo-Fi drum kit. Browse in the curated order: neighbours are meant to feel genuinely different. The scenes are the original's factory data; the sounds are this engine's nearest voices, so it is a translation, not a copy.",
     "controls": "LEFT/RIGHT or the arrows: next / previous biome · SPACE or PLAY: start / stop · 1-6: mute a track · tap a track row to mute it"
   },
@@ -42,11 +42,11 @@ de:meta */
 // ── upstream constants ───────────────────────────────────────────────────────
 enum { M_KICK, M_SNARE, M_HAT, M_FM, M_VA, M_RINGS, M_HARMONIC, M_CHOIR, M_BASS, M_ELEMENTS,
        M_MELLOW, M_SATIN, M_VELVET, M_SPECTRAL, M_BREATH,
-       M_TABLA, M_SCRAPE, M_UPRIGHT, M_ORGAN, M_GUITAR, M_BELL, M_TAMB, M_RHODES, M_VOICE,
+       M_TABLA, M_SCRAPE, M_UPRIGHT, M_ORGAN, M_GUITAR, M_BELL, M_TAMB, M_RHODES,
        M_MODELS };   // from M_TABLA on they are OURS (no upstream model): only our own biomes use them
 static const char *const MODEL_NAME[M_MODELS] = { "KICK", "SNARE", "HAT", "FM", "ANALOG", "RINGS", "HARMONIC",
     "CHOIR", "BASS", "ELEMENTS", "MELLOW", "SATIN", "VELVET KEYS", "SPECTRAL", "BREATH", "TABLA", "SCRAPE",
-    "UPRIGHT", "ORGAN", "GUITAR", "BELL", "TAMB", "RHODES", "VOICE" };
+    "UPRIGHT", "ORGAN", "GUITAR", "BELL", "TAMB", "RHODES" };
 static const char *const KIT_NAME[5] = { "DUST", "CRATE", "SOFT", "FOUND OBJECTS", "VELOUR TAPE" };
 static const char *const SCALE_NAME[13] = { "chromatic", "minor", "major", "dorian", "minor pent", "major pent",
     "whole tone", "phrygian", "ukr dorian", "harm minor", "dbl harm min", "harm major", "dbl harm maj" };
@@ -134,9 +134,9 @@ static Scene S;
 // bongos as one alternating low/high pair (+7), the tambourine (a short jingle high-passed at
 // 6.5 kHz), the guiro (INSTR_SCRAPE), the babirhodes "lick" (one ROLLED six-note chord, root + 0 7 16
 // 19 21 24, up-strummed +29 +23 +23 +76 +40 ms, ringing 3 s, floating in at a wandering root: the
-// same voicing every time, only the pitch moves) and the Mipos singing, INSTR_VOICE cycling the
-// syllables mi-po-la-i. 60 BPM in 16ths, swing 52, chromatic, and nothing resolves. One odd length:
-// the Mipos sing 5 in 14. The triangles and the ba/bi blips have no track left.
+// same voicing every time, only the pitch moves) and the ringing triangle on 6 and 14. 60 BPM in
+// 16ths, swing 52, chromatic, and nothing resolves. The Mipos' singing (pi/po/ba/bi on INSTR_VOICE)
+// was tried and cut: it sounded awful. The choked triangle and the blips have no track left.
 #define DA_OWN 5
 #define DA_ALL (DA_BIOMES + DA_OWN)
 static const DaBiome DA_OWN_BIOME[DA_OWN] = {
@@ -164,7 +164,7 @@ static const DaBiome DA_OWN_BIOME[DA_OWN] = {
  {"Slow Brew",9,98,5,1,98989,0,0,650,200,100,0,150,0,0,-1,0,300,{500,350,500,60},{
   /* kick    (bapKick)   */ {15,50,100,485,1000,0,5,16,0,900,36,500,0,1,0,1,200,0,850,100,0,0},
   /* snare               */ {1,450,750,300,350,120,2,16,4,1000,50,470,0,1,0,1,150,150,850,100,0,0},
-  /* agogo   (brewBell)  */ {20,700,850,160,450,150,5,12,0,900,92,650,0,1,0,1,300,200,850,100,0,0},
+  /* agogo   (brewBell)  */ {20,700,850,80,450,150,5,12,0,900,92,650,0,1,0,1,300,200,850,100,0,0},
   /* upright (hUpright)  */ {17,300,300,350,800,0,13,24,0,900,41,480,0,2,0,1,250,450,850,100,0,0},
   /* organ   (brewOrgan) */ {18,600,100,700,450,200,2,6,0,1000,53,400,0,4,0,1,100,250,850,100,0,0},
   /* guitar  (brewGuitar)*/ {19,220,400,500,500,150,3,10,0,850,60,600,0,2,0,1,200,100,850,100,0,0}}},
@@ -174,7 +174,7 @@ static const DaBiome DA_OWN_BIOME[DA_OWN] = {
   /* tamb                */ {21,0,0,220,200,60,9,16,0,850,60,620,0,1,0,1,300,0,850,100,0,0},
   /* guiro   (guiro)     */ {16,870,0,600,700,20,1,16,9,500,60,380,0,1,0,1,0,0,850,100,0,0},
   /* rhodes  (rhodes2)   */ {22,200,150,1000,400,300,1,16,8,500,51,500,0,1,0,1,0,120,850,100,0,150},
-  /* mipos               */ {23,850,0,500,250,250,5,14,2,450,69,500,0,1,0,1,200,500,850,100,0,0}}},
+  /* triangle (triangleRing) */ {20,900,1000,900,550,300,2,16,3,500,100,640,0,1,0,1,150,900,850,100,0,0}}},
 };
 // how each of our biomes JAMS (Playtime's drum jam): the order its layers enter, who may rest a
 // phrase, who a breakdown takes out, which track plays the phrase-end fill, which lets go before the one
@@ -191,9 +191,9 @@ static const JamCfg DA_OWN_JAM[DA_OWN] = {
     { 0, 0,    {0, 2, 1, 3, 5, 4}, {1, 3, 4, 5}, 1 << 3 | 1 << 4 | 1 << 5, 4, 5,     // Moon Garden: no chords, as Moon Meadow
       { "CHOIR", "DRONE", "RINGS", "BAYAN", "DAYAN", "SCRAPE" } },
     { 1, 0x38, {0, 1, 2, 3, 4, 5}, {2, 3, 4, 5}, 1 << 3 | 1 << 4 | 1 << 5, 1, 2,     // Slow Brew: i-III-VI, a bar each
-      { "KICK", "SNARE", "AGOGO", "UPRIGHT", "ORGAN", "GUITAR" }, { 0, 2, 5 }, 3, 1 },
+      { "KICK", "SNARE", "AGOGO", "UPRIGHT", "ORGAN", "GUITAR" }, { 0, 2, 5 }, 3, 1, { 0, 0, -5 } },   // the agogo pair: high, low
     { 0, 0,    {0, 2, 5, 1, 4, 3}, {1, 2, 3, 5}, 1 << 0 | 1 << 1 | 1 << 2, 1, 2,     // Mipo Band: no chords, chromatic; the Mipos come in second
-      { "CONGA", "BONGOS", "TAMB", "GUIRO", "RHODES", "MIPOS" }, {0}, 0, 0, { 0, 7, 0, 0, 0, 0 } },
+      { "CONGA", "BONGOS", "TAMB", "GUIRO", "RHODES", "TRIANGLE" }, {0}, 0, 0, { 0, 7, 0, 0, 0, 0 } },
 };
 static const DaBiome *biome_row(int id) { return id < DA_BIOMES ? &DA_BIOME[id] : &DA_OWN_BIOME[id - DA_BIOMES]; }
 static int browse_id(int k) { return k < DA_BIOMES ? DA_BROWSE[k] : k; }   // ours come last, in order
@@ -416,7 +416,7 @@ static const float VOICE_TRIM_DB[M_MODELS] = {
     /* KICK SNARE HAT */ 3.4f, 5.0f, 3.9f,  /* FM VA RINGS */ 6.0f, 2.7f, -1.7f,
     /* HARMONIC CHOIR BASS */ 9.4f, -5.8f, 0,  /* ELEMENTS MELLOW SATIN */ 0, 0, 0,
     /* VELVET SPECTRAL BREATH */ 3.3f, 0, 3.2f,  /* TABLA SCRAPE: ours, no upstream to fit */ 0, 0,
-    /* UPRIGHT ORGAN GUITAR BELL: ours */ 0, 0, 0, 0,  /* TAMB RHODES VOICE: ours */ 0, 0, 0 };
+    /* UPRIGHT ORGAN GUITAR BELL: ours */ 0, 0, 0, 0,  /* TAMB RHODES: ours */ 0, 0 };
 
 // ── KICK: Plaits' AnalogBassDrum, PORTED (Emilie Gillet, MIT), the trigger path only ─────────
 // Mapping it onto INSTR_SINE gave a sustained thump with no click, 20 dB too loud in the balance.
@@ -668,8 +668,8 @@ static void config_track(int i) {
         instrument_harmonics(s, harm); instrument_timbre(s, tone); instrument_morph(s, shape);
         instrument_mode(s, 0, .7f); instrument_mode(s, 1, .12f);
         instrument_filter(s, FILTER_LOW, 1900, 0); break;
-    case M_BELL:      // brewBell: a mallet in bell material, ~150 ms rings, inharmonic overtones
-        instrument(s, INSTR_MALLET, 0, 160, 0, 80);
+    case M_BELL:      // a mallet in bell material: brewBell (~150 ms), the triangles (90 ms choked, 1.8 s ringing)
+        instrument(s, INSTR_MALLET, 0, bound(t->decay * 2, 20, 2000), 0, 80);   // decay = the ring in ms / 2
         instrument_harmonics(s, harm); instrument_timbre(s, tone); instrument_morph(s, shape); break;
     // ── Puppetmaker's band, from Playtime's puppetmaker patches ──
     case M_TAMB:      // the CR-78 tambourine: a short noise jingle high-passed at 6.5 kHz
@@ -678,9 +678,6 @@ static void config_track(int i) {
     case M_RHODES:    // the rhodes patch (the epiano cart's suitcase): mellow, the Rhodes detent
         instrument(s, INSTR_EPIANO, 1, 0, 7, 450);
         instrument_harmonics(s, harm); instrument_timbre(s, tone); instrument_morph(s, shape); break;
-    case M_VOICE:     // the Mipos: INSTR_VOICE, a child-sized tract (tone = SIZE), each note its own vowel
-        instrument(s, INSTR_VOICE, 30, 60, 7, 160);
-        instrument_harmonics(s, 0); instrument_timbre(s, tone); instrument_morph(s, shape); break;
     default:          // BREATH: a pitched sine reed crossfaded (harm) with lowpassed air
         instrument(s, INSTR_SINE, A, D, 0, 120); instrument_level(s, 1 - harm);
         instrument(l, INSTR_NOISE, A, D, 0, 120);
@@ -751,7 +748,6 @@ static void track_booking(int id, double end) {
     live_id[live_w] = id; live_end[live_w] = end; live_w = (live_w + 1) % LIVE_N;
 }
 static void unbook_all(void);
-static void sing_clear(void);
 static void silence_all(void) {
     double at = audio_time();
     unbook_all();                                  // notes not started yet never play
@@ -759,7 +755,6 @@ static void silence_all(void) {
         if (live_id[k] > 0 && live_end[k] > at) note_event_at(live_id[k], at, NEV_DAMP, 1);
     memset(live_id, 0, sizeof live_id);
     note_off_all();
-    sing_clear();
 }
 static void unbook_all(void) {
     for (int i = 0; i < 6; i++) { unschedule(SL_TRACK + i, 0, 0); unschedule(SL_LAYER + i, 0, 0); }
@@ -780,45 +775,6 @@ static void load_biome(int id) {
 
 // ── firing: one track hit, booked at t ──────────────────────────────────────
 static void mark_hit(int i, double t) { hit_t[i][hit_w[i]++ & 7] = t; }
-// ── the Mipos' singing, started LIVE ─────────────────────────────────────────────────────────
-// INSTR_VOICE takes its vowel, size and effort only from a LIVE note: at note-on sound.h applies the
-// macros (vox_apply_macros) and then resets the voice to a neutral "ah" (sound_voice_start runs
-// after it), so a booked note, its slot macros and its NoteOpts offsets all sing "a". And a booked
-// note cannot take voice_consonant. So a sung syllable is queued with its time and started from
-// update() once that time arrives (up to a frame late, which a sung voice at 60 BPM never shows),
-// then given its vowel and consonant through the live calls. As Puppetmaker 2's band sings: mostly
-// the Mipos' "pi" (short) and "po" (long), now and then babirhodes' "ba" or "bi".
-typedef struct { double t; int note, slot, syl; float gain, size, effort; } Sung;
-static Sung sung_q[16]; static int sung_n;
-static int sung_h[8]; static double sung_off[8];
-static unsigned sung_rng = 1;
-static void sing_book(int i, int note, double t, float gain, float size, float effort) {
-    if (sung_n >= 16) return;
-    sung_rng = sung_rng * 1664525u + 1013904223u;
-    unsigned r = (sung_rng >> 8) % 100;
-    int syl = r < 60 ? 0 : r < 90 ? 1 : r < 95 ? 2 : 3;      // pi 60 · po 30 · ba 5 · bi 5 (%)
-    sung_q[sung_n++] = (Sung){ t, note, SL_TRACK + i, syl, gain, size, effort };
-}
-static void sing_due(void) {
-    static const float vowel[4] = { 1, .25f, .5f, 1 };      // pi = I, po = O, ba = A, bi = I (U-O-A-E-I axis)
-    static const int cons[4] = { 18, 18, 0, 0 };             // p, p, b, b (voice_consonant ids)
-    static const int len_ms[4] = { 284, 693, 400, 200 };     // Puppetmaker's own sample lengths
-    double at = audio_time();
-    for (int k = 0; k < 8; k++) if (sung_h[k] && at >= sung_off[k]) { note_off(sung_h[k]); sung_h[k] = 0; }
-    for (int q = 0; q < sung_n; ) {
-        if (sung_q[q].t > at) { q++; continue; }
-        const Sung *g = &sung_q[q];
-        int h = note_on(g->note, g->slot, bound((int)(g->gain * 7 + .5f), 1, 7));
-        note_harmonics(h, vowel[g->syl]); note_timbre(h, g->size); note_morph(h, g->effort);
-        voice_consonant(h, cons[g->syl]);
-        for (int k = 0; k < 8; k++) if (!sung_h[k]) { sung_h[k] = h; sung_off[k] = at + len_ms[g->syl] / 1000.0; break; }
-        sung_q[q] = sung_q[--sung_n];
-    }
-}
-static void sing_clear(void) {
-    for (int k = 0; k < 8; k++) if (sung_h[k]) note_off(sung_h[k]);
-    memset(sung_h, 0, sizeof sung_h); sung_n = 0; sung_rng = 1;
-}
 static float snare_gain = 1;     // the jam's fills play the clap softer; every factory hit is 1
 static void fire(int i, int note, float vel, double t, int gate_ms) {
     const DaTrack *tr = &S.b.tr[i];
@@ -830,7 +786,7 @@ static void fire(int i, int note, float vel, double t, int gate_ms) {
     if (m == M_UPRIGHT) dur = (int)(80 * powf(15, du));            // a stopped 8th .. a ringing note
     if (m == M_ORGAN)  dur = (int)(200 * powf(12, du));            // chords held toward the next
     if (m == M_GUITAR) dur = (int)(150 * powf(12, du));
-    if (m == M_BELL)   dur = 200;
+    if (m == M_BELL)   dur = bound(tr->decay * 2, 20, 2000) + 40;
     if (m == M_TAMB)   dur = 290;
     if (m == M_RHODES) dur = 3000;                                 // the rolled chord rings ~3 s
 
@@ -870,11 +826,6 @@ static void fire(int i, int note, float vel, double t, int gate_ms) {
         }
         mark_hit(i, t); return;
     }
-    if (m == M_VOICE) {    // the Mipos: queued, then STARTED LIVE in update() (see sing_due)
-        sing_book(i, note, t, o.gain, unit(tr->tone), unit(tr->shape));
-        mark_hit(i, t); return;
-    }
-    if (m == M_BELL) { static int flip[6]; if (flip[i]++ & 1) note = quantize(note - 5, S.b.root, S.b.scale); }   // the pair: high, low
     if (m == M_CHOIR) {
         static const int chord[4][3] = { {0,3,7}, {0,4,7}, {0,5,7}, {0,7,12} };
         int ci = bound(tr->harm * 4 / 1001, 0, 3);
@@ -1004,7 +955,6 @@ void update(void) {
     if (keyp(KEY_SPACE)) { playing = !playing; if (playing) { t_next = audio_time() + .05; } else { silence_all(); } }
     for (int i = 0; i < 6; i++) if (keyp('1' + i)) muted[i] = !muted[i];
     if (playing) while (t_next < audio_time() + LOOKAHEAD) { double t = t_next; t_next += step_dur(step); tick(t); }
-    sing_due();
 #ifdef DE_TRACE
     watch("biome", "%d", cur);
     watch("step", "%u", step);

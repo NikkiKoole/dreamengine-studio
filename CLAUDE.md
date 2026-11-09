@@ -302,6 +302,10 @@ runtime/   studio.h (public API: constants + declarations), studio.c (Raylib imp
                          not, so assign voices by order and never claim which voice plays which lane. Elgam's
                          own patterns are NOT here and cannot be: custom mask ROMs, never published (doc §5).
                          By contrast sideman's twelve rhythms are RECONSTRUCTIONS, now labelled as such
+             steinway.h  GENERATED (tools/gen-steinway.js): a real Steinway D BAKED IN for INSTR_PIANO's HYBRID
+                         grand (13 notes C1-C7, IMA ADPCM, ~0.9 MB): steinway_attach(slot, first_sample_slot) = every
+                         note plays the recording, then fades into the modelled string at 2.6 s (an early splice is
+                         AUDIBLE). Uses 13 of 16 sample slots. CC BY 4.0: show STEINWAY_CREDIT. openstrings/pianoref
              ampcab.h    the shared guitar AMP/CABINET voicing table: five amps as preset BUNDLES of effects we
                          already ship (instrument_drive + a DRIVE_* shaper + eq + glue), pinned like leslie, NOT
                          new DSP. ONE truth so the standalone amp + pinned cabinet agree. combo/pedalboard/
@@ -841,6 +845,9 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
                              Plinky's own wave recipes + windowed-sinc mip pyramid (MIT) — NOT its shipped table, whose slots
                              2-15 are WAVs of unknown origin. --check gates staleness · --selfcheck = its saw byte-identical to
                              Plinky's shipped one + a band-limit test with a raw-saw negative control · --report = centroids
+             gen-steinway.js GENERATE runtime/steinway.h from assets/samples/steinway/ (IMA ADPCM 4-bit, 896 KB); --check
+                             gates staleness · --selfcheck = per-zone SNR ≥30 dB + a corrupted-byte control + the
+                             header's C decoder compiled and diffed bit-exact against the tool's own
              build-cart-index.js  GENERATE editor/public/carts/index.json from each cart's de:meta block
                              (cart owns its metadata; index.json is a derived view); --check gates staleness
              lint-carts.js   validate each cart's de:meta (tags/status/created/description) + assert

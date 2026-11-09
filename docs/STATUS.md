@@ -1219,7 +1219,11 @@ Detail lives in the linked design doc in every case; that is where it was always
   reference), and if tuning cannot close the gap, a second piano engine (e.g. commuted synthesis: the
   Steinway's hammer+soundboard response as the excitation). If it lands, (1)-(3) stop mattering. (5) PROGRESS 2026-11-09: the
   measuring pass shipped as an OPT-IN model, `instrument_mode(slot, MODE_PIANO_MODEL, 1)` (felt hammer, decay in dB/s, onset ramp,
-  knock off; tail good by ear, onset not yet); probe `pianoref` (S = A/B). Next: the HYBRID, the real first ~80 ms into it. Design + measurements:
+  knock off; tail good by ear, onset not yet); probe `pianoref` (S = A/B). (1) + the HYBRID DONE 2026-11-09: `runtime/steinway.h`
+  (generated, `tools/gen-steinway.js`) bakes all 13 notes in as 4-bit ADPCM (896 KB, 35-49 dB SNR; trimming was not possible,
+  the bass is still only ~20 dB under its peak at 3.1 s), and `instrument_piano_attack` fades each recording into the model at
+  2.6 s ("sounds great"; a 70-300 ms splice was plainly audible). `openstrings` plays it by default (P = model alone). Left:
+  (3) velocity layers. Design + measurements:
   [sympathetic-resonator.md](design/sympathetic-resonator.md).
 - **TWO GATES ARE RED on master, from before 2026-11-03** (found 2026-11-03). `refactor-guard` flags
   `acidcandy` because its baseline predates the commits since (re-bless on a settled tree after checking the

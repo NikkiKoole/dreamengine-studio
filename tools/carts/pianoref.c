@@ -7,7 +7,7 @@
   "kind": ["probe"],
   "teaches": ["waveguide-synth"],
   "lineage": "INSTR_PIANO's half of an A/B against a real Steinway D: the 13 notes in assets/samples/steinway/ (bitKlavier Grand, Daniel Trueman, Princeton, CC BY 4.0). Same shape as acidref (the 303 vs Open303): play exactly what the reference holds, on a fixed grid, so both drop into the same oracles. openstrings' fifth todo.",
-  "description": "Not a toy: a measurement probe. Plays C1, F#1, C2 ... F#6, C7 (MIDI 24 + 6k, the Steinway sample grid) on INSTR_PIANO's grand voicing, each held 3.3 s with a 0.2 s gap, one note every 3.5 s. Compare with node tools/oneshot-compare.js --render pianoref --spec tools/oneshot-specs/pianoref.json. DE_DEFINES: PR_VOL (note_on vol 0-7, default 5 = the samples' layer 12 of 16), PR_HARM / PR_TIMB / PR_MORPH (the macros), PR_STIFF / PR_DECAY / PR_KNOCK (instrument_mode 0..1, 0.5 = the engine default), PR_MODEL (MODE_PIANO_MODEL, default 1 = the Steinway-matched grand; 0 = the classic engine, for a before/after), PR_HYBRID (default 1 = the real Steinway attack spliced into the modelled string via instrument_piano_attack; 0 = the model alone). LISTEN: press S to hear each note twice, ours then the real Steinway, looping (credit: bitKlavier Grand Sample Library, Daniel Trueman, Princeton University, CC BY 4.0)."
+  "description": "Not a toy: a measurement probe. Plays C1, F#1, C2 ... F#6, C7 (MIDI 24 + 6k, the Steinway sample grid) on INSTR_PIANO's grand voicing, each held 3.3 s with a 0.2 s gap, one note every 3.5 s. Compare with node tools/oneshot-compare.js --render pianoref --spec tools/oneshot-specs/pianoref.json. DE_DEFINES: PR_VOL (note_on vol 0-7, default 5 = the samples' layer 12 of 16), PR_HARM / PR_TIMB / PR_MORPH (the macros), PR_STIFF / PR_DECAY / PR_KNOCK (instrument_mode 0..1, 0.5 = the engine default), PR_MODEL (MODE_PIANO_MODEL, default 1 = the Steinway-matched grand; 0 = the classic engine, for a before/after), PR_HYBRID (default 1 = the real Steinway attack spliced into the modelled string via instrument_piano_attack; 0 = the model alone), PR_LATE (default 1 = hand over at 2.6 s; 0 = the short per-register splice), PR_SHIFT (semitones off each recording, to test in-between notes). LISTEN: press S to hear each note twice, ours then the real Steinway, looping (credit: bitKlavier Grand Sample Library, Daniel Trueman, Princeton University, CC BY 4.0)."
 }
 de:meta */
 #include "studio.h"
@@ -43,6 +43,9 @@ de:meta */
 #endif
 #ifndef PR_HYBRID
 #define PR_HYBRID 1             // 1 = the HYBRID: the real Steinway attack, then the modelled string (instrument_piano_attack)
+#endif
+#ifndef PR_SHIFT
+#define PR_SHIFT 0              // play every note this many semitones off the recording (the hybrid's in-between notes)
 #endif
 #ifndef PR_LATE
 #define PR_LATE 1               // 1 = hand over LATE (the recording to 2.6 s, then a 0.5 s fade into the model); 0 = the short per-register splice
@@ -131,7 +134,7 @@ void update(void) {
     f++;
     int z = f / PER, local = f % PER;
     if (z < NZ) {
-        if (local == 0) held = note_on(24 + 6 * z, 5, PR_VOL);
+        if (local == 0) held = note_on(24 + 6 * z + PR_SHIFT, 5, PR_VOL);
         else if (local == HOLD && held >= 0) { note_off(held); held = -1; }
     }
 #ifdef DE_TRACE

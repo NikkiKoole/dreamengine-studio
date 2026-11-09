@@ -6046,6 +6046,10 @@ static void sound_piano_start(Voice *v) {
                 float rate = freq / piano_stretch_freq(rootf, PIANO_STRETCH_K * (v->eng_p[4] * 2.0f));
                 int T = (int)(pins->pna_splice[z] * 0.001f * (float)SOUND_SAMPLE_RATE);
                 int X = (int)(pins->pna_xf[z] * 0.001f * (float)SOUND_SAMPLE_RATE);
+                // a note ABOVE the root reads the recording faster, so it runs out sooner (3 semitones up = 1.19x):
+                // pull the splice EARLIER to fit rather than dropping the zone (which silently played model-only)
+                int Tfit = (int)(((float)ss->len - 4.0f) / rate) - X - 2;
+                if (T > Tfit) T = Tfit;
                 int W = (int)(3.0f * (float)SOUND_SAMPLE_RATE / freq);          // match over ~3 periods
                 if (W < SOUND_SAMPLE_RATE / 100) W = SOUND_SAMPLE_RATE / 100;
                 if (W > T / 2) W = T / 2;

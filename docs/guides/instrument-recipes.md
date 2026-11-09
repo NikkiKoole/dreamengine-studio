@@ -500,8 +500,18 @@ voicing/stiffness / hammer-softness / pedal-sustain.
 > **MODE_PIANO_MODEL** (idx 6): 0 = the classic engine for every voicing; >= 0.5 switches the GRAND voicing
 > (h 0.08) to the Steinway-matched model. Measured with `tools/carts/pianoref.c` (S = ours, then the real
 > note) + `node tools/oneshot-compare.js --render pianoref --spec tools/oneshot-specs/pianoref.json --frames 2760`.
-> Its attack is still the weak spot (the maker: tail good, onset not yet); next is the HYBRID (the real
-> Steinway's first ~80 ms into the modelled tail), planned as a further value of this mode.
+> Its attack is the weak spot (the maker: tail good, onset not yet), so the grand's real answer is the
+> HYBRID below.
+
+| piano/steinway hybrid | openstrings.c, pianoref.c | as piano/steinway + `#include "steinway.h"` → `steinway_attach(slot, 0)` | A REAL Steinway D per note (13 recordings baked in, ~0.9 MB ADPCM, CC BY 4.0: show `STEINWAY_CREDIT`), fading into the modelled string at 2.6 s so held notes ring on past the 3.2 s recording. By ear: "sounds great". |
+
+> **The hybrid** (`instrument_piano_attack(slot, sample_slot, root_midi, splice_ms, xfade_ms)`, wrapped by
+> `steinway.h`): the recording plays from the strike, the model runs silently beside it, and at the splice
+> the model is level-matched and an equal-power fade hands over. **Splice LATE.** Measured by ear
+> 2026-11-09: at 70-300 ms the transition is plainly audible, because the real and modelled strings still
+> differ in tone colour (brightness, beating, partial balance) that early, and no level match fixes that.
+> At 2.6 s with a 0.5 s fade nobody hears it. A note above its recording reads it faster and runs out
+> sooner, so the engine pulls that note's splice earlier to fit (up to ~0.5 s at +3 semitones).
 
 > **Cross-ref:** `INSTR_PIANO` reached the dial with **eno** (the first radio station to use it).
 > Before that, every piano on the dial

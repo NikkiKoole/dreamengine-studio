@@ -16,14 +16,12 @@
   "description": {
     "summary": "A rolling piano arpeggio of SHORT, dry notes, and a bank of eight open strings tuned to each chord that rings under it like a held sustain pedal. R switches the strings off and on, so you hear what they do.",
     "detail": "Every piano note here is cut short (the damper falls after 180 ms), so on its own it sounds like a dry, plinky piano. The pedal comes from the resonator: eight delay-loop strings, retuned at each chord change to the bass, its fifth and the chord tones over three octaves. The piano's sound excites them, and they ring on at those notes. Strings that keep their note across a change ring on; the rest are damped for 25 ms and retuned, like a pedal change. The strings on screen show which notes are tuned and ring with the chord.",
-    "controls": "R strings on/off · P synth piano / Steinway samples · UP/DOWN ring time · LEFT/RIGHT brightness · SPACE stop/play. Piano samples: bitKlavier Grand Sample Library, Daniel Trueman, Princeton University (CC BY 4.0)"
+    "controls": "R strings on/off · P Steinway (the hybrid) / the modelled piano alone · UP/DOWN ring time · LEFT/RIGHT brightness · SPACE stop/play. Piano samples: bitKlavier Grand Sample Library, Daniel Trueman, Princeton University (CC BY 4.0)"
   },
   "todo": [
-    "BAKE the Steinway into the cart (web/app builds cannot read assets/ at runtime), shrunk: per-register length 3.1 s → 0.7 s, 22 kHz, maybe ADPCM (3.5 MB → ~0.25-1 MB). STATUS Open 'SAMPLED STEINWAY'.",
-    "Replace the 13 instrument slots (one per zone) with a real MULTISAMPLE instrument: one slot, zones by key (engine work).",
-    "VELOCITY layers: one layer today (v12 of 16), so soft notes are only quieter, not darker. Take more layers from Princeton's original, keep the CC BY credit.",
+    "VELOCITY layers: one layer today (v12 of 16), so soft notes are only quieter, not darker. Take more layers from Princeton's original, keep the CC BY credit (gen-steinway.js; ~0.9 MB a layer).",
     "LISTEN: resonator level 0.6 and the 25 ms retune damping — too much, too little? Then decide whether pianohand's hand-built halo voice gives way to resonator().",
-    "MODELLED PIANO vs THE STEINWAY: the measuring pass landed as an opt-in, MODE_PIANO_MODEL 1 (this cart uses it): felt hammer, decay in dB/s, onset ramp, knock off; measured with the pianoref probe (S = ours then the real note). By ear the tail is good, the onset is not yet. NEXT: the HYBRID (commuted synthesis), the real Steinway first ~80 ms cross-faded into the modelled tail, as a further MODE_PIANO_MODEL value. Watch the splice (click-check.js) and match pitch + partial levels at the joint."
+    "THE STEINWAY is the HYBRID now (steinway.h, baked in, 2026-11-09): each note plays the real recording and fades into MODE_PIANO_MODEL at 2.6 s. LISTEN: notes here are short (180 ms), so you mostly hear the recordings; the model only shows on the 600 ms bass and long rings. Should the bass hold longer to let the model tail be heard?"
   ]
 }
 de:meta */
@@ -37,6 +35,7 @@ de:meta */
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include "steinway.h"
 
 #define SL_PNO 10
 #define SL_BAS 11
@@ -69,58 +68,16 @@ static int    tune_ch[4], tune_n = 0;
 static int    tuned[8], ntuned = 0;
 static float  string_glow[8];
 
-// ── SAMPLED PIANO (P): 13 Steinway notes, one every 6 semitones, from the bitKlavier Grand
-// (Daniel Trueman, Princeton, CC BY 4.0), loaded at RUNTIME from assets/samples/steinway/ (credit +
-// licence there; a web/app build would need them baked in). One instrument slot per zone; a note
-// plays on the zone with the nearest root, so no note is shifted more than 3 semitones.
-#define SL_ZONE 20
-#define NZONE   13                     // C1 .. C7 every 6 semitones: no note moves more than 3
-static const char *ZONE_FILE[NZONE] = { "C1", "Fs1", "C2", "Fs2", "C3", "Fs3", "C4", "Fs4", "C5", "Fs5", "C6", "Fs6", "C7" };
-static bool zones_ok = false, sampled = false;
-static float zbuf[8 * 44100];
-
-static int load_wav16(const char *path, float *out, int max) {   // mono 16-bit PCM → -1..1
-    FILE *f = fopen(path, "rb");
-    if (!f) return 0;
-    unsigned char h[12]; int n = 0;
-    if (fread(h, 1, 12, f) != 12) { fclose(f); return 0; }
-    for (;;) {
-        unsigned char ch[8];
-        if (fread(ch, 1, 8, f) != 8) break;
-        unsigned len = ch[4] | ch[5] << 8 | ch[6] << 16 | (unsigned)ch[7] << 24;
-        if (memcmp(ch, "data", 4) != 0) { fseek(f, (long)(len + (len & 1)), SEEK_CUR); continue; }
-        for (unsigned i = 0; i < len / 2 && n < max; i++) {
-            unsigned char b[2];
-            if (fread(b, 1, 2, f) != 2) break;
-            out[n++] = (float)(short)(b[0] | b[1] << 8) / 32768.0f;
-        }
-        break;
-    }
-    fclose(f);
-    return n;
+// ── THE STEINWAY (P): the hybrid grand from steinway.h. Every note plays a REAL Steinway D recording
+// (bitKlavier Grand, Daniel Trueman, Princeton, CC BY 4.0; 13 notes, one every 6 semitones, baked in
+// as ADPCM so it works on web/app too) and fades into the modelled string at 2.6 s. Both piano slots
+// share the one loaded set (sample slots 0..12). P drops back to the modelled grand alone.
+static bool steinway_ok = false, sampled = true;
+static void apply_piano(void) {
+    if (!steinway_ok) return;
+    if (sampled) { steinway_use(SL_PNO, 0); steinway_use(SL_BAS, 0); }
+    else         { steinway_detach(SL_PNO); steinway_detach(SL_BAS); }
 }
-static void load_zones(void) {
-    zones_ok = true;
-    for (int z = 0; z < NZONE; z++) {
-        char path[96];
-        snprintf(path, sizeof path, "../assets/samples/steinway/%s.wav", ZONE_FILE[z]);   // (cwd = build/)
-        int n = load_wav16(path, zbuf, (int)(sizeof zbuf / sizeof zbuf[0]));
-        if (n <= 0) { zones_ok = false; return; }
-        sample_load(z, zbuf, n);
-        int sl = SL_ZONE + z;
-        instrument(sl, INSTR_SAMPLE, 1, 0, 7, 140);
-        instrument_sample(sl, z, 24 + 6 * z);
-        instrument_reverb(sl, 0.18f);
-        instrument_resonator(sl, 0.6f);
-    }
-}
-static int zone_slot(int midi) {
-    int z = (midi - 24 + 3) / 6;                                   // the nearest root (24 + 6z)
-    if (midi < 24) z = 0;
-    if (z >= NZONE) z = NZONE - 1;
-    return SL_ZONE + z;
-}
-static int pno(int midi, int synth_slot) { return sampled ? zone_slot(midi) : synth_slot; }
 
 static void apply_resonator(void) { resonator(strings_on ? 0.6f : 0.0f, ring_len, bright); }
 
@@ -163,7 +120,8 @@ void init(void) {
     instrument_resonator(SL_BAS, 0.6f);
     reverb(0.55f, 0.55f);
     apply_resonator();
-    load_zones();
+    steinway_ok = steinway_load(0) == STEINWAY_ZONES;
+    apply_piano();
     next_t = audio_time() + 0.1;
 }
 
@@ -173,7 +131,7 @@ void update(void) {
     if (keyp(KEY_DOWN))  { ring_len   = fmaxf(0.0f, ring_len - 0.1f);   apply_resonator(); }
     if (keyp(KEY_RIGHT)) { bright = fminf(1.0f, bright + 0.1f); apply_resonator(); }
     if (keyp(KEY_LEFT))  { bright = fmaxf(0.0f, bright - 0.1f); apply_resonator(); }
-    if (keyp('P') && zones_ok) sampled = !sampled;
+    if (keyp('P') && steinway_ok) { sampled = !sampled; apply_piano(); }
     if (keyp(KEY_SPACE)) { playing = !playing; if (playing) next_t = audio_time() + 0.1; }
 
     double tnow = audio_time(), sixteenth = 60.0 / BPM_ / 4.0;
@@ -181,11 +139,11 @@ void update(void) {
         int ci = (step / STEPS_PER_CHORD) % NPROG, s = step % STEPS_PER_CHORD;
         const Chord *c = &PROG[ci];
         if (s == 0) {
-            schedule_at(next_t, c->bass, pno(c->bass, SL_BAS), 6, 600);                 // the bass, a little longer
+            schedule_at(next_t, c->bass, SL_BAS, 6, 600);                 // the bass, a little longer
             if (tune_n < 4) { tune_at[tune_n] = next_t; tune_ch[tune_n] = ci; tune_n++; }
         }
         int vol = (s == 0 || s == 8) ? 6 : (s % 4 == 0 ? 5 : 4);         // a lean on each group's first note
-        { int m = figure_note(c, s); schedule_at(next_t, m, pno(m, SL_PNO), vol, 180); }         // SHORT: the damper falls at once
+        { int m = figure_note(c, s); schedule_at(next_t, m, SL_PNO, vol, 180); }         // SHORT: the damper falls at once
         next_t += sixteenth;
         step++;
     }
@@ -242,6 +200,11 @@ void draw(void) {
     snprintf(buf, sizeof buf, "ring %d  bright %d", (int)(ring_len * 10 + 0.5f), (int)(bright * 10 + 0.5f));
     print(buf, 8, y + 10, CLR_LIGHT_GREY);
     print(playing ? "" : "SPACE play", SCREEN_W - 88, y, CLR_WHITE);
-    print(!zones_ok ? "P (no samples)" : sampled ? "P steinway" : "P synth", SCREEN_W - 120, y + 10,
+    print(!steinway_ok ? "P (no samples)" : sampled ? "P steinway" : "P model", SCREEN_W - 120, y + 10,
           sampled ? CLR_YELLOW : CLR_LIGHT_GREY);
+    if (steinway_ok && sampled) {                          // CC BY 4.0: the credit shows while it plays
+        font(FONT_TINY);
+        print("piano: bitKlavier Grand, D. Trueman, Princeton (CC BY 4.0)", 8, SCREEN_H - 8, CLR_DARK_GREY);
+        font(FONT_NORMAL);
+    }
 }

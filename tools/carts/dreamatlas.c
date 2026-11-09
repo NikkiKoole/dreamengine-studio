@@ -35,8 +35,8 @@ de:meta */
 //   · tick(): the step clock, seeded rolls, Euclid hits, density/jump macros   → tick()
 //   · md_quantize / md_hit / chord_offset, verbatim                            → quantize()/md_hit()/chord_offset()
 //   · tools/generate_lofi.py, the 40 Lo-Fi one-shots                           → kit_render()
-//   · Plaits' AnalogBassDrum (MIT), rendered per track into a sample           → kick_render()
-// What is MAPPED, not ported: the other fourteen voice models → config_track(). See
+//   · Plaits' AnalogBassDrum + AnalogSnareDrum (MIT), rendered into samples    → kick_render()/snare_render()
+// What is MAPPED, not ported: the other thirteen voice models → config_track(). See
 // docs/design/mutable-dreams.md for the table and what each mapping gives up.
 
 // ── upstream constants ───────────────────────────────────────────────────────
@@ -296,9 +296,10 @@ static int env_decay_ms(int i) {  // upstream: exponential, time constant .06 + 
 // Fit 2026-11-09 over 20 biomes / 98 sounding tracks (common offset +6.7 dB); a model seen on fewer
 // than 3 tracks stays 0 (ELEMENTS, MELLOW, SATIN, SPECTRAL: not enough evidence yet).
 // KICK was −22 while it was a mapped sine; since it became the PORTED Plaits drum (kick_render)
-// the re-fit is +3.4 over 11 tracks, centroid 0.86×, crest within 1 dB.
+// the re-fit is +3.4 over 11 tracks, centroid 0.86×, crest within 1 dB. SNARE likewise: −2.5 as a
+// noise+triangle mapping (centroid 4.8×), +5.0 as the ported drum (snare_render), centroid 0.97×.
 static const float VOICE_TRIM_DB[15] = {
-    /* KICK SNARE HAT */ 3.4f, -2.5f, 3.9f,  /* FM VA RINGS */ 6.0f, 2.7f, -1.7f,
+    /* KICK SNARE HAT */ 3.4f, 5.0f, 3.9f,  /* FM VA RINGS */ 6.0f, 2.7f, -1.7f,
     /* HARMONIC CHOIR BASS */ 9.4f, -5.8f, 0,  /* ELEMENTS MELLOW SATIN */ 0, 0, 0,
     /* VELVET SPECTRAL BREATH */ 3.3f, 0, 3.2f };
 
@@ -311,12 +312,21 @@ static const float VOICE_TRIM_DB[15] = {
 // self FM .12, no envelope after. Rendered at accent 1; fire() scales by the pulse height.
 #define KICK_MAX 88200      // 2 s at 44.1 kHz; decay 1.0 on a low note rings ~1.1 s
 static float kick_pcm[KICK_MAX];
-static float kick_key[6][4];
+static float drum_key[6][5];      // what sample slot 8+i holds: model, note and the three knobs
+static int drum_cached(int i, int m, int note, float a, float b, float c) {
+    float key[5] = { (float)m, (float)note, a, b, c };
+    if (!memcmp(key, drum_key[i], sizeof key)) return 1;
+    memcpy(drum_key[i], key, sizeof key); return 0;
+}
 static float kick_diode(float x) { if (x >= 0) return x; x *= 2; return .7f * x / (1 + fabsf(x)); }
+static void drum_load(int i, float peak) {   // trim kick_pcm's tail at -80 dB re peak, short fade, load
+    int n = KICK_MAX;
+    while (n > 64 && fabsf(kick_pcm[n - 1]) < peak * 1e-4f) n--;
+    for (int k = 0; k < 64 && k < n; k++) kick_pcm[n - 1 - k] *= k / 64.0f;
+    sample_load(8 + i, kick_pcm, n);
+}
 static void kick_render(int i, int note, float tone, float decay, float attack_fm) {
-    float key[4] = { (float)note, tone, decay, attack_fm };
-    if (!memcmp(key, kick_key[i], sizeof key)) return;
-    memcpy(kick_key[i], key, sizeof key);
+    if (drum_cached(i, M_KICK, note, tone, decay, attack_fm)) return;
     const float f0 = note_hz(note) / DA_SR, accent = 1, self_fm = .12f;
     const int trig_len = (int)(1e-3f * DA_SR), fm_len = (int)(6e-3f * DA_SR);
     const float pulse_decay = .2e-3f * DA_SR, pulse_filter = .1e-3f * DA_SR, retrig_len = .05f * DA_SR;
@@ -348,10 +358,72 @@ static void kick_render(int i, int note, float tone, float decay, float attack_f
         kick_pcm[k] = tone_lp;
         if (fabsf(tone_lp) > peak) peak = fabsf(tone_lp);
     }
-    int n = KICK_MAX;   // trim the tail at -80 dB re peak, with a short fade
-    while (n > 64 && fabsf(kick_pcm[n - 1]) < peak * 1e-4f) n--;
-    for (int k = 0; k < 64 && k < n; k++) kick_pcm[n - 1 - k] *= k / 64.0f;
-    sample_load(8 + i, kick_pcm, n);
+    drum_load(i, peak);
+}
+
+// ── SNARE: Plaits' AnalogSnareDrum, PORTED (Emilie Gillet, MIT), the trigger path only ───────
+// Mapped onto a noise slot + a triangle it stayed ~5× too bright: our 2-pole low-pass leaves a
+// long bright tail where Plaits' noise goes through a BAND-pass at 16·f0. The real one: a 1 ms
+// pulse rings five SVF modes (1, 2, 3.18, 4.16, 5.62 × f0; two below tone 2/3, the 808, five
+// above), soft-clipped, under half-wave noise band-passed at 16·f0 with Q 1+1.5f. Body × (1 −
+// snappy), noise × snappy. Dreams calls it with accent = velocity, tone·(.7+.3·tone), snappy =
+// harm·.85, no envelope after. Accent only moves the body's pulse, so it is rendered at the
+// default .8 and played at its own level. One noise draw per render (upstream draws per hit).
+static float svf_g_fast(float f) { float f2 = f * f; return f * (3.14159265f + f2 * (.326f * 31.00627668f + .1823f * 306.0196848f * f2)); }
+static float soft_clip(float x) { return x < -3 ? -1 : x > 3 ? 1 : x * (27 + x * x) / (27 + 9 * x * x); }
+static void snare_render(int i, int note, float tone, float decay, float snappy) {
+    if (drum_cached(i, M_SNARE, note, tone, decay, snappy)) return;
+    const float f0 = note_hz(note) / DA_SR, accent = .8f;
+    const float decay_xt = decay * (1 + decay * (decay - 1));
+    const int trig_len = (int)(1e-3f * DA_SR);
+    const float pulse_decay = .1e-3f * DA_SR, q = 2000 * powf(2, decay_xt * 84 / 12);
+    const float noise_dec = 1 - .0017f * powf(2, -decay * (50 + snappy * 10) / 12);
+    const float leak = snappy * (2 - snappy) * .1f;
+    snappy = fminf(1, fmaxf(0, snappy * 1.1f - .05f));
+    static const float ratio[5] = { 1, 2, 3.18f, 4.16f, 5.62f };
+    float g[5], r[5], h[5], s1[5] = {0}, s2[5] = {0}, gain[5];
+    for (int k = 0; k < 5; k++) {
+        float f = fminf(f0 * ratio[k], .499f);
+        g[k] = svf_g_fast(f); r[k] = 1 / (1 + f * (k ? q * .25f : q)); h[k] = 1 / (1 + r[k] * g[k] + g[k] * g[k]);
+    }
+    if (tone < .666667f) {
+        tone *= 1.5f;
+        gain[0] = 1.5f + (1 - tone) * (1 - tone) * 4.5f; gain[1] = 2 * tone + .15f;
+        gain[2] = gain[3] = gain[4] = 0;
+    } else {
+        tone = (tone - .666667f) * 3;
+        gain[0] = 1.5f - tone * .5f; gain[1] = 2.15f - tone * .7f;
+        for (int k = 2; k < 5; k++) { gain[k] = tone; tone *= tone; }
+    }
+    float fn = fminf(f0 * 16, .499f), ng = svf_g_fast(fn), nr = 1 / (1 + fn * 1.5f), nh = 1 / (1 + nr * ng + ng * ng);
+    float n1 = 0, n2 = 0, pulse_s = 0, pulse_lp = 0, height = 3 + 7 * accent, env = 2, peak = 1e-9f;
+    unsigned rng = 0x9E3779B9u ^ (unsigned)(note * 7919 + i);
+    int pulse_left = trig_len;
+    for (int k = 0; k < KICK_MAX; k++) {
+        float pulse;
+        if (pulse_left) { --pulse_left; pulse = pulse_left ? height : height - 1; pulse_s = pulse; }
+        else { pulse_s *= 1 - 1 / pulse_decay; pulse = pulse_s; }
+        pulse_lp += .75f * (pulse - pulse_lp);
+        float shell = 0;
+        for (int m = 0; m < 5; m++) {
+            float x = m ? .026f * pulse : (pulse - pulse_lp) + .006f * pulse;
+            float hp = (x - r[m] * s1[m] - g[m] * s1[m] - s2[m]) * h[m];
+            float bp = g[m] * hp + s1[m]; s1[m] = g[m] * hp + bp;
+            float lp = g[m] * bp + s2[m]; s2[m] = g[m] * bp + lp;
+            shell += gain[m] * (bp + x * leak);
+        }
+        rng = rng * 1664525u + 1013904223u;
+        float nz = 2 * ((rng >> 8) * (1.0f / 16777216.0f)) - 1; if (nz < 0) nz = 0;
+        env *= noise_dec;
+        nz *= env * snappy * 2;
+        float hp = (nz - nr * n1 - ng * n1 - n2) * nh;
+        float bp = ng * hp + n1; n1 = ng * hp + bp;
+        float lp = ng * bp + n2; n2 = ng * bp + lp;
+        float y = bp + soft_clip(shell) * (1 - snappy);
+        kick_pcm[k] = y;
+        if (fabsf(y) > peak) peak = fabsf(y);
+    }
+    drum_load(i, peak);
 }
 
 static void config_track(int i) {
@@ -372,18 +444,10 @@ static void config_track(int i) {
         kick_render(i, t->note, tone * (.65f + .35f * tone), dec, harm * .75f);
         instrument(s, INSTR_SAMPLE, 0, 2000, 7, 30);
         instrument_sample(s, 8 + i, t->note); break;
-    case M_SNARE:     // Plaits analog snare: noise (snappy = harm) over a tonal body
-    {   // Plaits' noise envelope: per-sample decay 1 − .0017·2^(−decay·(50+10·snappy)/12), ~3τ long
-        float sn = fminf(1, fmaxf(0, harm * .85f * 1.1f - .05f));
-        float tau = 1.0f / (DA_SR * .0017f * powf(2, -dec * (50 + 10 * sn) / 12));
-        instrument(s, INSTR_NOISE, 0, bound((int)(3000 * tau), 20, 2000), 0, 30);
-    }
-        // Plaits: the snappy noise is band-passed at 16x the drum's pitch, low Q (measured vs
-        // mdrender: a fixed 1.2-5.7 kHz band read 6-9x brighter than the original)
-        instrument_filter(s, FILTER_LOW, (int)fminf(16000, note_hz(t->note) * 16), 0);
-        instrument(l, INSTR_TRI, 0, 50 + (int)(dec * 160), 0, 20);
-        instrument_env(l, 0, ENV_PITCH, 0, 30, 5);
-        break;
+    case M_SNARE:     // Plaits analog snare, ported above and rendered to sample slot 8+i
+        snare_render(i, t->note, tone * (.7f + .3f * tone), dec, harm * .85f);
+        instrument(s, INSTR_SAMPLE, 0, 2000, 7, 30);
+        instrument_sample(s, 8 + i, t->note); break;
     case M_HAT:       // Plaits hi-hat: six inharmonic squares, the 808 metal bank
         instrument(s, INSTR_METAL, 0, 30 + (int)(dec * 700), 0, 30);
         instrument_harmonics(s, tone); instrument_timbre(s, harm); instrument_morph(s, .3f);
@@ -437,7 +501,7 @@ static void config_track(int i) {
         instrument_level(l, harm * 1.4f); break;
     }
     // the per-track filter (upstream applies it to EVERY model, drums included)
-    if (t->filter && m != M_SNARE && m != M_HAT) {
+    if (t->filter && m != M_HAT) {
         float u = fminf(1, fmaxf(0, unit(t->cutoff) + (unit(S.b.macro[2]) - .5f) * .18f));
         float r = unit(t->resonance);
         if (t->filter == 3) {        // LPG: the cutoff falls .55 of the range with the decay
@@ -447,11 +511,8 @@ static void config_track(int i) {
     }
     // mix: level, pan, sends (fx_level is their master return, folded into the sends here)
     float gain = unit(t->level) * (S.kit && i >= 4 ? 0 : 1) * powf(10, VOICE_TRIM_DB[m] / 20);
-    // Plaits' snare: noise × SNAPPY (= harm·.85, then ·1.1−.05), body × (1 − snappy). A full-level
-    // noise over a .3-.9 body read 3-7× brighter than the original (mdcompare, Broken Pulses)
-    float snappy = fminf(1, fmaxf(0, harm * .85f * 1.1f - .05f));
-    instrument_level(s, (m == M_BREATH ? 1 - harm : m == M_SNARE ? snappy * 1.4f : 1) * gain * 1.6f);
-    if (m == M_SNARE || m == M_BASS || m == M_BREATH) instrument_level(l, (m == M_SNARE ? 1 - snappy : m == M_BASS ? .3f * harm / .68f : harm * 1.4f) * gain * 1.6f);
+    instrument_level(s, (m == M_BREATH ? 1 - harm : 1) * gain * 1.6f);
+    if (m == M_BASS || m == M_BREATH) instrument_level(l, (m == M_BASS ? .3f * harm / .68f : harm * 1.4f) * gain * 1.6f);
     for (int k = 0; k < 2; k++) {
         int sl = k ? l : s;
         instrument_pan(sl, unit(t->pan) * 2 - 1);
@@ -537,6 +598,7 @@ static void fire(int i, int note, float vel, double t, int gate_ms) {
     NoteOpts o = {0};
     o.gain = fmaxf(.05f, fminf(1, vel));
     if (m == M_KICK) o.gain = (3 + 7 * vel) / 10;   // Plaits: accent sets the pulse height 3+7a
+    if (m == M_SNARE) o.gain = 1;                   // rendered at accent .8; upstream drums ignore velocity in the mix
     o.cutoff_oct = (breathe * .13f + tide * .2f) * 7.0f;
     if (m == M_CHOIR) {
         static const int chord[4][3] = { {0,3,7}, {0,4,7}, {0,5,7}, {0,7,12} };
@@ -548,9 +610,7 @@ static void fire(int i, int note, float vel, double t, int gate_ms) {
         }
     } else {
         int pn = note;
-        if (m == M_KICK || m == M_SNARE) pn = note;         // the drum's tuned body sits at its note
         track_booking(schedule_note_at(t, pn, s, 7, dur, &o), end);
-        if (m == M_SNARE)  track_booking(schedule_note_at(t, note, l, 7, dur, &o), end);   // Plaits body mode 1 = f0
         if (m == M_BASS)   track_booking(schedule_note_at(t, note - 12, l, 7, dur, &o), end);
         if (m == M_BREATH) track_booking(schedule_note_at(t, note, l, 7, dur, &o), end);
     }

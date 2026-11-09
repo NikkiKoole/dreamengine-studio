@@ -139,6 +139,13 @@ bars. D dorian at 100, i-IV-i-v. Each of our biomes carries a `JamCfg`: the orde
 who may rest, who a breakdown removes, which track plays the fill (here the high tabla) and which lets
 go before the one.
 
+The third, **Moon Garden**, came from playing Moon Meadow next to the Bazaar's tablas: Moon Meadow
+(factory id 10) with its choir pad, 2-in-19 harmonic drone and Rings kept exactly (C dorian, 68 BPM,
+family Mist, so its ambient sends and tides), and the other three tracks swapped for a low tabla, a
+high tabla and a soft fading scrape. Its jam starts on the mist, adds the percussion one phrase at a
+time, and its breakdown takes only the percussion away. The bed is ~4.5 dB under Moon Meadow's own
+levels so the percussion peaks sit just beneath it.
+
 LEVELS in our biomes come from measured solo stems (`DE_DEFINES=DA_ID=<id>,DA_SOLO=<n>`), not the
 factory fit: upstream's balance puts the quiet Plaits kick ~20 dB under a loud round bass, which a
 four-on-the-floor cannot take. Kick and bass now sit within a few dB of each other.

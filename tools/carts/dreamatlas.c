@@ -9,7 +9,7 @@
   "lineage": "A port of the BIOME atlas from Mutable Dreams 1.4 (Kid Bunka / Christoph Link, free firmware for the M-VAVE FM-1, itself built on Mutable Instruments' Plaits/Rings/Elements). The 157 scenes are the upstream's own factory data (MIT), generated into runtime/dreamatlas/biomes.h; the sequencer (Euclid hits/length/rotate per track, seeded rolls, chord journeys, scale masks, the Lo-Fi kit) is ported line by line from app/dsp/dreams.cpp. The fifteen VOICES are NOT ported: each is mapped onto the nearest engine dreamengine already ships, which is the experiment.",
   "homage": "Mutable Dreams (Kid Bunka) / Mutable Instruments",
   "description": {
-    "summary": "157 small generative worlds from Mutable Dreams, plus a few of our own (a house jam, a tabla-and-guiro bazaar): six drifting Euclidean tracks, chord journeys and a Lo-Fi kit, played on dreamengine's own voices.",
+    "summary": "157 small generative worlds from Mutable Dreams, plus a few of our own (a house jam, a tabla-and-guiro bazaar, Moon Meadow with tablas): six drifting Euclidean tracks, chord journeys and a Lo-Fi kit, played on dreamengine's own voices.",
     "detail": "Each BIOME is one scene: six tracks, each a voice (Plaits-style drums, FM, analog, Rings and Elements resonators, a sine choir, a round bass...) with its OWN rhythm, k hits spread over n steps. The lengths differ (16, 19, 13...), so the tracks slide against each other and the loop takes minutes to come round. Some biomes walk a chord progression under it, some swap three tracks for a crunchy 16 kHz Lo-Fi drum kit. Browse in the curated order: neighbours are meant to feel genuinely different. The scenes are the original's factory data; the sounds are this engine's nearest voices, so it is a translation, not a copy.",
     "controls": "LEFT/RIGHT or the arrows: next / previous biome · SPACE or PLAY: start / stop · 1-6: mute a track · tap a track row to mute it"
   },
@@ -112,7 +112,12 @@ static Scene S;
 // LEVELS in our biomes are set by measured stems, not the factory fit: upstream's balance puts its
 // quiet Plaits kick ~20 dB under a loud round bass, which is wrong for a groove. Solo RMS (100 s,
 // DA_SOLO): kick ≈ bass ≈ -36 dB, keys/lead/tabla a few dB under, transients (guiro, quijada) by peak.
-#define DA_OWN 2
+// MOON GARDEN is Moon Meadow (factory id 10) with hand percussion folded in: its choir pad,
+// 2-in-19 harmonic drone and Rings kept as they are (same tempo, key, grain tape; family Mist, so
+// the ambient sends and tides), and its other three tracks swapped for a low tabla, a high tabla
+// and a soft fading scrape. It jams gently: the mist first, the percussion one phrase at a time,
+// and its breakdown takes only the percussion away.
+#define DA_OWN 3
 #define DA_ALL (DA_BIOMES + DA_OWN)
 static const DaBiome DA_OWN_BIOME[DA_OWN] = {
  {"Marmalade Jam",8,125,7,2,125125,0,0,650,200,100,0,120,0,0,0,380,300,{500,260,520,60},{
@@ -129,6 +134,13 @@ static const DaBiome DA_OWN_BIOME[DA_OWN] = {
   /* bass    */ {8,300,450,220,80,0,5,16,0,880,38,500,0,1,0,1,250,500,650,200,1,0},
   /* marimba */ {5,650,150,350,450,260,5,12,0,850,69,680,0,1,0,1,300,150,850,100,0,120},
   /* quijada */ {16,350,500,700,520,120,1,32,4,1000,60,520,0,1,0,1,0,1000,850,100,0,0}}},
+ {"Moon Garden",0,68,0,3,223257576,0,0,820,320,200,0,0,0,0,-1,0,350,{500,150,489,360},{
+  /* choir    (Moon Meadow t0, level 520 there) */ {7,620,0,910,300,500,1,16,0,1000,48,500,0,2,500,1,120,120,720,0,1,450},
+  /* harmonic (Moon Meadow t1, level 250 there) */ {6,25,510,910,150,350,2,19,13,960,55,340,0,2,500,1,120,800,775,0,1,345},
+  /* rings    (Moon Meadow t2) */ {5,220,295,460,221,450,2,16,8,900,60,660,0,2,0,1,120,555,680,0,1,230},
+  /* bayan   */ {15,250,150,650,1000,250,3,16,0,850,36,420,0,1,0,1,200,650,850,100,0,0},
+  /* dayan   */ {15,500,80,500,900,300,7,16,2,650,60,620,0,1,0,1,300,150,850,100,0,0},
+  /* scrape  */ {16,600,200,500,700,400,3,16,4,700,60,720,0,1,0,1,150,550,850,100,0,0}}},
 };
 // how each of our biomes JAMS (Playtime's drum jam): the order its layers enter, who may rest a
 // phrase, who a breakdown takes out, which track plays the phrase-end fill, which lets go before the one
@@ -136,6 +148,7 @@ typedef struct { int chord_pattern, chord_tracks, build[6], rest[4], break_mask,
 static const JamCfg DA_OWN_JAM[DA_OWN] = {
     { 2, 0x38, {0, 1, 3, 2, 5, 4}, {1, 2, 4, 5}, 1 << 0 | 1 << 2 | 1 << 3, 2, 1 },   // Marmalade: I-vi-IV-V
     { 1, 0x18, {0, 2, 3, 1, 4, 5}, {1, 2, 4, 5}, 1 << 0 | 1 << 3,          1, 2 },   // Bazaar: i-IV-i-v
+    { 0, 0,    {0, 2, 1, 3, 5, 4}, {1, 3, 4, 5}, 1 << 3 | 1 << 4 | 1 << 5, 4, 5 },   // Moon Garden: no chords, as Moon Meadow
 };
 static const DaBiome *biome_row(int id) { return id < DA_BIOMES ? &DA_BIOME[id] : &DA_OWN_BIOME[id - DA_BIOMES]; }
 static int browse_id(int k) { return k < DA_BIOMES ? DA_BROWSE[k] : k; }   // ours come last, in order

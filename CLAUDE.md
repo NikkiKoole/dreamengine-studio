@@ -356,6 +356,8 @@ runtime/   studio.h (public API: constants + declarations), studio.c (Raylib imp
                       no place owns a recipe, nothing switches on an object kind. docs/design/tenement.md
            loficity/  same pattern, NOT shelf: the `loficity` cart's port of Lofi Cities' arranger (arranger.h core,
                       style_<id>.h per style, *_data.h/words.h GENERATED from their live objects). Bit-exact vs their planner.
+           dreamatlas/ same pattern, NOT shelf: GENERATED (tools/gen-dreamatlas.js) — Mutable Dreams' 157 factory
+                      biomes for the `dreamatlas` cart. docs/design/mutable-dreams.md
            isoroom/   generated (tools/voxel-bake.js --emit-c), not hand-edited: the baked rotation
                       cell table for the `isoroom` probe. docs/design/iso-rooms.md
 editor/    electron/ (main.cjs compiles+runs carts; preload.cjs exposes window.studio.*),
@@ -828,6 +830,8 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
              fetch-refs.js   rebuild build/refs/<set>/ (gitignored reference audio) from the COMMITTED manifest
                              tools/refs/<set>.txt; re-checks each license on its freesound page, REFUSES non-CC0.
                              `--check` offline presence · `--selfcheck` 10 known answers. Leads for more sets: tools/refs/README.md
+             gen-dreamatlas.js GENERATE runtime/dreamatlas/biomes.h from a Mutable Dreams v1.4 presets/catalog.json
+                             (not committed — clone the tag); --check gates staleness against that file
              gen-wavescan.js GENERATE runtime/wavescan_data.h, INSTR_WAVESCAN's 12-shape band-limited table bank, from
                              Plinky's own wave recipes + windowed-sinc mip pyramid (MIT) — NOT its shipped table, whose slots
                              2-15 are WAVs of unknown origin. --check gates staleness · --selfcheck = its saw byte-identical to

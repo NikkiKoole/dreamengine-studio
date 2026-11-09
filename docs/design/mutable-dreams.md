@@ -2,8 +2,9 @@
 
 **STATUS: BUILDING (2026-11-09)** — studied the v1.4 source; the biome atlas, the sequencer and the
 Lo-Fi kit are PORTED as the `dreamatlas` cart; the fifteen voices are MAPPED onto shipped engines
-(no new DSP). Open: an A/B against the upstream browser build, and two optional engine ports if the
-loose voices (§voices: VA, HARMONIC) sound wrong next to the original.
+(no new DSP), except the KICK, which is Plaits' own circuit ported into the cart. MEASURED against
+upstream's own engine compiled natively (§Measured): drum/breath tone fixed, per-voice level trims
+fitted. Open: Rings' brightness, the snare's residual brightness, a listen.
 
 Upstream: <https://github.com/kidbee85-beep/mutable-dreams> tag `v1.4` (commit `0321551`), by
 Kid Bunka / Christoph Link. Play it: <https://mutable-dreams.kidbee85.chatgpt.site/>.
@@ -84,9 +85,42 @@ most used model — but mostly as a quiet pad colour; VA is on 68.
 - **Gated sequence notes** use the slot's decaying envelope over the gate length; upstream HOLDS the
   envelope through the gate, then releases in ~9 ms.
 
+## Measured against the original (2026-11-09)
+
+We no longer need the browser build to compare: `bash tools/ref-render/run.sh mutable` compiles
+upstream's OWN engine (`dreams.cpp` + the vendored Plaits/Rings/Elements, exactly fm1.toml's source
+list) natively as `build/ref-render/mdrender`, which renders any biome, any track alone, dry or wet.
+`node tools/ref-render/mdcompare.js <id>` renders the same track through both engines and prints
+level · crest · duty · centroid side by side; `--fit <ids…>` turns a set of compared biomes into a
+per-model LEVEL RESIDUAL against the common offset between the two engines. The cart's twins of the
+flags are `-DDA_ID=<id> -DDA_SOLO=<n> -DDA_DRY`. Never sample-aligned (upstream steps at sample 0, we
+at ~0.1 s): these are character numbers, not a null test.
+
+First fit, 20 biomes (ids 0 4 11 12 3 19 33 34 41 42 2 49 56 57 101 26 77 109 112 116), 98 sounding
+tracks, ours +6.7 dB overall (kept: ours is set by our own level measurements):
+
+| model | level residual | centroid ours/theirs | what it was, what changed |
+|---|---|---|---|
+| KICK | **+22 dB → +3.4** | 0.23× → 0.86× | Plaits' analog kick at notes 24-36 is a quiet sub under a loud click; ours was a loud 32 Hz sine, trimmed −22 at first. Now PORTED instead of mapped: `kick_render()` runs Plaits' `AnalogBassDrum` (1 ms pulse → band-pass SVF, pulse leaking out through a one-pole at 4·f0·2^(9·tone), attack + self FM) once per track into a sample slot, played by `INSTR_SAMPLE`. Re-fit over its 11 tracks: trim +3.4, crest within 1 dB, octave spectrum within ~3 dB |
+| SNARE | +2.5 | 6× → ~3× | noise was full level over a weak body an octave UP; now noise × Plaits' SNAPPY, body × (1−snappy) at f0, noise decays at Plaits' rate (~30 ms τ). The residual brightness is our 2-pole filter's tail vs theirs |
+| HAT | −3.9 | 6× → 2× | the filter was a 5-9 kHz HIGH-pass; Plaits band-passes at 150·2^(6·tone) Hz (~500 Hz). Fixed |
+| BREATH | −3.2 | 8× → 1× | air was a 7 kHz LP; theirs is a one-pole at 56 + 772·tone² Hz. Fixed |
+| HARMONIC | **−9.4** | 0.99× | brightness right, sits ~9 dB low. Trimmed. The "loose voice" is not loose in timbre by this measure |
+| FM | −6.0 | 1.02× | trimmed |
+| CHOIR | +5.8 | 0.83× | trimmed |
+| VA / VELVET | −2.7 / −3.3 | 1.02× / 0.91× | trimmed. VA, the other "loose voice", also matches in brightness |
+| RINGS | +1.7 | **0.41×** | level fine; consistently ~2.5× DARKER than Rings. Untouched: the next voice to look at |
+| BASS / ELEMENTS / MELLOW / SATIN / SPECTRAL | small, or n < 3 | | left at 0 until a sweep covers them |
+
+The trims live in the cart's `VOICE_TRIM_DB[15]`, with the fit they came from.
+
 ## Next
 
-1. A/B a handful of biomes (one per family) against the browser build, by ear and with
-   `oneshot-compare` / `wav-envelope`; record per-voice verdicts in the table above.
-2. Only if VA or HARMONIC lose the comparison: port the Plaits variable-shape oscillator / additive
-   engine as engines.
+1. Listen: the fit moves the BALANCE toward the original, but numbers are not the bar (the kick
+   especially).
+2. ~~A click for the KICK~~ done: the Plaits drum is ported (§Measured).
+3. The SNARE is still ~5× too bright (our 2-pole filter's tail). Porting Plaits' `AnalogSnareDrum` the
+   way the kick was (render to a sample) would likely close it.
+4. RINGS brightness (0.41×), then a sweep that covers ELEMENTS/MELLOW/SATIN/SPECTRAL.
+5. Porting the Plaits VA / additive engines looks unnecessary: both match the original's brightness
+   within 2%. Revisit only if the ear disagrees.

@@ -6,6 +6,7 @@
 #   bash tools/ref-render/run.sh stk <TubeBell|Rhodey|Wurley|HevyMetl|BeeThree|PercFlut|FMVoices> [hz] [amp]
 #   bash tools/ref-render/run.sh luthier <steel|nylon|gut|glass> [hz]
 #   bash tools/ref-render/run.sh open303 [cutoff_hz res_pct envmod_pct decay_ms accent_pct]
+#   bash tools/ref-render/run.sh mutable [biome_id secs [--solo n] [--dry]]   (Mutable Dreams, see mdcompare.js)
 #   bash tools/ref-render/run.sh clean
 #
 # Output lands in build/ref-render/<name>.wav (44.1k mono, note ON at 0.5s, OFF at 6.0s, 7s long)
@@ -144,6 +145,38 @@ open303)
   ffmpeg -v error -y -f f32le -ar 44100 -ac 1 -i "$OUT/raw.f32" "$OUT/open303.wav"
   rm -f "$OUT/raw.f32"
   echo "wrote $OUT/open303.wav"
+  ;;
+mutable)
+  # Mutable Dreams 1.4 (Kid Bunka; dreams.cpp MIT OR GPL-3.0, Plaits/Rings/Elements MIT), the
+  # firmware the `dreamatlas` cart translates. Builds the UPSTREAM ENGINE natively (mdrender.cpp)
+  # so a biome renders through the real voices. Then compare track by track with:
+  #   node tools/ref-render/mdcompare.js <biome_id> [--secs 12] [--wet] [--tracks 0,3]
+  # ⚠ Their app/compat/ REPLACES the C headers (math.h → their fastmath.h), so their sources build
+  # with it on the path and mdrender.cpp WITHOUT it, or libc++'s <cstring> refuses to compile.
+  R="$OUT/mutable-dreams"; A="$R/app"
+  [ -d "$R" ] || git clone -q --depth 1 --branch v1.4 https://github.com/kidbee85-beep/mutable-dreams.git "$R"
+  if [ ! -x "$OUT/mdrender" ]; then
+    srcs=(third_party/elements/dsp/exciter.cc third_party/elements/dsp/resonator.cc
+          third_party/elements/resources.cc third_party/plaits/dsp/engine/additive_engine.cc
+          dsp/dreams.cpp third_party/plaits/dsp/engine/fm_engine.cc
+          third_party/plaits/dsp/engine/virtual_analog_engine.cc third_party/plaits/resources.cc
+          third_party/rings/dsp/resonator.cc third_party/rings/resources.cc
+          third_party/stmlib/dsp/units.cc third_party/stmlib/utils/random.cc)   # = fm1.toml's o2 list
+    mkdir -p "$OUT/mdobj"; objs=()
+    for s in "${srcs[@]}"; do
+      o="$OUT/mdobj/${s//\//_}.o"
+      clang++ -O3 -ffp-contract=off -std=c++11 -fno-exceptions -fno-rtti -w -DPLAT_HOST -DTEST \
+              -I "$A" -I "$R/base/include" -I "$R/base/lib" -I "$A/third_party" -I "$A/compat" -c "$A/$s" -o "$o"
+      objs+=("$o")
+    done
+    clang++ -O2 -std=c++11 -I "$A" -o "$OUT/mdrender" tools/ref-render/mdrender.cpp "${objs[@]}"
+  fi
+  if [ -n "${2:-}" ]; then
+    shift
+    "$OUT/mdrender" "$@" > "$OUT/raw.f32"
+    ffmpeg -v error -y -f f32le -ar 44100 -ac 2 -i "$OUT/raw.f32" -c:a pcm_s16le "$OUT/mutable_$1.wav"
+    rm -f "$OUT/raw.f32"; echo "wrote $OUT/mutable_$1.wav"
+  else echo "built $OUT/mdrender"; fi
   ;;
 clean)
   rm -rf "$OUT"; echo "removed $OUT"

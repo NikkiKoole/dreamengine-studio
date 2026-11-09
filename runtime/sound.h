@@ -5641,6 +5641,33 @@ static const float PIANO_BODYB[6]  = { 0.50f, 0.65f, 0.70f, 0.60f, 0.35f, 0.50f 
 #define PN_HFLOSS_GRAND 4.0f
 #endif
 static const float PIANO_HFLOSS[6] = { PN_HFLOSS_GRAND, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f };
+
+// FELT HAMMER (2026-11-09, step 2 of matching the Steinway). A real hammer does not hit the string with
+// noise: the felt stays in contact for a few ms and pushes it with one smooth pulse, longer in the bass
+// (~4 ms) than the treble (<1 ms), shorter when struck harder. That pulse length IS the tone: it sets
+// how many partials get energy, scaled to the note. The old excitation (white noise, lowpassed at the
+// SAME cutoff on every key) put near-equal energy into every partial, which measured as half the energy
+// at ~1 kHz from C1 to C4 (the Steinway: 100-270 Hz) and an octave as loud as the fundamental at C6.
+// The value is the contact time in ms at middle C (mf, timbre 0.5); it scales 2^(-0.4 oct) across the
+// keyboard. 0 = the noise burst, bit-exact, which every voicing but the grand keeps.
+// Override for a sweep: DE_DEFINES=PN_FELT_GRAND=<ms>.
+#ifndef PN_FELT_GRAND
+#define PN_FELT_GRAND 2.0f
+#endif
+static const float PIANO_FELT[6] = { PN_FELT_GRAND, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f };
+
+// DECAY FLOOR (2026-11-09, step 3, forced by the felt hammer). The loop loses a FIXED amount per period
+// (PIANO_DAMP), i.e. per second it loses f0 times that: a C1 string (33 periods/s) ~0.2 dB/s, a C7 one
+// ~15. The noise strike hid it in the bass, whose sound died as its upper partials did; a felt strike
+// puts the energy in the low partials and the bass then rang almost undamped (C1: -2 dB in 2.8 s, the
+// Steinway -15). A real piano's notes fade at a broadly steady rate in dB/s (Steinway, 100 ms rms slope
+// 0.4-2.8 s: ~5-10 dB/s C1..C5). So the per-period loss is raised to at least this rate, in dB/s at the
+// fundamental; above ~C6 the old loss is already higher and stays. 0 = off (every voicing but the grand).
+// Override for a sweep: DE_DEFINES=PN_SIGMA_GRAND=<dB/s>.
+#ifndef PN_SIGMA_GRAND
+#define PN_SIGMA_GRAND 5.0f
+#endif
+static const float PIANO_SIGMA[6] = { PN_SIGMA_GRAND, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f };
 // one-pole y = (1-p)x + p*y[-1]: loss per pass (dB) and phase delay (samples) at w rad/sample
 static inline float pn_lp_loss_db(float w, float p) {
     float m2 = (1.0f - p) * (1.0f - p) / (1.0f - 2.0f * p * de_cosf(w) + p * p);
@@ -5770,6 +5797,28 @@ static float pn_blend_advance(float f, float ksb) {
     if (w < 1e-4f) return b;
     return de_atan2f(b * de_sinf(w), a + b * de_cosf(w)) / w;
 }
+// the blend's magnitude at w (one pass): |a + b e^-jw|
+static float pn_blend_mag(float w, float ksb) {
+    float b = 0.5f * (1.0f - ksb), a = 1.0f - b;
+    return sqrtf(a * a + b * b + 2.0f * a * b * de_cosf(w));
+}
+// DECAY FLOOR companion (grand only): the brightness blend was the TREBLE's dominant loss (~17 dB/s at
+// the fundamental at C6, ~70 at C7: once per period, and the treble has many periods a second), which
+// is why our top octaves died twice as fast as the Steinway's. With the felt hammer setting the tone and
+// PIANO_HFLOSS shaping the partials' decay, the blend only needs to keep its loss at the fundamental
+// under `maxdb` dB/s: raise ksb (less blend) until it does. The bass already sits under it and keeps
+// the voicing's ksb.
+static float pn_solve_ksb(float f0, float ksb, float maxdb) {
+    float w = 6.28318531f * f0 / (float)SOUND_SAMPLE_RATE;
+    float lossdb = -20.0f * log10f(pn_blend_mag(w, ksb)) * f0;
+    if (lossdb <= maxdb) return ksb;
+    float lo = ksb, hi = 1.0f;
+    for (int it = 0; it < 24; it++) {
+        float mid = 0.5f * (lo + hi);
+        if (-20.0f * log10f(pn_blend_mag(w, mid)) * f0 > maxdb) lo = mid; else hi = mid;
+    }
+    return hi;
+}
 
 static void sound_piano_start(Voice *v) {
     int vi = (int)(v->harm * 5.999f);
@@ -5805,7 +5854,8 @@ static void sound_piano_start(Voice *v) {
     // 0.5*(1-ksb) samples: every note rang sharp, +1 c in the bass to +5 c in the treble, ON TOP of the
     // intended stretch (synth-secrets-plan.md §I4d). Put that advance back. Exact phase at the note's own
     // frequency, at the SETTLED brightness (the strike's brighter bloom relaxes into it in ~0.3 s).
-    float pn_adv = pn_blend_advance(freq, PIANO_BRIGHT[vi]);
+    float ksb_set = (PIANO_SIGMA[vi] > 0.0f) ? pn_solve_ksb(freq, PIANO_BRIGHT[vi], 1.0f) : PIANO_BRIGHT[vi];
+    float pn_adv = pn_blend_advance(freq, ksb_set);
     // HF LOSS filter (PIANO_HFLOSS): its phase delay at the fundamental comes OUT of the line too, like pn_comp.
     v->pn_lfp = pn_solve_hfloss(freq, PIANO_HFLOSS[vi]);
     v->pn_lf = v->pn_lf2 = 0.0f;
@@ -5818,11 +5868,23 @@ static void sound_piano_start(Voice *v) {
     v->ks_len = len; v->ks_widx = 0; v->ks_last = 0.0f;
     v->pn_apc = (1.0f - frac) / (1.0f + frac); v->pn_aps = 0.0f;
     v->pn_initf = freq;
-    v->pn_ksb   = PIANO_BRIGHT[vi];
+    v->pn_ksb   = ksb_set;
     float vel = v->vol; vel = clamp01(vel);  // strike VELOCITY → TIMBRE, not just loudness (the piano expressiveness)
-    v->pn_ksb_cur = PIANO_BRIGHT[vi] + 0.20f + 0.30f * vel;   // harder strike = brighter onset transient (blooms down to pn_ksb)
+    v->pn_ksb_cur = ksb_set + 0.20f + 0.30f * vel;   // harder strike = brighter onset transient (blooms down to pn_ksb)
     if (v->pn_ksb_cur > 0.97f) v->pn_ksb_cur = 0.97f;
+    if (v->pn_ksb_cur < ksb_set) v->pn_ksb_cur = ksb_set;   // (only when ksb_set > 0.97: the grand's top octave)
     v->pn_ksd   = PIANO_DAMP[vi];
+    if (PIANO_SIGMA[vi] > 0.0f) {                      // DECAY FLOOR: at least PIANO_SIGMA dB/s at the fundamental
+        // EXACT, not a floor: the fundamental's per-period gain through the whole loop (damping x blend x
+        // HF loss) is set to give PIANO_SIGMA dB/s. Clamped so the gain stays under 1 even at the strike's
+        // brighter onset blend (pn_ksb_cur, which only ever relaxes toward pn_ksb, so loses MORE later).
+        float w0 = 6.28318531f * freq / (float)SOUND_SAMPLE_RATE;
+        float hlf = (v->pn_lfp > 0.0f) ? sqrtf(1.0f / de_powf(10.0f, pn_lp_loss_db(w0, v->pn_lfp) / 10.0f)) : 1.0f;
+        float g = de_powf(10.0f, -PIANO_SIGMA[vi] / (20.0f * freq));
+        float ksd = g / (pn_blend_mag(w0, ksb_set) * hlf);
+        float kmax = 0.99999f / (pn_blend_mag(w0, v->pn_ksb_cur) * hlf);
+        v->pn_ksd = ksd < kmax ? ksd : kmax;
+    }
     v->pn_dampg = v->pn_damps = v->mor;                // pedal
 
     // excitation: noise burst → hammer lowpass (timbre modulates the voicing's hardness) → normalize
@@ -5838,11 +5900,26 @@ static void sound_piano_start(Voice *v) {
     // (bank-default 0.5 → 1.0×; cart knob 0..1 → 0..2× via idx 3); VELOCITY scales it (soft press barely
     // thumps, hard strike cracks).
     v->pn_knock = pv->knock * (v->eng_p[3] * 2.0f) * (0.25f + 0.85f * vel);
-    float cut = 0.05f + 0.85f * hard, lp = 0.0f;
-    for (int i = 0; i < len; i++) {
-        float n = voice_white(v);
-        lp += cut * (n - lp);
-        v->ks_buf[i] = lp;
+    if (PIANO_FELT[vi] > 0.0f) {
+        // FELT HAMMER: one raised-cosine push of the contact time, wrapped round the one-period line (in
+        // the treble the contact outlasts a period). `hard` (timbre + velocity, above) shortens it.
+        float soct = de_log2f(freq / 261.63f);
+        float tc = PIANO_FELT[vi] * de_powf(2.0f, -0.4f * soct) * (1.6f - 1.2f * hard);
+        float W = tc * 0.001f * (float)SOUND_SAMPLE_RATE;
+        if (W < 2.0f) W = 2.0f;
+        for (int i = 0; i < len; i++) v->ks_buf[i] = 0.0f;
+        int wn = (int)W;
+        for (int j = 0; j <= wn; j++) {
+            float x = (float)j / W;                              // 0..1 across the contact
+            v->ks_buf[j % len] += 0.5f - 0.5f * de_cosf(6.28318531f * x);
+        }
+    } else {
+        float cut = 0.05f + 0.85f * hard, lp = 0.0f;
+        for (int i = 0; i < len; i++) {
+            float n = voice_white(v);
+            lp += cut * (n - lp);
+            v->ks_buf[i] = lp;
+        }
     }
     float mean = 0.0f;                                 // remove excitation DC — else the near-lossless
     for (int i = 0; i < len; i++) mean += v->ks_buf[i]; // loop sustains it into a sub-bass boom
@@ -5881,7 +5958,7 @@ static void sound_piano_start(Voice *v) {
     v->pn_dc_prev = v->pn_dc_state = 0.0f;
     if (pv->detune > 1.00001f) {                       // 2nd string: own detuned length + allpass
         float ideal2 = (float)SOUND_SAMPLE_RATE / (freq * pv->detune) - pn_comp
-                     + pn_blend_advance(freq * pv->detune, PIANO_BRIGHT[vi])    // SAME compensation (+ §I4d)
+                     + pn_blend_advance(freq * pv->detune, ksb_set)             // SAME compensation (+ §I4d)
                      - ((v->pn_lfp > 0.0f) ? pn_lp_delay(6.28318531f * freq * pv->detune / (float)SOUND_SAMPLE_RATE, v->pn_lfp) : 0.0f);
         int len2 = (int)ideal2;
         if (len2 > SOUND_KS_MAX - 1) len2 = SOUND_KS_MAX - 1;

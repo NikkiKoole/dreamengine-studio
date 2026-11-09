@@ -25,6 +25,7 @@ de:meta */
 #include <math.h>
 #include <string.h>
 #include <stdlib.h>
+#include <stdio.h>
 #include "dreamatlas/biomes.h"
 
 // DREAM ATLAS — the biome browser from Mutable Dreams 1.4, on dreamengine voices.

@@ -2291,6 +2291,22 @@
     "lineage": "The software-canvas everything-cart — one frame calling every studio.h draw primitive with per-frame rotation, so a regression in any one shows up in a single canvas-diff run."
   },
   {
+    "title": "Dream Atlas",
+    "description": "157 small generative worlds from Mutable Dreams: six drifting Euclidean tracks, chord journeys and a Lo-Fi kit, played on dreamengine's own voices. Each BIOME is one scene: six tracks, each a voice (Plaits-style drums, FM, analog, Rings and Elements resonators, a sine choir, a round bass...) with its OWN rhythm, k hits spread over n steps. The lengths differ (16, 19, 13...), so the tracks slide against each other and the loop takes minutes to come round. Some biomes walk a chord progression under it, some swap three tracks for a crunchy 16 kHz Lo-Fi drum kit. Browse in the curated order: neighbours are meant to feel genuinely different. The scenes are the original's factory data; the sounds are this engine's nearest voices, so it is a translation, not a copy. LEFT/RIGHT or the arrows: next / previous biome · SPACE or PLAY: start / stop · 1-6: mute a track · tap a track row to mute it",
+    "file": "dreamatlas.cart.png",
+    "created": "2026-11-09",
+    "kind": [
+      "instrument"
+    ],
+    "teaches": [
+      "euclidean-rhythm",
+      "generative-sequencer",
+      "polymeter"
+    ],
+    "lineage": "A port of the BIOME atlas from Mutable Dreams 1.4 (Kid Bunka / Christoph Link, free firmware for the M-VAVE FM-1, itself built on Mutable Instruments' Plaits/Rings/Elements). The 157 scenes are the upstream's own factory data (MIT), generated into runtime/dreamatlas/biomes.h; the sequencer (Euclid hits/length/rotate per track, seeded rolls, chord journeys, scale masks, the Lo-Fi kit) is ported line by line from app/dsp/dreams.cpp. The fifteen VOICES are NOT ported: each is mapped onto the nearest engine dreamengine already ships, which is the experiment.",
+    "homage": "Mutable Dreams (Kid Bunka) / Mutable Instruments"
+  },
+  {
     "title": "dreamcad",
     "description": "A picoCAD-style 3D model editor. Orbit camera in perspective view, three orthographic views (Tab to cycle). Object list in the sidebar. v1: view the default cube, orbit and zoom with mouse. More editing coming soon.",
     "file": "dreamcad.cart.png",
@@ -5257,7 +5273,7 @@
   },
   {
     "title": "openstrings",
-    "description": "A rolling piano arpeggio of SHORT, dry notes, and a bank of eight open strings tuned to each chord that rings under it like a held sustain pedal. R switches the strings off and on, so you hear what they do. Every piano note here is cut short (the damper falls after 180 ms), so on its own it sounds like a dry, plinky piano. The pedal comes from the resonator: eight delay-loop strings, retuned at each chord change to the bass, its fifth and the chord tones over three octaves. The piano's sound excites them, and they ring on at those notes. Strings that keep their note across a change ring on; the rest are damped for 25 ms and retuned, like a pedal change. The strings on screen show which notes are tuned and ring with the chord. R strings on/off · UP/DOWN ring time · LEFT/RIGHT brightness · SPACE stop/play",
+    "description": "A rolling piano arpeggio of SHORT, dry notes, and a bank of eight open strings tuned to each chord that rings under it like a held sustain pedal. R switches the strings off and on, so you hear what they do. Every piano note here is cut short (the damper falls after 180 ms), so on its own it sounds like a dry, plinky piano. The pedal comes from the resonator: eight delay-loop strings, retuned at each chord change to the bass, its fifth and the chord tones over three octaves. The piano's sound excites them, and they ring on at those notes. Strings that keep their note across a change ring on; the rest are damped for 25 ms and retuned, like a pedal change. The strings on screen show which notes are tuned and ring with the chord. R strings on/off · P synth piano / Steinway samples · UP/DOWN ring time · LEFT/RIGHT brightness · SPACE stop/play. Piano samples: bitKlavier Grand Sample Library, Daniel Trueman, Princeton University (CC BY 4.0)",
     "file": "openstrings.cart.png",
     "created": "2026-11-09",
     "kind": [

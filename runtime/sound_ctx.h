@@ -514,7 +514,7 @@ typedef struct {
 } Voice;
 #define SOUND_HANDLE_BITS 5                      // slot field width — must hold SOUND_VOICES-1 (32 voices → 0..31 → 5 bits)
 #define SCOPE_LEN 2048
-#define SOUND_SAMPLE_SLOTS 8
+#define SOUND_SAMPLE_SLOTS 16   // was 8 until 2026-11-09: a 13-zone sampled piano needs more. Empty slots cost a pointer each
 typedef struct { float *data; int len; bool loaded; } SoundSample;  // data = malloc'd mono PCM -1..1
 // INSTR_SING's analysis of one sample slot (sing_analyze, GAME thread): the glottal epochs + each one's
 // f0 (0 = unvoiced) + the take's median f0 (what a note's pitch is measured against). nep == 0 = none

@@ -9,7 +9,7 @@
   "lineage": "A port of the BIOME atlas from Mutable Dreams 1.4 (Kid Bunka / Christoph Link, free firmware for the M-VAVE FM-1, itself built on Mutable Instruments' Plaits/Rings/Elements). The 157 scenes are the upstream's own factory data (MIT), generated into runtime/dreamatlas/biomes.h; the sequencer (Euclid hits/length/rotate per track, seeded rolls, chord journeys, scale masks, the Lo-Fi kit) is ported line by line from app/dsp/dreams.cpp. The fifteen VOICES are NOT ported: each is mapped onto the nearest engine dreamengine already ships, which is the experiment.",
   "homage": "Mutable Dreams (Kid Bunka) / Mutable Instruments",
   "description": {
-    "summary": "157 small generative worlds from Mutable Dreams, plus a few of our own (a house jam, a tabla-and-guiro bazaar, Moon Meadow with tablas, a slow organ-and-upright brew, the Puppetmaker band): six drifting Euclidean tracks, chord journeys and a Lo-Fi kit, played on dreamengine's own voices.",
+    "summary": "157 small generative worlds from Mutable Dreams, plus a few of our own (a house jam, a tabla-and-guiro bazaar, Moon Meadow with tablas, a slow organ-and-upright brew, the Puppetmaker band, a CR-78 bossa): six drifting Euclidean tracks, chord journeys and a Lo-Fi kit, played on dreamengine's own voices.",
     "detail": "Each BIOME is one scene: six tracks, each a voice (Plaits-style drums, FM, analog, Rings and Elements resonators, a sine choir, a round bass...) with its OWN rhythm, k hits spread over n steps. The lengths differ (16, 19, 13...), so the tracks slide against each other and the loop takes minutes to come round. Some biomes walk a chord progression under it, some swap three tracks for a crunchy 16 kHz Lo-Fi drum kit. Browse in the curated order: neighbours are meant to feel genuinely different. The scenes are the original's factory data; the sounds are this engine's nearest voices, so it is a translation, not a copy.",
     "controls": "LEFT/RIGHT or the arrows: next / previous biome · SPACE or PLAY: start / stop · 1-6: mute a track · tap a track row to mute it"
   },
@@ -42,11 +42,12 @@ de:meta */
 // ── upstream constants ───────────────────────────────────────────────────────
 enum { M_KICK, M_SNARE, M_HAT, M_FM, M_VA, M_RINGS, M_HARMONIC, M_CHOIR, M_BASS, M_ELEMENTS,
        M_MELLOW, M_SATIN, M_VELVET, M_SPECTRAL, M_BREATH,
-       M_TABLA, M_SCRAPE, M_UPRIGHT, M_ORGAN, M_GUITAR, M_BELL, M_TAMB, M_RHODES,
+       M_TABLA, M_SCRAPE, M_UPRIGHT, M_ORGAN, M_GUITAR, M_BELL, M_TAMB, M_RHODES, M_CRKICK, M_CRRIM, M_CRMAR, M_NYLON,
        M_MODELS };   // from M_TABLA on they are OURS (no upstream model): only our own biomes use them
 static const char *const MODEL_NAME[M_MODELS] = { "KICK", "SNARE", "HAT", "FM", "ANALOG", "RINGS", "HARMONIC",
     "CHOIR", "BASS", "ELEMENTS", "MELLOW", "SATIN", "VELVET KEYS", "SPECTRAL", "BREATH", "TABLA", "SCRAPE",
-    "UPRIGHT", "ORGAN", "GUITAR", "BELL", "TAMB", "RHODES" };
+    "UPRIGHT", "ORGAN", "GUITAR", "BELL", "TAMB", "RHODES",
+    "CR KICK", "CR RIM", "MARACAS", "NYLON" };
 static const char *const KIT_NAME[5] = { "DUST", "CRATE", "SOFT", "FOUND OBJECTS", "VELOUR TAPE" };
 static const char *const SCALE_NAME[13] = { "chromatic", "minor", "major", "dorian", "minor pent", "major pent",
     "whole tone", "phrygian", "ukr dorian", "harm minor", "dbl harm min", "harm major", "dbl harm maj" };
@@ -137,7 +138,14 @@ static Scene S;
 // same voicing every time, only the pitch moves) and the ringing triangle on 6 and 14. 60 BPM in
 // 16ths, swing 52, chromatic, and nothing resolves. The Mipos' singing (pi/po/ba/bi on INSTR_VOICE)
 // was tried and cut: it sounded awful. The choked triangle and the blips have no track left.
-#define DA_OWN 5
+// CR-78 BOSSA is the CR-78's own BOSSA NOVA preset (the cr78 cart, its voices rebuilt from the
+// circuit and fitted to real CR-78 samples, copied here as models): kick X.....x.X.....x. and the
+// clave on the rimshot x..x..x...x..x.., both EXACT (a fixed pattern, JamCfg.pat), under a nylon
+// guitar (the bossa cart's PLUCK) comping on that same clave in rootless 3-7-9 voicings and an
+// upright playing the surdo, root and fifth with the kick. ii-V-I-vi in F, two bars a chord. The
+// cycles: the maracas shake 10 in 12 against the bar and Velvet keys float a melody 3 in 10.
+_Static_assert(M_CRKICK == 23 && M_NYLON == 26, "the CR-78 Bossa row names its models by number");
+#define DA_OWN 6
 #define DA_ALL (DA_BIOMES + DA_OWN)
 static const DaBiome DA_OWN_BIOME[DA_OWN] = {
  {"Marmalade Jam",8,125,7,2,125125,0,0,650,200,100,0,120,0,0,0,380,300,{500,260,520,60},{
@@ -174,7 +182,14 @@ static const DaBiome DA_OWN_BIOME[DA_OWN] = {
   /* tamb                */ {21,0,0,220,200,60,9,16,0,850,60,620,0,1,0,1,300,0,850,100,0,0},
   /* guiro   (guiro)     */ {16,870,0,600,700,20,1,16,9,500,60,380,0,1,0,1,0,0,850,100,0,0},
   /* rhodes  (rhodes2)   */ {22,200,150,1000,400,300,1,16,8,500,51,500,0,1,0,1,0,120,850,100,0,150},
-  /* triangle (triangleRing) */ {20,900,1000,900,550,300,2,16,3,500,100,640,0,1,0,1,150,900,850,100,0,0}}},
+  /* triangle (triangleRing) */ {20,900,1000,900,550,300,2,16,3,500,84,640,0,1,0,1,150,900,850,100,0,0}}},
+ {"CR-78 Bossa",7,128,5,2,78787,0,0,650,200,100,0,100,0,0,-1,0,300,{500,400,500,60},{
+  /* kick    (CR-78)     */ {23,0,0,0,400,0,0,16,0,950,36,500,0,1,0,1,0,0,850,100,0,0},
+  /* rim     (CR-78)     */ {24,0,0,0,800,80,0,16,0,950,90,440,0,1,0,1,0,0,850,100,0,0},
+  /* maracas (CR-78)     */ {25,0,0,0,180,40,10,12,0,850,90,620,0,1,0,1,350,0,850,100,0,0},
+  /* bass    (upright)   */ {17,300,300,400,400,0,0,16,0,950,41,480,0,1,0,1,0,450,850,100,0,0},
+  /* nylon   (bossa)     */ {26,150,400,350,550,200,0,16,0,900,53,560,0,1,0,1,0,450,850,100,0,0},
+  /* keys    (Velvet)    */ {12,400,250,500,50,250,3,10,0,800,72,380,0,2,0,1,200,350,800,100,0,150}}},
 };
 // how each of our biomes JAMS (Playtime's drum jam): the order its layers enter, who may rest a
 // phrase, who a breakdown takes out, which track plays the phrase-end fill, which lets go before the one
@@ -182,7 +197,12 @@ static const DaBiome DA_OWN_BIOME[DA_OWN] = {
 // (scale degrees, prog_bars bars each) in place of a JOURNEY pattern, for a cycle of any length
 typedef struct { int chord_pattern, chord_tracks, build[6], rest[4], break_mask, fill, letgo;
                  const char *names[6]; signed char prog[8]; int prog_len, prog_bars;
-                 signed char pair[6]; } JamCfg;   // pair[i] != 0: track i alternates note, note + pair[i] (a bongo pair)
+                 signed char pair[6];       // pair[i] != 0: track i alternates note, note + pair[i] (a bongo pair)
+                 const char *pat[6];        // pat[i]: a FIXED step pattern instead of the Euclid hits (≤16 steps):
+                                            // '.' rest, 'x' a hit, 'X' accented, '5' a hit a fifth up; each step
+                                            // still rolls the track's chance, as a factory phrase does
+                 signed char gtr[3];        // the guitar's chord, scale degrees over the root (0,0,0 = 2 4 7)
+               } JamCfg;
 static const JamCfg DA_OWN_JAM[DA_OWN] = {
     { 2, 0x38, {0, 1, 3, 2, 5, 4}, {1, 2, 4, 5}, 1 << 0 | 1 << 2 | 1 << 3, 2, 1,     // Marmalade: I-vi-IV-V
       { "KICK", "HAT", "CLAP", "BASS", "PLUCK", "KEYS" } },
@@ -194,6 +214,10 @@ static const JamCfg DA_OWN_JAM[DA_OWN] = {
       { "KICK", "SNARE", "AGOGO", "UPRIGHT", "ORGAN", "GUITAR" }, { 0, 2, 5 }, 3, 1, { 0, 0, -5 } },   // the agogo pair: high, low
     { 0, 0,    {0, 2, 5, 1, 4, 3}, {1, 2, 3, 5}, 1 << 0 | 1 << 1 | 1 << 2, 1, 2,     // Mipo Band: no chords, chromatic; the Mipos come in second
       { "CONGA", "BONGOS", "TAMB", "GUIRO", "RHODES", "TRIANGLE" }, {0}, 0, 0, { 0, 7, 0, 0, 0, 0 } },
+    { 1, 0x38, {0, 1, 2, 3, 4, 5}, {2, 3, 4, 5}, 1 << 0 | 1 << 3,          1, 2,     // CR-78 Bossa: ii-V-I-vi, two bars each
+      { "KICK", "RIM", "MARACAS", "BASS", "NYLON", "KEYS" }, { 1, 4, 0, 5 }, 4, 2, {0},
+      { "X.....x.X.....x.", "x..x..x...x..x..", 0, "x.....5.x.....5.", "x..x..x...x..x..", 0 },   // the CR-78 preset
+      { 2, 6, 8 } },                                                                           // 3 7 9, rootless
 };
 static const DaBiome *biome_row(int id) { return id < DA_BIOMES ? &DA_BIOME[id] : &DA_OWN_BIOME[id - DA_BIOMES]; }
 static int browse_id(int k) { return k < DA_BIOMES ? DA_BROWSE[k] : k; }   // ours come last, in order
@@ -385,6 +409,15 @@ static void scene(int id) {
         const JamCfg *j = &DA_OWN_JAM[id - DA_BIOMES];
         S.chord_pattern = j->chord_pattern; S.chord_bars = 2; S.chord_tracks = j->chord_tracks;
         S.jam = id - DA_BIOMES + 1; S.jam_rng = (unsigned)S.b.seed * 2654435761u | 1;
+        for (int i = 0; i < 6; i++) if (j->pat[i]) {    // a fixed pattern rides the phrase sequencer
+            int n = (int)strlen(j->pat[i]); if (n > 16) n = 16;
+            S.seq_on[i] = 1; S.seq_len[i] = n;
+            for (int k = 0; k < n; k++) {
+                char c = j->pat[i][k];
+                S.seq[i][k] = (Step){ (unsigned char)(c == '.' ? 0 : S.b.tr[i].note + (c == '5' ? 7 : 0)),
+                                      (unsigned char)(c == 'X' ? 95 : 70), 100, 100 };
+            }
+        }
     }
 #ifdef DA_DRY                        // A/B switch: no fx return, no grain tape (= mdrender --dry)
     S.fx_level = 0; S.b.macro[3] = 0;
@@ -416,7 +449,8 @@ static const float VOICE_TRIM_DB[M_MODELS] = {
     /* KICK SNARE HAT */ 3.4f, 5.0f, 3.9f,  /* FM VA RINGS */ 6.0f, 2.7f, -1.7f,
     /* HARMONIC CHOIR BASS */ 9.4f, -5.8f, 0,  /* ELEMENTS MELLOW SATIN */ 0, 0, 0,
     /* VELVET SPECTRAL BREATH */ 3.3f, 0, 3.2f,  /* TABLA SCRAPE: ours, no upstream to fit */ 0, 0,
-    /* UPRIGHT ORGAN GUITAR BELL: ours */ 0, 0, 0, 0,  /* TAMB RHODES: ours */ 0, 0 };
+    /* UPRIGHT ORGAN GUITAR BELL: ours */ 0, 0, 0, 0,  /* TAMB RHODES: ours */ 0, 0,
+    /* CR KICK, CR RIM, MARACAS, NYLON: ours */ 0, 0, 0, 0 };
 
 // ── KICK: Plaits' AnalogBassDrum, PORTED (Emilie Gillet, MIT), the trigger path only ─────────
 // Mapping it onto INSTR_SINE gave a sustained thump with no click, 20 dB too loud in the balance.
@@ -580,6 +614,7 @@ static void config_track(int i) {
         static const float mode_default[7] = { 0, 0, .5f, .5f, .5f, .5f, 0 };   // as Playtime's MODE_DEFAULTS
         for (int k = 0; k < 7; k++) instrument_mode(s, k, mode_default[k]);
         instrument_mono(s, 0); instrument_vibrato(s, 1);
+        instrument_release_shape(s, RELEASE_LINEAR); instrument_release_shape(l, RELEASE_LINEAR);
         if (had_leslie[i] && m != M_ORGAN) { instrument_leslie(s, 1, 0, .5f, 0, 0); had_leslie[i] = 0; }
     }
     held_ours[i] = m >= M_TABLA;
@@ -678,6 +713,22 @@ static void config_track(int i) {
     case M_RHODES:    // the rhodes patch (the epiano cart's suitcase): mellow, the Rhodes detent
         instrument(s, INSTR_EPIANO, 1, 0, 7, 450);
         instrument_harmonics(s, harm); instrument_timbre(s, tone); instrument_morph(s, shape); break;
+    // ── the CR-78's bossa voices, from the cr78 cart (measured against real CR-78 one-shots) ──
+    case M_CRKICK:    // a soft round 65 Hz sine, barely any pitch drop (NOT an 808 punch)
+        instrument(s, INSTR_SINE, 0, 140, 0, 40);
+        instrument_filter(s, FILTER_LOW, 320, 2);
+        instrument_env(s, 0, ENV_PITCH, 0, 30, 2.0f); break;
+    case M_CRRIM:     // a CLICK: a damped ~1.5 kHz swing over a faint 215 Hz knock (the layer), gone in ~5 ms
+        instrument(s, INSTR_TRI, 0, 0, 7, 6);
+        instrument_filter(s, FILTER_BAND, 1500, 2); instrument_release_shape(s, RELEASE_EXP);
+        instrument(l, INSTR_SINE, 0, 0, 7, 8); instrument_release_shape(l, RELEASE_EXP); break;
+    case M_CRMAR:     // the shortest noise burst in the box, a narrow band at 8.7 kHz
+        instrument(s, INSTR_NOISE, 0, 15, 0, 8);
+        instrument_filter(s, FILTER_BAND, 8700, 15); break;
+    case M_NYLON:     // the bossa cart's nylon: a warm, short pluck, soft thumb, no pick brightness
+        instrument(s, INSTR_PLUCK, 1, 0, 7, 120);
+        instrument_filter(s, FILTER_LOW, 2200, 3);
+        instrument_harmonics(s, harm); instrument_timbre(s, tone); instrument_morph(s, shape); break;
     default:          // BREATH: a pitched sine reed crossfaded (harm) with lowpassed air
         instrument(s, INSTR_SINE, A, D, 0, 120); instrument_level(s, 1 - harm);
         instrument(l, INSTR_NOISE, A, D, 0, 120);
@@ -703,6 +754,7 @@ static void config_track(int i) {
         instrument_level(sl, (m == M_BREATH ? 1 - harm : 1) * gain * 1.6f);
     }
     if (m == M_BASS || m == M_BREATH) instrument_level(l, (m == M_BASS ? .3f * harm / .68f : harm * 1.4f) * gain * 1.6f);
+    if (m == M_CRRIM) instrument_level(l, .14f * gain * 1.6f);   // the knock ~17 dB under the click
     for (int k = 0; k < (m == M_SNARE ? SNARE_VARS + 1 : 2); k++) {
         int sl = k == 0 ? s : k == 1 ? l : SL_ROUND + 3 * i + k - 2;
         instrument_pan(sl, unit(t->pan) * 2 - 1);
@@ -788,7 +840,11 @@ static void fire(int i, int note, float vel, double t, int gate_ms) {
     if (m == M_GUITAR) dur = (int)(150 * powf(12, du));
     if (m == M_BELL)   dur = bound(tr->decay * 2, 20, 2000) + 40;
     if (m == M_TAMB)   dur = 290;
-    if (m == M_RHODES) dur = 3000;                                 // the rolled chord rings ~3 s
+    if (m == M_RHODES) dur = 3000;
+    if (m == M_CRKICK) dur = 220;
+    if (m == M_CRRIM)  dur = 1;
+    if (m == M_CRMAR)  dur = 30;
+    if (m == M_NYLON)  dur = (int)(150 * powf(12, du));                                 // the rolled chord rings ~3 s
 
     // Breathe: a 7..20 s sine per track that drifts the cutoff; sampled at the note (their drift
     // is continuous, ours lands per note). Tides on ambient tracks add a second, slower sway.
@@ -803,14 +859,16 @@ static void fire(int i, int note, float vel, double t, int gate_ms) {
     if (m == M_KICK) o.gain = (3 + 7 * vel) / 10;   // Plaits: accent sets the pulse height 3+7a
     if (m == M_SNARE) o.gain = snare_gain;          // rendered at accent .8; upstream drums ignore velocity in the mix
     o.cutoff_oct = (breathe * .13f + tide * .2f) * 7.0f;
-    if (m == M_ORGAN || m == M_GUITAR) {   // brew's chords: the organ ROOTLESS (3 5 7 9), the guitar a small shape
-        static const int organ_deg[4] = { 2, 4, 6, 8 }, guitar_deg[3] = { 2, 4, 7 };
+    if (m == M_ORGAN || m == M_GUITAR || m == M_NYLON) {   // the organ ROOTLESS (3 5 7 9), a guitar a small shape
+        static const int organ_deg[4] = { 2, 4, 6, 8 };
+        int guitar_deg[3] = { 2, 4, 7 };
+        if (S.jam && DA_OWN_JAM[S.jam - 1].gtr[0]) for (int k = 0; k < 3; k++) guitar_deg[k] = DA_OWN_JAM[S.jam - 1].gtr[k];
         const int *dg = m == M_ORGAN ? organ_deg : guitar_deg; int nd = m == M_ORGAN ? 4 : 3;
         for (int k = 0; k < nd; k++) {
             int n = note; for (int st = 0; st < dg[k]; st++) { n++; while (quantize(n, S.b.root, S.b.scale) != n) n++; }
             NoteOpts c = o; c.gain = o.gain * (m == M_ORGAN ? .7f : .75f);
             // the organ's keys together a hair behind, the guitar a quick down-strum (Playtime's feel)
-            double at = t + (m == M_ORGAN ? .008 : .018 + k * .012);
+            double at = t + (m == M_ORGAN ? .008 : m == M_NYLON ? .004 + k * .008 : .018 + k * .012);   // nylon: a thumb's quick brush
             track_booking(schedule_note_at(at, n, s, 7, dur, &c), end + .1);
         }
         mark_hit(i, t); return;
@@ -841,6 +899,7 @@ static void fire(int i, int note, float vel, double t, int gate_ms) {
             if (v) s = SL_ROUND + 3 * i + v - 1;
         }
         track_booking(schedule_note_at(t, pn, s, 7, dur, &o), end);
+        if (m == M_CRRIM) track_booking(schedule_note_at(t, 57, l, 7, 1, &o), end);   // the faint low knock
         if (m == M_BASS)   track_booking(schedule_note_at(t, note - 12, l, 7, dur, &o), end);
         if (m == M_BREATH) track_booking(schedule_note_at(t, note, l, 7, dur, &o), end);
     }
@@ -911,7 +970,10 @@ static void tick(double t) {
             && !S.jam_out[i] && !(fill && i == letgo_tr && bar_step >= 14)) {
             int note = tr->note;
             if (tr->model >= M_FM) {
-                int still = tr->model == M_ORGAN || tr->model == M_GUITAR || tr->model == M_BELL;   // chords and bells keep their pitch
+                // chords, pitched pairs and the CR-78 voices keep their pitch; a lone bell (Mipo Band's
+                // triangle) wanders with the jump macro like a melody, so it does not get old
+                int pair = S.jam && DA_OWN_JAM[S.jam - 1].pair[i];
+                int still = tr->model == M_ORGAN || tr->model == M_GUITAR || (tr->model == M_BELL && pair) || tr->model >= M_CRKICK;   // chords and bells keep their pitch
                 if (!still && (roll >> 10) % 1000 < (unsigned)S.b.macro[1]) note += degree[(roll >> 20) % 7];
                 if (S.chord_tracks & (1u << i)) note += chord_offset();
                 note = quantize(note + S.b.transpose, S.b.root, S.b.scale);

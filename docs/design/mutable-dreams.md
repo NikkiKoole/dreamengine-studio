@@ -168,6 +168,20 @@ on the drumhead, the guiro is the scrape, and the ringing triangle (`triangleRin
 is the bell model. The Mipos' singing (pi/po, the odd ba/bi, on `INSTR_VOICE`) was built and CUT: it
 sounded awful.
 
+The sixth, **CR-78 Bossa**, is the CR-78's own BOSSA NOVA preset on the voices of the `cr78` cart
+(rebuilt from the circuit, fitted to real CR-78 one-shots), copied in as models **CR KICK**, **CR RIM**
+(the click + its faint knock on the layer slot) and **MARACAS**, plus **NYLON** (the bossa cart's
+PLUCK guitar). The kick `X.....x.X.....x.` and the rimshot clave `x..x..x...x..x..` are EXACT: a
+`JamCfg.pat[]` fixed pattern rides the phrase sequencer (each step still rolls the track's chance).
+The nylon comps on that same clave (it IS João's comping pattern at half speed) in rootless 3-7-9
+voicings (`JamCfg.gtr`; checked from the trace: Gm9 Bb-F-A, C9 E-Bb-D, Fmaj9 A-E-G), the upright plays
+the surdo (root and fifth with the kick), ii-V-I-vi in F at 128, two bars a chord. The cycles are
+the maracas, 10 in 12 against the bar, and a Velvet keys melody 3 in 10.
+
+Mipo Band's triangle was a single pitch and got old; a lone BELL now wanders with the jump macro
+like a melody (a bell in a `pair`, Slow Brew's agogo, still keeps its two pitches). Note the cart
+clamps melodic notes to 24..96 (quantize), which had been pinning the triangle at 96.
+
 ⚠ **An engine bug the singing ran into** (not fixed: `sound.h` is shared, and the fix changes
 every voice cart): at note-on, `sound.h` runs `vox_apply_macros()` and THEN `sound_voice_start()`,
 which resets the voice to a neutral "ah". So an `INSTR_VOICE` note started by `schedule_note_at` (or

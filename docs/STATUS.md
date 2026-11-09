@@ -1200,6 +1200,14 @@ Detail lives in the linked design doc in every case; that is where it was always
 
 ## Open — prioritized
 
+- **SAMPLED STEINWAY — make it real** (2026-11-09). The maker preferred the sampled Steinway + the
+  sympathetic resonator by far over our synth piano (`openstrings`, P/R). Left to do, in order: (1) BAKE
+  the 13 notes from `assets/samples/steinway/` into carts so web/app builds play them (today they are read
+  from disk at runtime: editor + play.js only), shrunk the Flyfish way (per-register length 3.1 s → 0.7 s,
+  22 kHz, maybe ADPCM: 3.5 MB → ~0.25-1 MB); (2) a real MULTISAMPLE instrument (one slot, zones by key)
+  instead of a slot per zone; (3) VELOCITY layers from Princeton's original 16 (soft = darker, not just
+  quieter; mind CC BY credit); (4) `pianohand`'s hand-built halo → the resonator. Design + measurements:
+  [sympathetic-resonator.md](design/sympathetic-resonator.md).
 - **TWO GATES ARE RED on master, from before 2026-11-03** (found 2026-11-03). `refactor-guard` flags
   `acidcandy` because its baseline predates the commits since (re-bless on a settled tree after checking the
   diff is wanted), and `tune-check` reads ORGAN tonewheel A5 and MODAL A3/A5 an octave low. Both fail the

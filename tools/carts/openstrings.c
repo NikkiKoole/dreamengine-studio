@@ -17,7 +17,13 @@
     "summary": "A rolling piano arpeggio of SHORT, dry notes, and a bank of eight open strings tuned to each chord that rings under it like a held sustain pedal. R switches the strings off and on, so you hear what they do.",
     "detail": "Every piano note here is cut short (the damper falls after 180 ms), so on its own it sounds like a dry, plinky piano. The pedal comes from the resonator: eight delay-loop strings, retuned at each chord change to the bass, its fifth and the chord tones over three octaves. The piano's sound excites them, and they ring on at those notes. Strings that keep their note across a change ring on; the rest are damped for 25 ms and retuned, like a pedal change. The strings on screen show which notes are tuned and ring with the chord.",
     "controls": "R strings on/off · P synth piano / Steinway samples · UP/DOWN ring time · LEFT/RIGHT brightness · SPACE stop/play. Piano samples: bitKlavier Grand Sample Library, Daniel Trueman, Princeton University (CC BY 4.0)"
-  }
+  },
+  "todo": [
+    "BAKE the Steinway into the cart (web/app builds cannot read assets/ at runtime), shrunk: per-register length 3.1 s → 0.7 s, 22 kHz, maybe ADPCM (3.5 MB → ~0.25-1 MB). STATUS Open 'SAMPLED STEINWAY'.",
+    "Replace the 13 instrument slots (one per zone) with a real MULTISAMPLE instrument: one slot, zones by key (engine work).",
+    "VELOCITY layers: one layer today (v12 of 16), so soft notes are only quieter, not darker. Take more layers from Princeton's original, keep the CC BY credit.",
+    "LISTEN: resonator level 0.6 and the 25 ms retune damping — too much, too little? Then decide whether pianohand's hand-built halo voice gives way to resonator()."
+  ]
 }
 de:meta */
 // openstrings — the sympathetic resonator, heard against a dry piano.

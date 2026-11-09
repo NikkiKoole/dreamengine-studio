@@ -11,7 +11,9 @@
 > shrunk the Flyfish way (per-register length 3.1 s → 0.7 s, 22 kHz, maybe ADPCM: ~3.5 MB → ~0.25-1 MB);
 > (2) a real multisample instrument (one slot, zones by key) instead of one instrument slot per
 > zone; (3) velocity layers (one layer today: soft is only quieter, not darker); (4) whether
-> `pianohand`'s hand-built halo gives way to the resonator.
+> `pianohand`'s hand-built halo gives way to the resonator; (5) or the other route: measure INSTR_PIANO
+> against these 13 notes and close the gap, by tuning or as a second piano engine (commuted synthesis is
+> the textbook candidate), which would make (1)-(3) unnecessary.
 
 ## Where the idea comes from
 

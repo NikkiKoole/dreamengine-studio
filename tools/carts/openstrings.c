@@ -22,7 +22,8 @@
     "BAKE the Steinway into the cart (web/app builds cannot read assets/ at runtime), shrunk: per-register length 3.1 s → 0.7 s, 22 kHz, maybe ADPCM (3.5 MB → ~0.25-1 MB). STATUS Open 'SAMPLED STEINWAY'.",
     "Replace the 13 instrument slots (one per zone) with a real MULTISAMPLE instrument: one slot, zones by key (engine work).",
     "VELOCITY layers: one layer today (v12 of 16), so soft notes are only quieter, not darker. Take more layers from Princeton's original, keep the CC BY credit.",
-    "LISTEN: resonator level 0.6 and the 25 ms retune damping — too much, too little? Then decide whether pianohand's hand-built halo voice gives way to resonator()."
+    "LISTEN: resonator level 0.6 and the 25 ms retune damping — too much, too little? Then decide whether pianohand's hand-built halo voice gives way to resonator().",
+    "MODELLED PIANO vs THE STEINWAY: a measuring pass on INSTR_PIANO against the 13 notes in assets/samples/steinway/ (the samples as the reference: tools/oneshot-compare.js for attack/decay/band, inharm-spec.js for partial placement + B, inharm-spec --decay for per-partial decay, patch-match for the closest macros). If tuning the existing engine cannot close the gap, consider a SECOND piano engine, e.g. commuted synthesis (the Steinway's own hammer+soundboard response as the string's excitation). Solves the size + velocity-layer problems for free if it lands."
   ]
 }
 de:meta */

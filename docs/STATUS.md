@@ -1206,7 +1206,10 @@ Detail lives in the linked design doc in every case; that is where it was always
   from disk at runtime: editor + play.js only), shrunk the Flyfish way (per-register length 3.1 s → 0.7 s,
   22 kHz, maybe ADPCM: 3.5 MB → ~0.25-1 MB); (2) a real MULTISAMPLE instrument (one slot, zones by key)
   instead of a slot per zone; (3) VELOCITY layers from Princeton's original 16 (soft = darker, not just
-  quieter; mind CC BY credit); (4) `pianohand`'s hand-built halo → the resonator. Design + measurements:
+  quieter; mind CC BY credit); (4) `pianohand`'s hand-built halo → the resonator; (5) THE ALTERNATIVE ROUTE: a measuring pass
+  to bring INSTR_PIANO closer to these notes (oneshot-compare / inharm-spec / patch-match, the samples as
+  reference), and if tuning cannot close the gap, a second piano engine (e.g. commuted synthesis: the
+  Steinway's hammer+soundboard response as the excitation). If it lands, (1)-(3) stop mattering. Design + measurements:
   [sympathetic-resonator.md](design/sympathetic-resonator.md).
 - **TWO GATES ARE RED on master, from before 2026-11-03** (found 2026-11-03). `refactor-guard` flags
   `acidcandy` because its baseline predates the commits since (re-bless on a settled tree after checking the

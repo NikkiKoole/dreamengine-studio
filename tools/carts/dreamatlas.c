@@ -54,6 +54,8 @@ static const int FAMILY_CLR[DA_FAMILIES] = { CLR_LIGHT_GREY, CLR_DARK_BLUE, CLR_
 #define SL_TRACK 10      // 10..15  the six track voices
 #define SL_LAYER 20      // 20..25  a second layer some models need (snare body, sub bass, breath air)
 #define SL_PAD   30      // 30..37  the Lo-Fi kit pads, bound to sample slots 0..7
+#define SL_ROUND 40      // 40..57  snare round-robin: track i's noise variant v (1..3) is 40 + 3i + v - 1
+#define SNARE_VARS 4     // noise draws per snare track (variant 0 plays on SL_TRACK + i)
 #define LOOKAHEAD 0.15
 #define DA_SR 44100.0f    // the engine's output rate (sample_load takes PCM at this rate)
 
@@ -311,7 +313,7 @@ static const float VOICE_TRIM_DB[15] = {
 // own note. Dreams calls it as: accent = velocity, tone·(.65+.35·tone), attack FM = harm·.75,
 // self FM .12, no envelope after. Rendered at accent 1; fire() scales by the pulse height.
 #define KICK_MAX 88200      // 2 s at 44.1 kHz; decay 1.0 on a low note rings ~1.1 s
-static float kick_pcm[KICK_MAX];
+static float kick_pcm[KICK_MAX * SNARE_VARS];   // 8 s: the sample slot's ceiling (SOUND_REC_LEN)
 static float drum_key[6][5];      // what sample slot 8+i holds: model, note and the three knobs
 static int drum_cached(int i, int m, int note, float a, float b, float c) {
     float key[5] = { (float)m, (float)note, a, b, c };
@@ -368,7 +370,8 @@ static void kick_render(int i, int note, float tone, float decay, float attack_f
 // above), soft-clipped, under half-wave noise band-passed at 16·f0 with Q 1+1.5f. Body × (1 −
 // snappy), noise × snappy. Dreams calls it with accent = velocity, tone·(.7+.3·tone), snappy =
 // harm·.85, no envelope after. Accent only moves the body's pulse, so it is rendered at the
-// default .8 and played at its own level. One noise draw per render (upstream draws per hit).
+// default .8 and played at its own level. Upstream draws fresh noise per hit: we render four
+// draws into one sample and rotate them over SL_TRACK+i and three SL_ROUND slots.
 static float svf_g_fast(float f) { float f2 = f * f; return f * (3.14159265f + f2 * (.326f * 31.00627668f + .1823f * 306.0196848f * f2)); }
 static float soft_clip(float x) { return x < -3 ? -1 : x > 3 ? 1 : x * (27 + x * x) / (27 + 9 * x * x); }
 static void snare_render(int i, int note, float tone, float decay, float snappy) {
@@ -396,8 +399,12 @@ static void snare_render(int i, int note, float tone, float decay, float snappy)
         for (int k = 2; k < 5; k++) { gain[k] = tone; tone *= tone; }
     }
     float fn = fminf(f0 * 16, .499f), ng = svf_g_fast(fn), nr = 1 / (1 + fn * 1.5f), nh = 1 / (1 + nr * ng + ng * ng);
-    float n1 = 0, n2 = 0, pulse_s = 0, pulse_lp = 0, height = 3 + 7 * accent, env = 2, peak = 1e-9f;
-    unsigned rng = 0x9E3779B9u ^ (unsigned)(note * 7919 + i);
+    float peak = 1e-9f;
+    for (int v = 0; v < SNARE_VARS; v++) {          // the same body, a fresh noise draw each
+    float *out = kick_pcm + v * KICK_MAX;
+    for (int m = 0; m < 5; m++) s1[m] = s2[m] = 0;
+    float n1 = 0, n2 = 0, pulse_s = 0, pulse_lp = 0, height = 3 + 7 * accent, env = 2;
+    unsigned rng = 0x9E3779B9u ^ (unsigned)(note * 7919 + i * 131 + v * 104729);
     int pulse_left = trig_len;
     for (int k = 0; k < KICK_MAX; k++) {
         float pulse;
@@ -420,10 +427,23 @@ static void snare_render(int i, int note, float tone, float decay, float snappy)
         float bp = ng * hp + n1; n1 = ng * hp + bp;
         float lp = ng * bp + n2; n2 = ng * bp + lp;
         float y = bp + soft_clip(shell) * (1 - snappy);
-        kick_pcm[k] = y;
+        out[k] = y;
         if (fabsf(y) > peak) peak = fabsf(y);
     }
-    drum_load(i, peak);
+    }
+    // one length for all four (the longest tail above -80 dB), packed back to back so each
+    // variant is an equal quarter of the sample: instrument_sample_region picks one per slot
+    int n = 64;
+    for (int v = 0; v < SNARE_VARS; v++) {
+        int len = KICK_MAX; const float *o = kick_pcm + v * KICK_MAX;
+        while (len > n && fabsf(o[len - 1]) < peak * 1e-4f) len--;
+        if (len > n) n = len;
+    }
+    for (int v = 0; v < SNARE_VARS; v++) {
+        memmove(kick_pcm + v * n, kick_pcm + v * KICK_MAX, n * sizeof(float));
+        for (int k = 0; k < 64; k++) kick_pcm[v * n + n - 1 - k] *= k / 64.0f;
+    }
+    sample_load(8 + i, kick_pcm, n * SNARE_VARS);
 }
 
 static void config_track(int i) {
@@ -443,11 +463,16 @@ static void config_track(int i) {
     case M_KICK:      // Plaits analog bass drum, ported above and rendered to sample slot 8+i
         kick_render(i, t->note, tone * (.65f + .35f * tone), dec, harm * .75f);
         instrument(s, INSTR_SAMPLE, 0, 2000, 7, 30);
-        instrument_sample(s, 8 + i, t->note); break;
+        instrument_sample(s, 8 + i, t->note); instrument_sample_region(s, 0, 1); break;
     case M_SNARE:     // Plaits analog snare, ported above and rendered to sample slot 8+i
         snare_render(i, t->note, tone * (.7f + .3f * tone), dec, harm * .85f);
-        instrument(s, INSTR_SAMPLE, 0, 2000, 7, 30);
-        instrument_sample(s, 8 + i, t->note); break;
+        for (int v = 0; v < SNARE_VARS; v++) {      // variant v on its own slot, the rest below copies s
+            int sl = v ? SL_ROUND + 3 * i + v - 1 : s;
+            instrument(sl, INSTR_SAMPLE, 0, 2000, 7, 30);
+            instrument_sample(sl, 8 + i, t->note);
+            instrument_sample_region(sl, (float)v / SNARE_VARS, (float)(v + 1) / SNARE_VARS);
+        }
+        break;
     case M_HAT:       // Plaits hi-hat: six inharmonic squares, the 808 metal bank
         instrument(s, INSTR_METAL, 0, 30 + (int)(dec * 700), 0, 30);
         instrument_harmonics(s, tone); instrument_timbre(s, harm); instrument_morph(s, .3f);
@@ -500,21 +525,26 @@ static void config_track(int i) {
         instrument_filter(l, FILTER_LOW, 56 + (int)(tone * tone * 772), 0);
         instrument_level(l, harm * 1.4f); break;
     }
-    // the per-track filter (upstream applies it to EVERY model, drums included)
-    if (t->filter && m != M_HAT) {
-        float u = fminf(1, fmaxf(0, unit(t->cutoff) + (unit(S.b.macro[2]) - .5f) * .18f));
-        float r = unit(t->resonance);
-        if (t->filter == 3) {        // LPG: the cutoff falls .55 of the range with the decay
-            instrument_filter(s, FILTER_LOW, (int)cutoff_hz(fmaxf(0, u - .55f)), (int)(r * r * 8));
-            instrument_env(s, 1, ENV_CUTOFF_OCT, 0, 60 + (int)(dec * dec * 4000), .55f * 7);
-        } else instrument_filter(s, t->filter == 2 ? FILTER_LADDER : FILTER_LOW, (int)cutoff_hz(u), (int)(r * r * 8));
-    }
-    // mix: level, pan, sends (fx_level is their master return, folded into the sends here)
+    // the main voice slot(s): s, plus the snare's round-robin copies, which mirror s exactly
     float gain = unit(t->level) * (S.kit && i >= 4 ? 0 : 1) * powf(10, VOICE_TRIM_DB[m] / 20);
-    instrument_level(s, (m == M_BREATH ? 1 - harm : 1) * gain * 1.6f);
+    for (int v = 0; v < (m == M_SNARE ? SNARE_VARS : 1); v++) {
+        int sl = v ? SL_ROUND + 3 * i + v - 1 : s;
+        if (v) { instrument_env(sl, 1, ENV_CUTOFF_OCT, 0, 10, 0); instrument_filter(sl, FILTER_OFF, 20000, 0); }
+        // the per-track filter (upstream applies it to EVERY model, drums included)
+        if (t->filter && m != M_HAT) {
+            float u = fminf(1, fmaxf(0, unit(t->cutoff) + (unit(S.b.macro[2]) - .5f) * .18f));
+            float r = unit(t->resonance);
+            if (t->filter == 3) {        // LPG: the cutoff falls .55 of the range with the decay
+                instrument_filter(sl, FILTER_LOW, (int)cutoff_hz(fmaxf(0, u - .55f)), (int)(r * r * 8));
+                instrument_env(sl, 1, ENV_CUTOFF_OCT, 0, 60 + (int)(dec * dec * 4000), .55f * 7);
+            } else instrument_filter(sl, t->filter == 2 ? FILTER_LADDER : FILTER_LOW, (int)cutoff_hz(u), (int)(r * r * 8));
+        }
+        // mix: level, pan, sends (fx_level is their master return, folded into the sends here)
+        instrument_level(sl, (m == M_BREATH ? 1 - harm : 1) * gain * 1.6f);
+    }
     if (m == M_BASS || m == M_BREATH) instrument_level(l, (m == M_BASS ? .3f * harm / .68f : harm * 1.4f) * gain * 1.6f);
-    for (int k = 0; k < 2; k++) {
-        int sl = k ? l : s;
+    for (int k = 0; k < (m == M_SNARE ? SNARE_VARS + 1 : 2); k++) {
+        int sl = k == 0 ? s : k == 1 ? l : SL_ROUND + 3 * i + k - 2;
         instrument_pan(sl, unit(t->pan) * 2 - 1);
         instrument_reverb(sl, fminf(.9f, unit(S.rsend[i]) * unit(S.fx_level) * 2.4f));
         instrument_echo(sl, fminf(.8f, unit(S.dsend[i]) * unit(S.fx_level) * 2.4f));
@@ -536,6 +566,7 @@ static void apply_scene(void) {
     grains_freeze(S.b.freeze);
     if (S.b.duck_source >= 0 && S.b.duck_amount > 0) {
         sidechain_key(SL_TRACK + S.b.duck_source, 0, 1);
+        for (int v = 1; v < SNARE_VARS; v++) sidechain_key(SL_ROUND + 3 * S.b.duck_source + v - 1, 0, 1);
         sidechain(0, 0, unit(S.b.duck_amount) * .9f, 1, (int)((.04f + unit(S.b.duck_release) * 1.46f) * 1000));
     } else sidechain(0, 0, 0, 1, 100);
     for (int i = 0; i < 6; i++) config_track(i);
@@ -567,6 +598,7 @@ static void silence_all(void) {
 }
 static void unbook_all(void) {
     for (int i = 0; i < 6; i++) { unschedule(SL_TRACK + i, 0, 0); unschedule(SL_LAYER + i, 0, 0); }
+    for (int k = 0; k < 18; k++) unschedule(SL_ROUND + k, 0, 0);
     for (int p = 0; p < 8; p++) unschedule(SL_PAD + p, 0, 0);
 }
 static void load_biome(int id) {
@@ -610,6 +642,10 @@ static void fire(int i, int note, float vel, double t, int gate_ms) {
         }
     } else {
         int pn = note;
+        if (m == M_SNARE) {   // round-robin over the noise draws, as upstream draws fresh noise per hit
+            static int rr[6]; int v = rr[i]++ % SNARE_VARS;
+            if (v) s = SL_ROUND + 3 * i + v - 1;
+        }
         track_booking(schedule_note_at(t, pn, s, 7, dur, &o), end);
         if (m == M_BASS)   track_booking(schedule_note_at(t, note - 12, l, 7, dur, &o), end);
         if (m == M_BREATH) track_booking(schedule_note_at(t, note, l, 7, dur, &o), end);

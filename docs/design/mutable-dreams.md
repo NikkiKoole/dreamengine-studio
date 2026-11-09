@@ -102,7 +102,7 @@ tracks, ours +6.7 dB overall (kept: ours is set by our own level measurements):
 | model | level residual | centroid ours/theirs | what it was, what changed |
 |---|---|---|---|
 | KICK | **+22 dB → +3.4** | 0.23× → 0.86× | Plaits' analog kick at notes 24-36 is a quiet sub under a loud click; ours was a loud 32 Hz sine, trimmed −22 at first. Now PORTED instead of mapped: `kick_render()` runs Plaits' `AnalogBassDrum` (1 ms pulse → band-pass SVF, pulse leaking out through a one-pole at 4·f0·2^(9·tone), attack + self FM) once per track into a sample slot, played by `INSTR_SAMPLE`. Re-fit over its 11 tracks: trim +3.4, crest within 1 dB, octave spectrum within ~3 dB |
-| SNARE | +2.5 → −5.0 | 6× → ~3× → 0.97× | first mapped (noise × snappy over a triangle body), which got it to ~3× but our 2-pole LOW-pass left a long bright tail. Now PORTED: `snare_render()` runs Plaits' `AnalogSnareDrum` (five SVF body modes, soft clip, half-wave noise BAND-passed at 16·f0) into a sample like the kick. Re-fit over 9 tracks: trim +5.0, crest within ~2 dB. One noise draw per render, where upstream draws per hit |
+| SNARE | +2.5 → −5.0 | 6× → ~3× → 0.97× | first mapped (noise × snappy over a triangle body), which got it to ~3× but our 2-pole LOW-pass left a long bright tail. Now PORTED: `snare_render()` runs Plaits' `AnalogSnareDrum` (five SVF body modes, soft clip, half-wave noise BAND-passed at 16·f0) into a sample like the kick. Re-fit over 9 tracks: trim +5.0, crest within ~2 dB. Four noise draws per track, packed into one sample and rotated hit by hit over four slots (`SL_ROUND`): hit-to-hit correlation 0.96 vs upstream's 0.92 (upstream also carries the body's ring over between hits) |
 | HAT | −3.9 | 6× → 2× | the filter was a 5-9 kHz HIGH-pass; Plaits band-passes at 150·2^(6·tone) Hz (~500 Hz). Fixed |
 | BREATH | −3.2 | 8× → 1× | air was a 7 kHz LP; theirs is a one-pole at 56 + 772·tone² Hz. Fixed |
 | HARMONIC | **−9.4** | 0.99× | brightness right, sits ~9 dB low. Trimmed. The "loose voice" is not loose in timbre by this measure |
@@ -121,7 +121,7 @@ The trims live in the cart's `VOICE_TRIM_DB[15]`, with the fit they came from.
 2. ~~A click for the KICK~~ done: the Plaits drum is ported (§Measured).
 3. ~~SNARE brightness~~ done: ported the same way (§Measured). The HAT (2×) is the last drum off;
    Plaits' `HiHat` (six square oscillators plus clocked noise, the mix set by harm) could be
-   rendered to a sample the same way, with the same one-noise-draw caveat as the snare.
+   rendered to a sample the same way, with the snare's round-robin for its noise.
 4. RINGS brightness (0.41×), then a sweep that covers ELEMENTS/MELLOW/SATIN/SPECTRAL.
 5. Porting the Plaits VA / additive engines looks unnecessary: both match the original's brightness
    within 2%. Revisit only if the ear disagrees.

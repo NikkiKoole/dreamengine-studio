@@ -512,6 +512,19 @@
     "homage": "Propellerhead ReBirth RB-338 (1997)"
   },
   {
+    "title": "acid ref probe",
+    "description": "Not a toy: a measurement probe. Plays a fixed 16-step acid line twice (accents on 3/7/10/14, slides into 5/8/13), then one long plain note and one long accented note, through acid303.h. Render with node tools/play.js acidref run --headless --frames 704 --wav out.wav and compare with bash tools/ref-render/run.sh open303. DE_DEFINES: ACID_KNOB=0.5 sets the five core knobs; ACID_DF=1 uses the Devil Fish voicing instead of acid_stock.",
+    "file": "acidref.cart.png",
+    "created": "2026-11-08",
+    "kind": [
+      "probe"
+    ],
+    "teaches": [
+      "analog-voice-modeling"
+    ],
+    "lineage": "The acid303.h half of an A/B against Robin Schmidt's Open303 (MIT): plays the exact pattern tools/ref-render/open303render.cpp plays, on the same sample grid, so the two WAVs drop into the same oracles. Prompted by X0X (charlesvestal/fm1-x0x), whose 303 is an Open303 port tested against the original."
+  },
+  {
     "title": "Acid Theremin",
     "description": "A frets-off acid theremin: smear a finger across a dark pad and one held TB-303 voice CHASES it with portamento. X = pitch (continuous glissando, no keys), Y = filter cutoff (bottom = closed/dark, top = screaming open). Resonance is cranked toward self-oscillation and the drive runs through a wavefolder, so it squelches and screams — gnarly by design. Built on the shared runtime/acid303.h voice. One Devil-Fish Acid voice (acid303.h) held open the whole time you touch. Touch-down triggers the filter-env kick with an accent stab, then note_pitch rides the finger's FRACTIONAL pitch every frame (note_glide smears it — the acid slide as a continuous gesture); note_off on release. Y drives ACID_CUT live via acid_ride AND pushes ACID_DRV up as you open the filter, so the top of the pad is where it screams. A sub-osc an octave down adds weight; analog DRIFT keeps it from freezing digital. Keys: 1/2/3/4 pick the drive waveshaper (SOFT/HARD/FOLD/ASYM — FOLD is the metallic default), S toggles free glide vs minor-pentatonic scale-snap. A phosphor trail follows the finger; the orb runs hot as the filter opens. Drag anywhere (mouse or touch): X = pitch, Y = filter cutoff (up = brighter + more drive). Release to let the note decay. 1/2/3/4 = drive mode SOFT/HARD/FOLD/ASYM. S = snap pitch to a minor-pentatonic scale (off = true theremin glide).",
     "file": "acidtheremin.cart.png",
@@ -689,6 +702,22 @@
     "lineage": "Homage to IBM PCjr Alleycat (1984 Synapse); retains the two-phase climb/room loop and escalating difficulty, rebuilt in primitives.",
     "genre": "platformer",
     "homage": "Alley Cat (1984)"
+  },
+  {
+    "title": "amb-1",
+    "description": "Seven tape loops of different lengths, each holding one note. They never line up the same way twice. Eno's trick for Music for Airports 2/1: record each sung note on its own tape loop, make every loop a different length (17.8 s, 20.1 s, 31.8 s...), and let them run. Because the lengths share no common beat, the notes keep drifting into new chords and the piece never exactly repeats. The screen shows each loop as a strip of tape whose length is to scale, with its playhead and the note on it; the bottom line works out when all seven will next be back where they started (usually millions of years). Play a key and the note is spliced onto the next loop at the point its playhead is at right now, so it comes back exactly there every lap. Keys (click, touch, or A..L / W..P on QWERTY, Z/X octave) play a note AND splice it onto the next loop. Knobs (drag up/down): VOICE choir > piano > glass, TAPE wow and flutter, SPACE reverb, SPEED how fast the loops turn (pitch stays). BACKSPACE wipes the tapes, R reloads the Eno chord, 1-7 mute a loop.",
+    "file": "amb1.cart.png",
+    "created": "2026-11-08",
+    "kind": [
+      "instrument",
+      "toy"
+    ],
+    "teaches": [
+      "polymeter",
+      "gesture-loop",
+      "generative-melody"
+    ],
+    "lineage": "A dreamengine take on AMB-1, one of the community firmwares for the M-VAVE FM-1 pocket synth (thefirmwarehub.com), itself inspired by Brian Eno's Music for Airports 2/1. Written from the idea, not the firmware's code. Face loosely after the FM-1: colour TFT, four knobs, a silicone keyboard."
   },
   {
     "title": "ambient radio",
@@ -1560,6 +1589,22 @@
       "device-face",
       "responsive"
     ]
+  },
+  {
+    "title": "chord band",
+    "description": "Hold a chord, and an eight-piece band plays it. Every part is written once, over C major 7. The trick of the 90s arranger keyboards (the Yamaha QY70 is the one Polly copies): a style's eight parts are each written a single time, over C major 7, and every part carries a RULE that says how it follows the chord you hold. BYPASS (drums) never moves. PARALLEL (a riff) shifts by the root, so the lick keeps its shape. CHORD 1 (the pad) maps each degree to the same degree of your chord: the written E is the 3rd, so over A minor it becomes C. CHORD 2 (keys, guitar) does the same and then picks the octave closest to its last note, so the voices move as little as they can. BASS does CHORD 1 but lands its first note after a change on the root, or on the slash note in F/A. Every chord type also implies a scale (major ionian, 7 mixolydian, minor dorian, m7b5 locrian), so a written 9th or 13th lands right over anything. The screen shows each part, its rule, and its pattern; the big name is the chord the band thinks you are holding. Hold keys (click, touch, or A..L / W..P on QWERTY, Z/X octave) to set the chord; it stays until you play the next one. Lowest key not the root = a slash chord. Knobs (drag): STYLE pop / bossa / funk, TEMPO, BAND how many parts play (drums first), SPACE reverb. SPACE starts and stops.",
+    "file": "chordband.cart.png",
+    "created": "2026-11-08",
+    "kind": [
+      "instrument",
+      "toy"
+    ],
+    "teaches": [
+      "chord-voicing",
+      "functional-harmony",
+      "step-sequencer"
+    ],
+    "lineage": "After Polly (charlesvestal/fm1-polly), a QY70-style pocket arranger firmware for the M-VAVE FM-1. The idea it rests on, every part written ONCE over C major 7 and moved to the chord you hold by one of five note-transposition rules, is Yamaha's QY70 design (owner's manual p.147). Written here from that description; no Polly code. FM-1 face as in amb1."
   },
   {
     "title": "Chordblossom",
@@ -5780,6 +5825,19 @@
       "chord-voicing"
     ],
     "lineage": "The humanized-playing piano spike (docs/design/humanized-playing.md section 7.1), after strumhand, breathflute, tablahand, reedhand and basshand. The new kind of rule it tests: ONE curve shared by every sounding note (the sustain pedal), and how a note ENDS. INSTR_PIANO notes are all BOOKED (schedule_note_at); the pedal is planned ahead by the player and turned into each note's gate and release, because a booked note cannot be reached after its onset."
+  },
+  {
+    "title": "piano ref probe",
+    "description": "Not a toy: a measurement probe. Plays C1, F#1, C2 ... F#6, C7 (MIDI 24 + 6k, the Steinway sample grid) on INSTR_PIANO's grand voicing, each held 3.3 s with a 0.2 s gap, one note every 3.5 s. Compare with node tools/oneshot-compare.js --render pianoref --spec tools/oneshot-specs/pianoref.json. DE_DEFINES: PR_VOL (note_on vol 0-7, default 5 = the samples' layer 12 of 16), PR_HARM / PR_TIMB / PR_MORPH (the macros), PR_STIFF / PR_DECAY / PR_KNOCK (instrument_mode 0..1, 0.5 = the engine default). LISTEN: press S to hear each note twice, ours then the real Steinway, looping (credit: bitKlavier Grand Sample Library, Daniel Trueman, Princeton University, CC BY 4.0).",
+    "file": "pianoref.cart.png",
+    "created": "2026-11-09",
+    "kind": [
+      "probe"
+    ],
+    "teaches": [
+      "waveguide-synth"
+    ],
+    "lineage": "INSTR_PIANO's half of an A/B against a real Steinway D: the 13 notes in assets/samples/steinway/ (bitKlavier Grand, Daniel Trueman, Princeton, CC BY 4.0). Same shape as acidref (the 303 vs Open303): play exactly what the reference holds, on a fixed grid, so both drop into the same oracles. openstrings' fifth todo."
   },
   {
     "title": "piano roll",

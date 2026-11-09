@@ -5628,6 +5628,47 @@ static const float PIANO_BRIGHT[6] = { 0.55f, 0.70f, 0.85f, 0.65f, 0.35f, 0.60f 
 static const float PIANO_DAMP[6]   = { 0.9992f, 0.9994f, 0.9970f, 0.9988f, 0.9980f, 0.9990f };
 static const float PIANO_BODYB[6]  = { 0.50f, 0.65f, 0.70f, 0.60f, 0.35f, 0.50f };   // bodyBrightness (scales soundboard gains)
 
+// HF LOSS (2026-11-09, measured against a real Steinway D: tools/carts/pianoref.c + assets/samples/steinway/).
+// A real string loses its UPPER partials faster than its fundamental (air + internal friction grow with
+// frequency), so a struck note starts bright and settles toward its fundamental. Our loop's only
+// frequency-dependent loss was the brightness blend, worth well under 1 dB/s at 1 kHz, so the upper partials
+// rang as long as the fundamental (C3: h5 -0.5 dB/s vs the Steinway's -14.6) and the bottom four octaves
+// sounded thin and tinkly (half the energy at ~1 kHz, the Steinway's at 100-270 Hz).
+// The value is the EXTRA decay, in dB/s per kHz above the fundamental, that a one-pole lowpass inside the
+// loop is solved for per note (pn_solve_hfloss) at a 3 kHz reference partial. 0 = the old loop, bit-exact,
+// which is what every voicing but the grand keeps. Override for a sweep: DE_DEFINES=PN_HFLOSS_GRAND=<x>.
+#ifndef PN_HFLOSS_GRAND
+#define PN_HFLOSS_GRAND 4.0f
+#endif
+static const float PIANO_HFLOSS[6] = { PN_HFLOSS_GRAND, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f };
+// one-pole y = (1-p)x + p*y[-1]: loss per pass (dB) and phase delay (samples) at w rad/sample
+static inline float pn_lp_loss_db(float w, float p) {
+    float m2 = (1.0f - p) * (1.0f - p) / (1.0f - 2.0f * p * de_cosf(w) + p * p);
+    return -10.0f * log10f(m2);
+}
+static inline float pn_lp_delay(float w, float p) {
+    if (w < 1e-4f) return p / (1.0f - p);
+    return de_atan2f(p * de_sinf(w), 1.0f - p * de_cosf(w)) / w;
+}
+// solve p so the partial at fr decays K*(fr-f0)/1000 dB/s faster than the fundamental (one pass per period,
+// f0 passes a second). Monotone in p, so bisection. Returns 0 (off) when K is 0 or nothing to shape.
+static float pn_solve_hfloss(float f0, float K) {
+    if (K <= 0.0f || f0 <= 20.0f) return 0.0f;
+    float sr = (float)SOUND_SAMPLE_RATE;
+    float fr = (f0 < 1500.0f) ? 3000.0f : 2.0f * f0;
+    if (fr > 0.45f * sr) fr = 0.45f * sr;
+    if (fr <= f0 * 1.5f) return 0.0f;
+    float w0 = 6.28318531f * f0 / sr, wr = 6.28318531f * fr / sr;
+    float target = K * (fr - f0) / 1000.0f;              // dB/s
+    float lo = 0.0f, hi = 0.95f;
+    if (f0 * (pn_lp_loss_db(wr, hi) - pn_lp_loss_db(w0, hi)) < target) return hi;
+    for (int it = 0; it < 30; it++) {
+        float mid = 0.5f * (lo + hi);
+        if (f0 * (pn_lp_loss_db(wr, mid) - pn_lp_loss_db(w0, mid)) >= target) hi = mid; else lo = mid;
+    }
+    return 0.5f * (lo + hi);
+}
+
 // STRETCHED-TUNING SEAM (Feynman / Railsback). A real piano tunes the FUNDAMENTALS stretched — bass
 // flat, treble sharp — so the stiff string's inharmonic (sharp) upper partials AGREE across notes
 // instead of clashing (that clash is what makes plain dispersion read as "sour metal", not piano).
@@ -5765,7 +5806,11 @@ static void sound_piano_start(Voice *v) {
     // intended stretch (synth-secrets-plan.md §I4d). Put that advance back. Exact phase at the note's own
     // frequency, at the SETTLED brightness (the strike's brighter bloom relaxes into it in ~0.3 s).
     float pn_adv = pn_blend_advance(freq, PIANO_BRIGHT[vi]);
-    float ideal = (float)SOUND_SAMPLE_RATE / freq - pn_comp + pn_adv;   // one period, allpass for the remainder
+    // HF LOSS filter (PIANO_HFLOSS): its phase delay at the fundamental comes OUT of the line too, like pn_comp.
+    v->pn_lfp = pn_solve_hfloss(freq, PIANO_HFLOSS[vi]);
+    v->pn_lf = v->pn_lf2 = 0.0f;
+    float pn_lfd = (v->pn_lfp > 0.0f) ? pn_lp_delay(6.28318531f * freq / (float)SOUND_SAMPLE_RATE, v->pn_lfp) : 0.0f;
+    float ideal = (float)SOUND_SAMPLE_RATE / freq - pn_comp + pn_adv - pn_lfd;   // one period, allpass for the remainder
     int len = (int)ideal;
     if (len > SOUND_KS_MAX - 1) len = SOUND_KS_MAX - 1;
     if (len < 2) len = 2;
@@ -5836,7 +5881,8 @@ static void sound_piano_start(Voice *v) {
     v->pn_dc_prev = v->pn_dc_state = 0.0f;
     if (pv->detune > 1.00001f) {                       // 2nd string: own detuned length + allpass
         float ideal2 = (float)SOUND_SAMPLE_RATE / (freq * pv->detune) - pn_comp
-                     + pn_blend_advance(freq * pv->detune, PIANO_BRIGHT[vi]);   // SAME compensation (+ §I4d)
+                     + pn_blend_advance(freq * pv->detune, PIANO_BRIGHT[vi])    // SAME compensation (+ §I4d)
+                     - ((v->pn_lfp > 0.0f) ? pn_lp_delay(6.28318531f * freq * pv->detune / (float)SOUND_SAMPLE_RATE, v->pn_lfp) : 0.0f);
         int len2 = (int)ideal2;
         if (len2 > SOUND_KS_MAX - 1) len2 = SOUND_KS_MAX - 1;
         if (len2 < 2) len2 = 2;
@@ -5880,6 +5926,7 @@ static inline float sound_piano_sample(Voice *v, float pitch_mul) {
     float blended = (cur + nxt) * 0.5f;
     blended += (cur - blended) * ksb;        // brightness keeps the highs (the presence lever)
     float filt = blended * effDamp;
+    if (v->pn_lfp > 0.0f) { v->pn_lf = filt + v->pn_lfp * (v->pn_lf - filt); filt = v->pn_lf; }   // HF LOSS (PIANO_HFLOSS)
     v->ks_last = filt;
     for (int i = 0; i < v->pn_disp_n; i++) {        // dispersion (inharmonicity)
         float c = v->pn_disp_c[i];
@@ -5906,6 +5953,7 @@ static inline float sound_piano_sample(Voice *v, float pitch_mul) {
         float bl2 = (c2 + n2) * 0.5f;
         bl2 += (c2 - bl2) * ksb;
         float ft2 = bl2 * effDamp;
+        if (v->pn_lfp > 0.0f) { v->pn_lf2 = ft2 + v->pn_lfp * (v->pn_lf2 - ft2); ft2 = v->pn_lf2; }
         v->pn_ks2_last = ft2;
         for (int i = 0; i < v->pn_disp_n; i++) {
             float c = v->pn_disp_c[i];

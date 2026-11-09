@@ -322,6 +322,7 @@ typedef struct {
     // allpass tuning, per-voicing brightness/damping.
     float  pn_ksb, pn_ksd;              // ksBrightness (high-harmonic retention) + ksDamping (≈0.999)
     float  pn_ksb_cur;                  // brightness ENVELOPE: strikes bright, settles to pn_ksb (the piano "bloom")
+    float  pn_lfp, pn_lf, pn_lf2;       // HF LOSS filter in the loop (1-pole LP coeff + per-string state; 0 = off). PIANO_HFLOSS
     float  pn_apc, pn_aps;              // fractional-delay allpass coeff + state (pitch tuning)
     float  pn_initf;                    // freq at note-on (pitch-tracking reference)
     float  pn_dampg, pn_damps;          // damper gain (pedal) + slewed state

@@ -190,6 +190,19 @@ bell going silent and returning, the bass echoing the drum, the rubber band pull
 Because a biome is 153 numbers, any generation is a ~500-character snapshot: the obvious next step is
 to show or save the current genome so a moment of the walk can be kept or shared.
 
+**The world atlas** (Clave, Bembe and Aksak Atlas) is built only from rhythms Godfried Toussaint showed
+are exactly Euclidean ("The Euclidean Algorithm Generates Traditional Musical Rhythms", 2005), each
+track named for its rhythm with its origin under it (`JamCfg.from[]`). The rotation of our `md_hit`
+that reproduces each traditional form was found by enumeration (the bembe bell `x.x.xx.x.x.x` is
+rotation 7 of E(7,12), the cinquillo `x.xx.xx.` rotation 2 of E(5,8), the bossa clave rotation 10 of
+E(5,16)...). **Clave Atlas**, 16 pulses: tresillo E(3,8), bossa clave E(5,16), cinquillo E(5,8), samba
+E(7,16), a Central African E(9,16), calypso E(3,4); I-IV-V-IV in C. **Bembe Atlas**, 12 pulses (a 12/8):
+the Ghanaian bell E(7,12) on a two-tone bell, the dancers' four E(4,12) on a djembe, the Venda clap
+E(5,12), the Aka people's E(13,24) shaker and E(11,24) balafon line, a three-pulse bass E(3,12) against
+the four. **Aksak Atlas**, odd cycles on one pulse: aksak E(4,9), ruchenitsa E(3,7), nawakhat E(5,7),
+khafif-e-ramal E(2,5), agsag-samai E(5,9), Zappa's "Outside Now" E(4,11), in Hijaz Kar on D. Each
+enters a phrase at a time, so the rhythms are heard alone before they stack.
+
 Mipo Band's triangle was a single pitch and got old; a lone BELL now wanders with the jump macro
 like a melody (a bell in a `pair`, Slow Brew's agogo, still keeps its two pitches). Note the cart
 clamps melodic notes to 24..96 (quantize), which had been pinning the triangle at 96.

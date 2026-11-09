@@ -9,7 +9,7 @@
   "lineage": "A port of the BIOME atlas from Mutable Dreams 1.4 (Kid Bunka / Christoph Link, free firmware for the M-VAVE FM-1, itself built on Mutable Instruments' Plaits/Rings/Elements). The 157 scenes are the upstream's own factory data (MIT), generated into runtime/dreamatlas/biomes.h; the sequencer (Euclid hits/length/rotate per track, seeded rolls, chord journeys, scale masks, the Lo-Fi kit) is ported line by line from app/dsp/dreams.cpp. The fifteen VOICES are NOT ported: each is mapped onto the nearest engine dreamengine already ships, which is the experiment.",
   "homage": "Mutable Dreams (Kid Bunka) / Mutable Instruments",
   "description": {
-    "summary": "157 small generative worlds from Mutable Dreams, plus a few of our own (a house jam, a tabla-and-guiro bazaar, Moon Meadow with tablas, a slow organ-and-upright brew, the Puppetmaker band, a CR-78 bossa, and one that evolves by itself): six drifting Euclidean tracks, chord journeys and a Lo-Fi kit, played on dreamengine's own voices.",
+    "summary": "157 small generative worlds from Mutable Dreams, plus a few of our own (a house jam, a tabla-and-guiro bazaar, Moon Meadow with tablas, a slow organ-and-upright brew, the Puppetmaker band, a CR-78 bossa, one that evolves by itself, and a world-rhythm atlas): six drifting Euclidean tracks, chord journeys and a Lo-Fi kit, played on dreamengine's own voices.",
     "detail": "Each BIOME is one scene: six tracks, each a voice (Plaits-style drums, FM, analog, Rings and Elements resonators, a sine choir, a round bass...) with its OWN rhythm, k hits spread over n steps. The lengths differ (16, 19, 13...), so the tracks slide against each other and the loop takes minutes to come round. Some biomes walk a chord progression under it, some swap three tracks for a crunchy 16 kHz Lo-Fi drum kit. Browse in the curated order: neighbours are meant to feel genuinely different. The scenes are the original's factory data; the sounds are this engine's nearest voices, so it is a translation, not a copy.",
     "controls": "LEFT/RIGHT or the arrows: next / previous biome · SPACE or PLAY: start / stop · 1-6: mute a track · tap a track row to mute it"
   },
@@ -155,7 +155,19 @@ _Static_assert(M_CRKICK == 23 && M_NYLON == 26, "the CR-78 Bossa row names its m
 // tone nudge, or one track taking another's rhythm a step behind (a canon). A quarter of the time
 // it moves one changed value back toward HOME instead (a rubber band, so it walks somewhere without
 // dissolving), at least three tracks always sound, and no note strays past a fifth from home.
-#define DA_OWN 7
+// THE WORLD ATLAS: three biomes built only from rhythms Toussaint showed are exactly Euclidean, each
+// track named for its rhythm and where it comes from. CLAVE ATLAS (16 pulses, Cuba and Brazil): the
+// tresillo E(3,8) on the upright, the bossa clave E(5,16) on the CR-78 rim, the cinquillo E(5,8) on
+// the guiro, samba E(7,16) on a two-tone agogo, a Central African E(9,16) on the maracas, calypso
+// E(3,4) as Velvet stabs; I-IV-V-IV in C. BEMBE ATLAS (12 pulses, a 12/8): the Ghanaian bell E(7,12)
+// (x.x.xx.x.x.x, the standard bell) on a two-tone bell like a gankogui, the dancers' four E(4,12) on a
+// djembe, the Venda clap E(5,12), the Aka people's E(13,24) on a shaker and E(11,24) as a balafon line,
+// and a three-pulse bass E(3,12) against the djembe's four. AKSAK ATLAS (odd cycles on one pulse,
+// drifting apart and meeting again): aksak E(4,9) (Turkey) on a darbuka, ruchenitsa E(3,7)
+// (Bulgaria) on a low drum, nawakhat E(5,7) (Arabic) on a riq, khafif-e-ramal E(2,5) (Persia) on the
+// upright, agsag-samai E(5,9) (Arabic) as a Rings line, Zappa's "Outside Now" E(4,11) on Velvet keys,
+// in Hijaz Kar (double harmonic major) on D.
+#define DA_OWN 10
 #define DA_ALL (DA_BIOMES + DA_OWN)
 static const DaBiome DA_OWN_BIOME[DA_OWN] = {
  {"Marmalade Jam",8,125,7,2,125125,0,0,650,200,100,0,120,0,0,0,380,300,{500,260,520,60},{
@@ -207,6 +219,27 @@ static const DaBiome DA_OWN_BIOME[DA_OWN] = {
   /* bass    */ {8,300,400,250,90,0,2,9,0,900,38,500,0,1,0,1,200,500,700,200,1,0},
   /* keys    */ {12,400,250,500,60,250,2,11,0,850,62,380,0,1,0,1,200,350,800,100,0,150},
   /* bell    */ {20,600,600,300,630,300,1,13,0,900,81,560,0,1,0,1,150,300,850,100,0,0}}},
+ {"Clave Atlas",6,104,0,2,31616,0,0,650,200,100,0,100,0,0,-1,0,300,{500,150,500,60},{
+  /* tresillo  E(3,8)  */ {17,300,300,350,400,0,3,8,0,950,36,480,0,1,0,1,250,450,850,100,0,0},
+  /* bossa     E(5,16) */ {24,0,0,0,800,80,5,16,10,950,90,440,0,1,0,1,0,0,850,100,0,0},
+  /* cinquillo E(5,8)  */ {16,870,0,350,420,40,5,8,2,900,60,360,0,1,0,1,200,0,850,100,0,0},
+  /* samba     E(7,16) */ {20,700,850,80,450,150,7,16,0,900,88,640,0,1,0,1,300,200,850,100,0,0},
+  /* C.Africa  E(9,16) */ {25,0,0,0,140,40,9,16,6,900,90,600,0,1,0,1,300,0,850,100,0,0},
+  /* calypso   E(3,4)  */ {12,400,250,400,50,200,3,4,0,850,64,380,0,2,0,1,200,350,800,100,0,150}}},
+ {"Bembe Atlas",6,90,7,5,71212,0,0,650,200,100,0,0,0,0,-1,0,300,{500,250,500,60},{
+  /* djembe    E(4,12) */ {15,550,850,450,900,0,4,12,0,950,45,500,0,1,0,1,250,220,850,100,0,0},
+  /* bell      E(7,12) */ {20,750,900,60,450,120,7,12,7,950,84,620,0,1,0,1,300,200,850,100,0,0},
+  /* Venda     E(5,12) */ {1,500,850,250,250,100,5,12,0,900,50,420,0,1,0,1,200,150,850,100,0,0},
+  /* Aka       E(13,24)*/ {25,0,0,0,140,40,13,24,10,900,90,580,0,1,0,1,300,0,850,100,0,0},
+  /* balafon   E(11,24)*/ {5,600,150,350,450,260,11,24,0,850,67,660,0,1,0,1,200,150,850,100,0,120},
+  /* bass      E(3,12) */ {8,300,400,250,90,0,3,12,0,950,43,500,0,1,0,1,200,500,700,200,1,0}}},
+ {"Aksak Atlas",6,80,2,12,94949,0,0,650,200,100,0,0,0,0,-1,0,300,{500,300,500,60},{
+  /* aksak     E(4,9)  */ {15,650,500,300,750,40,4,9,3,950,50,480,0,1,0,1,250,100,850,100,0,0},
+  /* ruchenitsa E(3,7) */ {15,200,700,500,900,0,3,7,3,950,38,520,0,1,0,1,250,300,850,100,0,0},
+  /* nawakhat  E(5,7)  */ {21,0,0,220,280,60,5,7,0,900,60,600,0,1,0,1,250,0,850,100,0,0},
+  /* khafif    E(2,5)  */ {17,300,300,400,400,0,2,5,3,950,38,480,0,1,0,1,250,450,850,100,0,0},
+  /* agsag     E(5,9)  */ {5,600,250,300,450,220,5,9,0,850,62,640,0,1,0,1,200,150,850,100,0,120},
+  /* Zappa     E(4,11) */ {12,400,250,450,50,220,4,11,0,850,74,380,0,1,0,1,200,350,800,100,0,150}}},
 };
 // how each of our biomes JAMS (Playtime's drum jam): the order its layers enter, who may rest a
 // phrase, who a breakdown takes out, which track plays the phrase-end fill, which lets go before the one
@@ -220,6 +253,7 @@ typedef struct { int chord_pattern, chord_tracks, build[6], rest[4], break_mask,
                                             // still rolls the track's chance, as a factory phrase does
                  signed char gtr[3];        // the guitar's chord, scale degrees over the root (0,0,0 = 2 4 7)
                  int evolve;                // 1 = no layer arranger: the biome MUTATES itself every 4 bars
+                 const char *from[6];       // where a track's rhythm comes from, shown under its name
                } JamCfg;
 static const JamCfg DA_OWN_JAM[DA_OWN] = {
     { 2, 0x38, {0, 1, 3, 2, 5, 4}, {1, 2, 4, 5}, 1 << 0 | 1 << 2 | 1 << 3, 2, 1,     // Marmalade: I-vi-IV-V
@@ -238,6 +272,17 @@ static const JamCfg DA_OWN_JAM[DA_OWN] = {
       { 2, 6, 8 } },                                                                           // 3 7 9, rootless
     { 0, 0,    {0, 1, 2, 3, 4, 5}, {0}, 0, -1, -1,                                     // Drift Garden: it evolves
       { "DRUM", "SHAKER", "RINGS", "BASS", "KEYS", "BELL" }, {0}, 0, 0, {0}, {0}, {0}, 1 },
+    // the world atlas (Toussaint, "The Euclidean Algorithm Generates Traditional Musical Rhythms", 2005):
+    // every track is E(hits, steps) at the rotation that reproduces the traditional form exactly
+    { 1, 0x21, {1, 0, 3, 2, 4, 5}, {2, 3, 4, 5}, 1 << 0 | 1 << 5, 2, 4,                // Clave Atlas: I-IV-V-IV
+      { "TRESILLO", "BOSSA CLAVE", "CINQUILLO", "SAMBA", "E(9,16)", "CALYPSO" }, { 0, 3, 4, 3 }, 4, 1,
+      { 0, 0, 0, -5, 0, 0 }, {0}, {0}, 0, { "Cuba", "Brazil", "Cuba", "Brazil", "C.Africa", "Trinidad" } },
+    { 0, 0,    {1, 0, 2, 5, 3, 4}, {2, 3, 4, 5}, 1 << 0 | 1 << 5, 2, 3,                // Bembe Atlas: 12/8, no chords
+      { "DJEMBE FEET", "BEMBE BELL", "VENDA CLAP", "AKA SHAKER", "AKA BALAFON", "THREE PULSE" }, {0}, 0, 0,
+      { 0, -5, 0, 0, 0, 0 }, {0}, {0}, 0, { "the four", "Ghana", "S.Africa", "C.Africa", "C.Africa", "3 vs 4" } },
+    { 0, 0,    {0, 1, 3, 2, 4, 5}, {2, 3, 4, 5}, 1 << 0 | 1 << 1, 0, 2,                // Aksak Atlas: odd cycles, Hijaz Kar
+      { "AKSAK", "RUCHENITSA", "NAWAKHAT", "KHAFIF", "AGSAG-SAMAI", "OUTSIDE NOW" }, {0}, 0, 0,
+      {0}, {0}, {0}, 0, { "Turkey", "Bulgaria", "Arabic", "Persia", "Arabic", "Zappa" } },
 };
 static const DaBiome *biome_row(int id) { return id < DA_BIOMES ? &DA_BIOME[id] : &DA_OWN_BIOME[id - DA_BIOMES]; }
 static int browse_id(int k) { return k < DA_BIOMES ? DA_BROWSE[k] : k; }   // ours come last, in order
@@ -1153,8 +1198,12 @@ void draw(void) {
         const char *label = S.jam && DA_OWN_JAM[S.jam - 1].names[i] ? DA_OWN_JAM[S.jam - 1].names[i] : MODEL_NAME[tr->model];
         print(gone ? "(kit)" : is_kit ? "LO-FI KIT" : label, 18, y + 1, nc);
         if (is_kit) print(KIT_NAME[S.kit_bank], 18, y + 9, CLR_DARK_GREY);
-        else if (!gone) print(S.seq_on[i] ? "phrase" : str("%d in %d", bound(tr->hits + (S.b.macro[0] - 500) * tr->length / 1500, 0, tr->length), tr->length),
-                              18, y + 9, CLR_DARK_GREY);
+        else if (!gone) {
+            const char *from = S.jam ? DA_OWN_JAM[S.jam - 1].from[i] : 0;
+            int hh = bound(tr->hits + (S.b.macro[0] - 500) * tr->length / 1500, 0, tr->length);
+            print(S.seq_on[i] ? "phrase" : from ? str("%d in %d %s", hh, tr->length, from) : str("%d in %d", hh, tr->length),
+                  18, y + 9, CLR_DARK_GREY);
+        }
         if (gone) continue;
         // the track's own cycle: lit = a hit, the bright one = where it is now
         int len = is_kit ? 16 : S.seq_on[i] ? S.seq_len[i] : tr->length; if (len < 1) len = 1;

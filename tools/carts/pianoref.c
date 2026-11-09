@@ -44,6 +44,9 @@ de:meta */
 #ifndef PR_HYBRID
 #define PR_HYBRID 1             // 1 = the HYBRID: the real Steinway attack, then the modelled string (instrument_piano_attack)
 #endif
+#ifndef PR_LATE
+#define PR_LATE 1               // 1 = hand over LATE (the recording to 2.6 s, then a 0.5 s fade into the model); 0 = the short per-register splice
+#endif
 
 static int f = -1, held = -1;
 
@@ -106,7 +109,8 @@ void init(void) {
 #if PR_HYBRID
     load_samples();             // the 13 recordings (also the listen-mode reference)
     if (samples_ok)
-        for (int z = 0; z < NZ; z++) instrument_piano_attack(5, z, 24 + 6 * z, ZSPLICE[z], ZXFADE[z]);
+        for (int z = 0; z < NZ; z++)
+            instrument_piano_attack(5, z, 24 + 6 * z, PR_LATE ? 2600 : ZSPLICE[z], PR_LATE ? 500 : ZXFADE[z]);
 #endif
 }
 

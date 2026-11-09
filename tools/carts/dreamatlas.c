@@ -9,7 +9,7 @@
   "lineage": "A port of the BIOME atlas from Mutable Dreams 1.4 (Kid Bunka / Christoph Link, free firmware for the M-VAVE FM-1, itself built on Mutable Instruments' Plaits/Rings/Elements). The 157 scenes are the upstream's own factory data (MIT), generated into runtime/dreamatlas/biomes.h; the sequencer (Euclid hits/length/rotate per track, seeded rolls, chord journeys, scale masks, the Lo-Fi kit) is ported line by line from app/dsp/dreams.cpp. The fifteen VOICES are NOT ported: each is mapped onto the nearest engine dreamengine already ships, which is the experiment.",
   "homage": "Mutable Dreams (Kid Bunka) / Mutable Instruments",
   "description": {
-    "summary": "157 small generative worlds from Mutable Dreams, plus a few of our own (a house jam, a tabla-and-guiro bazaar, Moon Meadow with tablas): six drifting Euclidean tracks, chord journeys and a Lo-Fi kit, played on dreamengine's own voices.",
+    "summary": "157 small generative worlds from Mutable Dreams, plus a few of our own (a house jam, a tabla-and-guiro bazaar, Moon Meadow with tablas, a slow organ-and-upright brew): six drifting Euclidean tracks, chord journeys and a Lo-Fi kit, played on dreamengine's own voices.",
     "detail": "Each BIOME is one scene: six tracks, each a voice (Plaits-style drums, FM, analog, Rings and Elements resonators, a sine choir, a round bass...) with its OWN rhythm, k hits spread over n steps. The lengths differ (16, 19, 13...), so the tracks slide against each other and the loop takes minutes to come round. Some biomes walk a chord progression under it, some swap three tracks for a crunchy 16 kHz Lo-Fi drum kit. Browse in the curated order: neighbours are meant to feel genuinely different. The scenes are the original's factory data; the sounds are this engine's nearest voices, so it is a translation, not a copy.",
     "controls": "LEFT/RIGHT or the arrows: next / previous biome · SPACE or PLAY: start / stop · 1-6: mute a track · tap a track row to mute it"
   },
@@ -42,9 +42,11 @@ de:meta */
 // ── upstream constants ───────────────────────────────────────────────────────
 enum { M_KICK, M_SNARE, M_HAT, M_FM, M_VA, M_RINGS, M_HARMONIC, M_CHOIR, M_BASS, M_ELEMENTS,
        M_MELLOW, M_SATIN, M_VELVET, M_SPECTRAL, M_BREATH,
-       M_TABLA, M_SCRAPE, M_MODELS };   // the last two are OURS (no upstream model): only our own biomes use them
+       M_TABLA, M_SCRAPE, M_UPRIGHT, M_ORGAN, M_GUITAR, M_BELL,
+       M_MODELS };   // from M_TABLA on they are OURS (no upstream model): only our own biomes use them
 static const char *const MODEL_NAME[M_MODELS] = { "KICK", "SNARE", "HAT", "FM", "ANALOG", "RINGS", "HARMONIC",
-    "CHOIR", "BASS", "ELEMENTS", "MELLOW", "SATIN", "VELVET KEYS", "SPECTRAL", "BREATH", "TABLA", "SCRAPE" };
+    "CHOIR", "BASS", "ELEMENTS", "MELLOW", "SATIN", "VELVET KEYS", "SPECTRAL", "BREATH", "TABLA", "SCRAPE",
+    "UPRIGHT", "ORGAN", "GUITAR", "BELL" };
 static const char *const KIT_NAME[5] = { "DUST", "CRATE", "SOFT", "FOUND OBJECTS", "VELOUR TAPE" };
 static const char *const SCALE_NAME[13] = { "chromatic", "minor", "major", "dorian", "minor pent", "major pent",
     "whole tone", "phrygian", "ukr dorian", "harm minor", "dbl harm min", "harm major", "dbl harm maj" };
@@ -117,7 +119,17 @@ static Scene S;
 // the ambient sends and tides), and its other three tracks swapped for a low tabla, a high tabla
 // and a soft fading scrape. It jams gently: the mist first, the percussion one phrase at a time,
 // and its breakdown takes only the percussion away.
-#define DA_OWN 3
+// SLOW BREW is Playtime's brew style (its src/music-brew.lua, after Ronnie Foster) broken into
+// cycles, on brew's own instruments copied from Playtime's synth.lua patches: the bapKick drumhead,
+// the snare, the agogo-like bell pair (high and low in turn), hUpright (the finger-plucked upright),
+// brewOrgan (thin tonewheel registration through a slow Leslie) and brewGuitar. Brew's key (F minor),
+// tempo and its one-chord-a-bar i-III-VI; NOT its riff: the bass is 13 hits over 24 eighths (a
+// 3-bar cycle, as brew's riff is) wandering in the scale. The organ voices each chord ROOTLESS (3rd,
+// 5th, 7th, 9th: Fm9, Abmaj9, Dbmaj9, brew's colours) every three beats; the guitar strums small
+// shapes on a 10-eighth (5/4) cycle; the agogo plays 5 in 12. The bar, the bells' three-against-
+// four, the organ's dotted halves and the guitar's fives meet again only every few bars; the bass
+// and the chords every 3. The bells keep time where brew has a hat (six tracks).
+#define DA_OWN 4
 #define DA_ALL (DA_BIOMES + DA_OWN)
 static const DaBiome DA_OWN_BIOME[DA_OWN] = {
  {"Marmalade Jam",8,125,7,2,125125,0,0,650,200,100,0,120,0,0,0,380,300,{500,260,520,60},{
@@ -141,14 +153,29 @@ static const DaBiome DA_OWN_BIOME[DA_OWN] = {
   /* bayan   */ {15,250,150,650,1000,250,3,16,0,850,36,420,0,1,0,1,200,650,850,100,0,0},
   /* dayan   */ {15,500,80,500,900,300,7,16,2,650,60,620,0,1,0,1,300,150,850,100,0,0},
   /* scrape  */ {16,600,200,500,700,400,3,16,4,700,60,720,0,1,0,1,150,550,850,100,0,0}}},
+ {"Slow Brew",9,98,5,1,98989,0,0,650,200,100,0,150,0,0,-1,0,300,{500,350,500,60},{
+  /* kick    (bapKick)   */ {15,50,100,485,1000,0,5,16,0,900,36,500,0,1,0,1,200,0,850,100,0,0},
+  /* snare               */ {1,450,750,300,350,120,2,16,4,1000,50,470,0,1,0,1,150,150,850,100,0,0},
+  /* agogo   (brewBell)  */ {20,700,850,160,450,150,5,12,0,900,92,650,0,1,0,1,300,200,850,100,0,0},
+  /* upright (hUpright)  */ {17,300,300,350,800,0,13,24,0,900,41,480,0,2,0,1,250,450,850,100,0,0},
+  /* organ   (brewOrgan) */ {18,600,100,700,450,200,2,6,0,1000,53,400,0,4,0,1,100,250,850,100,0,0},
+  /* guitar  (brewGuitar)*/ {19,220,400,500,500,150,3,10,0,850,60,600,0,2,0,1,200,100,850,100,0,0}}},
 };
 // how each of our biomes JAMS (Playtime's drum jam): the order its layers enter, who may rest a
 // phrase, who a breakdown takes out, which track plays the phrase-end fill, which lets go before the one
-typedef struct { int chord_pattern, chord_tracks, build[6], rest[4], break_mask, fill, letgo; } JamCfg;
+// names[] relabels the tracks (a drumhead playing a kick reads KICK); prog[] is an own chord cycle
+// (scale degrees, prog_bars bars each) in place of a JOURNEY pattern, for a cycle of any length
+typedef struct { int chord_pattern, chord_tracks, build[6], rest[4], break_mask, fill, letgo;
+                 const char *names[6]; signed char prog[8]; int prog_len, prog_bars; } JamCfg;
 static const JamCfg DA_OWN_JAM[DA_OWN] = {
-    { 2, 0x38, {0, 1, 3, 2, 5, 4}, {1, 2, 4, 5}, 1 << 0 | 1 << 2 | 1 << 3, 2, 1 },   // Marmalade: I-vi-IV-V
-    { 1, 0x18, {0, 2, 3, 1, 4, 5}, {1, 2, 4, 5}, 1 << 0 | 1 << 3,          1, 2 },   // Bazaar: i-IV-i-v
-    { 0, 0,    {0, 2, 1, 3, 5, 4}, {1, 3, 4, 5}, 1 << 3 | 1 << 4 | 1 << 5, 4, 5 },   // Moon Garden: no chords, as Moon Meadow
+    { 2, 0x38, {0, 1, 3, 2, 5, 4}, {1, 2, 4, 5}, 1 << 0 | 1 << 2 | 1 << 3, 2, 1,     // Marmalade: I-vi-IV-V
+      { "KICK", "HAT", "CLAP", "BASS", "PLUCK", "KEYS" } },
+    { 1, 0x18, {0, 2, 3, 1, 4, 5}, {1, 2, 4, 5}, 1 << 0 | 1 << 3,          1, 2,     // Bazaar: i-IV-i-v
+      { "BAYAN", "DAYAN", "GUIRO", "BASS", "MARIMBA", "QUIJADA" } },
+    { 0, 0,    {0, 2, 1, 3, 5, 4}, {1, 3, 4, 5}, 1 << 3 | 1 << 4 | 1 << 5, 4, 5,     // Moon Garden: no chords, as Moon Meadow
+      { "CHOIR", "DRONE", "RINGS", "BAYAN", "DAYAN", "SCRAPE" } },
+    { 1, 0x38, {0, 1, 2, 3, 4, 5}, {2, 3, 4, 5}, 1 << 3 | 1 << 4 | 1 << 5, 1, 2,     // Slow Brew: i-III-VI, a bar each
+      { "KICK", "SNARE", "AGOGO", "UPRIGHT", "ORGAN", "GUITAR" }, { 0, 2, 5 }, 3, 1 },
 };
 static const DaBiome *biome_row(int id) { return id < DA_BIOMES ? &DA_BIOME[id] : &DA_OWN_BIOME[id - DA_BIOMES]; }
 static int browse_id(int k) { return k < DA_BIOMES ? DA_BROWSE[k] : k; }   // ours come last, in order
@@ -175,6 +202,10 @@ static int chord_offset(void) {
     static const int iv[13][7] = {{0,2,4,5,7,9,11},{0,2,3,5,7,8,10},{0,2,4,5,7,9,11},{0,2,3,5,7,9,10},{0,2,3,5,7,8,10},
         {0,2,4,5,7,9,11},{0,2,4,6,8,10,12},{0,1,3,5,7,8,10},{0,2,3,6,7,9,10},{0,2,3,5,7,8,11},{0,2,3,6,7,8,11},
         {0,2,4,5,7,8,11},{0,1,4,5,7,8,11}};
+    if (S.jam && DA_OWN_JAM[S.jam - 1].prog_len) {      // one of ours with its own chord cycle
+        const JamCfg *j = &DA_OWN_JAM[S.jam - 1];
+        return iv[bound(S.b.scale, 0, 12)][j->prog[(step / (16 * j->prog_bars)) % j->prog_len]];
+    }
     int p = S.chord_pattern;
     int d = JOURNEY[p][(step / (16 * S.chord_bars)) % (p > 4 ? 8 : 4)];
     return iv[bound(S.b.scale, 0, 12)][d];
@@ -366,7 +397,8 @@ static int env_decay_ms(int i) {  // upstream: exponential, time constant .06 + 
 static const float VOICE_TRIM_DB[M_MODELS] = {
     /* KICK SNARE HAT */ 3.4f, 5.0f, 3.9f,  /* FM VA RINGS */ 6.0f, 2.7f, -1.7f,
     /* HARMONIC CHOIR BASS */ 9.4f, -5.8f, 0,  /* ELEMENTS MELLOW SATIN */ 0, 0, 0,
-    /* VELVET SPECTRAL BREATH */ 3.3f, 0, 3.2f,  /* TABLA SCRAPE: ours, no upstream to fit */ 0, 0 };
+    /* VELVET SPECTRAL BREATH */ 3.3f, 0, 3.2f,  /* TABLA SCRAPE: ours, no upstream to fit */ 0, 0,
+    /* UPRIGHT ORGAN GUITAR BELL: ours */ 0, 0, 0, 0 };
 
 // ── KICK: Plaits' AnalogBassDrum, PORTED (Emilie Gillet, MIT), the trigger path only ─────────
 // Mapping it onto INSTR_SINE gave a sustained thump with no click, 20 dB too loud in the balance.
@@ -522,6 +554,17 @@ static void config_track(int i) {
         instrument_unison(sl, 1, 0); instrument_sync(sl, 0);
     }
     instrument_level(l, 0);
+    // our models set per-engine modes, mono, vibrato and a Leslie, which a factory model never
+    // touches: put a slot back at the defaults when it holds, or held, one of ours (factory renders
+    // stay byte-identical: a slot that only ever held factory models is never touched here)
+    static int held_ours[6], had_leslie[6];
+    if (m >= M_TABLA || held_ours[i]) {
+        static const float mode_default[7] = { 0, 0, .5f, .5f, .5f, .5f, 0 };   // as Playtime's MODE_DEFAULTS
+        for (int k = 0; k < 7; k++) instrument_mode(s, k, mode_default[k]);
+        instrument_mono(s, 0); instrument_vibrato(s, 1);
+        if (had_leslie[i] && m != M_ORGAN) { instrument_leslie(s, 1, 0, .5f, 0, 0); had_leslie[i] = 0; }
+    }
+    held_ours[i] = m >= M_TABLA;
     switch (m) {
     case M_KICK:      // Plaits analog bass drum, ported above and rendered to sample slot 8+i
         kick_render(i, t->note, tone * (.65f + .35f * tone), dec, harm * .75f);
@@ -589,6 +632,26 @@ static void config_track(int i) {
     case M_SCRAPE:    // INSTR_SCRAPE: harm = BODY (gourd guiro → bone quijada → metal cabasa), tone =
                       // TOOTH RATE, shape = GESTURE (steady scrape → bouncing rattle), decay = stroke length
         instrument(s, INSTR_SCRAPE, 0, 0, 7, 30);
+        instrument_harmonics(s, harm); instrument_timbre(s, tone); instrument_morph(s, shape); break;
+    // ── brew's instruments, copied from Playtime's synth.lua patches (the row's knobs ARE the patch) ──
+    case M_UPRIGHT:   // hUpright: the bowed engine plucked by a FINGER on the double-bass body, dark, mono
+        instrument(s, INSTR_BOWED, 4, 0, 7, 475);
+        instrument_harmonics(s, harm); instrument_timbre(s, shape * .67f); instrument_morph(s, shape);
+        instrument_mode(s, 0, 1); instrument_mode(s, 1, .85f); instrument_mode(s, 2, 1); instrument_mode(s, MODE_BOW_PLUCK, 1);
+        instrument_mono(s, 1); instrument_vibrato(s, 0);
+        instrument_filter(s, FILTER_LOW, 200 + (int)(tone * 500), 3); break;          // tone .3 = brew's 350 Hz
+    case M_ORGAN:     // brewOrgan: the thin tonewheel registration, scanner chorus, 1.2 kHz, a slow Leslie
+        instrument(s, INSTR_ORGAN, 12, 0, 7, 220);
+        instrument_harmonics(s, harm); instrument_timbre(s, tone); instrument_morph(s, shape);
+        instrument_filter(s, FILTER_LOW, 1200, 0);
+        instrument_leslie(s, 1, .1f, .5f, .2f, .5f); had_leslie[i] = 1; break;
+    case M_GUITAR:    // brewGuitar: the guitar engine, small open shapes, 1.9 kHz
+        instrument(s, INSTR_GUITAR, 2, 0, 7, 900);
+        instrument_harmonics(s, harm); instrument_timbre(s, tone); instrument_morph(s, shape);
+        instrument_mode(s, 0, .7f); instrument_mode(s, 1, .12f);
+        instrument_filter(s, FILTER_LOW, 1900, 0); break;
+    case M_BELL:      // brewBell: a mallet in bell material, ~150 ms rings, inharmonic overtones
+        instrument(s, INSTR_MALLET, 0, 160, 0, 80);
         instrument_harmonics(s, harm); instrument_timbre(s, tone); instrument_morph(s, shape); break;
     default:          // BREATH: a pitched sine reed crossfaded (harm) with lowpassed air
         instrument(s, INSTR_SINE, A, D, 0, 120); instrument_level(s, 1 - harm);
@@ -695,6 +758,10 @@ static void fire(int i, int note, float vel, double t, int gate_ms) {
     float du = unit(tr->decay);
     if (m == M_TABLA)  dur = (int)(55 * powf(1800.0f / 55, du));   // the tabla cart's RING: the hit IS the gate
     if (m == M_SCRAPE) dur = (int)(40 * powf(20, du));             // 40 ms tick .. 800 ms long scrape
+    if (m == M_UPRIGHT) dur = (int)(80 * powf(15, du));            // a stopped 8th .. a ringing note
+    if (m == M_ORGAN)  dur = (int)(200 * powf(12, du));            // chords held toward the next
+    if (m == M_GUITAR) dur = (int)(150 * powf(12, du));
+    if (m == M_BELL)   dur = 200;
     // Breathe: a 7..20 s sine per track that drifts the cutoff; sampled at the note (their drift
     // is continuous, ours lands per note). Tides on ambient tracks add a second, slower sway.
     float ph = (float)fmod(t / (7.0 + i * 2.3) + i * .137, 1.0);
@@ -708,6 +775,19 @@ static void fire(int i, int note, float vel, double t, int gate_ms) {
     if (m == M_KICK) o.gain = (3 + 7 * vel) / 10;   // Plaits: accent sets the pulse height 3+7a
     if (m == M_SNARE) o.gain = snare_gain;          // rendered at accent .8; upstream drums ignore velocity in the mix
     o.cutoff_oct = (breathe * .13f + tide * .2f) * 7.0f;
+    if (m == M_ORGAN || m == M_GUITAR) {   // brew's chords: the organ ROOTLESS (3 5 7 9), the guitar a small shape
+        static const int organ_deg[4] = { 2, 4, 6, 8 }, guitar_deg[3] = { 2, 4, 7 };
+        const int *dg = m == M_ORGAN ? organ_deg : guitar_deg; int nd = m == M_ORGAN ? 4 : 3;
+        for (int k = 0; k < nd; k++) {
+            int n = note; for (int st = 0; st < dg[k]; st++) { n++; while (quantize(n, S.b.root, S.b.scale) != n) n++; }
+            NoteOpts c = o; c.gain = o.gain * (m == M_ORGAN ? .7f : .75f);
+            // the organ's keys together a hair behind, the guitar a quick down-strum (Playtime's feel)
+            double at = t + (m == M_ORGAN ? .008 : .018 + k * .012);
+            track_booking(schedule_note_at(at, n, s, 7, dur, &c), end + .1);
+        }
+        mark_hit(i, t); return;
+    }
+    if (m == M_BELL) { static int flip[6]; if (flip[i]++ & 1) note = quantize(note - 5, S.b.root, S.b.scale); }   // the pair: high, low
     if (m == M_CHOIR) {
         static const int chord[4][3] = { {0,3,7}, {0,4,7}, {0,5,7}, {0,7,12} };
         int ci = bound(tr->harm * 4 / 1001, 0, 3);
@@ -793,7 +873,8 @@ static void tick(double t) {
             && !S.jam_out[i] && !(fill && i == letgo_tr && bar_step >= 14)) {
             int note = tr->note;
             if (tr->model >= M_FM) {
-                if ((roll >> 10) % 1000 < (unsigned)S.b.macro[1]) note += degree[(roll >> 20) % 7];
+                int still = tr->model == M_ORGAN || tr->model == M_GUITAR || tr->model == M_BELL;   // chords and bells keep their pitch
+                if (!still && (roll >> 10) % 1000 < (unsigned)S.b.macro[1]) note += degree[(roll >> 20) % 7];
                 if (S.chord_tracks & (1u << i)) note += chord_offset();
                 note = quantize(note + S.b.transpose, S.b.root, S.b.scale);
             }
@@ -889,7 +970,8 @@ void draw(void) {
         float g = off ? 0 : hit_glow(i);
         int nc = off ? CLR_DARK_GREY : g > .3f ? CLR_WHITE : CLR_LIGHT_GREY;
         circfill(9, y + 6, 3 + (int)(g * 2), off ? CLR_DARKER_GREY : fc);
-        print(gone ? "(kit)" : is_kit ? "LO-FI KIT" : MODEL_NAME[tr->model], 18, y + 1, nc);
+        const char *label = S.jam && DA_OWN_JAM[S.jam - 1].names[i] ? DA_OWN_JAM[S.jam - 1].names[i] : MODEL_NAME[tr->model];
+        print(gone ? "(kit)" : is_kit ? "LO-FI KIT" : label, 18, y + 1, nc);
         if (is_kit) print(KIT_NAME[S.kit_bank], 18, y + 9, CLR_DARK_GREY);
         else if (!gone) print(S.seq_on[i] ? "phrase" : str("%d in %d", bound(tr->hits + (S.b.macro[0] - 500) * tr->length / 1500, 0, tr->length), tr->length),
                               18, y + 9, CLR_DARK_GREY);

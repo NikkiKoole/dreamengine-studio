@@ -146,6 +146,18 @@ high tabla and a soft fading scrape. Its jam starts on the mist, adds the percus
 time, and its breakdown takes only the percussion away. The bed is ~4.5 dB under Moon Meadow's own
 levels so the percussion peaks sit just beneath it.
 
+The fourth, **Slow Brew**, is Playtime's brew style (`playtime/src/music-brew.lua`, after Ronnie
+Foster) broken into cycles on brew's OWN instruments, four more models copied from Playtime's
+`synth.lua` patches: **UPRIGHT** (`hUpright`: the bowed engine finger-plucked, dark, mono), **ORGAN**
+(`brewOrgan`: thin tonewheel registration, 1.2 kHz, a slow Leslie), **GUITAR** (`brewGuitar`) and
+**BELL** (`brewBell`, played as a high/low agogo pair); the kick is `bapKick` on the drumhead model.
+Brew's key, tempo and one-chord-a-bar i-III-VI (a `JamCfg` can now carry its own chord cycle, here 3
+bars long) but deliberately NOT its riff: the upright is 13 hits over 24 eighths, a 3-bar cycle like
+the riff's, wandering in the scale. The organ voices each chord ROOTLESS (3-5-7-9: Fm9, Abmaj9,
+Dbmaj9, checked from the trace) every three beats, the guitar strums on a 10-eighth cycle, the agogo
+plays 5 in 12. Its jam builds like brew's intro (drums, bells, then the band) and its breakdown is
+brew's break: drums and bells alone. `JamCfg.names[]` relabels the tracks (the drumhead reads KICK).
+
 LEVELS in our biomes come from measured solo stems (`DE_DEFINES=DA_ID=<id>,DA_SOLO=<n>`), not the
 factory fit: upstream's balance puts the quiet Plaits kick ~20 dB under a loud round bass, which a
 four-on-the-floor cannot take. Kick and bass now sit within a few dB of each other.

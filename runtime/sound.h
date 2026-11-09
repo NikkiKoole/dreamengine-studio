@@ -5841,6 +5841,15 @@ static void sound_piano_start(Voice *v) {
     int vi = (int)(v->harm * 5.999f);
     if (vi < 0) vi = 0; if (vi > 5) vi = 5;
     const PianoVoicing *pv = &PIANO_V[vi];
+    // MODE_PIANO_MODEL (eng_p[6]): >= 0.5 = the STEINWAY-MATCHED model (2026-11-09: HF loss, felt hammer,
+    // decay in dB/s, onset ramp, knock off at centre; measured against assets/samples/steinway/ with
+    // tools/carts/pianoref.c). Below it, the CLASSIC engine, bit-exact: the bank default is 0, so every
+    // cart tuned by ear against the classic grand keeps its sound until it opts in.
+    bool  pn_mdl  = v->eng_p[6] >= 0.5f;
+    float pn_hfl  = pn_mdl ? PIANO_HFLOSS[vi] : 0.0f;
+    float pn_felt = pn_mdl ? PIANO_FELT[vi]   : 0.0f;
+    float pn_sig  = pn_mdl ? PIANO_SIGMA[vi]  : 0.0f;
+    float pn_ons  = pn_mdl ? PIANO_ONSET[vi]  : 0.0f;
     float freq = v->freq > 20.0f ? v->freq : 20.0f;
     // STRETCHED-TUNING SEAM (see piano_stretch_freq). eng_p[4] (MODE_PIANO_STRETCH) scales K: bank
     // default 0.5 → 1.0× = exactly PIANO_STRETCH_K, so the default is bit-identical to before it was
@@ -5871,10 +5880,10 @@ static void sound_piano_start(Voice *v) {
     // 0.5*(1-ksb) samples: every note rang sharp, +1 c in the bass to +5 c in the treble, ON TOP of the
     // intended stretch (synth-secrets-plan.md §I4d). Put that advance back. Exact phase at the note's own
     // frequency, at the SETTLED brightness (the strike's brighter bloom relaxes into it in ~0.3 s).
-    float ksb_set = (PIANO_SIGMA[vi] > 0.0f) ? pn_solve_ksb(freq, PIANO_BRIGHT[vi], 1.0f) : PIANO_BRIGHT[vi];
+    float ksb_set = (pn_sig > 0.0f) ? pn_solve_ksb(freq, PIANO_BRIGHT[vi], 1.0f) : PIANO_BRIGHT[vi];
     float pn_adv = pn_blend_advance(freq, ksb_set);
     // HF LOSS filter (PIANO_HFLOSS): its phase delay at the fundamental comes OUT of the line too, like pn_comp.
-    v->pn_lfp = pn_solve_hfloss(freq, PIANO_HFLOSS[vi]);
+    v->pn_lfp = pn_solve_hfloss(freq, pn_hfl);
     v->pn_lf = v->pn_lf2 = 0.0f;
     float pn_lfd = (v->pn_lfp > 0.0f) ? pn_lp_delay(6.28318531f * freq / (float)SOUND_SAMPLE_RATE, v->pn_lfp) : 0.0f;
     float ideal = (float)SOUND_SAMPLE_RATE / freq - pn_comp + pn_adv - pn_lfd;   // one period, allpass for the remainder
@@ -5891,13 +5900,13 @@ static void sound_piano_start(Voice *v) {
     if (v->pn_ksb_cur > 0.97f) v->pn_ksb_cur = 0.97f;
     if (v->pn_ksb_cur < ksb_set) v->pn_ksb_cur = ksb_set;   // (only when ksb_set > 0.97: the grand's top octave)
     v->pn_ksd   = PIANO_DAMP[vi];
-    if (PIANO_SIGMA[vi] > 0.0f) {                      // DECAY FLOOR: at least PIANO_SIGMA dB/s at the fundamental
+    if (pn_sig > 0.0f) {                      // DECAY FLOOR: at least PIANO_SIGMA dB/s at the fundamental
         // EXACT, not a floor: the fundamental's per-period gain through the whole loop (damping x blend x
         // HF loss) is set to give PIANO_SIGMA dB/s. Clamped so the gain stays under 1 even at the strike's
         // brighter onset blend (pn_ksb_cur, which only ever relaxes toward pn_ksb, so loses MORE later).
         float w0 = 6.28318531f * freq / (float)SOUND_SAMPLE_RATE;
         float hlf = (v->pn_lfp > 0.0f) ? sqrtf(1.0f / de_powf(10.0f, pn_lp_loss_db(w0, v->pn_lfp) / 10.0f)) : 1.0f;
-        float g = de_powf(10.0f, -PIANO_SIGMA[vi] / (20.0f * freq));
+        float g = de_powf(10.0f, -pn_sig / (20.0f * freq));
         float ksd = g / (pn_blend_mag(w0, ksb_set) * hlf);
         float kmax = 0.99999f / (pn_blend_mag(w0, v->pn_ksb_cur) * hlf);
         v->pn_ksd = ksd < kmax ? ksd : kmax;
@@ -5921,16 +5930,16 @@ static void sound_piano_start(Voice *v) {
     // centre's amount). Measured: its white burst put energy above 8 kHz into the first 20 ms 35-50 dB over
     // the Steinway (C2: -12 vs -64 dB), the "click" the owner kept hearing; with it off the string's own
     // onset matches the recording band for band. Remapped, not zeroed, so a KNOCK slider stays live.
-    if (PIANO_FELT[vi] > 0.0f) {
+    if (pn_felt > 0.0f) {
         float kk = v->eng_p[3] * 2.0f - 1.0f;
         v->pn_knock = (kk > 0.0f) ? pv->knock * kk * (0.25f + 0.85f * vel) : 0.0f;
     }
     float pn_tc_ms = 0.0f;                             // the hammer's contact time (felt only): sizes the ONSET RAMP
-    if (PIANO_FELT[vi] > 0.0f) {
+    if (pn_felt > 0.0f) {
         // FELT HAMMER: one push of the contact time, wrapped round the one-period line (in
         // the treble the contact outlasts a period). `hard` (timbre + velocity, above) shortens it.
         float soct = de_log2f(freq / 261.63f);
-        float tc = PIANO_FELT[vi] * de_powf(2.0f, -PN_FELT_SLOPE * soct) * (1.6f - 1.2f * hard);
+        float tc = pn_felt * de_powf(2.0f, -PN_FELT_SLOPE * soct) * (1.6f - 1.2f * hard);
         pn_tc_ms = tc;
         float W = tc * 0.001f * (float)SOUND_SAMPLE_RATE;
         if (W < 2.0f) W = 2.0f;
@@ -5989,7 +5998,7 @@ static void sound_piano_start(Voice *v) {
     v->pn_detune  = pv->detune;
     v->pn_dc_prev = v->pn_dc_state = 0.0f;
     v->pn_on_n = 0;
-    v->pn_on_len = (int)(PIANO_ONSET[vi] * pn_tc_ms * 0.001f * (float)SOUND_SAMPLE_RATE);
+    v->pn_on_len = (int)(pn_ons * pn_tc_ms * 0.001f * (float)SOUND_SAMPLE_RATE);
     if (pv->detune > 1.00001f) {                       // 2nd string: own detuned length + allpass
         float ideal2 = (float)SOUND_SAMPLE_RATE / (freq * pv->detune) - pn_comp
                      + pn_blend_advance(freq * pv->detune, ksb_set)             // SAME compensation (+ §I4d)
@@ -11794,7 +11803,7 @@ static void sound_reset_state(void) {
         instr_bank[i].eng_p[2]   = 0.5f;   // piano double-decay scale (instrument_mode idx 2) — 0.5 = 1.0× the baked default
         instr_bank[i].eng_p[3]   = 0.5f;   // piano hammer-knock scale  (instrument_mode idx 3) — 0.5 = 1.0× the baked default
         instr_bank[i].eng_p[4]   = 0.5f;   // piano stretched-tuning scale (instrument_mode idx 4) — 0.5 = 1.0× PIANO_STRETCH_K, 0 = equal temperament
-        instr_bank[i].eng_p[6]   = 0.0f;   // ORGAN tonewheel leakage (idx 6) — 0 = a clean machine.
+        instr_bank[i].eng_p[6]   = 0.0f;   // ORGAN tonewheel leakage (idx 6) — 0 = a clean machine. PIANO: MODE_PIANO_MODEL, 0 = the classic engine.
                                            // NOT reusing idx 2-5: those default to 0.5f for the PIANO's
                                            // "0.5 = the voicing's own value" convention, so an organ param
                                            // parked there would read 0.5 and be HALF ON unasked (it did).

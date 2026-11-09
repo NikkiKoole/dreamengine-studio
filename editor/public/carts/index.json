@@ -5828,7 +5828,7 @@
   },
   {
     "title": "piano ref probe",
-    "description": "Not a toy: a measurement probe. Plays C1, F#1, C2 ... F#6, C7 (MIDI 24 + 6k, the Steinway sample grid) on INSTR_PIANO's grand voicing, each held 3.3 s with a 0.2 s gap, one note every 3.5 s. Compare with node tools/oneshot-compare.js --render pianoref --spec tools/oneshot-specs/pianoref.json. DE_DEFINES: PR_VOL (note_on vol 0-7, default 5 = the samples' layer 12 of 16), PR_HARM / PR_TIMB / PR_MORPH (the macros), PR_STIFF / PR_DECAY / PR_KNOCK (instrument_mode 0..1, 0.5 = the engine default). LISTEN: press S to hear each note twice, ours then the real Steinway, looping (credit: bitKlavier Grand Sample Library, Daniel Trueman, Princeton University, CC BY 4.0).",
+    "description": "Not a toy: a measurement probe. Plays C1, F#1, C2 ... F#6, C7 (MIDI 24 + 6k, the Steinway sample grid) on INSTR_PIANO's grand voicing, each held 3.3 s with a 0.2 s gap, one note every 3.5 s. Compare with node tools/oneshot-compare.js --render pianoref --spec tools/oneshot-specs/pianoref.json. DE_DEFINES: PR_VOL (note_on vol 0-7, default 5 = the samples' layer 12 of 16), PR_HARM / PR_TIMB / PR_MORPH (the macros), PR_STIFF / PR_DECAY / PR_KNOCK (instrument_mode 0..1, 0.5 = the engine default), PR_MODEL (MODE_PIANO_MODEL, default 1 = the Steinway-matched grand; 0 = the classic engine, for a before/after). LISTEN: press S to hear each note twice, ours then the real Steinway, looping (credit: bitKlavier Grand Sample Library, Daniel Trueman, Princeton University, CC BY 4.0).",
     "file": "pianoref.cart.png",
     "created": "2026-11-09",
     "kind": [

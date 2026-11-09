@@ -23,7 +23,7 @@
     "Replace the 13 instrument slots (one per zone) with a real MULTISAMPLE instrument: one slot, zones by key (engine work).",
     "VELOCITY layers: one layer today (v12 of 16), so soft notes are only quieter, not darker. Take more layers from Princeton's original, keep the CC BY credit.",
     "LISTEN: resonator level 0.6 and the 25 ms retune damping — too much, too little? Then decide whether pianohand's hand-built halo voice gives way to resonator().",
-    "MODELLED PIANO vs THE STEINWAY: a measuring pass on INSTR_PIANO against the 13 notes in assets/samples/steinway/ (the samples as the reference: tools/oneshot-compare.js for attack/decay/band, inharm-spec.js for partial placement + B, inharm-spec --decay for per-partial decay, patch-match for the closest macros). If tuning the existing engine cannot close the gap, consider a SECOND piano engine, e.g. commuted synthesis (the Steinway's own hammer+soundboard response as the string's excitation). Solves the size + velocity-layer problems for free if it lands."
+    "MODELLED PIANO vs THE STEINWAY: the measuring pass landed as an opt-in, MODE_PIANO_MODEL 1 (this cart uses it): felt hammer, decay in dB/s, onset ramp, knock off; measured with the pianoref probe (S = ours then the real note). By ear the tail is good, the onset is not yet. NEXT: the HYBRID (commuted synthesis), the real Steinway first ~80 ms cross-faded into the modelled tail, as a further MODE_PIANO_MODEL value. Watch the splice (click-check.js) and match pitch + partial levels at the joint."
   ]
 }
 de:meta */
@@ -151,12 +151,14 @@ void init(void) {
     instrument_harmonics(SL_PNO, 0.08f);   // the grand voicing (instrument-recipes.md)
     instrument_timbre(SL_PNO, 0.45f);
     instrument_morph(SL_PNO, 0.15f);       // a damped string: the ring is NOT the piano's own
+    instrument_mode(SL_PNO, MODE_PIANO_MODEL, 1.0f);   // the Steinway-matched grand (MODE_PIANO_MODEL)
     instrument_reverb(SL_PNO, 0.18f);
     instrument_resonator(SL_PNO, 0.6f);
     instrument(SL_BAS, INSTR_PIANO, 1, 0, 7, 160);
     instrument_harmonics(SL_BAS, 0.08f);
     instrument_timbre(SL_BAS, 0.40f);
     instrument_morph(SL_BAS, 0.15f);
+    instrument_mode(SL_BAS, MODE_PIANO_MODEL, 1.0f);   // the Steinway-matched grand (MODE_PIANO_MODEL)
     instrument_reverb(SL_BAS, 0.18f);
     instrument_resonator(SL_BAS, 0.6f);
     reverb(0.55f, 0.55f);

@@ -7,7 +7,7 @@
   "kind": ["probe"],
   "teaches": ["waveguide-synth"],
   "lineage": "INSTR_PIANO's half of an A/B against a real Steinway D: the 13 notes in assets/samples/steinway/ (bitKlavier Grand, Daniel Trueman, Princeton, CC BY 4.0). Same shape as acidref (the 303 vs Open303): play exactly what the reference holds, on a fixed grid, so both drop into the same oracles. openstrings' fifth todo.",
-  "description": "Not a toy: a measurement probe. Plays C1, F#1, C2 ... F#6, C7 (MIDI 24 + 6k, the Steinway sample grid) on INSTR_PIANO's grand voicing, each held 3.3 s with a 0.2 s gap, one note every 3.5 s. Compare with node tools/oneshot-compare.js --render pianoref --spec tools/oneshot-specs/pianoref.json. DE_DEFINES: PR_VOL (note_on vol 0-7, default 5 = the samples' layer 12 of 16), PR_HARM / PR_TIMB / PR_MORPH (the macros), PR_STIFF / PR_DECAY / PR_KNOCK (instrument_mode 0..1, 0.5 = the engine default). LISTEN: press S to hear each note twice, ours then the real Steinway, looping (credit: bitKlavier Grand Sample Library, Daniel Trueman, Princeton University, CC BY 4.0)."
+  "description": "Not a toy: a measurement probe. Plays C1, F#1, C2 ... F#6, C7 (MIDI 24 + 6k, the Steinway sample grid) on INSTR_PIANO's grand voicing, each held 3.3 s with a 0.2 s gap, one note every 3.5 s. Compare with node tools/oneshot-compare.js --render pianoref --spec tools/oneshot-specs/pianoref.json. DE_DEFINES: PR_VOL (note_on vol 0-7, default 5 = the samples' layer 12 of 16), PR_HARM / PR_TIMB / PR_MORPH (the macros), PR_STIFF / PR_DECAY / PR_KNOCK (instrument_mode 0..1, 0.5 = the engine default), PR_MODEL (MODE_PIANO_MODEL, default 1 = the Steinway-matched grand; 0 = the classic engine, for a before/after). LISTEN: press S to hear each note twice, ours then the real Steinway, looping (credit: bitKlavier Grand Sample Library, Daniel Trueman, Princeton University, CC BY 4.0)."
 }
 de:meta */
 #include "studio.h"
@@ -37,6 +37,9 @@ de:meta */
 #endif
 #ifndef PR_KNOCK
 #define PR_KNOCK 0.5f
+#endif
+#ifndef PR_MODEL
+#define PR_MODEL 1.0f           // MODE_PIANO_MODEL: 1 = the Steinway-matched grand, 0 = the classic engine
 #endif
 
 static int f = -1, held = -1;
@@ -91,6 +94,7 @@ void init(void) {
     instrument_mode(5, MODE_PIANO_STIFF, PR_STIFF);
     instrument_mode(5, MODE_PIANO_DECAY, PR_DECAY);
     instrument_mode(5, MODE_PIANO_KNOCK, PR_KNOCK);
+    instrument_mode(5, MODE_PIANO_MODEL, PR_MODEL);
 }
 
 void update(void) {

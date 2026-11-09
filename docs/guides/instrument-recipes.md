@@ -495,6 +495,13 @@ voicing/stiffness / hammer-softness / pedal-sustain.
 | piano/dulcimer | piano.c | h0.58 t0.50 m0.50 | Heavy metallic shimmer (mid stiffness), balanced hammer + sustain. |
 | piano/clavichord | piano.c | h0.75 t0.50 m0.30 | Extreme stiffness, intimate soft hammer, short damped tone. |
 | piano/celesta | piano.c | h0.92 t0.50 m0.60 | Maximum metallic shimmer, bright tuned percussion, long sustain. |
+| piano/steinway | pianoref.c, openstrings.c | h0.08 t0.50 m1.00 + `instrument_mode(slot, MODE_PIANO_MODEL, 1)` | The grand measured note by note against a real Steinway D (2026-11-09): felt hammer (dark round bass, a clean treble whose octave sits 12-20 dB under the note), an onset that builds over a few ms, a steady ~5 dB/s fade on every key, no knock crack at the KNOCK centre. Opt-in; model 0 (the default) is the classic grand, bit-exact. |
+
+> **MODE_PIANO_MODEL** (idx 6): 0 = the classic engine for every voicing; >= 0.5 switches the GRAND voicing
+> (h 0.08) to the Steinway-matched model. Measured with `tools/carts/pianoref.c` (S = ours, then the real
+> note) + `node tools/oneshot-compare.js --render pianoref --spec tools/oneshot-specs/pianoref.json --frames 2760`.
+> Its attack is still the weak spot (the maker: tail good, onset not yet); next is the HYBRID (the real
+> Steinway's first ~80 ms into the modelled tail), planned as a further value of this mode.
 
 > **Cross-ref:** `INSTR_PIANO` reached the dial with **eno** (the first radio station to use it).
 > Before that, every piano on the dial

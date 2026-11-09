@@ -237,6 +237,14 @@ every track's pattern rescaled to land where it did); its ride now measures 1.00
 "ding, ding-a" with the "a" late, where it was 0.5 / 0.5. Any biome that wants swung eighths needs
 its steps to BE the eighths.
 
+**Organ Boogaloo** is soul jazz, the Hammond-trio boogaloo, funky where Late Modal floats: straight
+16ths at 104 in Bb dorian, a Bbm9 - Eb9 vamp two bars each. The ported kick syncopates, the ported
+snare plays the backbeat with GHOST notes (`'-'` in a fixed pattern, vel .35; the snare now honours a
+velocity under .5, which no factory hit reaches, so the factory biomes are unchanged), measured
+backbeat -19 dBFS against ghosts -26. 16th hats, a round bass in a fixed root-fifth-seventh-octave funk
+line, brew's organ with its Leslie stabbing rootless voicings on the offbeats, and a guitar chicken-
+scratching chords 7 in 12, a cross-rhythm drifting against the bar.
+
 Mipo Band's triangle was a single pitch and got old; a lone BELL now wanders with the jump macro
 like a melody (a bell in a `pair`, Slow Brew's agogo, still keeps its two pitches). Note the cart
 clamps melodic notes to 24..96 (quantize), which had been pinning the triangle at 96.

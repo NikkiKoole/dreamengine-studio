@@ -9,7 +9,7 @@
   "lineage": "A port of the BIOME atlas from Mutable Dreams 1.4 (Kid Bunka / Christoph Link, free firmware for the M-VAVE FM-1, itself built on Mutable Instruments' Plaits/Rings/Elements). The 157 scenes are the upstream's own factory data (MIT), generated into runtime/dreamatlas/biomes.h; the sequencer (Euclid hits/length/rotate per track, seeded rolls, chord journeys, scale masks, the Lo-Fi kit) is ported line by line from app/dsp/dreams.cpp. The fifteen VOICES are NOT ported: each is mapped onto the nearest engine dreamengine already ships, which is the experiment.",
   "homage": "Mutable Dreams (Kid Bunka) / Mutable Instruments",
   "description": {
-    "summary": "157 small generative worlds from Mutable Dreams, plus a few of our own (a house jam, a tabla-and-guiro bazaar, Moon Meadow with tablas, a slow organ-and-upright brew, the Puppetmaker band, a CR-78 bossa, one that evolves by itself, a world-rhythm atlas, a slow modal jazz drone, a Reich-style phase piece and some cool jazz in 5/4): six drifting Euclidean tracks, chord journeys and a Lo-Fi kit, played on dreamengine's own voices.",
+    "summary": "157 small generative worlds from Mutable Dreams, plus a few of our own (a house jam, a tabla-and-guiro bazaar, Moon Meadow with tablas, a slow organ-and-upright brew, the Puppetmaker band, a CR-78 bossa, one that evolves by itself, a world-rhythm atlas, a slow modal jazz drone, a Reich-style phase piece, cool jazz in 5/4 and an organ boogaloo): six drifting Euclidean tracks, chord journeys and a Lo-Fi kit, played on dreamengine's own voices.",
     "detail": "Each BIOME is one scene: six tracks, each a voice (Plaits-style drums, FM, analog, Rings and Elements resonators, a sine choir, a round bass...) with its OWN rhythm, k hits spread over n steps. The lengths differ (16, 19, 13...), so the tracks slide against each other and the loop takes minutes to come round. Some biomes walk a chord progression under it, some swap three tracks for a crunchy 16 kHz Lo-Fi drum kit. Browse in the curated order: neighbours are meant to feel genuinely different. The scenes are the original's factory data; the sounds are this engine's nearest voices, so it is a translation, not a copy.",
     "controls": "LEFT/RIGHT or the arrows: next / previous biome · SPACE or PLAY: start / stop · 1-6: mute a track · tap a track row to mute it"
   },
@@ -192,7 +192,13 @@ _Static_assert(M_CRKICK == 23 && M_NYLON == 26, "the CR-78 Bossa row names its m
 // voicings (Ebm9, Bbm9, alternating a bar each), the upright plays root and fifth, a ride swings
 // "x.xx.xx.x.", the brush lands on 2 and 4, vibes improvise 4 in 15 (a bar and a half), and an Eb
 // drone sits under it two bars at a time. The breakdown takes bass and brush: the vamp, ride, vibes.
-#define DA_OWN 13
+// ORGAN BOOGALOO is soul jazz, the Hammond-trio boogaloo of the late-60s records, funky where Late
+// Modal floats: straight 16ths at 104 in Bb dorian, a Bbm9 - Eb9 vamp (two bars each). The ported kick
+// syncopates, the ported snare plays the backbeat with GHOST notes between ('-' in a pattern), 16th hats,
+// a round bass walks root-fifth-seventh-octave in a fixed funk line, brew's organ (its slow Leslie)
+// stabs rootless voicings on the offbeats, and a guitar chicken-scratches chords 7 in 12, a cross-
+// rhythm drifting against the bar. Breakdown: bass and organ out, the drums and the scratch carry it.
+#define DA_OWN 14
 #define DA_ALL (DA_BIOMES + DA_OWN)
 static const DaBiome DA_OWN_BIOME[DA_OWN] = {
  {"Marmalade Jam",8,125,7,2,125125,0,0,650,200,100,0,120,0,0,0,380,300,{500,260,520,60},{
@@ -286,6 +292,13 @@ static const DaBiome DA_OWN_BIOME[DA_OWN] = {
   /* brush   (scrape)    */ {16,400,1000,500,800,200,0,10,0,900,60,400,0,1,0,1,0,0,850,100,0,0},
   /* vibes   (bell)      */ {20,450,600,700,560,300,4,15,0,850,75,600,0,1,0,1,200,300,850,100,0,0},
   /* drone   (harmonic)  */ {6,25,510,910,28,350,1,20,0,1000,39,500,0,1,600,1,0,800,775,0,1,300}}},
+ {"Organ Boogaloo",3,104,10,3,10410,0,0,650,200,100,0,150,0,0,0,250,200,{500,200,520,40},{
+  /* kick    (Plaits)    */ {0,300,250,380,1000,0,0,16,0,980,33,500,0,1,0,1,0,150,850,100,0,0},
+  /* snare   (Plaits)    */ {1,480,700,280,225,100,0,16,0,980,50,470,0,1,0,1,0,150,850,100,0,0},
+  /* hats    (metal)     */ {2,650,300,110,350,60,16,16,0,900,72,600,0,1,0,1,350,150,850,100,0,0},
+  /* bass    (round)     */ {8,320,400,200,245,0,0,16,0,980,34,500,0,1,0,1,0,500,700,200,1,0},
+  /* organ   (brewOrgan) */ {18,600,100,200,450,200,0,16,0,950,53,420,0,1,0,1,0,250,850,100,0,0},
+  /* scratch (guitar)    */ {19,350,400,30,280,80,7,12,0,850,60,620,0,1,0,1,300,100,850,100,0,0}}},
 };
 // how each of our biomes JAMS (Playtime's drum jam): the order its layers enter, who may rest a
 // phrase, who a breakdown takes out, which track plays the phrase-end fill, which lets go before the one
@@ -297,7 +310,7 @@ typedef struct { int chord_pattern, chord_tracks, build[6], rest[4], break_mask,
                  const char *pat[6];        // pat[i]: a FIXED step pattern instead of the Euclid hits (≤16 steps):
                                             // '.' rest, 'x' a hit, 'X' accented, '5' a hit a fifth up, 'a'..'p' a
                                             // MELODY note that many scale steps over the track's note ('A'..'P'
-                                            // accented); each step still rolls the track's chance, as a phrase does
+                                            // accented), '-' a GHOST (soft); each step still rolls the chance
                  signed char gtr[3];        // the guitar's chord, scale degrees over the root (0,0,0 = 2 4 7)
                  int evolve;                // 1 = no layer arranger: the biome MUTATES itself every 4 bars
                  const char *from[6];       // where a track's rhythm comes from, shown under its name
@@ -347,6 +360,9 @@ static const JamCfg DA_OWN_JAM[DA_OWN] = {
       { "RHODES", "UPRIGHT", "RIDE", "BRUSH", "VIBES", "DRONE" }, { 0, 4 }, 2, 1, {0},
       { "X..x..x.x.", "x.....5.x.", "x.xx.xx.x.", "..x...x...", 0, 0 }, {0}, 0, {0},
       { 2, 4, 6, 8 }, 0, 0, 10, 172 },                               // rootless 3-5-7-9; a bar = 10 eighths
+    { 1, 0x18, {0, 2, 1, 3, 4, 5}, {2, 4, 5, 1}, 1 << 3 | 1 << 4, 1, 2,             // Organ Boogaloo: i9 - IV9, 2 bars each
+      { "KICK", "SNARE", "HATS", "BASS", "ORGAN", "SCRATCH" }, { 0, 3 }, 2, 2, {0},
+      { "X..x...x..x.....", "....X.-.-..-X..-", 0, "a..a..e.h..g.e..", "....x..x....x...", 0 } },
 };
 static const DaBiome *biome_row(int id) { return id < DA_BIOMES ? &DA_BIOME[id] : &DA_OWN_BIOME[id - DA_BIOMES]; }
 static int browse_id(int k) { return k < DA_BIOMES ? DA_BROWSE[k] : k; }   // ours come last, in order
@@ -547,7 +563,8 @@ static void scene(int id) {
                 int deg = c >= 'a' && c <= 'p' ? c - 'a' : c >= 'A' && c <= 'P' ? c - 'A' : -1;
                 int n = c == '.' ? 0 : deg >= 0 ? scale_step(quantize(S.b.tr[i].note, S.b.root, S.b.scale), deg)
                                              : S.b.tr[i].note + (c == '5' ? 7 : 0);
-                S.seq[i][k] = (Step){ (unsigned char)n, (unsigned char)(c == 'X' || (c >= 'A' && c <= 'P') ? 95 : 70), 100, 100 };
+                if (c == '-') n = S.b.tr[i].note;                  // a ghost note: the track's own note, soft
+                S.seq[i][k] = (Step){ (unsigned char)n, (unsigned char)(c == 'X' || (c >= 'A' && c <= 'P') ? 95 : c == '-' ? 35 : 70), 100, 100 };
             }
         }
     }
@@ -990,7 +1007,9 @@ static void fire(int i, int note, float vel, double t, int gate_ms) {
     NoteOpts o = {0};
     o.gain = fmaxf(.05f, fminf(1, vel));
     if (m == M_KICK) o.gain = (3 + 7 * vel) / 10;   // Plaits: accent sets the pulse height 3+7a
-    if (m == M_SNARE) o.gain = snare_gain;          // rendered at accent .8; upstream drums ignore velocity in the mix
+    if (m == M_SNARE) o.gain = snare_gain * (vel < .5f ? vel * 1.4f : 1);   // rendered at accent .8; upstream drums
+                                                    // ignore velocity in the mix, except a pattern's GHOST ('-', vel .35:
+                                                    // no factory hit goes under .55)
     o.cutoff_oct = (breathe * .13f + tide * .2f) * 7.0f;
     if (m == M_ORGAN || m == M_GUITAR || m == M_NYLON) {   // the organ ROOTLESS (3 5 7 9), a guitar a small shape
         static const int organ_deg[4] = { 2, 4, 6, 8 };

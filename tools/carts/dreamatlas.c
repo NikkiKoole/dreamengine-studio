@@ -9,7 +9,7 @@
   "lineage": "A port of the BIOME atlas from Mutable Dreams 1.4 (Kid Bunka / Christoph Link, free firmware for the M-VAVE FM-1, itself built on Mutable Instruments' Plaits/Rings/Elements). The 157 scenes are the upstream's own factory data (MIT), generated into runtime/dreamatlas/biomes.h; the sequencer (Euclid hits/length/rotate per track, seeded rolls, chord journeys, scale masks, the Lo-Fi kit) is ported line by line from app/dsp/dreams.cpp. The fifteen VOICES are NOT ported: each is mapped onto the nearest engine dreamengine already ships, which is the experiment.",
   "homage": "Mutable Dreams (Kid Bunka) / Mutable Instruments",
   "description": {
-    "summary": "157 small generative worlds from Mutable Dreams: six drifting Euclidean tracks, chord journeys and a Lo-Fi kit, played on dreamengine's own voices.",
+    "summary": "157 small generative worlds from Mutable Dreams, plus one of our own: six drifting Euclidean tracks, chord journeys and a Lo-Fi kit, played on dreamengine's own voices.",
     "detail": "Each BIOME is one scene: six tracks, each a voice (Plaits-style drums, FM, analog, Rings and Elements resonators, a sine choir, a round bass...) with its OWN rhythm, k hits spread over n steps. The lengths differ (16, 19, 13...), so the tracks slide against each other and the loop takes minutes to come round. Some biomes walk a chord progression under it, some swap three tracks for a crunchy 16 kHz Lo-Fi drum kit. Browse in the curated order: neighbours are meant to feel genuinely different. The scenes are the original's factory data; the sounds are this engine's nearest voices, so it is a translation, not a copy.",
     "controls": "LEFT/RIGHT or the arrows: next / previous biome · SPACE or PLAY: start / stop · 1-6: mute a track · tap a track row to mute it"
   },
@@ -93,8 +93,30 @@ typedef struct {
     int chord_pattern, chord_bars, chord_tracks;
     int seq_on[6], seq_len[6]; Step seq[6][16];
     int kit, kit_bank; unsigned kit_gates[8];
+    int jam, jam_phrase, jam_break, jam_out[6]; unsigned jam_rng;   // our own biomes' live arranger
 } Scene;
 static Scene S;
+// ── our own biomes, after the 157 factory ones (ids DA_BIOMES..): same format, same sequencer ──
+// MARMALADE JAM borrows Playtime's drum jam (its docs/DRUM-JAM.md): a standard four-on-the-floor
+// at 125 with layers that come and go on 8-bar phrases, instead of a factory biome's fixed scene.
+// Roles: 0 kick (4 in 16), 1 hat (the offbeats), 2 clap (2 and 4), 3 bass (6 in 16, rotated off
+// every kick), 4 lead (a Rings pluck, 5 in 13: the one odd length, so it drifts against the bar),
+// 5 keys (3 in 8 at eighths = the tresillo). I-vi-IV-V, two bars a chord. The randomness is the
+// factory kind: per-hit chance, the jump macro, a seed re-rolled every two bars (locked 0).
+#define DA_OWN 1
+#define DA_ALL (DA_BIOMES + DA_OWN)
+static const DaBiome DA_OWN_BIOME[DA_OWN] = {
+ {"Marmalade Jam",8,125,7,2,125125,0,0,650,200,100,0,120,0,0,0,380,300,{500,260,520,60},{
+  /* kick */ {0,300,250,380,760,0,4,16,0,1000,31,500,0,1,0,1,150,150,850,100,0,0},
+  /* hat  */ {2,620,300,120,430,60,4,16,2,920,72,620,0,1,0,1,350,150,850,100,0,0},
+  /* clap */ {1,450,820,300,560,120,2,16,4,1000,50,440,0,1,0,1,200,150,850,100,0,0},
+  /* bass */ {8,350,400,180,620,0,6,16,1,880,43,500,0,1,0,1,250,500,700,200,1,0},
+  /* lead */ {5,600,250,300,470,220,5,13,0,850,67,680,0,1,0,1,300,150,850,100,0,120},
+  /* keys */ {12,450,300,260,420,200,3,8,0,800,59,330,0,2,0,1,200,400,800,100,0,150}}},
+};
+static const DaBiome *biome_row(int id) { return id < DA_BIOMES ? &DA_BIOME[id] : &DA_OWN_BIOME[id - DA_BIOMES]; }
+static int browse_id(int k) { return k < DA_BIOMES ? DA_BROWSE[k] : k; }   // ours come last, in order
+
 #ifndef DA_START
 #define DA_START 0               // browse position to open on (a -D for the harness sweeps)
 #endif
@@ -223,12 +245,12 @@ static void set_phrase(int tr, const signed char *ph, int vel0, int vbase, int v
 }
 static void scene(int id) {
     memset(&S, 0, sizeof S);
-    S.b = DA_BIOME[id];
+    S.b = *biome_row(id);
     S.delay_ms = 200; S.delay_fb = 300; S.reverb_time = 450; S.fx_level = 0; S.chord_bars = 2; S.chord_tracks = 63;
     for (int i = 0; i < 6; i++) S.tides_rate[i] = 250;
     kit_pattern(-1); S.kit_gates[0] = 0x01010101u; S.kit_gates[1] = 0x10101010u; S.kit_gates[2] = 0x44444444u;
     if (id != 64) {                  // 64 = Blank: everything at the defaults
-        int fam = S.b.family, arch = id >= 109 ? (id - 109) % 8 : -1;
+        int fam = S.b.family, arch = id >= 109 && id < DA_BIOMES ? (id - 109) % 8 : -1;
         int ambient = fam == 0 || fam == 1 || (id >= 65 && id < 109) || arch == 2 || arch == 5 || arch == 6;
         S.fx_level = ambient ? 380 : (fam == 2 || fam == 5 || fam == 7) ? 260 : 140;
         S.reverb_time = ambient ? 640 : 450; S.delay_fb = ambient ? 220 : 270;
@@ -257,7 +279,7 @@ static void scene(int id) {
         }
         S.chord_pattern = 1 + (id % 3); S.chord_bars = 4; S.chord_tracks = 7;
     }
-    if (id >= 109) {
+    if (id >= 109 && id < DA_BIOMES) {
         int arch = (id - 109) % 8, var = (id - 109) / 8;
         if (arch == 4) {
             S.kit = 1; S.kit_bank = var % 5; kit_pattern(var % 4);
@@ -273,6 +295,10 @@ static void scene(int id) {
             S.b.tr[lead].speed = arch == 1 ? 1 : 2;
             set_phrase(lead, ph[(var + arch) % 3], 76, 53, 22, 64, 31, 5, var);
         }
+    }
+    if (id == DA_BIOMES) {           // Marmalade Jam: its chords and its arranger
+        S.chord_pattern = 2; S.chord_bars = 2; S.chord_tracks = 0x38;   // I-vi-IV-V on bass, lead, keys
+        S.jam = 1; S.jam_rng = (unsigned)S.b.seed * 2654435761u | 1;
     }
 #ifdef DA_DRY                        // A/B switch: no fx return, no grain tape (= mdrender --dry)
     S.fx_level = 0; S.b.macro[3] = 0;
@@ -615,6 +641,7 @@ static void load_biome(int id) {
 
 // ── firing: one track hit, booked at t ──────────────────────────────────────
 static void mark_hit(int i, double t) { hit_t[i][hit_w[i]++ & 7] = t; }
+static float snare_gain = 1;     // the jam's fills play the clap softer; every factory hit is 1
 static void fire(int i, int note, float vel, double t, int gate_ms) {
     const DaTrack *tr = &S.b.tr[i];
     int s = SL_TRACK + i, l = SL_LAYER + i, m = tr->model;
@@ -630,7 +657,7 @@ static void fire(int i, int note, float vel, double t, int gate_ms) {
     NoteOpts o = {0};
     o.gain = fmaxf(.05f, fminf(1, vel));
     if (m == M_KICK) o.gain = (3 + 7 * vel) / 10;   // Plaits: accent sets the pulse height 3+7a
-    if (m == M_SNARE) o.gain = 1;                   // rendered at accent .8; upstream drums ignore velocity in the mix
+    if (m == M_SNARE) o.gain = snare_gain;          // rendered at accent .8; upstream drums ignore velocity in the mix
     o.cutoff_oct = (breathe * .13f + tide * .2f) * 7.0f;
     if (m == M_CHOIR) {
         static const int chord[4][3] = { {0,3,7}, {0,4,7}, {0,5,7}, {0,7,12} };
@@ -662,8 +689,29 @@ static void kit_fire(int pad, float vel, double t) {
 
 // ── tick(): one sixteenth, ported from dreams.cpp ────────────────────────────
 static double step_dur(unsigned st) { return 60.0 / (S.b.tempo * 4.0) * (1 + (st % 2 ? -1 : 1) * unit(S.b.swing) * .5); }
+// ── the jam arranger (our own biomes only): which layers play this 8-bar phrase ──────────────
+// After Playtime's drum jam: layers enter one phrase at a time, then the set breathes — a layer
+// rests for a phrase, or a BREAKDOWN takes the kick, clap and bass away and the next phrase drops
+// them all back at once. The last bar of a phrase is a FILL: the clap runs up its last steps (a
+// rising roll out of a breakdown) and the hats let go before the one. Its rolls come from its OWN
+// rng, so the tracks' chance rolls stay exactly the factory sequencer's.
+static void jam_phrase(void) {
+    static const int build[6] = { 0, 1, 3, 2, 5, 4 };   // kick + hat, then bass, clap, keys, lead
+    static const int rest[4] = { 1, 2, 4, 5 };          // who may sit a phrase out
+    int p = S.jam_phrase++, was_break = S.jam_break;
+    unsigned r = rword(&S.jam_rng);
+    S.jam_break = 0;
+    for (int i = 0; i < 6; i++) S.jam_out[i] = 0;
+    if (p < 5) { for (int k = p + 2; k < 6; k++) S.jam_out[build[k]] = 1; return; }
+    if (was_break) return;                               // the drop: everyone back at once
+    if (r % 100 < 18) { S.jam_break = 1; S.jam_out[0] = S.jam_out[2] = S.jam_out[3] = 1; return; }
+    if ((r >> 8) % 100 < 55) S.jam_out[rest[(r >> 16) % 4]] = 1;
+}
+
 static void tick(double t) {
     double dur = step_dur(step);
+    if (S.jam && step % 128 == 0) jam_phrase();
+    int bar_step = step % 16, fill = S.jam && step % 128 >= 112 && S.jam_phrase > 3;
     if (step % 32 == 0) { if (S.b.locked) seqrng = seed; else seed = rword(&seqrng) | 1; }
     static const int degree[7] = { 0, 2, 3, 5, 7, 10, 12 };
     for (int i = 0; i < (S.kit ? 4 : 6); i++) {
@@ -683,7 +731,7 @@ static void tick(double t) {
         unsigned roll = rword(&seqrng);
         if (S.seq_on[i]) {
             const Step *st = &S.seq[i][local % S.seq_len[i]];
-            if (st->note && st->vel && !muted[i] && roll % 100 < st->chance && (roll / 100) % 1000 < (unsigned)tr->prob) {
+            if (st->note && st->vel && !muted[i] && !S.jam_out[i] && roll % 100 < st->chance && (roll / 100) % 1000 < (unsigned)tr->prob) {
                 int note = st->note;
                 if (tr->model >= M_FM) { if (S.chord_tracks & (1u << i)) note += chord_offset(); note = quantize(note + S.b.transpose, S.b.root, S.b.scale); }
                 double span = 60.0 / (S.b.tempo * 4.0) * speed;
@@ -691,7 +739,8 @@ static void tick(double t) {
             }
             continue;
         }
-        if (md_hit(local, hits, tr->length, tr->rotate) && roll % 1000 < (unsigned)tr->prob && !muted[i]) {
+        if (md_hit(local, hits, tr->length, tr->rotate) && roll % 1000 < (unsigned)tr->prob && !muted[i]
+            && !S.jam_out[i] && !(fill && i == 1 && bar_step >= 14)) {
             int note = tr->note;
             if (tr->model >= M_FM) {
                 if ((roll >> 10) % 1000 < (unsigned)S.b.macro[1]) note += degree[(roll >> 20) % 7];
@@ -703,21 +752,25 @@ static void tick(double t) {
             for (int r = 0; r < rat; r++) fire(i, note, vel, t + r * dur / rat, 0);
         }
     }
+    if (fill && !muted[2] && S.b.tr[2].model == M_SNARE) {   // the clap's fill
+        float g = S.jam_break ? .25f + .6f * bar_step / 15 : bar_step == 13 ? .45f : bar_step == 14 ? .6f : bar_step == 15 ? .75f : 0;
+        if (g > 0 && (S.jam_break || bar_step != 12)) { snare_gain = g; fire(2, S.b.tr[2].note, .8f, t, 0); snare_gain = 1; }
+    }
     step_t[step & 63] = t; step_n[step & 63] = step;
     step++;
 }
 
 // ── frame loop ───────────────────────────────────────────────────────────────
 static void go(int d) {
-    pos = (pos + d + DA_BIOMES) % DA_BIOMES;
-    load_biome(DA_BROWSE[pos]);
+    pos = (pos + d + DA_ALL) % DA_ALL;
+    load_biome(browse_id(pos));
 }
 void init(void) {
 #ifdef DA_ID                         // open on a biome by its upstream ID (= mdrender's argument)
-    for (int k = 0; k < DA_BIOMES; k++) if (DA_BROWSE[k] == DA_ID) pos = k;
+    for (int k = 0; k < DA_ALL; k++) if (browse_id(k) == DA_ID) pos = k;
 #endif
     for (int p = 0; p < 8; p++) instrument(SL_PAD + p, INSTR_SAMPLE, 0, 2000, 7, 30);
-    load_biome(DA_BROWSE[pos]);
+    load_biome(browse_id(pos));
 }
 void update(void) {
     if (btnp(0, BTN_RIGHT)) go(1);
@@ -729,6 +782,7 @@ void update(void) {
     watch("biome", "%d", cur);
     watch("step", "%u", step);
     watch("kit", "%d %d %d", S.kit, kit_hits, muted[3]);
+    watch("jam", "%d %d %d%d%d%d%d%d", S.jam_phrase, S.jam_break, S.jam_out[0], S.jam_out[1], S.jam_out[2], S.jam_out[3], S.jam_out[4], S.jam_out[5]);
 #endif
 }
 
@@ -755,14 +809,16 @@ void draw(void) {
     }
     font(FONT_SMALL);
     print("DREAM ATLAS  after Mutable Dreams", 4, 4, CLR_MEDIUM_GREY);
-    print_right(str("%d / %d", pos + 1, DA_BIOMES), 316, 4, CLR_MEDIUM_GREY);
+    print_right(str("%d / %d", pos + 1, DA_ALL), 316, 4, CLR_MEDIUM_GREY);
     font(FONT_NORMAL);
     print(S.b.name, 4, 16, CLR_WHITE);
     font(FONT_SMALL);
-    rectfill(4, 28, (int)strlen(DA_FAMILY_SHORT[S.b.family]) * 4 + 5, 9, fc);
-    print(DA_FAMILY_SHORT[S.b.family], 7, 30, CLR_BROWNISH_BLACK);
+    const char *fam = cur >= DA_BIOMES ? "OURS" : DA_FAMILY_SHORT[S.b.family];
+    rectfill(4, 28, (int)strlen(fam) * 4 + 5, 9, fc);
+    print(fam, 7, 30, CLR_BROWNISH_BLACK);
     print(str("%d BPM  %s %s%s", S.b.tempo, NOTE_NAME[bound(S.b.root, 0, 11)], SCALE_NAME[bound(S.b.scale, 0, 12)],
-              S.chord_pattern ? "  chords" : ""), (int)strlen(DA_FAMILY_SHORT[S.b.family]) * 4 + 14, 30, CLR_LIGHT_GREY);
+              S.chord_pattern ? "  chords" : ""), (int)strlen(fam) * 4 + 14, 30, CLR_LIGHT_GREY);
+    if (S.jam) print_right(str("phrase %d%s", S.jam_phrase, S.jam_break ? "  breakdown" : ""), 316, 30, fc);
 
     int cur_step = sounding_step();
     ui_begin();
@@ -770,7 +826,7 @@ void draw(void) {
         const DaTrack *tr = &S.b.tr[i];
         int y = 46 + i * 20;
         int is_kit = S.kit && i == 3, gone = S.kit && i > 3;
-        int off = muted[i] || gone;
+        int off = muted[i] || gone || S.jam_out[i];
         if (tapp(0, y - 2, 320, 18) && !gone) muted[i] = !muted[i];
         float g = off ? 0 : hit_glow(i);
         int nc = off ? CLR_DARK_GREY : g > .3f ? CLR_WHITE : CLR_LIGHT_GREY;
@@ -795,6 +851,7 @@ void draw(void) {
             rectfill(x0 + k * cw, y + 3, cw - 2, on ? 7 : 3, c);
         }
         if (muted[i]) print("MUTED", 300 - 20, y + 9, CLR_ORANGE);
+        else if (S.jam_out[i]) print("rests", 300 - 20, y + 9, CLR_DARK_GREY);
     }
     int by = 172;
     if (ui_button(4, by, 60, 22, "< PREV")) go(-1);

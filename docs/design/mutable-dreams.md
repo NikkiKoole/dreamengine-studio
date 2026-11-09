@@ -114,6 +114,21 @@ tracks, ours +6.7 dB overall (kept: ours is set by our own level measurements):
 
 The trims live in the cart's `VOICE_TRIM_DB[15]`, with the fit they came from.
 
+## Our own biomes
+
+The cart appends biomes of its own after the 157 factory ones (`DA_OWN_BIOME[]` in the cart, ids from
+157, browsed last, tagged OURS; `biomes.h` stays generated and untouched). Same row format, same
+sequencer, same randomness. The first is **Marmalade Jam**: a standard four-on-the-floor at 125 in G
+major (kick 4/16, offbeat hat, clap on 2 and 4, a bass rotated off every kick, tresillo keys), I-vi-IV-V
+two bars a chord, the kick ducking the rest. One odd length for the whimsy: a Rings pluck at 5 in 13.
+
+It also carries the one thing no factory biome has, borrowed from Playtime's drum jam
+(`playtime/docs/DRUM-JAM.md`): a live ARRANGER on 8-bar phrases (`jam_phrase()`). Layers enter one
+phrase at a time (kick + hat, bass, clap, keys, lead), then a layer may rest a phrase, or a breakdown
+takes kick, clap and bass out and the next phrase drops them all back. The last bar of each phrase is a
+fill: the clap runs up its last steps (a rising roll out of a breakdown), the hats let go before the one.
+Its rolls use its own rng, so the tracks' chance rolls are exactly the factory sequencer's.
+
 ## Next
 
 1. Listen: the fit moves the BALANCE toward the original, but numbers are not the bar (the kick

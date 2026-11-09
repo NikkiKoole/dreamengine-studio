@@ -3450,6 +3450,19 @@
     "lineage": "The demo for INSTR_GRAIN and docs/design/plinky-harvest.md §4.1: the sampler of Plinky (plinkysynth/plinky_public, MIT, Alex Evans), where each of eight touch strips plays a granular voice and your finger's place on the strip is your place in the sound. Not a Plinky clone and not named like one."
   },
   {
+    "title": "grand keys",
+    "description": "Play a real Steinway grand yourself. Every key starts with a recording of the real piano, and when you hold it (or the pedal) past a few seconds the note carries on as a modelled string, so it rings as long as a real one. There are 13 recordings, one every half octave; every other key plays its nearest one a little faster or slower. At 2.6 s each note fades from the recording into a waveguide string tuned to match it, which is why a held chord keeps ringing past the 3.2 s the recordings last. P switches the recordings off so you hear the modelled piano alone. Piano: bitKlavier Grand Sample Library, Daniel Trueman, Princeton University (CC BY 4.0). keys: A-L white, W E T Y U O P black (Z/X octave) · mouse/touch on the keys · a MIDI keyboard works too · SPACE (or a MIDI sustain pedal) = sustain pedal · UP/DOWN loudness · P Steinway / modelled piano",
+    "file": "grandkeys.cart.png",
+    "created": "2026-11-09",
+    "kind": [
+      "instrument"
+    ],
+    "teaches": [
+      "waveguide-synth"
+    ],
+    "lineage": "The playable face of steinway.h: a real Steinway D (bitKlavier Grand, Daniel Trueman, Princeton, CC BY 4.0) on INSTR_PIANO's hybrid, measured note by note in pianoref and first heard in openstrings. keybed.h does the keys."
+  },
+  {
     "title": "Grenadier",
     "description": "A triple voltage-controlled FILTERBANK drone/acid synth, after the Grendel RA-99 Grenadier (Rare Waves, 2020) — a CMOS semi-modular box whose whole voice is THREE parallel resonant filters swept together in a 2D space (the TB-303 filter is its tonal cousin). Ported entirely cart-side (no new engine DSP): three held voices on one root, each through its own resonant filter, summed. The XY PAD is the instrument — ALPHA (x) sweeps all three filters ±2 octaves, BETA (y) opens the SPACING from a tight cluster to a wide spread; a live frequency-response strip shows the three peaks move. LAYOUT switches RA-99 (lowpass + 2 bandpass) vs RA-9 (three bandpass). The in-scale KEYBED (A S D F G H J K L) sets the drone ROOT and glides to it. SPACE / Q / MORPH (a trapezoid VCO morphing triangle→square) / RND (per-trigger CMOS drift). GATE pulses the drone in time for the techno chug. Drag the SWEEP pad; ASDFGHJKL = root; ↑/↓ gate rate; ← / → tempo.",
     "file": "grenadier.cart.png",

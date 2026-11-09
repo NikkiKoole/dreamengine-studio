@@ -305,7 +305,7 @@ runtime/   studio.h (public API: constants + declarations), studio.c (Raylib imp
              steinway.h  GENERATED (tools/gen-steinway.js): a real Steinway D BAKED IN for INSTR_PIANO's HYBRID
                          grand (13 notes C1-C7, IMA ADPCM, ~0.9 MB): steinway_attach(slot, first_sample_slot) = every
                          note plays the recording, then fades into the modelled string at 2.6 s (an early splice is
-                         AUDIBLE). Uses 13 of 16 sample slots. CC BY 4.0: show STEINWAY_CREDIT. openstrings/pianoref
+                         AUDIBLE). Uses 13 of 16 sample slots. CC BY 4.0: show STEINWAY_CREDIT. grandkeys/openstrings/pianoref
              ampcab.h    the shared guitar AMP/CABINET voicing table: five amps as preset BUNDLES of effects we
                          already ship (instrument_drive + a DRIVE_* shaper + eq + glue), pinned like leslie, NOT
                          new DSP. ONE truth so the standalone amp + pinned cabinet agree. combo/pedalboard/

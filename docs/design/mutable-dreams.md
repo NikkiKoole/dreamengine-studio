@@ -212,6 +212,17 @@ down the scale with the jump macro (checked from the trace: D-G-C-F-A, E-A-D-G-B
 a deep swing, family Drone. The Drone family's colour became `CLR_BLUE` (was `CLR_DARK_BLUE`,
 unreadable on the cart's dark ground, for the factory Drone biomes too).
 
+**Twelve Against Thirteen** is phase music, after Steve Reich's *Piano Phase* (our own figure, not
+his): two Velvet "pianos", hard left and right, play the SAME 12-note figure in eighths (E dorian),
+but the right one's cycle is 13 (the figure and a rest), so it falls one step further behind every
+pass, through every offset, back to unison every 12 x 13 eighths (~58 s at 80). Checked from the
+trace: unison at the start, one step apart after the first rest, the figure intact in both. Under
+it a Rings marimba plays the figure four times slower (an augmentation canon), a bass pulses root
+and fifth, a shaker keeps sixteenths, a bell rings now and then. Two new `JamCfg` switches: `calm`
+(the layers build in and then stay: the phasing IS the development) and `phase` (the screen shows
+how far R has drifted behind L). Fixed patterns gained MELODY: `'a'..'p'` are scale steps over the
+track's note (uppercase accented).
+
 Mipo Band's triangle was a single pitch and got old; a lone BELL now wanders with the jump macro
 like a melody (a bell in a `pair`, Slow Brew's agogo, still keeps its two pitches). Note the cart
 clamps melodic notes to 24..96 (quantize), which had been pinning the triangle at 96.

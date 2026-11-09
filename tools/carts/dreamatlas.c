@@ -9,7 +9,7 @@
   "lineage": "A port of the BIOME atlas from Mutable Dreams 1.4 (Kid Bunka / Christoph Link, free firmware for the M-VAVE FM-1, itself built on Mutable Instruments' Plaits/Rings/Elements). The 157 scenes are the upstream's own factory data (MIT), generated into runtime/dreamatlas/biomes.h; the sequencer (Euclid hits/length/rotate per track, seeded rolls, chord journeys, scale masks, the Lo-Fi kit) is ported line by line from app/dsp/dreams.cpp. The fifteen VOICES are NOT ported: each is mapped onto the nearest engine dreamengine already ships, which is the experiment.",
   "homage": "Mutable Dreams (Kid Bunka) / Mutable Instruments",
   "description": {
-    "summary": "157 small generative worlds from Mutable Dreams, plus a few of our own (a house jam, a tabla-and-guiro bazaar, Moon Meadow with tablas, a slow organ-and-upright brew, the Puppetmaker band, a CR-78 bossa, one that evolves by itself, and a world-rhythm atlas): six drifting Euclidean tracks, chord journeys and a Lo-Fi kit, played on dreamengine's own voices.",
+    "summary": "157 small generative worlds from Mutable Dreams, plus a few of our own (a house jam, a tabla-and-guiro bazaar, Moon Meadow with tablas, a slow organ-and-upright brew, the Puppetmaker band, a CR-78 bossa, one that evolves by itself, a world-rhythm atlas and a slow modal jazz drone): six drifting Euclidean tracks, chord journeys and a Lo-Fi kit, played on dreamengine's own voices.",
     "detail": "Each BIOME is one scene: six tracks, each a voice (Plaits-style drums, FM, analog, Rings and Elements resonators, a sine choir, a round bass...) with its OWN rhythm, k hits spread over n steps. The lengths differ (16, 19, 13...), so the tracks slide against each other and the loop takes minutes to come round. Some biomes walk a chord progression under it, some swap three tracks for a crunchy 16 kHz Lo-Fi drum kit. Browse in the curated order: neighbours are meant to feel genuinely different. The scenes are the original's factory data; the sounds are this engine's nearest voices, so it is a translation, not a copy.",
     "controls": "LEFT/RIGHT or the arrows: next / previous biome · SPACE or PLAY: start / stop · 1-6: mute a track · tap a track row to mute it"
   },
@@ -54,7 +54,8 @@ static const char *const KIT_NAME[5] = { "DUST", "CRATE", "SOFT", "FOUND OBJECTS
 static const char *const SCALE_NAME[13] = { "chromatic", "minor", "major", "dorian", "minor pent", "major pent",
     "whole tone", "phrygian", "ukr dorian", "harm minor", "dbl harm min", "harm major", "dbl harm maj" };
 static const char *const NOTE_NAME[12] = { "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B" };
-static const int FAMILY_CLR[DA_FAMILIES] = { CLR_LIGHT_GREY, CLR_DARK_BLUE, CLR_BROWN, CLR_RED, CLR_ORANGE,
+static const int FAMILY_CLR[DA_FAMILIES] = { CLR_LIGHT_GREY, CLR_BLUE,     // Drone was CLR_DARK_BLUE: unreadable on the dark ground
+    CLR_BROWN, CLR_RED, CLR_ORANGE,
     CLR_GREEN, CLR_YELLOW, CLR_PINK, CLR_DARK_GREY, CLR_PEACH };
 
 #define SL_TRACK 10      // 10..15  the six track voices
@@ -167,7 +168,15 @@ _Static_assert(M_CRKICK == 23 && M_NYLON == 26, "the CR-78 Bossa row names its m
 // (Bulgaria) on a low drum, nawakhat E(5,7) (Arabic) on a riq, khafif-e-ramal E(2,5) (Persia) on the
 // upright, agsag-samai E(5,9) (Arabic) as a Rings line, Zappa's "Outside Now" E(4,11) on Velvet keys,
 // in Hijaz Kar (double harmonic major) on D.
-#define DA_OWN 10
+// LATE MODAL is a slow jazz drone made of what the other biomes already brought: Moon Meadow's
+// drawbar drone (HARMONIC) on D, brew's finger-plucked upright walking slow quarter notes in the
+// scale, a ride playing "ding, ding-a" (E(3,4) in eighths, swung, is the jazz ride figure), the
+// scrape as a metal brush sweeping 2 and 4, the bell as a sparse vibraphone line, and Playtime's
+// Rhodes playing the modal-jazz voicing (four stacked fourths and a third, D G C F A in D dorian),
+// rolled, every bar and a half, planing up and down the scale with the jump macro. 64 BPM, a deep
+// swing, family Drone (the ambient sends). It builds from the drone and the Rhodes; its breakdown
+// takes the bass, ride and brush away and leaves the drone, the Rhodes and the vibes.
+#define DA_OWN 11
 #define DA_ALL (DA_BIOMES + DA_OWN)
 static const DaBiome DA_OWN_BIOME[DA_OWN] = {
  {"Marmalade Jam",8,125,7,2,125125,0,0,650,200,100,0,120,0,0,0,380,300,{500,260,520,60},{
@@ -240,6 +249,13 @@ static const DaBiome DA_OWN_BIOME[DA_OWN] = {
   /* khafif    E(2,5)  */ {17,300,300,400,400,0,2,5,3,950,38,480,0,1,0,1,250,450,850,100,0,0},
   /* agsag     E(5,9)  */ {5,600,250,300,450,220,5,9,0,850,62,640,0,1,0,1,200,150,850,100,0,120},
   /* Zappa     E(4,11) */ {12,400,250,450,50,220,4,11,0,850,74,380,0,1,0,1,200,350,800,100,0,150}}},
+ {"Late Modal",1,64,2,3,64646,0,0,700,250,150,0,560,0,0,-1,0,300,{500,350,450,120},{
+  /* drone   (Moon Meadow's harmonic) */ {6,25,510,910,45,350,1,16,0,1000,38,500,0,1,600,1,0,800,775,0,1,300},
+  /* upright (hUpright)  */ {17,280,300,600,350,0,4,16,0,750,38,470,0,1,0,1,200,450,850,100,0,0},
+  /* ride    (metal)     */ {2,700,450,700,300,150,3,4,0,900,72,620,0,2,0,1,300,0,850,100,0,0},
+  /* brush   (scrape)    */ {16,400,1000,600,900,200,2,16,4,900,60,400,0,1,0,1,150,0,850,100,0,0},
+  /* rhodes  (rhodes)    */ {22,200,150,1000,450,300,1,12,0,950,50,520,0,2,0,1,0,120,850,100,0,200},
+  /* vibes   (bell)      */ {20,450,600,700,560,300,3,13,2,800,74,600,0,1,0,1,200,300,850,100,0,0}}},
 };
 // how each of our biomes JAMS (Playtime's drum jam): the order its layers enter, who may rest a
 // phrase, who a breakdown takes out, which track plays the phrase-end fill, which lets go before the one
@@ -254,6 +270,8 @@ typedef struct { int chord_pattern, chord_tracks, build[6], rest[4], break_mask,
                  signed char gtr[3];        // the guitar's chord, scale degrees over the root (0,0,0 = 2 4 7)
                  int evolve;                // 1 = no layer arranger: the biome MUTATES itself every 4 bars
                  const char *from[6];       // where a track's rhythm comes from, shown under its name
+                 signed char keys[6];       // the Rhodes' voicing in SCALE DEGREES over its note, rolled up,
+                                            // 0-terminated after the first (all 0 = babirhodes' fixed chord)
                } JamCfg;
 static const JamCfg DA_OWN_JAM[DA_OWN] = {
     { 2, 0x38, {0, 1, 3, 2, 5, 4}, {1, 2, 4, 5}, 1 << 0 | 1 << 2 | 1 << 3, 2, 1,     // Marmalade: I-vi-IV-V
@@ -283,6 +301,9 @@ static const JamCfg DA_OWN_JAM[DA_OWN] = {
     { 0, 0,    {0, 1, 3, 2, 4, 5}, {2, 3, 4, 5}, 1 << 0 | 1 << 1, 0, 2,                // Aksak Atlas: odd cycles, Hijaz Kar
       { "AKSAK", "RUCHENITSA", "NAWAKHAT", "KHAFIF", "AGSAG-SAMAI", "OUTSIDE NOW" }, {0}, 0, 0,
       {0}, {0}, {0}, 0, { "Turkey", "Bulgaria", "Arabic", "Persia", "Arabic", "Zappa" } },
+    { 0, 0,    {0, 4, 1, 2, 3, 5}, {1, 2, 3, 5}, 1 << 1 | 1 << 2 | 1 << 3, 3, 2,     // Late Modal: a D dorian drone
+      { "DRONE", "UPRIGHT", "RIDE", "BRUSH", "RHODES", "VIBES" }, {0}, 0, 0, {0}, {0}, {0}, 0, {0},
+      { 0, 3, 6, 9, 11 } },                                         // the "So What" voicing: four 4ths + a 3rd
 };
 static const DaBiome *biome_row(int id) { return id < DA_BIOMES ? &DA_BIOME[id] : &DA_OWN_BIOME[id - DA_BIOMES]; }
 static int browse_id(int k) { return k < DA_BIOMES ? DA_BROWSE[k] : k; }   // ours come last, in order
@@ -893,6 +914,7 @@ static void load_biome(int id) {
 
 // ── firing: one track hit, booked at t ──────────────────────────────────────
 static void mark_hit(int i, double t) { hit_t[i][hit_w[i]++ & 7] = t; }
+static int scale_step(int note, int k);
 static float snare_gain = 1;     // the jam's fills play the clap softer; every factory hit is 1
 static void fire(int i, int note, float vel, double t, int gate_ms) {
     const DaTrack *tr = &S.b.tr[i];
@@ -941,6 +963,16 @@ static void fire(int i, int note, float vel, double t, int gate_ms) {
     }
     if (S.jam && DA_OWN_JAM[S.jam - 1].pair[i]) {   // a pair (the bongos): low, high in turn
         static int pflip[6]; if (pflip[i]++ & 1) note += DA_OWN_JAM[S.jam - 1].pair[i];
+    }
+    if (m == M_RHODES && S.jam && (DA_OWN_JAM[S.jam - 1].keys[1] || DA_OWN_JAM[S.jam - 1].keys[0])) {
+        // a jazz voicing in the scale, rolled gently upward (a biome's keys[]: e.g. stacked fourths)
+        const signed char *kd = DA_OWN_JAM[S.jam - 1].keys;
+        for (int k = 0; k < 6 && (k == 0 || kd[k]); k++) {
+            int n = scale_step(note, kd[k]);
+            NoteOpts c = o; c.gain = o.gain * .55f;
+            track_booking(schedule_note_at(t + k * .028, n, s, 7, dur, &c), end + 3);
+        }
+        mark_hit(i, t); return;
     }
     if (m == M_RHODES) {   // babirhodes' rhodes2: ONE rolled six-note chord, a hand's up-strum, as measured
         static const int iv[6] = { 0, 7, 16, 19, 21, 24 }, at_ms[6] = { 0, 29, 52, 75, 151, 191 };

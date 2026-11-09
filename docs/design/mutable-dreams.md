@@ -203,6 +203,15 @@ the four. **Aksak Atlas**, odd cycles on one pulse: aksak E(4,9), ruchenitsa E(3
 khafif-e-ramal E(2,5), agsag-samai E(5,9), Zappa's "Outside Now" E(4,11), in Hijaz Kar on D. Each
 enters a phrase at a time, so the rhythms are heard alone before they stack.
 
+**Late Modal** is a slow jazz drone assembled from what the other biomes brought: Moon Meadow's
+drawbar drone on D, brew's upright walking slow quarters, a ride playing "ding, ding-a" (E(3,4) in
+eighths, swung, IS the jazz ride figure), the scrape as a metal brush on 2 and 4, the bell as a
+sparse vibraphone, and Playtime's Rhodes playing the modal voicing (four stacked fourths and a third:
+D G C F A in D dorian, `JamCfg.keys[]` in scale degrees), rolled, every bar and a half, planing up and
+down the scale with the jump macro (checked from the trace: D-G-C-F-A, E-A-D-G-B, the octave). 64 BPM,
+a deep swing, family Drone. The Drone family's colour became `CLR_BLUE` (was `CLR_DARK_BLUE`,
+unreadable on the cart's dark ground, for the factory Drone biomes too).
+
 Mipo Band's triangle was a single pitch and got old; a lone BELL now wanders with the jump macro
 like a melody (a bell in a `pair`, Slow Brew's agogo, still keeps its two pitches). Note the cart
 clamps melodic notes to 24..96 (quantize), which had been pinning the triangle at 96.

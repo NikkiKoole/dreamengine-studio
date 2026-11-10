@@ -295,6 +295,12 @@ checked from the trace), a STRUM opens on the downbeat every two bars, a brush s
 drawbar G and a soft saw D drone under it. G C Em D two bars each at 92. A chord shift moves the
 fingers' degree pattern by semitones and quantizes it, which lands on chord tones for I, IV, vi and V.
 
+**Cassette Dreams 2** is the sequel, not a copy: C major at 74 through Dm9 G9 Cmaj9 Am9 a bar each, a
+lazy rimshot with ghosts instead of a snare, a soft kick ducking the mix (the lo-fi pump), a warm
+upright, a clean jazz guitar stabbing rootless 3-7-9 chords (F C E, B F A, E B D, C G B, from the trace),
+a vibraphone wandering 5 in 13 deep in the echo, the crackle, and a more worn cassette (wow .75,
+flutter .45, saturation .55). It starts like a tape rolling; breakdowns drop the beat and swell the echo.
+
 Mipo Band's triangle was a single pitch and got old; a lone BELL now wanders with the jump macro
 like a melody (a bell in a `pair`, Slow Brew's agogo, still keeps its two pitches). Note the cart
 clamps melodic notes to 24..96 (quantize), which had been pinning the triangle at 96.

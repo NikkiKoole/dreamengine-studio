@@ -9,7 +9,7 @@
   "lineage": "A port of the BIOME atlas from Mutable Dreams 1.4 (Kid Bunka / Christoph Link, free firmware for the M-VAVE FM-1, itself built on Mutable Instruments' Plaits/Rings/Elements). The 157 scenes are the upstream's own factory data (MIT), generated into runtime/dreamatlas/biomes.h; the sequencer (Euclid hits/length/rotate per track, seeded rolls, chord journeys, scale masks, the Lo-Fi kit) is ported line by line from app/dsp/dreams.cpp. The fifteen VOICES are NOT ported: each is mapped onto the nearest engine dreamengine already ships, which is the experiment.",
   "homage": "Mutable Dreams (Kid Bunka) / Mutable Instruments",
   "description": {
-    "summary": "157 small generative worlds from Mutable Dreams, plus a few of our own (a house jam, a tabla-and-guiro bazaar, Moon Meadow with tablas, a slow organ-and-upright brew, the Puppetmaker band, a CR-78 bossa, one that evolves by itself, a world-rhythm atlas, a slow modal jazz drone, a Reich-style phase piece, cool jazz in 5/4, an organ boogaloo, a frog pond at dusk, a tape-echo dub, a lo-fi cassette, a drill lullaby and Travis-picked electric guitar): six drifting Euclidean tracks, chord journeys and a Lo-Fi kit, played on dreamengine's own voices.",
+    "summary": "157 small generative worlds from Mutable Dreams, plus a few of our own (a house jam, a tabla-and-guiro bazaar, Moon Meadow with tablas, a slow organ-and-upright brew, the Puppetmaker band, a CR-78 bossa, one that evolves by itself, a world-rhythm atlas, a slow modal jazz drone, a Reich-style phase piece, cool jazz in 5/4, an organ boogaloo, a frog pond at dusk, a tape-echo dub, a lo-fi cassette, a drill lullaby, Travis-picked electric guitar and a second cassette): six drifting Euclidean tracks, chord journeys and a Lo-Fi kit, played on dreamengine's own voices.",
     "detail": "Each BIOME is one scene: six tracks, each a voice (Plaits-style drums, FM, analog, Rings and Elements resonators, a sine choir, a round bass...) with its OWN rhythm, k hits spread over n steps. The lengths differ (16, 19, 13...), so the tracks slide against each other and the loop takes minutes to come round. Some biomes walk a chord progression under it, some swap three tracks for a crunchy 16 kHz Lo-Fi drum kit. Browse in the curated order: neighbours are meant to feel genuinely different. The scenes are the original's factory data; the sounds are this engine's nearest voices, so it is a translation, not a copy.",
     "controls": "LEFT/RIGHT or the arrows: next / previous biome · SPACE or PLAY: start / stop · 1-6: mute a track · tap a track row to mute it"
   },
@@ -233,7 +233,12 @@ _Static_assert(M_CRKICK == 23 && M_NYLON == 26 && M_CRACKLE == 27 && M_EGTR == 2
 // offbeats ("l.j...l.h.j...h.", the 12th, 10th and octave), a STRUM opens up on the downbeat every two
 // bars, a brush sweeps 2 and 4, and two drones hold it: a low drawbar G and a soft saw D swelling in.
 // G C Em D, two bars each, 92 BPM, a little echo and room on the guitars. The thumb is the pulse.
-#define DA_OWN 19
+// CASSETTE DREAMS 2 is the sequel, not a copy: C major at 74 through Dm9 G9 Cmaj9 Am9 (a bar each), a
+// lazy rimshot with ghosts instead of a snare, a soft kick that ducks the mix (the lo-fi pump), a warm
+// upright, a clean jazz guitar stabbing rootless 3-7-9 chords, a vibraphone wandering 5 in 13 deep in
+// the echo, vinyl crackle, and a MORE worn cassette (wow .75, flutter .45, saturation .55). It starts
+// like a tape rolling (crackle, guitar, vibes); breakdowns drop the beat and bass and swell the echo.
+#define DA_OWN 20
 #define DA_ALL (DA_BIOMES + DA_OWN)
 static const DaBiome DA_OWN_BIOME[DA_OWN] = {
  {"Marmalade Jam",8,125,7,2,125125,0,0,650,200,100,0,120,0,0,0,380,300,{500,260,520,60},{
@@ -369,6 +374,13 @@ static const DaBiome DA_OWN_BIOME[DA_OWN] = {
   /* brush   (scrape)    */ {16,400,1000,500,800,200,0,16,0,900,60,420,0,1,0,1,0,0,850,100,0,0},
   /* low drone (harmonic)*/ {6,25,510,910,30,350,1,16,0,1000,43,500,0,2,600,1,0,800,775,0,1,250},
   /* high drone (saw)    */ {4,300,80,900,63,350,1,16,0,1000,62,540,0,2,800,1,0,300,600,0,1,300}}},
+ {"Cassette Dreams 2",9,74,0,2,74747,0,0,650,200,100,0,450,0,0,0,300,300,{500,250,450,80},{
+  /* kick    (Plaits)    */ {0,200,150,400,1000,0,0,16,0,980,33,500,0,1,0,1,0,150,850,100,0,0},
+  /* rim     (CR-78)     */ {24,0,0,0,380,120,0,16,0,980,90,450,0,1,0,1,0,0,850,100,0,0},
+  /* crackle (vinyl)     */ {27,0,0,0,95,0,7,11,0,500,60,520,0,1,0,2,0,0,850,100,0,0},
+  /* upright             */ {17,260,300,500,350,0,0,16,0,980,36,480,0,1,0,1,0,450,850,100,0,0},
+  /* guitar  (clean)     */ {19,500,550,550,210,200,0,16,0,950,48,560,0,1,0,1,0,150,850,100,0,0},
+  /* vibes   (bell)      */ {20,450,600,600,280,300,5,13,0,850,76,600,0,1,0,1,200,300,850,100,0,0}}},
 };
 // how each of our biomes JAMS (Playtime's drum jam): the order its layers enter, who may rest a
 // phrase, who a breakdown takes out, which track plays the phrase-end fill, which lets go before the one
@@ -463,6 +475,12 @@ static const JamCfg DA_OWN_JAM[DA_OWN] = {
       { "THUMB", "FINGERS", "STRUM", "BRUSH", "LOW DRONE", "HIGH DRONE" }, { 0, 3, 5, 4 }, 4, 2, {0},
       { "a...e...a...e...", "l.j...l.h.j...h.", "x...............", "....x.......x...", 0, 0 },   // Travis
       .delay16 = 3, .delay_fb = 300, .fx = 380, .dsend = { 80, 250, 250, 0, 0, 0 } },
+    { 1, 0x38, {2, 4, 5, 0, 1, 3}, {1, 2, 5, 4}, 1 << 0 | 1 << 1 | 1 << 3, -1, -1,  // Cassette Dreams 2: ii V I vi in C
+      { "KICK", "RIM", "CRACKLE", "UPRIGHT", "GUITAR", "VIBES" }, { 1, 4, 0, 5 }, 4, 1, {0},
+      { "X.......x.x.....", "....X...-...X..-", 0, "a.....e.a...g...", "X.....x...x.....", 0 },
+      { 2, 6, 8 },                                                  // the guitar rootless: 3 7 9
+      .delay16 = 3, .delay_fb = 500, .fx = 400, .dsend = { 0, 100, 0, 0, 250, 500 }, .dub = 1, .break_pct = 22,
+      .tape_wow = 750, .tape_flutter = 450, .tape_sat = 550 },     // a more worn cassette than the first
 };
 static const DaBiome *biome_row(int id) { return id < DA_BIOMES ? &DA_BIOME[id] : &DA_OWN_BIOME[id - DA_BIOMES]; }
 static int browse_id(int k) { return k < DA_BIOMES ? DA_BROWSE[k] : k; }   // ours come last, in order

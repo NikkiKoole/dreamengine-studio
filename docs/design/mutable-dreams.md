@@ -307,9 +307,14 @@ to 32 steps), and every second pass its second bar becomes a LICK climbing to th
 (`JamCfg.circle` / `circle_bars`: the transpose and the scale's root move together, folded to -6..+5 so
 the riff keeps its register), through all twelve keys in 48 bars (~115 s at 100) and home; the header
 shows the key. Checked from the bass trace: riff, riff + lick (D E F G up to the octave, landing on the
-fifth of the next key, a V-I lead-in), then C, F, Bb... Rhodes stabs and clav chops (the epiano at a
-high harmonics setting, short) in rootless minor 9ths follow the key; a funk kick, ghosted snare, 16th
+fifth of the next key, a V-I lead-in), then C, F, Bb... Rhodes stabs in rootless minor 9ths and a guitar
+chicken-scratch follow the key (a clav on the epiano's high harmonics setting was tried first: too weak
+to hear at any level, and it "sounds awful"); a funk kick, ghosted snare, 16th
 hats; the breakdown is a bass break (kick and riff).
+
+In every jamming biome a track that has just come in reads **joins** for that phrase (`S.jam_new`), the
+way "rests" marks one sitting out, so the screen says what is new (asked after "phase 5 circle riff, I
+don't know what comes in": the clav, too faint to hear).
 
 Mipo Band's triangle was a single pitch and got old; a lone BELL now wanders with the jump macro
 like a melody (a bell in a `pair`, Slow Brew's agogo, still keeps its two pitches). Note the cart

@@ -102,7 +102,7 @@ typedef struct {
     int seq_on[6], seq_len[6]; Step seq[6][32];   // 32: an own biome's two-bar riff (factory phrases use 16)
     Step seq2[6][32]; int seq2_len[6], root0;     // an own biome's VARIATION pattern; its key before any circling
     int kit, kit_bank; unsigned kit_gates[8];
-    int jam, jam_phrase, jam_break, jam_out[6]; unsigned jam_rng;   // our own biomes' live arranger (jam = JamCfg index + 1)
+    int jam, jam_phrase, jam_break, jam_out[6], jam_new[6]; unsigned jam_rng;   // our own biomes' live arranger (jam = JamCfg index + 1)
     DaTrack home[6]; int gen; char change[48];   // an EVOLVING biome: where it started, its generation, its last move
     unsigned glitch_rng, cut_until;              // the drill ratchets' own rng; a cut silences until this step
 } Scene;
@@ -243,8 +243,9 @@ _Static_assert(M_CRKICK == 23 && M_NYLON == 26 && M_CRACKLE == 27 && M_EGTR == 2
 // up to 32), and every second pass its second bar turns into a LICK climbing to the octave (JamCfg.pat2 /
 // var_every). Every 4 bars, riff and lick, the whole band moves up a FOURTH (JamCfg.circle): A D G C F Bb
 // Eb Ab Db Gb B E and home, the circle of fourths through all twelve keys, folded so the riff stays in its
-// register; the scale's root moves with it, so the Rhodes stabs and the clav chops (minor 9ths, rootless)
-// follow, and the screen shows the key. A funk kick, a ghosted snare, 16th hats; its breakdown is a BASS
+// register; the scale's root moves with it, so the Rhodes stabs (minor 9ths, rootless) and the guitar
+// chicken-scratch follow, and the screen shows the key. (A clav on the epiano engine's high harmonics
+// setting was tried first: weak, and it sounded awful.) A funk kick, a ghosted snare, 16th hats; its breakdown is a BASS
 // BREAK, kick and riff alone.
 #define DA_OWN 21
 #define DA_ALL (DA_BIOMES + DA_OWN)
@@ -395,7 +396,7 @@ static const DaBiome DA_OWN_BIOME[DA_OWN] = {
   /* hats    (metal)     */ {2,650,300,90,300,60,16,16,0,880,72,600,0,1,0,1,350,150,850,100,0,0},
   /* bass    (round)     */ {8,320,450,180,260,0,0,32,0,1000,45,500,0,1,0,1,0,500,750,200,1,0},
   /* rhodes  (stabs)     */ {22,200,150,120,280,200,0,16,0,950,57,430,0,1,0,1,0,120,850,100,0,100},
-  /* clav    (epiano)    */ {22,700,900,40,700,100,0,16,0,900,69,600,0,1,0,1,0,300,850,100,0,0}}},
+  /* scratch (guitar)    */ {19,350,400,30,400,80,0,16,0,900,57,600,0,1,0,1,0,100,850,100,0,0}}},
 };
 // how each of our biomes JAMS (Playtime's drum jam): the order its layers enter, who may rest a
 // phrase, who a breakdown takes out, which track plays the phrase-end fill, which lets go before the one
@@ -501,7 +502,7 @@ static const JamCfg DA_OWN_JAM[DA_OWN] = {
       .delay16 = 3, .delay_fb = 500, .fx = 400, .dsend = { 0, 100, 0, 0, 250, 500 }, .dub = 1, .break_pct = 22,
       .tape_wow = 750, .tape_flutter = 450, .tape_sat = 550 },     // a more worn cassette than the first
     { 0, 0,    {0, 2, 3, 1, 4, 5}, {2, 4, 5, 1}, 1 << 1 | 1 << 2 | 1 << 4 | 1 << 5, 1, 2,   // Circle Riff
-      { "KICK", "SNARE", "HATS", "BASS", "RHODES", "CLAV" }, {0}, 0, 0, {0},
+      { "KICK", "SNARE", "HATS", "BASS", "RHODES", "SCRATCH" }, {0}, 0, 0, {0},
       { "X..x....X.x.....", "....X..-.-..X..-", 0,
         "a..a..gha..e.dc.a..a..gh..edc.a.",                         // the riff: two bars of 16ths, A dorian
         "....x.......x...", ".x.x..x..x.x..x." },
@@ -1260,8 +1261,10 @@ static double step_dur(unsigned st) { return 60.0 / (S.b.tempo * 4.0) * (1 + (st
 // rng, so the tracks' chance rolls stay exactly the factory sequencer's.
 static void jam_pick(void);
 static void jam_phrase(void) {   // pick the phrase's layers; a DUB biome swells its echo for a breakdown
-    int was_break = S.jam_break;
+    int was_break = S.jam_break, was_out[6];
+    for (int i = 0; i < 6; i++) was_out[i] = S.jam_out[i] || S.jam_phrase == 0;
     jam_pick();
+    for (int i = 0; i < 6; i++) S.jam_new[i] = was_out[i] && !S.jam_out[i] && S.jam_phrase > 1;   // shown as "joins"
     const JamCfg *j = &DA_OWN_JAM[S.jam - 1];
     if (!j->dub) return;
     if (S.jam_break && !was_break) echo(S.delay_ms, fminf(1.02f, unit(S.delay_fb) * .9f + .42f), .3f);   // set-and-hold:
@@ -1534,6 +1537,7 @@ void draw(void) {
         }
         if (muted[i]) print("MUTED", 300 - 20, y + 9, CLR_ORANGE);
         else if (S.jam_out[i]) print("rests", 300 - 20, y + 9, CLR_DARK_GREY);
+        else if (S.jam_new[i]) print("joins", 300 - 20, y + 9, fc);
     }
     int by = 172;
     if (ui_button(4, by, 60, 22, "< PREV")) go(-1);

@@ -38,6 +38,20 @@ It prints every lane with its line number and age, read straight from this file,
 `node tools/handoff.js --check` is the back door (>2wk old · a missing or unanchored Resume-at ·
 a broken doc link or `#section`).
 
+> **▶ ACTIVE THREAD (2026-11-10) - `dreamatlas`: Mutable Dreams measured against upstream, plus 22 biomes of our own.**
+> **Shipped (2026-11-09/10):** `tools/ref-render/run.sh mutable` builds upstream's own engine (`mdrender`) and
+> `mdcompare.js` A/Bs any biome track by track; the Plaits kick and snare are PORTED (rendered to samples, the
+> snare with four noise draws round-robin); per-voice trims fitted; the factory scene data verified field by
+> field (23,864 values, 0 mismatches). Then 22 biomes of ours after the 157 (house jam, tablas, brew, Puppetmaker,
+> CR-78 bossa, a self-evolving one, a Toussaint world-rhythm atlas, modal/5-4/boogaloo/pond jazz, Reich phasing,
+> dub, two lo-fi cassettes, drill'n'bass, Travis-picked electric, a bass riff round the circle of fourths), each
+> a row + a `JamCfg`, levels set from solo stems. Maker's verdicts: "sounds good", the crickets and the clav and the
+> Mipos' singing were cut as awful and replaced.
+> **Resume at:** [Next](design/mutable-dreams.md#next) · adding another: [Adding one of our own](design/mutable-dreams.md#adding-one-of-our-own).
+> Open: the voice-engine bug needs the maker's go (it changes every voice cart); everything else is optional.
+> **Hot files:** `tools/carts/dreamatlas.c` only (no engine edits). Every commit re-checked that biome 157 and
+> factory 34 render byte-identical.
+
 > Two things lived here until 2026-07-30 and were deleted because both had rotted: a prose
 > re-summary of every lane (9.5 KB on a single line) and a hand-numbered index. The index said
 > "sixteen lanes" when there were nineteen, and omitted three — including the newest and topmost.

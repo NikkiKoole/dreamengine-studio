@@ -334,14 +334,46 @@ LEVELS in our biomes come from measured solo stems (`DE_DEFINES=DA_ID=<id>,DA_SO
 factory fit: upstream's balance puts the quiet Plaits kick ~20 dB under a loud round bass, which a
 four-on-the-floor cannot take. Kick and bass now sit within a few dB of each other.
 
+## Adding one of our own
+
+A biome of ours is a ROW in `DA_OWN_BIOME[]` (the factory format: 21 scene fields, then 6 × 22 track
+fields) plus a `JamCfg` in `DA_OWN_JAM[]` (same index), then `DA_OWN` + 1. The routine that kept every
+one of them honest:
+
+1. **Name the late `JamCfg` fields** (`.keys = {...}, .delay16 = 3, ...`). Positional initialisers past
+   the first ~10 fields mis-slot silently (brace elision poured a scalar into `keys[]` and shifted
+   everything after it; `bar` became 1).
+2. **Measure every track alone** and set levels from that, not from the factory fit:
+   `DE_DEFINES="DA_ID=<id>,DA_SOLO=<n>" node tools/play.js dreamatlas run --headless --frames 10800 --wav x.wav`
+   then `node tools/wav-analyze.js x.wav` (RMS for sustained parts, PEAK for sparse transients; a part
+   that enters late in the build reads low on RMS). Commas, not spaces, between the defines.
+3. **Check what it PLAYED** from the trace (`--trace t.jsonl`, the `"vev":"on"` lines: slot, midi,
+   sample) when a voicing, a pattern or a key change matters. A track's slot is `10 + i`.
+4. **Prove the rest did not move**: render biome 157 (Marmalade Jam) and factory biome 34 and compare
+   shas with a render from before the change.
+5. **Bake, then `node tools/build-all.js dreamatlas`**: the harness build pulls headers in through
+   `DE_TRACE` that the editor's plain build does not (a missing `<stdio.h>` shipped once that way).
+6. The doc paragraph above, and the one-line addition to the cart's `de:meta` summary.
+
+The vocabulary a `JamCfg` already has: build order / rests / breakdown mask / fill / let-go; track
+`names[]` and `from[]`; `prog[]` chord cycles; `pair[]` (two alternating pitches); `pat[]` + `pat2[]`
+fixed patterns up to 32 steps (`x X . 5 -` and scale-step letters `a..p`) with `var_every`; `gtr[]` and
+`keys[]` voicings; `calm`, `phase`, `evolve`; `bar` + `bpm` (steps that are not 16ths); the echo
+(`delay16`, `delay_fb`, `fx`, `dsend[]`, `dub`, `break_pct`); the master `tape_*`; `ratch[]` and `cuts`;
+`circle` + `circle_bars`.
+
 ## Next
 
-1. Listen: the fit moves the BALANCE toward the original, but numbers are not the bar (the kick
-   especially).
-2. ~~A click for the KICK~~ done: the Plaits drum is ported (§Measured).
-3. ~~SNARE brightness~~ done: ported the same way (§Measured). The HAT (2×) is the last drum off;
-   Plaits' `HiHat` (six square oscillators plus clocked noise, the mix set by harm) could be
-   rendered to a sample the same way, with the snare's round-robin for its noise.
-4. RINGS brightness (0.41×), then a sweep that covers ELEMENTS/MELLOW/SATIN/SPECTRAL.
-5. Porting the Plaits VA / additive engines looks unnecessary: both match the original's brightness
-   within 2%. Revisit only if the ear disagrees.
+1. **Listen** to the 22 biomes of ours; every level and voicing was set by measurement, none by ear
+   except where the maker reported (the crickets, the clav, the Mipos' voice).
+2. **The voice-engine bug** (§ above, under Mipo Band): a booked `INSTR_VOICE` note ignores its vowel.
+   One line in `sound.h` (call `vox_apply_macros(v)` at the end of `sound_voice_start()`); not made
+   because it changes every voice cart. Needs the maker's go.
+3. **Drift Garden snapshots**: a biome is 153 numbers, so any generation could be shown or saved as a
+   ~500-character code to keep or share.
+4. **Gamelan**: the one experiment discussed and not built (interlocking kotekan, a gong cycle,
+   slendro/pelog via per-note cents).
+5. **Upstream fidelity**: RINGS is 0.41× as bright as the original and the HAT 2× (the hat could be
+   ported to a sample like the kick and snare), then a sweep covering ELEMENTS/MELLOW/SATIN/SPECTRAL.
+6. **Late Modal's vibes** run at half their old density since its steps became eighths; double their
+   hits if they feel too lazy.

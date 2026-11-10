@@ -9,7 +9,7 @@
   "lineage": "A port of the BIOME atlas from Mutable Dreams 1.4 (Kid Bunka / Christoph Link, free firmware for the M-VAVE FM-1, itself built on Mutable Instruments' Plaits/Rings/Elements). The 157 scenes are the upstream's own factory data (MIT), generated into runtime/dreamatlas/biomes.h; the sequencer (Euclid hits/length/rotate per track, seeded rolls, chord journeys, scale masks, the Lo-Fi kit) is ported line by line from app/dsp/dreams.cpp. The fifteen VOICES are NOT ported: each is mapped onto the nearest engine dreamengine already ships, which is the experiment.",
   "homage": "Mutable Dreams (Kid Bunka) / Mutable Instruments",
   "description": {
-    "summary": "157 small generative worlds from Mutable Dreams, plus a few of our own (a house jam, a tabla-and-guiro bazaar, Moon Meadow with tablas, a slow organ-and-upright brew, the Puppetmaker band, a CR-78 bossa, one that evolves by itself, a world-rhythm atlas, a slow modal jazz drone, a Reich-style phase piece, cool jazz in 5/4, an organ boogaloo, a frog pond at dusk and a tape-echo dub): six drifting Euclidean tracks, chord journeys and a Lo-Fi kit, played on dreamengine's own voices.",
+    "summary": "157 small generative worlds from Mutable Dreams, plus a few of our own (a house jam, a tabla-and-guiro bazaar, Moon Meadow with tablas, a slow organ-and-upright brew, the Puppetmaker band, a CR-78 bossa, one that evolves by itself, a world-rhythm atlas, a slow modal jazz drone, a Reich-style phase piece, cool jazz in 5/4, an organ boogaloo, a frog pond at dusk, a tape-echo dub and a lo-fi cassette): six drifting Euclidean tracks, chord journeys and a Lo-Fi kit, played on dreamengine's own voices.",
     "detail": "Each BIOME is one scene: six tracks, each a voice (Plaits-style drums, FM, analog, Rings and Elements resonators, a sine choir, a round bass...) with its OWN rhythm, k hits spread over n steps. The lengths differ (16, 19, 13...), so the tracks slide against each other and the loop takes minutes to come round. Some biomes walk a chord progression under it, some swap three tracks for a crunchy 16 kHz Lo-Fi drum kit. Browse in the curated order: neighbours are meant to feel genuinely different. The scenes are the original's factory data; the sounds are this engine's nearest voices, so it is a translation, not a copy.",
     "controls": "LEFT/RIGHT or the arrows: next / previous biome · SPACE or PLAY: start / stop · 1-6: mute a track · tap a track row to mute it"
   },
@@ -44,12 +44,12 @@ de:meta */
 // ── upstream constants ───────────────────────────────────────────────────────
 enum { M_KICK, M_SNARE, M_HAT, M_FM, M_VA, M_RINGS, M_HARMONIC, M_CHOIR, M_BASS, M_ELEMENTS,
        M_MELLOW, M_SATIN, M_VELVET, M_SPECTRAL, M_BREATH,
-       M_TABLA, M_SCRAPE, M_UPRIGHT, M_ORGAN, M_GUITAR, M_BELL, M_TAMB, M_RHODES, M_CRKICK, M_CRRIM, M_CRMAR, M_NYLON,
+       M_TABLA, M_SCRAPE, M_UPRIGHT, M_ORGAN, M_GUITAR, M_BELL, M_TAMB, M_RHODES, M_CRKICK, M_CRRIM, M_CRMAR, M_NYLON, M_CRACKLE,
        M_MODELS };   // from M_TABLA on they are OURS (no upstream model): only our own biomes use them
 static const char *const MODEL_NAME[M_MODELS] = { "KICK", "SNARE", "HAT", "FM", "ANALOG", "RINGS", "HARMONIC",
     "CHOIR", "BASS", "ELEMENTS", "MELLOW", "SATIN", "VELVET KEYS", "SPECTRAL", "BREATH", "TABLA", "SCRAPE",
     "UPRIGHT", "ORGAN", "GUITAR", "BELL", "TAMB", "RHODES",
-    "CR KICK", "CR RIM", "MARACAS", "NYLON" };
+    "CR KICK", "CR RIM", "MARACAS", "NYLON", "CRACKLE" };
 static const char *const KIT_NAME[5] = { "DUST", "CRATE", "SOFT", "FOUND OBJECTS", "VELOUR TAPE" };
 static const char *const SCALE_NAME[13] = { "chromatic", "minor", "major", "dorian", "minor pent", "major pent",
     "whole tone", "phrygian", "ukr dorian", "harm minor", "dbl harm min", "harm major", "dbl harm maj" };
@@ -149,7 +149,7 @@ static Scene S;
 // guitar (the bossa cart's PLUCK) comping on that same clave in rootless 3-7-9 voicings and an
 // upright playing the surdo, root and fifth with the kick. ii-V-I-vi in F, two bars a chord. The
 // cycles: the maracas shake 10 in 12 against the bar and Velvet keys float a melody 3 in 10.
-_Static_assert(M_CRKICK == 23 && M_NYLON == 26, "the CR-78 Bossa row names its models by number");
+_Static_assert(M_CRKICK == 23 && M_NYLON == 26 && M_CRACKLE == 27, "our biome rows name these models by number");
 // DRIFT GARDEN composes itself: it starts sparse (a low drum 3 in 16, a shaker 5 in 12, a Rings
 // pluck 3 in 7, a bass 2 in 9, Velvet keys 2 in 11, a bell 1 in 13; D major pentatonic, where any
 // note sits fine against any other) and every 4 bars makes ONE small mutation (evolve_step): a hit
@@ -212,7 +212,14 @@ _Static_assert(M_CRKICK == 23 && M_NYLON == 26, "the CR-78 Bossa row names its m
 // entirely into a dotted-8th echo with long feedback, once every 24 steps so it lands somewhere new in
 // the bar and trails away. Am - G, two bars each. A breakdown is a DUB-OUT: the drums drop, and for
 // that phrase the echo feedback swells toward self-oscillation (JamCfg.dub), snapping back on the drop.
-#define DA_OWN 16
+// CASSETTE DREAMS is lo-fi hip hop on a worn cassette: a dusty boom-bap (a soft kick, a snare with
+// ghosts, lazy hats) with a heavy swing on the 16ths, a round soft bass, the Rhodes on rootless 9ths
+// through Ebmaj9 - Cm9 - Fm9 - Bb9 (a bar each) held long into the echo, and vinyl CRACKLE (Playtime's
+// crackle patch: tiny high-passed ticks, irregular). The whole mix runs through the master TAPE while
+// it plays (wow .55, flutter .35, saturation .5: the cassette warble); apply_scene switches it back off
+// on the way out, and never touches it otherwise, so every other biome stays bit-identical. Its
+// breakdown drops the drums and swells the echo, like the dub.
+#define DA_OWN 17
 #define DA_ALL (DA_BIOMES + DA_OWN)
 static const DaBiome DA_OWN_BIOME[DA_OWN] = {
  {"Marmalade Jam",8,125,7,2,125125,0,0,650,200,100,0,120,0,0,0,380,300,{500,260,520,60},{
@@ -327,6 +334,13 @@ static const DaBiome DA_OWN_BIOME[DA_OWN] = {
   /* bass    (round)     */ {8,250,500,300,260,0,0,16,0,1000,33,500,0,2,0,1,0,500,600,200,1,0},
   /* skank   (guitar)    */ {19,350,400,40,320,120,0,16,0,980,57,620,0,1,0,1,0,100,850,100,0,0},
   /* throw   (snare)     */ {1,500,800,300,300,150,1,24,5,1000,50,560,0,1,0,1,0,150,850,100,0,0}}},
+ {"Cassette Dreams",9,80,3,2,80808,0,0,650,200,100,0,450,0,0,0,180,250,{500,200,450,80},{
+  /* kick    (Plaits)    */ {0,200,150,400,1000,0,0,16,0,980,33,500,0,1,0,1,0,150,850,100,0,0},
+  /* snare   (Plaits)    */ {1,380,600,250,220,150,0,16,0,980,50,470,0,1,0,1,0,150,850,100,0,0},
+  /* hats    (metal)     */ {2,520,300,80,220,60,7,16,2,800,72,600,0,1,0,1,300,150,850,100,0,0},
+  /* bass    (round)     */ {8,250,400,350,200,0,0,16,0,980,39,500,0,1,0,1,0,500,600,200,1,0},
+  /* rhodes  (rootless 9ths) */ {22,180,150,1000,120,250,0,16,0,950,51,520,0,1,0,1,0,120,850,100,0,200},
+  /* crackle (vinyl)     */ {27,0,0,0,95,0,9,13,0,450,60,500,0,1,0,2,0,0,850,100,0,0}}},
 };
 // how each of our biomes JAMS (Playtime's drum jam): the order its layers enter, who may rest a
 // phrase, who a breakdown takes out, which track plays the phrase-end fill, which lets go before the one
@@ -352,6 +366,8 @@ typedef struct { int chord_pattern, chord_tracks, build[6], rest[4], break_mask,
                  short dsend[6];            // fx return, 0..1000 (0 = the family default); per-track echo sends
                  int dub, break_pct;        // dub: a breakdown swells the echo feedback toward self-oscillation;
                                             // break_pct = breakdown chance per phrase (0 = 18)
+                 int tape_wow, tape_flutter, tape_sat;   // the MASTER tape while this biome plays (0..1000;
+                                            // all 0 = off): a cassette's wow, flutter and saturation
                } JamCfg;
 static const JamCfg DA_OWN_JAM[DA_OWN] = {
     { 2, 0x38, {0, 1, 3, 2, 5, 4}, {1, 2, 4, 5}, 1 << 0 | 1 << 2 | 1 << 3, 2, 1,     // Marmalade: I-vi-IV-V
@@ -403,6 +419,12 @@ static const JamCfg DA_OWN_JAM[DA_OWN] = {
       { "........X.......", "........x.......", 0, "a..ac.e...d.c.a.", "....x.......x...", 0 },   // one drop
       .delay16 = 3, .delay_fb = 600, .fx = 450, .dsend = { 0, 120, 0, 0, 300, 1000 },   // a dotted-8th tape echo,
       .dub = 1, .break_pct = 30 },                                  // the throw all wet; dub-outs often
+    { 1, 0x18, {5, 4, 0, 1, 2, 3}, {2, 3, 4, 1}, 1 << 0 | 1 << 1 | 1 << 2, -1, 2,   // Cassette Dreams: I-vi-ii-V in Eb
+      { "KICK", "SNARE", "HATS", "BASS", "RHODES", "CRACKLE" }, { 0, 5, 1, 4 }, 4, 1, {0},
+      { "X.....x.x.......", "....X..-....X..-", 0, "a.......e...c...", "X.........x.....", 0 },
+      .keys = { 2, 4, 6, 8 },                                       // rootless 9ths
+      .delay16 = 3, .delay_fb = 450, .fx = 380, .dsend = { 0, 150, 0, 0, 350, 0 }, .dub = 1, .break_pct = 20,
+      .tape_wow = 550, .tape_flutter = 350, .tape_sat = 500 },     // the cassette
 };
 static const DaBiome *biome_row(int id) { return id < DA_BIOMES ? &DA_BIOME[id] : &DA_OWN_BIOME[id - DA_BIOMES]; }
 static int browse_id(int k) { return k < DA_BIOMES ? DA_BROWSE[k] : k; }   // ours come last, in order
@@ -643,7 +665,7 @@ static const float VOICE_TRIM_DB[M_MODELS] = {
     /* HARMONIC CHOIR BASS */ 9.4f, -5.8f, 0,  /* ELEMENTS MELLOW SATIN */ 0, 0, 0,
     /* VELVET SPECTRAL BREATH */ 3.3f, 0, 3.2f,  /* TABLA SCRAPE: ours, no upstream to fit */ 0, 0,
     /* UPRIGHT ORGAN GUITAR BELL: ours */ 0, 0, 0, 0,  /* TAMB RHODES: ours */ 0, 0,
-    /* CR KICK, CR RIM, MARACAS, NYLON: ours */ 0, 0, 0, 0 };
+    /* CR KICK, CR RIM, MARACAS, NYLON: ours */ 0, 0, 0, 0,  /* CRACKLE */ 0 };
 
 // ── KICK: Plaits' AnalogBassDrum, PORTED (Emilie Gillet, MIT), the trigger path only ─────────
 // Mapping it onto INSTR_SINE gave a sustained thump with no click, 20 dB too loud in the balance.
@@ -922,6 +944,9 @@ static void config_track(int i) {
         instrument(s, INSTR_PLUCK, 1, 0, 7, 120);
         instrument_filter(s, FILTER_LOW, 2200, 3);
         instrument_harmonics(s, harm); instrument_timbre(s, tone); instrument_morph(s, shape); break;
+    case M_CRACKLE:   // vinyl crackle (Playtime's crackle patch): a 4 ms noise tick, high-passed at 3.5 kHz
+        instrument(s, INSTR_NOISE, 0, 4, 0, 4);
+        instrument_filter(s, FILTER_HIGH, 3500, 1); break;
     default:          // BREATH: a pitched sine reed crossfaded (harm) with lowpassed air
         instrument(s, INSTR_SINE, A, D, 0, 120); instrument_level(s, 1 - harm);
         instrument(l, INSTR_NOISE, A, D, 0, 120);
@@ -958,6 +983,16 @@ static void config_track(int i) {
 
 static void apply_scene(void) {
     bpm(S.b.tempo);
+    {   // the master TAPE: only a biome that asks for it; switched back off on the way out, never touched
+        // otherwise (so a biome that never had it renders bit-identical)
+        static int tape_on;
+        const JamCfg *j = S.jam ? &DA_OWN_JAM[S.jam - 1] : 0;
+#ifdef DA_NOTAPE                     // A/B switch: the same biome without its cassette
+        j = 0;
+#endif
+        if (j && (j->tape_wow || j->tape_flutter || j->tape_sat)) { tape(unit(j->tape_wow), unit(j->tape_flutter), unit(j->tape_sat)); tape_on = 1; }
+        else if (tape_on) { tape(0, 0, 0); tape_on = 0; }
+    }
     reverb(.45f + .5f * unit(S.reverb_time), .45f);
     echo(S.delay_ms, unit(S.delay_fb) * .9f, .35f);
     // the granular tape: one master cloud (upstream feeds it per track; see the doc)
@@ -1038,7 +1073,8 @@ static void fire(int i, int note, float vel, double t, int gate_ms) {
     if (m == M_CRKICK) dur = 220;
     if (m == M_CRRIM)  dur = 1;
     if (m == M_CRMAR)  dur = 30;
-    if (m == M_NYLON)  dur = (int)(150 * powf(12, du));                                 // the rolled chord rings ~3 s
+    if (m == M_NYLON)  dur = (int)(150 * powf(12, du));
+    if (m == M_CRACKLE) dur = 8;                                 // the rolled chord rings ~3 s
 
     // Breathe: a 7..20 s sine per track that drifts the cutoff; sampled at the note (their drift
     // is continuous, ours lands per note). Tides on ambient tracks add a second, slower sway.

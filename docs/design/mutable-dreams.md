@@ -268,6 +268,16 @@ POSITIONAL `JamCfg` initialisers mis-slot silently (a scalar ran into the `keys[
 elision and shifted everything after it: `bar` became 1). New entries name their late fields
 (`.delay16 = 3, ...`), which C99 allows after positional ones.
 
+**Cassette Dreams** is lo-fi hip hop on a worn cassette: a dusty boom-bap with a heavy 16th swing, a
+round soft bass, the Rhodes on rootless 9ths through Ebmaj9 - Cm9 - Fm9 - Bb9 held into the echo, and
+vinyl CRACKLE (a new model from Playtime's `crackle` patch: 4 ms noise ticks high-passed at 3.5 kHz,
+irregular). The whole mix runs through the MASTER `tape()` while it plays (`JamCfg.tape_*`: wow .55,
+flutter .35, saturation .5); `apply_scene` switches it off on the way out and never touches it
+otherwise, so a biome that never had it stays bit-identical. A/B with `-DDA_NOTAPE`: the mix centroid
+falls 5032 → 3633 Hz and the HF share halves with the cassette on. (Pitch-tracking the wow by hand did
+not work: a chord and a bass with a sub-octave confuse a quick autocorrelation; the wow and flutter are
+the engine tape's own, gated by fx-check.) Its breakdown drops the drums and swells the echo.
+
 Mipo Band's triangle was a single pitch and got old; a lone BELL now wanders with the jump macro
 like a melody (a bell in a `pair`, Slow Brew's agogo, still keeps its two pitches). Note the cart
 clamps melodic notes to 24..96 (quantize), which had been pinning the triangle at 96.

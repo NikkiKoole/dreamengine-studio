@@ -301,6 +301,16 @@ upright, a clean jazz guitar stabbing rootless 3-7-9 chords (F C E, B F A, E B D
 a vibraphone wandering 5 in 13 deep in the echo, the crackle, and a more worn cassette (wow .75,
 flutter .45, saturation .55). It starts like a tape rolling; breakdowns drop the beat and swell the echo.
 
+**Circle Riff** is a bass-riff piece: a two-bar funk riff in dorian (32 sixteenths: patterns now hold up
+to 32 steps), and every second pass its second bar becomes a LICK climbing to the octave (`JamCfg.pat2`
++ `var_every`, a variation pattern per track). Every 4 bars the whole band moves up a FOURTH
+(`JamCfg.circle` / `circle_bars`: the transpose and the scale's root move together, folded to -6..+5 so
+the riff keeps its register), through all twelve keys in 48 bars (~115 s at 100) and home; the header
+shows the key. Checked from the bass trace: riff, riff + lick (D E F G up to the octave, landing on the
+fifth of the next key, a V-I lead-in), then C, F, Bb... Rhodes stabs and clav chops (the epiano at a
+high harmonics setting, short) in rootless minor 9ths follow the key; a funk kick, ghosted snare, 16th
+hats; the breakdown is a bass break (kick and riff).
+
 Mipo Band's triangle was a single pitch and got old; a lone BELL now wanders with the jump macro
 like a melody (a bell in a `pair`, Slow Brew's agogo, still keeps its two pitches). Note the cart
 clamps melodic notes to 24..96 (quantize), which had been pinning the triangle at 96.

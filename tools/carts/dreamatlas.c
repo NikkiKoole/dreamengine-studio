@@ -9,7 +9,7 @@
   "lineage": "A port of the BIOME atlas from Mutable Dreams 1.4 (Kid Bunka / Christoph Link, free firmware for the M-VAVE FM-1, itself built on Mutable Instruments' Plaits/Rings/Elements). The 157 scenes are the upstream's own factory data (MIT), generated into runtime/dreamatlas/biomes.h; the sequencer (Euclid hits/length/rotate per track, seeded rolls, chord journeys, scale masks, the Lo-Fi kit) is ported line by line from app/dsp/dreams.cpp. The fifteen VOICES are NOT ported: each is mapped onto the nearest engine dreamengine already ships, which is the experiment.",
   "homage": "Mutable Dreams (Kid Bunka) / Mutable Instruments",
   "description": {
-    "summary": "157 small generative worlds from Mutable Dreams, plus a few of our own (a house jam, a tabla-and-guiro bazaar, Moon Meadow with tablas, a slow organ-and-upright brew, the Puppetmaker band, a CR-78 bossa, one that evolves by itself, a world-rhythm atlas, a slow modal jazz drone, a Reich-style phase piece, cool jazz in 5/4, an organ boogaloo, a frog pond at dusk, a tape-echo dub, a lo-fi cassette, a drill lullaby, Travis-picked electric guitar and a second cassette): six drifting Euclidean tracks, chord journeys and a Lo-Fi kit, played on dreamengine's own voices.",
+    "summary": "157 small generative worlds from Mutable Dreams, plus a few of our own (a house jam, a tabla-and-guiro bazaar, Moon Meadow with tablas, a slow organ-and-upright brew, the Puppetmaker band, a CR-78 bossa, one that evolves by itself, a world-rhythm atlas, a slow modal jazz drone, a Reich-style phase piece, cool jazz in 5/4, an organ boogaloo, a frog pond at dusk, a tape-echo dub, a lo-fi cassette, a drill lullaby, Travis-picked electric guitar, a second cassette and a bass riff round the circle of fourths): six drifting Euclidean tracks, chord journeys and a Lo-Fi kit, played on dreamengine's own voices.",
     "detail": "Each BIOME is one scene: six tracks, each a voice (Plaits-style drums, FM, analog, Rings and Elements resonators, a sine choir, a round bass...) with its OWN rhythm, k hits spread over n steps. The lengths differ (16, 19, 13...), so the tracks slide against each other and the loop takes minutes to come round. Some biomes walk a chord progression under it, some swap three tracks for a crunchy 16 kHz Lo-Fi drum kit. Browse in the curated order: neighbours are meant to feel genuinely different. The scenes are the original's factory data; the sounds are this engine's nearest voices, so it is a translation, not a copy.",
     "controls": "LEFT/RIGHT or the arrows: next / previous biome · SPACE or PLAY: start / stop · 1-6: mute a track · tap a track row to mute it"
   },
@@ -99,7 +99,8 @@ typedef struct {
     int rsend[6], dsend[6], tides[6], tides_rate[6];
     int fx_level, reverb_time, delay_fb, delay_ms;
     int chord_pattern, chord_bars, chord_tracks;
-    int seq_on[6], seq_len[6]; Step seq[6][16];
+    int seq_on[6], seq_len[6]; Step seq[6][32];   // 32: an own biome's two-bar riff (factory phrases use 16)
+    Step seq2[6][32]; int seq2_len[6], root0;     // an own biome's VARIATION pattern; its key before any circling
     int kit, kit_bank; unsigned kit_gates[8];
     int jam, jam_phrase, jam_break, jam_out[6]; unsigned jam_rng;   // our own biomes' live arranger (jam = JamCfg index + 1)
     DaTrack home[6]; int gen; char change[48];   // an EVOLVING biome: where it started, its generation, its last move
@@ -238,7 +239,14 @@ _Static_assert(M_CRKICK == 23 && M_NYLON == 26 && M_CRACKLE == 27 && M_EGTR == 2
 // upright, a clean jazz guitar stabbing rootless 3-7-9 chords, a vibraphone wandering 5 in 13 deep in
 // the echo, vinyl crackle, and a MORE worn cassette (wow .75, flutter .45, saturation .55). It starts
 // like a tape rolling (crackle, guitar, vibes); breakdowns drop the beat and bass and swell the echo.
-#define DA_OWN 20
+// CIRCLE RIFF is a bass-riff piece: a two-bar funk riff in dorian (32 sixteenths, JamCfg.pat now holds
+// up to 32), and every second pass its second bar turns into a LICK climbing to the octave (JamCfg.pat2 /
+// var_every). Every 4 bars, riff and lick, the whole band moves up a FOURTH (JamCfg.circle): A D G C F Bb
+// Eb Ab Db Gb B E and home, the circle of fourths through all twelve keys, folded so the riff stays in its
+// register; the scale's root moves with it, so the Rhodes stabs and the clav chops (minor 9ths, rootless)
+// follow, and the screen shows the key. A funk kick, a ghosted snare, 16th hats; its breakdown is a BASS
+// BREAK, kick and riff alone.
+#define DA_OWN 21
 #define DA_ALL (DA_BIOMES + DA_OWN)
 static const DaBiome DA_OWN_BIOME[DA_OWN] = {
  {"Marmalade Jam",8,125,7,2,125125,0,0,650,200,100,0,120,0,0,0,380,300,{500,260,520,60},{
@@ -381,6 +389,13 @@ static const DaBiome DA_OWN_BIOME[DA_OWN] = {
   /* upright             */ {17,260,300,500,350,0,0,16,0,980,36,480,0,1,0,1,0,450,850,100,0,0},
   /* guitar  (clean)     */ {19,500,550,550,210,200,0,16,0,950,48,560,0,1,0,1,0,150,850,100,0,0},
   /* vibes   (bell)      */ {20,450,600,600,280,300,5,13,0,850,76,600,0,1,0,1,200,300,850,100,0,0}}},
+ {"Circle Riff",4,100,9,3,10101,0,0,650,200,100,0,200,0,0,0,200,200,{500,0,500,40},{
+  /* kick    (Plaits)    */ {0,300,250,380,1000,0,0,16,0,980,33,500,0,1,0,1,0,150,850,100,0,0},
+  /* snare   (Plaits)    */ {1,480,700,280,225,100,0,16,0,980,50,470,0,1,0,1,0,150,850,100,0,0},
+  /* hats    (metal)     */ {2,650,300,90,300,60,16,16,0,880,72,600,0,1,0,1,350,150,850,100,0,0},
+  /* bass    (round)     */ {8,320,450,180,260,0,0,32,0,1000,45,500,0,1,0,1,0,500,750,200,1,0},
+  /* rhodes  (stabs)     */ {22,200,150,120,280,200,0,16,0,950,57,430,0,1,0,1,0,120,850,100,0,100},
+  /* clav    (epiano)    */ {22,700,900,40,700,100,0,16,0,900,69,600,0,1,0,1,0,300,850,100,0,0}}},
 };
 // how each of our biomes JAMS (Playtime's drum jam): the order its layers enter, who may rest a
 // phrase, who a breakdown takes out, which track plays the phrase-end fill, which lets go before the one
@@ -410,6 +425,10 @@ typedef struct { int chord_pattern, chord_tracks, build[6], rest[4], break_mask,
                                             // all 0 = off): a cassette's wow, flutter and saturation
                  signed char ratch[6];      // % chance a hit bursts into 2/3/4/6 rapid repeats (a drill ratchet)
                  int cuts;                  // % chance per bar that EVERYTHING stops for its last 4 steps
+                 const char *pat2[6];       // a VARIATION of pat[i] (same alphabet), played every var_every-th
+                 int var_every;             // pass of the pattern (2 = A A' A A', 4 = A A A A')
+                 int circle, circle_bars;   // move the whole band by `circle` semitones every circle_bars bars
+                                            // (5 = round the circle of fourths, through all twelve keys)
                } JamCfg;
 static const JamCfg DA_OWN_JAM[DA_OWN] = {
     { 2, 0x38, {0, 1, 3, 2, 5, 4}, {1, 2, 4, 5}, 1 << 0 | 1 << 2 | 1 << 3, 2, 1,     // Marmalade: I-vi-IV-V
@@ -481,6 +500,14 @@ static const JamCfg DA_OWN_JAM[DA_OWN] = {
       { 2, 6, 8 },                                                  // the guitar rootless: 3 7 9
       .delay16 = 3, .delay_fb = 500, .fx = 400, .dsend = { 0, 100, 0, 0, 250, 500 }, .dub = 1, .break_pct = 22,
       .tape_wow = 750, .tape_flutter = 450, .tape_sat = 550 },     // a more worn cassette than the first
+    { 0, 0,    {0, 2, 3, 1, 4, 5}, {2, 4, 5, 1}, 1 << 1 | 1 << 2 | 1 << 4 | 1 << 5, 1, 2,   // Circle Riff
+      { "KICK", "SNARE", "HATS", "BASS", "RHODES", "CLAV" }, {0}, 0, 0, {0},
+      { "X..x....X.x.....", "....X..-.-..X..-", 0,
+        "a..a..gha..e.dc.a..a..gh..edc.a.",                         // the riff: two bars of 16ths, A dorian
+        "....x.......x...", ".x.x..x..x.x..x." },
+      .keys = { 2, 4, 6, 8 },                                       // minor 9ths, rootless (the key's own)
+      .pat2 = { 0, 0, 0, "a..a..gha..e.dc.a..a....e.f.g.h." },     // ...every 2nd pass bar 2 climbs to the octave
+      .var_every = 2, .circle = 5, .circle_bars = 4, .break_pct = 20 },   // up a fourth every 4 bars
 };
 static const DaBiome *biome_row(int id) { return id < DA_BIOMES ? &DA_BIOME[id] : &DA_OWN_BIOME[id - DA_BIOMES]; }
 static int browse_id(int k) { return k < DA_BIOMES ? DA_BROWSE[k] : k; }   // ours come last, in order
@@ -615,6 +642,19 @@ static void set_phrase(int tr, const signed char *ph, int vel0, int vbase, int v
         S.seq[tr][k].gate = (unsigned char)(gbase + (k * gk) % gmod);
     }
 }
+// parse a JamCfg pattern string into steps (up to 32): see JamCfg.pat for the alphabet
+static int load_pat(Step *out, const char *p, int i) {
+    int n = (int)strlen(p); if (n > 32) n = 32;
+    for (int k = 0; k < n; k++) {
+        char c = p[k];
+        int deg = c >= 'a' && c <= 'p' ? c - 'a' : c >= 'A' && c <= 'P' ? c - 'A' : -1;
+        int note = c == '.' ? 0 : deg >= 0 ? scale_step(quantize(S.b.tr[i].note, S.b.root, S.b.scale), deg)
+                                       : S.b.tr[i].note + (c == '5' ? 7 : 0);
+        if (c == '-') note = S.b.tr[i].note;                 // a ghost note: the track's own note, soft
+        out[k] = (Step){ (unsigned char)note, (unsigned char)(c == 'X' || (c >= 'A' && c <= 'P') ? 95 : c == '-' ? 35 : 70), 100, 100 };
+    }
+    return n;
+}
 static void scene(int id) {
     memset(&S, 0, sizeof S);
     S.b = *biome_row(id);
@@ -678,17 +718,10 @@ static void scene(int id) {
         S.jam = id - DA_BIOMES + 1; S.jam_rng = (unsigned)S.b.seed * 2654435761u | 1;
         S.glitch_rng = (unsigned)S.b.seed * 40503u | 1;
         memcpy(S.home, S.b.tr, sizeof S.home); S.gen = 0; S.change[0] = 0;
-        for (int i = 0; i < 6; i++) if (j->pat[i]) {    // a fixed pattern rides the phrase sequencer
-            int n = (int)strlen(j->pat[i]); if (n > 16) n = 16;
-            S.seq_on[i] = 1; S.seq_len[i] = n;
-            for (int k = 0; k < n; k++) {
-                char c = j->pat[i][k];
-                int deg = c >= 'a' && c <= 'p' ? c - 'a' : c >= 'A' && c <= 'P' ? c - 'A' : -1;
-                int n = c == '.' ? 0 : deg >= 0 ? scale_step(quantize(S.b.tr[i].note, S.b.root, S.b.scale), deg)
-                                             : S.b.tr[i].note + (c == '5' ? 7 : 0);
-                if (c == '-') n = S.b.tr[i].note;                  // a ghost note: the track's own note, soft
-                S.seq[i][k] = (Step){ (unsigned char)n, (unsigned char)(c == 'X' || (c >= 'A' && c <= 'P') ? 95 : c == '-' ? 35 : 70), 100, 100 };
-            }
+        S.root0 = S.b.root;
+        for (int i = 0; i < 6; i++) {                    // a fixed pattern rides the phrase sequencer
+            if (j->pat[i])  { S.seq_on[i] = 1; S.seq_len[i] = load_pat(S.seq[i], j->pat[i], i); }
+            if (j->pat2[i]) S.seq2_len[i] = load_pat(S.seq2[i], j->pat2[i], i);
         }
     }
 #ifdef DA_DRY                        // A/B switch: no fx return, no grain tape (= mdrender --dry)
@@ -1324,6 +1357,14 @@ static void tick(double t) {
         if ((int)((S.glitch_rng >> 8) % 100) < DA_OWN_JAM[S.jam - 1].cuts) S.cut_until = step + 4;
     }
     int cut = step < S.cut_until;
+    if (S.jam && DA_OWN_JAM[S.jam - 1].circle && step % (bar * DA_OWN_JAM[S.jam - 1].circle_bars) == 0) {
+        // round the circle: the k-th key is k x circle semitones up, folded into -6..+5 so the riff
+        // stays in its register; the scale's root moves with it, so everything pitched follows
+        const JamCfg *jc = &DA_OWN_JAM[S.jam - 1];
+        int k = (int)(step / (unsigned)(bar * jc->circle_bars));
+        int off = (k * jc->circle) % 12; if (off > 5) off -= 12;
+        S.b.transpose = off; S.b.root = (S.root0 + off + 12) % 12;
+    }
     if (step % 32 == 0) { if (S.b.locked) seqrng = seed; else seed = rword(&seqrng) | 1; }
     static const int degree[7] = { 0, 2, 3, 5, 7, 10, 12 };
     for (int i = 0; i < (S.kit ? 4 : 6); i++) {
@@ -1343,7 +1384,9 @@ static void tick(double t) {
         int hits = bound(tr->hits + (S.b.macro[0] - 500) * tr->length / 1500, 0, tr->length);
         unsigned roll = rword(&seqrng);
         if (S.seq_on[i]) {
-            const Step *st = &S.seq[i][local % S.seq_len[i]];
+            const JamCfg *jv = S.jam ? &DA_OWN_JAM[S.jam - 1] : 0;   // the variation, every var_every-th pass
+            int var = jv && jv->pat2[i] && jv->var_every && (local / S.seq_len[i]) % jv->var_every == (unsigned)jv->var_every - 1;
+            const Step *st = var ? &S.seq2[i][local % S.seq2_len[i]] : &S.seq[i][local % S.seq_len[i]];
             if (st->note && st->vel && !muted[i] && !S.jam_out[i] && roll % 100 < st->chance && (roll / 100) % 1000 < (unsigned)tr->prob) {
                 int note = st->note;
                 if (tr->model >= M_FM) { if (S.chord_tracks & (1u << i)) note += chord_offset(); note = quantize(note + S.b.transpose, S.b.root, S.b.scale); }

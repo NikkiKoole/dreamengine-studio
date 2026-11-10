@@ -287,6 +287,14 @@ the factory sequencer's. Measured over ~3 minutes: 294 single snare hits plus bu
 4 (33) and 6 (30); 26 dead stops once the breaks are in. Under it the factory choir as a slow pad, a soft
 sub, a music box 5 in 12; Am F C G two bars each. It starts as the lullaby and the breaks crash in.
 
+**Electric Porch** is Travis picking on the pedalboard cart's electric guitar (new ELECTRIC model: its
+patch, the guitar engine bright with a touch of soft drive; its TRAVIS autoplayer is the model for the
+picking): the THUMB alternates root and fifth on every beat, the FINGERS pinch a treble with it on 1
+and 3 and pick the offbeats (`"l.j...l.h.j...h."` = the 12th, 10th and octave: D5 B4 D5 G4 B4 G4 over G,
+checked from the trace), a STRUM opens on the downbeat every two bars, a brush sweeps 2 and 4, a low
+drawbar G and a soft saw D drone under it. G C Em D two bars each at 92. A chord shift moves the
+fingers' degree pattern by semitones and quantizes it, which lands on chord tones for I, IV, vi and V.
+
 Mipo Band's triangle was a single pitch and got old; a lone BELL now wanders with the jump macro
 like a melody (a bell in a `pair`, Slow Brew's agogo, still keeps its two pitches). Note the cart
 clamps melodic notes to 24..96 (quantize), which had been pinning the triangle at 96.

@@ -256,6 +256,18 @@ The crickets are the CR-78 maracas' narrow noise band RATCHETED 3 times a step (
 all night wears thin; real crickets at a distance are soft and barely pitched). Night falls as it builds; a
 breakdown stops the band and leaves the pond.
 
+**Tape Echo Dub** is roots dub, where the echo is an instrument: a one drop at 72 (kick and cross-stick
+together on beat 3 only), shuffled hats, a deep round bass carrying the tune in its own two-bar line,
+guitar skanks on 2 and 4 with a little echo, and a THROW, a snare sent almost entirely into a
+dotted-8th echo, once every 24 steps so it lands somewhere new in the bar. Am - G. New `JamCfg` echo
+fields: `delay16` (delay in 16ths), `delay_fb`, `fx` (the return), `dsend[]` (per-track sends), and
+`dub`: a breakdown (the drums drop) swells the feedback toward self-oscillation for that phrase and
+snaps it back on the drop (one `echo()` call each way, set-and-hold). Measured on the throw's tail:
+about -7 dB a repeat normally, 1-2 dB a repeat in a dub-out. ⚠ Learned on the way: past ~20 fields,
+POSITIONAL `JamCfg` initialisers mis-slot silently (a scalar ran into the `keys[]` array by brace
+elision and shifted everything after it: `bar` became 1). New entries name their late fields
+(`.delay16 = 3, ...`), which C99 allows after positional ones.
+
 Mipo Band's triangle was a single pitch and got old; a lone BELL now wanders with the jump macro
 like a melody (a bell in a `pair`, Slow Brew's agogo, still keeps its two pitches). Note the cart
 clamps melodic notes to 24..96 (quantize), which had been pinning the triangle at 96.

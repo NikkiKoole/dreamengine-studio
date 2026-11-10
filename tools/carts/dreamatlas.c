@@ -9,7 +9,7 @@
   "lineage": "A port of the BIOME atlas from Mutable Dreams 1.4 (Kid Bunka / Christoph Link, free firmware for the M-VAVE FM-1, itself built on Mutable Instruments' Plaits/Rings/Elements). The 157 scenes are the upstream's own factory data (MIT), generated into runtime/dreamatlas/biomes.h; the sequencer (Euclid hits/length/rotate per track, seeded rolls, chord journeys, scale masks, the Lo-Fi kit) is ported line by line from app/dsp/dreams.cpp. The fifteen VOICES are NOT ported: each is mapped onto the nearest engine dreamengine already ships, which is the experiment.",
   "homage": "Mutable Dreams (Kid Bunka) / Mutable Instruments",
   "description": {
-    "summary": "157 small generative worlds from Mutable Dreams, plus a few of our own (a house jam, a tabla-and-guiro bazaar, Moon Meadow with tablas, a slow organ-and-upright brew, the Puppetmaker band, a CR-78 bossa, one that evolves by itself, a world-rhythm atlas, a slow modal jazz drone, a Reich-style phase piece, cool jazz in 5/4, an organ boogaloo and a frog pond at dusk): six drifting Euclidean tracks, chord journeys and a Lo-Fi kit, played on dreamengine's own voices.",
+    "summary": "157 small generative worlds from Mutable Dreams, plus a few of our own (a house jam, a tabla-and-guiro bazaar, Moon Meadow with tablas, a slow organ-and-upright brew, the Puppetmaker band, a CR-78 bossa, one that evolves by itself, a world-rhythm atlas, a slow modal jazz drone, a Reich-style phase piece, cool jazz in 5/4, an organ boogaloo, a frog pond at dusk and a tape-echo dub): six drifting Euclidean tracks, chord journeys and a Lo-Fi kit, played on dreamengine's own voices.",
     "detail": "Each BIOME is one scene: six tracks, each a voice (Plaits-style drums, FM, analog, Rings and Elements resonators, a sine choir, a round bass...) with its OWN rhythm, k hits spread over n steps. The lengths differ (16, 19, 13...), so the tracks slide against each other and the loop takes minutes to come round. Some biomes walk a chord progression under it, some swap three tracks for a crunchy 16 kHz Lo-Fi drum kit. Browse in the curated order: neighbours are meant to feel genuinely different. The scenes are the original's factory data; the sounds are this engine's nearest voices, so it is a translation, not a copy.",
     "controls": "LEFT/RIGHT or the arrows: next / previous biome · SPACE or PLAY: start / stop · 1-6: mute a track · tap a track row to mute it"
   },
@@ -206,7 +206,13 @@ _Static_assert(M_CRKICK == 23 && M_NYLON == 26, "the CR-78 Bossa row names its m
 // quartal voicings every bar and a half. C major heard as two MODES: four bars on F (lydian, the raised
 // fourth) and four on D (dorian). Night falls as it builds (water and crickets first, the Rhodes last);
 // a breakdown stops the band and leaves the pond, and a frog sometimes sits a phrase out.
-#define DA_OWN 15
+// TAPE ECHO DUB is roots dub, where the ECHO is an instrument: a one drop at 72 (kick and cross-stick
+// together on beat 3 only), shuffled hats, a deep round bass carrying the tune in its own two-bar line
+// (eighths), guitar skanks chopped on 2 and 4 with a little echo, and a THROW: a snare sent almost
+// entirely into a dotted-8th echo with long feedback, once every 24 steps so it lands somewhere new in
+// the bar and trails away. Am - G, two bars each. A breakdown is a DUB-OUT: the drums drop, and for
+// that phrase the echo feedback swells toward self-oscillation (JamCfg.dub), snapping back on the drop.
+#define DA_OWN 16
 #define DA_ALL (DA_BIOMES + DA_OWN)
 static const DaBiome DA_OWN_BIOME[DA_OWN] = {
  {"Marmalade Jam",8,125,7,2,125125,0,0,650,200,100,0,120,0,0,0,380,300,{500,260,520,60},{
@@ -314,6 +320,13 @@ static const DaBiome DA_OWN_BIOME[DA_OWN] = {
   /* upright             */ {17,280,300,600,350,0,3,16,0,800,36,480,0,1,0,1,200,450,850,100,0,0},
   /* rhodes  (quartal)   */ {22,200,150,1000,450,300,1,12,0,950,48,520,0,2,0,1,0,120,850,100,0,200},
   /* drops   (Rings)     */ {5,750,100,250,400,400,2,13,0,800,84,450,0,1,0,1,200,150,850,100,0,0}}},
+ {"Tape Echo Dub",3,72,9,1,72727,0,0,650,200,100,0,300,0,0,0,200,250,{500,200,480,60},{
+  /* kick    (Plaits)    */ {0,250,200,450,1000,0,0,16,0,1000,31,500,0,1,0,1,0,150,850,100,0,0},
+  /* cross-stick (CR-78) */ {24,0,0,0,700,80,0,16,0,1000,90,430,0,1,0,1,0,0,850,100,0,0},
+  /* hats    (metal)     */ {2,600,300,90,280,60,11,16,0,850,72,600,0,1,0,1,300,150,850,100,0,0},
+  /* bass    (round)     */ {8,250,500,300,260,0,0,16,0,1000,33,500,0,2,0,1,0,500,600,200,1,0},
+  /* skank   (guitar)    */ {19,350,400,40,320,120,0,16,0,980,57,620,0,1,0,1,0,100,850,100,0,0},
+  /* throw   (snare)     */ {1,500,800,300,300,150,1,24,5,1000,50,560,0,1,0,1,0,150,850,100,0,0}}},
 };
 // how each of our biomes JAMS (Playtime's drum jam): the order its layers enter, who may rest a
 // phrase, who a breakdown takes out, which track plays the phrase-end fill, which lets go before the one
@@ -335,6 +348,10 @@ typedef struct { int chord_pattern, chord_tracks, build[6], rest[4], break_mask,
                  int phase;                 // 1 = show how far track 1 has drifted behind track 0 (phase music)
                  int bar;                   // steps in a bar for chords, phrases and fills (0 = 16; 10 = 5/4 in 8ths)
                  int bpm;                   // the tempo to SHOW when a step is not a 16th (0 = the row's tempo)
+                 int delay16, delay_fb, fx; // the echo bus: delay in 16th steps (3 = dotted 8th), feedback and the
+                 short dsend[6];            // fx return, 0..1000 (0 = the family default); per-track echo sends
+                 int dub, break_pct;        // dub: a breakdown swells the echo feedback toward self-oscillation;
+                                            // break_pct = breakdown chance per phrase (0 = 18)
                } JamCfg;
 static const JamCfg DA_OWN_JAM[DA_OWN] = {
     { 2, 0x38, {0, 1, 3, 2, 5, 4}, {1, 2, 4, 5}, 1 << 0 | 1 << 2 | 1 << 3, 2, 1,     // Marmalade: I-vi-IV-V
@@ -381,6 +398,11 @@ static const JamCfg DA_OWN_JAM[DA_OWN] = {
     { 1, 0x18, {5, 2, 1, 0, 3, 4}, {0, 1, 2, 5}, 1 << 3 | 1 << 4, 1, -1,            // Pond at Dusk: F lydian, D dorian
       { "BULLFROG", "TREE FROGS", "CRICKETS", "UPRIGHT", "RHODES", "DROPS" }, { 3, 1 }, 2, 4, {0}, {0}, {0}, 0, {0},
       { 0, 3, 6, 9 } },                                             // quartal: F B E A, D G C F
+    { 1, 0x18, {0, 1, 2, 3, 4, 5}, {2, 4, 5, 1}, 1 << 0 | 1 << 1 | 1 << 2, -1, 2,   // Tape Echo Dub: Am - G, 2 bars each
+      { "KICK", "CROSS-STICK", "HATS", "BASS", "SKANK", "THROW" }, { 0, 6 }, 2, 2, {0},
+      { "........X.......", "........x.......", 0, "a..ac.e...d.c.a.", "....x.......x...", 0 },   // one drop
+      .delay16 = 3, .delay_fb = 600, .fx = 450, .dsend = { 0, 120, 0, 0, 300, 1000 },   // a dotted-8th tape echo,
+      .dub = 1, .break_pct = 30 },                                  // the throw all wet; dub-outs often
 };
 static const DaBiome *biome_row(int id) { return id < DA_BIOMES ? &DA_BIOME[id] : &DA_OWN_BIOME[id - DA_BIOMES]; }
 static int browse_id(int k) { return k < DA_BIOMES ? DA_BROWSE[k] : k; }   // ours come last, in order
@@ -571,6 +593,10 @@ static void scene(int id) {
     if (id >= DA_BIOMES) {           // ours: their chords and their arranger
         const JamCfg *j = &DA_OWN_JAM[id - DA_BIOMES];
         S.chord_pattern = j->chord_pattern; S.chord_bars = 2; S.chord_tracks = j->chord_tracks;
+        if (j->delay16) S.delay_ms = bound(60000 / S.b.tempo / 4 * j->delay16, 40, 2000);
+        if (j->delay_fb) S.delay_fb = j->delay_fb;
+        if (j->fx) S.fx_level = j->fx;
+        for (int i = 0; i < 6; i++) if (j->dsend[i]) S.dsend[i] = j->dsend[i];
         S.jam = id - DA_BIOMES + 1; S.jam_rng = (unsigned)S.b.seed * 2654435761u | 1;
         memcpy(S.home, S.b.tr, sizeof S.home); S.gen = 0; S.change[0] = 0;
         for (int i = 0; i < 6; i++) if (j->pat[i]) {    // a fixed pattern rides the phrase sequencer
@@ -1101,7 +1127,16 @@ static double step_dur(unsigned st) { return 60.0 / (S.b.tempo * 4.0) * (1 + (st
 // them all back at once. The last bar of a phrase is a FILL: the clap runs up its last steps (a
 // rising roll out of a breakdown) and the hats let go before the one. Its rolls come from its OWN
 // rng, so the tracks' chance rolls stay exactly the factory sequencer's.
-static void jam_phrase(void) {
+static void jam_pick(void);
+static void jam_phrase(void) {   // pick the phrase's layers; a DUB biome swells its echo for a breakdown
+    int was_break = S.jam_break;
+    jam_pick();
+    const JamCfg *j = &DA_OWN_JAM[S.jam - 1];
+    if (!j->dub) return;
+    if (S.jam_break && !was_break) echo(S.delay_ms, fminf(1.02f, unit(S.delay_fb) * .9f + .42f), .3f);   // set-and-hold:
+    else if (was_break && !S.jam_break) echo(S.delay_ms, unit(S.delay_fb) * .9f, .35f);                  // once a phrase
+}
+static void jam_pick(void) {
     const JamCfg *j = &DA_OWN_JAM[S.jam - 1];
     const int *build = j->build, *rest = j->rest;
     int p = S.jam_phrase++, was_break = S.jam_break;
@@ -1111,7 +1146,7 @@ static void jam_phrase(void) {
     if (p < 5) { for (int k = p + 2; k < 6; k++) S.jam_out[build[k]] = 1; return; }
     if (j->calm) return;                                 // built: it stays (the phasing is the development)
     if (was_break) return;                               // the drop: everyone back at once
-    if (r % 100 < 18) { S.jam_break = 1; for (int i = 0; i < 6; i++) S.jam_out[i] = (j->break_mask >> i) & 1; return; }
+    if (r % 100 < (unsigned)(j->break_pct ? j->break_pct : 18)) { S.jam_break = 1; for (int i = 0; i < 6; i++) S.jam_out[i] = (j->break_mask >> i) & 1; return; }
     if ((r >> 8) % 100 < 55) S.jam_out[rest[(r >> 16) % 4]] = 1;
 }
 

@@ -278,6 +278,15 @@ falls 5032 → 3633 Hz and the HF share halves with the cassette on. (Pitch-trac
 not work: a chord and a bass with a sub-octave confuse a quick autocorrelation; the wow and flutter are
 the engine tape's own, gated by fx-check.) Its breakdown drops the drums and swells the echo.
 
+**Drill Lullaby** is in the spirit of Aphex Twin (no track of his): drill'n'bass against a lullaby. A
+chopped break at 168 (ported kick and snare with ghosts, dense hats; each hit can drop out) where any
+hit may burst into 2/3/4/6 rapid repeats (`JamCfg.ratch[]`, % per track: snare 35, hats 25, music box
+12, kick 8; a 6-burst is ~15 ms apart), and EVERYTHING may stop dead for a bar's last 4 steps
+(`JamCfg.cuts`, % per bar). Both roll on their own rng (`S.glitch_rng`), so the tracks' chance rolls stay
+the factory sequencer's. Measured over ~3 minutes: 294 single snare hits plus bursts of 2 (49), 3 (32),
+4 (33) and 6 (30); 26 dead stops once the breaks are in. Under it the factory choir as a slow pad, a soft
+sub, a music box 5 in 12; Am F C G two bars each. It starts as the lullaby and the breaks crash in.
+
 Mipo Band's triangle was a single pitch and got old; a lone BELL now wanders with the jump macro
 like a melody (a bell in a `pair`, Slow Brew's agogo, still keeps its two pitches). Note the cart
 clamps melodic notes to 24..96 (quantize), which had been pinning the triangle at 96.

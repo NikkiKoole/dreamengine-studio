@@ -9,7 +9,7 @@
   "lineage": "A port of the BIOME atlas from Mutable Dreams 1.4 (Kid Bunka / Christoph Link, free firmware for the M-VAVE FM-1, itself built on Mutable Instruments' Plaits/Rings/Elements). The 157 scenes are the upstream's own factory data (MIT), generated into runtime/dreamatlas/biomes.h; the sequencer (Euclid hits/length/rotate per track, seeded rolls, chord journeys, scale masks, the Lo-Fi kit) is ported line by line from app/dsp/dreams.cpp. The fifteen VOICES are NOT ported: each is mapped onto the nearest engine dreamengine already ships, which is the experiment.",
   "homage": "Mutable Dreams (Kid Bunka) / Mutable Instruments",
   "description": {
-    "summary": "157 small generative worlds from Mutable Dreams, plus a few of our own (a house jam, a tabla-and-guiro bazaar, Moon Meadow with tablas, a slow organ-and-upright brew, the Puppetmaker band, a CR-78 bossa, one that evolves by itself, a world-rhythm atlas, a slow modal jazz drone, a Reich-style phase piece, cool jazz in 5/4, an organ boogaloo, a frog pond at dusk, a tape-echo dub and a lo-fi cassette): six drifting Euclidean tracks, chord journeys and a Lo-Fi kit, played on dreamengine's own voices.",
+    "summary": "157 small generative worlds from Mutable Dreams, plus a few of our own (a house jam, a tabla-and-guiro bazaar, Moon Meadow with tablas, a slow organ-and-upright brew, the Puppetmaker band, a CR-78 bossa, one that evolves by itself, a world-rhythm atlas, a slow modal jazz drone, a Reich-style phase piece, cool jazz in 5/4, an organ boogaloo, a frog pond at dusk, a tape-echo dub, a lo-fi cassette and a drill lullaby): six drifting Euclidean tracks, chord journeys and a Lo-Fi kit, played on dreamengine's own voices.",
     "detail": "Each BIOME is one scene: six tracks, each a voice (Plaits-style drums, FM, analog, Rings and Elements resonators, a sine choir, a round bass...) with its OWN rhythm, k hits spread over n steps. The lengths differ (16, 19, 13...), so the tracks slide against each other and the loop takes minutes to come round. Some biomes walk a chord progression under it, some swap three tracks for a crunchy 16 kHz Lo-Fi drum kit. Browse in the curated order: neighbours are meant to feel genuinely different. The scenes are the original's factory data; the sounds are this engine's nearest voices, so it is a translation, not a copy.",
     "controls": "LEFT/RIGHT or the arrows: next / previous biome · SPACE or PLAY: start / stop · 1-6: mute a track · tap a track row to mute it"
   },
@@ -103,6 +103,7 @@ typedef struct {
     int kit, kit_bank; unsigned kit_gates[8];
     int jam, jam_phrase, jam_break, jam_out[6]; unsigned jam_rng;   // our own biomes' live arranger (jam = JamCfg index + 1)
     DaTrack home[6]; int gen; char change[48];   // an EVOLVING biome: where it started, its generation, its last move
+    unsigned glitch_rng, cut_until;              // the drill ratchets' own rng; a cut silences until this step
 } Scene;
 static Scene S;
 // ── our own biomes, after the 157 factory ones (ids DA_BIOMES..): same format, same sequencer ──
@@ -219,7 +220,14 @@ _Static_assert(M_CRKICK == 23 && M_NYLON == 26 && M_CRACKLE == 27, "our biome ro
 // it plays (wow .55, flutter .35, saturation .5: the cassette warble); apply_scene switches it back off
 // on the way out, and never touches it otherwise, so every other biome stays bit-identical. Its
 // breakdown drops the drums and swells the echo, like the dub.
-#define DA_OWN 17
+// DRILL LULLABY is in the spirit of Aphex Twin (no track of his): drill'n'bass against a lullaby. A
+// chopped break at 168 (the ported kick and snare, ghosts, dense hats; every hit can drop out, so it
+// mutates bar to bar) where any hit may burst into 2/3/4/6 rapid repeats (JamCfg.ratch: the snare
+// most, then the hats, the music box, the kick; a 6-burst is ~15 ms apart, the drill buzz), and now
+// and then EVERYTHING stops dead for a bar's last 4 steps (JamCfg.cuts). Under it the factory choir as
+// a slow sine pad, a soft sub, and a music box wandering 5 in 12. Am F C G, two bars each. It starts
+// as the lullaby; the breaks crash in later, and a breakdown takes them out again.
+#define DA_OWN 18
 #define DA_ALL (DA_BIOMES + DA_OWN)
 static const DaBiome DA_OWN_BIOME[DA_OWN] = {
  {"Marmalade Jam",8,125,7,2,125125,0,0,650,200,100,0,120,0,0,0,380,300,{500,260,520,60},{
@@ -341,6 +349,13 @@ static const DaBiome DA_OWN_BIOME[DA_OWN] = {
   /* bass    (round)     */ {8,250,400,350,200,0,0,16,0,980,39,500,0,1,0,1,0,500,600,200,1,0},
   /* rhodes  (rootless 9ths) */ {22,180,150,1000,120,250,0,16,0,950,51,520,0,1,0,1,0,120,850,100,0,200},
   /* crackle (vinyl)     */ {27,0,0,0,95,0,9,13,0,450,60,500,0,1,0,2,0,0,850,100,0,0}}},
+ {"Drill Lullaby",4,168,9,1,16816,0,0,650,200,100,0,0,0,0,-1,0,300,{500,250,500,100},{
+  /* kick    (Plaits)    */ {0,300,250,350,1000,0,0,16,0,940,31,500,0,1,0,1,0,150,850,100,0,0},
+  /* snare   (Plaits)    */ {1,520,750,250,260,120,0,16,0,940,50,470,0,1,0,1,0,150,850,100,0,0},
+  /* hats    (metal)     */ {2,650,300,80,260,60,13,16,0,850,72,600,0,1,0,1,350,150,850,100,0,0},
+  /* sub     (round)     */ {8,250,500,500,270,0,0,16,0,1000,33,500,0,2,0,1,0,500,600,200,1,0},
+  /* pad     (choir)     */ {7,400,0,900,75,350,1,16,0,1000,57,500,0,2,600,1,0,400,800,0,1,300},
+  /* music box (bell)    */ {20,800,700,200,450,300,5,12,0,850,81,560,0,1,0,1,200,300,850,100,0,0}}},
 };
 // how each of our biomes JAMS (Playtime's drum jam): the order its layers enter, who may rest a
 // phrase, who a breakdown takes out, which track plays the phrase-end fill, which lets go before the one
@@ -368,6 +383,8 @@ typedef struct { int chord_pattern, chord_tracks, build[6], rest[4], break_mask,
                                             // break_pct = breakdown chance per phrase (0 = 18)
                  int tape_wow, tape_flutter, tape_sat;   // the MASTER tape while this biome plays (0..1000;
                                             // all 0 = off): a cassette's wow, flutter and saturation
+                 signed char ratch[6];      // % chance a hit bursts into 2/3/4/6 rapid repeats (a drill ratchet)
+                 int cuts;                  // % chance per bar that EVERYTHING stops for its last 4 steps
                } JamCfg;
 static const JamCfg DA_OWN_JAM[DA_OWN] = {
     { 2, 0x38, {0, 1, 3, 2, 5, 4}, {1, 2, 4, 5}, 1 << 0 | 1 << 2 | 1 << 3, 2, 1,     // Marmalade: I-vi-IV-V
@@ -425,6 +442,10 @@ static const JamCfg DA_OWN_JAM[DA_OWN] = {
       .keys = { 2, 4, 6, 8 },                                       // rootless 9ths
       .delay16 = 3, .delay_fb = 450, .fx = 380, .dsend = { 0, 150, 0, 0, 350, 0 }, .dub = 1, .break_pct = 20,
       .tape_wow = 550, .tape_flutter = 350, .tape_sat = 500 },     // the cassette
+    { 1, 0x18, {4, 5, 3, 0, 1, 2}, {2, 5, 3, 0}, 1 << 0 | 1 << 1 | 1 << 2, 1, 2,   // Drill Lullaby: Am F C G
+      { "KICK", "SNARE", "HATS", "SUB", "PAD", "MUSIC BOX" }, { 0, 5, 2, 6 }, 4, 2, {0},
+      { "X.x.......X.x...", "....X..-.-..X.-.", 0, "a.......e...c...", 0, 0 },
+      .ratch = { 8, 35, 25, 0, 0, 12 }, .cuts = 30, .break_pct = 25 },   // drill bursts and dead stops
 };
 static const DaBiome *biome_row(int id) { return id < DA_BIOMES ? &DA_BIOME[id] : &DA_OWN_BIOME[id - DA_BIOMES]; }
 static int browse_id(int k) { return k < DA_BIOMES ? DA_BROWSE[k] : k; }   // ours come last, in order
@@ -620,6 +641,7 @@ static void scene(int id) {
         if (j->fx) S.fx_level = j->fx;
         for (int i = 0; i < 6; i++) if (j->dsend[i]) S.dsend[i] = j->dsend[i];
         S.jam = id - DA_BIOMES + 1; S.jam_rng = (unsigned)S.b.seed * 2654435761u | 1;
+        S.glitch_rng = (unsigned)S.b.seed * 40503u | 1;
         memcpy(S.home, S.b.tr, sizeof S.home); S.gen = 0; S.change[0] = 0;
         for (int i = 0; i < 6; i++) if (j->pat[i]) {    // a fixed pattern rides the phrase sequencer
             int n = (int)strlen(j->pat[i]); if (n > 16) n = 16;
@@ -1240,6 +1262,15 @@ static void evolve_step(void) {
     }
 }
 
+// a drill RATCHET (our biomes' ratch[]): now and then a hit bursts into 2, 3, 4 or 6 rapid repeats
+static int glitch_rat(int i, int base) {
+    if (!S.jam || !DA_OWN_JAM[S.jam - 1].ratch[i]) return base;
+    S.glitch_rng = S.glitch_rng * 1664525u + 1013904223u;
+    unsigned r = S.glitch_rng >> 8;
+    static const int burst[4] = { 2, 3, 4, 6 };
+    return (int)(r % 100) < DA_OWN_JAM[S.jam - 1].ratch[i] ? burst[(r >> 8) % 4] : base;
+}
+
 static void tick(double t) {
     double dur = step_dur(step);
     int evolving = S.jam && DA_OWN_JAM[S.jam - 1].evolve;
@@ -1248,11 +1279,17 @@ static void tick(double t) {
     if (!evolving && S.jam && step % (8 * bar) == 0) jam_phrase();
     int bar_step = step % bar, fill = S.jam && !evolving && step % (8 * bar) >= 7 * bar && S.jam_phrase > 3;
     int fill_tr = S.jam ? DA_OWN_JAM[S.jam - 1].fill : -1, letgo_tr = S.jam ? DA_OWN_JAM[S.jam - 1].letgo : -1;
+    if (S.jam && DA_OWN_JAM[S.jam - 1].cuts && bar_step == bar - 4 && S.jam_phrase > 3) {   // a CUT: dead stop
+        S.glitch_rng = S.glitch_rng * 1664525u + 1013904223u;
+        if ((int)((S.glitch_rng >> 8) % 100) < DA_OWN_JAM[S.jam - 1].cuts) S.cut_until = step + 4;
+    }
+    int cut = step < S.cut_until;
     if (step % 32 == 0) { if (S.b.locked) seqrng = seed; else seed = rword(&seqrng) | 1; }
     static const int degree[7] = { 0, 2, 3, 5, 7, 10, 12 };
     for (int i = 0; i < (S.kit ? 4 : 6); i++) {
         const DaTrack *tr = &S.b.tr[i];
         int speed = tr->speed < 1 ? 1 : tr->speed;
+        if (cut) continue;
         if (S.kit && i == 3) {
             if (step % speed == 0 && !muted[3]) {
                 unsigned at = (step / speed) % 16;
@@ -1271,7 +1308,8 @@ static void tick(double t) {
                 int note = st->note;
                 if (tr->model >= M_FM) { if (S.chord_tracks & (1u << i)) note += chord_offset(); note = quantize(note + S.b.transpose, S.b.root, S.b.scale); }
                 double span = 60.0 / (S.b.tempo * 4.0) * speed;
-                fire(i, note, st->vel * .01f, t, (int)(span * st->gate * 10));
+                int rat = glitch_rat(i, 1);
+                for (int k = 0; k < rat; k++) fire(i, note, st->vel * .01f, t + k * span / rat, (int)(span * st->gate * 10 / rat));
             }
             continue;
         }
@@ -1288,11 +1326,11 @@ static void tick(double t) {
                 note = quantize(note + S.b.transpose, S.b.root, S.b.scale);
             }
             float vel = .8f + unit(tr->accent) * ((local % tr->length) == 0 ? .2f : -.25f);
-            int rat = tr->ratchet < 1 ? 1 : tr->ratchet;
+            int rat = glitch_rat(i, tr->ratchet < 1 ? 1 : tr->ratchet);
             for (int r = 0; r < rat; r++) fire(i, note, vel, t + r * dur / rat, 0);
         }
     }
-    if (fill && fill_tr >= 0 && !muted[fill_tr]) {   // the phrase-end fill: a run-up, or a roll out of a breakdown
+    if (fill && !cut && fill_tr >= 0 && !muted[fill_tr]) {   // the phrase-end fill: a run-up, or a roll out of a breakdown
         const DaTrack *ft = &S.b.tr[fill_tr];
         int sp = ft->speed < 1 ? 1 : ft->speed;
         int on_beat = step % sp == 0 && md_hit(step / sp, bound(ft->hits + (S.b.macro[0] - 500) * ft->length / 1500, 0, ft->length), ft->length, ft->rotate);

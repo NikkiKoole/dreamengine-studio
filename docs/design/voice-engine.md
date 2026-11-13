@@ -215,6 +215,21 @@ old-man rasp).
 
 ## Decision log
 
+- **2026-11-13** — **F1 follows F0, and a Klatt CASCADE formant model (by ear: the cascade wins).**
+  Two more ideas from JIANT FM (ideas only, no code). (1) On a note above the vowel's first formant,
+  F1 rides just above the pitch (`VOX_F1_TRACK` = ×1.0625, bandwidth scaled with it so Q holds), as
+  sopranos do; always on, in both models. Measured on zingen's Mipomi song: high "i"/"u" notes up to
+  +9 dB, everything else unchanged. (2) `note_aux` idx 19 (VOX_NPARAM 20) switches the four formants
+  from parallel SVFs (navkit VoicForm) to a Klatt cascade: two-pole resonators F1→F2→F3→F4 in
+  series, unity DC gain, then lip radiation (first difference, `vox_rad_z`), level-matched by RMS
+  (`VOX_CASC_GAIN`). The formant LEVELS come from the physics, not the amp table (only F1's amp is
+  kept, as an overall level for closures/nasals); consonant noise bypasses the cascade at
+  `VOX_CASC_NZ` (Klatt's parallel frication branch: four lowpass skirts would kill an s). Measured:
+  ~10 dB more at 1-3 kHz (more present, less muffled), consonant hiss at its own place. Default stays
+  parallel (every other voice cart byte-identical); lyric.h's Singer sings through the cascade
+  (`Singer.parallel = 1` for the old one); zingen key V A/Bs. Open: nasals lose their F2/F3 damping
+  in the cascade (Klatt adds a nasal pole/zero pair); a choir of voices might want the cascade too.
+
 - **2026-11-13** — **De-hiss pass (A/B'd against JIANT FM's VOICE, by ear: "much better").** JIANT
   (M-VAVE FM-1 alt firmware, GPL-3.0, ideas only) is a Klatt *cascade* with a words layer; its voice
   had none of our airy hiss. Measured with level-matched renders (probe cart `singab`, same lyric,

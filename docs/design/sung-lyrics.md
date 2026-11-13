@@ -32,7 +32,9 @@ cart is the A/B harness (same lyric, melody and timing as JIANT's own host rende
    per diphthong keeps its glide smooth (only the levers move).
 
 The engine pieces it needed (2026-11-13): consonants **h** (breath through the vowel's own formants)
-and **x** (the Dutch g/ch), ids 22-23, and chained codas (`vox_coda_prev`).
+and **x** (the Dutch g/ch), ids 22-23, and chained codas (`vox_coda_prev`). The Singer sings through the engine's **Klatt
+cascade** formant model (`note_aux` 19, chosen over the parallel one by ear; `Singer.parallel = 1` for the old
+one), and high notes get F1-follows-pitch ([voice-engine.md](voice-engine.md) decision log).
 
 ## The Dutch rules
 

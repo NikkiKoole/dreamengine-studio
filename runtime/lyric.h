@@ -436,6 +436,7 @@ typedef struct {
     // the released note, still singing its tail (one at a time; a third note cuts it short)
     int rh, rsyl, rbase, rstage, rk;
     float rat, rt0;
+    int parallel;                // 0 (default) = sing through the Klatt CASCADE formants (note_aux 19), 1 = the parallel model
 } Singer;
 
 static void singer_init(Singer *s, Lyric *L, int slot) {
@@ -500,6 +501,7 @@ static int singer_on(Singer *s, int midi, int vol) {
     note_aux(h, 0, s->base * 0.25f);                      // the base vowel on the engine's path
     note_aux(h, 15, 0.0f);                                // no reduction, no diphthong lever: ours
     note_aux(h, 18, 0.0f);
+    note_aux(h, 19, s->parallel ? 0.0f : 1.0f);           // cascade formants: rounder, more present (chosen by ear)
     lyr__place(h, s->base, vf[0], vf[1]);
     voice_coda(h, -1);
     s->on_k = 0; s->on_at = s->t;

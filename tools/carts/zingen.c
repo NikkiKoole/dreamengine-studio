@@ -10,7 +10,7 @@
   "description": {
     "summary": "The formant voice sings DUTCH. Type-free: pick a lyric and it sings it, one syllable per note, reading Dutch spelling by rules (long and short vowels, schwa, ch/g, ui/ij/eu, final devoicing). Song 4 is a lullaby in Mipomi, the playtime Mipos' language.",
     "detail": "lyric.h reads the text into syllables; each note starts the next one: its consonants at note-on, the vowel held while the note is, then the diphthong's second half and the final consonants chained at release ('nacht' = x then t), before the note lets go. The melody is made from the words: a word's last syllable lasts longer, every fourth word breathes. Or play it yourself: every key press sings the next syllable. The bottom line shows the phonemes it read.",
-    "controls": "SPACE = auto-sing on/off · A S D F G H J K = sing the next syllable on that note · 1 2 3 = Dutch lyrics, 4 = a Mipomi lullaby · R = back to the start"
+    "controls": "SPACE = auto-sing on/off · A S D F G H J K = sing the next syllable on that note · 1 2 3 = Dutch lyrics, 4 = a Mipomi lullaby · V = formant model (parallel / Klatt cascade) · R = back to the start"
   }
 }
 de:meta */
@@ -57,6 +57,9 @@ static Singer sing;
 static int which = 0, autop = 1;
 static int fr = 0, note_left = 0, syl_i = 0, rest_left = 0, words = 0;
 static int keyheld = -1;
+static int casc = 1;                 // V: the voice's formant model, 1 = Klatt cascade (the Singer's default), 0 = parallel
+
+static int sing_note(int midi) { return singer_on(&sing, midi, 6); }
 static char phon[512];
 
 static void pick_lyric(int k) {
@@ -64,6 +67,7 @@ static void pick_lyric(int k) {
     lyr_set(&lyr, SONGS[k].lang, SONGS[k].text);
     lyr_phonemes(&lyr, phon, sizeof phon);
     singer_init(&sing, &lyr, SLOT);
+    sing.parallel = !casc;
     fr = note_left = rest_left = syl_i = words = mel_i = 0;
 }
 
@@ -75,7 +79,7 @@ static void mel_step(const Song *g) {
     MNote m = g->mel[mel_i++];
     note_left = m.len;
     if (!m.midi) { singer_off(&sing); return; }
-    int h = singer_on(&sing, m.midi, 6);
+    int h = sing_note(m.midi);
     if (h > 0 && g->vib > 0.0f) { note_aux(h, 5, g->vib); note_aux(h, 6, 0.45f); }   // a little vibrato
 }
 
@@ -98,7 +102,7 @@ static void auto_step(void) {
     const LyrSyl *N = &lyr.syl[(i + 1) % lyr.n];
     int word_end = N->word0 || i + 1 == lyr.n;
     int len = word_end ? 4 : 2;
-    singer_on(&sing, NOTES[CONTOUR[syl_i % 16]], 6);
+    sing_note(NOTES[CONTOUR[syl_i % 16]]);
     syl_i++;
     note_left = len;
     if (word_end) { words++; if (words % 4 == 0) rest_left = 4; }
@@ -109,10 +113,11 @@ static void auto_step(void) {
 void update(void) {
     if (keyp(' ')) { autop = !autop; singer_off(&sing); note_left = rest_left = 0; }
     for (int k = 0; k < NSONGS; k++) if (keyp('1' + k)) pick_lyric(k);
+    if (keyp('V')) { casc = !casc; sing.parallel = !casc; }
     if (keyp('R')) { singer_off(&sing); singer_restart(&sing); syl_i = words = mel_i = note_left = 0; }
     static const char KEYS[8] = { 'A', 'S', 'D', 'F', 'G', 'H', 'J', 'K' };
     for (int k = 0; k < 8; k++) {
-        if (keyp(KEYS[k])) { autop = 0; singer_on(&sing, NOTES[k], 6); keyheld = k; }
+        if (keyp(KEYS[k])) { autop = 0; sing_note(NOTES[k]); keyheld = k; }
         if (keyr(KEYS[k]) && keyheld == k) { singer_off(&sing); keyheld = -1; }
     }
     const Song *g = &SONGS[which];
@@ -151,6 +156,7 @@ void draw(void) {
         } else if (wn < 63) word[wn++] = *p;
     }
     print(SONGS[which].name, 8, 136, CLR_YELLOW);
+    { const char *m = casc ? "V: cascade" : "V: parallel"; print(m, SCREEN_W - 8 - text_width(m), 136, casc ? CLR_ORANGE : CLR_DARK_GREY); }
     print("1-4 song  R restart  @ = schwa  x = g/ch", 8, SCREEN_H - 8, CLR_DARK_GREY);
     font(FONT_NORMAL);
 }

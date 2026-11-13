@@ -299,6 +299,7 @@ typedef struct {
     int    vox_coda_prev;            // the coda this one CHAINED from (a cluster: "nacht" x→t), -1 = from the vowel
     float  vox_nz_low, vox_nz_band;  // consonant-noise band-pass SVF state (frication/burst shaped to its place, not white)
     float  vox_br_lp1, vox_br_lp2;   // breath-noise 2-pole lowpass state (aspiration darkened like the tract cascade; VOX_BREATH_LP_HZ)
+    float  vox_rad_z;                // cascade mode: lip-radiation first-difference state (previous cascade output)
     bool   vox_on;                  // note-on init guard (engine id hit without a start → silent)
     // guitar state (INSTR_GUITAR): the bodied plucked string — PLUCK's Karplus-Strong string
     // (REUSES ks_buf, distinct wave id from the bare pluck path) + 4 parallel body-resonator
@@ -895,7 +896,7 @@ typedef struct {
 } ShimVoice;
 #define FXMOD_N 7                                   // active targets: studio.h FXMOD_FILTER_CUT(0)..FXMOD_SHIMMER_MIX(6)
 #define VARI_BUF (SOUND_SAMPLE_RATE * 2)   // 2 s — room for a long dive before the read laps the write
-#define VOX_NPARAM 19   // 0 vowel·1 size·2 breath·3 openq·4 tilt·5 vibDepth·6 vibRate · 7 nasality·8 openness(F1)·9 frontness(F2) + EXPERIMENTAL 10 buzz·11 jitter·12 shimmer·13 creak·14 nasalAF·15 reduce·16 measBW·17 vow2(diphthong target 0..9)·18 glide(0=primary→1=at vow2)
+#define VOX_NPARAM 20   // 0 vowel·1 size·2 breath·3 openq·4 tilt·5 vibDepth·6 vibRate · 7 nasality·8 openness(F1)·9 frontness(F2) + EXPERIMENTAL 10 buzz·11 jitter·12 shimmer·13 creak·14 nasalAF·15 reduce·16 measBW·17 vow2(diphthong target 0..9)·18 glide(0=primary→1=at vow2) · 19 cascade (0 = 4 parallel formants, 1 = Klatt cascade F1→F4)
 #define EMIT_DL_LEN  3072      // grain buffer per bus (~70ms @44100), stereo
 
 typedef struct {

@@ -5291,6 +5291,9 @@ static inline float vox_burst_env(float dt) {
 #define VOX_CODA_HOLD 1.0f     // an unvoiced coda fricative holds its hiss this many durations, then fades
 #define VOX_BREATH_LP_HZ 3000.0f  // breath-noise 2-pole lowpass corner (× size): the tract-cascade rolloff JIANT gets for free
 #define VOX_CODA_FADE 0.035f   // … over this long (s): a coda is timed, never a hiss through the whole release
+#define VOX_F1_TRACK  1.0625f  // F1 never sits below F0 × this (sung high notes: F1 follows the pitch)
+#define VOX_CASC_GAIN 10.0f    // cascade mode: output gain after radiation (level-matched to the parallel path by ear/RMS)
+#define VOX_CASC_NZ   0.3f     // cascade mode: consonant-noise level (it bypasses the cascade)
 
 // PUBLIC API mapping — the 3 macros → the voice's raw params (the locked lean API):
 //   harmonics = VOWEL · timbre = SIZE · morph = EFFORT (one clean knob → breath + open-q + tilt).
@@ -5311,7 +5314,8 @@ static void sound_voice_start(Voice *v) {
     const float def[VOX_NPARAM] = { 0.5f, 0.33f, 0.10f, 0.5f, 0.30f, 0.0f, 0.5f,
                                     0.0f, 0.5f, 0.5f,                              // nasality off · open/front neutral (×1.0)
                                     1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,      // buzz=full glottal · jitter/shimmer/creak/nasalAF/reduce/measBW off
-                                    0.0f, 0.0f };                                  // vow2 target=U · glide off (no diphthong)
+                                    0.0f, 0.0f,                                    // vow2 target=U · glide off (no diphthong)
+                                    0.0f };                                        // parallel formants (1 = Klatt cascade)
     for (int i = 0; i < VOX_NPARAM; i++) v->vox_p[i] = v->vox_s[i] = def[i];
     v->vox_glot_ph = v->vox_tilt_lp = v->vox_vib_ph = 0.0f;
     v->vox_jit_mul = v->vox_shim_mul = 1.0f; v->vox_creak_skip = 0;
@@ -5321,6 +5325,7 @@ static void sound_voice_start(Voice *v) {
     v->vox_coda = -1; v->vox_coda_t = 0.0f; v->vox_coda_prev = -1;
     v->vox_nz_low = v->vox_nz_band = 0.0f;
     v->vox_br_lp1 = v->vox_br_lp2 = 0.0f;
+    v->vox_rad_z = 0.0f;
     v->vox_on = true;
 }
 
@@ -5526,16 +5531,43 @@ static inline float sound_voice_sample(Voice *v, float pitch_mul) {
     v->vox_br_lp1 += bc * (nz - v->vox_br_lp1);
     v->vox_br_lp2 += bc * (v->vox_br_lp1 - v->vox_br_lp2);
     float bnz = v->vox_br_lp2 * 1.4f * (t < te ? 1.0f : 0.5f);
-    src = src * (1.0f - breath * 0.5f) + bnz * (breath * 0.5f) + cnz * con_noise;
+    float vsrc = src * (1.0f - breath * 0.5f) + bnz * (breath * 0.5f);   // voice + breath (what a tract filters)
+    float cn = cnz * con_noise;                                            // consonant noise, already placed
+    src = vsrc + cn;
 
-    // 4 parallel SVF formants: centres (vowel, or consonant-blended) then size-shifted
-    float out = 0.0f;
+    // formants: centres (vowel, or consonant-blended) then size-shifted, through EITHER
+    //   4 parallel SVF bandpasses weighted by the vowel's amps (navkit VoicForm, the default), OR
+    //   a Klatt CASCADE (idx 19 ≥ 0.5): four two-pole resonators in series F1→F2→F3→F4, unity gain
+    //   at DC, then lip radiation (a first difference). In a cascade the formant LEVELS fall out
+    //   of the frequencies (each resonator lifts everything above it), as in a real tract, so the
+    //   amp table is not used (only F1's amp, as an overall level for consonant closures/nasals).
+    //   The consonant noise skips the cascade (it is band-passed at its place already; through
+    //   four lowpass skirts an s at 6 kHz would vanish) — Klatt's parallel frication branch.
+    int casc = v->vox_p[19] >= 0.5f;
+    float out = 0.0f, cy = vsrc;
     for (int i = 0; i < 4; i++) {
         float fc_hz = vfreq[i] * shift;
         if (fc_hz > SR * 0.45f) fc_hz = SR * 0.45f;
         float amp = vamp[i];
         // bandwidth: derived (grows with centre) ↔ navkit's measured per-vowel BW (measBW idx 16)
         float bw  = (60.0f + fc_hz * 0.08f) * (1.0f - bwmode) + vbw[i] * bwmode;
+        // F1 FOLLOWS F0 on high notes (sopranos tune F1 to the pitch; JIANT FM does it too): once the
+        // sung pitch climbs past F1, F1 rides just above it (×VOX_F1_TRACK), its bandwidth scaled
+        // with it so Q (and peak gain) holds. Without it a high "ee"/"oo" has no formant under its
+        // fundamental and goes thin.
+        if (i == 0 && fc_hz < freq * VOX_F1_TRACK) {
+            float k = freq * VOX_F1_TRACK / fc_hz;
+            fc_hz *= k; bw *= k;
+            if (fc_hz > SR * 0.45f) fc_hz = SR * 0.45f;
+        }
+        if (casc) {                                   // Klatt resonator: y = A x + B y1 + C y2 (low = y1, band = y2)
+            float r = de_expf(-SOUND_PI * bw / SR);
+            float B = 2.0f * r * de_cosf(SOUND_TWO_PI * fc_hz / SR), C = -r * r, A = 1.0f - B - C;
+            float y = A * cy + B * v->vox_f_low[i] + C * v->vox_f_band[i];
+            v->vox_f_band[i] = v->vox_f_low[i]; v->vox_f_low[i] = y;
+            cy = y;
+            continue;
+        }
         float f = 2.0f * de_sinf(SOUND_PI * fc_hz / SR);
         if (f > 0.99f) f = 0.99f; else if (f < 0.001f) f = 0.001f;
         float q = fc_hz / (bw + 1.0f);
@@ -5544,6 +5576,10 @@ static inline float sound_voice_sample(Voice *v, float pitch_mul) {
         float high = src - v->vox_f_low[i] - v->vox_f_band[i] / q;
         v->vox_f_band[i] += f * high;
         out += v->vox_f_band[i] * amp;
+    }
+    if (casc) {                                       // lip radiation (+6 dB/oct) + level match to parallel
+        float rad = cy - v->vox_rad_z; v->vox_rad_z = cy;
+        out = rad * VOX_CASC_GAIN * vamp[0] + cn * VOX_CASC_NZ;
     }
     // EXPERIMENTAL anti-formant nasality (14): a ~350Hz notch + blend (navkit WAVE_VOICE's
     // physically-truer nasality, distinct from the formant-config morph on idx 7) — auditioning

@@ -9140,6 +9140,20 @@
     "homage": "The Legend of Zelda (1986)"
   },
   {
+    "title": "zingen",
+    "description": "The formant voice sings DUTCH. Type-free: pick a lyric and it sings it, one syllable per note, reading Dutch spelling by rules (long and short vowels, schwa, ch/g, ui/ij/eu, final devoicing). lyric.h reads the text into syllables; each note starts the next one: its consonants at note-on, the vowel held while the note is, then the diphthong's second half and the final consonants chained at release ('nacht' = x then t), before the note lets go. The melody is made from the words: a word's last syllable lasts longer, every fourth word breathes. Or play it yourself: every key press sings the next syllable. The bottom line shows the phonemes it read. SPACE = auto-sing on/off · A S D F G H J K = sing the next syllable on that note · 1 2 3 = pick a lyric · R = back to the start",
+    "file": "zingen.cart.png",
+    "created": "2026-11-13",
+    "kind": [
+      "instrument",
+      "probe"
+    ],
+    "teaches": [
+      "generative-melody"
+    ],
+    "lineage": "The first cart on lyric.h, the sung-words layer for INSTR_VOICE (idea after JIANT FM's VOICE/WORDS, M-VAVE FM-1 firmware, GPL-3.0; ideas only, no code; the Dutch rules are ours). Follows singab, the A/B probe that motivated the de-hiss pass."
+  },
+  {
     "title": "pixel zoo",
     "description": "The editor's welcome scene — stroll a little zoo and visit the animals. Showcases fillp() dithered fills (the gradient sky, speckled grass, see-through grid fences), spr_rot()/sspr_ex() (a spinning sun, a pinwheel, a vendor's swaying balloons), and the synth: a soft ADSR pad, vibrato birds, and a lowpass-swept lion roar. Each enclosure answers as you walk up to it — water blips at the flamingo pond, the lion roars, the monkeys chatter, the elephant trumpets. The animals are drawn from primitives (ovals, circles, triangles). WASD walk, Z wave.",
     "file": "zoo.cart.png",

@@ -8,19 +8,21 @@
   "teaches": ["generative-melody"],
   "lineage": "The first cart on lyric.h, the sung-words layer for INSTR_VOICE (idea after JIANT FM's VOICE/WORDS, M-VAVE FM-1 firmware, GPL-3.0; ideas only, no code; the Dutch rules are ours). Follows singab, the A/B probe that motivated the de-hiss pass.",
   "description": {
-    "summary": "The formant voice sings DUTCH. Type-free: pick a lyric and it sings it, one syllable per note, reading Dutch spelling by rules (long and short vowels, schwa, ch/g, ui/ij/eu, final devoicing). Song 4 is a lullaby in Mipomi, the playtime Mipos' language.",
+    "summary": "The formant voice sings DUTCH, and whatever you type: pick a lyric or type your own line and it sings it, one syllable per note, reading Dutch spelling by rules (long and short vowels, schwa, ch/g, ui/ij/eu, final devoicing). Song 4 is a lullaby in Mipomi, the playtime Mipos' language.",
     "detail": "lyric.h reads the text into syllables; each note starts the next one: its consonants at note-on, the vowel held while the note is, then the diphthong's second half and the final consonants chained at release ('nacht' = x then t), before the note lets go. The melody is made from the words: a word's last syllable lasts longer, every fourth word breathes. Or play it yourself: every key press sings the next syllable. The bottom line shows the phonemes it read.",
-    "controls": "SPACE = auto-sing on/off · A S D F G H J K = sing the next syllable on that note · 1 2 3 = Dutch lyrics, 4 = a Mipomi lullaby · V = formant model (Klatt cascade / parallel) · UP/DOWN = buzz (relaxed and round .. pressed and bright) · L = singer layer on/off (vibrato that blooms in, a living pitch, sung glides) · R = back to the start"
+    "controls": "SPACE = auto-sing on/off · A S D F G H J K = sing the next syllable on that note · 1 2 3 = Dutch lyrics, 4 = a Mipomi lullaby, 5 = your words · ENTER = type your own line (Dutch or Mipomi, TAB switches), ENTER again to hear it sung (it is remembered) · V = formant model (Klatt cascade / parallel) · UP/DOWN = buzz (relaxed and round .. pressed and bright) · L = singer layer on/off (vibrato that blooms in, a living pitch, sung glides) · R = back to the start"
   }
 }
 de:meta */
 #include "studio.h"
 #include "lyric.h"
 #include <stdio.h>
+#include <string.h>
 
 // ZINGEN — INSTR_VOICE sings through lyric.h: three Dutch lyrics (our own lines) on a melody made from
 // the words, and one MIPOMI song (the playtime Mipos' language, real words from mipomi-lang's
-// words.tsv) on its own written lullaby melody.
+// words.tsv) on its own written lullaby melody. And YOUR words: ENTER opens a text box, type any line
+// (Dutch or Mipomi, TAB switches), ENTER again and it sings it. The line is saved for next time.
 #define SLOT 5
 
 // a written melody: {midi, steps}; midi 0 = a rest. One note per syllable, in order.
@@ -39,7 +41,9 @@ static const MNote FALA_FONI[] = {
     {67,2},{64,2},{62,2},{60,6},{0,2}, {64,2},{62,4},{0,2}, {64,6},{60,10},{0,12},
 };
 typedef struct { const char *name; int lang; const char *text; const MNote *mel; int nmel; int step_fr; float vib; } Song;
-static const Song SONGS[4] = {
+#define USER_MAX 200
+static char user_text[USER_MAX] = "typ hier je eigen woorden en ik zing ze";
+static Song SONGS[5] = {
     { "zing voor jou", LYR_NL, "ik zing voor jou, de zon gaat op, de nacht is lang en ik blijf hier", 0, 0, 9, 0.25f },
     { "kunst",         LYR_NL, "kunst en liefde, vrolijk en eeuwig, in het licht van de straat", 0, 0, 9, 0.25f },
     { "de zee",        LYR_NL, "de zee is groen, de lucht is grijs, ik loop - naar huis door de regen", 0, 0, 9, 0.25f },
@@ -47,8 +51,15 @@ static const Song SONGS[4] = {
       "mipo fala, fala a foko, mibi i mola, mibi o jojo u jo, fono, foni a foko, "
       "mi i nini, mi i momo u jo, mipo foni, pomo, ni -",
       FALA_FONI, (int)(sizeof FALA_FONI / sizeof FALA_FONI[0]), 11, 0.35f },
+    { "your words", LYR_NL, user_text, 0, 0, 9, 0.25f },
 };
-#define NSONGS 4
+#define NSONGS 5
+#define USER   4
+
+// the typed line: a text box over the cart (ENTER opens it, ENTER sings it, TAB = language)
+static int typing = 0, tlang = LYR_NL, bs_held = 0;
+static char tbuf[USER_MAX];
+typedef struct { int ver, lang; char text[USER_MAX]; } Saved;   // save_bytes: the last line you typed
 static int mel_i = 0;
 static const int NOTES[8] = { 60, 62, 64, 67, 69, 72, 74, 76 };   // C pentatonic-ish, two octaves of keys
 static const int CONTOUR[16] = { 2, 3, 4, 3, 2, 1, 2, 4, 5, 4, 3, 2, 1, 0, 1, 2 };
@@ -99,7 +110,52 @@ void init(void) {
     instrument(SLOT, INSTR_VOICE, 5, 60, 7, 190);
     reverb(0.45f, 0.5f);
     instrument_reverb(SLOT, 0.25f);
+    Saved sv;
+    if (load_bytes(&sv, sizeof sv) == (int)sizeof sv && sv.ver == 1 && sv.text[0]) {
+        sv.text[USER_MAX - 1] = 0;
+        memcpy(user_text, sv.text, USER_MAX);
+        SONGS[USER].lang = sv.lang == LYR_MIPOMI ? LYR_MIPOMI : LYR_NL;
+    }
     pick_lyric(0);
+}
+
+static void keys_step(void);
+
+static void tb_add(unsigned char c) {
+    int n = (int)strlen(tbuf);
+    if (n < USER_MAX - 1) { tbuf[n] = (char)c; tbuf[n + 1] = 0; }
+}
+static void tb_back(void) {                               // one character, a whole UTF-8 sequence
+    int n = (int)strlen(tbuf);
+    while (n > 0 && ((unsigned char)tbuf[n - 1] & 0xC0) == 0x80) n--;
+    if (n > 0) n--;
+    tbuf[n] = 0;
+}
+
+// one frame of the text box
+static void type_step(void) {
+    for (const unsigned char *p = (const unsigned char *)text_input(); *p; p++) {
+        if (*p >= 0xC0) { if ((int)strlen(tbuf) < USER_MAX - 2) { tb_add(0xC3); tb_add((unsigned char)(*p - 0x40)); } }  // Latin-1 é → UTF-8
+        else if (*p >= 0x20 && *p < 0x7F) tb_add(*p);
+    }
+    for (const unsigned char *p = (const unsigned char *)paste(); *p; p++)
+        tb_add(*p == '\n' || *p == '\r' || *p == '\t' ? ' ' : *p);
+    if (keyp(KEY_BACKSPACE)) { tb_back(); bs_held = 0; }
+    else if (key(KEY_BACKSPACE) && ++bs_held > 24 && bs_held % 3 == 0) tb_back();   // held: repeat
+    if (keyp(KEY_TAB)) tlang = tlang == LYR_NL ? LYR_MIPOMI : LYR_NL;
+    if (keyp(KEY_ENTER)) {
+        typing = 0;
+        if (tbuf[0]) {                                    // sing it (an empty line just closes the box)
+            memcpy(user_text, tbuf, USER_MAX);
+            SONGS[USER].lang = tlang;
+            Saved sv; memset(&sv, 0, sizeof sv);
+            sv.ver = 1; sv.lang = tlang; memcpy(sv.text, tbuf, USER_MAX);
+            save_bytes(&sv, sizeof sv);
+            singer_off(&sing);
+            pick_lyric(USER);
+            autop = 1;
+        }
+    }
 }
 
 // the auto melody, one note per syllable, shaped by the words
@@ -123,6 +179,19 @@ static void auto_step(void) {
 }
 
 void update(void) {
+    (void)key('P');                                        // ours, so typing a "p" never pauses the console
+    if (typing) type_step();
+    else if (keyp(KEY_ENTER)) {                            // open the text box on your last line
+        typing = 1;
+        memcpy(tbuf, user_text, USER_MAX);
+        tlang = SONGS[USER].lang;
+    } else keys_step();
+    const Song *g = &SONGS[which];
+    if (autop && ++fr >= g->step_fr) { fr = 0; if (g->mel) mel_step(g); else auto_step(); }
+    singer_update(&sing);
+}
+
+static void keys_step(void) {
     if (keyp(' ')) { autop = !autop; singer_off(&sing); note_left = rest_left = 0; }
     for (int k = 0; k < NSONGS; k++) if (keyp('1' + k)) pick_lyric(k);
     if (keyp('V')) { casc = !casc; sing.parallel = !casc; }
@@ -138,9 +207,34 @@ void update(void) {
         if (keyp(KEYS[k])) { autop = 0; sing_note(NOTES[k]); keyheld = k; }
         if (keyr(KEYS[k]) && keyheld == k) { singer_off(&sing); keyheld = -1; }
     }
-    const Song *g = &SONGS[which];
-    if (autop && ++fr >= g->step_fr) { fr = 0; if (g->mel) mel_step(g); else auto_step(); }
-    singer_update(&sing);
+}
+
+// the text box: your line wrapped over a few rows, a blinking cursor at its end
+static void draw_box(void) {
+    int bx = 12, by = 40, bw = SCREEN_W - 24, bh = 96;
+    rectfill(bx, by, bw, bh, CLR_BLACK);
+    rect(bx, by, bw, bh, CLR_YELLOW);
+    print("type words to sing", bx + 8, by + 6, CLR_YELLOW);
+    const char *ln = tlang == LYR_NL ? "TAB: Nederlands" : "TAB: Mipomi";
+    print(ln, bx + bw - 8 - text_width(ln), by + 6, tlang == LYR_NL ? CLR_ORANGE : CLR_PINK);
+    // wrap word by word into rows that fit (a space ends a word; it is drawn as the gap)
+    int x = bx + 8, y = by + 22, n = (int)strlen(tbuf), sp = text_width(" ");
+    char wd[USER_MAX];
+    for (int i = 0; i <= n; ) {
+        int j = i;
+        while (j < n && tbuf[j] != ' ') j++;
+        memcpy(wd, tbuf + i, (size_t)(j - i)); wd[j - i] = 0;
+        int w = text_width(wd);
+        if (x > bx + 8 && x + w > bx + bw - 8) { x = bx + 8; y += 10; }
+        if (y < by + bh - 22) print(wd, x, y, CLR_WHITE);
+        x += w;
+        if (j < n) x += sp;                               // the space after it (so the cursor sits after a typed space)
+        i = j + 1;
+    }
+    if (((int)(now() * 2.0f)) % 2 == 0 && y < by + bh - 22) rectfill(x + 1, y, 6, 8, CLR_YELLOW);
+    font(FONT_SMALL);
+    print("ENTER sing it  BACKSPACE erase  empty + ENTER closes", bx + 8, by + bh - 10, CLR_LIGHT_GREY);
+    font(FONT_NORMAL);
 }
 
 void draw(void) {
@@ -177,8 +271,9 @@ void draw(void) {
     { char b[24]; snprintf(b, sizeof b, "buzz %d/4", (int)(buzz * 4.0f + 0.5f)); print(b, SCREEN_W - 150, 136, CLR_LIGHT_GREY); }
     print(sung ? "L: sung" : "L: plain", SCREEN_W - 200, 136, sung ? CLR_PINK : CLR_DARK_GREY);
     { const char *m = casc ? "V: cascade" : "V: parallel"; print(m, SCREEN_W - 8 - text_width(m), 136, casc ? CLR_ORANGE : CLR_DARK_GREY); }
-    print("1-4 song  R restart  @ = schwa  x = g/ch", 8, SCREEN_H - 8, CLR_DARK_GREY);
+    print("ENTER type your own  1-5 song  R restart  @ = schwa  x = g/ch", 8, SCREEN_H - 8, CLR_DARK_GREY);
     font(FONT_NORMAL);
+    if (typing) draw_box();
 }
 
 #ifdef DE_SPEC

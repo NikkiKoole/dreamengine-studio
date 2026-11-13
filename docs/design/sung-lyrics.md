@@ -3,7 +3,8 @@
 STATUS: BUILDING (2026-11-13) — `runtime/lyric.h` reads **Dutch** by spelling rules and sings it on
 `INSTR_VOICE`, one syllable per note, and **Mipomi** (the playtime Mipos' language); the `zingen`
 cart is the demo (three Dutch lyrics + "Fala, Foni", a Mipomi lullaby on a written melody) and runs
-`lyr_selfcheck()` (23 Dutch words + 3 Mipomi phrases, `node tools/spec.js zingen`).
+`lyr_selfcheck()` (23 Dutch words + 3 Mipomi phrases, `node tools/spec.js zingen`). Type your own line
+in zingen (ENTER, TAB = Dutch/Mipomi, ENTER again: it sings it; remembered with `save_bytes`).
 
 ## Where it came from
 
@@ -83,4 +84,3 @@ vowel).
 - More languages through the same `lang` switch: Spanish is the cheapest (pure rules, JIANT shows the
   rule set), English needs a dictionary.
 - A lyric generator (JIANT's templates + themed word banks, sized to the pattern's note count).
-- A typed-text input in a cart, so a stranger can make it sing their own words.

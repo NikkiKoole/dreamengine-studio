@@ -35,6 +35,12 @@ The engine pieces it needed (2026-11-13): consonants **h** (breath through the v
 and **x** (the Dutch g/ch), ids 22-23, and chained codas (`vox_coda_prev`). The Singer sings through the engine's **Klatt
 cascade** formant model (`note_aux` 19, chosen over the parallel one by ear; `Singer.parallel = 1` for the old
 one), and high notes get F1-follows-pitch ([voice-engine.md](voice-engine.md) decision log).
+**The singer layer** (after JIANT FM's, ideas only), on by default: a note starts STRAIGHT and its
+vibrato blooms in (`vib` depth 0.3, `vib_hz` 5.5, after `vib_delay` 0.25 s, over 0.4 s); a living pitch
+(`human`: per-period jitter ±0.3 %, shimmer up to 3 %); legato notes (starting within 0.12 s of the last
+release) begin on the last pitch and slide on an S-curve (`glide` 0.07 s, +6 % per semitone), driven per
+frame with `note_pitch` and a one-frame `note_glide` so it never staircases. Zero a field to switch that
+part off (zingen: L A/Bs the whole layer).
 `singer_buzz(&sing, 0..1)` sets the voice's EFFORT, in the cascade its BUZZ: relaxed and round to pressed and
 bright (zingen: UP/DOWN).
 

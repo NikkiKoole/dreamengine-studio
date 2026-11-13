@@ -440,6 +440,13 @@ typedef struct {
     int parallel;                // 0 (default) = sing through the Klatt CASCADE formants (note_aux 19), 1 = the parallel model
     float buzz;                  // EFFORT / BUZZ 0 relaxed, round .. 1 pressed, bright (breath + open quotient + tilt);
                                  // < 0 (the default) = leave the engine's own. Set with singer_buzz().
+    // THE SINGER LAYER (after JIANT FM's, ideas only): what makes a voice sound sung, not played.
+    float vib;                   // vibrato depth 0..1 (engine idx 5: 1 = ±0.7 semitone); 0 = none. Default 0.3
+    float vib_hz;                // vibrato rate (Hz, 3..8). Default 5.5
+    float vib_delay;             // the note starts STRAIGHT; vibrato blooms in after this (s), over LYR__VIB_BLOOM. Default 0.25
+    float human;                 // per-period jitter + shimmer, 0 = a machine .. 1 = the default dose
+    float glide;                 // legato notes slide from the last pitch on an S-curve over this (s) (+ a bit per semitone); 0 = jump. Default 0.07
+    int last_midi; float last_end, on_t0, g_from, g_to, g_len; int gliding, vib_done;
 } Singer;
 
 static void singer_init(Singer *s, Lyric *L, int slot) {
@@ -448,7 +455,13 @@ static void singer_init(Singer *s, Lyric *L, int slot) {
     s->slot = slot;
     s->cur = -1;
     s->buzz = -1.0f;
+    s->vib = 0.3f; s->vib_hz = 5.5f; s->vib_delay = 0.25f;
+    s->human = 1.0f;
+    s->glide = 0.07f;
+    s->last_end = -1.0f;
 }
+#define LYR__VIB_BLOOM 0.4f      // vibrato grows from 0 to full over this, after vib_delay
+#define LYR__LEGATO_S  0.12f     // a note starting within this of the last one's release is legato (it glides)
 
 // the voice's EFFORT on the held note and every next one, poked as raw params (the Singer owns note_aux
 // 0, so the EFFORT macro's live path, which also rewrites the vowel, is not used): the same curve as
@@ -500,6 +513,7 @@ static void singer_off(Singer *s) {
     s->rh = s->h; s->rsyl = s->cur; s->rbase = s->base;
     s->rstage = 0; s->rt0 = s->t; s->rat = s->t; s->rk = 0;
     s->h = 0;
+    s->last_end = s->t;
     singer__tail(s);
 }
 
@@ -511,9 +525,26 @@ static int singer_on(Singer *s, int midi, int vol) {
     int i = s->pos++;
     const LyrSyl *S = &s->lyr->syl[i];
     const float *vf = lyr__vf[S->v];
-    int h = note_on(midi, s->slot, vol);
+    // legato (the last note let go just now, or is being let go by this one): start on ITS pitch and
+    // slide to ours, the way a voice moves between notes; a note after a rest just starts
+    int from = s->last_midi;
+    int slide = s->glide > 0.0f && from > 0 && from != midi && s->last_end >= 0.0f && s->t - s->last_end < LYR__LEGATO_S;
+    int h = note_on(slide ? from : midi, s->slot, vol);
     if (h <= 0) return 0;
     s->h = h; s->cur = i;
+    s->on_t0 = s->t; s->last_midi = midi;
+    s->gliding = slide;
+    if (slide) {
+        int d = midi > from ? midi - from : from - midi;
+        s->g_from = (float)from; s->g_to = (float)midi;
+        s->g_len = s->glide * (1.0f + 0.06f * (float)d);  // a wider leap takes a little longer
+        note_glide(h, 16);                                // each frame's pitch step slides over a frame: no staircase
+    }
+    note_aux(h, 5, 0.0f);                                 // vibrato: none yet (singer_update blooms it)
+    note_aux(h, 6, (s->vib_hz - 3.0f) / 5.0f);
+    s->vib_done = s->vib <= 0.0f;
+    note_aux(h, 11, 0.06f * s->human);                    // jitter: ±0.3 % pitch per period
+    note_aux(h, 12, 0.05f * s->human);                    // shimmer: up to 3 % amplitude dips per period
     s->base = lyr__base_of(vf[0], vf[1]);
     note_aux(h, 0, s->base * 0.25f);                      // the base vowel on the engine's path
     note_aux(h, 15, 0.0f);                                // no reduction, no diphthong lever: ours
@@ -532,6 +563,19 @@ static int singer_on(Singer *s, int midi, int vol) {
 // call once per frame: fires a cluster's later onset consonants and sings released tails
 static void singer_update(Singer *s) {
     s->t += dt();
+    if (s->h) {
+        float a = s->t - s->on_t0;
+        if (s->gliding) {                                 // the S-curve slide (smoothstep in pitch)
+            float k = a / s->g_len;
+            if (k >= 1.0f) { k = 1.0f; s->gliding = 0; }
+            note_pitch(s->h, s->g_from + (s->g_to - s->g_from) * (k * k * (3.0f - 2.0f * k)));
+        }
+        if (!s->vib_done && a > s->vib_delay) {           // vibrato blooms in (then left alone)
+            float k = (a - s->vib_delay) / LYR__VIB_BLOOM;
+            if (k >= 1.0f) { k = 1.0f; s->vib_done = 1; }
+            note_aux(s->h, 5, s->vib * k);
+        }
+    }
     if (s->h && s->cur >= 0) {
         const LyrSyl *S = &s->lyr->syl[s->cur];
         while (s->on_k < S->non && s->t >= s->on_at) {

@@ -35,6 +35,8 @@ The engine pieces it needed (2026-11-13): consonants **h** (breath through the v
 and **x** (the Dutch g/ch), ids 22-23, and chained codas (`vox_coda_prev`). The Singer sings through the engine's **Klatt
 cascade** formant model (`note_aux` 19, chosen over the parallel one by ear; `Singer.parallel = 1` for the old
 one), and high notes get F1-follows-pitch ([voice-engine.md](voice-engine.md) decision log).
+`singer_buzz(&sing, 0..1)` sets the voice's EFFORT, in the cascade its BUZZ: relaxed and round to pressed and
+bright (zingen: UP/DOWN).
 
 ## The Dutch rules
 

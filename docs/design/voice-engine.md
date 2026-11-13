@@ -215,6 +215,28 @@ old-man rasp).
 
 ## Decision log
 
+- **2026-11-13** — **Cascade BUZZ source + nasal pair; the instrument macros finally reach a voice.**
+  (1) In the cascade only, a JIANT-style glottal flow (ideas only): opens over 65 % of the open phase,
+  closes in a quarter cosine that hits zero still falling (an ABRUPT closure, the per-period click that
+  excites the tract; the Rosenberg close is smooth, hence soft). EFFORT is the BUZZ: open quotient 0.90
+  relaxed → 0.35 pressed, plus a presence shelf (first difference, depth `VOX_PRESENCE` × pressedness),
+  level-compensated (-4 dB per unit) so pressed is brighter, not just louder. Measured on zingen: 1-3 kHz
+  +7 dB relaxed → pressed, loudness within 1.4 dB. lyric.h: `singer_buzz()` (pokes the EFFORT curve as
+  raw params, since the Singer owns note_aux 0); zingen UP/DOWN. (2) Klatt's nasal pole/zero pair at the
+  head of the cascade: pole `VOX_NASAL_P` 270 Hz, zero ON it for an oral vowel (cancels), up to
+  `VOX_NASAL_Z` 450 Hz for m/n/ng (weighted by the onset/coda blend) or `voice_nasal`; upper-formant
+  bandwidths widen ×(1+2w) with it. Parallel path byte-identical. (3) **Bug since the API lock
+  (2026-06-10):** `sound_setup_note_ex` applied VOWEL/SIZE/EFFORT and then `sound_voice_start` reset
+  every param to its defaults, so `instrument_harmonics/timbre/morph` never reached an INSTR_VOICE
+  note; only live `note_*` did. Now applied at the end of `sound_voice_start`, and ONLY the macros the
+  cart set (`Instrument.mac_set`), since SIZE's 0.5 detent is not the voice's 0.33; the live path
+  writes the moved macro + the set ones (it used to rewrite all three, clobbering note_aux). Rendered
+  the 18 voice carts that set macros: 6 change, each now as its code asks (amb1, grainstrings, hyperbox,
+  singsample's "ee", voxsize). voxshift keeps its old capture (its macro lines removed) because
+  psola-check's baseline is that capture: applied, the brighter source makes the SNAP face
+  period-double, a PSOLA weakness worth a look (the gate's separate "f0 spread" fail on SNAPPED
+  predates all of this).
+
 - **2026-11-13** — **F1 follows F0, and a Klatt CASCADE formant model (by ear: the cascade wins).**
   Two more ideas from JIANT FM (ideas only, no code). (1) On a note above the vowel's first formant,
   F1 rides just above the pitch (`VOX_F1_TRACK` = ×1.0625, bandwidth scaled with it so Q holds), as

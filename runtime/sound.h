@@ -5292,7 +5292,11 @@ static inline float vox_burst_env(float dt) {
 #define VOX_BREATH_LP_HZ 3000.0f  // breath-noise 2-pole lowpass corner (× size): the tract-cascade rolloff JIANT gets for free
 #define VOX_CODA_FADE 0.035f   // … over this long (s): a coda is timed, never a hiss through the whole release
 #define VOX_F1_TRACK  1.0625f  // F1 never sits below F0 × this (sung high notes: F1 follows the pitch)
-#define VOX_CASC_GAIN 10.0f    // cascade mode: output gain after radiation (level-matched to the parallel path by ear/RMS)
+#define VOX_CASC_GAIN 8.2f     // cascade mode: output gain after radiation (level-matched to the parallel path by ear/RMS)
+#define VOX_PRESENCE  5.0f     // cascade mode: presence-shelf depth at full EFFORT (pressed)
+#define VOX_NASAL_P   270.0f   // cascade mode: nasal pole (Hz, Klatt's FNP)
+#define VOX_NASAL_Z   450.0f   // cascade mode: nasal zero for a full m/n/ng (Hz; it sits on the pole when oral)
+#define VOX_IS_NASAL(c) ((c) == VC_M || (c) == VC_N || (c) == VC_NG)
 #define VOX_CASC_NZ   0.3f     // cascade mode: consonant-noise level (it bypasses the cascade)
 
 // PUBLIC API mapping — the 3 macros → the voice's raw params (the locked lean API):
@@ -5300,13 +5304,18 @@ static inline float vox_burst_env(float dt) {
 // Written from the macro TARGETS whenever they change (note-on + note_harmonics/timbre/morph), so a
 // macro-driven cart needs no note_aux(). The probe carts instead poke vox_p directly via
 // note_aux() and leave the macros at default, so the two surfaces don't fight.
-static void vox_apply_macros(Voice *v) {
+// mask: which macros to write (bit 0 VOWEL, 1 SIZE, 2 EFFORT) — only the ones the cart SET (Instrument.mac_set,
+// or the one a live note_* just moved), so an untouched macro never overwrites the voice's own default
+// (SIZE's 0.5 detent is NOT the voice's 0.33) or a probe cart's note_aux.
+static void vox_apply_macros(Voice *v, unsigned mask) {
     float e = v->mor_target;                            // EFFORT 0..1
-    v->vox_p[0] = v->harm_target;                       // VOWEL  ← harmonics
-    v->vox_p[1] = v->timb_target;                       // SIZE   ← timbre
-    v->vox_p[2] = 0.22f - 0.22f * e;                    // breath  0.22 → 0    (light; the clean curve)
-    v->vox_p[3] = 0.85f - 0.65f * e;                    // open-q  0.85 → 0.20
-    v->vox_p[4] = 0.70f - 0.65f * e;                    // tilt    0.70 → 0.05
+    if (mask & 1u) v->vox_p[0] = v->harm_target;        // VOWEL  ← harmonics
+    if (mask & 2u) v->vox_p[1] = v->timb_target;        // SIZE   ← timbre
+    if (mask & 4u) {
+        v->vox_p[2] = 0.22f - 0.22f * e;                // breath  0.22 → 0    (light; the clean curve)
+        v->vox_p[3] = 0.85f - 0.65f * e;                // open-q  0.85 → 0.20
+        v->vox_p[4] = 0.70f - 0.65f * e;                // tilt    0.70 → 0.05
+    }
 }
 
 // note-on: seed a neutral "ah" so a bare note(60, INSTR_VOICE, …) speaks; note_aux overrides live
@@ -5325,8 +5334,13 @@ static void sound_voice_start(Voice *v) {
     v->vox_coda = -1; v->vox_coda_t = 0.0f; v->vox_coda_prev = -1;
     v->vox_nz_low = v->vox_nz_band = 0.0f;
     v->vox_br_lp1 = v->vox_br_lp2 = 0.0f;
-    v->vox_rad_z = 0.0f;
+    v->vox_rad_z = v->vox_pres_z = 0.0f;
+    v->vox_nzp1 = v->vox_nzp2 = v->vox_nzz1 = v->vox_nzz2 = 0.0f;
     v->vox_on = true;
+    // the cart's instrument_harmonics/timbre/morph (VOWEL/SIZE/EFFORT), the ones it set, AFTER the
+    // defaults above. (Until 2026-11-13 the setup-time apply ran BEFORE this reset, so the instrument
+    // macros never reached a voice at note-on; only live note_* moves did.)
+    if (v->instr_slot >= 0 && v->instr_slot < SOUND_INSTR_SLOTS) vox_apply_macros(v, instr_bank[v->instr_slot].mac_set);
 }
 
 // One INSTR_VOICE sample. params (vox_s, all 0..1): 0 vowel (U→I morph) · 1 size (formant
@@ -5414,7 +5428,7 @@ static inline float sound_voice_sample(Voice *v, float pitch_mul) {
     // consonant ONSET: for the first vox_cons_dur seconds of the note, blend the consonant's
     // formants → the vowel (smoothstep "opening"), inject its noise (hiss/burst), and gate the
     // glottal voicing in (unvoiced fricatives only voice up as they open). Then it's pure vowel.
-    float gl_gain = 1.0f, con_noise = 0.0f;
+    float gl_gain = 1.0f, con_noise = 0.0f, nas_w = 0.0f;   // nas_w: how NASAL the tract is now (m n ng), for the cascade's nasal pair
     int nz_c = -1;                                        // which consonant shapes the noise band (coda wins)
     if (v->vox_cons >= 0 && v->vox_cons < VC_COUNT) {
         int c = v->vox_cons;
@@ -5426,6 +5440,7 @@ static inline float sound_voice_sample(Voice *v, float pitch_mul) {
                 vfreq[i] = vox_cons_f[c][i] * (1.0f - op) + vfreq[i] * op;
                 vamp[i]  = vox_cons_a[c][i] * (1.0f - op) + vamp[i]  * op;
             }
+        if (VOX_IS_NASAL(c)) nas_w = 1.0f - op;
         con_noise = vox_cons_noise[c] * (1.0f - op) * VOX_NZ_GAIN;         // hiss fades as it opens
         if (vox_cons_plos[c]) con_noise += VOX_POP_AMP * vox_burst_env(v->vox_cons_t); // plosive burst
         gl_gain = vox_cons_voiced[c] ? 1.0f
@@ -5456,6 +5471,7 @@ static inline float sound_voice_sample(Voice *v, float pitch_mul) {
             vfreq[i] = vox_cons_f[c][i] * (1.0f - op) + bf * op;
             vamp[i]  = vox_cons_a[c][i] * (1.0f - op) + ba * op;
         }
+        nas_w = (VOX_IS_NASAL(c) ? 1.0f - op : 0.0f) + (pc >= 0 && VOX_IS_NASAL(pc) ? op : 0.0f);
         float cn;
         if (vox_cons_plos[c]) {                          // stop: closure (no hiss), then the release burst
             cn = (VOX_POP_AMP / VOX_NZ_GAIN) * (vox_cons_voiced[c] ? 0.5f : 1.0f) * vox_burst_env(tt - dur);
@@ -5491,10 +5507,23 @@ static inline float sound_voice_sample(Voice *v, float pitch_mul) {
         v->vox_creak_skip = (creak > 0.01f && r2 < creak * 0.55f);      // weak/dropped cycle
     }
     float t = v->vox_glot_ph, gp;
+    int casc = v->vox_p[19] >= 0.5f;                 // the Klatt-cascade model (its own source + tract, below)
     float te = oq + 0.1f; if (te > 0.95f) te = 0.95f;
-    if (t < oq)      { float tn = t / oq;             gp = 3.0f*tn*tn - 2.0f*tn*tn*tn; }
-    else if (t < te) { float tn = (t - oq)/(te - oq); gp = 0.5f*(1.0f + de_cosf(tn * SOUND_PI)); }
-    else             { gp = 0.0f; }
+    float press = (0.87f - oq) / 0.62f;              // 0 relaxed .. 1 pressed (EFFORT drives oq): the cascade's BUZZ
+    if (casc) {
+        // BUZZ source (after JIANT FM / Klatt; ideas only): the flow opens over 65 % of the open
+        // phase (raised cosine) and closes in a QUARTER cosine that hits zero still falling: an
+        // ABRUPT closure, the glottal "click" every period that excites the tract (the smooth
+        // Rosenberg close above never does, hence its softness). Open quotient 0.90 relaxed →
+        // 0.35 pressed. A kink, not a step, so its aliasing falls at 12 dB/oct (no BLEP needed).
+        float oc = 0.35f + 0.55f * (1.0f - press), tp = 0.65f * oc;
+        te = oc;
+        if (t < tp)      gp = 0.5f * (1.0f - de_cosf(SOUND_PI * t / tp));
+        else if (t < oc) gp = de_cosf(0.5f * SOUND_PI * (t - tp) / (oc - tp));
+        else             gp = 0.0f;
+    } else if (t < oq) { float tn = t / oq;             gp = 3.0f*tn*tn - 2.0f*tn*tn*tn; }
+    else if (t < te)   { float tn = (t - oq)/(te - oq); gp = 0.5f*(1.0f + de_cosf(tn * SOUND_PI)); }
+    else               { gp = 0.0f; }
     if (v->vox_creak_skip) gp *= 0.12f;              // creak: this cycle nearly drops out
     // buzziness (10): blend the rich glottal pulse toward a smooth sine (navkit WAVE_VOICE knob)
     float src = de_sin_turns(v->vox_glot_ph) * (1.0f - buzz) + gp * buzz;
@@ -5543,8 +5572,24 @@ static inline float sound_voice_sample(Voice *v, float pitch_mul) {
     //   amp table is not used (only F1's amp, as an overall level for consonant closures/nasals).
     //   The consonant noise skips the cascade (it is band-passed at its place already; through
     //   four lowpass skirts an s at 6 kHz would vanish) — Klatt's parallel frication branch.
-    int casc = v->vox_p[19] >= 0.5f;
     float out = 0.0f, cy = vsrc;
+    if (casc) {
+        // NASAL pole/zero pair (Klatt 1980), first in the cascade: a resonance at VOX_NASAL_P and an
+        // anti-resonance that sits ON it (cancelling it: no effect) for an oral vowel and moves up to
+        // VOX_NASAL_Z for m/n/ng (nas_w) or a nasal colour (voice_nasal), leaving the low murmur and a
+        // hole above it. The upper formants widen with it (a closed mouth: sound only via the nose).
+        float nw = nas_w > nasal * 0.6f ? nas_w : nasal * 0.6f;
+        float fp = VOX_NASAL_P * shift, fz = (VOX_NASAL_P + (VOX_NASAL_Z - VOX_NASAL_P) * nw) * shift;
+        float bwn = 100.0f * shift;
+        float r = de_expf(-SOUND_PI * bwn / SR), C = -r * r;
+        float Bp = 2.0f * r * de_cosf(SOUND_TWO_PI * fp / SR), Ap = 1.0f - Bp - C;
+        float Bz = 2.0f * r * de_cosf(SOUND_TWO_PI * fz / SR), Az = 1.0f - Bz - C;
+        float zy = (cy - Bz * v->vox_nzz1 - C * v->vox_nzz2) / Az;   // anti-resonator: the resonator's inverse
+        v->vox_nzz2 = v->vox_nzz1; v->vox_nzz1 = cy;
+        float py = Ap * zy + Bp * v->vox_nzp1 + C * v->vox_nzp2;
+        v->vox_nzp2 = v->vox_nzp1; v->vox_nzp1 = py;
+        cy = py;
+    }
     for (int i = 0; i < 4; i++) {
         float fc_hz = vfreq[i] * shift;
         if (fc_hz > SR * 0.45f) fc_hz = SR * 0.45f;
@@ -5561,6 +5606,7 @@ static inline float sound_voice_sample(Voice *v, float pitch_mul) {
             if (fc_hz > SR * 0.45f) fc_hz = SR * 0.45f;
         }
         if (casc) {                                   // Klatt resonator: y = A x + B y1 + C y2 (low = y1, band = y2)
+            if (i > 0) bw *= 1.0f + 2.0f * (nas_w > nasal * 0.6f ? nas_w : nasal * 0.6f);   // nasal: damped upper formants
             float r = de_expf(-SOUND_PI * bw / SR);
             float B = 2.0f * r * de_cosf(SOUND_TWO_PI * fc_hz / SR), C = -r * r, A = 1.0f - B - C;
             float y = A * cy + B * v->vox_f_low[i] + C * v->vox_f_band[i];
@@ -5579,7 +5625,12 @@ static inline float sound_voice_sample(Voice *v, float pitch_mul) {
     }
     if (casc) {                                       // lip radiation (+6 dB/oct) + level match to parallel
         float rad = cy - v->vox_rad_z; v->vox_rad_z = cy;
-        out = rad * VOX_CASC_GAIN * vamp[0] + cn * VOX_CASC_NZ;
+        // PRESENCE (JIANT's BUZZ shelf): add a first difference of the radiated signal, deeper the
+        // more pressed the voice (k 1 → 1+VOX_PRESENCE): relaxed is round, pressed is bright and buzzy.
+        float pk = 1.0f + VOX_PRESENCE * press;
+        float pres = rad + pk * (rad - v->vox_pres_z); v->vox_pres_z = rad;
+        float lvl = de_exp2f(-0.66f * (press - 0.47f));   // pressed adds presence, not mostly loudness (-4 dB per unit)
+        out = pres * VOX_CASC_GAIN * lvl * vamp[0] + cn * VOX_CASC_NZ;
     }
     // EXPERIMENTAL anti-formant nasality (14): a ~350Hz notch + blend (navkit WAVE_VOICE's
     // physically-truer nasality, distinct from the formant-config morph on idx 7) — auditioning
@@ -7733,7 +7784,7 @@ static void sound_setup_note_ex(Voice *v, int midi, int slot, int vol, int gate_
             }
         }
     }
-    if (v->wave == INSTR_VOICE) vox_apply_macros(v);   // seed VOWEL/SIZE/EFFORT from the macros
+    // (INSTR_VOICE's macros are applied in sound_voice_start, after its defaults: applying them here was undone by it)
     v->drv  = v->drv_target  = ins->drive;
     v->sync_ph = 0.0f;
     v->sync_ratio = v->sync_ratio_target = ins->sync_ratio;
@@ -8454,6 +8505,7 @@ static void sound_fire_req(SoundReq r) {
         if      (r.b == 0) instr_bank[slot].harmonics = x;
         else if (r.b == 1) instr_bank[slot].timbre    = x;
         else if (r.b == 2) instr_bank[slot].morph     = x;
+        if (r.b >= 0 && r.b <= 2) instr_bank[slot].mac_set |= 1u << r.b;
     } break;
     case SR_NOTE_MACRO: {   // a=which 0..2, b=val*1000 (live, slewed)
         Voice *v = sound_held_voice(r.e0, r.e1);
@@ -8463,7 +8515,8 @@ static void sound_fire_req(SoundReq r) {
             if      (r.a == 0) v->harm_target = x;
             else if (r.a == 1) v->timb_target = x;
             else if (r.a == 2) v->mor_target  = x;
-            if (v->wave == INSTR_VOICE) vox_apply_macros(v);   // live VOWEL/SIZE/EFFORT
+            if (v->wave == INSTR_VOICE)                            // live VOWEL/SIZE/EFFORT: this one + the slot's set ones
+                vox_apply_macros(v, (1u << r.a) | (v->instr_slot >= 0 && v->instr_slot < SOUND_INSTR_SLOTS ? instr_bank[v->instr_slot].mac_set : 0u));
         }
     } break;
     case SR_INSTR_CHOKE: {  // a=slot_a, b=slot_b
@@ -12006,6 +12059,7 @@ static void sound_reset_state(void) {
         instr_bank[i].harmonics  = 0.5f;   // engine macros: center detent, Plaits-style
         instr_bank[i].timbre     = 0.5f;
         instr_bank[i].morph      = 0.5f;
+        instr_bank[i].mac_set    = 0;      // no macro SET yet (INSTR_VOICE keeps its own defaults)
         instr_bank[i].tune_mul   = 1.0f;   // no detune (instrument_tune 0)
         instr_bank[i].uni_voices = 1;      // unison off (instrument_unison) — one oscillator
         instr_bank[i].uni_detune = 0.0f;

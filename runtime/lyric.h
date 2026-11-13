@@ -24,6 +24,7 @@
 //       instrument(5, INSTR_VOICE, 5, 60, 7, 190);
 //       lyr_set(&lyr, LYR_NL, "ik hou van jou");
 //       singer_init(&sing, &lyr, 5);
+//       singer_buzz(&sing, 0.5f);        // optional: 0 relaxed, round .. 1 pressed, bright
 //   }
 //   void update(void) {
 //       if (keyp('Z')) singer_on(&sing, 60, 6);
@@ -437,6 +438,8 @@ typedef struct {
     int rh, rsyl, rbase, rstage, rk;
     float rat, rt0;
     int parallel;                // 0 (default) = sing through the Klatt CASCADE formants (note_aux 19), 1 = the parallel model
+    float buzz;                  // EFFORT / BUZZ 0 relaxed, round .. 1 pressed, bright (breath + open quotient + tilt);
+                                 // < 0 (the default) = leave the engine's own. Set with singer_buzz().
 } Singer;
 
 static void singer_init(Singer *s, Lyric *L, int slot) {
@@ -444,6 +447,20 @@ static void singer_init(Singer *s, Lyric *L, int slot) {
     s->lyr = L;
     s->slot = slot;
     s->cur = -1;
+    s->buzz = -1.0f;
+}
+
+// the voice's EFFORT on the held note and every next one, poked as raw params (the Singer owns note_aux
+// 0, so the EFFORT macro's live path, which also rewrites the vowel, is not used): the same curve as
+// sound.h's vox_apply_macros. In the cascade it is the BUZZ: open quotient + presence.
+static void singer__buzz_poke(int h, float e) {
+    note_aux(h, 2, 0.22f - 0.22f * e);                    // breath
+    note_aux(h, 3, 0.85f - 0.65f * e);                    // open quotient
+    note_aux(h, 4, 0.70f - 0.65f * e);                    // tilt
+}
+static void singer_buzz(Singer *s, float e) {
+    s->buzz = e < 0.0f ? 0.0f : e > 1.0f ? 1.0f : e;
+    if (s->h) singer__buzz_poke(s->h, s->buzz);
 }
 static void singer_restart(Singer *s) { s->pos = 0; }   // back to the lyric's first syllable
 
@@ -502,6 +519,7 @@ static int singer_on(Singer *s, int midi, int vol) {
     note_aux(h, 15, 0.0f);                                // no reduction, no diphthong lever: ours
     note_aux(h, 18, 0.0f);
     note_aux(h, 19, s->parallel ? 0.0f : 1.0f);           // cascade formants: rounder, more present (chosen by ear)
+    if (s->buzz >= 0.0f) singer__buzz_poke(h, s->buzz);
     lyr__place(h, s->base, vf[0], vf[1]);
     voice_coda(h, -1);
     s->on_k = 0; s->on_at = s->t;

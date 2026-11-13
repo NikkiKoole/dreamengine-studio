@@ -118,6 +118,8 @@ typedef struct {
                                     // like a TB-303. NOT choke_mask, which cannot be cleared.
     unsigned acc_set;               // accented booked note pushes each one. A route whose acc_set bit is CLEAR uses the
                                     // ENGINE'S DEFAULT (sound_accent_default), so accent works with no setup at all.
+    unsigned mac_set;               // which engine macros the cart SET (bit 0 harmonics, 1 timbre, 2 morph): INSTR_VOICE
+                                    // applies only those at note-on, so an untouched voice keeps its own defaults.
 } Instrument;
 #define SOUND_UNISON_MAX 7   // JP-8000 Super Saw = 7 detuned voices; the max unison stack per slot
 typedef struct { float b0, b1, b2, a1, a2, z1, z2; } SoundBiquad;
@@ -300,6 +302,8 @@ typedef struct {
     float  vox_nz_low, vox_nz_band;  // consonant-noise band-pass SVF state (frication/burst shaped to its place, not white)
     float  vox_br_lp1, vox_br_lp2;   // breath-noise 2-pole lowpass state (aspiration darkened like the tract cascade; VOX_BREATH_LP_HZ)
     float  vox_rad_z;                // cascade mode: lip-radiation first-difference state (previous cascade output)
+    float  vox_pres_z;               // cascade mode: presence-shelf state (previous radiated sample)
+    float  vox_nzp1, vox_nzp2, vox_nzz1, vox_nzz2; // cascade mode: nasal pole (outputs) / zero (inputs) states
     bool   vox_on;                  // note-on init guard (engine id hit without a start → silent)
     // guitar state (INSTR_GUITAR): the bodied plucked string — PLUCK's Karplus-Strong string
     // (REUSES ks_buf, distinct wave id from the bare pluck path) + 4 parallel body-resonator

@@ -108,9 +108,10 @@ static void audition(int take) {
 
 void init(void) {
     instrument(VOX, INSTR_VOICE, 40, 200, 7, 200);
-    instrument_harmonics(VOX, 0.55f);       // an "ah"
-    instrument_timbre(VOX, 0.45f);          // a medium tract
-    instrument_morph(VOX, 0.55f);
+    // the voice's own default "ah" (its vowel/size/effort macros are left alone ON PURPOSE): psola-check's
+    // blessed baseline was measured on exactly this capture. Until 2026-11-13 the macro calls that stood
+    // here never reached the voice (an engine bug); applied, the brighter source makes the SNAP face
+    // period-double, a PSOLA weakness logged in voice-engine.md, not a reason to move the gate's source.
     instrument_level(VOX, 0.8f);
     instrument(PLAY, INSTR_SAMPLE, 1, 10, 7, 40);
     record_arm();                           // capture the console's own output

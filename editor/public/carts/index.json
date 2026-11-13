@@ -7177,6 +7177,19 @@
     "homage": "The Sims (2000)"
   },
   {
+    "title": "sing A/B",
+    "description": "Sings 'hello my darling stay with me tonight' through INSTR_VOICE on the exact melody and timing of the JIANT FM comparison render, so the two engines can be heard side by side. Each note is one syllable: an onset consonant (voice_consonant), a vowel (note_aux VP_VOWEL), an optional diphthong glide over the note (aux 17/18), and a coda consonant fired just before release (voice_coda). The syllables are phonemized by hand, which is exactly the layer JIANT automates (text to phonemes, syllables advanced by the key gate). R toggles the reverb send. R = reverb on/off",
+    "file": "singab.cart.png",
+    "created": "2026-11-13",
+    "kind": [
+      "probe"
+    ],
+    "teaches": [
+      "generative-melody"
+    ],
+    "lineage": "A/B probe against JIANT FM's VOICE/WORDS engine (M-VAVE FM-1 firmware, GPL-3.0; ideas only, no code). Sings the same lyric on the same melody and timing as JIANT's hostsim render, through INSTR_VOICE with hand-phonemized syllables."
+  },
+  {
     "title": "singsample",
     "description": "One recorded 'mi' sings a whole tune, as a big and a small creature. The console says 'mi' once (INSTR_VOICE with an m onset, captured off its own output with record_arm/record_grab), and that single take is bound to two INSTR_SING instruments: a BIG one (timbre 0.3, a larger throat) and a SMALL one (timbre 0.72). They trade a little pentatonic tune. Every note is the same sample: the note sets the pitch, the size knob sets who is singing, and the syllable keeps its own length, so it never turns into a chipmunk or a slowed tape. Long notes hold the vowel ('mi-i-i'). Build with DE_DEFINES=SWEEP for the probe: held notes chromatically from an octave below the recording to an octave above, for measuring tuning and artifacts at every interval. It plays on its own. SPACE starts the song again. Z / X: sing one note as the big / small one (hold to sustain).",
     "file": "singsample.cart.png",

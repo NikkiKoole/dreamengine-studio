@@ -215,6 +215,22 @@ old-man rasp).
 
 ## Decision log
 
+- **2026-11-13** — **De-hiss pass (A/B'd against JIANT FM's VOICE, by ear: "much better").** JIANT
+  (M-VAVE FM-1 alt firmware, GPL-3.0, ideas only) is a Klatt *cascade* with a words layer; its voice
+  had none of our airy hiss. Measured with level-matched renders (probe cart `singab`, same lyric,
+  melody and timing as JIANT's hostsim render): ours carried 5-9 dB more energy above 5 kHz. Cause,
+  isolated by switching sources off: NOT the formants. (1) consonant noise was white into the four
+  parallel SVFs, whose 6 dB/oct skirts leak everything above ~8 kHz; (2) a `voice_coda` held its
+  hiss through the whole release (and kept buzzing under an unvoiced "t"); (3) the breath noise was
+  white too, a -40 dB haze at 5-8 kHz under every vowel (JIANT: -62..-71). Fix: consonant noise
+  band-passed at its place (`vox_cons_nz_f/_bw`, Stevens 1998), -6 dB, shaped 8 ms bursts
+  (`vox_burst_env`); codas TIMED (stops = closure + burst, fricatives hold then fade, unvoiced gate
+  the glottis off); breath pitch-synchronous + 2-pole lowpass at `VOX_BREATH_LP_HZ` (3 kHz × size).
+  Result: 8-12 kHz -26 → -35 dB, 12k+ -28 → -43 (now under JIANT), vowel haze ~10 dB lower, the
+  "night" coda matches JIANT. Changes every consonant/breath voice: whisper patches are darker.
+  Still open from that A/B: JIANT's words layer (text → syllables advanced by the key gate),
+  `h`, onset clusters, language-specific aspiration.
+
 - **2026-06-10** — **API LOCKED + wired (shipped).** Verdict by ear: 3 macros (VOWEL/SIZE/EFFORT)
   + one earned 4th knob (`voice_nasal`) + the two articulation calls. Roughness and buzz cut
   (re-auditioned at full strength; roughness disliked, buzz too redundant with vowel/brightness),

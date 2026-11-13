@@ -296,7 +296,9 @@ typedef struct {
     float  vox_cons_t;               // seconds since the consonant onset began (counts up to its duration)
     int    vox_coda;                 // consonant CODA id (VC_*), -1 = none; set by voice_coda() near release
     float  vox_coda_t;               // seconds since the coda morph began (vowel → consonant at note end)
-    bool   vox_on;                   // note-on init guard (engine id hit without a start → silent)
+    float  vox_nz_low, vox_nz_band;  // consonant-noise band-pass SVF state (frication/burst shaped to its place, not white)
+    float  vox_br_lp1, vox_br_lp2;   // breath-noise 2-pole lowpass state (aspiration darkened like the tract cascade; VOX_BREATH_LP_HZ)
+    bool   vox_on;                  // note-on init guard (engine id hit without a start → silent)
     // guitar state (INSTR_GUITAR): the bodied plucked string — PLUCK's Karplus-Strong string
     // (REUSES ks_buf, distinct wave id from the bare pluck path) + 4 parallel body-resonator
     // bandpass formants + an output DC blocker. macros: harmonics = body (open/clear → resonant/

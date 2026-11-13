@@ -5260,6 +5260,29 @@ static const float vox_cons_dur[VC_COUNT]    = { 0.055f, 0.055f, 0.055f, 0.090f,
     0.090f, 0.070f, 0.070f, 0.070f, 0.090f, 0.110f, 0.100f, 0.110f, 0.110f, 0.110f, 0.055f, 0.055f, 0.055f, 0.090f };
 static const int   vox_cons_plos[VC_COUNT]   = { 1, 1, 1, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1 };
+// Consonant NOISE SHAPING (the de-hiss pass, 2026-11-13; A/B'd against JIANT FM's Klatt-cascade
+// VOICE, ideas only): the hiss/burst is no longer WHITE noise into the source. White noise through
+// four parallel SVF bandpasses leaks everything above ~8 kHz (each skirt is only 6 dB/oct), which
+// read as an airy hiss on every s/t/th. Now it is first band-passed at the consonant's own spectral
+// peak (Stevens, Acoustic Phonetics 1998: s ~5.8k, sh ~2.7k, the t burst ~4.3k, k ~2.3k, p diffuse
+// low), so the formants shape an already-placed noise. Centre Hz + bandwidth Hz per id.
+static const float vox_cons_nz_f[VC_COUNT]  = { 1500.0f, 4300.0f, 2300.0f, 2500.0f, 2500.0f, 2500.0f, 5800.0f, 2700.0f,
+    2500.0f, 2500.0f, 2500.0f, 2500.0f, 6500.0f, 7000.0f, 7000.0f, 5800.0f, 2700.0f, 6500.0f, 1500.0f, 4300.0f, 2300.0f, 2700.0f };
+static const float vox_cons_nz_bw[VC_COUNT] = { 3000.0f, 1600.0f,  800.0f, 2000.0f, 2000.0f, 2000.0f, 1600.0f,  600.0f,
+    2000.0f, 2000.0f, 2000.0f, 2000.0f, 4500.0f, 4000.0f, 4000.0f, 1600.0f,  600.0f, 4500.0f, 3000.0f, 1600.0f,  800.0f,  600.0f };
+#define VOX_NZ_GAIN   0.5f     // consonant noise level vs the old white-noise mix (-6 dB: s sits under the vowel, not over it)
+#define VOX_POP_S     0.008f   // plosive burst length (was 12 ms of +0.8 on top of the hiss)
+#define VOX_POP_AMP   0.5f
+// the burst's shape over its VOX_POP_S: a 1 ms rise, then a linear decay to zero. A transient, but
+// not a rectangle (a hard-switched burst read as a digital tick: click-check flagged it).
+static inline float vox_burst_env(float dt) {
+    if (dt < 0.0f || dt >= VOX_POP_S) return 0.0f;
+    float rise = dt < 0.001f ? dt / 0.001f : 1.0f;
+    return rise * (1.0f - dt / VOX_POP_S);
+}
+#define VOX_CODA_HOLD 1.0f     // an unvoiced coda fricative holds its hiss this many durations, then fades
+#define VOX_BREATH_LP_HZ 3000.0f  // breath-noise 2-pole lowpass corner (× size): the tract-cascade rolloff JIANT gets for free
+#define VOX_CODA_FADE 0.035f   // … over this long (s): a coda is timed, never a hiss through the whole release
 
 // PUBLIC API mapping — the 3 macros → the voice's raw params (the locked lean API):
 //   harmonics = VOWEL · timbre = SIZE · morph = EFFORT (one clean knob → breath + open-q + tilt).
@@ -5288,6 +5311,8 @@ static void sound_voice_start(Voice *v) {
     for (int i = 0; i < 4; i++) { v->vox_f_low[i] = 0.0f; v->vox_f_band[i] = 0.0f; }
     v->vox_cons = -1; v->vox_cons_t = 0.0f;
     v->vox_coda = -1; v->vox_coda_t = 0.0f;
+    v->vox_nz_low = v->vox_nz_band = 0.0f;
+    v->vox_br_lp1 = v->vox_br_lp2 = 0.0f;
     v->vox_on = true;
 }
 
@@ -5377,16 +5402,18 @@ static inline float sound_voice_sample(Voice *v, float pitch_mul) {
     // formants → the vowel (smoothstep "opening"), inject its noise (hiss/burst), and gate the
     // glottal voicing in (unvoiced fricatives only voice up as they open). Then it's pure vowel.
     float gl_gain = 1.0f, con_noise = 0.0f;
+    int nz_c = -1;                                        // which consonant shapes the noise band (coda wins)
     if (v->vox_cons >= 0 && v->vox_cons < VC_COUNT) {
         int c = v->vox_cons;
+        nz_c = c;
         float p = v->vox_cons_t / vox_cons_dur[c]; if (p > 1.0f) p = 1.0f;
         float op = p * p * (3.0f - 2.0f * p);             // 0 = full consonant → 1 = full vowel
         for (int i = 0; i < 4; i++) {
             vfreq[i] = vox_cons_f[c][i] * (1.0f - op) + vfreq[i] * op;
             vamp[i]  = vox_cons_a[c][i] * (1.0f - op) + vamp[i]  * op;
         }
-        con_noise = vox_cons_noise[c] * (1.0f - op);                       // hiss fades as it opens
-        if (vox_cons_plos[c] && v->vox_cons_t < 0.012f) con_noise += 0.8f; // plosive pop
+        con_noise = vox_cons_noise[c] * (1.0f - op) * VOX_NZ_GAIN;         // hiss fades as it opens
+        if (vox_cons_plos[c]) con_noise += VOX_POP_AMP * vox_burst_env(v->vox_cons_t); // plosive burst
         gl_gain = vox_cons_voiced[c] ? 1.0f
                 : (p < 0.55f ? 0.0f : (p - 0.55f) / 0.45f);                // unvoiced: voice in late
         v->vox_cons_t += 1.0f / SR;
@@ -5394,17 +5421,37 @@ static inline float sound_voice_sample(Voice *v, float pitch_mul) {
     }
     // consonant CODA (the mirror of the onset): once voice_coda() fires near release, morph the
     // vowel → the consonant over its duration, so the note CLOSES on it — "ahh-m", "oo-d", "ah-ng".
-    // Same table; op runs 1 (vowel) → 0 (consonant). Coda pool is voiced, so the glottis stays on.
+    // Same table; op runs 1 (vowel) → 0 (consonant). The coda is TIMED, never a hiss through the
+    // whole release (the de-hiss pass): a STOP (p t k b d g) closes in silence, then one short
+    // release burst (ch: the burst, then its sh frication fading); a FRICATIVE swells as it shuts,
+    // holds VOX_CODA_HOLD durations, then fades over VOX_CODA_FADE. Unvoiced codas also gate the
+    // glottis OFF as they close (the old coda kept buzzing on "t"); voiced ones (m n l ng r b d g z…) stay sung.
     if (v->vox_coda >= 0 && v->vox_coda < VC_COUNT) {
         int c = v->vox_coda;
-        float p = v->vox_coda_t / vox_cons_dur[c]; if (p > 1.0f) p = 1.0f;
+        nz_c = c;
+        float dur = vox_cons_dur[c], tt = v->vox_coda_t;
+        float p = tt / dur; if (p > 1.0f) p = 1.0f;
         float op = 1.0f - p * p * (3.0f - 2.0f * p);     // 1 = full vowel → 0 = full consonant
         for (int i = 0; i < 4; i++) {
             vfreq[i] = vox_cons_f[c][i] * (1.0f - op) + vfreq[i] * op;
             vamp[i]  = vox_cons_a[c][i] * (1.0f - op) + vamp[i]  * op;
         }
-        con_noise += vox_cons_noise[c] * (1.0f - op);    // closing hiss/voiced-burst, swells as it shuts
-        v->vox_coda_t += 1.0f / SR;                      // (held at the consonant once p hits 1)
+        float cn;
+        if (vox_cons_plos[c]) {                          // stop: closure (no hiss), then the release burst
+            cn = (VOX_POP_AMP / VOX_NZ_GAIN) * (vox_cons_voiced[c] ? 0.5f : 1.0f) * vox_burst_env(tt - dur);
+            if (c == VC_CH && tt >= dur) {               // affricate: its fricative after the burst
+                float ft = (tt - dur) / (dur * 0.75f);
+                float fr = (tt - dur) / 0.003f; if (fr > 1.0f) fr = 1.0f;   // (3 ms in: no step)
+                if (ft < 1.0f) cn += vox_cons_noise[c] * (1.0f - ft) * fr;
+            }
+        } else {                                         // fricative/sonorant: swell, hold, fade
+            cn = vox_cons_noise[c] * (1.0f - op);
+            float tend = dur * (1.0f + VOX_CODA_HOLD);
+            if (tt > tend) { float k = 1.0f - (tt - tend) / VOX_CODA_FADE; cn *= (k > 0.0f ? k : 0.0f); }
+        }
+        con_noise += cn * VOX_NZ_GAIN;
+        if (!vox_cons_voiced[c]) gl_gain *= op;          // unvoiced coda: the voice stops as it closes
+        v->vox_coda_t += 1.0f / SR;
     }
 
     // glottal source: Rosenberg polynomial pulse (open-phase rise, closing fall, closed gap).
@@ -5437,9 +5484,32 @@ static inline float sound_voice_sample(Voice *v, float pitch_mul) {
     float tc = 1.0f - tilt * 0.93f;                 // 1.0 transparent (bright) → 0.07 heavy LP (dark)
     v->vox_tilt_lp += tc * (src - v->vox_tilt_lp);
     src = src * (1.0f - tilt) + v->vox_tilt_lp * tilt;
-    // aspiration breath + consonant noise: mix white noise into the source
+    // aspiration breath (white) + consonant noise (band-passed at the consonant's place, the
+    // de-hiss pass: see vox_cons_nz_f). Peak gain normalized (÷q), then a gentle make-up for the
+    // power a narrow band throws away (quarter-root of the bandwidth ratio, not the full root, so a
+    // narrow sh does not come out louder than the old white hiss).
     float nz = voice_white(v);
-    src = src * (1.0f - breath * 0.5f) + nz * (breath * 0.5f + con_noise);
+    float cnz = 0.0f;
+    if (nz_c >= 0) {
+        float fc = vox_cons_nz_f[nz_c] * shift; if (fc > SR * 0.42f) fc = SR * 0.42f;
+        float bw = vox_cons_nz_bw[nz_c] * shift;
+        float f = 2.0f * de_sinf(SOUND_PI * fc / SR); if (f > 0.99f) f = 0.99f;
+        float q = fc / bw; if (q < 0.7f) q = 0.7f; else if (q > 8.0f) q = 8.0f;
+        v->vox_nz_low += f * v->vox_nz_band;
+        float high = nz - v->vox_nz_low - v->vox_nz_band / q;
+        v->vox_nz_band += f * high;
+        cnz = (v->vox_nz_band / q) * sqrtf(sqrtf((SR * 0.5f) / bw));
+    }
+    // breath: PITCH-SYNCHRONOUS (full while the glottis is open, half while it is shut, so the
+    // noise fuses with the voice instead of floating over it as a separate hiss) and darkened by a
+    // 2-pole lowpass (VOX_BREATH_LP_HZ × size) before the leaky parallel formants. Measured: the old white
+    // breath put a -40 dB haze at 5-8 kHz under every vowel (JIANT: -62..-71). ×1.4 make-up keeps
+    // a whisper (breath ~0.9) as present as before in the band it lives in.
+    float bc = 2.0f * SOUND_PI * VOX_BREATH_LP_HZ * shift / SR; if (bc > 0.9f) bc = 0.9f;
+    v->vox_br_lp1 += bc * (nz - v->vox_br_lp1);
+    v->vox_br_lp2 += bc * (v->vox_br_lp1 - v->vox_br_lp2);
+    float bnz = v->vox_br_lp2 * 1.4f * (t < te ? 1.0f : 0.5f);
+    src = src * (1.0f - breath * 0.5f) + bnz * (breath * 0.5f) + cnz * con_noise;
 
     // 4 parallel SVF formants: centres (vowel, or consonant-blended) then size-shifted
     float out = 0.0f;

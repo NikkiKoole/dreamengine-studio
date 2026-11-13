@@ -10,12 +10,13 @@
   "description": {
     "summary": "The formant voice sings DUTCH, and whatever you type: pick a lyric or type your own line and it sings it, one syllable per note, reading Dutch spelling by rules (long and short vowels, schwa, ch/g, ui/ij/eu, final devoicing). Song 4 is a lullaby in Mipomi, the playtime Mipos' language.",
     "detail": "lyric.h reads the text into syllables; each note starts the next one: its consonants at note-on, the vowel held while the note is, then the diphthong's second half and the final consonants chained at release ('nacht' = x then t), before the note lets go. The melody is made from the words: a word's last syllable lasts longer, every fourth word breathes. Or play it yourself: every key press sings the next syllable. The bottom line shows the phonemes it read.",
-    "controls": "SPACE = auto-sing on/off · A S D F G H J K = sing the next syllable on that note · 1 2 3 = Dutch lyrics, 4 = a Mipomi lullaby, 5 = your words · ENTER = type your own line (Dutch or Mipomi, TAB switches), ENTER again to hear it sung (it is remembered) · V = formant model (Klatt cascade / parallel) · UP/DOWN = buzz (relaxed and round .. pressed and bright) · L = singer layer on/off (vibrato that blooms in, a living pitch, sung glides) · R = back to the start"
+    "controls": "SPACE = auto-sing on/off · A S D F G H J K = sing the next syllable on that note · 1 2 3 = Dutch lyrics, 4 = a Mipomi lullaby, 5 = your words · ENTER = type your own line (Dutch or Mipomi, TAB switches), ENTER again to hear it sung (it is remembered) · V = formant model (Klatt cascade / parallel) · knobs: SIZE (giant .. child) · BUZZ (relaxed and round .. pressed and bright; also UP/DOWN) · VIBRATO · GLIDE · LIFE (a machine .. shaky) · PITCH (±12 semitones) · DEFAULT puts them back · L = singer layer on/off (vibrato that blooms in, a living pitch, sung glides) · R = back to the start"
   }
 }
 de:meta */
 #include "studio.h"
 #include "lyric.h"
+#include "ui.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -40,18 +41,18 @@ static const MNote FALA_FONI[] = {
     {67,2},{64,4},{62,2},{60,6},{0,2}, {67,2},{69,4},{67,2},{64,2},{62,2},{64,8},{0,4},
     {67,2},{64,2},{62,2},{60,6},{0,2}, {64,2},{62,4},{0,2}, {64,6},{60,10},{0,12},
 };
-typedef struct { const char *name; int lang; const char *text; const MNote *mel; int nmel; int step_fr; float vib; } Song;
+typedef struct { const char *name; int lang; const char *text; const MNote *mel; int nmel; int step_fr; } Song;
 #define USER_MAX 200
 static char user_text[USER_MAX] = "typ hier je eigen woorden en ik zing ze";
 static Song SONGS[5] = {
-    { "zing voor jou", LYR_NL, "ik zing voor jou, de zon gaat op, de nacht is lang en ik blijf hier", 0, 0, 9, 0.25f },
-    { "kunst",         LYR_NL, "kunst en liefde, vrolijk en eeuwig, in het licht van de straat", 0, 0, 9, 0.25f },
-    { "de zee",        LYR_NL, "de zee is groen, de lucht is grijs, ik loop - naar huis door de regen", 0, 0, 9, 0.25f },
+    { "zing voor jou", LYR_NL, "ik zing voor jou, de zon gaat op, de nacht is lang en ik blijf hier", 0, 0, 9 },
+    { "kunst",         LYR_NL, "kunst en liefde, vrolijk en eeuwig, in het licht van de straat", 0, 0, 9 },
+    { "de zee",        LYR_NL, "de zee is groen, de lucht is grijs, ik loop - naar huis door de regen", 0, 0, 9 },
     { "fala, foni (mipomi)", LYR_MIPOMI,
       "mipo fala, fala a foko, mibi i mola, mibi o jojo u jo, fono, foni a foko, "
       "mi i nini, mi i momo u jo, mipo foni, pomo, ni -",
-      FALA_FONI, (int)(sizeof FALA_FONI / sizeof FALA_FONI[0]), 11, 0.35f },
-    { "your words", LYR_NL, user_text, 0, 0, 9, 0.25f },
+      FALA_FONI, (int)(sizeof FALA_FONI / sizeof FALA_FONI[0]), 11 },
+    { "your words", LYR_NL, user_text, 0, 0, 9 },
 };
 #define NSONGS 5
 #define USER   4
@@ -71,17 +72,28 @@ static int fr = 0, note_left = 0, syl_i = 0, rest_left = 0, words = 0;
 static int keyheld = -1;
 static int casc = 1;                 // V: the voice's formant model, 1 = Klatt cascade (the Singer's default), 0 = parallel
 
-static float buzz = 0.5f;            // UP/DOWN: the voice's EFFORT macro = the cascade's BUZZ (relaxed round .. pressed bright)
 static int sung = 1;                 // L: the singer layer (delayed vibrato, jitter/shimmer, legato glides) on/off, to A/B
 
-static int sing_note(int midi) { return singer_on(&sing, midi, 6); }
+// THE VOICE KNOBS (0..1 each; DEFAULT puts them all back). Each maps onto one Singer setting.
+enum { K_SIZE, K_BUZZ, K_VIB, K_GLIDE, K_LIFE, K_PITCH, K_COUNT };
+static const char *K_NAME[K_COUNT] = { "SIZE", "BUZZ", "VIBRATO", "GLIDE", "LIFE", "PITCH" };
+static const float K_DEF[K_COUNT]  = { 0.33f, 0.5f, 0.375f, 0.35f, 0.5f, 0.5f };
+static float kv[K_COUNT];
+static int transpose = 0;            // PITCH: semitones, -12 .. +12
+
+static void apply_voice(void) {
+    singer_size(&sing, kv[K_SIZE]);                       // vocal tract: 0 giant .. 1 child
+    singer_buzz(&sing, kv[K_BUZZ]);                       // relaxed and round .. pressed and bright
+    sing.vib   = sung ? kv[K_VIB] * 0.8f : 0.0f;          // vibrato depth (blooms in after the note starts)
+    sing.glide = sung ? kv[K_GLIDE] * 0.2f : 0.0f;        // legato slide time, 0 .. 0.2 s
+    sing.human = sung ? kv[K_LIFE] * 2.0f : 0.0f;         // jitter + shimmer, 0 (a machine) .. 2 (shaky)
+    transpose  = (int)((kv[K_PITCH] - 0.5f) * 24.0f + (kv[K_PITCH] >= 0.5f ? 0.5f : -0.5f));
+}
+static void voice_defaults(void) { for (int k = 0; k < K_COUNT; k++) kv[k] = K_DEF[k]; apply_voice(); }
+
+static int sing_note(int midi) { return singer_on(&sing, midi + transpose, 6); }
 static char phon[512];
 
-static void apply_sung(void) {
-    sing.vib   = sung ? SONGS[which].vib : 0.0f;
-    sing.human = sung ? 1.0f : 0.0f;
-    sing.glide = sung ? 0.07f : 0.0f;
-}
 
 static void pick_lyric(int k) {
     which = k;
@@ -91,8 +103,7 @@ static void pick_lyric(int k) {
     keyheld = -1;
     singer_init(&sing, &lyr, SLOT);
     sing.parallel = !casc;
-    singer_buzz(&sing, buzz);
-    apply_sung();
+    apply_voice();
     fr = note_left = rest_left = syl_i = words = mel_i = 0;
 }
 
@@ -118,6 +129,7 @@ void init(void) {
         memcpy(user_text, sv.text, USER_MAX);
         SONGS[USER].lang = sv.lang == LYR_MIPOMI ? LYR_MIPOMI : LYR_NL;
     }
+    for (int k = 0; k < K_COUNT; k++) kv[k] = K_DEF[k];
     pick_lyric(0);
 }
 
@@ -198,11 +210,11 @@ static void keys_step(void) {
     if (keyp(' ')) { autop = !autop; singer_off(&sing); note_left = rest_left = 0; }
     for (int k = 0; k < NSONGS; k++) if (keyp('1' + k)) pick_lyric(k);
     if (keyp('V')) { casc = !casc; sing.parallel = !casc; }
-    if (keyp('L')) { sung = !sung; apply_sung(); }
+    if (keyp('L')) { sung = !sung; apply_voice(); }
     if (keyp(KEY_UP) || keyp(KEY_DOWN)) {                 // set-and-hold: only when it changes
-        buzz += keyp(KEY_UP) ? 0.25f : -0.25f;
-        buzz = buzz < 0.0f ? 0.0f : buzz > 1.0f ? 1.0f : buzz;
-        singer_buzz(&sing, buzz);
+        float b = kv[K_BUZZ] + (keyp(KEY_UP) ? 0.25f : -0.25f);
+        kv[K_BUZZ] = b < 0.0f ? 0.0f : b > 1.0f ? 1.0f : b;
+        apply_voice();
     }
     if (keyp('R')) { singer_off(&sing); singer_restart(&sing); syl_i = words = mel_i = note_left = 0; }
     static const char KEYS[8] = { 'A', 'S', 'D', 'F', 'G', 'H', 'J', 'K' };
@@ -240,7 +252,24 @@ static void draw_box(void) {
     font(FONT_NORMAL);
 }
 
+// the knob row + DEFAULT; a turned knob applies at once (set-and-hold: only on a change)
+static void draw_knobs(void) {
+    const int ky = 112;
+    int changed = 0;
+    for (int k = 0; k < K_COUNT; k++) {
+        char lb[16];
+        if (k == K_PITCH) snprintf(lb, sizeof lb, transpose ? "%+d" : "PITCH", transpose);
+        else snprintf(lb, sizeof lb, "%s", K_NAME[k]);
+        font(FONT_SMALL);
+        changed |= ui_knob(&kv[k], 22 + k * 40, ky, lb);
+        font(FONT_NORMAL);
+    }
+    if (changed) apply_voice();
+    if (ui_button(254, ky - 8, 58, 16, "DEFAULT")) voice_defaults();
+}
+
 void draw(void) {
+    ui_begin();
     cls(CLR_DARK_BLUE);
     print("ZINGEN", 8, 6, CLR_YELLOW);
     print(autop ? "SPACE: auto" : "SPACE: you sing (A..K)", 70, 6, CLR_LIGHT_GREY);
@@ -251,14 +280,16 @@ void draw(void) {
         int w = text_width(S->txt);
         if (S->word0 && i) x += 6;
         if (x + w > SCREEN_W - 8) { x = 8; y += 12; }
+        if (y > 86) break;                                // the knobs live below
         int lit = (i == sing.cur);
         if (lit) rectfill(x - 1, y - 2, w + 2, 11, CLR_DARK_PURPLE);
         print(S->txt, x, y, lit ? CLR_WHITE : CLR_LIGHT_GREY);
         x += w + 2;
     }
+    if (!typing) draw_knobs();
     font(FONT_SMALL);
     // the phonemes it read (wrapped)
-    int px = 8, py = 150;
+    int px = 8, py = 156;
     char word[64]; int wn = 0;
     for (const char *p = phon; ; p++) {
         if (*p == ' ' || *p == 0) {
@@ -270,13 +301,13 @@ void draw(void) {
             if (!*p) break;
         } else if (wn < 63) word[wn++] = *p;
     }
-    print(SONGS[which].name, 8, 136, CLR_YELLOW);
-    { char b[24]; snprintf(b, sizeof b, "buzz %d/4", (int)(buzz * 4.0f + 0.5f)); print(b, SCREEN_W - 150, 136, CLR_LIGHT_GREY); }
-    print(sung ? "L: sung" : "L: plain", SCREEN_W - 200, 136, sung ? CLR_PINK : CLR_DARK_GREY);
-    { const char *m = casc ? "V: cascade" : "V: parallel"; print(m, SCREEN_W - 8 - text_width(m), 136, casc ? CLR_ORANGE : CLR_DARK_GREY); }
+    print(SONGS[which].name, 8, 144, CLR_YELLOW);
+    print(sung ? "L: sung" : "L: plain", SCREEN_W - 110, 144, sung ? CLR_PINK : CLR_DARK_GREY);
+    { const char *m = casc ? "V: cascade" : "V: parallel"; print(m, SCREEN_W - 8 - text_width(m), 144, casc ? CLR_ORANGE : CLR_DARK_GREY); }
     print("ENTER type your own  1-5 song  R restart  @ = schwa  x = g/ch", 8, SCREEN_H - 8, CLR_DARK_GREY);
     font(FONT_NORMAL);
     if (typing) draw_box();
+    ui_end();
 }
 
 #ifdef DE_SPEC

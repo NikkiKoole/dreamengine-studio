@@ -3,7 +3,8 @@
 STATUS: BUILDING (2026-11-13) — `runtime/lyric.h` reads **Dutch** by spelling rules and sings it on
 `INSTR_VOICE`, one syllable per note, and **Mipomi** (the playtime Mipos' language); the `zingen`
 cart is the demo (three Dutch lyrics + "Fala, Foni", a Mipomi lullaby on a written melody) and runs
-`lyr_selfcheck()` (23 Dutch words + 3 Mipomi phrases, `node tools/spec.js zingen`). Type your own line
+`lyr_selfcheck()` (23 Dutch words + 3 Mipomi phrases, `node tools/spec.js zingen`). Voice knobs in zingen (SIZE,
+BUZZ, VIBRATO, GLIDE, LIFE, PITCH + DEFAULT; `singer_size`/`singer_buzz` + the Singer fields). Type your own line
 in zingen (ENTER, TAB = Dutch/Mipomi, ENTER again: it sings it; remembered with `save_bytes`).
 
 ## Where it came from

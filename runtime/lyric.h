@@ -1,5 +1,7 @@
 // lyric.h — sung WORDS for INSTR_VOICE: type a lyric, every note sings the next syllable.
 //
+// Languages: LYR_NL (Dutch, by spelling rules) and LYR_MIPOMI (the playtime Mipos' CV language).
+//
 // Two halves:
 //   1. READING: lyr_set(&lyr, LYR_NL, "ik hou van jou") turns text into syllables (onset consonants,
 //      a vowel, coda consonants), by spelling RULES. Dutch first (its spelling is regular enough to read
@@ -54,7 +56,7 @@
 #include <math.h>
 #include <string.h>
 
-enum { LYR_NL = 0 };
+enum { LYR_NL = 0, LYR_MIPOMI = 1 };   // Dutch · Mipomi (the playtime Mipos' language)
 
 // consonant ids: mirror INSTR_VOICE's voice_consonant()/voice_coda() ids (sound.h VC_*, append-only)
 enum { LC_B, LC_D, LC_G, LC_M, LC_N, LC_L, LC_S, LC_SH, LC_NG, LC_R, LC_W, LC_Y, LC_DH, LC_F, LC_V,
@@ -69,9 +71,9 @@ static const unsigned char lyr__cplos[LC_COUNT] = { 1,1,1,0,0,0,0,0, 0,0,0,0,0,0
 
 // vowels
 enum { LV_A, LV_AA, LV_E, LV_EE, LV_I, LV_IE, LV_O, LV_OO, LV_U, LV_UU, LV_OE, LV_EU, LV_SCHWA,
-       LV_EI, LV_UI, LV_AU, LV_COUNT };
+       LV_EI, LV_UI, LV_AU, LV_OP, LV_COUNT };
 static const char *const lyr__vname[LV_COUNT] = { "A", "aa", "E", "ee", "I", "ie", "O", "oo", "U", "uu",
-    "oe", "eu", "@", "ei", "ui", "au" };
+    "oe", "eu", "@", "ei", "ui", "au", "o" };
 // F1, F2 (Hz) of each vowel, then where it GLIDES on release (0 = a pure vowel). ee/oo glide a little,
 // as Dutch long e/o do; ei/ui/au are the real diphthongs.
 static const float lyr__vf[LV_COUNT][4] = {
@@ -91,6 +93,7 @@ static const float lyr__vf[LV_COUNT][4] = {
     { 600, 1750, 350, 2150 },   // ei  ɛi  (mijn)
     { 560, 1550, 330, 1720 },   // ui  œy  (huis)
     { 680, 1100, 400,  850 },   // au  ɑu  (hou)
+    { 450,  850,   0,    0 },   // o   a PURE round o, no glide (Mipomi's o)
 };
 // INSTR_VOICE's own vowel path (U O A E I = note_aux 0 at 0, .25, .5, .75, 1): F1/F2 (sound.h vox_vowel_f)
 static const float lyr__base[5][2] = { {300, 870}, {570, 840}, {730, 1090}, {530, 1840}, {270, 2290} };
@@ -297,6 +300,45 @@ static void lyr__nl_word(Lyric *L, const char *w, int n) {
     }
 }
 
+// ───────────────────────────────── reading Mipomi ─────────────────────────────────
+// Mipomi (~/Projects/love/mipomi-lang/RULES.md): every syllable is ONE consonant + a vowel, 13
+// consonants m b p f k l t j n d s h w, vowels a i o (+ u, "with"). j is the Dutch j, h a breath.
+// So the reading is trivial: each vowel opens a syllable, the consonants before it are its onset.
+// The aspect vowel "melts" by itself: "mi i mola" gives the syllable "i" with no onset after "mi", and a
+// vowel-only syllable on the same vowel is simply that vowel held on the next note ("mii mola").
+static void lyr__mp_word(Lyric *L, const char *w, int n) {
+    signed char on[LYR_MAXC]; int non = 0, first = 1;
+    for (int i = 0; i < n; i++) {
+        int c = w[i], v = -1, id = -1;
+        switch (c) {
+        case 'a': v = LV_AA; break;  case 'i': v = LV_IE; break;  case 'o': v = LV_OP; break;
+        case 'u': v = LV_OE; break;  case 'e': v = LV_EE; break;
+        case 'm': id = LC_M; break;  case 'b': id = LC_B; break;  case 'p': id = LC_P; break;
+        case 'f': id = LC_F; break;  case 'k': id = LC_K; break;  case 'l': id = LC_L; break;
+        case 't': id = LC_T; break;  case 'j': id = LC_Y; break;  case 'n': id = LC_N; break;
+        case 'd': id = LC_D; break;  case 's': id = LC_S; break;  case 'h': id = LC_H; break;
+        case 'w': id = LC_W; break;  case 'g': id = LC_G; break;  case 'r': id = LC_R; break;
+        case 'v': id = LC_V; break;  case 'z': id = LC_Z; break;  case 'y': id = LC_Y; break;
+        default: break;
+        }
+        if (id >= 0) { if (non < LYR_MAXC) on[non++] = (signed char)id; continue; }
+        if (v < 0 || L->n >= LYR_MAXSYL) continue;
+        LyrSyl *S = &L->syl[L->n++];
+        memset(S, 0, sizeof *S);
+        S->word0 = (unsigned char)first; first = 0;
+        S->v = (unsigned char)v;
+        for (int k = 0; k < non; k++) S->on[k] = on[k];
+        S->non = (unsigned char)non;
+        int j = 0, a = i - non;
+        for (int k = a; k <= i && j < (int)sizeof S->txt - 1; k++) S->txt[j++] = w[k];
+        S->txt[j] = 0;
+        non = 0;
+    }
+    if (non && L->n && !first)                            // a stray final consonant (not Mipomi, but): a coda
+        for (int k = 0; k < non && L->syl[L->n - 1].nco < LYR_MAXC; k++)
+            L->syl[L->n - 1].co[L->syl[L->n - 1].nco++] = on[k];
+}
+
 // a melisma: the previous syllable's vowel once more; its coda moves to this last one
 static void lyr__hold(Lyric *L) {
     if (!L->n || L->n >= LYR_MAXSYL) return;
@@ -336,7 +378,7 @@ static void lyr_set(Lyric *L, int lang, const char *text) {
         if (c >= 'a' && c <= 'z') letter = 1;
         if (letter) { if (n < (int)sizeof w - 1) w[n++] = (char)c; continue; }
         if (c == '\'') continue;                           // apostrophes: ignored ("'s", "m'n")
-        if (n) { lyr__nl_word(L, w, n); n = 0; }
+        if (n) { if (lang == LYR_MIPOMI) lyr__mp_word(L, w, n); else lyr__nl_word(L, w, n); n = 0; }
         if (c == '-') {                                    // a lone "-" (not inside a word): a melisma
             int prev_sep = (p == (const unsigned char *)text) || p[-1] == ' ' || p[-1] == '-';
             int next_sep = p[1] == 0 || p[1] == ' ' || p[1] == '-';
@@ -490,15 +532,17 @@ static const char *singer_text(const Singer *s) {
 #ifdef DE_SPEC
 #include <stdio.h>
 #include "spec.h"
-static void lyr__expect_word(const char *text, const char *want) {
+static void lyr__expect_in(int lang, const char *text, const char *want) {
     static Lyric L;
     static char got[256], msg[320];
     L.keep_en = 0;
-    lyr_set(&L, LYR_NL, text);
+    lyr_set(&L, lang, text);
     lyr_phonemes(&L, got, sizeof got);
-    snprintf(msg, sizeof msg, "lyric NL \"%s\" -> \"%s\" (want \"%s\")", text, got, want);
+    snprintf(msg, sizeof msg, "lyric %s \"%s\" -> \"%s\" (want \"%s\")", lang == LYR_MIPOMI ? "MP" : "NL",
+             text, got, want);
     expect(strcmp(got, want) == 0, msg);
 }
+#define lyr__expect_word(t, w) lyr__expect_in(LYR_NL, (t), (w))
 static void lyr_selfcheck(void) {
     lyr__expect_word("ik hou van jou", "Ik hau vAn jau");
     lyr__expect_word("geluk",     "x@.lUk");        // ge- prefix: schwa, stress moves on
@@ -523,6 +567,10 @@ static void lyr_selfcheck(void) {
     lyr__expect_word("kunst",     "kUnst");
     lyr__expect_word("zo - ver",  "zoo.- vEr");     // a melisma holds the vowel
     lyr__expect_word("Café",      "kaa.fee");       // é marks the stress: open stressed e = ee
+    // Mipomi: CV syllables, pure vowels; the aspect vowel is its own onsetless syllable (it melts)
+    lyr__expect_in(LYR_MIPOMI, "mipo, fala a foko", "mie.po faa.laa aa fo.ko");
+    lyr__expect_in(LYR_MIPOMI, "mi i mola, jo?",    "mie ie mo.laa jo");
+    lyr__expect_in(LYR_MIPOMI, "hihi u wawa",       "hie.hie oe waa.waa");
 }
 #endif
 

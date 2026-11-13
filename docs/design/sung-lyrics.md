@@ -1,8 +1,9 @@
 # Sung lyrics: type words, the voice sings them
 
 STATUS: BUILDING (2026-11-13) — `runtime/lyric.h` reads **Dutch** by spelling rules and sings it on
-`INSTR_VOICE`, one syllable per note; the `zingen` cart is the demo and runs `lyr_selfcheck()`
-(23 Dutch words, `node tools/spec.js zingen`). Other languages: not yet.
+`INSTR_VOICE`, one syllable per note, and **Mipomi** (the playtime Mipos' language); the `zingen`
+cart is the demo (three Dutch lyrics + "Fala, Foni", a Mipomi lullaby on a written melody) and runs
+`lyr_selfcheck()` (23 Dutch words + 3 Mipomi phrases, `node tools/spec.js zingen`).
 
 ## Where it came from
 
@@ -54,6 +55,16 @@ Known misses (no dictionary): words where be-/ge- is a prefix but the last vowel
 (gebed is read as gee.bEt), loanwords (computer), and stress in compounds. Dutch w uses the engine's
 w glide (an English-ish w; Dutch has a labiodental ʋ) and r the approximant (Dutch r varies
 anyway: tap, trill, uvular, the Gooise r).
+
+## Mipomi
+
+`LYR_MIPOMI` reads the Mipos' language (`~/Projects/love/mipomi-lang/RULES.md`, words in `words.tsv`):
+every syllable is one consonant + a vowel (m b p f k l t j n d s h w; a i o, + u "with"), so each vowel
+opens a syllable and the consonants before it are its onset. Vowels are pure (a = Dutch aa, i = ie,
+o = a round o with no glide, u = oe). The grammar's melting aspect vowel ("mi i mola" said "mii mola")
+needs no rule: "i" is an onsetless syllable on the same vowel, which is that vowel held on the next
+note. The paragrammar's lone whispered consonant after a sentence is not sung yet (a syllable needs a
+vowel).
 
 ## Next
 

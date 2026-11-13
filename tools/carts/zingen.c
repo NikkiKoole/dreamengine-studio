@@ -8,24 +8,47 @@
   "teaches": ["generative-melody"],
   "lineage": "The first cart on lyric.h, the sung-words layer for INSTR_VOICE (idea after JIANT FM's VOICE/WORDS, M-VAVE FM-1 firmware, GPL-3.0; ideas only, no code; the Dutch rules are ours). Follows singab, the A/B probe that motivated the de-hiss pass.",
   "description": {
-    "summary": "The formant voice sings DUTCH. Type-free: pick a lyric and it sings it, one syllable per note, reading Dutch spelling by rules (long and short vowels, schwa, ch/g, ui/ij/eu, final devoicing).",
+    "summary": "The formant voice sings DUTCH. Type-free: pick a lyric and it sings it, one syllable per note, reading Dutch spelling by rules (long and short vowels, schwa, ch/g, ui/ij/eu, final devoicing). Song 4 is a lullaby in Mipomi, the playtime Mipos' language.",
     "detail": "lyric.h reads the text into syllables; each note starts the next one: its consonants at note-on, the vowel held while the note is, then the diphthong's second half and the final consonants chained at release ('nacht' = x then t), before the note lets go. The melody is made from the words: a word's last syllable lasts longer, every fourth word breathes. Or play it yourself: every key press sings the next syllable. The bottom line shows the phonemes it read.",
-    "controls": "SPACE = auto-sing on/off · A S D F G H J K = sing the next syllable on that note · 1 2 3 = pick a lyric · R = back to the start"
+    "controls": "SPACE = auto-sing on/off · A S D F G H J K = sing the next syllable on that note · 1 2 3 = Dutch lyrics, 4 = a Mipomi lullaby · R = back to the start"
   }
 }
 de:meta */
 #include "studio.h"
 #include "lyric.h"
 
-// ZINGEN — INSTR_VOICE sings Dutch through lyric.h. The lyrics are our own lines.
+// ZINGEN — INSTR_VOICE sings through lyric.h: three Dutch lyrics (our own lines) on a melody made from
+// the words, and one MIPOMI song (the playtime Mipos' language, real words from mipomi-lang's
+// words.tsv) on its own written lullaby melody.
 #define SLOT 5
-#define STEP_FR 9                        // one step = 9 frames (≈ 16ths at 100 BPM)
 
-static const char *const LYRICS[3] = {
-    "ik zing voor jou, de zon gaat op, de nacht is lang en ik blijf hier",
-    "kunst en liefde, vrolijk en eeuwig, in het licht van de straat",
-    "de zee is groen, de lucht is grijs, ik loop - naar huis door de regen",
+// a written melody: {midi, steps}; midi 0 = a rest. One note per syllable, in order.
+typedef struct { unsigned char midi, len; } MNote;
+// "Fala, Foni" (sun, moon), in Mipomi:
+//   mipo fala, fala a foko            hello sun, the sun goes up
+//   mibi i mola, mibi o jojo u jo     we are happy, we sing with you
+//   fono, foni a foko                 sunset, the moon goes up
+//   mi i nini, mi i momo u jo         I'm very sleepy, I'm in love with you
+//   mipo foni, pomo, ni -             bye moon, thank you, sleep...
+static const MNote FALA_FONI[] = {
+    {67,2},{69,2},{67,2},{64,6},{0,2}, {67,2},{69,2},{72,4},{71,2},{67,6},{0,4},
+    {64,2},{67,2},{69,4},{67,2},{64,6},{0,2}, {64,2},{67,2},{69,4},{72,2},{71,2},{69,2},{67,8},{0,4},
+    {69,2},{65,6},{0,2}, {69,2},{72,2},{74,4},{72,2},{69,6},{0,4},
+    {67,2},{64,4},{62,2},{60,6},{0,2}, {67,2},{69,4},{67,2},{64,2},{62,2},{64,8},{0,4},
+    {67,2},{64,2},{62,2},{60,6},{0,2}, {64,2},{62,4},{0,2}, {64,6},{60,10},{0,12},
 };
+typedef struct { const char *name; int lang; const char *text; const MNote *mel; int nmel; int step_fr; float vib; } Song;
+static const Song SONGS[4] = {
+    { "zing voor jou", LYR_NL, "ik zing voor jou, de zon gaat op, de nacht is lang en ik blijf hier", 0, 0, 9, 0.0f },
+    { "kunst",         LYR_NL, "kunst en liefde, vrolijk en eeuwig, in het licht van de straat", 0, 0, 9, 0.0f },
+    { "de zee",        LYR_NL, "de zee is groen, de lucht is grijs, ik loop - naar huis door de regen", 0, 0, 9, 0.0f },
+    { "fala, foni (mipomi)", LYR_MIPOMI,
+      "mipo fala, fala a foko, mibi i mola, mibi o jojo u jo, fono, foni a foko, "
+      "mi i nini, mi i momo u jo, mipo foni, pomo, ni -",
+      FALA_FONI, (int)(sizeof FALA_FONI / sizeof FALA_FONI[0]), 11, 0.10f },
+};
+#define NSONGS 4
+static int mel_i = 0;
 static const int NOTES[8] = { 60, 62, 64, 67, 69, 72, 74, 76 };   // C pentatonic-ish, two octaves of keys
 static const int CONTOUR[16] = { 2, 3, 4, 3, 2, 1, 2, 4, 5, 4, 3, 2, 1, 0, 1, 2 };
 
@@ -38,10 +61,22 @@ static char phon[512];
 
 static void pick_lyric(int k) {
     which = k;
-    lyr_set(&lyr, LYR_NL, LYRICS[k]);
+    lyr_set(&lyr, SONGS[k].lang, SONGS[k].text);
     lyr_phonemes(&lyr, phon, sizeof phon);
     singer_init(&sing, &lyr, SLOT);
-    fr = note_left = rest_left = syl_i = words = 0;
+    fr = note_left = rest_left = syl_i = words = mel_i = 0;
+}
+
+// a written melody: legato (a note runs into the next; the singer releases the old one as the new one
+// starts), released at a rest
+static void mel_step(const Song *g) {
+    if (note_left > 0 && --note_left > 0) return;
+    if (mel_i >= g->nmel) { mel_i = 0; singer_off(&sing); singer_restart(&sing); }
+    MNote m = g->mel[mel_i++];
+    note_left = m.len;
+    if (!m.midi) { singer_off(&sing); return; }
+    int h = singer_on(&sing, m.midi, 6);
+    if (h > 0 && g->vib > 0.0f) { note_aux(h, 5, g->vib); note_aux(h, 6, 0.45f); }   // a little vibrato
 }
 
 void init(void) {
@@ -73,14 +108,15 @@ static void auto_step(void) {
 
 void update(void) {
     if (keyp(' ')) { autop = !autop; singer_off(&sing); note_left = rest_left = 0; }
-    for (int k = 0; k < 3; k++) if (keyp('1' + k)) pick_lyric(k);
-    if (keyp('R')) { singer_off(&sing); singer_restart(&sing); syl_i = words = 0; }
+    for (int k = 0; k < NSONGS; k++) if (keyp('1' + k)) pick_lyric(k);
+    if (keyp('R')) { singer_off(&sing); singer_restart(&sing); syl_i = words = mel_i = note_left = 0; }
     static const char KEYS[8] = { 'A', 'S', 'D', 'F', 'G', 'H', 'J', 'K' };
     for (int k = 0; k < 8; k++) {
         if (keyp(KEYS[k])) { autop = 0; singer_on(&sing, NOTES[k], 6); keyheld = k; }
         if (keyr(KEYS[k]) && keyheld == k) { singer_off(&sing); keyheld = -1; }
     }
-    if (autop && ++fr >= STEP_FR) { fr = 0; auto_step(); }
+    const Song *g = &SONGS[which];
+    if (autop && ++fr >= g->step_fr) { fr = 0; if (g->mel) mel_step(g); else auto_step(); }
     singer_update(&sing);
 }
 
@@ -114,7 +150,8 @@ void draw(void) {
             if (!*p) break;
         } else if (wn < 63) word[wn++] = *p;
     }
-    print("1 2 3 lyric  R restart  @ = schwa  x = g/ch", 8, SCREEN_H - 8, CLR_DARK_GREY);
+    print(SONGS[which].name, 8, 136, CLR_YELLOW);
+    print("1-4 song  R restart  @ = schwa  x = g/ch", 8, SCREEN_H - 8, CLR_DARK_GREY);
     font(FONT_NORMAL);
 }
 

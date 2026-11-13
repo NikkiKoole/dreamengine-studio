@@ -23,7 +23,7 @@
 //   void init(void) {
 //       instrument(5, INSTR_VOICE, 5, 60, 7, 190);
 //       lyr_set(&lyr, LYR_NL, "ik hou van jou");
-//       singer_init(&sing, &lyr, 5);
+//       singer_init(&sing, &lyr, 5);              // (to switch lyrics later: singer_stop first, then init)
 //       singer_buzz(&sing, 0.5f);        // optional: 0 relaxed, round .. 1 pressed, bright
 //   }
 //   void update(void) {
@@ -476,6 +476,16 @@ static void singer_buzz(Singer *s, float e) {
     if (s->h) singer__buzz_poke(s->h, s->buzz);
 }
 static void singer_restart(Singer *s) { s->pos = 0; }   // back to the lyric's first syllable
+
+// silence the singer NOW: the held note and a released one still singing its tail both let go. Call it
+// before singer_init() on a singer that may be sounding (a song change): init forgets the notes' handles,
+// so without this they are never released and hang.
+static void singer_stop(Singer *s) {
+    if (s->h)  note_off(s->h);
+    if (s->rh) note_off(s->rh);
+    s->h = s->rh = 0;
+    s->cur = -1;
+}
 
 // the tail of a released note: 0 = diphthong glide, 1 = codas, 2 = done (note_off)
 #define LYR__GLIDE_S 0.09f

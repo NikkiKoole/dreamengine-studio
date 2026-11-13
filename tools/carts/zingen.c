@@ -87,6 +87,8 @@ static void pick_lyric(int k) {
     which = k;
     lyr_set(&lyr, SONGS[k].lang, SONGS[k].text);
     lyr_phonemes(&lyr, phon, sizeof phon);
+    singer_stop(&sing);                                   // a sounding note must let go before init forgets it
+    keyheld = -1;
     singer_init(&sing, &lyr, SLOT);
     sing.parallel = !casc;
     singer_buzz(&sing, buzz);
@@ -183,6 +185,7 @@ void update(void) {
     if (typing) type_step();
     else if (keyp(KEY_ENTER)) {                            // open the text box on your last line
         typing = 1;
+        if (keyheld >= 0) { singer_off(&sing); keyheld = -1; }   // its key-up would be missed while typing
         memcpy(tbuf, user_text, USER_MAX);
         tlang = SONGS[USER].lang;
     } else keys_step();

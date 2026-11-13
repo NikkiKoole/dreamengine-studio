@@ -296,6 +296,7 @@ typedef struct {
     float  vox_cons_t;               // seconds since the consonant onset began (counts up to its duration)
     int    vox_coda;                 // consonant CODA id (VC_*), -1 = none; set by voice_coda() near release
     float  vox_coda_t;               // seconds since the coda morph began (vowel → consonant at note end)
+    int    vox_coda_prev;            // the coda this one CHAINED from (a cluster: "nacht" x→t), -1 = from the vowel
     float  vox_nz_low, vox_nz_band;  // consonant-noise band-pass SVF state (frication/burst shaped to its place, not white)
     float  vox_br_lp1, vox_br_lp2;   // breath-noise 2-pole lowpass state (aspiration darkened like the tract cascade; VOX_BREATH_LP_HZ)
     bool   vox_on;                  // note-on init guard (engine id hit without a start → silent)

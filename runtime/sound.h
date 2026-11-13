@@ -5199,11 +5199,15 @@ static void fx_set_formant(int b, float vowel, float q, float mix) {
 // — consonants are timed events, so they fire at note-on, not a held slider.
 // ids 0..7 are FROZEN (vox/say/voxlab reference them by number); 8..21 are the rest of navkit's
 // vfPhonemeTable consonant rows, appended so the set is complete (the audit's "fuller consonants").
+// 22..23 (2026-11-13, for Dutch in lyric.h): h (aspiration: breath through the NEXT vowel's own
+// formants, so its formant row is unused) and x (the Dutch g/ch, a voiceless velar fricative: "goed",
+// "nacht"). Append-only: never renumber.
 enum { VC_B, VC_D, VC_G, VC_M, VC_N, VC_L, VC_S, VC_SH,
        VC_NG, VC_R, VC_W, VC_Y, VC_DH, VC_F, VC_V, VC_Z, VC_ZH, VC_TH, VC_P, VC_T, VC_K, VC_CH,
+       VC_H, VC_X,
        VC_COUNT };
 static const char *vox_cons_name[VC_COUNT] = { "b", "d", "g", "m", "n", "l", "s", "sh",
-    "ng", "r", "w", "y", "dh", "f", "v", "z", "zh", "th", "p", "t", "k", "ch" };
+    "ng", "r", "w", "y", "dh", "f", "v", "z", "zh", "th", "p", "t", "k", "ch", "h", "x" };
 static const float vox_cons_f[VC_COUNT][4] = {
     { 300.0f, 1100.0f, 2500.0f, 3400.0f},   // b — labial plosive
     { 300.0f, 1700.0f, 2500.0f, 3400.0f},   // d — alveolar plosive
@@ -5227,6 +5231,8 @@ static const float vox_cons_f[VC_COUNT][4] = {
     { 300.0f, 1700.0f, 3500.0f, 5500.0f},   // t — alveolar plosive (unvoiced)
     { 300.0f, 1700.0f, 3000.0f, 4500.0f},   // k — velar plosive (unvoiced)
     { 300.0f, 1700.0f, 3800.0f, 6000.0f},   // ch — affricate (unvoiced)
+    { 500.0f, 1500.0f, 2500.0f, 3400.0f},   // h — (unused: h keeps the vowel's own formants)
+    { 300.0f, 1300.0f, 2400.0f, 3400.0f},   // x — velar fricative (Dutch g/ch)
 };
 static const float vox_cons_a[VC_COUNT][4] = {
     {0.30f, 0.20f, 0.10f, 0.05f}, // b
@@ -5251,15 +5257,17 @@ static const float vox_cons_a[VC_COUNT][4] = {
     {0.10f, 0.10f, 0.15f, 0.10f}, // t
     {0.10f, 0.15f, 0.15f, 0.08f}, // k
     {0.10f, 0.10f, 0.25f, 0.20f}, // ch
+    {0.50f, 0.40f, 0.25f, 0.10f}, // h (unused, see above)
+    {0.10f, 0.20f, 0.20f, 0.08f}, // x
 };
 static const float vox_cons_noise[VC_COUNT] = { 0.30f, 0.40f, 0.35f, 0.0f, 0.0f, 0.0f, 0.90f, 0.85f,
-    0.0f, 0.0f, 0.0f, 0.0f, 0.15f, 0.50f, 0.35f, 0.60f, 0.50f, 0.40f, 0.60f, 0.70f, 0.60f, 0.80f };
+    0.0f, 0.0f, 0.0f, 0.0f, 0.15f, 0.50f, 0.35f, 0.60f, 0.50f, 0.40f, 0.60f, 0.70f, 0.60f, 0.80f, 0.50f, 0.70f };
 static const int   vox_cons_voiced[VC_COUNT] = { 1, 1, 1, 1, 1, 1, 0, 0,
-    1, 1, 1, 1, 1, 0, 1, 1, 1, 0, 0, 0, 0, 0 };
+    1, 1, 1, 1, 1, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0 };
 static const float vox_cons_dur[VC_COUNT]    = { 0.055f, 0.055f, 0.055f, 0.090f, 0.090f, 0.070f, 0.110f, 0.110f,
-    0.090f, 0.070f, 0.070f, 0.070f, 0.090f, 0.110f, 0.100f, 0.110f, 0.110f, 0.110f, 0.055f, 0.055f, 0.055f, 0.090f };
+    0.090f, 0.070f, 0.070f, 0.070f, 0.090f, 0.110f, 0.100f, 0.110f, 0.110f, 0.110f, 0.055f, 0.055f, 0.055f, 0.090f, 0.080f, 0.110f };
 static const int   vox_cons_plos[VC_COUNT]   = { 1, 1, 1, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1 };
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0 };
 // Consonant NOISE SHAPING (the de-hiss pass, 2026-11-13; A/B'd against JIANT FM's Klatt-cascade
 // VOICE, ideas only): the hiss/burst is no longer WHITE noise into the source. White noise through
 // four parallel SVF bandpasses leaks everything above ~8 kHz (each skirt is only 6 dB/oct), which
@@ -5267,9 +5275,9 @@ static const int   vox_cons_plos[VC_COUNT]   = { 1, 1, 1, 0, 0, 0, 0, 0,
 // peak (Stevens, Acoustic Phonetics 1998: s ~5.8k, sh ~2.7k, the t burst ~4.3k, k ~2.3k, p diffuse
 // low), so the formants shape an already-placed noise. Centre Hz + bandwidth Hz per id.
 static const float vox_cons_nz_f[VC_COUNT]  = { 1500.0f, 4300.0f, 2300.0f, 2500.0f, 2500.0f, 2500.0f, 5800.0f, 2700.0f,
-    2500.0f, 2500.0f, 2500.0f, 2500.0f, 6500.0f, 7000.0f, 7000.0f, 5800.0f, 2700.0f, 6500.0f, 1500.0f, 4300.0f, 2300.0f, 2700.0f };
+    2500.0f, 2500.0f, 2500.0f, 2500.0f, 6500.0f, 7000.0f, 7000.0f, 5800.0f, 2700.0f, 6500.0f, 1500.0f, 4300.0f, 2300.0f, 2700.0f, 1500.0f, 1800.0f };
 static const float vox_cons_nz_bw[VC_COUNT] = { 3000.0f, 1600.0f,  800.0f, 2000.0f, 2000.0f, 2000.0f, 1600.0f,  600.0f,
-    2000.0f, 2000.0f, 2000.0f, 2000.0f, 4500.0f, 4000.0f, 4000.0f, 1600.0f,  600.0f, 4500.0f, 3000.0f, 1600.0f,  800.0f,  600.0f };
+    2000.0f, 2000.0f, 2000.0f, 2000.0f, 4500.0f, 4000.0f, 4000.0f, 1600.0f,  600.0f, 4500.0f, 3000.0f, 1600.0f,  800.0f,  600.0f, 3000.0f, 1600.0f };
 #define VOX_NZ_GAIN   0.5f     // consonant noise level vs the old white-noise mix (-6 dB: s sits under the vowel, not over it)
 #define VOX_POP_S     0.008f   // plosive burst length (was 12 ms of +0.8 on top of the hiss)
 #define VOX_POP_AMP   0.5f
@@ -5310,7 +5318,7 @@ static void sound_voice_start(Voice *v) {
     v->vox_naf_low = v->vox_naf_band = 0.0f;
     for (int i = 0; i < 4; i++) { v->vox_f_low[i] = 0.0f; v->vox_f_band[i] = 0.0f; }
     v->vox_cons = -1; v->vox_cons_t = 0.0f;
-    v->vox_coda = -1; v->vox_coda_t = 0.0f;
+    v->vox_coda = -1; v->vox_coda_t = 0.0f; v->vox_coda_prev = -1;
     v->vox_nz_low = v->vox_nz_band = 0.0f;
     v->vox_br_lp1 = v->vox_br_lp2 = 0.0f;
     v->vox_on = true;
@@ -5408,10 +5416,11 @@ static inline float sound_voice_sample(Voice *v, float pitch_mul) {
         nz_c = c;
         float p = v->vox_cons_t / vox_cons_dur[c]; if (p > 1.0f) p = 1.0f;
         float op = p * p * (3.0f - 2.0f * p);             // 0 = full consonant → 1 = full vowel
-        for (int i = 0; i < 4; i++) {
-            vfreq[i] = vox_cons_f[c][i] * (1.0f - op) + vfreq[i] * op;
-            vamp[i]  = vox_cons_a[c][i] * (1.0f - op) + vamp[i]  * op;
-        }
+        if (c != VC_H)                                    // h: breath through the vowel's OWN formants
+            for (int i = 0; i < 4; i++) {
+                vfreq[i] = vox_cons_f[c][i] * (1.0f - op) + vfreq[i] * op;
+                vamp[i]  = vox_cons_a[c][i] * (1.0f - op) + vamp[i]  * op;
+            }
         con_noise = vox_cons_noise[c] * (1.0f - op) * VOX_NZ_GAIN;         // hiss fades as it opens
         if (vox_cons_plos[c]) con_noise += VOX_POP_AMP * vox_burst_env(v->vox_cons_t); // plosive burst
         gl_gain = vox_cons_voiced[c] ? 1.0f
@@ -5426,15 +5435,21 @@ static inline float sound_voice_sample(Voice *v, float pitch_mul) {
     // release burst (ch: the burst, then its sh frication fading); a FRICATIVE swells as it shuts,
     // holds VOX_CODA_HOLD durations, then fades over VOX_CODA_FADE. Unvoiced codas also gate the
     // glottis OFF as they close (the old coda kept buzzing on "t"); voiced ones (m n l ng r b d g z…) stay sung.
+    // CHAINED codas ("nacht" x→t, "kunst" n→s→t): a voice_coda() fired while another coda sounds
+    // starts from THAT consonant (its formants, its voicing, its hiss fading out), not from the
+    // vowel, so a cluster never flashes the vowel between its consonants (vox_coda_prev).
     if (v->vox_coda >= 0 && v->vox_coda < VC_COUNT) {
-        int c = v->vox_coda;
+        int c = v->vox_coda, pc = v->vox_coda_prev;
+        if (pc < 0 || pc >= VC_COUNT || pc == VC_H) pc = -1;
         nz_c = c;
         float dur = vox_cons_dur[c], tt = v->vox_coda_t;
         float p = tt / dur; if (p > 1.0f) p = 1.0f;
-        float op = 1.0f - p * p * (3.0f - 2.0f * p);     // 1 = full vowel → 0 = full consonant
+        float op = 1.0f - p * p * (3.0f - 2.0f * p);     // 1 = full vowel (or the chained consonant) → 0 = full consonant
         for (int i = 0; i < 4; i++) {
-            vfreq[i] = vox_cons_f[c][i] * (1.0f - op) + vfreq[i] * op;
-            vamp[i]  = vox_cons_a[c][i] * (1.0f - op) + vamp[i]  * op;
+            float bf = pc >= 0 ? vox_cons_f[pc][i] : vfreq[i];
+            float ba = pc >= 0 ? vox_cons_a[pc][i] : vamp[i];
+            vfreq[i] = vox_cons_f[c][i] * (1.0f - op) + bf * op;
+            vamp[i]  = vox_cons_a[c][i] * (1.0f - op) + ba * op;
         }
         float cn;
         if (vox_cons_plos[c]) {                          // stop: closure (no hiss), then the release burst
@@ -5449,8 +5464,10 @@ static inline float sound_voice_sample(Voice *v, float pitch_mul) {
             float tend = dur * (1.0f + VOX_CODA_HOLD);
             if (tt > tend) { float k = 1.0f - (tt - tend) / VOX_CODA_FADE; cn *= (k > 0.0f ? k : 0.0f); }
         }
+        if (pc >= 0 && !vox_cons_plos[pc]) cn += vox_cons_noise[pc] * op;   // the chained fricative's hiss hands over
         con_noise += cn * VOX_NZ_GAIN;
-        if (!vox_cons_voiced[c]) gl_gain *= op;          // unvoiced coda: the voice stops as it closes
+        float bv = (pc >= 0 && !vox_cons_voiced[pc]) ? 0.0f : 1.0f;        // voicing coming in (0 after an unvoiced one)
+        gl_gain *= bv * op + (vox_cons_voiced[c] ? 1.0f : 0.0f) * (1.0f - op);   // unvoiced coda: the voice stops as it closes
         v->vox_coda_t += 1.0f / SR;
     }
 
@@ -8232,7 +8249,11 @@ static void sound_fire_req(SoundReq r) {
     } break;
     case SR_VOICE_CODA: {     // EXPERIMENTAL INSTR_VOICE consonant coda (voxlab)
         Voice *v = sound_held_voice(r.e0, r.e1);
-        if (v) { v->vox_coda = (r.a >= 0 && r.a < VC_COUNT) ? r.a : -1; v->vox_coda_t = 0.0f; }
+        if (v) {   // a coda fired while one sounds CHAINS from it (a cluster: "nacht", "kunst")
+            int nc = (r.a >= 0 && r.a < VC_COUNT) ? r.a : -1;
+            v->vox_coda_prev = (nc >= 0) ? v->vox_coda : -1;
+            v->vox_coda = nc; v->vox_coda_t = 0.0f;
+        }
     } break;
     case SR_VOICE_NASAL: {    // INSTR_VOICE nasal color (public voice_nasal)
         Voice *v = sound_held_voice(r.e0, r.e1);
@@ -11108,16 +11129,17 @@ void note_aux(int handle, int idx, float value) {   // per-engine aux channel, l
 }
 
 // Begin a held INSTR_VOICE note with a consonant articulation that morphs into the vowel
-// ("bah", "mah", "sss-ah"). Call right after note_on; id 0..21 (b d g m n l s sh ng r w y dh f v
-// z zh th p t k ch), -1 = none. A timed onset, not a held param. Pair with voice_coda for VC/CVC.
+// ("bah", "mah", "sss-ah"). Call right after note_on; id 0..23 (b d g m n l s sh ng r w y dh f v
+// z zh th p t k ch h x), -1 = none. A timed onset, not a held param. Pair with voice_coda for VC/CVC.
 void voice_consonant(int handle, int id) {
     if (handle <= 0) return;
     sound_push_ctrl(SR_VOICE_CONS, id, 0, 0, handle & SOUND_HANDLE_MASK, handle >> SOUND_HANDLE_BITS, 0);
 }
 
 // Close a held INSTR_VOICE note ON a consonant: the vowel morphs into it ("ahh-m", "oo-d"). Call
-// right BEFORE note_off; id 0..21, -1 = none. The mirror of voice_consonant — a coda not an onset;
-// use voiced ids (b d g m n l ng r w y) so it stays sung.
+// right BEFORE note_off; id 0..23, -1 = none. The mirror of voice_consonant — a coda not an onset;
+// use voiced ids (b d g m n l ng r w y) so it stays sung. Fired again while a coda sounds it CHAINS
+// from that consonant (a cluster: "nacht", "kunst").
 void voice_coda(int handle, int id) {
     if (handle <= 0) return;
     sound_push_ctrl(SR_VOICE_CODA, id, 0, 0, handle & SOUND_HANDLE_MASK, handle >> SOUND_HANDLE_BITS, 0);

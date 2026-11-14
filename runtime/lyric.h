@@ -1,6 +1,7 @@
 // lyric.h — sung WORDS for INSTR_VOICE: type a lyric, every note sings the next syllable.
 //
-// Languages: LYR_NL (Dutch, by spelling rules) and LYR_MIPOMI (the playtime Mipos' CV language).
+// Languages: LYR_NL (Dutch, by spelling rules), LYR_MIPOMI (the playtime Mipos' CV language), and by
+// simpler rule tables LYR_JA (Japanese romaji), LYR_ES (Spanish), LYR_SW (Swahili).
 //
 // Two halves:
 //   1. READING: lyr_set(&lyr, LYR_NL, "ik hou van jou") turns text into syllables (onset consonants,
@@ -57,7 +58,8 @@
 #include <math.h>
 #include <string.h>
 
-enum { LYR_NL = 0, LYR_MIPOMI = 1 };   // Dutch · Mipomi (the playtime Mipos' language)
+enum { LYR_NL = 0, LYR_MIPOMI = 1, LYR_JA = 2, LYR_ES = 3, LYR_SW = 4, LYR_NLANG };   // Dutch · Mipomi · Japanese · Spanish · Swahili
+static const char *const lyr_lang_name[LYR_NLANG] = { "Nederlands", "Mipomi", "Nihongo", "Espanol", "Kiswahili" };
 
 // consonant ids: mirror INSTR_VOICE's voice_consonant()/voice_coda() ids (sound.h VC_*, append-only)
 enum { LC_B, LC_D, LC_G, LC_M, LC_N, LC_L, LC_S, LC_SH, LC_NG, LC_R, LC_W, LC_Y, LC_DH, LC_F, LC_V,
@@ -72,9 +74,9 @@ static const unsigned char lyr__cplos[LC_COUNT] = { 1,1,1,0,0,0,0,0, 0,0,0,0,0,0
 
 // vowels
 enum { LV_A, LV_AA, LV_E, LV_EE, LV_I, LV_IE, LV_O, LV_OO, LV_U, LV_UU, LV_OE, LV_EU, LV_SCHWA,
-       LV_EI, LV_UI, LV_AU, LV_OP, LV_COUNT };
+       LV_EI, LV_UI, LV_AU, LV_OP, LV_EP, LV_UW, LV_AI, LV_OI, LV_COUNT };
 static const char *const lyr__vname[LV_COUNT] = { "A", "aa", "E", "ee", "I", "ie", "O", "oo", "U", "uu",
-    "oe", "eu", "@", "ei", "ui", "au", "o" };
+    "oe", "eu", "@", "ei", "ui", "au", "o", "e", "u'", "ai", "oi" };
 // F1, F2 (Hz) of each vowel, then where it GLIDES on release (0 = a pure vowel). ee/oo glide a little,
 // as Dutch long e/o do; ei/ui/au are the real diphthongs.
 static const float lyr__vf[LV_COUNT][4] = {
@@ -95,6 +97,10 @@ static const float lyr__vf[LV_COUNT][4] = {
     { 560, 1550, 330, 1720 },   // ui  œy  (huis)
     { 680, 1100, 400,  850 },   // au  ɑu  (hou)
     { 450,  850,   0,    0 },   // o   a PURE round o, no glide (Mipomi's o)
+    { 460, 1900,   0,    0 },   // e   a PURE mid e, no glide (Spanish, Swahili, Japanese e)
+    { 350, 1250,   0,    0 },   // u'  the UNROUNDED Japanese u
+    { 780, 1300, 350, 2150 },   // ai  (baile)
+    { 470,  880, 350, 2100 },   // oi  (hoy)
 };
 // INSTR_VOICE's own vowel path (U O A E I = note_aux 0 at 0, .25, .5, .75, 1): F1/F2 (sound.h vox_vowel_f)
 static const float lyr__base[5][2] = { {300, 870}, {570, 840}, {730, 1090}, {530, 1840}, {270, 2290} };
@@ -340,6 +346,179 @@ static void lyr__mp_word(Lyric *L, const char *w, int n) {
             L->syl[L->n - 1].co[L->syl[L->n - 1].nco++] = on[k];
 }
 
+// ─────────────────────── reading Japanese, Spanish, Swahili ───────────────────────
+// Three languages whose spelling is (nearly) phonemic, read by ONE reader: letters → tokens (a vowel,
+// or one or more consonants per grapheme) → every vowel opens a syllable, and the consonants between
+// two vowels split by the language's rule. Spelling tables are per language; vowels are pure
+// (a e i o u, the Japanese u unrounded). Approximations the voice forces: the "j" of jambo / ja is
+// d + zh (the engine has no dzh), Spanish rr is three quick d taps (a trill, as near as it gets), the
+// single r is the engine's r.
+enum { LYR__RT_TRILL = 100, LYR__RT_DZH = 101 };   // composite consonants, expanded when emitted
+typedef struct { unsigned char kind, id, acc, a, len, moraic; } LyrRTok;   // a = first letter, len = letters
+static int lyr__rt_vowel(int c, int lang) {
+    switch (c) {
+    case 'a': return LV_AA; case 'e': return LV_EP; case 'i': return LV_IE; case 'o': return LV_OP;
+    case 'u': return lang == LYR_JA ? LV_UW : LV_OE;
+    }
+    return -1;
+}
+// the consonant(s) the grapheme at w[i] stands for; returns the letters used (*nid = 0: none, skip)
+static int lyr__rt_cons(const char *w, int i, int n, int lang, int *ids, int *nid) {
+    char c = w[i], d = i + 1 < n ? w[i + 1] : 0, e = i + 2 < n ? w[i + 2] : 0;
+    int front = (d == 'e' || d == 'i');
+    *nid = 1;
+#define LYR__ONE(x, k) do { ids[0] = (x); return (k); } while (0)
+#define LYR__TWO(x, y, k) do { ids[0] = (x); ids[1] = (y); *nid = 2; return (k); } while (0)
+    if (lang == LYR_ES) {
+        if (c == 'c' && d == 'h') LYR__ONE(LC_CH, 2);
+        if (c == 'l' && d == 'l') LYR__ONE(LC_Y, 2);
+        if (c == 'r' && d == 'r') LYR__ONE(LYR__RT_TRILL, 2);
+        if (c == 'r' && i == 0)   LYR__ONE(LYR__RT_TRILL, 1);     // a word-initial r is trilled too
+        if (c == 'q' && d == 'u') LYR__ONE(LC_K, 2);              // qu: the u is silent
+        if (c == 'g' && d == 'u' && (e == 'e' || e == 'i')) LYR__ONE(LC_G, 2);   // gue gui: silent u
+        if (c == 'c') LYR__ONE(front ? LC_S : LC_K, 1);           // ce ci = s (as in the Americas)
+        if (c == 'g') LYR__ONE(front ? LC_X : LC_G, 1);           // ge gi = the jota
+        if (c == 'j') LYR__ONE(LC_X, 1);
+        if (c == 'h') { *nid = 0; return 1; }                     // silent
+        if (c == 'v' || c == 'b') LYR__ONE(LC_B, 1);
+        if (c == 'z') LYR__ONE(LC_S, 1);
+        if (c == '{') LYR__TWO(LC_N, LC_Y, 1);                    // the n-tilde
+        if (c == 'y') LYR__ONE(LC_Y, 1);
+    } else if (lang == LYR_JA) {
+        if (c == 's' && d == 'h') LYR__ONE(LC_SH, 2);
+        if (c == 'c' && d == 'h') LYR__ONE(LC_CH, 2);
+        if (c == 't' && d == 's') LYR__TWO(LC_T, LC_S, 2);
+        if (c == 'r' || c == 'l') LYR__ONE(LC_R, 1);
+    } else {                                                      // Swahili
+        if (c == 'n' && d == 'g' && e == '\'') LYR__ONE(LC_NG, 3);   // ng' = the ng of "sing"
+        if (c == 'n' && d == 'y') LYR__TWO(LC_N, LC_Y, 2);
+        if (c == 'c' && d == 'h') LYR__ONE(LC_CH, 2);
+        if (c == 's' && d == 'h') LYR__ONE(LC_SH, 2);
+        if (c == 'd' && d == 'h') LYR__ONE(LC_DH, 2);
+        if (c == 't' && d == 'h') LYR__ONE(LC_TH, 2);
+        if (c == 'g' && d == 'h') LYR__ONE(LC_G, 2);
+        if (c == 'k' && d == 'h') LYR__ONE(LC_X, 2);
+    }
+    switch (c) {                                                  // the shared, plain letters
+    case 'b': LYR__ONE(LC_B, 1); case 'd': LYR__ONE(LC_D, 1); case 'f': LYR__ONE(LC_F, 1);
+    case 'g': LYR__ONE(LC_G, 1); case 'h': LYR__ONE(LC_H, 1); case 'k': LYR__ONE(LC_K, 1);
+    case 'l': LYR__ONE(LC_L, 1); case 'm': LYR__ONE(LC_M, 1); case 'n': LYR__ONE(LC_N, 1);
+    case 'p': LYR__ONE(LC_P, 1); case 'r': LYR__ONE(LC_R, 1); case 's': LYR__ONE(LC_S, 1);
+    case 't': LYR__ONE(LC_T, 1); case 'v': LYR__ONE(LC_V, 1); case 'w': LYR__ONE(LC_W, 1);
+    case 'z': LYR__ONE(LC_Z, 1); case 'c': LYR__ONE(LC_K, 1); case 'q': LYR__ONE(LC_K, 1);
+    case 'y': LYR__ONE(LC_Y, 1); case 'x': LYR__TWO(LC_K, LC_S, 1); case 'j': LYR__ONE(LYR__RT_DZH, 1);
+    }
+#undef LYR__ONE
+#undef LYR__TWO
+    *nid = 0;
+    return 1;                                                     // anything else: skipped
+}
+// can these two consonants start a Spanish syllable together (pr bl tr gr fl ...)?
+static int lyr__es_onset2(int a, int b) {
+    if (b == LC_W || b == LC_Y) return a != LC_W && a != LC_Y;   // any consonant + a glide (agua, tienda, cuando)
+    if (b != LC_R && b != LC_L) return 0;
+    if (a == LC_D || a == LC_T) return b == LC_R;                 // dr tr (no dl tl)
+    return a == LC_P || a == LC_B || a == LC_K || a == LC_G || a == LC_F;
+}
+static int lyr__rt_put(signed char *dst, int k, int id) {         // append a consonant (composites expand)
+    if (id == LYR__RT_TRILL) { for (int r = 0; r < 3 && k < LYR_MAXC; r++) dst[k++] = LC_D; return k; }
+    if (id == LYR__RT_DZH)   { if (k < LYR_MAXC) dst[k++] = LC_D; if (k < LYR_MAXC) dst[k++] = LC_ZH; return k; }
+    if (k < LYR_MAXC) dst[k++] = (signed char)id;
+    return k;
+}
+static void lyr__rule_word(Lyric *L, const char *w, int n, int lang) {
+    LyrRTok t[48]; int nt = 0, acc = 0;
+    for (int i = 0; i < n && nt < 44; ) {
+        if (w[i] == '^') { acc = 1; i++; continue; }              // an accent: the next vowel is a full one
+        if (w[i] == '|') { i++; continue; }
+        int v = lyr__rt_vowel(w[i], lang);
+        if (lang == LYR_ES && w[i] == 'y' && (i + 1 == n || lyr__rt_vowel(w[i + 1], lang) < 0)) v = LV_IE;   // y not before a vowel = i (muy, hoy, the word "y")
+        if (v >= 0) {
+            LyrRTok *T = &t[nt++];
+            T->kind = LYR__TV; T->id = (unsigned char)v; T->acc = (unsigned char)acc;
+            T->a = (unsigned char)i; T->len = 1; T->moraic = 0;
+            acc = 0; i++; continue;
+        }
+        int ids[3], nid, used = lyr__rt_cons(w, i, n, lang, ids, &nid);
+        for (int k = 0; k < nid && nt < 44; k++) {
+            LyrRTok *T = &t[nt++];
+            T->kind = LYR__TC; T->id = (unsigned char)ids[k]; T->acc = 0;
+            T->a = (unsigned char)i; T->len = (unsigned char)(k == 0 ? used : 0); T->moraic = 0;
+        }
+        i += used;
+    }
+    // Japanese moraic n: an n not followed by a vowel (or y) closes the syllable before it
+    if (lang == LYR_JA)
+        for (int k = 0; k < nt; k++)
+            if (t[k].kind == LYR__TC && t[k].id == LC_N &&
+                (k + 1 == nt || (t[k + 1].kind == LYR__TC && t[k + 1].id != LC_Y)))
+                t[k].moraic = 1;
+    // Spanish diphthongs: an unaccented i/u before another vowel is a glide (bien, agua); after a, e, o
+    // (and not itself before a vowel) it melts into a gliding vowel (baile, hoy, causa)
+    if (lang == LYR_ES) {
+        for (int k = 0; k + 1 < nt; k++) {
+            LyrRTok *A = &t[k], *B = &t[k + 1];
+            if (A->kind != LYR__TV || B->kind != LYR__TV) continue;
+            int ai = (A->id == LV_IE || A->id == LV_OE) && !A->acc;
+            int bi = (B->id == LV_IE || B->id == LV_OE) && !B->acc;
+            if (ai && B->id != A->id) { A->kind = LYR__TC; A->id = A->id == LV_IE ? LC_Y : LC_W; continue; }
+            if (bi && !ai && !(k + 2 < nt && t[k + 2].kind == LYR__TV)) {
+                int m = -1;
+                if (B->id == LV_IE) m = A->id == LV_AA ? LV_AI : A->id == LV_EP ? LV_EI : A->id == LV_OP ? LV_OI : -1;
+                else if (A->id == LV_AA) m = LV_AU;
+                if (m >= 0) { A->id = (unsigned char)m; A->len = (unsigned char)(B->a + B->len - A->a); B->kind = 255; }
+            }
+        }
+        int j = 0;
+        for (int k = 0; k < nt; k++) if (t[k].kind != 255) t[j++] = t[k];
+        nt = j;
+    }
+    // syllables: one per vowel; the consonants before it split into the last syllable's coda and its onset
+    int first = 1, prevv = -1;
+    for (int k = 0; k <= nt; k++) {
+        if (k < nt && t[k].kind != LYR__TV) continue;
+        int c0 = prevv + 1, c1 = k;                               // the consonant run t[c0..c1)
+        int split = c0;                                           // [c0..split) → previous coda, [split..c1) → onset
+        if (prevv < 0) split = c0;                                // before the first vowel: all onset
+        else if (k == nt) split = c1;                             // after the last vowel: all coda
+        else if (lang == LYR_JA) {
+            if (c1 > c0 && t[c0].moraic) split = c0 + 1;          // the moraic n closes the syllable before
+            else if (c1 - c0 >= 2 && t[c0].id == t[c0 + 1].id) split = c0 + 1;   // kitte: the small tsu
+        } else if (lang == LYR_ES) {
+            int r = c1 - c0;
+            if (r >= 2 && lyr__es_onset2(t[c1 - 2].id, t[c1 - 1].id)) split = c1 - 2;
+            else if (r >= 2 && t[c1 - 1].id == LC_Y && t[c1 - 1].len == 0) split = c1 - 2;   // the n-tilde stays together
+            else if (r >= 1) split = c1 - 1;
+        }                                                         // Swahili: every syllable open (all onset)
+        if (prevv >= 0 && L->n > 0) {                             // codas of the previous syllable
+            LyrSyl *P = &L->syl[L->n - 1];
+            for (int q = c0; q < split; q++) P->nco = (unsigned char)lyr__rt_put(P->co, P->nco, t[q].id);
+        }
+        if (k == nt || L->n >= LYR_MAXSYL) break;
+        LyrSyl *S = &L->syl[L->n++];
+        memset(S, 0, sizeof *S);
+        S->word0 = (unsigned char)first; first = 0;
+        S->v = t[k].id;
+        for (int q = split; q < c1; q++) S->non = (unsigned char)lyr__rt_put(S->on, S->non, t[q].id);
+        // its letters, for display: from its first onset letter up to the next syllable's (codas included)
+        int a = split < c1 ? t[split].a : t[k].a;
+        int b = n;
+        for (int q = k + 1; q < nt; q++) if (t[q].kind == LYR__TV) {   // where the next syllable's onset starts
+            int nc0 = k + 1, nc1 = q, nsplit = nc1 - 1;
+            if (lang == LYR_SW || nc1 == nc0) nsplit = nc0;
+            else if (lang == LYR_JA) nsplit = (t[nc0].moraic || (nc1 - nc0 >= 2 && t[nc0].id == t[nc0 + 1].id)) ? nc0 + 1 : nc0;
+            else if (nc1 - nc0 >= 2 && (lyr__es_onset2(t[nc1 - 2].id, t[nc1 - 1].id) || (t[nc1 - 1].id == LC_Y && t[nc1 - 1].len == 0))) nsplit = nc1 - 2;
+            b = nsplit < nc1 ? t[nsplit].a : t[q].a;
+            break;
+        }
+        int j = 0;
+        for (int q = a; q < b && j < (int)sizeof S->txt - 1; q++)
+            if (w[q] != '^' && w[q] != '|') S->txt[j++] = w[q] == '{' ? 'n' : w[q];
+        S->txt[j] = 0;
+        prevv = k;
+    }
+}
+
 // a melisma: the previous syllable's vowel once more; its coda moves to this last one
 static void lyr__hold(Lyric *L) {
     if (!L->n || L->n >= LYR_MAXSYL) return;
@@ -368,6 +547,7 @@ static void lyr_set(Lyric *L, int lang, const char *text) {
         if (c == 0xC3 && p[1]) {                           // UTF-8 Latin-1 accents
             int d = p[1]; p++;
             if (d >= 0x80 && d <= 0x9F) d += 0x20;         // upper → lower
+            if (d == 0xB1) { if (n < (int)sizeof w - 1) w[n++] = '{'; continue; }   // the Spanish n-tilde: its own letter
             int hi = (d == 0xAB || d == 0xAF || d == 0xB6 || d == 0xBC);   // ë ï ö ü
             int ac = (d == 0xA9 || d == 0xA1 || d == 0xB3 || d == 0xBA || d == 0xAD);   // é á ó ú í
             c = (d >= 0xA8 && d <= 0xAB) ? 'e' : (d >= 0xAC && d <= 0xAF) ? 'i' :
@@ -378,8 +558,16 @@ static void lyr_set(Lyric *L, int lang, const char *text) {
         }
         if (c >= 'a' && c <= 'z') letter = 1;
         if (letter) { if (n < (int)sizeof w - 1) w[n++] = (char)c; continue; }
-        if (c == '\'') continue;                           // apostrophes: ignored ("'s", "m'n")
-        if (n) { if (lang == LYR_MIPOMI) lyr__mp_word(L, w, n); else lyr__nl_word(L, w, n); n = 0; }
+        if (c == '\'') {                                   // apostrophes: ignored ("'s", "m'n"), but Swahili's ng' needs its own
+            if (lang == LYR_SW && n && n < (int)sizeof w - 1) w[n++] = '\'';
+            continue;
+        }
+        if (n) {
+            if (lang == LYR_MIPOMI) lyr__mp_word(L, w, n);
+            else if (lang >= LYR_JA && lang < LYR_NLANG) lyr__rule_word(L, w, n, lang);
+            else lyr__nl_word(L, w, n);
+            n = 0;
+        }
         if (c == '-') {                                    // a lone "-" (not inside a word): a melisma
             int prev_sep = (p == (const unsigned char *)text) || p[-1] == ' ' || p[-1] == '-';
             int next_sep = p[1] == 0 || p[1] == ' ' || p[1] == '-';
@@ -633,7 +821,7 @@ static void lyr__expect_in(int lang, const char *text, const char *want) {
     L.keep_en = 0;
     lyr_set(&L, lang, text);
     lyr_phonemes(&L, got, sizeof got);
-    snprintf(msg, sizeof msg, "lyric %s \"%s\" -> \"%s\" (want \"%s\")", lang == LYR_MIPOMI ? "MP" : "NL",
+    snprintf(msg, sizeof msg, "lyric %s \"%s\" -> \"%s\" (want \"%s\")", lyr_lang_name[lang],
              text, got, want);
     expect(strcmp(got, want) == 0, msg);
 }
@@ -666,6 +854,22 @@ static void lyr_selfcheck(void) {
     lyr__expect_in(LYR_MIPOMI, "mipo, fala a foko", "mie.po faa.laa aa fo.ko");
     lyr__expect_in(LYR_MIPOMI, "mi i mola, jo?",    "mie ie mo.laa jo");
     lyr__expect_in(LYR_MIPOMI, "hihi u wawa",       "hie.hie oe waa.waa");
+    // Japanese (romaji): every mora a syllable, the moraic n and the small tsu close one, u unrounded
+    lyr__expect_in(LYR_JA, "arigatou",    "aa.rie.gaa.to.u'");
+    lyr__expect_in(LYR_JA, "konnichiwa",  "kon.nie.chie.waa");
+    lyr__expect_in(LYR_JA, "kitte",       "kiet.te");
+    lyr__expect_in(LYR_JA, "shinjitsu",   "shien.dzhie.tsu'");
+    // Spanish: glides and diphthongs, rr trilled, ñ, qu/gu, the word "y"
+    lyr__expect_in(LYR_ES, "corazón",     "ko.raa.son");
+    lyr__expect_in(LYR_ES, "perro",       "pe.dddo");
+    lyr__expect_in(LYR_ES, "baile",       "bai.le");
+    lyr__expect_in(LYR_ES, "agua",        "aa.gwaa");
+    lyr__expect_in(LYR_ES, "niño y guitarra", "nie.njo ie gie.taa.dddaa");
+    // Swahili: open syllables, prenasalized mb/nd, ng', ny, every vowel its own
+    lyr__expect_in(LYR_SW, "jambo",       "dzhaa.mbo");
+    lyr__expect_in(LYR_SW, "ng'ombe",     "ngo.mbe");
+    lyr__expect_in(LYR_SW, "nyumba",      "njoe.mbaa");
+    lyr__expect_in(LYR_SW, "ndege wanaimba", "nde.ge waa.naa.ie.mbaa");
 }
 #endif
 

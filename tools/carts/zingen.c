@@ -8,9 +8,9 @@
   "teaches": ["generative-melody"],
   "lineage": "The first cart on lyric.h, the sung-words layer for INSTR_VOICE (idea after JIANT FM's VOICE/WORDS, M-VAVE FM-1 firmware, GPL-3.0; ideas only, no code; the Dutch rules are ours). Follows singab, the A/B probe that motivated the de-hiss pass.",
   "description": {
-    "summary": "The formant voice sings DUTCH, and whatever you type: pick a lyric or type your own line and it sings it, one syllable per note, reading Dutch spelling by rules (long and short vowels, schwa, ch/g, ui/ij/eu, final devoicing). Song 4 is a lullaby in Mipomi, the playtime Mipos' language.",
+    "summary": "The formant voice sings in five languages, and whatever you type: Dutch (read by spelling rules: long and short vowels, schwa, ch/g, ui/ij/eu, final devoicing), Mipomi (the playtime Mipos' language), Japanese romaji, Spanish and Swahili. One syllable per note, with voice knobs and one-tap characters (chipmunk, monster, robot, alien...).",
     "detail": "lyric.h reads the text into syllables; each note starts the next one: its consonants at note-on, the vowel held while the note is, then the diphthong's second half and the final consonants chained at release ('nacht' = x then t), before the note lets go. The melody is made from the words: a word's last syllable lasts longer, every fourth word breathes. Or play it yourself: every key press sings the next syllable. The bottom line shows the phonemes it read.",
-    "controls": "SPACE = auto-sing on/off · A S D F G H J K = sing the next syllable on that note · 1 2 3 = Dutch lyrics, 4 = a Mipomi lullaby, 5 = your words · ENTER = type your own line (Dutch or Mipomi, TAB switches), ENTER again to hear it sung (it is remembered) · V = formant model (Klatt cascade / parallel) · knobs: SIZE (giant .. child) · BUZZ (relaxed and round .. pressed and bright; also UP/DOWN) · VIBRATO · GLIDE · LIFE (a machine .. shaky) · PITCH (±12 semitones) · WHISPER (sung → whispered: no pitch, the words stay) · NASAL (open → hummed, through the nose) · characters (one tap): CLEAN, CHIPMUNK, MONSTER, ROBOT, ALIEN, PHONE, MEGAPHONE; each moves the knobs it needs and adds its own effects · DEFAULT = CLEAN · L = singer layer on/off (vibrato that blooms in, a living pitch, sung glides) · R = back to the start"
+    "controls": "SPACE = auto-sing on/off · A S D F G H J K = sing the next syllable on that note · 1 2 3 = Dutch lyrics, 4 = a Mipomi lullaby, 5 Japanese, 6 Spanish, 7 Swahili, 8 = your words · ENTER = type your own line (TAB cycles Dutch, Mipomi, Japanese romaji, Spanish, Swahili), ENTER again to hear it sung (it is remembered) · V = formant model (Klatt cascade / parallel) · knobs: SIZE (giant .. child) · BUZZ (relaxed and round .. pressed and bright; also UP/DOWN) · VIBRATO · GLIDE · LIFE (a machine .. shaky) · PITCH (±12 semitones) · WHISPER (sung → whispered: no pitch, the words stay) · NASAL (open → hummed, through the nose) · characters (one tap): CLEAN, CHIPMUNK, MONSTER, ROBOT, ALIEN, PHONE, MEGAPHONE; each moves the knobs it needs and adds its own effects · DEFAULT = CLEAN · L = singer layer on/off (vibrato that blooms in, a living pitch, sung glides) · R = back to the start"
   }
 }
 de:meta */
@@ -44,7 +44,7 @@ static const MNote FALA_FONI[] = {
 typedef struct { const char *name; int lang; const char *text; const MNote *mel; int nmel; int step_fr; } Song;
 #define USER_MAX 200
 static char user_text[USER_MAX] = "typ hier je eigen woorden en ik zing ze";
-static Song SONGS[5] = {
+static Song SONGS[] = {
     { "zing voor jou", LYR_NL, "ik zing voor jou, de zon gaat op, de nacht is lang en ik blijf hier", 0, 0, 9 },
     { "kunst",         LYR_NL, "kunst en liefde, vrolijk en eeuwig, in het licht van de straat", 0, 0, 9 },
     { "de zee",        LYR_NL, "de zee is groen, de lucht is grijs, ik loop - naar huis door de regen", 0, 0, 9 },
@@ -52,10 +52,17 @@ static Song SONGS[5] = {
       "mipo fala, fala a foko, mibi i mola, mibi o jojo u jo, fono, foni a foko, "
       "mi i nini, mi i momo u jo, mipo foni, pomo, ni -",
       FALA_FONI, (int)(sizeof FALA_FONI / sizeof FALA_FONI[0]), 11 },
+    // three more languages, our own lines (each with its meaning):
+    // "cherry blossoms bloom, they sway in the wind, I sing with you"
+    { "sakura (nihongo)", LYR_JA, "sakura no hana ga saite, kaze ni yureru, kimi to utau yo", 0, 0, 9 },
+    // "I sing with you under the moon, the sea and the wind dance with me"
+    { "la luna (espanol)", LYR_ES, "canto contigo bajo la luna, el mar y el viento bailan conmigo", 0, 0, 9 },
+    // "the sun is shining, the birds are singing, my friend, come let's play"
+    { "jua (kiswahili)", LYR_SW, "jua linawaka, ndege wanaimba, rafiki yangu, njoo tucheze", 0, 0, 9 },
     { "your words", LYR_NL, user_text, 0, 0, 9 },
 };
-#define NSONGS 5
-#define USER   4
+#define NSONGS ((int)(sizeof SONGS / sizeof SONGS[0]))
+#define USER   (NSONGS - 1)   // the last entry is always "your words"
 
 // the typed line: a text box over the cart (ENTER opens it, ENTER sings it, TAB = language)
 static int typing = 0, tlang = LYR_NL, bs_held = 0;
@@ -178,7 +185,7 @@ void init(void) {
     if (load_bytes(&sv, sizeof sv) == (int)sizeof sv && sv.ver == 1 && sv.text[0]) {
         sv.text[USER_MAX - 1] = 0;
         memcpy(user_text, sv.text, USER_MAX);
-        SONGS[USER].lang = sv.lang == LYR_MIPOMI ? LYR_MIPOMI : LYR_NL;
+        SONGS[USER].lang = (sv.lang >= 0 && sv.lang < LYR_NLANG) ? sv.lang : LYR_NL;
     }
     for (int k = 0; k < K_COUNT; k++) kv[k] = K_DEF[k];
     pick_lyric(0);
@@ -207,7 +214,7 @@ static void type_step(void) {
         tb_add(*p == '\n' || *p == '\r' || *p == '\t' ? ' ' : *p);
     if (keyp(KEY_BACKSPACE)) { tb_back(); bs_held = 0; }
     else if (key(KEY_BACKSPACE) && ++bs_held > 24 && bs_held % 3 == 0) tb_back();   // held: repeat
-    if (keyp(KEY_TAB)) tlang = tlang == LYR_NL ? LYR_MIPOMI : LYR_NL;
+    if (keyp(KEY_TAB)) tlang = (tlang + 1) % LYR_NLANG;   // Nederlands → Mipomi → Nihongo → Espanol → Kiswahili
     if (keyp(KEY_ENTER)) {
         typing = 0;
         if (tbuf[0]) {                                    // sing it (an empty line just closes the box)
@@ -281,8 +288,9 @@ static void draw_box(void) {
     rectfill(bx, by, bw, bh, CLR_BLACK);
     rect(bx, by, bw, bh, CLR_YELLOW);
     print("type words to sing", bx + 8, by + 6, CLR_YELLOW);
-    const char *ln = tlang == LYR_NL ? "TAB: Nederlands" : "TAB: Mipomi";
-    print(ln, bx + bw - 8 - text_width(ln), by + 6, tlang == LYR_NL ? CLR_ORANGE : CLR_PINK);
+    char ln[32]; snprintf(ln, sizeof ln, "TAB: %s", lyr_lang_name[tlang]);
+    static const int LCOL[LYR_NLANG] = { CLR_ORANGE, CLR_PINK, CLR_RED, CLR_YELLOW, CLR_GREEN };
+    print(ln, bx + bw - 8 - text_width(ln), by + 6, LCOL[tlang]);
     // wrap word by word into rows that fit (a space ends a word; it is drawn as the gap)
     int x = bx + 8, y = by + 22, n = (int)strlen(tbuf), sp = text_width(" ");
     char wd[USER_MAX];
@@ -360,7 +368,7 @@ void draw(void) {
     print(SONGS[which].name, 8, 144, CLR_YELLOW);
     print(sung ? "L: sung" : "L: plain", SCREEN_W - 110, 144, sung ? CLR_PINK : CLR_DARK_GREY);
     { const char *m = casc ? "V: cascade" : "V: parallel"; print(m, SCREEN_W - 8 - text_width(m), 144, casc ? CLR_ORANGE : CLR_DARK_GREY); }
-    print("ENTER type your own  1-5 song  R restart  @ = schwa  x = g/ch", 8, SCREEN_H - 8, CLR_DARK_GREY);
+    print("ENTER type your own  1-8 song  R restart  @ = schwa  x = g/ch", 8, SCREEN_H - 8, CLR_DARK_GREY);
     font(FONT_NORMAL);
     if (typing) draw_box();
     ui_end();

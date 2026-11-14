@@ -89,11 +89,15 @@ engine's approximant. zingen: songs 5-8 (our own lines), TAB in the text box cyc
 
 ## Scat (zingen song 9)
 
-Not a language: a generator (`scat_gen` in zingen) writes phrases of one-syllable scat words (ba be di
-du ski wa ya ... landing on bop / dop / dat), a third of them repeats two back so they groove, read by
-the Spanish rules (pure vowels, one vowel each: one word = one note). Sung fast and swung (long, short;
-~8 notes/s) on a G-C blues scale walk, a breath between phrases, fresh phrases each time round. The
-JAZZ voice suits it.
+Not a language: a generator (`scat_gen` in zingen) writes a PLAN of one-syllable scat words (ba be di
+du ski wa ya ... landing on bop / dop / dat), each with a duration in ticks (3 frames = 50 ms), a pitch on
+a G blues scale (G3..D5: higher runs hot under F1 tracking) and a breath after. Five phrase kinds:
+SWING (a swung long-short run), STUTTER (one syllable fired fast on one pitch, "ba ba ba ba bop"), ECHO
+(the phrase before, a step higher: call and response), HOLD (two pickups and a long held "yeh" where the
+vibrato blooms), ROLL ("bi di bi di", even and climbing). The words are read by the Spanish rules (one
+vowel each: one word = one note), fresh phrases each time round. THE BAND (B): a walking pizzicato upright
+on a 12-bar blues in G (the upright.c recipe) and finger snaps on 2 and 4, on the same tick clock with its
+own dice (so switching it off keeps the phrases), ~10 dB under the voice. The JAZZ voice suits it.
 
 ## Mipomi
 

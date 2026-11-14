@@ -10,7 +10,7 @@
   "description": {
     "summary": "The formant voice sings in six languages, and whatever you type: Dutch (read by spelling rules: long and short vowels, schwa, ch/g, ui/ij/eu, final devoicing), Mipomi (the playtime Mipos' language), Japanese romaji, Spanish, Swahili and Hawaiian. One syllable per note, with voice knobs and one-tap characters (chipmunk, monster, robot, alien...).",
     "detail": "lyric.h reads the text into syllables; each note starts the next one: its consonants at note-on, the vowel held while the note is, then the diphthong's second half and the final consonants chained at release ('nacht' = x then t), before the note lets go. The melody is made from the words: a word's last syllable lasts longer, every fourth word breathes. Or play it yourself: every key press sings the next syllable. The bottom line shows the phonemes it read.",
-    "controls": "SPACE = auto-sing on/off · A S D F G H J K = sing the next syllable on that note · 1 2 3 = Dutch lyrics, 4 = a Mipomi lullaby, 5 Japanese, 6 Spanish, 7 Swahili, 8 Hawaiian, 9 SCAT (writes its own fast swung scat phrases, fresh each time; try the JAZZ voice), 0 = your words · ENTER = type your own line (TAB cycles Dutch, Mipomi, Japanese romaji, Spanish, Swahili, Hawaiian; an apostrophe is the okina), ENTER again to hear it sung (it is remembered) · V = formant model (Klatt cascade / parallel) · knobs: SIZE (giant .. child) · BUZZ (relaxed and round .. pressed and bright; also UP/DOWN) · VIBRATO · GLIDE · LIFE (a machine .. shaky) · PITCH (±12 semitones) · WHISPER (sung → whispered: no pitch, the words stay) · NASAL (open → hummed, through the nose) · GRAVEL (clean → a rasp) · characters (one tap): CLEAN, CHIPMUNK, MONSTER, ROBOT, ALIEN, PHONE, BULLHORN, JAZZ (a gravelly jazz singer that scoops into notes); each moves the knobs it needs and adds its own effects · DEFAULT = CLEAN · L = singer layer on/off (vibrato that blooms in, a living pitch, sung glides) · R = back to the start"
+    "controls": "SPACE = auto-sing on/off · A S D F G H J K = sing the next syllable on that note · 1 2 3 = Dutch lyrics, 4 = a Mipomi lullaby, 5 Japanese, 6 Spanish, 7 Swahili, 8 Hawaiian, 9 SCAT (writes its own scat: swung runs, stutters, call and response, held notes, rolls, over a walking bass and snaps; B = band on/off; try the JAZZ voice), 0 = your words · ENTER = type your own line (TAB cycles Dutch, Mipomi, Japanese romaji, Spanish, Swahili, Hawaiian; an apostrophe is the okina), ENTER again to hear it sung (it is remembered) · V = formant model (Klatt cascade / parallel) · knobs: SIZE (giant .. child) · BUZZ (relaxed and round .. pressed and bright; also UP/DOWN) · VIBRATO · GLIDE · LIFE (a machine .. shaky) · PITCH (±12 semitones) · WHISPER (sung → whispered: no pitch, the words stay) · NASAL (open → hummed, through the nose) · GRAVEL (clean → a rasp) · characters (one tap): CLEAN, CHIPMUNK, MONSTER, ROBOT, ALIEN, PHONE, BULLHORN, JAZZ (a gravelly jazz singer that scoops into notes); each moves the knobs it needs and adds its own effects · DEFAULT = CLEAN · L = singer layer on/off (vibrato that blooms in, a living pitch, sung glides) · R = back to the start"
   }
 }
 de:meta */
@@ -25,6 +25,8 @@ de:meta */
 // words.tsv) on its own written lullaby melody. And YOUR words: ENTER opens a text box, type any line
 // (Dutch or Mipomi, TAB switches), ENTER again and it sings it. The line is saved for next time.
 #define SLOT 5
+#define BASS_SLOT 6                  // scat's band: a pizzicato upright (INSTR_BOWED, the upright.c recipe)
+#define SNAP_SLOT 7                  // and finger snaps (band-passed noise)
 
 // a written melody: {midi, steps}; midi 0 = a rest. One note per syllable, in order.
 typedef struct { unsigned char midi, len; } MNote;
@@ -42,7 +44,7 @@ static const MNote FALA_FONI[] = {
     {67,2},{64,2},{62,2},{60,6},{0,2}, {64,2},{62,4},{0,2}, {64,6},{60,10},{0,12},
 };
 typedef struct { const char *name; int lang; const char *text; const MNote *mel; int nmel; int step_fr; int scat; } Song;
-static char scat_text[512];          // the scat song writes its own words (scat_gen)
+static char scat_text[1024];         // the scat song writes its own words (scat_gen)
 #define USER_MAX 200
 static char user_text[USER_MAX] = "typ hier je eigen woorden en ik zing ze";
 static Song SONGS[] = {
@@ -63,7 +65,7 @@ static Song SONGS[] = {
     // "greetings, O sun, greetings, O moon, we are singing, with love"
     { "aloha (hawaii)", LYR_HAW, "aloha e ka lā, aloha e ka mahina, ke mele nei mākou, me ke aloha", 0, 0, 9 },
     // SCAT: no words, the generator writes them (fresh phrases each time round), sung fast and swung
-    { "scat!", LYR_ES, scat_text, 0, 0, 5, 1 },
+    { "scat!", LYR_ES, scat_text, 0, 0, 3, 1 },
     { "your words", LYR_NL, user_text, 0, 0, 9 },
 };
 #define NSONGS ((int)(sizeof SONGS / sizeof SONGS[0]))
@@ -169,67 +171,131 @@ static int sing_note(int midi) { return singer_on(&sing, midi + transpose, 6); }
 static char phon[512];
 
 
-// ── SCAT ── phrases of one-syllable scat words (read by the Spanish rules: pure vowels, one vowel
-// each, so one word = one note), with repeats so they groove ("be di be di bop"), each phrase ending
-// on a landing word. Sung on a blues scale, swung (long-short), a breath between phrases.
+// ── SCAT ── the generator writes phrases of one-syllable scat words (read by the Spanish rules: pure
+// vowels, one vowel each, so one word = one note) as a PLAN: per note a duration in ticks, a pitch on
+// the blues scale, a breath after it. Five kinds of phrase, picked at random:
+//   SWING    a swung run, long-short, walking the scale, landing on bop / dop / dat
+//   STUTTER  one syllable fired fast on one pitch ("ba ba ba ba bop"), sometimes climbing
+//   ECHO     the phrase before, answered a step higher (call and response)
+//   HOLD     two quick pickups, then a long held "yeh" where the vibrato blooms
+//   ROLL     "bi di bi di" in even fast notes, climbing
+// One tick = 3 frames (50 ms); a beat = 6 ticks (100 bpm, swung). Fresh phrases every time round.
+// THE BAND (B toggles): a walking upright bass on a 12-bar blues in G (INSTR_BOWED pizzicato, the
+// upright recipe) and finger snaps on 2 and 4, on the same tick clock.
+#define SCAT_TICKS_PER_BEAT 6
 static const char *const SCAT_SYL[] = { "ba", "be", "bi", "bo", "bu", "da", "di", "du", "do", "ski",
-                                        "ska", "wa", "ya", "zu", "ba", "di", "dap", "bap", "dat" };
-static const char *const SCAT_END[] = { "bop", "dop", "dat", "wap", "yeh", "bam", "zot" };
-static const int BLUES[] = { 55, 58, 60, 63, 65, 66, 67, 70, 72, 75, 77 };   // G-C blues, a little over an octave
+                                        "ska", "wa", "ya", "zu", "dap", "bap", "dat" };
+static const char *const SCAT_END[] = { "bop", "dop", "dat", "wap", "bam", "zot" };
+static const char *const SCAT_HOLD[] = { "yeh", "wa", "ba", "bo" };
+static const int BLUES[] = { 55, 58, 60, 62, 63, 65, 66, 67, 70, 72, 74 };   // G blues + the 9th, G3..D5 (higher runs hot: F1 tracking)
 #define NBLUES ((int)(sizeof BLUES / sizeof BLUES[0]))
-static int scat_phr[16], scat_nphr = 0;   // syllables per phrase
-static int sc_ph = 0, sc_in = 0, sc_note = 5;
+typedef struct { const char *w; unsigned char dur, rest; signed char pit; } ScatNote;
+#define SCAT_MAX 140
+static ScatNote sn[SCAT_MAX];
+static int sn_n = 0, sn_i = 0, sc_wait = 0, sc_rest = 0, sc_last = 6;
+static int band = 1, sc_tick = 0, sc_beat = 0;
 static unsigned scat_seed = 20261115u;
 static unsigned scat_rand(void) { scat_seed = scat_seed * 1664525u + 1013904223u; return scat_seed >> 8; }
+#define SR(n) ((int)(scat_rand() % (unsigned)(n)))
+static int sc_clamp(int p) { return p < 0 ? 0 : p >= NBLUES ? NBLUES - 1 : p; }
+static int scat_add(const char *w, int dur, int pit) {
+    if (sn_n >= SCAT_MAX) return 0;
+    ScatNote *N = &sn[sn_n++];
+    N->w = w; N->dur = (unsigned char)dur; N->rest = 0; N->pit = (signed char)sc_clamp(pit);
+    return 1;
+}
+#define SCAT_PICK(a) (a)[SR((int)(sizeof (a) / sizeof (a)[0]))]
 static void scat_gen(void) {
-    const int NS = (int)(sizeof SCAT_SYL / sizeof SCAT_SYL[0]), NE = (int)(sizeof SCAT_END / sizeof SCAT_END[0]);
-    const char *got[16];
-    scat_text[0] = 0; scat_nphr = 0;
+    sn_n = 0;
+    int prev0 = -1, prev1 = -1;                          // the phrase before (for ECHO)
+    for (int ph = 0; ph < 8 && sn_n < SCAT_MAX - 16; ph++) {
+        int start = sn_n, kind = SR(10);
+        int p = 3 + SR(6);
+        if (kind < 3) {                                   // SWING
+            int n = 4 + SR(5);
+            const char *got[12];
+            for (int i = 0; i < n; i++) {
+                const char *w = (i >= 2 && SR(3) == 0) ? got[i - 2] : SCAT_PICK(SCAT_SYL);
+                got[i] = w;
+                scat_add(w, (i % 2 == 0) ? 4 : 2, p);
+                p = sc_clamp(p + SR(5) - 2);
+            }
+            scat_add(SCAT_PICK(SCAT_END), 4 + 2 * SR(2), p);
+        } else if (kind < 5) {                            // STUTTER
+            const char *w = SCAT_PICK(SCAT_SYL);
+            int k = 3 + SR(4), climb = SR(2);
+            for (int i = 0; i < k; i++) { scat_add(w, 2, p); if (climb) p = sc_clamp(p + 1); }
+            scat_add(SCAT_PICK(SCAT_END), 4, sc_clamp(p + (SR(2) ? 2 : -2)));
+        } else if (kind < 7 && prev0 >= 0 && prev1 - prev0 <= 10) {   // ECHO the phrase before
+            int up = SR(3) ? 2 : -1;
+            for (int i = prev0; i < prev1; i++) scat_add(sn[i].w, sn[i].dur, sn[i].pit + up);
+        } else if (kind < 8) {                            // HOLD
+            p = 6 + SR(5);
+            scat_add(SCAT_PICK(SCAT_SYL), 2, p - 2);
+            scat_add(SCAT_PICK(SCAT_SYL), 2, p - 1);
+            scat_add(SCAT_PICK(SCAT_HOLD), 12 + 2 * SR(3), p);
+        } else {                                          // ROLL
+            static const char *const PAIRS[][2] = { { "bi", "di" }, { "ba", "da" }, { "bu", "du" }, { "ski", "ba" } };
+            int pr = SR(4), n = 6 + 2 * SR(2);
+            for (int i = 0; i < n; i++) { scat_add(PAIRS[pr][i & 1], 2, p); if (i & 1) p = sc_clamp(p + 1); }
+            scat_add(SCAT_PICK(SCAT_END), 4, p);
+        }
+        if (sn_n > start) sn[sn_n - 1].rest = (unsigned char)(4 + SR(5));   // a breath after the phrase
+        prev0 = start; prev1 = sn_n;
+    }
+    // the plan as text, one word per note: the Singer reads it (lyr_set, Spanish rules)
     int len = 0;
-    for (int p = 0; p < 6; p++) {
-        int n = 5 + (int)(scat_rand() % 6);                   // 5..10 syllables
-        for (int i = 0; i < n; i++) {
-            const char *w;
-            if (i == n - 1) w = SCAT_END[scat_rand() % NE];  // land the phrase
-            else if (i >= 2 && scat_rand() % 3 == 0) w = got[i - 2];   // a repeat: the groove
-            else w = SCAT_SYL[scat_rand() % NS];
-            got[i] = w;
-            int wl = (int)strlen(w);
-            if (len + wl + 3 >= (int)sizeof scat_text) { n = i; break; }
-            memcpy(scat_text + len, w, (size_t)wl); len += wl;
-            scat_text[len++] = (i == n - 1) ? ',' : ' ';
-            if (i == n - 1) scat_text[len++] = ' ';
-            scat_text[len] = 0;
-        }
-        if (n > 0) scat_phr[scat_nphr++] = n;
+    scat_text[0] = 0;
+    for (int i = 0; i < sn_n; i++) {
+        int wl = (int)strlen(sn[i].w);
+        if (len + wl + 3 >= (int)sizeof scat_text) { sn_n = i; break; }
+        memcpy(scat_text + len, sn[i].w, (size_t)wl); len += wl;
+        if (sn[i].rest) scat_text[len++] = ',';
+        scat_text[len++] = ' ';
+        scat_text[len] = 0;
     }
 }
+
+// THE BAND: one beat of walking bass + snaps. Roots of a 12-bar blues in G (G7 C7 D7), a walking line:
+// root, a chord tone, another, then a half step into the next bar's root.
+static const int BLUES12[12] = { 43, 48, 43, 43, 48, 48, 43, 43, 50, 48, 43, 50 };   // G C G G / C C G G / D C G D (quick-change bar 2)
+static void band_beat(void) {
+    int bar = (sc_beat / 4) % 12, b = sc_beat % 4;
+    int root = BLUES12[bar], next = BLUES12[(bar + 1) % 12];
+    static const int TONES[4] = { 4, 7, 9, 10 };          // 3rd, 5th, 6th, b7 of a dominant 7
+    static unsigned bseed = 7u;                           // the band's own dice: switching it off keeps the same phrases
+    bseed = bseed * 1664525u + 1013904223u;
+    unsigned r = bseed >> 8;
+    int m = b == 0 ? root : b == 3 ? next + ((r & 1) ? 1 : -1) : root + TONES[(r >> 1) % 4];
+    while (m > 55) m -= 12;
+    while (m < 36) m += 12;
+    hit(m, BASS_SLOT, b == 0 ? 6 : 5, 280);
+    if (b == 1 || b == 3) hit(84, SNAP_SLOT, 4, 40);       // snaps on 2 and 4
+    sc_beat++;
+}
+
 static void scat_step(void) {
-    if (note_left > 0 && --note_left > 0) return;
-    if (rest_left > 0) { rest_left--; return; }
-    if (sc_ph >= scat_nphr || sc_in >= scat_phr[sc_ph]) {    // a phrase done: breathe
-        singer_off(&sing);
-        rest_left = 3 + (int)(scat_rand() % 3);
-        sc_in = 0;
-        if (++sc_ph >= scat_nphr) {                         // all sung: write new ones
-            scat_gen();
-            lyr_set(&lyr, LYR_ES, scat_text);
-            lyr_phonemes(&lyr, phon, sizeof phon);
-            singer_restart(&sing);
-            sc_ph = 0;
-        }
-        return;
+    if (band && sc_tick++ % SCAT_TICKS_PER_BEAT == 0) band_beat();
+    if (sc_wait > 0 && --sc_wait > 0) return;
+    if (sc_rest) { singer_off(&sing); sc_wait = sc_rest; sc_rest = 0; return; }   // a breath
+    if (sn_i >= sn_n) {                                   // all sung: write new phrases
+        scat_gen();
+        lyr_set(&lyr, LYR_ES, scat_text);
+        lyr_phonemes(&lyr, phon, sizeof phon);
+        singer_restart(&sing);
+        sn_i = 0;
     }
-    if (sc_in == 0) sc_note = 3 + (int)(scat_rand() % 5);    // each phrase starts somewhere new
-    else { sc_note += (int)(scat_rand() % 5) - 2; if (sc_note < 0) sc_note = 1; if (sc_note >= NBLUES) sc_note = NBLUES - 2; }
-    sing_note(BLUES[sc_note]);
-    note_left = (sc_in % 2 == 0) ? 2 : 1;                   // swung: long, short
-    sc_in++;
+    const ScatNote *N = &sn[sn_i++];
+    sc_last = N->pit;
+    sing_note(BLUES[N->pit]);
+    sc_wait = N->dur;
+    sc_rest = N->rest;
 }
+static void scat_reset(void) { sn_i = sc_wait = sc_rest = sc_tick = sc_beat = 0; }
 
 static void pick_lyric(int k) {
     which = k;
-    if (SONGS[k].scat) { scat_gen(); sc_ph = sc_in = 0; }
+    if (SONGS[k].scat) { scat_gen(); scat_reset(); }
     lyr_set(&lyr, SONGS[k].lang, SONGS[k].text);
     lyr_phonemes(&lyr, phon, sizeof phon);
     singer_stop(&sing);                                   // a sounding note must let go before init forgets it
@@ -256,6 +322,16 @@ void init(void) {
     instrument(SLOT, INSTR_VOICE, 5, 60, 7, 190);
     reverb(0.45f, 0.5f);
     instrument_reverb(SLOT, 0.25f);
+    instrument(BASS_SLOT, INSTR_BOWED, 4, 0, 7, 260);       // the walking bass: a pizzicato upright
+    instrument_mode(BASS_SLOT, MODE_BOW_PIZZ, 1.0f);
+    instrument_mode(BASS_SLOT, MODE_BOW_BODY, 0.85f);
+    instrument_mode(BASS_SLOT, MODE_BOW_SIZE, BOW_SIZE_BASS);
+    instrument_filter(BASS_SLOT, FILTER_LOW, 1300, 3);
+    instrument_harmonics(BASS_SLOT, 0.30f); instrument_timbre(BASS_SLOT, 0.30f); instrument_morph(BASS_SLOT, 0.45f);
+    instrument_reverb(BASS_SLOT, 0.12f);
+    instrument(SNAP_SLOT, INSTR_NOISE, 0, 40, 0, 20);       // a finger snap: a short bright click
+    instrument_filter(SNAP_SLOT, FILTER_BAND, 2600, 5);
+    instrument_reverb(SNAP_SLOT, 0.3f);
     Saved sv;
     if (load_bytes(&sv, sizeof sv) == (int)sizeof sv && sv.ver == 1 && sv.text[0]) {
         sv.text[USER_MAX - 1] = 0;
@@ -343,13 +419,14 @@ static void keys_step(void) {
     if (keyp(' ')) { autop = !autop; singer_off(&sing); note_left = rest_left = 0; }
     for (int k = 0; k < NSONGS && k < 10; k++) if (keyp(k < 9 ? '1' + k : '0')) pick_lyric(k);   // 1..9, then 0
     if (keyp('V')) { casc = !casc; sing.parallel = !casc; }
+    if (keyp('B')) band = !band;                           // scat's band on/off
     if (keyp('L')) { sung = !sung; apply_voice(); }
     if (keyp(KEY_UP) || keyp(KEY_DOWN)) {                 // set-and-hold: only when it changes
         float b = kv[K_BUZZ] + (keyp(KEY_UP) ? 0.25f : -0.25f);
         kv[K_BUZZ] = b < 0.0f ? 0.0f : b > 1.0f ? 1.0f : b;
         apply_voice();
     }
-    if (keyp('R')) { singer_off(&sing); singer_restart(&sing); syl_i = words = mel_i = note_left = 0; sc_ph = sc_in = 0; }
+    if (keyp('R')) { singer_off(&sing); singer_restart(&sing); syl_i = words = mel_i = note_left = 0; scat_reset(); }
     static const char KEYS[8] = { 'A', 'S', 'D', 'F', 'G', 'H', 'J', 'K' };
     for (int k = 0; k < 8; k++) {
         if (keyp(KEYS[k])) { autop = 0; sing_note(NOTES[k]); keyheld = k; }
@@ -442,6 +519,7 @@ void draw(void) {
     }
     print(SONGS[which].name, 8, 153, CLR_YELLOW);
     print(sung ? "L: sung" : "L: plain", SCREEN_W - 110, 153, sung ? CLR_PINK : CLR_DARK_GREY);
+    if (SONGS[which].scat) print(band ? "B: band" : "B: solo", SCREEN_W - 160, 153, band ? CLR_GREEN : CLR_DARK_GREY);
     { const char *m = casc ? "V: cascade" : "V: parallel"; print(m, SCREEN_W - 8 - text_width(m), 153, casc ? CLR_ORANGE : CLR_DARK_GREY); }
     print("ENTER type  1-9,0 song  R restart  @ = schwa  x = g/ch", 8, SCREEN_H - 8, CLR_DARK_GREY);
     font(FONT_NORMAL);

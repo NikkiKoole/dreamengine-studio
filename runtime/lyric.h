@@ -1,7 +1,7 @@
 // lyric.h — sung WORDS for INSTR_VOICE: type a lyric, every note sings the next syllable.
 //
 // Languages: LYR_NL (Dutch, by spelling rules), LYR_MIPOMI (the playtime Mipos' CV language), and by
-// simpler rule tables LYR_JA (Japanese romaji), LYR_ES (Spanish), LYR_SW (Swahili).
+// simpler rule tables LYR_JA (Japanese romaji), LYR_ES (Spanish), LYR_SW (Swahili), LYR_HAW (Hawaiian).
 //
 // Two halves:
 //   1. READING: lyr_set(&lyr, LYR_NL, "ik hou van jou") turns text into syllables (onset consonants,
@@ -58,8 +58,8 @@
 #include <math.h>
 #include <string.h>
 
-enum { LYR_NL = 0, LYR_MIPOMI = 1, LYR_JA = 2, LYR_ES = 3, LYR_SW = 4, LYR_NLANG };   // Dutch · Mipomi · Japanese · Spanish · Swahili
-static const char *const lyr_lang_name[LYR_NLANG] = { "Nederlands", "Mipomi", "Nihongo", "Espanol", "Kiswahili" };
+enum { LYR_NL = 0, LYR_MIPOMI = 1, LYR_JA = 2, LYR_ES = 3, LYR_SW = 4, LYR_HAW = 5, LYR_NLANG };   // Dutch · Mipomi · Japanese · Spanish · Swahili · Hawaiian
+static const char *const lyr_lang_name[LYR_NLANG] = { "Nederlands", "Mipomi", "Nihongo", "Espanol", "Kiswahili", "Hawaii" };
 
 // consonant ids: mirror INSTR_VOICE's voice_consonant()/voice_coda() ids (sound.h VC_*, append-only)
 enum { LC_B, LC_D, LC_G, LC_M, LC_N, LC_L, LC_S, LC_SH, LC_NG, LC_R, LC_W, LC_Y, LC_DH, LC_F, LC_V,
@@ -389,6 +389,9 @@ static int lyr__rt_cons(const char *w, int i, int n, int lang, int *ids, int *ni
         if (c == 'c' && d == 'h') LYR__ONE(LC_CH, 2);
         if (c == 't' && d == 's') LYR__TWO(LC_T, LC_S, 2);
         if (c == 'r' || c == 'l') LYR__ONE(LC_R, 1);
+    } else if (lang == LYR_HAW) {                                 // h k l m n p w (+ loanword letters below)
+        char b = i > 0 ? w[i - 1] : 0;
+        if (c == 'w') LYR__ONE((b == 'i' || b == 'e') ? LC_V : LC_W, 1);   // w after i/e sounds as v
     } else {                                                      // Swahili
         if (c == 'n' && d == 'g' && e == '\'') LYR__ONE(LC_NG, 3);   // ng' = the ng of "sing"
         if (c == 'n' && d == 'y') LYR__TWO(LC_N, LC_Y, 2);
@@ -427,17 +430,17 @@ static int lyr__rt_put(signed char *dst, int k, int id) {         // append a co
     return k;
 }
 static void lyr__rule_word(Lyric *L, const char *w, int n, int lang) {
-    LyrRTok t[48]; int nt = 0, acc = 0;
+    LyrRTok t[48]; int nt = 0, acc = 0, brk = 0;
     for (int i = 0; i < n && nt < 44; ) {
-        if (w[i] == '^') { acc = 1; i++; continue; }              // an accent: the next vowel is a full one
-        if (w[i] == '|') { i++; continue; }
+        if (w[i] == '^') { acc = 1; i++; continue; }              // an accent / a macron: the next vowel is a full one
+        if (w[i] == '|') { brk = 1; i++; continue; }              // a hiatus / the okina: no diphthong across it
         int v = lyr__rt_vowel(w[i], lang);
         if (lang == LYR_ES && w[i] == 'y' && (i + 1 == n || lyr__rt_vowel(w[i + 1], lang) < 0)) v = LV_IE;   // y not before a vowel = i (muy, hoy, the word "y")
         if (v >= 0) {
             LyrRTok *T = &t[nt++];
             T->kind = LYR__TV; T->id = (unsigned char)v; T->acc = (unsigned char)acc;
-            T->a = (unsigned char)i; T->len = 1; T->moraic = 0;
-            acc = 0; i++; continue;
+            T->a = (unsigned char)i; T->len = 1; T->moraic = (unsigned char)brk;   // (moraic on a vowel = a break before it)
+            acc = brk = 0; i++; continue;
         }
         int ids[3], nid, used = lyr__rt_cons(w, i, n, lang, ids, &nid);
         for (int k = 0; k < nid && nt < 44; k++) {
@@ -473,6 +476,20 @@ static void lyr__rule_word(Lyric *L, const char *w, int n, int lang) {
         for (int k = 0; k < nt; k++) if (t[k].kind != 255) t[j++] = t[k];
         nt = j;
     }
+    // Hawaiian diphthongs (ai au ei oi ou, sung on one note) unless a macron or the okina keeps them apart
+    if (lang == LYR_HAW) {
+        for (int k = 0; k + 1 < nt; k++) {
+            LyrRTok *A = &t[k], *B = &t[k + 1];
+            if (A->kind != LYR__TV || B->kind != LYR__TV || A->acc || B->acc || B->moraic) continue;
+            int m = -1;
+            if (B->id == LV_IE) m = A->id == LV_AA ? LV_AI : A->id == LV_EP ? LV_EI : A->id == LV_OP ? LV_OI : -1;
+            else if (B->id == LV_OE) m = A->id == LV_AA ? LV_AU : A->id == LV_OP ? LV_OO : -1;
+            if (m >= 0) { A->id = (unsigned char)m; A->len = (unsigned char)(B->a + B->len - A->a); B->kind = 255; k++; }
+        }
+        int j = 0;
+        for (int k = 0; k < nt; k++) if (t[k].kind != 255) t[j++] = t[k];
+        nt = j;
+    }
     // syllables: one per vowel; the consonants before it split into the last syllable's coda and its onset
     int first = 1, prevv = -1;
     for (int k = 0; k <= nt; k++) {
@@ -489,7 +506,7 @@ static void lyr__rule_word(Lyric *L, const char *w, int n, int lang) {
             if (r >= 2 && lyr__es_onset2(t[c1 - 2].id, t[c1 - 1].id)) split = c1 - 2;
             else if (r >= 2 && t[c1 - 1].id == LC_Y && t[c1 - 1].len == 0) split = c1 - 2;   // the n-tilde stays together
             else if (r >= 1) split = c1 - 1;
-        }                                                         // Swahili: every syllable open (all onset)
+        }                                                         // Swahili, Hawaiian: every syllable open (all onset)
         if (prevv >= 0 && L->n > 0) {                             // codas of the previous syllable
             LyrSyl *P = &L->syl[L->n - 1];
             for (int q = c0; q < split; q++) P->nco = (unsigned char)lyr__rt_put(P->co, P->nco, t[q].id);
@@ -505,7 +522,7 @@ static void lyr__rule_word(Lyric *L, const char *w, int n, int lang) {
         int b = n;
         for (int q = k + 1; q < nt; q++) if (t[q].kind == LYR__TV) {   // where the next syllable's onset starts
             int nc0 = k + 1, nc1 = q, nsplit = nc1 - 1;
-            if (lang == LYR_SW || nc1 == nc0) nsplit = nc0;
+            if (lang == LYR_SW || lang == LYR_HAW || nc1 == nc0) nsplit = nc0;
             else if (lang == LYR_JA) nsplit = (t[nc0].moraic || (nc1 - nc0 >= 2 && t[nc0].id == t[nc0 + 1].id)) ? nc0 + 1 : nc0;
             else if (nc1 - nc0 >= 2 && (lyr__es_onset2(t[nc1 - 2].id, t[nc1 - 1].id) || (t[nc1 - 1].id == LC_Y && t[nc1 - 1].len == 0))) nsplit = nc1 - 2;
             b = nsplit < nc1 ? t[nsplit].a : t[q].a;
@@ -556,10 +573,22 @@ static void lyr_set(Lyric *L, int lang, const char *text) {
             if (hi && n < (int)sizeof w - 1) w[n++] = '|';
             if (ac && n < (int)sizeof w - 1) w[n++] = '^';
         }
+        if ((c == 0xC4 || c == 0xC5) && p[1]) {            // UTF-8 macron vowels (Hawaiian, Maori): a long vowel = a full one
+            int d = p[1] | (c << 8); p++;
+            c = (d == 0xC480 || d == 0xC481) ? 'a' : (d == 0xC492 || d == 0xC493) ? 'e' : (d == 0xC4AA || d == 0xC4AB) ? 'i' :
+                (d == 0xC58C || d == 0xC58D) ? 'o' : (d == 0xC5AA || d == 0xC5AB) ? 'u' : 0;
+            if (c && n < (int)sizeof w - 1) w[n++] = '^';
+        }
+        if (c == 0xCA && p[1] == 0xBB) {                   // the Hawaiian okina (a glottal stop): a break between vowels
+            p++;
+            if (n && n < (int)sizeof w - 1) w[n++] = '|';
+            continue;
+        }
         if (c >= 'a' && c <= 'z') letter = 1;
         if (letter) { if (n < (int)sizeof w - 1) w[n++] = (char)c; continue; }
         if (c == '\'') {                                   // apostrophes: ignored ("'s", "m'n"), but Swahili's ng' needs its own
             if (lang == LYR_SW && n && n < (int)sizeof w - 1) w[n++] = '\'';
+            if (lang == LYR_HAW && n && n < (int)sizeof w - 1) w[n++] = '|';    // a typed okina
             continue;
         }
         if (n) {
@@ -870,6 +899,11 @@ static void lyr_selfcheck(void) {
     lyr__expect_in(LYR_SW, "ng'ombe",     "ngo.mbe");
     lyr__expect_in(LYR_SW, "nyumba",      "njoe.mbaa");
     lyr__expect_in(LYR_SW, "ndege wanaimba", "nde.ge waa.naa.ie.mbaa");
+    // Hawaiian: open syllables, ai/au/ei/oi/ou on one note, the okina and macrons keep vowels apart, w = v after i/e
+    lyr__expect_in(LYR_HAW, "aloha",            "aa.lo.haa");
+    lyr__expect_in(LYR_HAW, "Hawai\xCA\xBBi",   "haa.wai.ie");
+    lyr__expect_in(LYR_HAW, "m\xC4\x81kou",     "maa.koo");
+    lyr__expect_in(LYR_HAW, "ewa iwi",          "e.vaa ie.vie");
 }
 #endif
 

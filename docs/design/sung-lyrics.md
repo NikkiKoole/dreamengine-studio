@@ -2,9 +2,9 @@
 
 STATUS: BUILDING (2026-11-15) — `runtime/lyric.h` reads **Dutch** by spelling rules and sings it on
 `INSTR_VOICE`, one syllable per note, plus **Mipomi** (the playtime Mipos' language), **Japanese**
-(romaji), **Spanish** and **Swahili**; the `zingen` cart is the demo (three Dutch lyrics, "Fala, Foni",
+(romaji), **Spanish**, **Swahili** and **Hawaiian**; the `zingen` cart is the demo (three Dutch lyrics, "Fala, Foni",
 a Mipomi lullaby on a written melody, one song in each new language) and runs
-`lyr_selfcheck()` (23 Dutch words, 3 Mipomi phrases, 13 Japanese/Spanish/Swahili, `node tools/spec.js zingen`). Voice knobs in zingen (SIZE,
+`lyr_selfcheck()` (23 Dutch words, 3 Mipomi phrases, 17 Japanese/Spanish/Swahili/Hawaiian, `node tools/spec.js zingen`). Voice knobs in zingen (SIZE,
 BUZZ, VIBRATO, GLIDE, LIFE, PITCH, WHISPER, NASAL + DEFAULT, and one-tap CHARACTERS: CLEAN CHIPMUNK MONSTER ROBOT ALIEN PHONE MEGAPHONE, each = knob settings
 + its own slot effects (filter, drive, ring mod, flanger) + a level that evens them out; `singer_size`/`singer_buzz` + the Singer fields). Type your own line
 in zingen (ENTER, TAB = Dutch/Mipomi, ENTER again: it sings it; remembered with `save_bytes`).
@@ -81,10 +81,11 @@ unrounded Japanese u ("u'"), and the Spanish diphthongs ai / oi.
 |---|---|---|
 | Japanese (romaji, `LYR_JA`) | every mora a note (saite = sa.i.te); shi chi tsu, j = d+zh; the moraic n and the small tsu (a doubled consonant) close the syllable before | konnichiwa → kon.nie.chie.waa, kitte → kiet.te |
 | Spanish (`LYR_ES`) | ch ll ñ qu gu/gü, c/g soft before e i (seseo, jota), h silent; rr and a word-initial r = three quick d taps (a trill); an unaccented i/u before a vowel is a glide, after a/e/o a diphthong; y alone or final = i; consonant + l/r or + a glide starts a syllable | corazón → ko.raa.son, perro → pe.dddo, agua → aa.gwaa |
+| Hawaiian (`LYR_HAW`, 2026-11-15) | h k l m n p w, every syllable open; ai au ei oi ou on one note; macrons (ā ē ī ō ū, UTF-8) = a long vowel that never merges; the okina (ʻ, or a typed apostrophe) = a break, so Hawaiʻi = haa.wai.ie; w sounds as v after i/e | aloha → aa.lo.haa, mākou → maa.koo, ewa → e.vaa |
 | Swahili (`LYR_SW`) | every syllable open; mb nd ng nj prenasalized onsets; ng' (the apostrophe is kept), ny, ch sh dh th gh kh; every vowel its own note (kaa = ka.a) | jambo → dzhaa.mbo, ng'ombe → ngo.mbe |
 
 Approximations the voice forces: no dʒ (built as d + zh), no real trill (taps), the single r is the
-engine's approximant. zingen: songs 5-7 (our own lines), TAB in the text box cycles all five languages.
+engine's approximant. zingen: songs 5-8 (our own lines), TAB in the text box cycles all six languages.
 
 ## Mipomi
 
@@ -100,7 +101,7 @@ vowel).
 
 - **By ear first**: are the vowel targets right (uu/eu/ui are approximations; F3 is not moved), are
   clusters intelligible (str, schr), does the coda timing feel sung or clipped.
-- More languages: Hawaiian (13 letters, all CV: nearly free), Yoruba (tonal: the accent marks could
+- More languages: Maori (the macron path is already in), Yoruba (tonal: the accent marks could
   steer the melody), Italian; English needs a dictionary. Click languages (Zulu, Xhosa) need a click the
   voice cannot make yet.
 - A lyric generator (JIANT's templates + themed word banks, sized to the pattern's note count).

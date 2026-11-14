@@ -142,7 +142,7 @@ runtime/   studio.h (public API), studio.c (Raylib impl + main()), sound.h (audi
              mono.h      monosynth key assign (note priority + trigger mode) + mono_selfcheck
              patgen.h    latched pattern generator (orders, rest masks, octave chance) + selfcheck; latchbox
              tonnetz.h   chords as places (P/L/R/N/S/H moves, triangle map, automaton) + selfcheck
-             lyric.h     sung words for INSTR_VOICE: Dutch/Mipomi/Japanese/Spanish/Swahili text → syllables, a Singer per melody line + lyr_selfcheck; design/sung-lyrics.md
+             lyric.h     sung words for INSTR_VOICE: Dutch/Mipomi/Japanese/Spanish/Swahili/Hawaiian text → syllables, a Singer per melody line + lyr_selfcheck; design/sung-lyrics.md
              solo.h      scale-locked solo strip over a radio (pairs radio.h)
              radio.h     radio-station chrome (chassis, seeded songs, knobs)
              improv.h    melodic auto-solo for the radio stations

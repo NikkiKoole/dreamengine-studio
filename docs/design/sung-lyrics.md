@@ -4,7 +4,7 @@ STATUS: BUILDING (2026-11-13) — `runtime/lyric.h` reads **Dutch** by spelling 
 `INSTR_VOICE`, one syllable per note, and **Mipomi** (the playtime Mipos' language); the `zingen`
 cart is the demo (three Dutch lyrics + "Fala, Foni", a Mipomi lullaby on a written melody) and runs
 `lyr_selfcheck()` (23 Dutch words + 3 Mipomi phrases, `node tools/spec.js zingen`). Voice knobs in zingen (SIZE,
-BUZZ, VIBRATO, GLIDE, LIFE, PITCH + DEFAULT, and one-tap CHARACTERS: CLEAN CHIPMUNK MONSTER ROBOT ALIEN PHONE MEGAPHONE, each = knob settings
+BUZZ, VIBRATO, GLIDE, LIFE, PITCH, WHISPER, NASAL + DEFAULT, and one-tap CHARACTERS: CLEAN CHIPMUNK MONSTER ROBOT ALIEN PHONE MEGAPHONE, each = knob settings
 + its own slot effects (filter, drive, ring mod, flanger) + a level that evens them out; `singer_size`/`singer_buzz` + the Singer fields). Type your own line
 in zingen (ENTER, TAB = Dutch/Mipomi, ENTER again: it sings it; remembered with `save_bytes`).
 

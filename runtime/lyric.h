@@ -439,6 +439,8 @@ typedef struct {
     float rat, rt0;
     int parallel;                // 0 (default) = sing through the Klatt CASCADE formants (note_aux 19), 1 = the parallel model
     float size;                  // vocal-tract SIZE 0 giant .. 1 child (engine idx 1, its own default 0.33); < 0 (default) = leave it. singer_size()
+    float whisper;               // 0 sung .. 1 whispered (engine idx 20: the voicing fades, breath alone). singer_whisper()
+    float nasal;                 // 0 open .. 1 hummed, through the nose (voice_nasal). singer_nasal()
     float buzz;                  // EFFORT / BUZZ 0 relaxed, round .. 1 pressed, bright (breath + open quotient + tilt);
                                  // < 0 (the default) = leave the engine's own. Set with singer_buzz().
     // THE SINGER LAYER (after JIANT FM's, ideas only): what makes a voice sound sung, not played.
@@ -472,6 +474,15 @@ static void singer__buzz_poke(int h, float e) {
     note_aux(h, 2, 0.22f - 0.22f * e);                    // breath
     note_aux(h, 3, 0.85f - 0.65f * e);                    // open quotient
     note_aux(h, 4, 0.70f - 0.65f * e);                    // tilt
+}
+// WHISPER and NASAL on the held note and every next one (0 = off, the default)
+static void singer_whisper(Singer *s, float x) {
+    s->whisper = x < 0.0f ? 0.0f : x > 1.0f ? 1.0f : x;
+    if (s->h) note_aux(s->h, 20, s->whisper);
+}
+static void singer_nasal(Singer *s, float x) {
+    s->nasal = x < 0.0f ? 0.0f : x > 1.0f ? 1.0f : x;
+    if (s->h) voice_nasal(s->h, s->nasal);
 }
 // the vocal-tract SIZE on the held note and every next one (0 giant .. 0.33 the voice's own .. 1 child)
 static void singer_size(Singer *s, float x) {
@@ -569,6 +580,8 @@ static int singer_on(Singer *s, int midi, int vol) {
     note_aux(h, 19, s->parallel ? 0.0f : 1.0f);           // cascade formants: rounder, more present (chosen by ear)
     if (s->buzz >= 0.0f) singer__buzz_poke(h, s->buzz);
     if (s->size >= 0.0f) note_aux(h, 1, s->size);
+    if (s->whisper > 0.0f) note_aux(h, 20, s->whisper);
+    if (s->nasal > 0.0f) voice_nasal(h, s->nasal);
     lyr__place(h, s->base, vf[0], vf[1]);
     voice_coda(h, -1);
     s->on_k = 0; s->on_at = s->t;

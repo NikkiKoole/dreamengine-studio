@@ -215,6 +215,15 @@ old-man rasp).
 
 ## Decision log
 
+- **2026-11-14** — **WHISPER (idx 20) and a level-honest nasal colour in the cascade.** WHISPER fades the
+  voicing out and puts un-pulsed white breath through the same formants (`VOX_WHISPER_CASC` 0.75 /
+  `VOX_WHISPER_PAR` 1.4, level-matched: full whisper ~2 dB under the sung voice in both models); the
+  pitch goes, the words stay. VOX_NPARAM 21, `vox_p/vox_s` grown to [24]. `voice_nasal` in the cascade
+  had cost 17 dB at full (the nasal zero ~9, the F1 damping + hum morph ~8): a colour now moves the zero
+  only `VOX_NASAL_COLOR` (0.35) of the way a closed m does, with `VOX_NASAL_MAKEUP` gain, so a full hum
+  sits ~4 dB under the open voice. Both cascade-only or guarded at 0: voxsize/amb1/singsample render
+  byte-identical. lyric.h `singer_whisper` / `singer_nasal`; zingen knobs WHISPER and NASAL.
+
 - **2026-11-13** — **Cascade BUZZ source + nasal pair; the instrument macros finally reach a voice.**
   (1) In the cascade only, a JIANT-style glottal flow (ideas only): opens over 65 % of the open phase,
   closes in a quarter cosine that hits zero still falling (an ABRUPT closure, the per-period click that

@@ -284,8 +284,8 @@ typedef struct {
     // formants with a continuous vowel morph. EXPERIMENTAL: the raw params live FLAT in vox_p[]
     // (poked by note_aux() — the voxlab fat prototype) instead of riding the 3 macro knobs,
     // so we can audition which three deserve to become harmonics/timbre/morph. vowels-only for now.
-    float  vox_p[20];                // raw param TARGETS 0..1 (note_aux idx, must hold VOX_NPARAM): vowel/size/breath/openQ/tilt/vibDepth/vibRate/nasality/openness/frontness + EXPERIMENTAL 10 buzz·11 jitter·12 shimmer·13 creak·14 nasalAF·15 reduce·16 measBW
-    float  vox_s[20];                // slewed copies (per-sample one-pole → no zipper on slider moves)
+    float  vox_p[24];                // raw param TARGETS 0..1 (note_aux idx, must hold VOX_NPARAM): vowel/size/breath/openQ/tilt/vibDepth/vibRate/nasality/openness/frontness + EXPERIMENTAL 10 buzz·11 jitter·12 shimmer·13 creak·14 nasalAF·15 reduce·16 measBW
+    float  vox_s[24];                // slewed copies (per-sample one-pole → no zipper on slider moves)
     float  vox_glot_ph;              // glottal pulse phase
     float  vox_tilt_lp;              // spectral-tilt 1-pole state
     float  vox_vib_ph;               // vibrato LFO phase
@@ -900,7 +900,7 @@ typedef struct {
 } ShimVoice;
 #define FXMOD_N 7                                   // active targets: studio.h FXMOD_FILTER_CUT(0)..FXMOD_SHIMMER_MIX(6)
 #define VARI_BUF (SOUND_SAMPLE_RATE * 2)   // 2 s — room for a long dive before the read laps the write
-#define VOX_NPARAM 20   // 0 vowel·1 size·2 breath·3 openq·4 tilt·5 vibDepth·6 vibRate · 7 nasality·8 openness(F1)·9 frontness(F2) + EXPERIMENTAL 10 buzz·11 jitter·12 shimmer·13 creak·14 nasalAF·15 reduce·16 measBW·17 vow2(diphthong target 0..9)·18 glide(0=primary→1=at vow2) · 19 cascade (0 = 4 parallel formants, 1 = Klatt cascade F1→F4)
+#define VOX_NPARAM 21   // 0 vowel·1 size·2 breath·3 openq·4 tilt·5 vibDepth·6 vibRate · 7 nasality·8 openness(F1)·9 frontness(F2) + EXPERIMENTAL 10 buzz·11 jitter·12 shimmer·13 creak·14 nasalAF·15 reduce·16 measBW·17 vow2(diphthong target 0..9)·18 glide(0=primary→1=at vow2) · 19 cascade (0 = 4 parallel formants, 1 = Klatt cascade F1→F4) · 20 whisper (0 sung → 1 voicing off, breath only)
 #define EMIT_DL_LEN  3072      // grain buffer per bus (~70ms @44100), stereo
 
 typedef struct {

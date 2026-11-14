@@ -5114,7 +5114,7 @@ static inline float sound_brass_sample(Voice *v, float pitch_mul) {
 // to become the public harmonics/timbre/morph macros. navkit crib: processVoicFormOscillator /
 // vfPhonemeTable (navkit/soundsystem/engines/synth_oscillators.h). The formant SVF here is the
 // same Chamberlin topology as navkit's processFormantFilter and dreamengine's own filter().
-_Static_assert(VOX_NPARAM <= 20, "grow Voice.vox_p[]/vox_s[] (sized [20]) before raising VOX_NPARAM");
+_Static_assert(VOX_NPARAM <= 24, "grow Voice.vox_p[]/vox_s[] (sized [24]) before raising VOX_NPARAM");
 // vowel table — navkit's full 10 vfPhonemeTable vowel rows (Klatt 1980 / Peterson-Barney 1952):
 // F1..F4 (Hz) + relative amps + measured bandwidths. Rows 0..4 are the U→O→A→E→I path the idx-0
 // `vowel` macro morphs along (close-back → open → close-front, UNCHANGED — vox/voxlab/say feel as
@@ -5294,6 +5294,10 @@ static inline float vox_burst_env(float dt) {
 #define VOX_F1_TRACK  1.0625f  // F1 never sits below F0 × this (sung high notes: F1 follows the pitch)
 #define VOX_CASC_GAIN 8.2f     // cascade mode: output gain after radiation (level-matched to the parallel path by ear/RMS)
 #define VOX_PRESENCE  5.0f     // cascade mode: presence-shelf depth at full EFFORT (pressed)
+#define VOX_WHISPER_CASC 0.75f  // whisper breath level into the cascade (level-matched to the sung voice)
+#define VOX_WHISPER_PAR  1.4f   // … and into the parallel formants
+#define VOX_NASAL_COLOR  0.35f // cascade: how far voice_nasal moves the nasal zero (a full m/n/ng moves it all the way)
+#define VOX_NASAL_MAKEUP 2.2f  // cascade: level make-up at full voice_nasal (×3.2; a hum ends ~4 dB under the open voice)
 #define VOX_NASAL_P   270.0f   // cascade mode: nasal pole (Hz, Klatt's FNP)
 #define VOX_NASAL_Z   450.0f   // cascade mode: nasal zero for a full m/n/ng (Hz; it sits on the pole when oral)
 #define VOX_IS_NASAL(c) ((c) == VC_M || (c) == VC_N || (c) == VC_NG)
@@ -5324,7 +5328,8 @@ static void sound_voice_start(Voice *v) {
                                     0.0f, 0.5f, 0.5f,                              // nasality off · open/front neutral (×1.0)
                                     1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,      // buzz=full glottal · jitter/shimmer/creak/nasalAF/reduce/measBW off
                                     0.0f, 0.0f,                                    // vow2 target=U · glide off (no diphthong)
-                                    0.0f };                                        // parallel formants (1 = Klatt cascade)
+                                    0.0f,                                          // parallel formants (1 = Klatt cascade)
+                                    0.0f };                                        // whisper off (sung)
     for (int i = 0; i < VOX_NPARAM; i++) v->vox_p[i] = v->vox_s[i] = def[i];
     v->vox_glot_ph = v->vox_tilt_lp = v->vox_vib_ph = 0.0f;
     v->vox_jit_mul = v->vox_shim_mul = 1.0f; v->vox_creak_skip = 0;
@@ -5371,6 +5376,7 @@ static inline float sound_voice_sample(Voice *v, float pitch_mul) {
     float reduce = v->vox_s[15];                 // vowel reduction toward schwa (unstressed collapse)
     float bwmode = v->vox_s[16];                 // 0 = derived bandwidths → 1 = navkit measured BW table
     float glide  = v->vox_s[18];                 // diphthong: 0 = primary vowel → 1 = fully at vow2
+    float whisper= v->vox_s[20];                 // 0 sung → 1 whispered (the vocal folds stop; breath alone through the tract)
 
     // vibrato → pitch (±~1 semitone at full depth)
     v->vox_vib_ph += vibr / SR; if (v->vox_vib_ph >= 1.0f) v->vox_vib_ph -= 1.0f;
@@ -5561,6 +5567,11 @@ static inline float sound_voice_sample(Voice *v, float pitch_mul) {
     v->vox_br_lp2 += bc * (v->vox_br_lp1 - v->vox_br_lp2);
     float bnz = v->vox_br_lp2 * 1.4f * (t < te ? 1.0f : 0.5f);
     float vsrc = src * (1.0f - breath * 0.5f) + bnz * (breath * 0.5f);   // voice + breath (what a tract filters)
+    // WHISPER (idx 20): the voicing fades out and turbulent breath (white, NOT pulsed with a glottis that
+    // is no longer vibrating) takes its place, through the same formants, so the words stay and the
+    // pitch goes. Level-matched per model (VOX_WHISPER_*). 0 = untouched (the branch is skipped).
+    if (whisper > 0.0001f)
+        vsrc = vsrc * (1.0f - whisper) + nz * whisper * (casc ? VOX_WHISPER_CASC : VOX_WHISPER_PAR);
     float cn = cnz * con_noise;                                            // consonant noise, already placed
     src = vsrc + cn;
 
@@ -5578,7 +5589,7 @@ static inline float sound_voice_sample(Voice *v, float pitch_mul) {
         // anti-resonance that sits ON it (cancelling it: no effect) for an oral vowel and moves up to
         // VOX_NASAL_Z for m/n/ng (nas_w) or a nasal colour (voice_nasal), leaving the low murmur and a
         // hole above it. The upper formants widen with it (a closed mouth: sound only via the nose).
-        float nw = nas_w > nasal * 0.6f ? nas_w : nasal * 0.6f;
+        float nw = nas_w > nasal * VOX_NASAL_COLOR ? nas_w : nasal * VOX_NASAL_COLOR;   // a colour is a shallower zero than a closed m
         float fp = VOX_NASAL_P * shift, fz = (VOX_NASAL_P + (VOX_NASAL_Z - VOX_NASAL_P) * nw) * shift;
         float bwn = 100.0f * shift;
         float r = de_expf(-SOUND_PI * bwn / SR), C = -r * r;
@@ -5606,7 +5617,7 @@ static inline float sound_voice_sample(Voice *v, float pitch_mul) {
             if (fc_hz > SR * 0.45f) fc_hz = SR * 0.45f;
         }
         if (casc) {                                   // Klatt resonator: y = A x + B y1 + C y2 (low = y1, band = y2)
-            if (i > 0) bw *= 1.0f + 2.0f * (nas_w > nasal * 0.6f ? nas_w : nasal * 0.6f);   // nasal: damped upper formants
+            if (i > 0) bw *= 1.0f + 2.0f * (nas_w > nasal * VOX_NASAL_COLOR ? nas_w : nasal * VOX_NASAL_COLOR);   // nasal: damped upper formants
             float r = de_expf(-SOUND_PI * bw / SR);
             float B = 2.0f * r * de_cosf(SOUND_TWO_PI * fc_hz / SR), C = -r * r, A = 1.0f - B - C;
             float y = A * cy + B * v->vox_f_low[i] + C * v->vox_f_band[i];
@@ -5630,6 +5641,7 @@ static inline float sound_voice_sample(Voice *v, float pitch_mul) {
         float pk = 1.0f + VOX_PRESENCE * press;
         float pres = rad + pk * (rad - v->vox_pres_z); v->vox_pres_z = rad;
         float lvl = de_exp2f(-0.66f * (press - 0.47f));   // pressed adds presence, not mostly loudness (-4 dB per unit)
+        lvl *= 1.0f + VOX_NASAL_MAKEUP * nasal;           // the nasal COLOUR (voice_nasal) is a hum, not a muffle: give back most of what the zero + F1 damping take
         out = pres * VOX_CASC_GAIN * lvl * vamp[0] + cn * VOX_CASC_NZ;
     }
     // EXPERIMENTAL anti-formant nasality (14): a ~350Hz notch + blend (navkit WAVE_VOICE's

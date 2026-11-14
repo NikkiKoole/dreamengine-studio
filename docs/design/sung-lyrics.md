@@ -87,6 +87,14 @@ unrounded Japanese u ("u'"), and the Spanish diphthongs ai / oi.
 Approximations the voice forces: no dʒ (built as d + zh), no real trill (taps), the single r is the
 engine's approximant. zingen: songs 5-8 (our own lines), TAB in the text box cycles all six languages.
 
+## Scat (zingen song 9)
+
+Not a language: a generator (`scat_gen` in zingen) writes phrases of one-syllable scat words (ba be di
+du ski wa ya ... landing on bop / dop / dat), a third of them repeats two back so they groove, read by
+the Spanish rules (pure vowels, one vowel each: one word = one note). Sung fast and swung (long, short;
+~8 notes/s) on a G-C blues scale walk, a breath between phrases, fresh phrases each time round. The
+JAZZ voice suits it.
+
 ## Mipomi
 
 `LYR_MIPOMI` reads the Mipos' language (`~/Projects/love/mipomi-lang/RULES.md`, words in `words.tsv`):

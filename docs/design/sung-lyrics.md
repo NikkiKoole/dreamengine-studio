@@ -98,6 +98,10 @@ vibrato blooms), ROLL ("bi di bi di", even and climbing). The words are read by 
 vowel each: one word = one note), fresh phrases each time round. THE BAND (B): a walking pizzicato upright
 on a 12-bar blues in G (the upright.c recipe) and finger snaps on 2 and 4, on the same tick clock with its
 own dice (so switching it off keeps the phrases), ~10 dB under the voice. The JAZZ voice suits it.
+Every phrase LANDS (2026-11-15): before it starts, its length is summed and it waits so its last note
+falls on a strong beat of the 12-bar (the next downbeat if that is within 8 ticks, else beat 3), and that
+note is moved to the nearest chord tone (1 3 5 b7 of the bar's G7 / C7 / D7). Traced over a minute: 45 of
+45 landings on beat 1 or 3 (27 downbeats), 45 of 45 on chord tones.
 
 ## Mipomi
 

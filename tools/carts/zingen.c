@@ -179,6 +179,8 @@ static char phon[512];
 //   ECHO     the phrase before, answered a step higher (call and response)
 //   HOLD     two quick pickups, then a long held "yeh" where the vibrato blooms
 //   ROLL     "bi di bi di" in even fast notes, climbing
+// Every phrase LANDS: it is started so its last note falls on a strong beat of the 12-bar (a downbeat,
+// or beat 3), and that note is moved to the nearest tone of the chord there.
 // One tick = 3 frames (50 ms); a beat = 6 ticks (100 bpm, swung). Fresh phrases every time round.
 // THE BAND (B toggles): a walking upright bass on a 12-bar blues in G (INSTR_BOWED pizzicato, the
 // upright recipe) and finger snaps on 2 and 4, on the same tick clock.
@@ -189,11 +191,11 @@ static const char *const SCAT_END[] = { "bop", "dop", "dat", "wap", "bam", "zot"
 static const char *const SCAT_HOLD[] = { "yeh", "wa", "ba", "bo" };
 static const int BLUES[] = { 55, 58, 60, 62, 63, 65, 66, 67, 70, 72, 74 };   // G blues + the 9th, G3..D5 (higher runs hot: F1 tracking)
 #define NBLUES ((int)(sizeof BLUES / sizeof BLUES[0]))
-typedef struct { const char *w; unsigned char dur, rest; signed char pit; } ScatNote;
+typedef struct { const char *w; unsigned char dur, rest, first; signed char pit; int midi; } ScatNote;   // midi: a landing note snapped to the chord (0 = the scale pitch)
 #define SCAT_MAX 140
 static ScatNote sn[SCAT_MAX];
 static int sn_n = 0, sn_i = 0, sc_wait = 0, sc_rest = 0, sc_last = 6;
-static int band = 1, sc_tick = 0, sc_beat = 0;
+static int band = 1, sc_tick = 0, sc_sched = 0;
 static unsigned scat_seed = 20261115u;
 static unsigned scat_rand(void) { scat_seed = scat_seed * 1664525u + 1013904223u; return scat_seed >> 8; }
 #define SR(n) ((int)(scat_rand() % (unsigned)(n)))
@@ -201,7 +203,7 @@ static int sc_clamp(int p) { return p < 0 ? 0 : p >= NBLUES ? NBLUES - 1 : p; }
 static int scat_add(const char *w, int dur, int pit) {
     if (sn_n >= SCAT_MAX) return 0;
     ScatNote *N = &sn[sn_n++];
-    N->w = w; N->dur = (unsigned char)dur; N->rest = 0; N->pit = (signed char)sc_clamp(pit);
+    N->w = w; N->dur = (unsigned char)dur; N->rest = 0; N->first = 0; N->midi = 0; N->pit = (signed char)sc_clamp(pit);
     return 1;
 }
 #define SCAT_PICK(a) (a)[SR((int)(sizeof (a) / sizeof (a)[0]))]
@@ -240,7 +242,7 @@ static void scat_gen(void) {
             for (int i = 0; i < n; i++) { scat_add(PAIRS[pr][i & 1], 2, p); if (i & 1) p = sc_clamp(p + 1); }
             scat_add(SCAT_PICK(SCAT_END), 4, p);
         }
-        if (sn_n > start) sn[sn_n - 1].rest = (unsigned char)(4 + SR(5));   // a breath after the phrase
+        if (sn_n > start) { sn[start].first = 1; sn[sn_n - 1].rest = 1; }   // phrase bounds (its last note is the LANDING)
         prev0 = start; prev1 = sn_n;
     }
     // the plan as text, one word per note: the Singer reads it (lyr_set, Spanish rules)
@@ -259,8 +261,9 @@ static void scat_gen(void) {
 // THE BAND: one beat of walking bass + snaps. Roots of a 12-bar blues in G (G7 C7 D7), a walking line:
 // root, a chord tone, another, then a half step into the next bar's root.
 static const int BLUES12[12] = { 43, 48, 43, 43, 48, 48, 43, 43, 50, 48, 43, 50 };   // G C G G / C C G G / D C G D (quick-change bar 2)
-static void band_beat(void) {
-    int bar = (sc_beat / 4) % 12, b = sc_beat % 4;
+#define SCAT_BAR (SCAT_TICKS_PER_BEAT * 4)
+static void band_beat(int tk) {
+    int bar = (tk / SCAT_BAR) % 12, b = (tk / SCAT_TICKS_PER_BEAT) % 4;
     int root = BLUES12[bar], next = BLUES12[(bar + 1) % 12];
     static const int TONES[4] = { 4, 7, 9, 10 };          // 3rd, 5th, 6th, b7 of a dominant 7
     static unsigned bseed = 7u;                           // the band's own dice: switching it off keeps the same phrases
@@ -271,13 +274,24 @@ static void band_beat(void) {
     while (m < 36) m += 12;
     hit(m, BASS_SLOT, b == 0 ? 6 : 5, 280);
     if (b == 1 || b == 3) hit(84, SNAP_SLOT, 4, 40);       // snaps on 2 and 4
-    sc_beat++;
+}
+// the chord tone (1 3 5 b7 of the bar's dominant 7) nearest a pitch, at tick tk: where a phrase LANDS
+static int chord_tone_near(int midi, int tk) {
+    int root = BLUES12[(tk / SCAT_BAR) % 12] % 12, best = midi, bd = 99;
+    static const int CT[4] = { 0, 4, 7, 10 };
+    for (int m = BLUES[0]; m <= BLUES[NBLUES - 1]; m++) {
+        int pc = ((m - root) % 12 + 12) % 12;
+        for (int k = 0; k < 4; k++)
+            if (pc == CT[k] && (m > midi ? m - midi : midi - m) < bd) { bd = m > midi ? m - midi : midi - m; best = m; }
+    }
+    return best;
 }
 
 static void scat_step(void) {
-    if (band && sc_tick++ % SCAT_TICKS_PER_BEAT == 0) band_beat();
+    int tk = sc_tick++;                                   // the shared clock: the band and the phrases both read it
+    if (band && tk % SCAT_TICKS_PER_BEAT == 0) band_beat(tk);
     if (sc_wait > 0 && --sc_wait > 0) return;
-    if (sc_rest) { singer_off(&sing); sc_wait = sc_rest; sc_rest = 0; return; }   // a breath
+    if (sc_rest) { singer_off(&sing); sc_rest = 0; sc_wait = 2; return; }   // a breath after the landing
     if (sn_i >= sn_n) {                                   // all sung: write new phrases
         scat_gen();
         lyr_set(&lyr, LYR_ES, scat_text);
@@ -285,13 +299,33 @@ static void scat_step(void) {
         singer_restart(&sing);
         sn_i = 0;
     }
+    // a new phrase: start it so its LAST note lands on a strong beat (the next bar's downbeat if it is
+    // near, else beat 3), and move that landing note onto the chord sounding there
+    if (sn[sn_i].first && !sc_sched) {
+        int L = 0, e = sn_i;
+        while (e < sn_n - 1 && !sn[e].rest) L += sn[e++].dur;       // e = the landing note, L = ticks before it
+        int earliest = tk + L, t1 = (earliest + SCAT_BAR - 1) / SCAT_BAR * SCAT_BAR;
+        int t3 = (earliest + SCAT_BAR / 2 - 1) / (SCAT_BAR / 2) * (SCAT_BAR / 2);
+        int land = (t1 - earliest <= 8) ? t1 : t3;
+        sn[e].midi = chord_tone_near(BLUES[sn[e].pit], land);
+        sc_sched = 1;
+        if (land - L > tk) { sc_wait = land - L - tk; return; }
+    }
+    sc_sched = 0;
     const ScatNote *N = &sn[sn_i++];
     sc_last = N->pit;
-    sing_note(BLUES[N->pit]);
+    sing_note(N->midi ? N->midi : BLUES[N->pit]);
+#ifdef DE_TRACE
+    if (N->rest) {                                        // a landing: where in the bar, and is it a chord tone
+        int m = N->midi ? N->midi : BLUES[N->pit], root = BLUES12[(tk / SCAT_BAR) % 12] % 12, pc = ((m - root) % 12 + 12) % 12;
+        static int nland = 0; nland++;
+        watch("land", "%d %d %d %d", nland, tk % SCAT_BAR, pc, tk / SCAT_BAR);
+    }
+#endif
     sc_wait = N->dur;
     sc_rest = N->rest;
 }
-static void scat_reset(void) { sn_i = sc_wait = sc_rest = sc_tick = sc_beat = 0; }
+static void scat_reset(void) { sn_i = sc_wait = sc_rest = sc_tick = sc_sched = 0; }
 
 static void pick_lyric(int k) {
     which = k;

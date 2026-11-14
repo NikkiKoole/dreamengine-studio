@@ -443,7 +443,7 @@ void draw(void) {
     print(SONGS[which].name, 8, 153, CLR_YELLOW);
     print(sung ? "L: sung" : "L: plain", SCREEN_W - 110, 153, sung ? CLR_PINK : CLR_DARK_GREY);
     { const char *m = casc ? "V: cascade" : "V: parallel"; print(m, SCREEN_W - 8 - text_width(m), 153, casc ? CLR_ORANGE : CLR_DARK_GREY); }
-    print("ENTER type your own  1-9 0 song  R restart  @ = schwa  x = g/ch", 8, SCREEN_H - 8, CLR_DARK_GREY);
+    print("ENTER type  1-9,0 song  R restart  @ = schwa  x = g/ch", 8, SCREEN_H - 8, CLR_DARK_GREY);
     font(FONT_NORMAL);
     if (typing) draw_box();
     ui_end();

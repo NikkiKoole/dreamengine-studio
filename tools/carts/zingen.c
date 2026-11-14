@@ -10,7 +10,7 @@
   "description": {
     "summary": "The formant voice sings in six languages, and whatever you type: Dutch (read by spelling rules: long and short vowels, schwa, ch/g, ui/ij/eu, final devoicing), Mipomi (the playtime Mipos' language), Japanese romaji, Spanish, Swahili and Hawaiian. One syllable per note, with voice knobs and one-tap characters (chipmunk, monster, robot, alien...).",
     "detail": "lyric.h reads the text into syllables; each note starts the next one: its consonants at note-on, the vowel held while the note is, then the diphthong's second half and the final consonants chained at release ('nacht' = x then t), before the note lets go. The melody is made from the words: a word's last syllable lasts longer, every fourth word breathes. Or play it yourself: every key press sings the next syllable. The bottom line shows the phonemes it read.",
-    "controls": "SPACE = auto-sing on/off · A S D F G H J K = sing the next syllable on that note · 1 2 3 = Dutch lyrics, 4 = a Mipomi lullaby, 5 Japanese, 6 Spanish, 7 Swahili, 8 Hawaiian, 9 = your words · ENTER = type your own line (TAB cycles Dutch, Mipomi, Japanese romaji, Spanish, Swahili, Hawaiian; an apostrophe is the okina), ENTER again to hear it sung (it is remembered) · V = formant model (Klatt cascade / parallel) · knobs: SIZE (giant .. child) · BUZZ (relaxed and round .. pressed and bright; also UP/DOWN) · VIBRATO · GLIDE · LIFE (a machine .. shaky) · PITCH (±12 semitones) · WHISPER (sung → whispered: no pitch, the words stay) · NASAL (open → hummed, through the nose) · characters (one tap): CLEAN, CHIPMUNK, MONSTER, ROBOT, ALIEN, PHONE, MEGAPHONE; each moves the knobs it needs and adds its own effects · DEFAULT = CLEAN · L = singer layer on/off (vibrato that blooms in, a living pitch, sung glides) · R = back to the start"
+    "controls": "SPACE = auto-sing on/off · A S D F G H J K = sing the next syllable on that note · 1 2 3 = Dutch lyrics, 4 = a Mipomi lullaby, 5 Japanese, 6 Spanish, 7 Swahili, 8 Hawaiian, 9 = your words · ENTER = type your own line (TAB cycles Dutch, Mipomi, Japanese romaji, Spanish, Swahili, Hawaiian; an apostrophe is the okina), ENTER again to hear it sung (it is remembered) · V = formant model (Klatt cascade / parallel) · knobs: SIZE (giant .. child) · BUZZ (relaxed and round .. pressed and bright; also UP/DOWN) · VIBRATO · GLIDE · LIFE (a machine .. shaky) · PITCH (±12 semitones) · WHISPER (sung → whispered: no pitch, the words stay) · NASAL (open → hummed, through the nose) · GRAVEL (clean → a rasp) · characters (one tap): CLEAN, CHIPMUNK, MONSTER, ROBOT, ALIEN, PHONE, BULLHORN, JAZZ (a gravelly jazz singer that scoops into notes); each moves the knobs it needs and adds its own effects · DEFAULT = CLEAN · L = singer layer on/off (vibrato that blooms in, a living pitch, sung glides) · R = back to the start"
   }
 }
 de:meta */
@@ -84,12 +84,14 @@ static int casc = 1;                 // V: the voice's formant model, 1 = Klatt 
 static int sung = 1;                 // L: the singer layer (delayed vibrato, jitter/shimmer, legato glides) on/off, to A/B
 
 // THE VOICE KNOBS (0..1 each; DEFAULT puts them all back). Each maps onto one Singer setting.
-enum { K_SIZE, K_BUZZ, K_VIB, K_GLIDE, K_LIFE, K_PITCH, K_WHISPER, K_NASAL, K_COUNT };
-static const char *K_NAME[K_COUNT] = { "SIZE", "BUZZ", "VIBRATO", "GLIDE", "LIFE", "PITCH", "WHISPER", "NASAL" };
-static const float K_DEF[K_COUNT]  = { 0.33f, 0.5f, 0.375f, 0.35f, 0.5f, 0.5f, 0.0f, 0.0f };
+enum { K_SIZE, K_BUZZ, K_VIB, K_GLIDE, K_LIFE, K_PITCH, K_WHISPER, K_NASAL, K_GRAVEL, K_COUNT };
+static const char *K_NAME[K_COUNT] = { "SIZE", "BUZZ", "VIBRATO", "GLIDE", "LIFE", "PITCH", "WHISPER", "NASAL", "GRAVEL" };
+static const float K_DEF[K_COUNT]  = { 0.33f, 0.5f, 0.375f, 0.35f, 0.5f, 0.5f, 0.0f, 0.0f, 0.0f };
 static float kv[K_COUNT];
 static int transpose = 0;            // PITCH: semitones, -12 .. +12
 static float vib_hz = 5.5f;          // vibrato rate (a character sets it; no knob)
+static float vib_delay = 0.25f;      // how long a note stays straight before its vibrato blooms (a character sets it)
+static int scoop_st = 0;             // a character's scoop: notes after a rest slide up into place from this far below
 
 static void apply_voice(void) {
     singer_size(&sing, kv[K_SIZE]);                       // vocal tract: 0 giant .. 1 child
@@ -101,6 +103,9 @@ static void apply_voice(void) {
     transpose   = (int)((kv[K_PITCH] - 0.5f) * 24.0f + (kv[K_PITCH] >= 0.5f ? 0.5f : -0.5f));
     singer_whisper(&sing, kv[K_WHISPER]);                 // sung .. breathy .. whispered (no pitch, the words stay)
     singer_nasal(&sing, kv[K_NASAL]);                     // open .. hummed, through the nose
+    singer_gravel(&sing, kv[K_GRAVEL]);                   // clean .. gravelly (uneven, doubled cycles + rasp)
+    sing.vib_delay = vib_delay;
+    sing.scoop  = sung ? scoop_st : 0;
 }
 
 // CHARACTERS: one tap turns the singer into someone else. Each sets the voice knobs (they move, so you
@@ -108,29 +113,33 @@ static void apply_voice(void) {
 // (set-and-hold: every effect call reconfigures DSP).
 typedef struct {
     const char *name;
-    float k[K_COUNT];                    // SIZE BUZZ VIBRATO GLIDE LIFE PITCH WHISPER NASAL
+    float k[K_COUNT];                    // SIZE BUZZ VIBRATO GLIDE LIFE PITCH WHISPER NASAL GRAVEL
     float vib_hz;
     int filt, cut, res;                  // instrument_filter
     float drive; int dmode;              // instrument_drive / _mode
     float ring_hz, ring_mix;             // instrument_ringmod
     float fl_rate, fl_depth, fl_fb, fl_mix;   // instrument_flanger
     float level;                         // instrument_level: evens the characters out (measured RMS vs CLEAN)
+    int scoop; float vib_delay;          // slide up into notes from this many semitones below; vibrato waits this long
 } Character;
 static const Character CHARS[] = {
     //            SIZE   BUZZ   VIB    GLIDE  LIFE   PITCH  WHISP NASAL   vib   filter               drive        ringmod       flanger
-    { "CLEAN",    { 0.33f, 0.50f, 0.375f,0.35f, 0.50f, 0.5f, 0.0f, 0.0f },   5.5f, FILTER_OFF, 1000, 0, 0.0f,  DRIVE_SOFT, 0, 0.0f,    0, 0, 0, 0.0f , 1.0f },
+    { "CLEAN",    { 0.33f, 0.50f, 0.375f,0.35f, 0.50f, 0.5f, 0.0f, 0.0f, 0.0f },   5.5f, FILTER_OFF, 1000, 0, 0.0f,  DRIVE_SOFT, 0, 0.0f,    0, 0, 0, 0.0f , 1.0f , 0, 0.25f },
     // pitched up an octave AND a small throat: the sped-up-tape cartoon
-    { "CHIPMUNK", { 0.95f, 0.60f, 0.25f, 0.50f, 0.50f, 1.0f, 0.0f, 0.2f },   7.0f, FILTER_OFF, 1000, 0, 0.0f,  DRIVE_SOFT, 0, 0.0f,    0, 0, 0, 0.0f , 0.32f },
+    { "CHIPMUNK", { 0.95f, 0.60f, 0.25f, 0.50f, 0.50f, 1.0f, 0.0f, 0.2f, 0.0f },   7.0f, FILTER_OFF, 1000, 0, 0.0f,  DRIVE_SOFT, 0, 0.0f,    0, 0, 0, 0.0f , 0.32f , 0, 0.25f },
     // down an octave, a giant's throat, pressed and rough, a little growl, the top shaved off
-    { "MONSTER",  { 0.00f, 0.95f, 0.15f, 0.40f, 0.90f, 0.0f, 0.15f, 0.0f },   4.0f, FILTER_LOW, 2500, 2, 0.40f, DRIVE_SOFT, 0, 0.0f,    0, 0, 0, 0.0f , 1.0f },
+    { "MONSTER",  { 0.00f, 0.95f, 0.15f, 0.40f, 0.90f, 0.0f, 0.15f, 0.0f, 0.5f },   4.0f, FILTER_LOW, 2500, 2, 0.40f, DRIVE_SOFT, 0, 0.0f,    0, 0, 0, 0.0f , 1.0f , 0, 0.25f },
     // dead flat (no vibrato, glide or life), pressed, ring-modulated at 55 Hz, a metallic flanger
-    { "ROBOT",    { 0.33f, 1.00f, 0.00f, 0.00f, 0.00f, 0.5f, 0.0f, 0.35f },   5.5f, FILTER_OFF, 1000, 0, 0.0f,  DRIVE_SOFT, 55, 0.75f,  0.1f, 0.2f, 0.6f, 0.4f , 1.0f },
+    { "ROBOT",    { 0.33f, 1.00f, 0.00f, 0.00f, 0.00f, 0.5f, 0.0f, 0.35f, 0.0f },   5.5f, FILTER_OFF, 1000, 0, 0.0f,  DRIVE_SOFT, 55, 0.75f,  0.1f, 0.2f, 0.6f, 0.4f , 1.0f , 0, 0.25f },
     // up a fourth, small, a deep fast warble, long glides, a high clangy ring, a swirling flanger
-    { "ALIEN",    { 0.80f, 0.70f, 1.00f, 1.00f, 0.50f, 0.708f, 0.1f, 0.5f }, 9.0f, FILTER_OFF, 1000, 0, 0.0f,  DRIVE_SOFT, 420, 0.35f, 2.0f, 0.7f, 0.5f, 0.4f , 0.7f },
+    { "ALIEN",    { 0.80f, 0.70f, 1.00f, 1.00f, 0.50f, 0.708f, 0.1f, 0.5f, 0.0f }, 9.0f, FILTER_OFF, 1000, 0, 0.0f,  DRIVE_SOFT, 420, 0.35f, 2.0f, 0.7f, 0.5f, 0.4f , 0.7f , 0, 0.25f },
     // a narrow band around 1.5 kHz (no lows, no highs) and a little hard grit: a cheap earpiece
-    { "PHONE",    { 0.40f, 0.60f, 0.375f,0.35f, 0.50f, 0.5f, 0.0f, 0.2f },   5.5f, FILTER_BAND, 1500, 5, 0.30f, DRIVE_HARD, 0, 0.0f,   0, 0, 0, 0.0f , 1.0f },
-    // a tighter, ringier band and a lot of hard clipping: a bullhorn
-    { "MEGAPHONE",{ 0.40f, 0.90f, 0.30f, 0.35f, 0.60f, 0.5f, 0.0f, 0.3f },   5.5f, FILTER_BAND, 1800, 9, 0.75f, DRIVE_HARD, 0, 0.0f,   0, 0, 0, 0.0f , 0.8f },
+    { "PHONE",    { 0.40f, 0.60f, 0.375f,0.35f, 0.50f, 0.5f, 0.0f, 0.2f, 0.0f },   5.5f, FILTER_BAND, 1500, 5, 0.30f, DRIVE_HARD, 0, 0.0f,   0, 0, 0, 0.0f , 1.0f , 0, 0.25f },
+    // a tighter, ringier band and a lot of hard clipping: a bullhorn (a megaphone)
+    { "BULLHORN", { 0.40f, 0.90f, 0.30f, 0.35f, 0.60f, 0.5f, 0.0f, 0.3f, 0.2f },   5.5f, FILTER_BAND, 1800, 9, 0.75f, DRIVE_HARD, 0, 0.0f,   0, 0, 0, 0.0f , 0.8f , 0, 0.25f },
+    // a gravelly old jazz singer: low, big and pressed, LOTS of gravel, a slow wide vibrato that waits
+    // for the end of the note, scoops up into notes from two below, a touch of warm drive
+    { "JAZZ",     { 0.12f, 0.85f, 0.85f, 0.55f, 0.60f, 0.375f, 0.08f, 0.15f, 0.85f }, 4.6f, FILTER_LOW, 6000, 1, 0.18f, DRIVE_SOFT, 0, 0.0f, 0, 0, 0, 0.0f, 1.0f, 2, 0.45f },
 };
 #define NCHARS ((int)(sizeof CHARS / sizeof CHARS[0]))
 static int who = 0;                      // the character picked
@@ -140,6 +149,8 @@ static void set_character(int c) {
     who = c;
     for (int k = 0; k < K_COUNT; k++) kv[k] = C->k[k];
     vib_hz = C->vib_hz;
+    vib_delay = C->vib_delay;
+    scoop_st = C->scoop;
     apply_voice();
     instrument_filter(SLOT, C->filt, C->cut, C->res);
     instrument_drive_mode(SLOT, C->dmode);
@@ -322,13 +333,13 @@ static void draw_knobs(void) {
         char lb[16];
         if (k == K_PITCH) snprintf(lb, sizeof lb, transpose ? "%+d" : "PITCH", transpose);
         else snprintf(lb, sizeof lb, "%s", K_NAME[k]);
-        changed |= ui_knob(&kv[k], 22 + k * 39, ky, lb);
+        changed |= ui_knob(&kv[k], 18 + k * 35, ky, lb);
     }
     if (changed) apply_voice();
     for (int c = 0; c < NCHARS; c++) {                    // the characters, one tap each
-        int bx = 8 + c * 44, by = 125;
-        if (ui_button(bx, by, 42, 12, CHARS[c].name)) set_character(c);
-        if (c == who) rect(bx - 1, by - 1, 44, 14, CLR_YELLOW);
+        int bx = 8 + (c % 4) * 77, by = 122 + (c / 4) * 14;   // two rows of four
+        if (ui_button(bx, by, 74, 12, CHARS[c].name)) set_character(c);
+        if (c == who) rect(bx - 1, by - 1, 76, 14, CLR_YELLOW);
     }
     font(FONT_NORMAL);
     if (ui_button(258, 3, 56, 12, "DEFAULT")) voice_defaults();
@@ -355,7 +366,7 @@ void draw(void) {
     if (!typing) draw_knobs();
     font(FONT_SMALL);
     // the phonemes it read (wrapped)
-    int px = 8, py = 156;
+    int px = 8, py = 164;
     char word[64]; int wn = 0;
     for (const char *p = phon; ; p++) {
         if (*p == ' ' || *p == 0) {
@@ -367,9 +378,9 @@ void draw(void) {
             if (!*p) break;
         } else if (wn < 63) word[wn++] = *p;
     }
-    print(SONGS[which].name, 8, 144, CLR_YELLOW);
-    print(sung ? "L: sung" : "L: plain", SCREEN_W - 110, 144, sung ? CLR_PINK : CLR_DARK_GREY);
-    { const char *m = casc ? "V: cascade" : "V: parallel"; print(m, SCREEN_W - 8 - text_width(m), 144, casc ? CLR_ORANGE : CLR_DARK_GREY); }
+    print(SONGS[which].name, 8, 153, CLR_YELLOW);
+    print(sung ? "L: sung" : "L: plain", SCREEN_W - 110, 153, sung ? CLR_PINK : CLR_DARK_GREY);
+    { const char *m = casc ? "V: cascade" : "V: parallel"; print(m, SCREEN_W - 8 - text_width(m), 153, casc ? CLR_ORANGE : CLR_DARK_GREY); }
     print("ENTER type your own  1-9 song  R restart  @ = schwa  x = g/ch", 8, SCREEN_H - 8, CLR_DARK_GREY);
     font(FONT_NORMAL);
     if (typing) draw_box();

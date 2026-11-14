@@ -304,6 +304,8 @@ typedef struct {
     float  vox_rad_z;                // cascade mode: lip-radiation first-difference state (previous cascade output)
     float  vox_pres_z;               // cascade mode: presence-shelf state (previous radiated sample)
     float  vox_nzp1, vox_nzp2, vox_nzz1, vox_nzz2; // cascade mode: nasal pole (outputs) / zero (inputs) states
+    int    vox_alt;                  // GRAVEL: flips each glottal period (every other cycle weaker = the period-doubled rasp)
+    float  vox_rasp;                 // GRAVEL: this period's closure-noise amount
     bool   vox_on;                  // note-on init guard (engine id hit without a start → silent)
     // guitar state (INSTR_GUITAR): the bodied plucked string — PLUCK's Karplus-Strong string
     // (REUSES ks_buf, distinct wave id from the bare pluck path) + 4 parallel body-resonator
@@ -900,7 +902,7 @@ typedef struct {
 } ShimVoice;
 #define FXMOD_N 7                                   // active targets: studio.h FXMOD_FILTER_CUT(0)..FXMOD_SHIMMER_MIX(6)
 #define VARI_BUF (SOUND_SAMPLE_RATE * 2)   // 2 s — room for a long dive before the read laps the write
-#define VOX_NPARAM 21   // 0 vowel·1 size·2 breath·3 openq·4 tilt·5 vibDepth·6 vibRate · 7 nasality·8 openness(F1)·9 frontness(F2) + EXPERIMENTAL 10 buzz·11 jitter·12 shimmer·13 creak·14 nasalAF·15 reduce·16 measBW·17 vow2(diphthong target 0..9)·18 glide(0=primary→1=at vow2) · 19 cascade (0 = 4 parallel formants, 1 = Klatt cascade F1→F4) · 20 whisper (0 sung → 1 voicing off, breath only)
+#define VOX_NPARAM 22   // 0 vowel·1 size·2 breath·3 openq·4 tilt·5 vibDepth·6 vibRate · 7 nasality·8 openness(F1)·9 frontness(F2) + EXPERIMENTAL 10 buzz·11 jitter·12 shimmer·13 creak·14 nasalAF·15 reduce·16 measBW·17 vow2(diphthong target 0..9)·18 glide(0=primary→1=at vow2) · 19 cascade (0 = 4 parallel formants, 1 = Klatt cascade F1→F4) · 20 whisper (0 sung → 1 voicing off, breath only) · 21 gravel (0 clean → 1 rasp: uneven/doubled cycles + closure noise)
 #define EMIT_DL_LEN  3072      // grain buffer per bus (~70ms @44100), stereo
 
 typedef struct {

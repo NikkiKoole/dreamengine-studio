@@ -215,6 +215,16 @@ old-man rasp).
 
 ## Decision log
 
+- **2026-11-15** — **GRAVEL (idx 21)**, for a gravelly jazz voice. Folds that do not vibrate cleanly:
+  every other glottal cycle weaker (`VOX_GRAVEL_ALT`, diplophonia: the pitch detector locks an octave
+  down, as on a real rasp), a chance per cycle of a nearly dropped one (`VOX_GRAVEL_DROP`), extra
+  per-period jitter (`VOX_GRAVEL_JIT`), and turbulence noise at each closure decaying over the closed
+  phase (`VOX_GRAVEL_RASP`), with level make-up (`VOX_GRAVEL_MAKEUP`). Extra random draws only when on:
+  other voice carts render byte-identical. click-check flags the gravel's uneven cycles (by design).
+  lyric.h: `singer_gravel`, and a SCOOP (`Singer.scoop`: a note after a rest starts that many
+  semitones low and slides up in ~0.1 s). zingen: GRAVEL knob + a JAZZ character (low, pressed, gravel
+  0.85, slow wide late vibrato, scoop 2).
+
 - **2026-11-14** — **WHISPER (idx 20) and a level-honest nasal colour in the cascade.** WHISPER fades the
   voicing out and puts un-pulsed white breath through the same formants (`VOX_WHISPER_CASC` 0.75 /
   `VOX_WHISPER_PAR` 1.4, level-matched: full whisper ~2 dB under the sung voice in both models); the

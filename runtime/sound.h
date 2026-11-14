@@ -5294,6 +5294,11 @@ static inline float vox_burst_env(float dt) {
 #define VOX_F1_TRACK  1.0625f  // F1 never sits below F0 × this (sung high notes: F1 follows the pitch)
 #define VOX_CASC_GAIN 8.2f     // cascade mode: output gain after radiation (level-matched to the parallel path by ear/RMS)
 #define VOX_PRESENCE  5.0f     // cascade mode: presence-shelf depth at full EFFORT (pressed)
+#define VOX_GRAVEL_JIT   0.04f // gravel: extra per-period pitch jitter at full (±4 %)
+#define VOX_GRAVEL_ALT   0.55f // gravel: every other cycle this much weaker at full (the period-doubled growl)
+#define VOX_GRAVEL_DROP  0.18f // gravel: chance per period of a nearly dropped cycle at full
+#define VOX_GRAVEL_RASP  0.9f  // gravel: closure-noise (rasp) level at full
+#define VOX_GRAVEL_MAKEUP 0.6f // gravel: level make-up at full (the uneven cycles cost ~4 dB)
 #define VOX_WHISPER_CASC 0.75f  // whisper breath level into the cascade (level-matched to the sung voice)
 #define VOX_WHISPER_PAR  1.4f   // … and into the parallel formants
 #define VOX_NASAL_COLOR  0.35f // cascade: how far voice_nasal moves the nasal zero (a full m/n/ng moves it all the way)
@@ -5329,7 +5334,8 @@ static void sound_voice_start(Voice *v) {
                                     1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,      // buzz=full glottal · jitter/shimmer/creak/nasalAF/reduce/measBW off
                                     0.0f, 0.0f,                                    // vow2 target=U · glide off (no diphthong)
                                     0.0f,                                          // parallel formants (1 = Klatt cascade)
-                                    0.0f };                                        // whisper off (sung)
+                                    0.0f,                                          // whisper off (sung)
+                                    0.0f };                                        // gravel off (clean)
     for (int i = 0; i < VOX_NPARAM; i++) v->vox_p[i] = v->vox_s[i] = def[i];
     v->vox_glot_ph = v->vox_tilt_lp = v->vox_vib_ph = 0.0f;
     v->vox_jit_mul = v->vox_shim_mul = 1.0f; v->vox_creak_skip = 0;
@@ -5341,6 +5347,7 @@ static void sound_voice_start(Voice *v) {
     v->vox_br_lp1 = v->vox_br_lp2 = 0.0f;
     v->vox_rad_z = v->vox_pres_z = 0.0f;
     v->vox_nzp1 = v->vox_nzp2 = v->vox_nzz1 = v->vox_nzz2 = 0.0f;
+    v->vox_alt = 0; v->vox_rasp = 0.0f;
     v->vox_on = true;
     // the cart's instrument_harmonics/timbre/morph (VOWEL/SIZE/EFFORT), the ones it set, AFTER the
     // defaults above. (Until 2026-11-13 the setup-time apply ran BEFORE this reset, so the instrument
@@ -5377,6 +5384,7 @@ static inline float sound_voice_sample(Voice *v, float pitch_mul) {
     float bwmode = v->vox_s[16];                 // 0 = derived bandwidths → 1 = navkit measured BW table
     float glide  = v->vox_s[18];                 // diphthong: 0 = primary vowel → 1 = fully at vow2
     float whisper= v->vox_s[20];                 // 0 sung → 1 whispered (the vocal folds stop; breath alone through the tract)
+    float gravel = v->vox_s[21];                 // 0 clean → 1 gravelly (uneven, doubled cycles + rasp at each closure)
 
     // vibrato → pitch (±~1 semitone at full depth)
     v->vox_vib_ph += vibr / SR; if (v->vox_vib_ph >= 1.0f) v->vox_vib_ph -= 1.0f;
@@ -5511,6 +5519,20 @@ static inline float sound_voice_sample(Voice *v, float pitch_mul) {
         v->vox_jit_mul    = 1.0f + r1 * jitter * 0.055f;                // ±5.5% pitch at full
         v->vox_shim_mul   = 1.0f - r2 * shimmer * 0.6f;                 // amplitude dips
         v->vox_creak_skip = (creak > 0.01f && r2 < creak * 0.55f);      // weak/dropped cycle
+        // GRAVEL (idx 21): folds that do not vibrate cleanly. Every other cycle weaker (diplophonia:
+        // the period-doubled growl an octave down), now and then one nearly dropped, extra pitch
+        // jitter, and a burst of turbulence noise at each closure (the rasp), its size drawn per
+        // cycle. Extra random draws only when gravel is on, so a clean voice stays byte-identical.
+        if (gravel > 0.0001f) {
+            float g1 = voice_white(v);
+            v->noise_state = (v->noise_state * 1103515245 + 12345) & 0x7fffffff;
+            float g2 = ((v->noise_state >> 16) & 0xff) / 255.0f;
+            v->vox_alt = !v->vox_alt;
+            v->vox_jit_mul  *= 1.0f + g1 * gravel * VOX_GRAVEL_JIT;
+            if (v->vox_alt) v->vox_shim_mul *= 1.0f - gravel * VOX_GRAVEL_ALT;
+            if (g2 < gravel * VOX_GRAVEL_DROP) v->vox_shim_mul *= 0.25f;
+            v->vox_rasp = gravel * (0.4f + 0.6f * g2);
+        } else v->vox_rasp = 0.0f;
     }
     float t = v->vox_glot_ph, gp;
     int casc = v->vox_p[19] >= 0.5f;                 // the Klatt-cascade model (its own source + tract, below)
@@ -5572,6 +5594,11 @@ static inline float sound_voice_sample(Voice *v, float pitch_mul) {
     // pitch goes. Level-matched per model (VOX_WHISPER_*). 0 = untouched (the branch is skipped).
     if (whisper > 0.0001f)
         vsrc = vsrc * (1.0f - whisper) + nz * whisper * (casc ? VOX_WHISPER_CASC : VOX_WHISPER_PAR);
+    if (v->vox_rasp > 0.0f) {                         // GRAVEL rasp: turbulence right after each closure, decaying over the closed phase
+        float since = t - te;
+        float env = since >= 0.0f ? 1.0f - since / (1.0f - te + 1e-4f) : 0.15f;
+        vsrc += nz * v->vox_rasp * env * gl_gain * VOX_GRAVEL_RASP;
+    }
     float cn = cnz * con_noise;                                            // consonant noise, already placed
     src = vsrc + cn;
 
@@ -5657,6 +5684,7 @@ static inline float sound_voice_sample(Voice *v, float pitch_mul) {
         float notched = v->vox_naf_low + high;       // notch = low + high (the band removed)
         out = out * (1.0f - nasalAf) + notched * nasalAf;
     }
+    if (gravel > 0.0001f) out *= 1.0f + gravel * VOX_GRAVEL_MAKEUP;   // give back what the weak/dropped cycles take
     return out * 0.8f * v->vox_shim_mul;              // shimmer: per-period amplitude wobble
 }
 

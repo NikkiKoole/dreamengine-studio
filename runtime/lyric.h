@@ -658,6 +658,8 @@ typedef struct {
     float size;                  // vocal-tract SIZE 0 giant .. 1 child (engine idx 1, its own default 0.33); < 0 (default) = leave it. singer_size()
     float whisper;               // 0 sung .. 1 whispered (engine idx 20: the voicing fades, breath alone). singer_whisper()
     float nasal;                 // 0 open .. 1 hummed, through the nose (voice_nasal). singer_nasal()
+    float gravel;                // 0 clean .. 1 gravelly (engine idx 21: uneven, doubled cycles + rasp). singer_gravel()
+    int scoop;                   // a note after a rest starts this many semitones LOW and slides up into it (0 = lands on it)
     float buzz;                  // EFFORT / BUZZ 0 relaxed, round .. 1 pressed, bright (breath + open quotient + tilt);
                                  // < 0 (the default) = leave the engine's own. Set with singer_buzz().
     // THE SINGER LAYER (after JIANT FM's, ideas only): what makes a voice sound sung, not played.
@@ -696,6 +698,10 @@ static void singer__buzz_poke(int h, float e) {
 static void singer_whisper(Singer *s, float x) {
     s->whisper = x < 0.0f ? 0.0f : x > 1.0f ? 1.0f : x;
     if (s->h) note_aux(s->h, 20, s->whisper);
+}
+static void singer_gravel(Singer *s, float x) {
+    s->gravel = x < 0.0f ? 0.0f : x > 1.0f ? 1.0f : x;
+    if (s->h) note_aux(s->h, 21, s->gravel);
 }
 static void singer_nasal(Singer *s, float x) {
     s->nasal = x < 0.0f ? 0.0f : x > 1.0f ? 1.0f : x;
@@ -774,15 +780,20 @@ static int singer_on(Singer *s, int midi, int vol) {
     // slide to ours, the way a voice moves between notes; a note after a rest just starts
     int from = s->last_midi;
     int slide = s->glide > 0.0f && from > 0 && from != midi && s->last_end >= 0.0f && s->t - s->last_end < LYR__LEGATO_S;
-    int h = note_on(slide ? from : midi, s->slot, vol);
+    // a SCOOP (no legato slide to make): start a few semitones under the note and slide up into it,
+    // the jazz singer's way in
+    int scoop = !slide && s->scoop > 0;
+    int start = slide ? from : scoop ? midi - s->scoop : midi;
+    int h = note_on(start, s->slot, vol);
     if (h <= 0) return 0;
     s->h = h; s->cur = i;
     s->on_t0 = s->t; s->last_midi = midi;
-    s->gliding = slide;
-    if (slide) {
-        int d = midi > from ? midi - from : from - midi;
-        s->g_from = (float)from; s->g_to = (float)midi;
-        s->g_len = s->glide * (1.0f + 0.06f * (float)d);  // a wider leap takes a little longer
+    s->gliding = slide || scoop;
+    if (s->gliding) {
+        int d = midi > start ? midi - start : start - midi;
+        s->g_from = (float)start; s->g_to = (float)midi;
+        s->g_len = slide ? s->glide * (1.0f + 0.06f * (float)d)   // a wider leap takes a little longer
+                         : 0.09f + 0.025f * (float)d;             // a scoop: quick, a little longer from further down
         note_glide(h, 16);                                // each frame's pitch step slides over a frame: no staircase
     }
     note_aux(h, 5, 0.0f);                                 // vibrato: none yet (singer_update blooms it)
@@ -798,6 +809,7 @@ static int singer_on(Singer *s, int midi, int vol) {
     if (s->buzz >= 0.0f) singer__buzz_poke(h, s->buzz);
     if (s->size >= 0.0f) note_aux(h, 1, s->size);
     if (s->whisper > 0.0f) note_aux(h, 20, s->whisper);
+    if (s->gravel > 0.0f) note_aux(h, 21, s->gravel);
     if (s->nasal > 0.0f) voice_nasal(h, s->nasal);
     lyr__place(h, s->base, vf[0], vf[1]);
     voice_coda(h, -1);

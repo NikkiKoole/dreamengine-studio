@@ -101,7 +101,8 @@ own dice (so switching it off keeps the phrases), ~10 dB under the voice. The JA
 Every phrase LANDS (2026-11-15): before it starts, its length is summed and it waits so its last note
 falls on a strong beat of the 12-bar (the next downbeat if that is within 8 ticks, else beat 3), and that
 note is moved to the nearest chord tone (1 3 5 b7 of the bar's G7 / C7 / D7). Traced over a minute: 45 of
-45 landings on beat 1 or 3 (27 downbeats), 45 of 45 on chord tones.
+45 landings on beat 1 or 3 (27 downbeats), 45 of 45 on chord tones. T = HALF TIME (the default): the tick runs at
+6 frames instead of 3, so phrases, band and landings slow together (bass notes ring a beat long).
 
 ## Mipomi
 

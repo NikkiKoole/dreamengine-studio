@@ -10,7 +10,7 @@
   "description": {
     "summary": "The formant voice sings in six languages, and whatever you type: Dutch (read by spelling rules: long and short vowels, schwa, ch/g, ui/ij/eu, final devoicing), Mipomi (the playtime Mipos' language), Japanese romaji, Spanish, Swahili and Hawaiian. One syllable per note, with voice knobs and one-tap characters (chipmunk, monster, robot, alien...).",
     "detail": "lyric.h reads the text into syllables; each note starts the next one: its consonants at note-on, the vowel held while the note is, then the diphthong's second half and the final consonants chained at release ('nacht' = x then t), before the note lets go. The melody is made from the words: a word's last syllable lasts longer, every fourth word breathes. Or play it yourself: every key press sings the next syllable. The bottom line shows the phonemes it read.",
-    "controls": "SPACE = auto-sing on/off · A S D F G H J K = sing the next syllable on that note · 1 2 3 = Dutch lyrics, 4 = a Mipomi lullaby, 5 Japanese, 6 Spanish, 7 Swahili, 8 Hawaiian, 9 SCAT (writes its own scat: swung runs, stutters, call and response, held notes, rolls, over a walking bass and snaps; B = band on/off; try the JAZZ voice), 0 = your words · ENTER = type your own line (TAB cycles Dutch, Mipomi, Japanese romaji, Spanish, Swahili, Hawaiian; an apostrophe is the okina), ENTER again to hear it sung (it is remembered) · V = formant model (Klatt cascade / parallel) · knobs: SIZE (giant .. child) · BUZZ (relaxed and round .. pressed and bright; also UP/DOWN) · VIBRATO · GLIDE · LIFE (a machine .. shaky) · PITCH (±12 semitones) · WHISPER (sung → whispered: no pitch, the words stay) · NASAL (open → hummed, through the nose) · GRAVEL (clean → a rasp) · characters (one tap): CLEAN, CHIPMUNK, MONSTER, ROBOT, ALIEN, PHONE, BULLHORN, JAZZ (a gravelly jazz singer that scoops into notes); each moves the knobs it needs and adds its own effects · DEFAULT = CLEAN · L = singer layer on/off (vibrato that blooms in, a living pitch, sung glides) · R = back to the start"
+    "controls": "SPACE = auto-sing on/off · A S D F G H J K = sing the next syllable on that note · 1 2 3 = Dutch lyrics, 4 = a Mipomi lullaby, 5 Japanese, 6 Spanish, 7 Swahili, 8 Hawaiian, 9 SCAT (writes its own scat: swung runs, stutters, call and response, held notes, rolls, over a walking bass and snaps; B = band on/off; T = half time (default) / full speed; try the JAZZ voice), 0 = your words · ENTER = type your own line (TAB cycles Dutch, Mipomi, Japanese romaji, Spanish, Swahili, Hawaiian; an apostrophe is the okina), ENTER again to hear it sung (it is remembered) · V = formant model (Klatt cascade / parallel) · knobs: SIZE (giant .. child) · BUZZ (relaxed and round .. pressed and bright; also UP/DOWN) · VIBRATO · GLIDE · LIFE (a machine .. shaky) · PITCH (±12 semitones) · WHISPER (sung → whispered: no pitch, the words stay) · NASAL (open → hummed, through the nose) · GRAVEL (clean → a rasp) · characters (one tap): CLEAN, CHIPMUNK, MONSTER, ROBOT, ALIEN, PHONE, BULLHORN, JAZZ (a gravelly jazz singer that scoops into notes); each moves the knobs it needs and adds its own effects · DEFAULT = CLEAN · L = singer layer on/off (vibrato that blooms in, a living pitch, sung glides) · R = back to the start"
   }
 }
 de:meta */
@@ -196,6 +196,7 @@ typedef struct { const char *w; unsigned char dur, rest, first; signed char pit;
 static ScatNote sn[SCAT_MAX];
 static int sn_n = 0, sn_i = 0, sc_wait = 0, sc_rest = 0, sc_last = 6;
 static int band = 1, sc_tick = 0, sc_sched = 0;
+static int halft = 1;                 // T: scat at HALF TIME (the tick runs at half speed: phrases, band and landings together)
 static unsigned scat_seed = 20261115u;
 static unsigned scat_rand(void) { scat_seed = scat_seed * 1664525u + 1013904223u; return scat_seed >> 8; }
 #define SR(n) ((int)(scat_rand() % (unsigned)(n)))
@@ -272,7 +273,7 @@ static void band_beat(int tk) {
     int m = b == 0 ? root : b == 3 ? next + ((r & 1) ? 1 : -1) : root + TONES[(r >> 1) % 4];
     while (m > 55) m -= 12;
     while (m < 36) m += 12;
-    hit(m, BASS_SLOT, b == 0 ? 6 : 5, 280);
+    hit(m, BASS_SLOT, b == 0 ? 6 : 5, halft ? 560 : 280);   // a bass note rings a beat long
     if (b == 1 || b == 3) hit(84, SNAP_SLOT, 4, 40);       // snaps on 2 and 4
 }
 // the chord tone (1 3 5 b7 of the bar's dominant 7) nearest a pitch, at tick tk: where a phrase LANDS
@@ -445,7 +446,8 @@ void update(void) {
         tlang = SONGS[USER].lang;
     } else keys_step();
     const Song *g = &SONGS[which];
-    if (autop && ++fr >= g->step_fr) { fr = 0; if (g->scat) scat_step(); else if (g->mel) mel_step(g); else auto_step(); }
+    int sf = (g->scat && halft) ? g->step_fr * 2 : g->step_fr;   // half time: one scat tick every 6 frames
+    if (autop && ++fr >= sf) { fr = 0; if (g->scat) scat_step(); else if (g->mel) mel_step(g); else auto_step(); }
     singer_update(&sing);
 }
 
@@ -454,6 +456,7 @@ static void keys_step(void) {
     for (int k = 0; k < NSONGS && k < 10; k++) if (keyp(k < 9 ? '1' + k : '0')) pick_lyric(k);   // 1..9, then 0
     if (keyp('V')) { casc = !casc; sing.parallel = !casc; }
     if (keyp('B')) band = !band;                           // scat's band on/off
+    if (keyp('T')) halft = !halft;                         // scat at half time / full speed
     if (keyp('L')) { sung = !sung; apply_voice(); }
     if (keyp(KEY_UP) || keyp(KEY_DOWN)) {                 // set-and-hold: only when it changes
         float b = kv[K_BUZZ] + (keyp(KEY_UP) ? 0.25f : -0.25f);
@@ -553,7 +556,10 @@ void draw(void) {
     }
     print(SONGS[which].name, 8, 153, CLR_YELLOW);
     print(sung ? "L: sung" : "L: plain", SCREEN_W - 110, 153, sung ? CLR_PINK : CLR_DARK_GREY);
-    if (SONGS[which].scat) print(band ? "B: band" : "B: solo", SCREEN_W - 160, 153, band ? CLR_GREEN : CLR_DARK_GREY);
+    if (SONGS[which].scat) {
+        print(band ? "B: band" : "B: solo", SCREEN_W - 160, 153, band ? CLR_GREEN : CLR_DARK_GREY);
+        print(halft ? "T: half" : "T: full", SCREEN_W - 210, 153, halft ? CLR_PEACH : CLR_DARK_GREY);
+    }
     { const char *m = casc ? "V: cascade" : "V: parallel"; print(m, SCREEN_W - 8 - text_width(m), 153, casc ? CLR_ORANGE : CLR_DARK_GREY); }
     print("ENTER type  1-9,0 song  R restart  @ = schwa  x = g/ch", 8, SCREEN_H - 8, CLR_DARK_GREY);
     font(FONT_NORMAL);

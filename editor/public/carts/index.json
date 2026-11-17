@@ -8769,6 +8769,17 @@
     "lineage": "A DRAW-ONLY vibe mockup for the walkbox redesign: instead of a focus/zoom edit mode, each note in the piano-roll carries dedicated little GRABBER handles you pick up in place — right edge = length/ring, a top knob on a stem = bend (the 'ding'), a tip nub = slide to the next note, a bottom corner = scoop. Grabbers appear on the note you pick, so the overview stays uncluttered."
   },
   {
+    "title": "walk mock (tiny groovebox UI)",
+    "description": "A UI MOCKUP (not functional, no sound) for a tiny portrait groovebox (180x320) that takes a sniff of three carts: rootwalk's walking root, chordblossom's chord bloom + voicing cascade, onenote's one-note bass and XY tone. The FOCUS layout: one layer open, the other three folded to a bare lane each, all on one 16-column grid. Press 1 BASS open, 2 CHORD open, 3 LEAD open, 4 a WALK card selected (the bottom row becomes that chord's editor). Left alone it cycles.",
+    "file": "walkmock.cart.png",
+    "created": "2026-11-15",
+    "orientation": "portrait",
+    "kind": [
+      "probe"
+    ],
+    "teaches": []
+  },
+  {
     "title": "Walk-Roll",
     "description": "A walking-bass PIANO-ROLL played on the upright's real pizz voice. Tap the grid to place notes (x=time, y=pitch, scale-locked to E min pentatonic). Pick a note and its grabbers pop up: a top knob to BEND it (the expressive 'ding'), the right edge to set LENGTH (how long it rings), a tip nub to SLIDE into the next note, a bottom corner to SCOOP into the attack. PLAY loops it. The walkbox redesign: length, slide and bend all become geometry of the note itself instead of separate lanes/rows. 16 steps across (time), 10 scale-degrees up (E minor pentatonic, 2 octaves, so every row is in-key). Tap an empty cell to place a note; drag its body to move it (pitch x time); drag it below the grid to delete. The SELECTED note shows dedicated grabbers: TOP KNOB (drag up = bend depth, a hump that rises and returns), RIGHT EDGE (drag = length in cells; a long note visibly spans cells and fades as it rings), TIP NUB (tap = slide/slur into the next note on the same voice), BOTTOM CORNER (tap = scoop up into the attack). Voice = the upright INSTR_BOWED pizz; bends re-pitch the sounding voice continuously via note_pitch. Knobs: GLIDE (slur/bend time), TEMPO, TONE (pickup darkness), RING (pluck ring-out). PLAY / SPACE loops; RND rolls a line; CLR wipes. Tap empty cell = place a note (x=time, y=pitch). Tap a note = select it (grabbers appear). Drag a note's body = move it; drag it off the bottom = delete. On the selected note: drag the TOP KNOB up = bend; drag the RIGHT EDGE = length; tap the TIP nub = slide to next; tap the BOTTOM-LEFT corner = scoop. PLAY / SPACE = loop. GLIDE / TEMPO / TONE / RING knobs. RND = random line, CLR = wipe.",
     "file": "walkroll.cart.png",

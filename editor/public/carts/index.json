@@ -2367,7 +2367,7 @@
   },
   {
     "title": "dreamchip",
-    "description": "A fantasy next-gen sound chip playing one groove, with a live register monitor. DREAMCHIP DC-16: 4 FM channels (4-operator), 4 wavetable channels, 8 PCM channels (16-bit, 44.1 kHz drum samples synthesised at boot), and a DSP (tempo-synced echo + plate reverb). It plays the groove from the retro tour: octave-bouncing FM bass and drums, an FM electric-piano arpeggio ping-ponging through the echo from bar 9, a wide filtered pad from bar 17. Notes are booked ahead on the audio clock; the monitor lights each channel and logs each register write as it sounds, over an oscilloscope of the real mix. Just listen. SPACE / tap restarts the song.",
+    "description": "A fantasy FM + PCM sound chip, voiced like the Mega Drive, with a live register monitor. DREAMCHIP DC-16: 8 FM channels (4-operator, 10-bit output) and 8 PCM channels, voiced after the Mega Drive (YM2612 + SN76489): an algorithm-0 slap bass with a bright-to-dark pluck, a 1:1 + 14:1 electric piano ping-ponging hard left and right from bar 9, slow FM pads spread left/centre/right from bar 17, 8-bit ~8 kHz DAC-style kick and snare and a PSG-style noise hat, all dry like the real console. Notes are booked ahead on the audio clock; the monitor lights each channel and logs each register write as it sounds, over an oscilloscope of the real mix. Just listen. SPACE / tap restarts the song.",
     "file": "dreamchip.cart.png",
     "created": "2026-11-17",
     "kind": [
@@ -2378,7 +2378,7 @@
       "step-sequencer",
       "fm-synth"
     ],
-    "lineage": "The last stop of a retro-chip tour (ZX Spectrum beeper -> NES 2A03 -> C64 SID -> Mega Drive YM2612 -> SNES S-DSP -> AdLib OPL3) that played one shared groove on every machine. This is the 'next generation': a FANTASY chip spec, DC-16, built from dreamengine's own engines (FM4, a wavetable-style unison pad, PCM sample voices, the echo + plate reverb DSP) and shown as a live register monitor."
+    "lineage": "The last stop of a retro-chip tour (ZX Spectrum beeper -> NES 2A03 -> C64 SID -> Mega Drive YM2612 -> SNES S-DSP -> AdLib OPL3) that played one shared groove on every machine. This is the 'next generation': a FANTASY chip spec, DC-16, built from dreamengine's own engines (FM4 on its alt mapping, PCM sample voices, the per-slot bitcrush) and voiced after the tour's Mega Drive version, shown as a live register monitor."
   },
   {
     "title": "drift",

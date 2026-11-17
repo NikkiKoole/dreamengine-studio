@@ -12,10 +12,10 @@
     "step-sequencer",
     "fm-synth"
   ],
-  "lineage": "The last stop of a retro-chip tour (ZX Spectrum beeper -> NES 2A03 -> C64 SID -> Mega Drive YM2612 -> SNES S-DSP -> AdLib OPL3) that played one shared groove on every machine. This is the 'next generation': a FANTASY chip spec, DC-16, built from dreamengine's own engines (FM4, a wavetable-style unison pad, PCM sample voices, the echo + plate reverb DSP) and shown as a live register monitor.",
+  "lineage": "The last stop of a retro-chip tour (ZX Spectrum beeper -> NES 2A03 -> C64 SID -> Mega Drive YM2612 -> SNES S-DSP -> AdLib OPL3) that played one shared groove on every machine. This is the 'next generation': a FANTASY chip spec, DC-16, built from dreamengine's own engines (FM4 on its alt mapping, PCM sample voices, the per-slot bitcrush) and voiced after the tour's Mega Drive version, shown as a live register monitor.",
   "description": {
-    "summary": "A fantasy next-gen sound chip playing one groove, with a live register monitor.",
-    "detail": "DREAMCHIP DC-16: 4 FM channels (4-operator), 4 wavetable channels, 8 PCM channels (16-bit, 44.1 kHz drum samples synthesised at boot), and a DSP (tempo-synced echo + plate reverb). It plays the groove from the retro tour: octave-bouncing FM bass and drums, an FM electric-piano arpeggio ping-ponging through the echo from bar 9, a wide filtered pad from bar 17. Notes are booked ahead on the audio clock; the monitor lights each channel and logs each register write as it sounds, over an oscilloscope of the real mix.",
+    "summary": "A fantasy FM + PCM sound chip, voiced like the Mega Drive, with a live register monitor.",
+    "detail": "DREAMCHIP DC-16: 8 FM channels (4-operator, 10-bit output) and 8 PCM channels, voiced after the Mega Drive (YM2612 + SN76489): an algorithm-0 slap bass with a bright-to-dark pluck, a 1:1 + 14:1 electric piano ping-ponging hard left and right from bar 9, slow FM pads spread left/centre/right from bar 17, 8-bit ~8 kHz DAC-style kick and snare and a PSG-style noise hat, all dry like the real console. Notes are booked ahead on the audio clock; the monitor lights each channel and logs each register write as it sounds, over an oscilloscope of the real mix.",
     "controls": "Just listen. SPACE / tap restarts the song."
   }
 }
@@ -23,10 +23,11 @@ de:meta */
 // dreamchip — a fantasy "next generation" sound chip, DC-16, built from dreamengine engines.
 //
 // The chip spec (what the monitor shows):
-//   FM0-FM3   4-operator FM        FM0 bass, FM1/FM2 electric-piano arp (left/right)
-//   WT0-WT3   wavetable + filter   WT0-WT2 the pad chord
-//   PCM0-PCM7 16-bit 44.1 kHz PCM  PCM0 kick, PCM1 snare, PCM2 hi-hat (synthesised at boot)
-//   DSP       echo (dotted 8th, tempo-synced) + plate reverb
+//   FM0-FM7   4-operator FM, 10-bit out  FM0 bass, FM1/FM2 electric-piano arp (hard L/R),
+//                                        FM3-FM5 the pad chord (L/C/R)
+//   PCM0-PCM7 8-bit PCM at ~8.2 kHz      PCM0 kick, PCM1 snare; PCM2 a PSG-style 1-bit noise hat
+// Voiced after the Mega Drive version of the tour (YM2612 + SN76489): the same FM algorithms
+// and ratios, its gritty DAC drums, and no echo or reverb.
 // The groove is the one the retro tour used (zxspec/groove.py), ported to C below.
 #include "studio.h"
 #include <math.h>
@@ -38,7 +39,9 @@ de:meta */
 #define S_BASS   10
 #define S_ARPL   11
 #define S_ARPR   12
-#define S_PAD    13
+#define S_PAD    13      // pads: three slots, hard left / centre / right
+#define S_PAD2   17
+#define S_PAD3   18
 #define S_KICK   14
 #define S_SNARE  15
 #define S_HAT    16
@@ -63,79 +66,130 @@ static void load_pcm(int slot, float *buf, int n) {
     sample_load(slot, buf, n);
 }
 
+// Mega Drive style drums. Kick and snare go through the YM2612's DAC there: 8-bit samples
+// streamed at ~8.2 kHz with no smoothing, which is where the grit and punch come from.
+// The hi-hat was the SN76489 PSG: 1-bit LFSR noise in 2 dB volume steps, one step per frame.
+#define DAC_RATE 8191.0f
+static float dac8(float x) {                           // 8-bit, as the DAC register stores it
+    return roundf(fmaxf(-1.0f, fminf(1.0f, x)) * 127.0f) / 127.0f;
+}
+
 static void make_drums(void) {
     const int sr = 44100;
     int n = (int)(0.25f * sr);
     float *buf = (float *)calloc((size_t)n, sizeof(float));
-    float ph = 0.0f;                                   // kick: falling sine + a click
+    float ph = 0.0f, held = 0.0f, next = 0.0f;         // kick: falling sine + a click
     for (int i = 0; i < n; i++) {
         float t = (float)i / sr;
-        ph += 2.0f * 3.14159265f * (46.0f + 150.0f * expf(-t / 0.03f)) / sr;
-        float click = noise1() * expf(-t / 0.002f) * 0.35f;
-        buf[i] = tanhf(1.6f * (sinf(ph) * expf(-t / 0.10f) + click));
+        ph += 2.0f * 3.14159265f * (48.0f + 150.0f * expf(-t / 0.03f)) / sr;
+        if (t >= next) {                               // sample-and-hold at the DAC rate
+            float click = noise1() * expf(-t / 0.002f) * 0.35f;
+            held = dac8(tanhf(1.4f * (sinf(ph) * expf(-t / 0.09f) + click)));
+            next += 1.0f / DAC_RATE;
+        }
+        buf[i] = held;
     }
     load_pcm(PCM_KICK, buf, n);
 
     float prev = 0.0f;                                 // snare: two tones + bright noise
+    held = 0.0f; next = 0.0f;
     for (int i = 0; i < n; i++) {
-        float t = (float)i / sr, nz = noise1();
-        float body = (sinf(2 * 3.14159265f * 185 * t) + 0.5f * sinf(2 * 3.14159265f * 330 * t))
-                     * expf(-t / 0.035f) * 0.55f;
-        buf[i] = tanhf(1.4f * (body + (nz - 0.6f * prev) * expf(-t / 0.065f) * 0.75f));
-        prev = nz;
+        float t = (float)i / sr;
+        if (t >= next) {
+            float nz = noise1();
+            float body = (sinf(2 * 3.14159265f * 185 * t) + 0.5f * sinf(2 * 3.14159265f * 330 * t))
+                         * expf(-t / 0.035f) * 0.55f;
+            held = dac8(tanhf(1.4f * (body + (nz - 0.6f * prev) * expf(-t / 0.065f) * 0.75f)));
+            prev = nz;
+            next += 1.0f / DAC_RATE;
+        }
+        buf[i] = held;
     }
     load_pcm(PCM_SNARE, buf, n);
 
-    int nh = (int)(0.08f * sr);                        // hat: high-passed noise
-    prev = 0.0f;
+    // hat: PSG periodic-free white noise (15-bit LFSR) shifted at clock/512 = ~6991 Hz,
+    // attenuation 4 -> 9 -> 15 (x 2 dB) over three 60 Hz frames, as the Mega Drive version did
+    int nh = (int)(0.05f * sr);
+    unsigned lfsr = 0x4000u;
+    float bit = 1.0f; next = 0.0f;
     for (int i = 0; i < nh; i++) {
-        float nz = noise1();
-        buf[i] = (nz - prev) * expf(-(float)i / sr / 0.016f);
-        prev = nz;
+        float t = (float)i / sr;
+        if (t >= next) {
+            unsigned fb = (lfsr ^ (lfsr >> 1)) & 1u;
+            lfsr = (lfsr >> 1) | (fb << 14);
+            bit = (lfsr & 1u) ? 1.0f : -1.0f;
+            next += 1.0f / 6991.0f;
+        }
+        int frame = (int)(t * 60.0f);
+        float att = frame == 0 ? 4.0f : frame == 1 ? 9.0f : 15.0f;
+        buf[i] = att >= 15.0f ? 0.0f : bit * powf(10.0f, -2.0f * att / 20.0f);
     }
-    load_pcm(PCM_HAT, buf, nh);
+    sample_load(PCM_HAT, buf, nh);                     // keep its real level (no normalising)
     free(buf);
 }
 
+// FM4 on its "alt" mapping: harmonics = the algorithm (0..7 snapped), MODE_FM4_R0..R3 = the
+// four operator ratios (snapped to 0.5 1 1.414 1.5 1.618 2 2.414 3 3.5 4 5 7 14),
+// timbre = modulation index (brightness), morph = operator-1 feedback.
+#define ALG(n)   (((n) + 0.5f) / 8.0f)
+#define RATIO_1  (1.5f / 13.0f)
+#define RATIO_2  (5.5f / 13.0f)
+#define RATIO_14 (12.5f / 13.0f)
+static void fm4_patch(int slot, int alg, float r0, float r1, float r2, float r3,
+                      float bright, float feedback) {
+    instrument_mode(slot, MODE_FM4_MAP, 1.0f);
+    instrument_harmonics(slot, ALG(alg));
+    instrument_mode(slot, MODE_FM4_R0, r0);
+    instrument_mode(slot, MODE_FM4_R1, r1);
+    instrument_mode(slot, MODE_FM4_R2, r2);
+    instrument_mode(slot, MODE_FM4_R3, r3);
+    instrument_timbre(slot, bright);
+    instrument_morph(slot, feedback);
+    instrument_crush(slot, 10.0f, 1.0f, 1.0f);        // a touch of DAC grit (9 bits hissed on the quiet bass)
+}
+
 static void setup_chip(void) {
-    // FM0: bass (fm4op/bass)
-    instrument(S_BASS, INSTR_FM4, 1, 300, 4, 110);
-    instrument_harmonics(S_BASS, 0.56f); instrument_timbre(S_BASS, 0.70f); instrument_morph(S_BASS, 0.25f);
+    // FM0: the Mega Drive slap bass. Algorithm 0 (1->2->3->4), ratios 1:1:2:1, strong feedback,
+    // and a brightness kick on every note that falls away fast: the bright-to-dark "pluck".
+    instrument(S_BASS, INSTR_FM4, 1, 280, 4, 90);
+    fm4_patch(S_BASS, 0, RATIO_1, RATIO_1, RATIO_2, RATIO_1, 0.40f, 0.50f);
+    instrument_env(S_BASS, 0, ENV_TIMBRE, 1, 110, 0.30f);
+    instrument_drive(S_BASS, 0.10f);
     instrument_level(S_BASS, 0.9f);
-    // FM1/FM2: soft tine electric piano (fm4op/tine), one per side, into the echo
+    // FM1/FM2: the electric piano. Algorithm 4 (1->2, 3->4): a 1:1 body pair and a 14:1 "tine"
+    // pair. Dry, hard left / hard right, the arp ping-pongs between them.
     for (int s = S_ARPL; s <= S_ARPR; s++) {
-        instrument(s, INSTR_FM4, 2, 420, 3, 600);
-        instrument_harmonics(s, 0.06f); instrument_timbre(s, 0.40f); instrument_morph(s, 0.08f);
+        instrument(s, INSTR_FM4, 2, 420, 3, 500);
+        fm4_patch(s, 4, RATIO_1, RATIO_1, RATIO_14, RATIO_1, 0.42f, 0.18f);
+        instrument_env(s, 0, ENV_TIMBRE, 1, 60, 0.20f);
         instrument_level(s, 0.55f);
-        instrument_echo(s, 0.40f);
-        instrument_reverb(s, 0.25f);
     }
-    instrument_pan(S_ARPL, -0.6f);
-    instrument_pan(S_ARPR, 0.6f);
-    // WT0-WT2: the pad, a detuned unison wall through a slowly breathing low-pass
-    instrument(S_PAD, INSTR_SAW, 650, 0, 7, 1400);
-    instrument_bandlimit(S_PAD, 1);
-    instrument_unison(S_PAD, 4, 0.12f);
-    instrument_filter(S_PAD, FILTER_LOW, 1100, 2);
-    instrument_lfo(S_PAD, 0, LFO_CUTOFF, 0.08f, 450.0f);   // depth in Hz
-    instrument_level(S_PAD, 0.32f);
-    instrument_reverb(S_PAD, 0.55f);
-    // PCM0-PCM2: drum samples
+    instrument_pan(S_ARPL, -0.85f);
+    instrument_pan(S_ARPR, 0.85f);
+    // FM3-FM5: the pads. Algorithm 4 again, 1:1 and 2:1 pairs, gentle and slow, one per side,
+    // with a little analog drift between voices for the slightly detuned YM chorus.
+    static const int PADS[3] = {S_PAD, S_PAD2, S_PAD3};
+    for (int k = 0; k < 3; k++) {
+        int s = PADS[k];
+        instrument(s, INSTR_FM4, 520, 0, 7, 700);
+        fm4_patch(s, 4, RATIO_1, RATIO_1, RATIO_2, RATIO_1, 0.28f, 0.20f);
+        instrument_analog(s, 0.5f);
+        instrument_level(s, 0.30f);
+    }
+    instrument_pan(S_PAD, -0.85f);
+    instrument_pan(S_PAD2, 0.0f);
+    instrument_pan(S_PAD3, 0.85f);
+    // PCM0-PCM2: drums (see make_drums)
     make_drums();
     instrument(S_KICK, INSTR_SAMPLE, 0, 0, 7, 40);
     instrument_sample(S_KICK, PCM_KICK, 60);
     instrument(S_SNARE, INSTR_SAMPLE, 0, 0, 7, 60);
     instrument_sample(S_SNARE, PCM_SNARE, 60);
-    instrument_reverb(S_SNARE, 0.30f);
     instrument_level(S_SNARE, 0.8f);
     instrument(S_HAT, INSTR_SAMPLE, 0, 0, 7, 30);
     instrument_sample(S_HAT, PCM_HAT, 60);
-    instrument_pan(S_HAT, 0.3f);
-    instrument_level(S_HAT, 0.35f);
-    // DSP: dotted-eighth echo + plate reverb
-    echo((int)(3 * STEP_SEC * 1000.0), 0.35f, 0.45f);
-    reverb(0.6f, 0.5f);
-    reverb_plate(0.7f);
+    instrument_level(S_HAT, 0.8f);
+    // no DSP: the Mega Drive had no echo or reverb. Everything dry and up front.
 }
 
 // ---------------------------------------------------------------- the groove
@@ -178,9 +232,9 @@ static int groove_of(int bar) {
 
 // ---------------------------------------------------------------- the monitor
 #define NCH 16
-static const char *CH_NAME[NCH] = {"FM0", "FM1", "FM2", "FM3", "WT0", "WT1", "WT2", "WT3",
+static const char *CH_NAME[NCH] = {"FM0", "FM1", "FM2", "FM3", "FM4", "FM5", "FM6", "FM7",
                                    "PCM0", "PCM1", "PCM2", "PCM3", "PCM4", "PCM5", "PCM6", "PCM7"};
-static const char *CH_ROLE[NCH] = {"BASS", "EP L", "EP R", "", "PAD", "PAD", "PAD", "",
+static const char *CH_ROLE[NCH] = {"BASS", "EP L", "EP R", "PAD L", "PAD C", "PAD R", "", "",
                                    "KICK", "SNARE", "HAT", "", "", "", "", ""};
 static float ch_lamp[NCH];
 static int ch_note[NCH];
@@ -238,9 +292,10 @@ static void book_step(long s, double t) {
         }
     }
 
-    if (bar >= 16 && i == 0) {                         // WT0-WT2: the pad chord
+    if (bar >= 16 && i == 0) {                         // FM3-FM5: the pad chord
         int dur = (int)((last ? 14 : 16) * STEP_SEC * 1000) - 40;
-        for (int v = 0; v < 3; v++) book(t, S_PAD, 4 + v, PAD_VOICING[pad_index(r)][v], 5, dur);
+        static const int PAD_SLOT[3] = {S_PAD, S_PAD2, S_PAD3};
+        for (int v = 0; v < 3; v++) book(t, PAD_SLOT[v], 3 + v, PAD_VOICING[pad_index(r)][v], 5, dur);
     }
 
     int d = GROOVES[groove_of(bar)][i];                // PCM0-PCM2: drums
@@ -272,7 +327,7 @@ void update(void) {
         ch_until[e.ch] = e.t + e.dur;
         ch_note[e.ch] = e.midi;
         if (e.ch == 8) kick_flash = 1.0f;
-        int reg = (e.ch < 4 ? 0x00 : e.ch < 8 ? 0x40 : 0x80) + (e.ch % (e.ch < 8 ? 4 : 8)) * 8 + 4;
+        int reg = (e.ch < 8 ? 0x00 : 0x80) + (e.ch % 8) * 8 + 4;
         char nn[8];
         note_name(e.midi, nn);
         memmove(log_lines[1], log_lines[0], sizeof(log_lines[0]) * (LOGN - 1));
@@ -289,9 +344,9 @@ void update(void) {
 
 // ---------------------------------------------------------------- draw
 static int lamp_colour(int c, float v) {
-    int hot = c < 4 ? CLR_ORANGE : c < 8 ? CLR_BLUE : CLR_GREEN;
-    int warm = c < 4 ? CLR_DARK_ORANGE : c < 8 ? CLR_TRUE_BLUE : CLR_MEDIUM_GREEN;
-    int cool = c < 4 ? CLR_DARK_BROWN : c < 8 ? CLR_DARKER_BLUE : CLR_DARK_GREEN;
+    int hot = c < 3 ? CLR_ORANGE : c < 8 ? CLR_BLUE : CLR_GREEN;      // bass/EP · pads · drums
+    int warm = c < 3 ? CLR_DARK_ORANGE : c < 8 ? CLR_TRUE_BLUE : CLR_MEDIUM_GREEN;
+    int cool = c < 3 ? CLR_DARK_BROWN : c < 8 ? CLR_DARKER_BLUE : CLR_DARK_GREEN;
     return v > 0.6f ? hot : v > 0.25f ? warm : v > 0.05f ? cool : CLR_BROWNISH_BLACK;
 }
 
@@ -302,7 +357,7 @@ void draw(void) {
     font(FONT_NORMAL);
     print("DREAMCHIP DC-16", 6, 5, CLR_YELLOW);
     font(FONT_SMALL);
-    print("4 FM  4 WAVETABLE  8 PCM  DSP: ECHO + PLATE", 6, 16, CLR_INDIGO);
+    print("8 FM (4-OP)  8 PCM  -  MEGA DRIVE VOICING, DRY", 6, 16, CLR_INDIGO);
     char buf[64];
     if (cur_bar >= 0 && cur_bar < BARS) snprintf(buf, sizeof buf, "BAR %02d  %s", cur_bar + 1, GROOVE_NAME[cur_groove]);
     else snprintf(buf, sizeof buf, "BAR --  %s", cur_bar < 0 ? "READY" : "BREATH");
@@ -336,6 +391,6 @@ void draw(void) {
         y0 = y0 < 146 ? 146 : y0 > 192 ? 192 : y0; y1 = y1 < 146 ? 146 : y1 > 192 ? 192 : y1;
         line(5 + x, y0, 6 + x, y1, kick_flash > 0.3f ? CLR_PINK : CLR_BLUE);
     }
-    print("DSP OUT", 9, 146, CLR_INDIGO);
+    print("OUT", 9, 146, CLR_INDIGO);
     font(FONT_NORMAL);
 }

@@ -2366,6 +2366,21 @@
     "homage": "picoCAD (2020)"
   },
   {
+    "title": "dreamchip",
+    "description": "A fantasy next-gen sound chip playing one groove, with a live register monitor. DREAMCHIP DC-16: 4 FM channels (4-operator), 4 wavetable channels, 8 PCM channels (16-bit, 44.1 kHz drum samples synthesised at boot), and a DSP (tempo-synced echo + plate reverb). It plays the groove from the retro tour: octave-bouncing FM bass and drums, an FM electric-piano arpeggio ping-ponging through the echo from bar 9, a wide filtered pad from bar 17. Notes are booked ahead on the audio clock; the monitor lights each channel and logs each register write as it sounds, over an oscilloscope of the real mix. Just listen. SPACE / tap restarts the song.",
+    "file": "dreamchip.cart.png",
+    "created": "2026-11-17",
+    "kind": [
+      "toy",
+      "tech-demo"
+    ],
+    "teaches": [
+      "step-sequencer",
+      "fm-synth"
+    ],
+    "lineage": "The last stop of a retro-chip tour (ZX Spectrum beeper -> NES 2A03 -> C64 SID -> Mega Drive YM2612 -> SNES S-DSP -> AdLib OPL3) that played one shared groove on every machine. This is the 'next generation': a FANTASY chip spec, DC-16, built from dreamengine's own engines (FM4, a wavetable-style unison pad, PCM sample voices, the echo + plate reverb DSP) and shown as a live register monitor."
+  },
+  {
     "title": "drift",
     "description": "Three drummers, one pattern, ranked by clock — a timing diagnostic you can hear. The same 16th-note pulse plays three ways at once: TRUTH (center) uses schedule_hit() to book each note a few steps ahead with a sample-accurate delay, so the audio thread lands it exactly on the grid; TRIG (left) fires hit() the instant the beat index changes in update(), so it wobbles by a frame; FCNT (right) fires every N frames assuming 60fps, so it can't keep time and slides. When the clocks agree the three collapse into one tight centered hit; as timing slips they flam apart and spread across the stereo field, and a scrolling scope per voice plots each hit's error in ms. Tap GLITCH to stall a frame (a GC pause / scroll on the web) — TRUTH holds, the frame clocks stumble. Especially revealing on a phone. TAP the buttons (mute each voice / tempo / glitch); keys 1 2 3 mute, LEFT/RIGHT tempo, SPACE glitch. Companion to docs/design/audio-timing.md.",
     "file": "drift.cart.png",
@@ -5822,6 +5837,20 @@
       "analog-voice-modeling"
     ],
     "lineage": "INSTR_PIANO showcase and tuning rig; ported from navkit's StifKarp engine. Novel: exposes the dispersion allpass chain that adds inharmonicity (stretched upper partials) to Karplus-Strong, with six presets spanning grand piano through celesta as acceptance tests."
+  },
+  {
+    "title": "piano bar",
+    "description": "Be the singer at the grand piano. Your left hand plays chords on a real Steinway, your right hand plays the tune, and every note you play sings the next syllable of the song. One key plays a whole chord in the song's key, voiced the way a pianist would: each chord moves to the nearest shape from the last one, with the root low in the bass. The melody keys only play notes of the scale, so nothing is ever a wrong note. Hold a melody key to hold the syllable; play the next note while still holding it and the voice slides over, legato. The words light up as you sing them. A MIDI keyboard works too: below middle C is the piano, from middle C up is the voice. LEFT HAND (piano): Z X C V B N M = chords I ii iii IV V7 vi bVII · SPACE = sustain pedal · RIGHT HAND (voice): A S D F G H J K L = the scale from the key note up, Q W E R T Y U I O P = an octave higher · 1-8 = pick the song · 0 or BACKSPACE = back to the first word · LEFT/RIGHT = change key · TAB = the singer (clean, warm, jazz, child) · UP/DOWN = piano loudness · touch: the chord pads, the pedal, and the keys (left of the gold line = piano, right = voice)",
+    "file": "pianobar.cart.png",
+    "created": "2026-11-15",
+    "kind": [
+      "instrument"
+    ],
+    "teaches": [
+      "chord-voicing",
+      "scale-quantize"
+    ],
+    "lineage": "zingen's singer (lyric.h on INSTR_VOICE) sat down at grand keys' Steinway (steinway.h on INSTR_PIANO's hybrid). Piano: bitKlavier Grand Sample Library, Daniel Trueman, Princeton University (CC BY 4.0)."
   },
   {
     "title": "pianohand",

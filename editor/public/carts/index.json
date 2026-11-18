@@ -4689,6 +4689,21 @@
     "lineage": "Standalone algorithm demo with no direct cart ancestor; shows randomized DFS backtracker and randomized Prim side-by-side with live stack/frontier highlighting."
   },
   {
+    "title": "md groovebox",
+    "description": "A 16-step Mega Drive groovebox: DAC drums, grit or FM bass, FM e-piano stabs and pads. Seven rows of 16 steps: kick, clap, closed hat, open hat (8-bit samples held at ~8 kHz, like the Mega Drive's DAC), bass (each step is the root, octave, fifth or seventh of the bar's chord), e-piano stabs (the chord) and a pad (holds the chord). The pattern is one bar; the chords move through a 4-bar cycle from a preset: club F minor, pop C major, 70s soul E minor, or the retro tour's A minor. Swing, tempo, and the bass voice (the grit bass fitted to a real YM2612, or the FM bass) are one tap away. Tap a cell to toggle it (bass cells cycle root / octave / fifth / seventh / off). SPACE play/stop, LEFT/RIGHT tempo, S swing, B bass voice, P chord preset, C clear, D demo pattern. The buttons on top do the same.",
+    "file": "mdbox.cart.png",
+    "created": "2026-11-18",
+    "kind": [
+      "instrument",
+      "toy"
+    ],
+    "teaches": [
+      "step-sequencer",
+      "fm-synth"
+    ],
+    "lineage": "A little groovebox on the Mega Drive voicing worked out in dreamchip and mdstudies: FM4 on its alt mapping for e-piano and pad, the patch-matched 'grit' bass (or the FM bass), and DAC-style 8 kHz drum samples. The sounds were chosen by blind listening tests against a real YM2612 (see mdstudies / mdref)."
+  },
+  {
     "title": "mega drive reference probe",
     "description": "Bass A2 E2 A3, e-piano A3 A4 E5, then the C pad chord, each held 8 ticks of 7 frames, the same timing as the Mega Drive test ROM. Render with: node tools/play.js mdref run --headless --frames 840 --wav out.wav",
     "file": "mdref.cart.png",

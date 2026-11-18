@@ -4689,6 +4689,34 @@
     "lineage": "Standalone algorithm demo with no direct cart ancestor; shows randomized DFS backtracker and randomized Prim side-by-side with live stack/frontier highlighting."
   },
   {
+    "title": "mega drive reference probe",
+    "description": "Bass A2 E2 A3, e-piano A3 A4 E5, then the C pad chord, each held 8 ticks of 7 frames, the same timing as the Mega Drive test ROM. Render with: node tools/play.js mdref run --headless --frames 840 --wav out.wav",
+    "file": "mdref.cart.png",
+    "created": "2026-11-17",
+    "kind": [
+      "probe"
+    ],
+    "teaches": [
+      "fm-synth"
+    ],
+    "lineage": "Measurement probe: plays the exact note sequence of the zxspec Mega Drive patch-test ROM (megadrive/build.py with PATCHTEST=1, recorded through MAME's YM2612) on dreamchip's FM4 versions of those patches, so the two renders can be compared (zxspec/compare/). Not meant to be played."
+  },
+  {
+    "title": "mega drive style studies",
+    "description": "Four original loops in classic Mega Drive styles, on FM4 and gritty DAC drums. 1 CLUB: 909-style DAC drums, rubbery FM bass, house-piano stabs, a sweeping FM pad (the Streets of Rage family). 2 BRIGHT POP: FM brass stabs, an FM marimba line, a bouncy bass (the Sonic-era family). 3 FM ROCK: power chords from heavy operator feedback and drive, a fast FM arpeggio, rock drums with tom fills (the Thunder Force family). 4 AMBIENT: glassy FM pads, a soft bell with echoes made from quieter repeats (the Ecco family). 5 SLOW JAM: a swung 70s soul groove: round fingered FM bass with slides, muted wah guitar, tremolo e-piano, lush strings, soft drums and congas. All compositions are original; only the instruments and production style follow those soundtracks. It tours all five. 1-5 (or tap a study) jumps to one and keeps looping it. 0 / SPACE goes back to the tour.",
+    "file": "mdstudies.cart.png",
+    "created": "2026-11-17",
+    "kind": [
+      "toy",
+      "tech-demo"
+    ],
+    "teaches": [
+      "step-sequencer",
+      "fm-synth"
+    ],
+    "lineage": "Follow-up to dreamchip: four short ORIGINAL loops, each in the production style of a classic Mega Drive soundtrack family, to hear how far dreamengine's FM4 (alt mapping) plus DAC-style drum samples gets toward that sound. Groundwork for a Mega Drive patch set in other projects."
+  },
+  {
     "title": "mellotron",
     "description": "The 1963 tape-replay keyboard, faked in pure synthesis. A real Mellotron has NO oscillators - each key drags a strip of pre-recorded tape (a real strings/choir/flute/brass section) across a playback head. We have no sample playback (code-first synthesis, on purpose), so the cart reconstructs the CUES the ear uses to believe a recording: each VOICE is a drawn single-cycle wave (harmonics stacked via wave_set into INSTR_USER0, the tapeloop trick); every key-press makes a soft airy breath of noise as the tape-head engages and the note settles UP to pitch over ~90ms (the capstan spinning to speed - the real Mellotron onset, modelled with a pitch mod-envelope rather than a synthy click); chorus() turns one wave into an ENSEMBLE; a gentle vibrato + slow filter drift keep the timbre from freezing; then tape() (wow/flutter/saturation) and reverb() add the worn tape and the room. The headline is the signature Mellotron quirk: THE ~8-SECOND TAPE LIMIT - each key's tape is finite, so a held note runs out and stops on its own even with the key still down (lift and re-press to rewind). Each held key shows its tape draining from the top in the voice colour, then goes dark when it runs out. LAYERING - a real Mellotron tape frame holds three tracks, so you can blend them: tap the VOICE buttons (STRINGS / CHOIR / FLUTE / BRASS) to stack timbres into the loaded tape (the drawn single-cycle waves are summed - additive, still one voice per note), or hit a COMBI preset (STR+CH, STR+FL, CHO+FL, FULL). Dressed as an M400 cabinet: wooden end-cheeks, a cream control panel, a logo plate, the voice/combi selectors and TONE + TAPE (loop length 2-8s) knobs. Hold keys to play - computer keyboard uses the GarageBand musical-typing map (white keys on the home row A S D F G H J K L ; ' with A = C, black keys on the row above W E T Y U O P - all labelled on the keys; Z / X shift the octave), or mouse = one finger, or touch = chords up to ~5 fingers and slide for glissando.",
     "file": "mellotron.cart.png",

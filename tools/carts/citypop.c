@@ -363,7 +363,8 @@ static void setup_instruments(void) {
     instrument_lfo(I_LEAD, 0, LFO_PITCH, 5.6f, 0.10f);
 
     instrument(I_BRASS, INSTR_SAW, 4, 180, 5, 120);          // the section
-    instrument_env(I_BRASS, 0, ENV_PITCH, 0, 40, -2);        // the fall
+    instrument_env(I_BRASS, 0, ENV_PITCH, 0, 200, -0.25f);   // a small scoop that settles over ~50 ms (reedhand's tongued scoop; -2 st over 40 ms left the stabs flat)
+    instrument_env(I_BRASS, 1, ENV_CUTOFF, 0, 160, 1400);    // the tongue's bite: the filter opens on the front of each stab, the synth-brass blat
 
     instrument(I_KICK, INSTR_SINE, 0, 80, 0, 30);
     instrument_env(I_KICK, 0, ENV_PITCH, 0, 40, 14);

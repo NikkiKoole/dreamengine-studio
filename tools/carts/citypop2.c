@@ -732,7 +732,7 @@ static void voice_keys(int sel) {
         if (sel == 0) { inst(s, INSTR_EPIANO, 1, 0, 7, s == I_EP ? 260 : 700, 0.15f, 0.62f, 0.40f); epLp = 4200; }    // a stage Rhodes with bark (held release 700: 2200 rang into the next chord)
         else          { inst(s, INSTR_FM, 2, 700, 3, s == I_EP ? 300 : 600, 0.15f, 0.45f, 0.10f); epLp = 5200; }       // the DX7 electric piano
         instrument_lfo(s, 0, LFO_VOLUME, 4.6f, 0.04f);
-        instrument_chorus(s, 0.8f, 0.45f, 0.45f);
+        instrument_chorus(s, 0.6f, 0.15f, 0.35f);   // ~±13c wobble: 0.8/0.45/0.45 swung ±46c per side and detuned every chord
         instrument_reverb(s, 0.22f); instrument_level(s, 0.55f); instrument_pan(s, -0.12f);
     }
 }
@@ -765,17 +765,22 @@ static void voice_lead(int sel) {
         inst(I_LEAD, INSTR_REED, 2, 0, 5, 160, 0.78f, 0.45f, 0.55f);
         leadLp = 3800; leadLvl = 0.45f;
     }
-    instrument_chorus(I_LEAD, 0.6f, 0.25f, 0.25f);
+    instrument_chorus(I_LEAD, 0.5f, 0.10f, 0.20f);
     instrument_echo(I_LEAD, 0.22f); instrument_reverb(I_LEAD, 0.30f); instrument_pan(I_LEAD, 0.06f); instrument_level(I_LEAD, leadLvl);
 }
 static void voice_band(void) {
     // guitar: a clean single-coil, mostly muted, chorused, panned right
     inst(I_GTR, INSTR_GUITAR, 1, 0, 7, 90, 0.45f, 0.78f, 0.50f);
     instrument_filter(I_GTR, FILTER_HIGH, 220, 0);
-    instrument_chorus(I_GTR, 1.1f, 0.5f, 0.55f); instrument_reverb(I_GTR, 0.15f); instrument_pan(I_GTR, 0.38f); instrument_level(I_GTR, 1.0f); instrument_eq(I_GTR, 0.0f, 6.0f, 2.0f);   // it sat 22 dB under the keys at 0.55
+    instrument_chorus(I_GTR, 0.8f, 0.15f, 0.40f); instrument_reverb(I_GTR, 0.15f); instrument_pan(I_GTR, 0.38f); instrument_level(I_GTR, 1.0f); instrument_eq(I_GTR, 0.0f, 6.0f, 2.0f);   // it sat 22 dB under the keys at 0.55
     // the horns: a trumpet section, wide
     inst(I_BRASS, INSTR_BRASS, 1, 0, 5, 90, 0.15f, 0.62f, 0.40f);
-    instrument_env(I_BRASS, 0, ENV_PITCH, 0, 60, -1.5f);                 // the fall off the end of a stab
+    // reedhand's player tricks, the bookable ones: a SMALL scoop that settles over ~50 ms (AD decay d = 4 tau;
+    // the old -1.5 st over 60 ms left half of every stab flat), the tongue's brightness burst on the front,
+    // and no vibrato on stabs (a section hits straight; the built-in lip vibrato is for long notes)
+    instrument_env(I_BRASS, 0, ENV_PITCH, 0, 200, -0.25f);
+    instrument_env(I_BRASS, 1, ENV_TIMBRE, 0, 200, 0.15f);
+    instrument_vibrato(I_BRASS, 0.0f);
     instrument_reverb(I_BRASS, 0.25f); instrument_pan(I_BRASS, -0.25f); instrument_level(I_BRASS, 0.5f);
     // the sax: the solo
     inst(I_SAX, INSTR_REED, 2, 0, 5, 180, 0.78f, 0.45f, 0.58f);
@@ -784,7 +789,7 @@ static void voice_band(void) {
     // the strings: a soft saw section, slow in, chorused wide, low in the mix
     instrument(I_STR, INSTR_SAW, 260, 0, 6, 260);     // a short release: a 700 ms tail rang the old chord into the new one
     instrument_filter(I_STR, FILTER_LOW, 2600, 0);
-    instrument_chorus(I_STR, 0.5f, 0.7f, 0.7f); instrument_reverb(I_STR, 0.45f); instrument_level(I_STR, 0.22f);
+    instrument_chorus(I_STR, 0.4f, 0.25f, 0.45f); instrument_reverb(I_STR, 0.45f); instrument_level(I_STR, 0.22f);
     // percussion
     instrument(I_SHK, INSTR_NOISE, 1, 45, 0, 25); instrument_filter(I_SHK, FILTER_HIGH, 5600, 3);
     instrument_level(I_SHK, 0.35f); instrument_pan(I_SHK, 0.45f);

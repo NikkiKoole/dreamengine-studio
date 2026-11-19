@@ -51,7 +51,7 @@ static unsigned char wall[GH][GW];
 static float field[GH][GW];     // the field agents roll downhill on (also drawn)
 static float mfield[GH][GW];    // the monster's field (distance to nearest agent)
 static float s1[GH][GW], s2[GH][GW];   // scratch
-static float fmin;              // for heatmap normalization
+static float fieldmin;              // for heatmap normalization
 
 typedef struct { int cx, cy, px, py; float t; } Agent;
 static Agent ag[NA];
@@ -136,10 +136,10 @@ static void recompute() {
         for (int i = 0; i < NA; i++) if (!blocked(ag[i].cx, ag[i].cy)) mfield[ag[i].cy][ag[i].cx] = 0;
         relax(mfield);
     }
-    fmin = INF;
+    fieldmin = INF;
     for (int y = 0; y < GH; y++) for (int x = 0; x < GW; x++)
-        if (!wall[y][x] && field[y][x] < INF && field[y][x] < fmin) fmin = field[y][x];
-    if (fmin >= INF) fmin = 0;
+        if (!wall[y][x] && field[y][x] < INF && field[y][x] < fieldmin) fieldmin = field[y][x];
+    if (fieldmin >= INF) fieldmin = 0;
     dirty = false;
 }
 
@@ -250,7 +250,7 @@ void update() {
 
 #ifdef DE_TRACE
     int total = 0; for (int i = 0; i < NA; i++) total += abs(ag[i].cx-gx) + abs(ag[i].cy-gy);
-    watch("mode", "%d", mode); watch("fmin", "%d", (int)fmin); watch("score", "%d", score);
+    watch("mode", "%d", mode); watch("fieldmin", "%d", (int)fieldmin); watch("score", "%d", score);
     watch("agentdist", "%d", total / NA);   // mean manhattan dist agents->goal
 #endif
 }
@@ -273,7 +273,7 @@ void draw() {
             int sx = x*TILE, sy = y*TILE;
             if (wall[y][x]) { rectfill(sx, sy, TILE, TILE, CLR_DARK_GREY); continue; }
             if (field[y][x] >= INF) { pset(sx+TILE/2, sy+TILE/2, CLR_DARKER_GREY); continue; }
-            int band = (int)((field[y][x]-fmin)/BANDW);
+            int band = (int)((field[y][x]-fieldmin)/BANDW);
             if (band < 0) band = 0;
             rectfill(sx+1, sy+1, TILE-2, TILE-2, RAMP[band % 8]);
         }

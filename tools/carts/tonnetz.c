@@ -40,10 +40,10 @@ de:meta */
 #define BPM      84
 
 // ── layout (400×240, mouse-first) ──
-#define MAP_X 4
-#define MAP_Y 14
-#define MAP_W 248
-#define MAP_H 154
+#define BOARD_X 4
+#define BOARD_Y 14
+#define BOARD_W 248
+#define BOARD_H 154
 #define TS    30.0f                 // triangle side, px
 #define TH    (TS * 0.8660254f)     // triangle height
 #define GRID_X 262
@@ -123,18 +123,18 @@ static const char *cname(int root, int minor) {
 }
 
 // ── map geometry: lattice node (i,j) → screen ──
-static float node_x(float i, float j) { return MAP_X + MAP_W * 0.5f + ((i - view_i) + (j - view_j) * 0.5f) * TS; }
-static float node_y(float i, float j) { return MAP_Y + MAP_H * 0.5f - (j - view_j) * TH; }
+static float node_x(float i, float j) { return BOARD_X + BOARD_W * 0.5f + ((i - view_i) + (j - view_j) * 0.5f) * TS; }
+static float node_y(float i, float j) { return BOARD_Y + BOARD_H * 0.5f - (j - view_j) * TH; }
 static void tri_pts(TzTri t, int *xy) {
     int ni[3], nj[3];
     if (!t.down) { ni[0] = t.i; nj[0] = t.j; ni[1] = t.i + 1; nj[1] = t.j; ni[2] = t.i; nj[2] = t.j + 1; }
     else         { ni[0] = t.i + 1; nj[0] = t.j; ni[1] = t.i; nj[1] = t.j + 1; ni[2] = t.i + 1; nj[2] = t.j + 1; }
     for (int k = 0; k < 3; k++) { xy[2 * k] = (int)node_x((float)ni[k], (float)nj[k]); xy[2 * k + 1] = (int)node_y((float)ni[k], (float)nj[k]); }
 }
-static int in_map(int x, int y) { return x >= MAP_X && x < MAP_X + MAP_W && y >= MAP_Y && y < MAP_Y + MAP_H; }
+static int in_map(int x, int y) { return x >= BOARD_X && x < BOARD_X + BOARD_W && y >= BOARD_Y && y < BOARD_Y + BOARD_H; }
 static TzTri tri_at(int x, int y) {                    // screen → the triangle under it
-    float j = (MAP_Y + MAP_H * 0.5f - (float)y) / TH + view_j;
-    float i = ((float)x - MAP_X - MAP_W * 0.5f) / TS - (j - view_j) * 0.5f + view_i;
+    float j = (BOARD_Y + BOARD_H * 0.5f - (float)y) / TH + view_j;
+    float i = ((float)x - BOARD_X - BOARD_W * 0.5f) / TS - (j - view_j) * 0.5f + view_i;
     float fi = floorf(i), fj = floorf(j);
     return tz_tri((int)fi, (int)fj, (i - fi) + (j - fj) >= 1.0f);
 }
@@ -254,13 +254,13 @@ void update(void) {
 
 // ── drawing ──
 static void draw_map(void) {
-    rectfill(MAP_X, MAP_Y, MAP_W, MAP_H, CLR_BLACK);
-    clip(MAP_X, MAP_Y, MAP_W, MAP_H);
+    rectfill(BOARD_X, BOARD_Y, BOARD_W, BOARD_H, CLR_BLACK);
+    clip(BOARD_X, BOARD_Y, BOARD_W, BOARD_H);
     int i0 = (int)floorf(view_i) - 9, j0 = (int)floorf(view_j) - 4;
     for (int j = j0; j <= j0 + 9; j++) for (int i = i0 - 4; i <= i0 + 20; i++) for (int dn = 0; dn < 2; dn++) {
         TzTri t = tz_tri(i, j, dn); int xy[6]; tri_pts(t, xy);
         int cx = (xy[0] + xy[2] + xy[4]) / 3, cy = (xy[1] + xy[3] + xy[5]) / 3;
-        if (cx < MAP_X - TS || cx > MAP_X + MAP_W + TS || cy < MAP_Y - TS || cy > MAP_Y + MAP_H + TS) continue;
+        if (cx < BOARD_X - TS || cx > BOARD_X + BOARD_W + TS || cy < BOARD_Y - TS || cy > BOARD_Y + BOARD_H + TS) continue;
         int col = dn ? CLR_DARKER_PURPLE : CLR_DARKER_BLUE;
         for (int k = 0; k < trail_n; k++) if (tz_tri_eq(trail[k], t)) col = dn ? CLR_DARK_PURPLE : CLR_DARK_BLUE;
         int link = tz_tri_link(here, t);
@@ -278,7 +278,7 @@ static void draw_map(void) {
     font(FONT_TINY);
     for (int j = j0; j <= j0 + 10; j++) for (int i = i0 - 4; i <= i0 + 21; i++) {
         int x = (int)node_x((float)i, (float)j), y = (int)node_y((float)i, (float)j);
-        if (x < MAP_X - 4 || x > MAP_X + MAP_W + 4 || y < MAP_Y - 4 || y > MAP_Y + MAP_H + 4) continue;
+        if (x < BOARD_X - 4 || x > BOARD_X + BOARD_W + 4 || y < BOARD_Y - 4 || y > BOARD_Y + BOARD_H + 4) continue;
         int pc = tz_node_pc(i, j), in = 0;
         int cxy[6]; tri_pts(here, cxy);                                // ring only THIS triangle's corners
         for (int k = 0; k < 3; k++) if (abs(cxy[2 * k] - x) <= 1 && abs(cxy[2 * k + 1] - y) <= 1) in = 1;
@@ -286,7 +286,7 @@ static void draw_map(void) {
         print(TZ_PC[pc], x - text_width(TZ_PC[pc]) / 2 + (in ? 0 : 0), y - 2, in ? CLR_BLACK : CLR_MEDIUM_GREY);
     }
     clip(0, 0, 0, 0);
-    rect(MAP_X, MAP_Y, MAP_W, MAP_H, CLR_INDIGO);
+    rect(BOARD_X, BOARD_Y, BOARD_W, BOARD_H, CLR_INDIGO);
 }
 
 static void draw_grid(void) {
@@ -358,7 +358,7 @@ void draw(void) {
         TzChord to = cur; const char *lab;
         if (k == 6) lab = "@ C";
         else { tz_move(&to, TZ_P + k); lab = str("%s %s", TZ_NAME[TZ_P + k], cname(to.root, to.minor)); }
-        if (ui_button(MAP_X + k * 36, 173, 33, 18, lab)) apply_move(k == 6 ? TZ_RESET : TZ_P + k);
+        if (ui_button(BOARD_X + k * 36, 173, 33, 18, lab)) apply_move(k == 6 ? TZ_RESET : TZ_P + k);
     }
     // the vector
     int vy = GRID_Y + CELL * TZ_GRID + 4;

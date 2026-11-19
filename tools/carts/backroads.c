@@ -366,6 +366,10 @@ static void fill_shaded(int *xy, int n, int band, float lum, float fog) {
         for (int i = 0; i < n; i++) {
             int j = (i + 1) % n;
             line(xy[2*i], xy[2*i+1], xy[2*j], xy[2*j+1], a);
+            // ...and once more one pixel UP: the next (nearer) cell's terrain triangle can cover the
+            // row just above its edge, which its own road fragment, rounded differently, then missed:
+            // a 1-px strip of ground through the road (the maker's "horizontal glitchy lines")
+            line(xy[2*i], xy[2*i+1] - 1, xy[2*j], xy[2*j+1] - 1, a);
         }
     fillp_reset();
     ntri++;

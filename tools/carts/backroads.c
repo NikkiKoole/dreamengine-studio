@@ -18,7 +18,7 @@
   "description": {
     "summary": "A 1970s cockpit-view drive (work in progress): flat-shaded, dithered countryside from the endless worldnet world, roads you can follow from town to town or leave for the fields.",
     "detail": "The ground is a grid of triangles sampled from worldnet's heightmap in three rings around the car: 16 m cells close by, 64 m further out, 256 m out to the fog. There is no z-buffer and no sort: a heightfield seen from inside it can be painted back-to-front just by walking the grid rows and columns from the far edge toward the camera, outer ring first. Roads are worldnet's own spline edges, cut into pieces and clipped into the exact terrain cell (and triangle) they lie on, then drawn right after that cell, so the same order hides a road behind a hill. Centre dashes and edge posts are placed by distance along the road, so they stay put as you drive past them. Leaving the road changes everything: plough and woods drag, grass lets the tail slide, and four wheels sampling the ground tilt the view over crests and ditches. Design doc: docs/design/backroads.md.",
-    "controls": "UP gas, DOWN brake/reverse, LEFT/RIGHT steer. - / = big hills, [ / ] small hills, H toggles the debug readout."
+    "controls": "UP gas, DOWN brake/reverse, LEFT/RIGHT steer. - / = big hills, [ / ] small hills, H toggles the debug readout, TAB opens the map (drag to pan, wheel zooms, centre button snaps back to the car)."
   }
 }
 de:meta */
@@ -74,6 +74,15 @@ static float camh;              // eye height (m)
 static float dash_shake = 0;         // dash shake (px), from surface roughness × speed
 static float vscale = 900.0f;   // metres per height_at() unit — tune by eye
 static float detail = 90.0f;    // metres of cart-local swell (see detail_at) — tune by eye
+static int   show_map;            // TAB: north-up map instead of the cockpit
+static float map_mpp = 60.0f;    // map zoom, metres per pixel (wheel)
+static int   map_follow = 1;      // 1 = map centred on the car; a drag frees it, the button re-centres
+static float map_cx, map_cy;      // map centre (world m) while not following
+static int   map_drag, map_mx, map_my;                  // drag in progress + last mouse px
+#define MAP_BTN_X (SCREEN_W - 50)                        // "centre" button, top-right of the map
+#define MAP_BTN_Y 14
+#define MAP_BTN_W 44
+#define MAP_BTN_H 11
 static int   dbg = 1;
 static int   ntri;              // triangles drawn this frame
 static int   cur_surf;          // surface under the car
@@ -90,7 +99,16 @@ static float detail_at(float x, float y, float t) {
     float b = noise2(x / 180.0f + 2.1f,  y / 180.0f + 77.0f) - 0.5f;
     return k * (detail * a + detail * 0.18f * b);
 }
-static float hgt_xy(float x, float y, float t) { return t > 0 ? t * vscale + detail_at(x, y, t) : 0; }
+// Rivers: worldnet stamps them as a flat -0.5 (a step down to sea level, a 200 m slot canyon
+// from a cockpit). Bed them RIVER_CUT metres below the land they cut through instead.
+#define RIVER_CUT 3.0f
+static float hgt_xy(float x, float y, float t) {
+    if (t == -0.5f) {
+        float b = wn_height_base(x, y);
+        if (b > 0) return fmaxf(0, b * vscale + detail_at(x, y, b) - RIVER_CUT);
+    }
+    return t > 0 ? t * vscale + detail_at(x, y, t) : 0;
+}
 static float ground(float x, float y) { return hgt_xy(x, y, raw_at(x, y)); }
 
 // ── shading ramps: dark → light anchors; checker blends sit between them ────────
@@ -585,7 +603,12 @@ static int surf_at(float x, float y) {
 }
 // what a wheel feels: the ground + a little surface-texture bump (felt, not drawn)
 static float wheel_h(float x, float y, float rough) {
-    return ground(x, y) + rough * 0.12f * (noise2(x / 2.5f, y / 2.5f) - 0.5f);
+    float t = raw_at(x, y), g = hgt_xy(x, y, t);
+    if (t == -0.5f && wn_road_at(x, y).on_road) {         // bridge: ride the deck, not the river bed
+        float b = wn_height_base(x, y);
+        if (b > 0) g = b * vscale + detail_at(x, y, b);
+    }
+    return g + rough * 0.12f * (noise2(x / 2.5f, y / 2.5f) - 0.5f);
 }
 #ifdef DE_TRACE
 // TEST-ONLY autopilot (harness builds; key P): steer at a point ~25 m ahead on the nearest
@@ -680,6 +703,28 @@ void init(void) {
 void update(void) {
     float d = dt();
     if (keyp('H')) dbg = !dbg;
+    if (keyp(KEY_TAB)) show_map = !show_map;
+    if (show_map) {
+        float w = mouse_wheel();
+        if (w != 0) map_mpp = clamp(map_mpp * (w > 0 ? 0.8f : 1.25f), 4, 120);
+        int mx = mouse_x(), my = mouse_y();
+        int on_btn = !map_follow && mx >= MAP_BTN_X && mx < MAP_BTN_X + MAP_BTN_W
+                                 && my >= MAP_BTN_Y && my < MAP_BTN_Y + MAP_BTN_H;
+        if (mouse_pressed(MOUSE_LEFT)) {
+            if (on_btn) map_follow = 1;                  // re-centre: follow the car again
+            else if (my < VIEW_H) {
+                if (map_follow) { map_cx = px; map_cy = py; map_follow = 0; }
+                map_drag = 1; map_mx = mx; map_my = my;
+            }
+        }
+        if (map_drag) {
+            if (!mouse_down(MOUSE_LEFT)) map_drag = 0;
+            else {                                       // grab-and-pull: the world moves with the mouse
+                map_cx -= (mx - map_mx) * map_mpp; map_cy -= (my - map_my) * map_mpp;
+                map_mx = mx; map_my = my;
+            }
+        }
+    }
     if (key('-')) vscale = clamp(vscale - 300 * d, 100, 4000);
     if (key('=')) vscale = clamp(vscale + 300 * d, 100, 4000);
     if (key('[')) detail = clamp(detail - 40 * d, 0, 400);
@@ -717,7 +762,89 @@ static void draw_dash(void) {
     camera(0, 0);
 }
 
+// ── TAB map: north-up, car at the centre. Terrain sampled per 2 px block (fixed cost, only
+// while open); roads are the cached worldnet edges (whole links around the car, so the
+// next towns show); towns from the node lattice. Wheel zooms. ───────────────────────────
+static int map_col(float x, float y) {
+    float t = raw_at(x, y);
+    if (t == -0.5f) return CLR_TRUE_BLUE;                // river
+    if (t < 0)      return CLR_DARK_BLUE;
+    int b = band_at(t, x, y);
+    switch (b) {
+        case B_SAND:   return CLR_BROWN;
+        case B_FOREST: return CLR_BLUE_GREEN;
+        case B_HILL:   return CLR_DARK_BROWN;
+        case B_ROCK:   return CLR_DARK_GREY;
+        case B_PEAK:   return CLR_MEDIUM_GREY;
+        default:       return map_mpp < 12 ? RAMP[b].c[2] : CLR_DARK_GREEN;   // parcels only up close
+    }
+}
+static void draw_map(void) {
+    int cx = SCREEN_W / 2, cy = VIEW_H / 2, st = 2;
+    float m = map_mpp;
+    float ox = map_follow ? px : map_cx, oy = map_follow ? py : map_cy;   // world point at the centre
+    clip(0, 0, SCREEN_W, VIEW_H);
+    for (int sy = 0; sy < VIEW_H; sy += st)
+        for (int sx = 0; sx < SCREEN_W; sx += st)
+            rectfill(sx, sy, st, st, map_col(ox + (sx + 1 - cx) * m, oy + (sy + 1 - cy) * m));
+    // roads: casings, then centres, minor classes first so highways sit on top
+    static const int RC[5] = { CLR_ORANGE, CLR_YELLOW, CLR_LIGHT_PEACH, CLR_WHITE, CLR_MAUVE };
+    eg_ensure(px, py);
+    for (int pass = 0; pass < 2; pass++)
+        for (int cls = CL_DIRT; cls >= CL_MOTORWAY; cls--)
+            for (int e = 0; e < eg_n; e++) {
+                const REdge *ed = &eg_e[e];
+                if (ed->cls != cls) continue;
+                for (int i = 0; i < LINK_SAMPLES; i++) {
+                    int x0 = cx + (int)((ed->x[i] - ox) / m),   y0 = cy + (int)((ed->y[i] - oy) / m);
+                    int x1 = cx + (int)((ed->x[i+1] - ox) / m), y1 = cy + (int)((ed->y[i+1] - oy) / m);
+                    if (pass == 0) {
+                        if (cls <= CL_ARTERIAL) { line(x0 + 1, y0, x1 + 1, y1, CLR_BROWNISH_BLACK); line(x0, y0 + 1, x1, y1 + 1, CLR_BROWNISH_BLACK); }
+                    } else line(x0, y0, x1, y1, ed->br[i] ? CLR_LIGHT_GREY : RC[cls]);
+                }
+            }
+    // towns
+    int cs = NODE_CS, hw = (int)(SCREEN_W * m / 2 / cs) + 1, hh = (int)(VIEW_H * m / 2 / cs) + 1;
+    int ax = wn_ifloor(ox / cs), ay = wn_ifloor(oy / cs);
+    font(FONT_SMALL);
+    for (int gx = ax - hw; gx <= ax + hw; gx++)
+        for (int gy = ay - hh; gy <= ay + hh; gy++) {
+            float tx, ty; if (!get_node(gx, gy, &tx, &ty)) continue;
+            int sx = cx + (int)((tx - ox) / m), sy = cy + (int)((ty - oy) / m);
+            int big = town_rank(gx, gy) == RK_TOWN;
+            rectfill(sx - 1 - big, sy - 1 - big, 3 + 2 * big, 3 + 2 * big, CLR_BROWNISH_BLACK);
+            rectfill(sx - big, sy - big, 1 + 2 * big, 1 + 2 * big, big ? CLR_PINK : CLR_PEACH);
+        }
+    // the car: an arrow along the heading
+    float fx = cosf(head * D2R), fy = sinf(head * D2R);
+    int ax0 = cx + (int)((px - ox) / m), ay0 = cy + (int)((py - oy) / m);   // car on the map
+    int nx = ax0 + (int)(fx * 6), ny = ay0 + (int)(fy * 6);
+    int lx = ax0 - (int)(fx * 3 - fy * 3), ly = ay0 - (int)(fy * 3 + fx * 3);
+    int rx = ax0 - (int)(fx * 3 + fy * 3), ry = ay0 - (int)(fy * 3 - fx * 3);
+    trifill(nx, ny, lx, ly, rx, ry, CLR_RED);
+    line(nx, ny, lx, ly, CLR_BROWNISH_BLACK); line(nx, ny, rx, ry, CLR_BROWNISH_BLACK);
+    line(lx, ly, rx, ry, CLR_BROWNISH_BLACK);
+    // scale bar: 1 km
+    int kb = (int)(1000 / m);
+    rectfill(6, VIEW_H - 10, kb, 2, CLR_WHITE);
+    print("1 km", 8 + kb, VIEW_H - 12, CLR_WHITE);
+    print("N", SCREEN_W - 10, 4, CLR_WHITE);
+    print("TAB close  drag pan  wheel zoom", 6, 4, CLR_WHITE);
+    if (!map_follow) {                                   // re-centre button: crosshair + label
+        int hot = mouse_x() >= MAP_BTN_X && mouse_x() < MAP_BTN_X + MAP_BTN_W
+               && mouse_y() >= MAP_BTN_Y && mouse_y() < MAP_BTN_Y + MAP_BTN_H;
+        rectfill(MAP_BTN_X, MAP_BTN_Y, MAP_BTN_W, MAP_BTN_H, hot ? CLR_DARK_PEACH : CLR_BROWNISH_BLACK);
+        rect(MAP_BTN_X, MAP_BTN_Y, MAP_BTN_W, MAP_BTN_H, CLR_WHITE);
+        int bx = MAP_BTN_X + 6, by = MAP_BTN_Y + 5;
+        circ(bx, by, 3, CLR_RED); pset(bx, by, CLR_RED);
+        print("centre", MAP_BTN_X + 13, MAP_BTN_Y + 3, CLR_WHITE);
+    }
+    font(FONT_NORMAL);
+    clip(0, 0, 0, 0);
+}
+
 void draw(void) {
+    if (show_map) { draw_map(); draw_dash(); return; }
     float h = head * D2R;
     cfx = cosf(h); cfy = sinf(h);
     crx = -sinf(h); cry = cosf(h);

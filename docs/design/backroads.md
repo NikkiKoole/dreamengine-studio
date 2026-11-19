@@ -2,6 +2,9 @@
 
 STATUS: BUILDING (2026-11-19) — rungs 1 (cockpit over terrain) + 2 (roads + ground feel) built, awaiting the maker's play-test. Working title only — rename freely.
 
+> **World (2026-11-19):** the endless worldnet countryside proved dull to explore; the plan is now a
+> finite, grown island, see [`island-studio.md`](island-studio.md).
+>
 > **Genre: design doc + build brief.** This file is both the design record for a new cart and the
 > brief for the agent (Claude Code) that builds it. It belongs at `docs/design/backroads.md`, linked
 > from `docs/README.md`'s layout tree and from the driving-world program map
@@ -427,6 +430,27 @@ worst** (rung 1 was 3.6 / 4.3), about 2.5k `trifill` + 1.7k `line` a frame.
 - Off-road at speed in one big parcel has no speed cue. Crop rows, tufts or billboards would help
   (later rung).
 - The edge cache rebuilds once per node-cell crossing (worldnet's cost model); watch for a hitch.
+
+### 2026-11-19: river pits fixed, TAB map
+
+- **The "ravine" at pos 35383,27153 was a river.** worldnet stamps rivers as a flat `-0.5`
+  height inside a thin noise band (a step, not a valley), and the cart mapped every `t <= 0` to
+  sea level, so a river cutting 210 m high land became a 210 m slot canyon. The road bridges it
+  in 2D, but here it draped down into the slot and the autopilot drove in (camh 212 m to 1.2 m).
+  Fix: `worldnet.h` gained `wn_height_base()` (the land before the river carve; `height_at()`
+  output is unchanged, and roadnet2/sloop/citygrow still compile). `hgt_xy()` beds a river
+  `RIVER_CUT` (3 m) below that land, and `wheel_h()` rides the bridge deck (land height) when a
+  wheel is on a road over the river, so the crossing doesn't jolt. The 10,800-frame autopilot
+  cruise is now clean: max camera step 0.1 m/frame, max tilt 0.21 rad, every frame on asphalt.
+  The drawn road still dips 3 m across the river (it drapes on the cells); real bridge decks are
+  a later job.
+- **TAB map:** north-up, car arrow at the centre, terrain sampled per 2 px block only while open,
+  roads from the cached worldnet edges (whole links around the car), towns from the node
+  lattice (pink = town, peach = hamlet), 1 km scale bar. Wheel zooms 4 to 120 m/px (default 60).
+  Drag pans (the view then stays fixed in the world while the car moves on it); a "centre"
+  button appears top-right and snaps back to following the car.
+  Roads outside the edge cache aren't drawn, so the far corners of a wide view look emptier
+  than the world is.
 
 ---
 

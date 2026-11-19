@@ -62,13 +62,20 @@ static unsigned wn_hash2(int a, int b) {
 static int wn_ifloor(float v) { int i = (int)v; return (v < 0 && (float)i != v) ? i - 1 : i; }
 
 // ── HEIGHTMAP + RIVERS — worldgen's createZoomedinWorld(), verbatim (scalein 1) ─
-static float height_at(float i, float j) {
+// wn_height_base(): the land BEFORE rivers are cut in. height_at() stamps rivers as a flat
+// -0.5 sentinel (a step, not a valley), so a 3D view that wants a river bed at the local land
+// height (backroads) reads this underneath it. Same units as height_at().
+static float wn_height_base(float i, float j) {
     i /= WS; j /= WS;                                   // metre re-base: stretch terrain features ×WS
     float x1 = noise3(i / 100.0f, j / 100.0f, seedZ);   // big continents
     float x2 = noise3(i / 10.0f,  j / 10.0f,  seedZ);   // fine roughness
     float x3 = noise3(i / 30.0f,  j / 30.0f,  seedZ);   // medium hills
     float x = 0.6f * x1 + 0.3f * x3 + 0.1f * x2;
-    x = x - sea_sub();                                   // drop sea level (water slider)
+    return x - sea_sub();                                // drop sea level (water slider)
+}
+static float height_at(float i, float j) {
+    float x = wn_height_base(i, j);
+    i /= WS; j /= WS;
     float xr = noise2(i / 40.0f, j / 40.0f); xr = xr * xr;
     if (xr > 0.3f && xr < 0.3f + (0.5f * 0.3f) * 0.5f && x > 0.0f) x = -0.5f;
     xr = noise2(i / 20.0f, j / 20.0f);

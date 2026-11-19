@@ -234,6 +234,36 @@ islands are sparser per km², which is honest (a big empty mountain lowers the a
 T-junction share a little high, dead ends at Sado's level rather than the Isle of Man's, and the coast
 ring stair-steps where it hugs a jagged coast. Routing takes up to ~100 ms (on slider release).
 
+## Resolution: 256 live, 512 / 1024 to bake (2026-11-20)
+
+The grid size is a runtime setting (`G` key or the RES button): 256 (156 m cells) for live sliders,
+512 (78 m) or 1024 (39 m) for a final bake. Arrays are sized for 1024; everything that used to count
+**cells** now counts metres or km² (`AREA_K` scales the drained-cell thresholds; settlement, climate,
+farm and track radii are in metres), so the same seed gives the same island at every resolution, only
+sharper. The overview always draws 256 px and samples the grid; the export and zoom use full detail.
+
+| grid | terrain | roads |
+|---|---|---|
+| 256 | 66 ms | ~85 ms |
+| 512 | 0.29 s | 0.21 s |
+| 1024 | 1.7 s | 0.85–1.0 s |
+
+At 1024 roads follow the terrain in long curves instead of straight runs with kinks (sinuosity 1.2,
+between the Isle of Man's 1.13 and Sado's 1.35), and densities hold (seed 1: 0.56 / 0.80 / 1.07).
+
+Fixed along the way:
+- **Hidden caps**: the path smoother read only the first 1,000 cells of a chain (a 1024 road can be
+  4,000); a quadratic insertion sort on traffic and a per-cell scan of every settlement (`is_node`)
+  would have made 1024 crawl. All replaced (buffers sized from `MAXN`, `qsort`, an `IS_SET` grid).
+- **Roads crossing diagonally between cells** (one NW-SE, one NE-SW in the same 2x2 block) shared no
+  cell, so there was no junction: they passed through each other. 9-24 per island; one is now
+  rerouted around the corner (`fix_diagonal_crossings`).
+- **Staggered junctions**: at 39 m cells two side roads that met "almost opposite" landed a cell or
+  two apart (two Ts instead of a crossroads: crossroads fell to 2-4 %). Routes now get a discount
+  for passing through an existing junction (`JN >= 3`, x0.6): 3-5 % at 1024, 8-15 % at 256.
+- **Zoom cover edges** were softened by ~1 cell, which showed stair-steps at 39 m cells; now a fixed
+  ~140 m + 30 m of jitter.
+
 ## Next rungs
 
 4. **Farmland**: fields spread from villages along roads onto flat ground, replacing natural cover.

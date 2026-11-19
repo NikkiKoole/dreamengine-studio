@@ -9,8 +9,8 @@
   "lineage": "A bench for backroads' finite island: worldnet-style layered noise for the shape, plus what an endless world can't do, a whole-map priority-flood drainage pass (Barnes 2014) and stream-power valley carving, so rivers run to the sea and valleys exist for roads to follow.",
   "description": {
     "summary": "Grow a 40 x 40 km island: coast, hills and mountains, water that drains and carves valleys, wind, rain and a rain shadow, cover, settlements, farms, and the roads between them.",
-    "detail": "The island is a finite 256 x 256 grid (156 m cells). Noise gives the shape: an island mask with a warped coast, layered rolling hills, and ridged mountains that only grow inside a mountain mask (slide it to zero for a low island). Then the whole map drains: a priority flood fills every pit so each cell has a downhill path to the sea, a flow count adds up how much land drains through each cell, and valleys are carved where the flow is large. Draining again gives the rivers and lakes. A prevailing wind brings rain that the mountains wring out, leaving a dry lee. Natural cover follows from height, slope, rain and water (forest, grassland, scrub, moor, rock, marsh, beach), and settlements claim the flattest, lowest, best-watered, most fertile land, spaced apart, with the biggest few becoming towns. Roads are routed across the terrain by A*, most important first, with a discount for reusing an existing road so routes merge into trunks; traffic sets the class (main road, secondary, lane), a ring road follows the coast where the land allows, an expressway joins the two biggest towns when they are far apart, scattered farmsteads add tracks and through-lanes, and forests and moors get dead-end tracks. Rivers are smooth lines and roads cross them on bridges. The panel compares the result to two real islands measured from OpenStreetMap. Design doc: docs/design/island-studio.md.",
-    "controls": "Drag the sliders. R or ROLL = new seed. V or VIEW cycles cover / terrain / slope / suitability / flow. Hover the map for height, cover, rain and suitability. Red squares are towns, white villages, dots hamlets; the arrow shows the wind. The tree line slider goes from bare hills to wooded mountains. TAB opens a full-screen zoom (drag to pan, wheel to zoom) with roads at their real widths. X exports the island to data/islandstudio-<seed>.json (roadview's vector format; measure with tools/road-density.js)."
+    "detail": "The island is a finite grid: 256 x 256 (156 m cells) while you play with the sliders, 512 or 1024 (39 m) for a final bake. Noise gives the shape: an island mask with a warped coast, layered rolling hills, and ridged mountains that only grow inside a mountain mask (slide it to zero for a low island). Then the whole map drains: a priority flood fills every pit so each cell has a downhill path to the sea, a flow count adds up how much land drains through each cell, and valleys are carved where the flow is large. Draining again gives the rivers and lakes. A prevailing wind brings rain that the mountains wring out, leaving a dry lee. Natural cover follows from height, slope, rain and water (forest, grassland, scrub, moor, rock, marsh, beach), and settlements claim the flattest, lowest, best-watered, most fertile land, spaced apart, with the biggest few becoming towns. Roads are routed across the terrain by A*, most important first, with a discount for reusing an existing road so routes merge into trunks; traffic sets the class (main road, secondary, lane), a ring road follows the coast where the land allows, an expressway joins the two biggest towns when they are far apart, scattered farmsteads add tracks and through-lanes, and forests and moors get dead-end tracks. Rivers are smooth lines and roads cross them on bridges. The panel compares the result to two real islands measured from OpenStreetMap. Design doc: docs/design/island-studio.md.",
+    "controls": "Drag the sliders. R or ROLL = new seed. V or VIEW cycles cover / terrain / slope / suitability / flow. Hover the map for height, cover, rain and suitability. Red squares are towns, white villages, dots hamlets; the arrow shows the wind. The tree line slider goes from bare hills to wooded mountains. TAB opens a full-screen zoom (drag to pan, wheel to zoom) with roads at their real widths. G or RES switches the grid between 256 (live), 512 and 1024 (a ~2.5 s bake, much finer roads). X exports the island to data/islandstudio-<seed>.json (roadview's vector format; measure with tools/road-density.js)."
   }
 }
 de:meta */
@@ -41,7 +41,11 @@ de:meta */
 #include <time.h>
 #include <stdio.h>
 
-#define N        256
+#define MAXN     1024                        // arrays are sized for the finest bake
+static int N = 256;                          // grid cells per side: 256 live, 512 / 1024 to bake
+#define AREA_K   ((float)N * N / (256.0f * 256.0f))   // cell-count thresholds were tuned at 256: scale them
+#define MAP_PX   256                         // the overview is always drawn 256 px across
+#define MAPCELL  (WORLD_M / MAP_PX)          // metres per overview pixel
 #define WORLD_M  40000.0f
 #define CELL     (WORLD_M / N)               // 156.25 m
 #define MAP_X    8
@@ -79,18 +83,18 @@ static Settle set[MAXSET];
 static int    nset;
 
 // ── grids ──────────────────────────────────────────────────────────────────────
-static float H[N * N];          // height (m), sea < 0
-static float F[N * N];          // filled height (lakes raised to spill level)
-static float A[N * N];          // drained area (cells)
-static float C[N * N];          // carve scratch
-static int   rcv[N * N];        // downstream cell (-1 = sea / outlet)
-static int   order[N * N], norder;
-static unsigned char col[N * N];
-static float M[N * N];          // moisture 0..1 (rain the cell gets)
-static float DW[N * N];         // distance to fresh water (river / lake), metres
-static float DS[N * N];         // distance to the sea, metres
-static float SU[N * N];         // settlement suitability 0..1
-static unsigned char CV[N * N]; // cover class
+static float H[MAXN * MAXN];          // height (m), sea < 0
+static float F[MAXN * MAXN];          // filled height (lakes raised to spill level)
+static float A[MAXN * MAXN];          // drained area (cells)
+static float C[MAXN * MAXN];          // carve scratch
+static int   rcv[MAXN * MAXN];        // downstream cell (-1 = sea / outlet)
+static int   order[MAXN * MAXN], norder;
+static unsigned char col[MAXN * MAXN];
+static float M[MAXN * MAXN];          // moisture 0..1 (rain the cell gets)
+static float DW[MAXN * MAXN];         // distance to fresh water (river / lake), metres
+static float DS[MAXN * MAXN];         // distance to the sea, metres
+static float SU[MAXN * MAXN];         // settlement suitability 0..1
+static unsigned char CV[MAXN * MAXN]; // cover class
 static int   dirty = 1;
 // zoom view (TAB) state
 #define ZW 480
@@ -156,8 +160,8 @@ static float height_at(float x, float y) {          // x, y in metres, 0..WORLD_
 }
 
 // ── 3 + 4: priority-flood drainage + flow accumulation ─────────────────────────
-static int   hp_i[N * N * 2];
-static float hp_k[N * N * 2];
+static int   hp_i[MAXN * MAXN * 2];
+static float hp_k[MAXN * MAXN * 2];
 static int   hp_n;
 static void hp_push(int i, float k) {
     int c = hp_n++;
@@ -178,7 +182,7 @@ static int hp_pop(void) {
 static const int DX[8] = { 1, -1, 0, 0, 1, 1, -1, -1 }, DY[8] = { 0, 0, 1, -1, 1, -1, 1, -1 };
 
 static void drain(void) {
-    static unsigned char seen[N * N];
+    static unsigned char seen[MAXN * MAXN];
     hp_n = 0; norder = 0;
     for (int i = 0; i < N * N; i++) { seen[i] = 0; rcv[i] = -1; A[i] = 1; }
     // seeds: every sea cell (and the map border) is an outlet
@@ -217,9 +221,9 @@ static float slope_at(int x, int y) {                   // rise over run (m/m)
     return sqrtf(gx * gx + gy * gy);
 }
 
-static float river_thr(void) { return 40.0f + (1.0f - k_riv) * 900.0f; }   // cells drained
+static float river_thr(void) { return (40.0f + (1.0f - k_riv) * 900.0f) * AREA_K; }   // cells drained
 
-#define RIVER_CELLS 300.0f            // drained cells that count as a real river (~7 km²)
+#define RIVER_CELLS (300.0f * AREA_K)  // drained cells that count as a real river (~7 km²)
 #define LAKE_DEPTH 3.0f                 // shallower filled pits are damp ground, not lakes
 static int is_lake(int i) { return H[i] > 0 && F[i] - H[i] > LAKE_DEPTH; }
 static int is_fresh(int i) { return H[i] > 0 && (A[i] >= RIVER_CELLS || is_lake(i)); }
@@ -234,14 +238,15 @@ static void climate(void) {
         int i = y * N + x;
         if (H[i] <= 0) { M[i] = 1; continue; }
         float ridge = H[i], prev = H[i], local = 0;
-        for (int k = 1; k <= 60; k++) {
+        int kmax = (int)(9375.0f / CELL), kloc = (int)(625.0f / CELL + 0.5f), kmin = (int)(312.0f / CELL + 0.5f);
+        for (int k = 1; k <= kmax; k++) {
             int sx = (int)(x + ux * k + 0.5f), sy = (int)(y + uy * k + 0.5f);
             if (sx < 0 || sy < 0 || sx >= N || sy >= N) break;
             float h = fmaxf(H[sy * N + sx], 0);
-            if (k <= 4 && prev > h) local += prev - h;            // air climbing toward us right here
+            if (k <= kloc && prev > h) local += prev - h;            // air climbing toward us right here
             prev = h;
             ridge = fmaxf(ridge, h);                              // highest ground the air crossed
-            if (H[sy * N + sx] <= 0 && k > 2) break;             // reached the sea: air was full
+            if (H[sy * N + sx] <= 0 && k > kmin) break;             // reached the sea: air was full
         }
         // rain SHADOW: air that crossed a ridge higher than this cell has rained out and sunk.
         // Windward slopes and summits have nothing higher upwind, so they stay wet.
@@ -252,17 +257,19 @@ static void climate(void) {
         M[i] = clamp((0.16f + k_rain * 0.44f) * (wet + oro), 0, 1);
     }
     // blur: the nearest-cell upwind march leaves diagonal streaks; weather is smooth anyway
-    static float T[N * N];
+    static float T[MAXN * MAXN];
+    int rb = (int)(312.0f / CELL + 0.5f); if (rb < 1) rb = 1;   // ~±310 m, separable (cheap at 1024)
     for (int pass = 0; pass < 2; pass++) {
         for (int y = 0; y < N; y++) for (int x = 0; x < N; x++) {
             float sm = 0; int n = 0;
-            for (int k = -2; k <= 2; k++) for (int l = -2; l <= 2; l++) {
-                int xx = x + l, yy = y + k; if (xx < 0 || yy < 0 || xx >= N || yy >= N) continue;
-                sm += M[yy * N + xx]; n++;
-            }
+            for (int l = -rb; l <= rb; l++) { int xx = x + l; if (xx < 0 || xx >= N) continue; sm += M[y * N + xx]; n++; }
             T[y * N + x] = sm / n;
         }
-        for (int i = 0; i < N * N; i++) M[i] = H[i] > 0 ? T[i] : 1;
+        for (int y = 0; y < N; y++) for (int x = 0; x < N; x++) {
+            float sm = 0; int n = 0;
+            for (int k = -rb; k <= rb; k++) { int yy = y + k; if (yy < 0 || yy >= N) continue; sm += T[yy * N + x]; n++; }
+            M[y * N + x] = H[y * N + x] > 0 ? sm / n : 1;
+        }
     }
 }
 
@@ -296,7 +303,7 @@ static void cover(void) {
         if (h <= 0)                                          c = CV_SEA;
         else if (is_lake(i))                                 c = CV_LAKE;
         else if (h < 4 && DS[i] < 450)                       c = CV_BEACH;
-        else if (sl < 0.03f && h < 25 && m > 0.30f && (DW[i] < 350 || (DS[i] < 600 && A[i] > 20)))
+        else if (sl < 0.03f && h < 25 && m > 0.30f && (DW[i] < 350 || (DS[i] < 600 && A[i] > 20 * AREA_K)))
                                                              c = CV_MARSH;
         else if (sl > 0.45f || (h > 850 && sl > 0.22f))      c = CV_ROCK;
         else if (h > treeline - m * 220 || (h > treeline * 0.55f && m < 0.30f)) c = CV_MOOR;   // above the tree line
@@ -315,7 +322,7 @@ static int su_cmp(const void *a, const void *b) {
     return ka < kb ? 1 : ka > kb ? -1 : 0;
 }
 static void settle(void) {
-    static float raw[N * N];
+    static float raw[MAXN * MAXN];
     for (int y = 0; y < N; y++) for (int x = 0; x < N; x++) {
         int i = y * N + x, c = CV[i];
         if (c == CV_SEA || c == CV_LAKE || c == CV_MARSH || c == CV_ROCK || c == CV_BEACH
@@ -330,8 +337,8 @@ static void settle(void) {
     }
     // SU = good land in the neighbourhood (~1 km box), not just this cell
     for (int y = 0; y < N; y++) for (int x = 0; x < N; x++) {
-        float s = 0; int n = 0;
-        for (int k = -3; k <= 3; k++) for (int l = -3; l <= 3; l++) {
+        float s = 0; int n = 0; int r1 = (int)(470.0f / CELL + 0.5f);
+        for (int k = -r1; k <= r1; k++) for (int l = -r1; l <= r1; l++) {
             int xx = x + l, yy = y + k; if (xx < 0 || yy < 0 || xx >= N || yy >= N) continue;
             s += raw[yy * N + xx]; n++;
         }
@@ -340,7 +347,7 @@ static void settle(void) {
     float mx = 1e-6f; for (int i = 0; i < N * N; i++) mx = fmaxf(mx, SU[i]);
     for (int i = 0; i < N * N; i++) SU[i] /= mx;            // relative: the island's best spot = 1
     // greedy placement: best cells first, each keeps a spacing
-    static int cand[N * N]; int nc = 0;
+    static int cand[MAXN * MAXN]; int nc = 0;
     for (int i = 0; i < N * N; i++) if (SU[i] > 0.08f) cand[nc++] = i;
     su_sort_key = SU; qsort(cand, nc, sizeof(int), su_cmp);
     float sp = (4.5f - k_vill * 3.0f) * 1000.0f / CELL;      // spacing in cells
@@ -352,7 +359,7 @@ static void settle(void) {
             if (dx * dx + dy * dy < sp * sp) ok = 0;
         }
         if (!ok) continue;
-        float size = 0; int R = 16;                           // good land within 2.5 km
+        float size = 0; int R = (int)(2500.0f / CELL + 0.5f); // good land within 2.5 km
         for (int k = -R; k <= R; k++) for (int l = -R; l <= R; l++) {
             int xx = x + l, yy = y + k; if (xx < 0 || yy < 0 || xx >= N || yy >= N || k * k + l * l > R * R) continue;
             size += raw[yy * N + xx];
@@ -387,13 +394,14 @@ static const char *RCN[NRC] = { "", "track", "lane", "secondary", "main road", "
 static const float RHW[NRC] = { 0, 2.0f, 2.8f, 3.8f, 5.0f, 10.0f };       // half-width, metres
 static const int   RCOL[NRC] = { 0, CLR_LIGHT_PEACH, CLR_WHITE, CLR_YELLOW, CLR_ORANGE, CLR_RED };
 static const int OPP[8] = { 1, 0, 3, 2, 7, 6, 5, 4 };                    // opposite of DX/DY dir k
-static unsigned char ER[N * N][8];   // road class on edge (cell, dir k); stored both ways
-static float TR[N * N];              // traffic through a cell
-static unsigned char RING[N * N];    // on the ring road
+static unsigned char ER[MAXN * MAXN][8];   // road class on edge (cell, dir k); stored both ways
+static float TR[MAXN * MAXN];              // traffic through a cell
+static unsigned char RING[MAXN * MAXN];    // on the ring road
 static int   roads_dirty = 1;
 static float st_roads_ms;          // how long the last routing took
 enum { RM_LINK, RM_RING, RM_EXPRESS, RM_TRACK };
 
+static unsigned char JN[MAXN * MAXN];   // road edges meeting at a cell (>= 3 = a junction)
 static int river_cell(int i) { return H[i] > 0 && A[i] >= RIVER_CELLS * 0.5f; }
 
 static float step_cost(int a, int b, int k, int mode) {
@@ -419,7 +427,7 @@ static float step_cost(int a, int b, int k, int mode) {
     if (k >= 4 && !river_cell(a) && !river_cell(b)                // diagonal step slipping between two river cells
         && river_cell(ay * N + bx) && river_cell(by * N + ax)) cross = 1;
     if (cross) {                                               // a bridge: cost grows with the river
-        float span = clamp(sqrtf(fmaxf(A[b], A[ay * N + bx])) / 40.0f, 0.4f, 3.0f);
+        float span = clamp(sqrtf(fmaxf(A[b], A[ay * N + bx]) / AREA_K) / 40.0f, 0.4f, 3.0f);
         extra = (mode == RM_EXPRESS ? 2.0f : 5.0f) * CELL * span;
     }
     if (river_cell(a) && river_cell(b)) m *= 6;                // don't drive along the river bed
@@ -427,15 +435,16 @@ static float step_cost(int a, int b, int k, int mode) {
         if (ER[a][k] == RC_EXPRESS) m *= 1.0f;           // access-controlled: cross it, never ride it
         else if (ER[a][k]) m *= ER[a][k] >= RC_MAIN ? 0.55f : ER[a][k] == RC_TRACK ? 0.8f : 0.65f;   // follow a road
         else if (TR[b] > 0) m *= 0.85f;                        // join one
+        if (JN[b] >= 3) m *= 0.6f;                           // ...preferably at an existing junction: crossroads, not staggered Ts
         // (calibrated 2026-11-19: 0.3/0.4 collapsed every route onto a trunk, so roads merged into
         //  T junctions instead of crossing: 1 % crossroads and 50 % dead ends vs the Isle of Man's 5 % / 35 %)
     }
     return len * m + extra;
 }
 
-static float ag[N * N];
-static int   af[N * N], astamp[N * N], aclosed[N * N], agen;
-static int   pbuf[N * N];
+static float ag[MAXN * MAXN];
+static int   af[MAXN * MAXN], astamp[MAXN * MAXN], aclosed[MAXN * MAXN], agen;
+static int   pbuf[MAXN * MAXN];
 // A* from s to t; writes the cell path into out. Returns its cost, or -1 (no path / over budget).
 static float astar(int s, int t, int mode, int *out, int *nout, float budget) {
     agen++; hp_n = 0;
@@ -479,6 +488,7 @@ static void mark(const int *p, int n, int cls, float traffic, int ring, int only
     for (int i = 0; i + 1 < n; i++) {
         int a = p[i], b = p[i + 1], k = dir_to(a, b); if (k < 0) continue;
         if (only_new && ER[a][k]) continue;
+        if (!ER[a][k]) { if (JN[a] < 255) JN[a]++; if (JN[b] < 255) JN[b]++; }
         if (cls > ER[a][k]) { ER[a][k] = (unsigned char)cls; ER[b][OPP[k]] = (unsigned char)cls; }
     }
     for (int i = 0; i < n; i++) { TR[p[i]] += traffic; if (ring) RING[p[i]] = 1; }
@@ -507,25 +517,27 @@ static int link_cmp(const void *x, const void *y) {
     float a = link_w[*(const int *)x], b = link_w[*(const int *)y];
     return a < b ? 1 : a > b ? -1 : 0;
 }
+static int fcmp_up(const void *a, const void *b) { float x = *(const float *)a, y = *(const float *)b; return x < y ? -1 : x > y; }
+static unsigned char IS_SET[MAXN * MAXN];   // a settlement sits on this cell (is_node ran nset per cell: slow at 1024)
 static int is_node(int c) {
     int deg = 0, cl[2] = { 0, 0 };
     for (int k = 0; k < 8; k++) if (ER[c][k]) { if (deg < 2) cl[deg] = ER[c][k]; deg++; }
     if (deg != 2 || cl[0] != cl[1]) return 1;
-    for (int s = 0; s < nset; s++) if (set[s].y * N + set[s].x == c) return 1;
-    return 0;
+    return IS_SET[c];
 }
-static float sm_x[8192], sm_y[8192];
+#define SM_MAX 24000
+static float sm_x[SM_MAX], sm_y[SM_MAX];
 // cell path → smooth curve in metres (into sm_x/sm_y); returns the point count
 static int smooth_path(const int *cells, int n) {
     // 1. Douglas-Peucker: keep only the cell-path points that matter (tolerance ~0.6 cell),
     //    which throws away the 8-direction staircase; 2. Catmull-Rom through what's left,
     //    one point every ~20 m: a road that curves instead of kinking.
-    float *ax = sm_x, *ay = sm_y; static float kx[1024], ky[1024];
-    static unsigned char keep[1024];
-    int m0 = n < 1000 ? n : 1000;
+    float *ax = sm_x, *ay = sm_y; static float kx[MAXN * 4], ky[MAXN * 4];
+    static unsigned char keep[MAXN * 4];
+    int m0 = n < MAXN * 4 ? n : MAXN * 4;
     for (int i = 0; i < m0; i++) { kx[i] = (cells[i] % N + 0.5f) * CELL; ky[i] = (cells[i] / N + 0.5f) * CELL; keep[i] = 0; }
     keep[0] = keep[m0 - 1] = 1;
-    { static int st[2048]; int sp = 0; st[sp++] = 0; st[sp++] = m0 - 1;
+    { static int st[MAXN * 16]; int sp = 0; st[sp++] = 0; st[sp++] = m0 - 1;
       float tol = CELL * 0.6f;
       while (sp > 0) {
           int b = st[--sp], a = st[--sp];
@@ -535,9 +547,9 @@ static int smooth_path(const int *cells, int n) {
               float d = fabsf((kx[i] - kx[a]) * dy - (ky[i] - ky[a]) * dx) / L;
               if (d > wd) { wd = d; worst = i; }
           }
-          if (worst >= 0 && sp + 4 < 2048) { keep[worst] = 1; st[sp++] = a; st[sp++] = worst; st[sp++] = worst; st[sp++] = b; }
+          if (worst >= 0 && sp + 4 < MAXN * 16) { keep[worst] = 1; st[sp++] = a; st[sp++] = worst; st[sp++] = worst; st[sp++] = b; }
       } }
-    static float qx[1024], qy[1024]; int q = 0;
+    static float qx[MAXN * 4], qy[MAXN * 4]; int q = 0;
     for (int i = 0; i < m0; i++) if (keep[i]) { qx[q] = kx[i]; qy[q] = ky[i]; q++; }
     int m = 0;
     for (int i = 0; i + 1 < q; i++) {
@@ -546,7 +558,7 @@ static int smooth_path(const int *cells, int n) {
         float p3x = qx[i + 2 < q ? i + 2 : i + 1], p3y = qy[i + 2 < q ? i + 2 : i + 1];
         float seg = sqrtf((p2x - p1x) * (p2x - p1x) + (p2y - p1y) * (p2y - p1y));
         int steps = (int)(seg / 20.0f) + 1;
-        for (int k = 0; k < steps && m < 8000; k++) {
+        for (int k = 0; k < steps && m < SM_MAX - 2; k++) {
             float t = k / (float)steps, t2 = t * t, t3 = t2 * t;
             ax[m] = 0.5f * (2 * p1x + (-p0x + p2x) * t + (2 * p0x - 5 * p1x + 4 * p2x - p3x) * t2 + (-p0x + 3 * p1x - 3 * p2x + p3x) * t3);
             ay[m] = 0.5f * (2 * p1y + (-p0y + p2y) * t + (2 * p0y - 5 * p1y + 4 * p2y - p3y) * t2 + (-p0y + 3 * p1y - 3 * p2y + p3y) * t3);
@@ -570,9 +582,25 @@ static void emit_poly(const int *cells, int n, int cls) {
     }
     npt += m; st_road[cls] += L / 1000.0f;
 }
+// Two roads crossing DIAGONALLY between cells (one NW-SE, one NE-SW through the same 2x2 block)
+// share no cell, so the graph had no junction: they passed through each other like a flyover with
+// no bridge. Reroute one around the corner so they meet in a real crossroads.
+static int st_diagx;
+static void fix_diagonal_crossings(void) {
+    st_diagx = 0;
+    for (int y = 0; y + 1 < N; y++) for (int x = 0; x + 1 < N; x++) {
+        int c = y * N + x, b = y * N + x + 1, d = (y + 1) * N + x + 1;
+        int cls = ER[c][4];                              // c -> (x+1, y+1)
+        if (!cls || !ER[b][6]) continue;                 // b -> (x, y+1): the other diagonal
+        ER[c][4] = 0; ER[d][7] = 0;                      // c-d now goes c -> b -> d
+        if (cls > ER[c][0]) { ER[c][0] = (unsigned char)cls; ER[b][1] = (unsigned char)cls; }
+        if (cls > ER[b][2]) { ER[b][2] = (unsigned char)cls; ER[d][3] = (unsigned char)cls; }
+        st_diagx++;
+    }
+}
 static void build_polys(void) {
-    static unsigned char vis[N * N];
-    static int cells[N * 4];
+    static unsigned char vis[MAXN * MAXN];
+    static int cells[MAXN * 4];
     npl = 0; npt = 0;
     for (int k = 0; k < NRC; k++) st_road[k] = 0;
     for (int i = 0; i < N * N; i++) vis[i] = 0;
@@ -586,7 +614,7 @@ static void build_polys(void) {
                 for (;;) {
                     int nx = cur % N + DX[k], ny = cur / N + DY[k], nxt = ny * N + nx;
                     vis[cur] |= 1 << k; vis[nxt] |= 1 << OPP[k];
-                    cur = nxt; if (n < N * 4) cells[n++] = cur;
+                    cur = nxt; if (n < MAXN * 4) cells[n++] = cur;
                     if (cur == c0 || is_node(cur)) break;
                     int nk = -1;
                     for (int j = 0; j < 8; j++) if (ER[cur][j] && !(vis[cur] >> j & 1)) { nk = j; break; }
@@ -619,7 +647,7 @@ static float connect_to_network(int s, int *out, int *nout, float budget) {
             int on = TR[c] > 0; for (int k = 0; k < 8 && !on; k++) if (ER[c][k] && ER[c][k] != RC_EXPRESS) on = 1;   // no farm gates onto the expressway
             if (on && cn_away >= 0) {                    // must leave in another direction, and not too close
                 float fx = s % N, fy = s / N, ax = cn_away % N - fx, ay = cn_away / N - fy, bx = c % N - fx, by = c / N - fy;
-                if (ax * bx + ay * by > 0 || bx * bx + by * by < 16) on = 0;
+                if (ax * bx + ay * by > 0 || bx * bx + by * by < (625.0f / CELL) * (625.0f / CELL)) on = 0;
             }
             if (on) { hit = c; break; }
         }
@@ -667,7 +695,7 @@ static void farms(void) {
         // tree of dead ends becomes loops
         unsigned h2 = hsh((unsigned)farm[f] * 31u + (unsigned)seed);
         if ((h2 & 1023) < 460) {
-            static int first[N * 4]; int n1 = n < N * 4 ? n : N * 4;
+            static int first[MAXN * 4]; int n1 = n < MAXN * 4 ? n : MAXN * 4;
             for (int q = 0; q < n1; q++) first[q] = pbuf[q];
             cn_away = pbuf[0];                           // pbuf[0] = where the first connection hit
             if (connect_to_network(farm[f], pbuf, &n, 5500) >= 0) {
@@ -681,10 +709,11 @@ static void farms(void) {
     // toward the best nearby land not already on a road): much of real track length is this
     for (int f = 0; f < nfarm; f++) {
         int fx = farm[f] % N, fy = farm[f] / N, best = -1; float bs = 0;
-        for (int y = fy - 4; y <= fy + 4; y++) for (int x = fx - 4; x <= fx + 4; x++) {
+        int rr = (int)(650.0f / CELL + 0.5f); float d2lo = (300.0f / CELL) * (300.0f / CELL), d2hi = (650.0f / CELL) * (650.0f / CELL);
+        for (int y = fy - rr; y <= fy + rr; y++) for (int x = fx - rr; x <= fx + rr; x++) {
             if (x < 0 || y < 0 || x >= N || y >= N) continue;
             int d2 = (x - fx) * (x - fx) + (y - fy) * (y - fy);
-            if (d2 < 4 || d2 > 16) continue;                 // 2..4 cells out
+            if (d2 < d2lo || d2 > d2hi) continue;            // 300..650 m out
             int i = y * N + x;
             if (H[i] <= 0 || TR[i] > 0 || river_cell(i)) continue;
             int on = 0; for (int k = 0; k < 8; k++) if (ER[i][k]) on = 1;
@@ -702,10 +731,10 @@ static void farms(void) {
 // neighbours stayed high): sawtooth walls, rock teeth, diagonal bands in the hillshade. Now each
 // cell is lowered by its distance to the nearest river line, with a valley whose depth and
 // half-width grow with the area drained: diagonal valleys are as smooth as straight ones. ──────
-#define CARVE_CELLS 80.0f      // ~2 km²: below this a stream is too small to cut a valley (D8 streams on an even slope run parallel at 45°; carving each made stripes)
+#define CARVE_CELLS (80.0f * AREA_K)      // ~2 km²: below this a stream is too small to cut a valley (D8 streams on an even slope run parallel at 45°; carving each made stripes)
 static void carve_lines(void) {
-    static unsigned char up[N * N];
-    static int cells[N * 4];
+    static unsigned char up[MAXN * MAXN];
+    static int cells[MAXN * 4];
     float km2 = CELL * CELL / 1e6f;
     for (int i = 0; i < N * N; i++) { C[i] = 0; up[i] = 0; }
     #define CARVE_OK(i) (H[i] > 0 && A[i] >= CARVE_CELLS)
@@ -714,10 +743,10 @@ static void carve_lines(void) {
         if (!CARVE_OK(i) || up[i] == 1) continue;
         int n = 0, c = i;
         for (;;) {
-            if (n < N * 4) cells[n++] = c;
+            if (n < MAXN * 4) cells[n++] = c;
             int nx = rcv[c];
             if (nx < 0) break;
-            if (!CARVE_OK(nx) || up[nx] != 1) { if (n < N * 4) cells[n++] = nx; break; }
+            if (!CARVE_OK(nx) || up[nx] != 1) { if (n < MAXN * 4) cells[n++] = nx; break; }
             c = nx;
         }
         if (n < 2) continue;
@@ -769,11 +798,11 @@ static void breach(void) {
 typedef struct { int start, n; } RPoly;
 static RPoly rv[MAXRV]; static int nrv;
 static float rvx[MAXRPT], rvy[MAXRPT], rvw[MAXRPT]; static int nrpt;
-static float river_w(float a) { return clamp(sqrtf(a) * 0.35f, 1.5f, 30.0f); }   // metres
+static float river_w(float a) { return clamp(sqrtf(a / AREA_K) * 0.35f, 1.5f, 30.0f); }   // metres
 static int stream_cell(int i) { return H[i] > 0 && !is_lake(i) && A[i] >= STREAM_CELLS; }
 static void build_rivers(void) {
-    static unsigned char up[N * N];
-    static int cells[N * 4];
+    static unsigned char up[MAXN * MAXN];
+    static int cells[MAXN * 4];
     nrv = 0; nrpt = 0;
     for (int i = 0; i < N * N; i++) up[i] = 0;
     for (int i = 0; i < N * N; i++) if (stream_cell(i) && rcv[i] >= 0 && stream_cell(rcv[i]) && up[rcv[i]] < 255) up[rcv[i]]++;
@@ -781,11 +810,11 @@ static void build_rivers(void) {
         if (!stream_cell(i) || up[i] == 1) continue;           // chains start at sources and confluences
         int n = 0, c = i;
         for (;;) {
-            if (n < N * 4) cells[n++] = c;
+            if (n < MAXN * 4) cells[n++] = c;
             int nx = rcv[c];
             if (nx < 0) break;
-            if (!stream_cell(nx)) { if (n < N * 4) cells[n++] = nx; break; }   // into the sea / a lake
-            if (up[nx] != 1) { if (n < N * 4) cells[n++] = nx; break; }        // a confluence ends the chain
+            if (!stream_cell(nx)) { if (n < MAXN * 4) cells[n++] = nx; break; }   // into the sea / a lake
+            if (up[nx] != 1) { if (n < MAXN * 4) cells[n++] = nx; break; }        // a confluence ends the chain
             c = nx;
         }
         if (n < 2) continue;
@@ -954,7 +983,8 @@ static void export_island(void) {
 static void build_roads(void) {
     clock_t t0 = clock();
     st_overflow = 0;
-    for (int i = 0; i < N * N; i++) { TR[i] = 0; RING[i] = 0; for (int k = 0; k < 8; k++) ER[i][k] = 0; }
+    for (int i = 0; i < N * N; i++) { TR[i] = 0; RING[i] = 0; IS_SET[i] = 0; JN[i] = 0; for (int k = 0; k < 8; k++) ER[i][k] = 0; }
+    for (int s = 0; s < nset; s++) IS_SET[set[s].y * N + set[s].x] = 1;
     int n; float maxw = 1e-6f;
     // 1. candidate links: the GABRIEL graph (two places link if no third sits in the circle
     //    between them), capped in length, plus every town pair (the trunks)
@@ -1037,9 +1067,9 @@ static void build_roads(void) {
         mark(pbuf, n, floor, link_w[i], 0, 0);
     }
     // 4. classes from traffic: quantiles over road cells; the ring is at least a main road
-    static float tv[N * N]; int nt = 0;
+    static float tv[MAXN * MAXN]; int nt = 0;
     for (int i = 0; i < N * N; i++) if (TR[i] > 0) tv[nt++] = TR[i];
-    for (int i = 1; i < nt; i++) { float v = tv[i]; int j = i - 1; while (j >= 0 && tv[j] > v) { tv[j + 1] = tv[j]; j--; } tv[j + 1] = v; }
+    qsort(tv, nt, sizeof(float), fcmp_up);
     float t_main = nt ? tv[(int)(nt * 0.78f)] : 1, t_sec = nt ? tv[(int)(nt * 0.35f)] : 1;
     for (int c = 0; c < N * N; c++) for (int k = 0; k < 8; k++) {
         if (ER[c][k] < RC_LANE || ER[c][k] > RC_MAIN) continue;
@@ -1084,6 +1114,7 @@ static void build_roads(void) {
     }
     farms();
     upland_tracks();
+    fix_diagonal_crossings();
     build_polys();
     build_rivers();
     build_bridges();
@@ -1129,7 +1160,7 @@ static void recolour(void) {
             c = s < 0.03f ? CLR_LIME_GREEN : s < 0.08f ? CLR_MEDIUM_GREEN : s < 0.18f ? CLR_DARK_GREEN
               : s < 0.35f ? CLR_BROWN : CLR_DARK_RED;
         } else if (view == V_FLOW) {
-            float a = log2f(A[i]);
+            float a = log2f(A[i] / AREA_K);
             c = a < 2 ? CLR_BROWNISH_BLACK : a < 4 ? CLR_DARKER_BLUE : a < 6 ? CLR_DARK_BLUE
               : a < 8 ? CLR_TRUE_BLUE : a < 10 ? CLR_BLUE : CLR_WHITE;
         } else {                                                                  // terrain
@@ -1143,7 +1174,9 @@ static void recolour(void) {
     }
 }
 
+static float st_rebuild_ms;
 static void rebuild(void) {
+    clock_t t0 = clock();
     for (int y = 0; y < N; y++) for (int x = 0; x < N; x++)
         H[y * N + x] = height_at((x + 0.5f) * CELL, (y + 0.5f) * CELL);
     drain();
@@ -1175,6 +1208,7 @@ static void rebuild(void) {
     for (int k = 0; k < nset; k++) st_rank[set[k].rank]++;
     recolour();
     dirty = 0; roads_dirty = 1; zdirty = 1;
+    st_rebuild_ms = (clock() - t0) * 1000.0f / CLOCKS_PER_SEC;
 }
 
 void init(void) { rebuild(); build_roads(); }
@@ -1184,7 +1218,7 @@ void update(void) {
     watch("seed", "%d", seed); watch("nset", "%d", nset); watch("coastal", "%d", st_coastal);
     watch("moor", "%d", (int)st_cov[CV_MOOR]); watch("forest", "%d", (int)st_cov[CV_FOREST]);
     watch("land", "%d", (int)st_land); watch("npl", "%d", npl); watch("express", "%d", st_express);
-    watch("ringgaps", "%d", st_ringgaps); watch("bridges", "%d", nbr); watch("lakes", "%d", st_lakes); watch("overflow", "%d", st_overflow); watch("links", "lane %d/%d sec %d/%d main %d/%d", st_link_ok[0], st_link_try[0], st_link_ok[1], st_link_try[1], st_link_ok[2], st_link_try[2]); { int bb = -1; for (int b = 0; b < nbr; b++) if (bb < 0 || br[b].len > br[bb].len) bb = b;
+    watch("ringgaps", "%d", st_ringgaps); watch("bridges", "%d", nbr); watch("lakes", "%d", st_lakes); watch("N", "%d", N); watch("diagx", "%d", st_diagx); watch("rebuild_ms", "%.0f", st_rebuild_ms); watch("overflow", "%d", st_overflow); watch("links", "lane %d/%d sec %d/%d main %d/%d", st_link_ok[0], st_link_try[0], st_link_ok[1], st_link_try[1], st_link_ok[2], st_link_try[2]); { int bb = -1; for (int b = 0; b < nbr; b++) if (bb < 0 || br[b].len > br[bb].len) bb = b;
       if (bb >= 0) { watch("bigbridge_x", "%.0f", br[bb].x); watch("bigbridge_y", "%.0f", br[bb].y); watch("bigbridge_len", "%.0f", br[bb].len); } } watch("rivers", "%d", nrv);
     watch("forest_tracks", "%d", nforest); watch("upland_tracks", "%d", nupland); watch("roads_ms", "%.0f", st_roads_ms);
     for (int k = RC_TRACK; k < NRC; k++) watch(RCN[k], "%.0f", st_road[k]);
@@ -1192,12 +1226,13 @@ void update(void) {
     if (keyp(KEY_TAB)) {
         zoom_on = !zoom_on;
         int mx = mouse_x() - MAP_X, my = mouse_y() - MAP_Y;
-        if (zoom_on && mx >= 0 && my >= 0 && mx < N && my < N) { zx = (mx + 0.5f) * CELL; zy = (my + 0.5f) * CELL; zdirty = 1; }
+        if (zoom_on && mx >= 0 && my >= 0 && mx < MAP_PX && my < MAP_PX) { zx = (mx + 0.5f) * MAPCELL; zy = (my + 0.5f) * MAPCELL; zdirty = 1; }
     }
     if (zoom_on) { zoom_input(); return; }
     if (keyp('X') && !roads_dirty) export_island();
     if (export_msg_t > 0) export_msg_t -= dt();
     if (keyp('R')) { seed++; dirty = 1; }
+    if (keyp('G')) { N = N == 256 ? 512 : N == 512 ? 1024 : 256; dirty = 1; }
     if (keyp('V')) { view = (view + 1) % NVIEW; recolour(); }
 }
 
@@ -1208,8 +1243,8 @@ static void draw_roads_overview(void) {
         for (int p = 0; p < npl; p++) {
             if (pl[p].cls != cls) continue;
             for (int i = pl[p].start + 1; i < pl[p].start + pl[p].n; i++)
-                line(MAP_X + (int)(plx[i - 1] / CELL), MAP_Y + (int)(ply[i - 1] / CELL),
-                     MAP_X + (int)(plx[i] / CELL), MAP_Y + (int)(ply[i] / CELL), RCOL[cls]);
+                line(MAP_X + (int)(plx[i - 1] / MAPCELL), MAP_Y + (int)(ply[i - 1] / MAPCELL),
+                     MAP_X + (int)(plx[i] / MAPCELL), MAP_Y + (int)(ply[i] / MAPCELL), RCOL[cls]);
         }
 }
 
@@ -1255,8 +1290,9 @@ static void zoom_render(void) {
         int c;
         if (h <= 0) c = h < -40 ? CLR_DARKER_BLUE : h < -12 ? CLR_DARK_BLUE : CLR_TRUE_BLUE;
         else {
-            float jx = x + (nz(x / 90.0f, y / 90.0f, 71.0f) - 0.5f) * CELL * 0.9f;   // soften cell edges
-            float jy = y + (nz(x / 90.0f, y / 90.0f, 73.0f) - 0.5f) * CELL * 0.9f;
+            // soften cell edges by a FIXED distance (it was ~1 cell: fine at 156 m, stair-steps at 39 m)
+            float jx = x + (nz(x / 90.0f, y / 90.0f, 71.0f) - 0.5f) * 140.0f + (nz(x / 25.0f, y / 25.0f, 75.0f) - 0.5f) * 30.0f;
+            float jy = y + (nz(x / 90.0f, y / 90.0f, 73.0f) - 0.5f) * 140.0f + (nz(x / 25.0f, y / 25.0f, 77.0f) - 0.5f) * 30.0f;
             int cxi = (int)(jx / CELL), cyi = (int)(jy / CELL);
             cxi = cxi < 0 ? 0 : cxi >= N ? N - 1 : cxi; cyi = cyi < 0 ? 0 : cyi >= N ? N - 1 : cyi;
             int cv = CV[cyi * N + cxi];
@@ -1373,28 +1409,31 @@ static void zoom_input(void) {
 }
 
 static void draw_map(void) {
-    for (int y = 0; y < N; y++) {                       // horizontal runs: one rectfill per run
+    // always MAP_PX across: sample the grid (N may be 256, 512 or 1024); horizontal runs
+    #define MCOL(px, py) col[((py) * N / MAP_PX) * N + (px) * N / MAP_PX]
+    for (int y = 0; y < MAP_PX; y++) {
         int x = 0;
-        while (x < N) {
-            int c = col[y * N + x], x0 = x;
-            while (x < N && col[y * N + x] == c) x++;
+        while (x < MAP_PX) {
+            int c = MCOL(x, y), x0 = x;
+            while (x < MAP_PX && MCOL(x, y) == c) x++;
             rectfill(MAP_X + x0, MAP_Y + y, x - x0, 1, c);
         }
     }
-    rect(MAP_X - 1, MAP_Y - 1, N + 2, N + 2, CLR_DARK_GREY);
-    if (view != V_FLOW) { draw_roads_overview(); if (!roads_dirty) for (int f = 0; f < nfarm; f++) pset(MAP_X + farm[f] % N, MAP_Y + farm[f] / N, CLR_DARK_PEACH); }
+    #undef MCOL
+    rect(MAP_X - 1, MAP_Y - 1, MAP_PX + 2, MAP_PX + 2, CLR_DARK_GREY);
+    if (view != V_FLOW) { draw_roads_overview(); if (!roads_dirty) for (int f = 0; f < nfarm; f++) pset(MAP_X + farm[f] % N * MAP_PX / N, MAP_Y + farm[f] / N * MAP_PX / N, CLR_DARK_PEACH); }
     if (view != V_FLOW)
         for (int r = ST_HAMLET; r <= ST_TOWN; r++)               // small first, towns on top
             for (int k = 0; k < nset; k++) {
                 if (set[k].rank != r) continue;
-                int sx = MAP_X + set[k].x, sy = MAP_Y + set[k].y;
+                int sx = MAP_X + set[k].x * MAP_PX / N, sy = MAP_Y + set[k].y * MAP_PX / N;
                 if (r == ST_TOWN)        { rectfill(sx - 3, sy - 3, 7, 7, CLR_BROWNISH_BLACK); rectfill(sx - 2, sy - 2, 5, 5, CLR_RED); }
                 else if (r == ST_VILLAGE){ rectfill(sx - 2, sy - 2, 5, 5, CLR_BROWNISH_BLACK); rectfill(sx - 1, sy - 1, 3, 3, CLR_WHITE); }
                 else                     { rectfill(sx - 1, sy - 1, 3, 3, CLR_BROWNISH_BLACK); pset(sx, sy, CLR_LIGHT_PEACH); }
             }
     // wind: an arrow in the top-right corner, blowing FROM k_wind
     {
-        float a = k_wind * 6.2831853f; int cx = MAP_X + N - 16, cy = MAP_Y + 16;
+        float a = k_wind * 6.2831853f; int cx = MAP_X + MAP_PX - 16, cy = MAP_Y + 16;
         float dx = -cosf(a), dy = -sinf(a);                      // downwind
         circfill(cx, cy, 11, CLR_DARKER_BLUE);
         int hx = cx + (int)(dx * 8), hy = cy + (int)(dy * 8), tx = cx - (int)(dx * 8), ty = cy - (int)(dy * 8);
@@ -1402,9 +1441,9 @@ static void draw_map(void) {
         line(hx, hy, hx - (int)(dx * 4 - dy * 3), hy - (int)(dy * 4 + dx * 3), CLR_WHITE);
         line(hx, hy, hx - (int)(dx * 4 + dy * 3), hy - (int)(dy * 4 - dx * 3), CLR_WHITE);
     }
-    int kb = (int)(10000 / CELL);                       // 10 km bar
-    rectfill(MAP_X + 4, MAP_Y + N - 7, kb, 2, CLR_WHITE);
-    print("10 km", MAP_X + 8 + kb, MAP_Y + N - 10, CLR_WHITE);
+    int kb = (int)(10000 / MAPCELL);                    // 10 km bar
+    rectfill(MAP_X + 4, MAP_Y + MAP_PX - 7, kb, 2, CLR_WHITE);
+    print("10 km", MAP_X + 8 + kb, MAP_Y + MAP_PX - 10, CLR_WHITE);
 }
 
 void draw(void) {
@@ -1414,16 +1453,16 @@ void draw(void) {
     cls(CLR_BROWNISH_BLACK);
     print("ISLAND STUDIO", MAP_X, 6, CLR_LIGHT_PEACH);
     font(FONT_SMALL);
-    print(str("40 x 40 km   seed %d   view: %s", seed, VIEWS[view]), MAP_X + 112, 8, CLR_MEDIUM_GREY);
+    print(str("40 x 40 km   seed %d   %dx%d (%.0f m)   %s", seed, N, N, CELL, VIEWS[view]), MAP_X + 112, 8, CLR_MEDIUM_GREY);
     draw_map();
 
     int mx = mouse_x() - MAP_X, my = mouse_y() - MAP_Y;
-    if (mx >= 0 && my >= 0 && mx < N && my < N) {
-        int i = my * N + mx;
-        print(str("%.1f, %.1f km  %s %d m  %s  rain %d%%  suit %d%%", mx * CELL / 1000, my * CELL / 1000,
+    if (mx >= 0 && my >= 0 && mx < MAP_PX && my < MAP_PX) {
+        int i = (my * N / MAP_PX) * N + mx * N / MAP_PX;
+        print(str("%.1f, %.1f km  %s %d m  %s  rain %d%%  suit %d%%", mx * MAPCELL / 1000, my * MAPCELL / 1000,
                   H[i] <= 0 ? "depth" : "height", (int)fabsf(H[i]), CVN[CV[i]],
                   (int)(M[i] * 100), (int)(SU[i] * 100)),
-              MAP_X, MAP_Y + N + 6, CLR_LIGHT_GREY);
+              MAP_X, MAP_Y + MAP_PX + 6, CLR_LIGHT_GREY);
     }
 
     int px = PANEL_X, w = 196;
@@ -1437,6 +1476,7 @@ void draw(void) {
         if (ui_slider(P[k], px, 20 + k * 12, w, L[k])) dirty = 1;
     if (ui_button(px, 178, 60, 12, "ROLL")) { seed++; dirty = 1; }
     if (ui_button(px + 66, 178, 60, 12, "VIEW")) { view = (view + 1) % NVIEW; recolour(); }
+    if (ui_button(px + 132, 178, 64, 12, str("RES %d", N))) { N = N == 256 ? 512 : N == 512 ? 1024 : 256; dirty = 1; }
     ui_end();
 
     int y = 193;

@@ -18,6 +18,9 @@
 //   --out       output path (default data/<slug>.rvb — the folder roadview's OPEN button reveals)
 //   --json      ALSO emit a .json sibling (human-readable IR; for inspection / downstream handoff)
 //   --convert   read an existing .json and (re)write its .rvb, without re-querying Overpass
+//   --lean      REGION scale (a whole island / county): drivable roads + tracks, rail, rivers,
+//               coastline, water, woods, land use. Skips buildings, footpaths, single trees and
+//               junction control nodes, which balloon the download at 100s of km². (backroads)
 //
 // Default output is a packed BINARY (.rvb) the cart loads ~instantly — real cities are tens of MB
 // of JSON and tokenising that text (jsmn + strtod per coordinate) is the load bottleneck. The cart
@@ -69,6 +72,7 @@ const POINT_KINDS = new Set(['tree', 'crossing', 'give_way', 'stop', 'traffic_si
 // line-road kinds that can be a bridge/tunnel (carried in `sub` as "B<layer>"/"T<layer>" — see below).
 const BRIDGEABLE = new Set(['highway','arterial','road','track','secondary','tertiary','service','cycleway','footway','rail']);
 const SIMPLIFY = parseFloat(opt('--simplify', '8'));
+const LEAN = has('--lean');
 const NAME = opt('--name', null);
 const DEM = has('--dem') ? (parseInt(opt('--dem', '96'), 10) || 96) : 0;   // GxG terrain heightfield (opt-in)
 
@@ -471,7 +475,17 @@ async function geocode(place) {
 // ---- Overpass fetch for a bbox ----
 async function overpass(S, W, N, E, name) {
   const bb = `(${S},${W},${N},${E})`;
-  const q = `[out:json][timeout:120];(` +
+  const NOFOOT = '["highway"!~"^(footway|path|cycleway|steps|pedestrian|bridleway|corridor|elevator|platform|proposed|construction|raceway)$"]';
+  const q = LEAN ? `[out:json][timeout:300];(` +
+            `way["highway"]${NOFOOT}${bb};` +
+            `way["railway"~"^(rail|light_rail|tram|narrow_gauge)$"]${bb};` +
+            `way["waterway"~"^(river|canal|stream|riverbank)$"]${bb};` +
+            `way["natural"~"^(coastline|water|wood|scrub|heath|grassland|beach|sand|bare_rock|wetland)$"]${bb};` +
+            `way["landuse"~"^(residential|commercial|industrial|retail|farmland|meadow|forest|orchard|vineyard|quarry)$"]${bb};` +
+            `relation["natural"~"^(water|wood|scrub|heath|wetland)$"]${bb};` +
+            `relation["landuse"~"^(residential|forest|farmland)$"]${bb};` +
+            `);out geom;` :
+            `[out:json][timeout:120];(` +
             `way["highway"]${bb};` +
             `way["railway"~"^(rail|light_rail|tram|subway|narrow_gauge|monorail)$"]${bb};` +
             `way["waterway"~"^(river|canal|stream|drain|ditch|riverbank)$"]${bb};` +

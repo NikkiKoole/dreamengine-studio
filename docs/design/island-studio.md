@@ -1,7 +1,8 @@
 # island studio: a finite island worth exploring
 
-STATUS: BUILDING (2026-11-19). Rung 1 (land: shape, relief, drainage, valleys) is built in the
-[`islandstudio`](../../tools/carts/islandstudio.c) bench cart. Roads and villages come next.
+STATUS: BUILDING (2026-11-19). Rungs 1 (land: shape, relief, drainage, valleys) and 2 (climate, natural
+cover, settlements) are built in the [`islandstudio`](../../tools/carts/islandstudio.c) bench cart.
+Roads come next.
 
 The world for [`backroads`](backroads.md), and a replacement for its use of the endless
 [`worldnet.h`](../../runtime/worldnet.h) spine.
@@ -75,11 +76,37 @@ shows land area, peak, % flat lowland, % above 300 m, river length, and the two 
 rivers on very flat ground run in straight 8-direction lines; 156 m cells are too coarse to drive on
 directly (backroads will add fine detail on top, as it does today).
 
+## Rung 2: climate, cover, settlements (built)
+
+6. **Climate**: a prevailing wind (slider). For each cell, march ~9 km upwind and find the highest
+   ground the air crossed. The **rain shadow** is how much higher that ridge is than this cell
+   (`exp(-shadow / k)`): air that crossed a higher ridge has rained out and sunk. Windward slopes and
+   summits have nothing higher upwind, so they stay wet; a windward slope right here and high ground
+   get a bonus. Blurred, because the nearest-cell march leaves streaks.
+   *(First version dried the air by every metre it climbed, which made summits the driest places on
+   the island, the reverse of reality. Raising the tree line then grew scrub, not forest.)*
+7. **Natural cover** (before people): beach, marsh (flat, low, wet, by rivers/lakes/river mouths),
+   bare rock (steep or high and steep), moor (above a tree line, slider: ~400 m bare Scottish hills to
+   ~1300 m wooded mountains, lower in dry air), forest (wet,
+   or moderately wet on slopes and by streams), scrub (dry), grassland (the rest). Distances to
+   fresh water and to the sea come from a two-pass chamfer distance transform.
+8. **Settlements**: suitability = flat × low × near fresh water or coast × fertile (rain), ×1.25
+   where a river meets the sea, zero on rivers, lakes, marsh, rock and beach. A river or lake counts
+   more than the sea as a water source, averaged over ~1 km and normalised to the island's best spot.
+   Greedy placement best-first with a spacing (slider, 1.5–4.5 km). Size = good land within 2.5 km;
+   the biggest (about one per 300 km², 10 km apart) become towns, the upper half villages, the rest
+   hamlets.
+
+Nine default seeds: forest 26–42 %, moor 0–28 %, 30–70 settlements with 2–4 towns. The **coastal**
+stat (settlements within 1 km of the sea, about a fifth of the land) went from 61 % to 50 % on
+average after weakening the coast pull: 35–40 % on islands with inland plains, 60–67 % on mountain
+islands whose only lowland is the coast. The dry lee gets fewer villages, because fertility follows
+rain: nobody coded that, it falls out.
+
 ## Next rungs
 
-2. **Settle**: a suitability field (flat, low, near water/coast, river crossings) → villages and a few
-   towns, sized by how much good land surrounds them.
 3. **Roads**: least-cost paths between settlements over slope and river crossings (bridges cost),
    reusing shared segments so a hierarchy forms from use; a coast road; farm tracks and dead ends.
    Compare road density against the table above.
-4. **Bake + hand to backroads**: export the grid (heights, rivers, roads, villages) and drive it.
+4. **Farmland**: fields spread from villages along roads onto flat ground, replacing natural cover.
+5. **Bake + hand to backroads**: export the grid (heights, rivers, roads, villages) and drive it.

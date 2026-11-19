@@ -272,6 +272,32 @@ Fixed along the way:
 - **Zoom cover edges** were softened by ~1 cell, which showed stair-steps at 39 m cells; now a fixed
   ~140 m + 30 m of jitter.
 
+## Smooth roads at 1024 (2026-11-20)
+
+Driving the 1024 island in backroads, main roads had **teeth, hooks and little U-loops** (the maker's
+map screenshot). Measured as sharp kinks (> 60° turn within ~20 m either side) per 100 km of road:
+
+| | main | secondary | lane | track |
+|---|---|---|---|---|
+| Isle of Man | 7 | 8 | 78 | 71 |
+| seed 1 @1024, before | 62 | 76 | 78 | 66 |
+| seed 1 @1024, after | 30 | 33 | 41 | 46 |
+
+Causes and fixes (rendering close-ups of the kinks found them; guessing didn't):
+- The "old roads wander" jitter was **random per cell**: gentle at 156 m, a zigzag at 39 m. Now a
+  smooth noise field (~300 m features).
+- Routes **ran alongside** existing roads instead of on them (the weaker merge discount from
+  calibration): at 39 m that's a second road 39 m away, jogging into the first wherever they touch,
+  with tiny triangles in the cell graph chopping it into hooks. Now a cell within ~60 m of a road
+  but not on it costs ×1.6 ("join it or keep away"); below 60 m/cell (the 256 grid) it is off.
+- **Corner cut**: a plain bend a→b→c with a, c neighbours becomes a→c (835 cuts on seed 1),
+  ironing out right-angle steps incl. the diagonal-crossing reroute.
+- The junction discount (×0.6 through an existing junction) made routes detour; it's off.
+
+What's left are mostly real turns at junctions (a main road turning at a T). Calibration at 256 holds
+(crossroads 3.7–9.2 %); at 1024 crossroads are now 2 % (staggered T pairs): turning near T pairs into
+crossroads belongs in a graph pass, not in routing detours. Open.
+
 ## Next rungs
 
 4. **Farmland**: fields spread from villages along roads onto flat ground, replacing natural cover.

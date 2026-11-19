@@ -414,11 +414,13 @@ static float step_cost(int a, int b, int k, int mode) {
     int c = CV[b];
     m *= c == CV_MARSH ? 3.0f : c == CV_ROCK ? 2.5f : c == CV_BEACH ? 2.0f
        : c == CV_FOREST ? 1.2f : c == CV_MOOR ? 1.15f : 1.0f;
-    // old roads wander: they followed field edges and whoever owned what. A per-cell ±20% cost
-    // jitter (fixed per seed) bends the straight lines across flat land; expressways ignore it.
+    // old roads wander: they followed field edges and whoever owned what. A SMOOTH ±20% cost field
+    // (~300 m features) bends the straight lines across flat land; expressways ignore it.
+    // (It was random per cell: gentle at 156 m cells, but at 39 m it made main roads zigzag between
+    //  cheap and dear cells: 62-76 sharp kinks per 100 km vs the Isle of Man's 7-8.)
     if (mode != RM_EXPRESS) {
-        unsigned hb = (unsigned)b * 2654435761u ^ (unsigned)seed * 97531u; hb ^= hb >> 13; hb *= 0x5bd1e995u; hb ^= hb >> 15;
-        m *= 0.8f + 0.4f * (float)(hb & 1023) / 1023.0f;
+        float wx = (b % N + 0.5f) * CELL, wy = (b / N + 0.5f) * CELL;
+        m *= 0.8f + 0.4f * clamp((nz(wx / 300.0f, wy / 300.0f, 91.0f) - 0.5f) * 2.2f + 0.5f, 0, 1);
     }
     if (mode == RM_RING) m *= DS[b] < 160 ? 1.8f : DS[b] < 2200 ? 0.8f : 1.35f;   // hug the coast, off the beach
     float extra = 0;
@@ -435,7 +437,22 @@ static float step_cost(int a, int b, int k, int mode) {
         if (ER[a][k] == RC_EXPRESS) m *= 1.0f;           // access-controlled: cross it, never ride it
         else if (ER[a][k]) m *= ER[a][k] >= RC_MAIN ? 0.55f : ER[a][k] == RC_TRACK ? 0.8f : 0.65f;   // follow a road
         else if (TR[b] > 0) m *= 0.85f;                        // join one
-        if (JN[b] >= 3) m *= 0.6f;                           // ...preferably at an existing junction: crossroads, not staggered Ts
+        if (JN[b] >= 3) m *= 1.0f;                           // (a junction discount made routes detour: off)
+        // JOIN IT OR KEEP AWAY: a cell within ~60 m of a road but not on it costs extra, so a route
+        // merges onto the road or keeps a real distance. At 39 m cells, running alongside made a
+        // second road 39 m away that jogged into the first (teeth, hooks: 56 kinks/100 km on main
+        // roads vs the Isle of Man's 7). Below 60 m/cell (256 grid) this is off: calibration holds.
+        if (!TR[b] && !JN[b]) {
+            int rr = (int)(60.0f / CELL);
+            if (rr >= 1) {
+                int bx2 = b % N, by2 = b / N, near = 0;
+                for (int yy = by2 - rr; yy <= by2 + rr && !near; yy++) for (int xx = bx2 - rr; xx <= bx2 + rr; xx++) {
+                    if (xx < 0 || yy < 0 || xx >= N || yy >= N) continue;
+                    int c2 = yy * N + xx; if (TR[c2] > 0 || JN[c2]) { near = 1; break; }
+                }
+                if (near) m *= 1.6f;
+            }
+        }
         // (calibrated 2026-11-19: 0.3/0.4 collapsed every route onto a trunk, so roads merged into
         //  T junctions instead of crossing: 1 % crossroads and 50 % dead ends vs the Isle of Man's 5 % / 35 %)
     }
@@ -596,6 +613,34 @@ static void fix_diagonal_crossings(void) {
         if (cls > ER[c][0]) { ER[c][0] = (unsigned char)cls; ER[b][1] = (unsigned char)cls; }
         if (cls > ER[b][2]) { ER[b][2] = (unsigned char)cls; ER[d][3] = (unsigned char)cls; }
         st_diagx++;
+    }
+}
+// CORNER CUT: a road that goes a -> b -> c, where b is a plain bend (exactly two road edges, same
+// class, no settlement) and a, c are neighbours, goes a -> c instead. Irons out right-angle steps
+// (incl. the diagonal-crossing reroute) that the smoother keeps as kinks. Repeated until stable.
+static int st_cuts;
+static void cut_corners(void) {
+    st_cuts = 0;
+    for (int pass = 0; pass < 3; pass++) {
+        int changed = 0;
+        for (int b = 0; b < N * N; b++) {
+            if (IS_SET[b]) continue;
+            int k1 = -1, k2 = -1, deg = 0;
+            for (int k = 0; k < 8; k++) if (ER[b][k]) { deg++; if (k1 < 0) k1 = k; else k2 = k; }
+            if (deg != 2 || ER[b][k1] != ER[b][k2]) continue;
+            int bx = b % N, by = b / N;
+            int ax = bx + DX[k1], ay = by + DY[k1], cx2 = bx + DX[k2], cy2 = by + DY[k2];
+            int ddx = cx2 - ax, ddy = cy2 - ay;
+            if (abs(ddx) > 1 || abs(ddy) > 1 || (ddx == 0 && ddy == 0)) continue;   // a, c not neighbours
+            int a = ay * N + ax, kc = -1;
+            for (int k = 0; k < 8; k++) if (DX[k] == ddx && DY[k] == ddy) kc = k;
+            if (kc < 0) continue;
+            int cls = ER[b][k1];
+            ER[b][k1] = 0; ER[a][OPP[k1]] = 0; ER[b][k2] = 0; ER[cy2 * N + cx2][OPP[k2]] = 0;
+            if (cls > ER[a][kc]) { ER[a][kc] = (unsigned char)cls; ER[cy2 * N + cx2][OPP[kc]] = (unsigned char)cls; }
+            changed++; st_cuts++;
+        }
+        if (!changed) break;
     }
 }
 static void build_polys(void) {
@@ -1144,6 +1189,7 @@ static void build_roads(void) {
     farms();
     upland_tracks();
     fix_diagonal_crossings();
+    cut_corners();
     build_polys();
     build_rivers();
     build_bridges();
@@ -1247,7 +1293,7 @@ void update(void) {
     watch("seed", "%d", seed); watch("nset", "%d", nset); watch("coastal", "%d", st_coastal);
     watch("moor", "%d", (int)st_cov[CV_MOOR]); watch("forest", "%d", (int)st_cov[CV_FOREST]);
     watch("land", "%d", (int)st_land); watch("npl", "%d", npl); watch("express", "%d", st_express);
-    watch("ringgaps", "%d", st_ringgaps); watch("bridges", "%d", nbr); watch("lakes", "%d", st_lakes); watch("N", "%d", N); watch("diagx", "%d", st_diagx); watch("rebuild_ms", "%.0f", st_rebuild_ms); watch("overflow", "%d", st_overflow); watch("links", "lane %d/%d sec %d/%d main %d/%d", st_link_ok[0], st_link_try[0], st_link_ok[1], st_link_try[1], st_link_ok[2], st_link_try[2]); { int bb = -1; for (int b = 0; b < nbr; b++) if (bb < 0 || br[b].len > br[bb].len) bb = b;
+    watch("ringgaps", "%d", st_ringgaps); watch("bridges", "%d", nbr); watch("lakes", "%d", st_lakes); watch("N", "%d", N); watch("diagx", "%d", st_diagx); watch("cuts", "%d", st_cuts); watch("rebuild_ms", "%.0f", st_rebuild_ms); watch("overflow", "%d", st_overflow); watch("links", "lane %d/%d sec %d/%d main %d/%d", st_link_ok[0], st_link_try[0], st_link_ok[1], st_link_try[1], st_link_ok[2], st_link_try[2]); { int bb = -1; for (int b = 0; b < nbr; b++) if (bb < 0 || br[b].len > br[bb].len) bb = b;
       if (bb >= 0) { watch("bigbridge_x", "%.0f", br[bb].x); watch("bigbridge_y", "%.0f", br[bb].y); watch("bigbridge_len", "%.0f", br[bb].len); } } watch("rivers", "%d", nrv);
     watch("forest_tracks", "%d", nforest); watch("upland_tracks", "%d", nupland); watch("roads_ms", "%.0f", st_roads_ms);
     for (int k = RC_TRACK; k < NRC; k++) watch(RCN[k], "%.0f", st_road[k]);

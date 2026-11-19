@@ -85,6 +85,7 @@ static int   map_drag, map_mx, map_my;                  // drag in progress + la
 #define MAP_BTN_W 44
 #define MAP_BTN_H 11
 static int   dbg = 1;
+static int   drone;               // dev view (O): camera 25 m up, tilted down, to read junction shapes
 static int   ntri;              // triangles drawn this frame
 static int   cur_surf;          // surface under the car
 
@@ -542,6 +543,40 @@ static void edge_pt(const REdge *e, int i, float t, float *ox, float *oy) {
 // from a 1.2 m eye height. These are 1970s country roads: two narrow lanes, a single track.
 static const float HW[5] = { 7.0f, 4.5f, 3.6f, 3.0f, 2.0f };   // motorway → dirt
 #define ROAD_NEAR  1150.0f      // build road pieces within this range (ring 1 reach)
+// ── JUNCTIONS: where three or more road ends meet (the export splits roads at every junction, so
+// arms end exactly on the node). Each node keeps its arms: bearing out of the node, half-width,
+// class. Built once on load; drawn as a curb-return patch (roadkit's geometry) in isl_build_roads.
+#define IJN_MAX 6000
+#define IJ_ARM  8
+typedef struct { float x, y; int n; float brg[IJ_ARM], hw[IJ_ARM]; unsigned char cls[IJ_ARM]; int poly[IJ_ARM], atend[IJ_ARM]; } IJunc;
+static IJunc ijn[IJN_MAX]; static int nijn;
+static float ipl_j0[IPL_MAX], ipl_j1[IPL_MAX];   // per road poly: junction clearance at its start / end (m)
+static void isl_find_junctions(void) {
+    nijn = 0;
+    for (int q = 0; q < nipl; q++) ipl_j0[q] = ipl_j1[q] = 0;
+    for (int q = 0; q < nipl; q++) {
+        if (ipl[q].river) continue;
+        for (int e = 0; e < 2; e++) {
+            int i = e == 0 ? ipl[q].start : ipl[q].start + ipl[q].n - 1;
+            float x = ipx[i], y = ipy[i];
+            int k = 0;                                     // existing node within 1.5 m?
+            for (; k < nijn; k++) if (fabsf(ijn[k].x - x) < 1.5f && fabsf(ijn[k].y - y) < 1.5f) break;
+            if (k == nijn) { if (nijn >= IJN_MAX) continue; ijn[nijn].x = x; ijn[nijn].y = y; ijn[nijn].n = 0; nijn++; }
+            IJunc *J = &ijn[k];
+            if (J->n >= IJ_ARM) continue;
+            // bearing: toward the poly point ~12 m from the node (smooths the first kink)
+            int dir = e == 0 ? 1 : -1, j = i;
+            while (j + dir >= ipl[q].start && j + dir < ipl[q].start + ipl[q].n && fabsf(ipS[j] - ipS[i]) < 12.0f) j += dir;
+            J->brg[J->n] = atan2f(ipy[j] - y, ipx[j] - x) / D2R;
+            J->hw[J->n] = HW[ipl[q].cls]; J->cls[J->n] = ipl[q].cls; J->poly[J->n] = q; J->atend[J->n] = e;
+            J->n++;
+        }
+    }
+    int w = 0;                                             // keep only real junctions (3+ arms)
+    for (int k = 0; k < nijn; k++) if (ijn[k].n >= 3) ijn[w++] = ijn[k];
+    nijn = w;
+}
+
 #define DASH_NEAR  160.0f
 #define POST_NEAR  420.0f
 #define DASH_LEN   4.0f
@@ -964,13 +999,21 @@ static void spawn(void) {
 void init(void) {
     const char *path = de_data_path();
     ISL = isl_load(path ? path : "../data/islandstudio-1.rvb");
+    if (ISL) isl_find_junctions();
     spawn();
 }
 
 void update(void) {
     float d = dt();
-    { const char *f = de_dropped_file(); if (f && isl_load(f)) { ISL = 1; spawn(); } }   // drop an island .rvb
+    { const char *f = de_dropped_file(); if (f && isl_load(f)) { ISL = 1; isl_find_junctions(); spawn(); } }   // drop an island .rvb
+    if (ISL && keyp('J') && nijn > 0) {               // dev: jump 40 m before the next junction, facing it
+        static int jcur = -1; jcur = (jcur + 1) % nijn;
+        IJunc *J = &ijn[jcur]; float b = J->brg[0] * D2R;
+        px = J->x + cosf(b) * 40.0f; py = J->y + sinf(b) * 40.0f; head = J->brg[0] + 180.0f;
+        vx = vy = 0; camh = ground(px, py) + EYE;
+    }
     if (keyp('H')) dbg = !dbg;
+    if (keyp('O')) drone = !drone;
     if (keyp(KEY_TAB)) show_map = !show_map;
     if (show_map) {
         float w = mouse_wheel();
@@ -1002,6 +1045,7 @@ void update(void) {
     watch("x", "%.0f", px); watch("y", "%.0f", py); watch("head", "%.1f", head);
     watch("spd", "%.1f", fsqrt(vx * vx + vy * vy)); watch("camh", "%.1f", camh);
     watch("ntri", "%d", ntri); watch("surf", "%s", SURF[cur_surf].name);
+    watch("njunc", "%d", ISL ? nijn : 0);
     watch("pitch", "%.3f", pitch); watch("roll", "%.3f", roll); watch("npc", "%d", npc);
 #endif
 }
@@ -1138,6 +1182,11 @@ static void draw_map(void) {
 
 void draw(void) {
     if (show_map) { draw_map(); draw_dash(); return; }
+    float save_camh = camh, save_pitch = pitch, save_px = px, save_py = py;
+    if (drone) {                                        // lift + pull back + look down; restored below
+        camh += 25.0f; pitch = -0.6f;
+        px -= cosf(head * D2R) * 18.0f; py -= sinf(head * D2R) * 18.0f;
+    }
     float h = head * D2R;
     cfx = cosf(h); cfy = sinf(h);
     crx = -sinf(h); cry = cosf(h);
@@ -1152,5 +1201,6 @@ void draw(void) {
     build_roads();
     for (int r = NRING - 1; r >= 0; r--) draw_ring(r);
     clip(0, 0, 0, 0);
+    camh = save_camh; pitch = save_pitch; px = save_px; py = save_py;
     draw_dash();
 }

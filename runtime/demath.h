@@ -47,7 +47,12 @@
 // Pinned on every function below. Placing it per-function keeps the effect contained to this
 // header: a file-scope pragma in a header silently changes codegen for everything included
 // after it, which is not a thing a header should do to its includer.
+// libtcc (live run mode) has no _Pragma and never contracts to FMA anyway, so it gets an empty one.
+#if defined(__TINYC__)
+#define DE_NO_CONTRACT
+#else
 #define DE_NO_CONTRACT _Pragma("clang fp contract(off)")
+#endif
 
 #define DE_TWO_PI      6.28318530717958647692f
 #define DE_INV_TWO_PI  0.15915494309189533577f  // 1 / (2*pi)

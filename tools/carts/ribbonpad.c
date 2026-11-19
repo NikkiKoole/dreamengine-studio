@@ -35,7 +35,7 @@ de:meta */
 #define W SCREEN_W
 #define H SCREEN_H
 #define VOICE     5             // instrument slot for the acid voice
-#define SCALE     SCALE_PENTA_MIN
+#define KEY_SCALE     SCALE_PENTA_MIN
 #define BASE_OCT  3
 #define NDEG      15            // scale-degree zones across the width (~3 octaves penta)
 #define GLIDE_MS  55            // portamento between zones — the 303 slide
@@ -72,7 +72,7 @@ static int zone_of(float x) {
   int z = (int)(x / W * NDEG);
   return z < 0 ? 0 : (z >= NDEG ? NDEG - 1 : z);
 }
-static int midi_of(int zone) { return degree(SCALE, BASE_OCT, zone); }
+static int midi_of(int zone) { return degree(KEY_SCALE, BASE_OCT, zone); }
 static float openness(float y) {                 // 0 at the bottom .. 1 at the top
   float o = 1.0f - (y - PAD_TOP) / (float)PAD_H;
   return o < 0 ? 0 : (o > 1 ? 1 : o);

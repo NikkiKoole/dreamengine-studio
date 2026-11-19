@@ -1,8 +1,8 @@
 # island studio: a finite island worth exploring
 
-STATUS: BUILDING (2026-11-19). Rungs 1 (land: shape, relief, drainage, valleys) and 2 (climate, natural
-cover, settlements) are built in the [`islandstudio`](../../tools/carts/islandstudio.c) bench cart.
-Roads come next.
+STATUS: BUILDING (2026-11-19). Rungs 1 (land), 2 (climate, cover, settlements) and a first pass of 3
+(roads, farmsteads, zoom view) are built in the [`islandstudio`](../../tools/carts/islandstudio.c)
+bench cart. Road density is about a third to a half of the real references; see rung 3's open list.
 
 The world for [`backroads`](backroads.md), and a replacement for its use of the endless
 [`worldnet.h`](../../runtime/worldnet.h) spine.
@@ -66,8 +66,16 @@ All on one N×N grid (256², 156 m cells), rebuilt when a slider moves (~30 ms):
    Each land cell's downstream is the neighbour it was reached from; pits are raised to their spill
    level, which marks lakes.
 4. **Flow**: visit cells in reverse flood order and add each cell's water to its downstream.
-5. **Carve**: lower each cell by about `sqrt(drained area)`, blurred so valleys are wider than one
-   cell, then drain again for the final rivers.
+5. **Carve** (v2, 2026-11-19): valleys are cut from the **smoothed river lines**, not per cell.
+   Every cell is lowered by its distance to the nearest river line with a smooth U profile; depth
+   (`55 m × k × sqrt(km² drained)`) and half-width (`110 + 95 × sqrt(km²)` m) grow with the river.
+   Only streams draining ≥ ~2 km² carve. Then drain, **breach** (walk each river downstream and
+   lower any bed cell above the one feeding it, unless the cut would exceed 25 m), drain again.
+   *(v1 lowered each river cell and blurred 3×3. A diagonal river is a chain of cells touching
+   only at corners, so its neighbours stayed high: sawtooth walls, rock "teeth", diagonal bands in
+   the hillshade, which the maker spotted in the zoom view. Carving every tiny stream also grooved
+   even slopes with parallel 45° stripes, and the 70 % depth cap made beds run uphill near the
+   coast, speckling valley floors with fake lakes.)* Lakes are pits deeper than 3 m.
 
 Views: terrain (hillshaded bands), **slope** (flat = where farms and towns go), flow. The panel
 shows land area, peak, % flat lowland, % above 300 m, river length, and the two real islands.
@@ -103,10 +111,63 @@ average after weakening the coast pull: 35–40 % on islands with inland plains,
 islands whose only lowland is the coast. The dry lee gets fewer villages, because fertility follows
 rain: nobody coded that, it falls out.
 
+## Rung 3: roads (first pass, built)
+
+Not only for backroads: the island is meant as a shared world (backroads, sloop, citydrive, roadview),
+so roads use the repo's road ladder and should export to the shared typed-network format.
+
+**Routing on the coarse grid** (A*, 8 directions). Step cost = length × grade along the step
+(contours are cheap; above ~14 % it climbs steeply, above 7 % for the expressway) × cover (marsh,
+rock, beach, forest, moor) × a per-cell ±20 % jitter (old roads wander; flat land would otherwise get
+ruler lines) × **0.3–0.4 on an existing road** (routes merge into trunks), plus a bridge cost when
+entering a river or slipping diagonally between two river cells, and ×6 for running along a river.
+
+Order: (1) the **ring**: coastal settlements in angular order, a cost that prefers a band 0.2–2 km
+inland; a leg that would cost more than 4× its straight distance is dropped, so the ring breaks where
+the coast is impassable (none of nine seeds broke yet). (2) **links**: the Gabriel graph of
+settlements (no third place inside the circle between them), capped in length, plus every town pair
+(weighted ×4), routed in order of gravity (size × size / distance^1.5). (3) **classes from traffic**:
+quantiles over road cells, top 22 % main, next 43 % secondary, the rest lane; the ring is at least
+main. (4) **expressway** if the two biggest towns are more than 10 km apart: gentle grades, cheaper
+bridges, no merging (a new alignment). Four of nine seeds get one. (5) **village tracks** into their
+best farmland. (6) **farmsteads** on a jittered ~650 m grid, kept with probability ∝ suitability,
+each joined to the nearest road (Dijkstra until it touches the network; >900 m = lane, else track);
+~40 % get a second connection in the opposite direction, which turns dead ends into loops.
+
+**Geometry**: the road edges form a graph; chains between junctions are simplified (Douglas-Peucker,
+0.6 cell) and re-curved (Catmull-Rom every ~20 m). Routing takes 20–55 ms; it runs on slider release.
+
+**Zoom view** (TAB, full screen, 1–60 m/px): terrain resampled with **bicubic** heights + fine noise
+(bilinear made flat triangular facets the hillshade outlined, a second "diagonal grid"), cover with
+jittered cell edges, roads with casing at their real half-widths (track 2, lane 2.8, secondary 3.8,
+main 5, expressway 10 m), farms as house + barn, settlements as placeholder rings.
+
+- **Rivers** are smooth lines: chains from each source or confluence down to the next confluence or
+  the sea, simplified and re-curved like roads, width `0.35 × sqrt(cells drained)` (1.5–30 m).
+- **Bridges** wherever a road line crosses a river line wider than 3.5 m (narrower = a culvert):
+  found with a bucket grid over river segments; drawn as a deck wider than the road, the road on
+  it, parapets on both sides; length from river width and crossing angle.
+- **Forestry and upland tracks**: points on a jittered grid in forest (~850 m, 65 %) and on moor or
+  high scrub (~1.2 km, 55 %), each joined to the nearest road as a dead-end track.
+- **The expressway is access-controlled**: farms and tracks can't join it, and other routes get no
+  discount for running along it (they cross it).
+
+**Measured** (km of road per km² of land; main = expressway + main + secondary):
+
+| | main | minor (lane) | track |
+|---|---|---|---|
+| Isle of Man | 0.92 | 0.83 | 1.03 |
+| Sado | 0.69 | 1.91 | 1.65 |
+| islandstudio, 9 seeds | 0.22–0.47 | 0.06–0.38 | 0.19–0.65 |
+
+Low islands reach about half the Isle of Man; mountain islands are far sparser. Known reasons: no town
+streets yet (OSM minor includes them), farms only on good land, mountain interiors mostly roadless.
+
+**Open, in rough order**: hairpins on steep legs (the grid can't make them; a geometry pass should);
+real junction shapes via `roadkit.h`; town street networks (citygen); export to the `.json`/`.rvb` vector format so
+`roadview` opens the island and the OSM stats tools measure it the same way as the real islands.
+
 ## Next rungs
 
-3. **Roads**: least-cost paths between settlements over slope and river crossings (bridges cost),
-   reusing shared segments so a hierarchy forms from use; a coast road; farm tracks and dead ends.
-   Compare road density against the table above.
 4. **Farmland**: fields spread from villages along roads onto flat ground, replacing natural cover.
 5. **Bake + hand to backroads**: export the grid (heights, rivers, roads, villages) and drive it.

@@ -167,6 +167,36 @@ streets yet (OSM minor includes them), farms only on good land, mountain interio
 real junction shapes via `roadkit.h`; town street networks (citygen); export to the `.json`/`.rvb` vector format so
 `roadview` opens the island and the OSM stats tools measure it the same way as the real islands.
 
+## Export + like-for-like measurement (built)
+
+`X` writes `data/islandstudio-<seed>.json` in roadview's vector-features format (the IR
+`data-tools/roadview/osm-roads.js` writes for real OSM): roads on the OSM ladder (expressway →
+highway, main → arterial, secondary, lane → road, track), bridge spans split out with `sub: "B1"`,
+rivers as `canal`, the coastline (marching squares on H = 0) as `coast`, settlements as `residential`
+areas, farms as `building`, plus `land_km2` in the header. `osm-roads.js --convert` packs it to `.rvb`
+for `roadview` and `sndi-check`.
+
+`node tools/road-density.js <file.json> [--lat L --area KM2] [--svg out.svg]` measures it exactly as the
+real islands were measured (and renders a true-scale SVG for side-by-side looks).
+
+**First comparison (seed 1 vs the Isle of Man, `sndi-check` on driveable roads, no tracks):**
+
+| | seed 1 | Isle of Man |
+|---|---|---|
+| circuity | 1.55 | 1.57 |
+| sinuosity | 1.17 | 1.13 |
+| orientation entropy | 0.94 | 0.99 |
+| dead ends | **52 %** | 35 % |
+| T junctions | 47 % | 56 % |
+| crossroads (4+) | **1 %** | 5 % |
+| dendricity | 0.31 | 0.25 |
+
+How roads wind and how roundabout trips are already match. The **topology** doesn't: too many dead
+ends and almost no crossroads. Side by side at the same scale, the Isle of Man has a **mesh of main
+roads** every 5–8 km joining towns and villages directly; ours is the ring plus a few trunks, with the
+interior left to lanes and stubs. (`.rvb` lengths/areas are web-Mercator for the real islands, so
+compare sndi's shape metrics, not its km or km².)
+
 ## Next rungs
 
 4. **Farmland**: fields spread from villages along roads onto flat ground, replacing natural cover.

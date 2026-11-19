@@ -10,7 +10,7 @@
   "description": {
     "summary": "Grow a 40 x 40 km island: coast, hills and mountains, water that drains and carves valleys, wind, rain and a rain shadow, cover, settlements, farms, and the roads between them.",
     "detail": "The island is a finite 256 x 256 grid (156 m cells). Noise gives the shape: an island mask with a warped coast, layered rolling hills, and ridged mountains that only grow inside a mountain mask (slide it to zero for a low island). Then the whole map drains: a priority flood fills every pit so each cell has a downhill path to the sea, a flow count adds up how much land drains through each cell, and valleys are carved where the flow is large. Draining again gives the rivers and lakes. A prevailing wind brings rain that the mountains wring out, leaving a dry lee. Natural cover follows from height, slope, rain and water (forest, grassland, scrub, moor, rock, marsh, beach), and settlements claim the flattest, lowest, best-watered, most fertile land, spaced apart, with the biggest few becoming towns. Roads are routed across the terrain by A*, most important first, with a discount for reusing an existing road so routes merge into trunks; traffic sets the class (main road, secondary, lane), a ring road follows the coast where the land allows, an expressway joins the two biggest towns when they are far apart, scattered farmsteads add tracks and through-lanes, and forests and moors get dead-end tracks. Rivers are smooth lines and roads cross them on bridges. The panel compares the result to two real islands measured from OpenStreetMap. Design doc: docs/design/island-studio.md.",
-    "controls": "Drag the sliders. R or ROLL = new seed. V or VIEW cycles cover / terrain / slope / suitability / flow. Hover the map for height, cover, rain and suitability. Red squares are towns, white villages, dots hamlets; the arrow shows the wind. The tree line slider goes from bare hills to wooded mountains. TAB opens a full-screen zoom (drag to pan, wheel to zoom) with roads at their real widths."
+    "controls": "Drag the sliders. R or ROLL = new seed. V or VIEW cycles cover / terrain / slope / suitability / flow. Hover the map for height, cover, rain and suitability. Red squares are towns, white villages, dots hamlets; the arrow shows the wind. The tree line slider goes from bare hills to wooded mountains. TAB opens a full-screen zoom (drag to pan, wheel to zoom) with roads at their real widths. X exports the island to data/islandstudio-<seed>.json (roadview's vector format; measure with tools/road-density.js)."
   }
 }
 de:meta */
@@ -39,6 +39,7 @@ de:meta */
 #include <math.h>
 #include <stdlib.h>
 #include <time.h>
+#include <stdio.h>
 
 #define N        256
 #define WORLD_M  40000.0f
@@ -772,7 +773,7 @@ static void build_rivers(void) {
 // ── BRIDGES: wherever a road line crosses a river line wider than a culvert ─────────────
 #define MAXBR 800
 #define BG 64                                  // bucket grid over the world for river segments
-typedef struct { float x, y, dx, dy, len; int cls; } Bridge;
+typedef struct { float x, y, dx, dy, len; int cls, p, i; } Bridge;   // p, i: the road poly + point index it sits on
 static Bridge br[MAXBR]; static int nbr;
 static int seg_x(float ax, float ay, float bx, float by, float cx, float cy, float dx, float dy, float *ix, float *iy) {
     float rx = bx - ax, ry = by - ay, sx = dx - cx, sy = dy - cy, den = rx * sy - ry * sx;
@@ -810,7 +811,7 @@ static void build_bridges(void) {
                     float wdx = rvx[j] - rvx[j - 1], wdy = rvy[j] - rvy[j - 1], wl = sqrtf(wdx * wdx + wdy * wdy) + 1e-6f;
                     float sn = fabsf(rdx * wdy / wl - rdy * wdx / wl);   // |sin| of the crossing angle
                     br[nbr].x = ix; br[nbr].y = iy; br[nbr].dx = rdx; br[nbr].dy = rdy;
-                    br[nbr].len = fminf(w / fmaxf(sn, 0.35f) + 10.0f, 160.0f); br[nbr].cls = pl[p].cls; nbr++;
+                    br[nbr].len = fminf(w / fmaxf(sn, 0.35f) + 10.0f, 160.0f); br[nbr].cls = pl[p].cls; br[nbr].p = p; br[nbr].i = i; nbr++;
                 }
             }
         }
@@ -839,6 +840,82 @@ static void upland_tracks(void) {
             if (pass == 0) nforest++; else nupland++;
         }
     }
+}
+
+// ── EXPORT (X): the island as roadview's vector-features JSON (the shared road model:
+// data-tools/roadview/osm-roads.js's IR). Roads map onto the OSM ladder the real islands were
+// measured with; bridge spans are split out with sub "B1"; rivers = canal, coastline = coast,
+// settlements = residential areas, farms = buildings. Local metres, origin SW, Y north-up.
+// Pack for roadview: node data-tools/roadview/osm-roads.js --convert data/islandstudio-<seed>.json
+static const char *EXPORT_KIND[NRC] = { "", "track", "road", "secondary", "arterial", "highway" };
+static char export_msg[160]; static float export_msg_t;
+static void ex_pts(FILE *f, const float *xs, const float *ys, int a, int b) {
+    for (int i = a; i <= b; i++) fprintf(f, "%s%.1f,%.1f", i > a ? "," : "", xs[i], WORLD_M - ys[i]);
+}
+static int ex_first;
+static void ex_line(FILE *f, const char *kind, const char *sub, const float *xs, const float *ys, int a, int b) {
+    if (b <= a) return;
+    fprintf(f, "%s\n{\"kind\":\"%s\"%s%s%s,\"pts\":[", ex_first ? "" : ",", kind,
+            sub ? ",\"sub\":\"" : "", sub ? sub : "", sub ? "\"" : "");
+    ex_pts(f, xs, ys, a, b); fprintf(f, "]}"); ex_first = 0;
+}
+static void ex_poly(FILE *f, const char *kind, float cx, float cy, float r, int n) {
+    fprintf(f, "%s\n{\"kind\":\"%s\",\"pts\":[", ex_first ? "" : ",", kind);
+    for (int k = 0; k <= n; k++) {
+        float a = k * 6.2831853f / n;
+        fprintf(f, "%s%.1f,%.1f", k ? "," : "", cx + cosf(a) * r, WORLD_M - (cy + sinf(a) * r));
+    }
+    fprintf(f, "]}"); ex_first = 0;
+}
+static void export_island(void) {
+    char path[128];
+    snprintf(path, sizeof path, "../data/islandstudio-%d.json", seed);
+    FILE *f = fopen(path, "w");
+    if (!f) { snprintf(path, sizeof path, "islandstudio-%d.json", seed); f = fopen(path, "w"); }
+    if (!f) { snprintf(export_msg, sizeof export_msg, "export failed"); export_msg_t = 3; return; }
+    fprintf(f, "{\"source\":\"islandstudio\",\"name\":\"island seed %d\",\"land_km2\":%.1f,\"bbox\":[0,0,%.0f,%.0f],\"features\":[", seed, st_land, WORLD_M, WORLD_M);
+    ex_first = 1;
+    // roads, split at bridges
+    for (int p = 0; p < npl; p++) {
+        int s0 = pl[p].start, e0 = pl[p].start + pl[p].n - 1, cur = s0;
+        // bridges on this poly, in order along it
+        static int bi[64]; int nb = 0;
+        for (int b = 0; b < nbr && nb < 64; b++) if (br[b].p == p) bi[nb++] = b;
+        for (int a = 0; a < nb; a++) for (int c = a + 1; c < nb; c++) if (br[bi[c]].i < br[bi[a]].i) { int t = bi[a]; bi[a] = bi[c]; bi[c] = t; }
+        for (int a = 0; a < nb; a++) {
+            Bridge *q = &br[bi[a]];
+            int k0 = q->i - 1, k1 = q->i;                         // widen to cover the deck length
+            while (k0 > cur && hypotf(plx[k0] - q->x, ply[k0] - q->y) < q->len * 0.5f) k0--;
+            while (k1 < e0 && hypotf(plx[k1] - q->x, ply[k1] - q->y) < q->len * 0.5f) k1++;
+            if (k0 < cur) continue;
+            ex_line(f, EXPORT_KIND[pl[p].cls], NULL, plx, ply, cur, k0);
+            ex_line(f, EXPORT_KIND[pl[p].cls], "B1", plx, ply, k0, k1);
+            cur = k1;
+        }
+        ex_line(f, EXPORT_KIND[pl[p].cls], NULL, plx, ply, cur, e0);
+    }
+    for (int r = 0; r < nrv; r++) ex_line(f, "canal", NULL, rvx, rvy, rv[r].start, rv[r].start + rv[r].n - 1);
+    // coastline: marching squares on H = 0, one short segment per crossing cell
+    for (int y = 0; y + 1 < N; y++) for (int x = 0; x + 1 < N; x++) {
+        float v[4] = { H[y * N + x], H[y * N + x + 1], H[(y + 1) * N + x + 1], H[(y + 1) * N + x] };
+        float cx[4] = { 0, 1, 1, 0 }, cy[4] = { 0, 0, 1, 1 }, px[4], py[4]; int np = 0;
+        for (int e = 0; e < 4; e++) {
+            float a = v[e], b = v[(e + 1) & 3];
+            if ((a > 0) == (b > 0)) continue;
+            float t = a / (a - b);
+            px[np] = (x + 0.5f + cx[e] + (cx[(e + 1) & 3] - cx[e]) * t) * CELL;
+            py[np] = (y + 0.5f + cy[e] + (cy[(e + 1) & 3] - cy[e]) * t) * CELL; np++;
+        }
+        if (np >= 2) ex_line(f, "coast", NULL, px, py, 0, 1);
+        if (np == 4) ex_line(f, "coast", NULL, px, py, 2, 3);
+    }
+    for (int s = 0; s < nset; s++)
+        ex_poly(f, "residential", (set[s].x + 0.5f) * CELL, (set[s].y + 0.5f) * CELL,
+                set[s].rank == ST_TOWN ? 650 : set[s].rank == ST_VILLAGE ? 260 : 120, 16);
+    for (int k = 0; k < nfarm; k++) ex_poly(f, "building", (farm[k] % N + 0.5f) * CELL, (farm[k] / N + 0.5f) * CELL, 12, 4);
+    fprintf(f, "\n]}\n");
+    fclose(f);
+    snprintf(export_msg, sizeof export_msg, "exported %s", path); export_msg_t = 4;
 }
 
 static void build_roads(void) {
@@ -1056,6 +1133,8 @@ void update(void) {
         if (zoom_on && mx >= 0 && my >= 0 && mx < N && my < N) { zx = (mx + 0.5f) * CELL; zy = (my + 0.5f) * CELL; zdirty = 1; }
     }
     if (zoom_on) { zoom_input(); return; }
+    if (keyp('X') && !roads_dirty) export_island();
+    if (export_msg_t > 0) export_msg_t -= dt();
     if (keyp('R')) { seed++; dirty = 1; }
     if (keyp('V')) { view = (view + 1) % NVIEW; recolour(); }
 }
@@ -1316,6 +1395,6 @@ void draw(void) {
     y += 8;
     print("isle of man       0.92   0.83   1.03", px, y, CLR_MEDIUM_GREY); y += 8;
     print("sado              0.69   1.91   1.65", px, y, CLR_MEDIUM_GREY); y += 9;
-    print("R roll  V view  TAB zoom  hover info", px, y, CLR_DARK_GREY);
+    print(export_msg_t > 0 ? export_msg : "R roll  V view  TAB zoom  X export", px, y, export_msg_t > 0 ? CLR_LIGHT_PEACH : CLR_DARK_GREY);
     font(FONT_NORMAL);
 }

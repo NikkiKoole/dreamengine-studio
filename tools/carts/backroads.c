@@ -1,0 +1,736 @@
+/* de:meta
+{
+  "slug": "backroads",
+  "title": "backroads",
+  "status": "wip",
+  "created": "2026-11-19",
+  "kind": [
+    "tech-demo"
+  ],
+  "teaches": [
+    "noise-terrain",
+    "software-rasterizer",
+    "dithering-gradient",
+    "procedural-mesh",
+    "road-network"
+  ],
+  "lineage": "Test Drive's cockpit view over worldnet.h's endless terrain; flat-shaded fillp ramps from solid3d; novel: LOD rings drawn back-to-front by grid order (no sort, no z-buffer), roads clipped into the terrain cells they lie on so painter's order still holds, and a cart-local near-plane clip.",
+  "description": {
+    "summary": "A 1970s cockpit-view drive (work in progress): flat-shaded, dithered countryside from the endless worldnet world, roads you can follow from town to town or leave for the fields.",
+    "detail": "The ground is a grid of triangles sampled from worldnet's heightmap in three rings around the car: 16 m cells close by, 64 m further out, 256 m out to the fog. There is no z-buffer and no sort: a heightfield seen from inside it can be painted back-to-front just by walking the grid rows and columns from the far edge toward the camera, outer ring first. Roads are worldnet's own spline edges, cut into pieces and clipped into the exact terrain cell (and triangle) they lie on, then drawn right after that cell, so the same order hides a road behind a hill. Centre dashes and edge posts are placed by distance along the road, so they stay put as you drive past them. Leaving the road changes everything: plough and woods drag, grass lets the tail slide, and four wheels sampling the ground tilt the view over crests and ditches. Design doc: docs/design/backroads.md.",
+    "controls": "UP gas, DOWN brake/reverse, LEFT/RIGHT steer. - / = big hills, [ / ] small hills, H toggles the debug readout."
+  }
+}
+de:meta */
+#include "studio.h"
+#include "worldnet.h"
+#include <math.h>
+
+// BACKROADS — rung 2: roads + ground feel.
+//
+//   world   worldnet.h, 1 unit = 1 m, y-down. height = height_at()*vscale + cart detail.
+//   rings   three square vertex grids around the car (fine → coarse). Each ring skips the
+//           square the next-finer ring covers; squares align to the next-coarser grid so
+//           they tile exactly, and the finer ring's border heights are lerped from the
+//           coarse corners so there are no cracks.
+//   order   outer ring first; inside a ring, rows by |row - camera row| descending, then
+//           columns the same way. For a heightfield seen from inside the grid that is a
+//           correct painter's order: whatever hides a cell is nearer in both axes.
+//   roads   worldnet's edge polylines → Catmull-Rom sub-pieces near the car → each piece
+//           binned into every ring cell it touches, CLIPPED to that cell and to the cell's
+//           triangle, and drawn on that exact plane right after the cell. So roads follow
+//           the drawn ground exactly and a nearer hill still covers them.
+//   clip    triangles crossing the near plane are clipped in camera space (cart-local;
+//           evidence for ADR-0036's engine clip, not a replacement for it).
+
+// ── view ───────────────────────────────────────────────────────────────────────
+#define VIEW_H   134            // 3D viewport height; the dash covers the rest
+#define HZ0      56             // horizon row at zero pitch
+#define FOCAL    200.0f         // pixels; ~77° horizontal field of view at 320 wide
+#define NEAR     0.35f          // near plane (m)
+#define EYE      1.2f           // eye height above the ground (m)
+#define FOG0     900.0f         // fog starts (m)
+#define FOG1     2900.0f        // fully fogged (m)
+#define D2R      0.0174533f
+
+#define HAZE     CLR_MEDIUM_GREY
+
+// ── terrain rings ──────────────────────────────────────────────────────────────
+#define NRING 3
+#define RMAX  33                // max vertices per ring side
+static const float RS[NRING] = { 16.0f, 64.0f, 256.0f };   // cell size (m)
+static const int   RN[NRING] = { 32, 32, 24 };              // cells per side
+static float rx0[NRING], ry0[NRING];                        // ring origin (world m)
+static float vcx[NRING][RMAX * RMAX], vcy[NRING][RMAX * RMAX], vcz[NRING][RMAX * RMAX];
+static float vh[NRING][RMAX * RMAX], vt[NRING][RMAX * RMAX];
+
+// ── state ──────────────────────────────────────────────────────────────────────
+static float px, py;            // car position (m)
+static float vx, vy;            // car velocity (m/s, world)
+static float head = 0;          // heading (deg, atan2 frame: 0 = east, 90 = south)
+static float steer = 0;         // -1..1 smoothed
+static float pitch = 0, roll = 0;   // body attitude (rad); camera rides it
+static float camh;              // eye height (m)
+static float dash_shake = 0;         // dash shake (px), from surface roughness × speed
+static float vscale = 900.0f;   // metres per height_at() unit — tune by eye
+static float detail = 90.0f;    // metres of cart-local swell (see detail_at) — tune by eye
+static int   dbg = 1;
+static int   ntri;              // triangles drawn this frame
+static int   cur_surf;          // surface under the car
+
+static float cfx, cfy, crx, cry, cpc, cps, crc, crs;      // camera basis
+
+static float raw_at(float x, float y) { return height_at(x, y); }
+// worldnet's terrain is MACRO truth: its smallest features are ~3 km across, flat from
+// behind a wheel. The cart adds driving-scale DETAIL (pure fn of x,y — as deterministic
+// as the spine): ~700 m swells + ~180 m bumps, faded out at the coast.
+static float detail_at(float x, float y, float t) {
+    float k = clamp(t / 0.06f, 0, 1);
+    float a = noise2(x / 700.0f + 31.7f, y / 700.0f + 5.3f) - 0.5f;
+    float b = noise2(x / 180.0f + 2.1f,  y / 180.0f + 77.0f) - 0.5f;
+    return k * (detail * a + detail * 0.18f * b);
+}
+static float hgt_xy(float x, float y, float t) { return t > 0 ? t * vscale + detail_at(x, y, t) : 0; }
+static float ground(float x, float y) { return hgt_xy(x, y, raw_at(x, y)); }
+
+// ── shading ramps: dark → light anchors; checker blends sit between them ────────
+typedef struct { int n; int c[5]; } Ramp;
+enum { B_WATER, B_SAND, B_SCRUB, B_GRASS, B_FOREST, B_HILL, B_ROCK, B_PEAK,
+       B_PLOUGH, B_PASTURE, B_HAY, B_ASPHALT, B_GRAVEL, NBAND };
+static const Ramp RAMP[NBAND] = {
+    { 3, { CLR_DARKER_BLUE, CLR_DARK_BLUE, CLR_TRUE_BLUE } },
+    { 3, { CLR_DARK_BROWN, CLR_BROWN, CLR_MEDIUM_GREY } },
+    { 4, { CLR_BROWNISH_BLACK, CLR_DARK_BROWN, CLR_BROWN, CLR_MEDIUM_GREY } },
+    { 4, { CLR_BROWNISH_BLACK, CLR_BLUE_GREEN, CLR_DARK_GREEN, CLR_MEDIUM_GREY } },
+    { 3, { CLR_BROWNISH_BLACK, CLR_BLUE_GREEN, CLR_DARK_GREEN } },
+    { 4, { CLR_BROWNISH_BLACK, CLR_DARK_BROWN, CLR_BROWN, CLR_MEDIUM_GREY } },
+    { 4, { CLR_BROWNISH_BLACK, CLR_DARKER_GREY, CLR_DARK_GREY, CLR_MEDIUM_GREY } },
+    { 4, { CLR_DARKER_GREY, CLR_DARK_GREY, CLR_MEDIUM_GREY, CLR_LIGHT_GREY } },
+    // lowland patchwork: flat ground (lum ≈ 0.6) lands on a DIFFERENT anchor per kind
+    { 4, { CLR_BROWNISH_BLACK, CLR_DARKER_GREY, CLR_DARK_BROWN, CLR_BROWN } },          // plough
+    { 4, { CLR_BROWNISH_BLACK, CLR_DARKER_BLUE, CLR_BLUE_GREEN, CLR_DARK_GREEN } },     // pasture
+    { 4, { CLR_DARK_BROWN, CLR_BROWN, CLR_MEDIUM_GREY, CLR_LIGHT_PEACH } },             // hay
+    // road surfaces
+    { 4, { CLR_BROWNISH_BLACK, CLR_DARKER_GREY, CLR_DARK_GREY, CLR_MEDIUM_GREY } },     // asphalt
+    { 4, { CLR_BROWNISH_BLACK, CLR_DARK_BROWN, CLR_MAUVE, CLR_MEDIUM_GREY } },          // gravel
+};
+// countryside, not a map legend: elevation picks the broad band, then woods (a noise blob)
+// and a 120 m patchwork of parcels — pure functions of position, same every visit.
+static int band_at(float t, float x, float y) {
+    if (t <  0.00f) return B_WATER;
+    if (t <  0.012f) return B_SAND;
+    if (t >= 0.45f) return B_PEAK;
+    if (t >= 0.40f) return B_ROCK;
+    float w = noise2(x / 900.0f + 13.0f, y / 900.0f + 41.0f);
+    if (w > 0.66f - (t > 0.3f ? 0.12f : 0)) return B_FOREST;
+    if (t >= 0.32f) return B_HILL;
+    unsigned h = wn_hash2(wn_ifloor(x / 120.0f) * 7 + 3, wn_ifloor(y / 120.0f) * 13 + 1);
+    int p = (int)(h % 10u);
+    return p < 3 ? B_GRASS : p < 6 ? B_PASTURE : p < 8 ? B_PLOUGH : B_HAY;
+}
+
+// ── how each surface drives: grip (sideways hold), roll (drag ∝ speed), rough (dash_shake)
+typedef struct { float grip, roll, rough; const char *name; } Surf;
+static const Surf SURF[NBAND] = {
+    [B_WATER]   = { 0.2f, 2.00f, 1.0f, "water"   },
+    [B_SAND]    = { 0.35f, 0.35f, 0.5f, "sand"   },
+    [B_SCRUB]   = { 0.50f, 0.20f, 0.8f, "scrub"  },
+    [B_GRASS]   = { 0.55f, 0.15f, 0.5f, "grass"  },
+    [B_FOREST]  = { 0.45f, 0.60f, 1.0f, "woods"  },
+    [B_HILL]    = { 0.50f, 0.22f, 0.8f, "heath"  },
+    [B_ROCK]    = { 0.60f, 0.30f, 1.0f, "rock"   },
+    [B_PEAK]    = { 0.40f, 0.40f, 1.0f, "scree"  },
+    [B_PLOUGH]  = { 0.40f, 0.40f, 1.0f, "plough" },
+    [B_PASTURE] = { 0.55f, 0.15f, 0.5f, "pasture"},
+    [B_HAY]     = { 0.50f, 0.12f, 0.6f, "stubble"},
+    [B_ASPHALT] = { 1.00f, 0.015f, 0.05f, "asphalt"},
+    [B_GRAVEL]  = { 0.70f, 0.04f, 0.35f, "gravel" },
+};
+
+static const float SUNX = -0.68f, SUNY = 0.48f, SUNZ = 0.55f;   // low SW sun, so swells read
+static const int FOGPAT[3] = { 0xA0A0, 0xA5A5, 0x5F5F };        // 25 / 50 / 75 % haze
+
+static int g_outline;          // 1 = also stroke the polygon's edges (seals road T-junction cracks)
+static void fill_shaded(int *xy, int n, int band, float lum, float fog) {
+    const Ramp *r = &RAMP[band];
+    int steps = r->n * 2 - 1;
+    int k = (int)(clamp(lum, 0, 0.999f) * steps);
+    if (g_outline) k = ((k + 1) / 2) * 2 < steps ? ((k + 1) / 2) * 2 : steps - 1;  // roads: solid shades only
+    int a = r->c[k / 2], b = (k & 1) ? r->c[k / 2 + 1] : a;
+    int fl = (int)(clamp(fog, 0, 1) * 4.0f);
+    if (fl >= 4) { a = b = HAZE; fl = 0; }
+    if (fl > 0)      fillp(FOGPAT[fl - 1], HAZE);
+    else if (a != b) fillp(FILL_CHECKER, b);
+    for (int i = 1; i + 1 < n; i++)
+        trifill(xy[0], xy[1], xy[2*i], xy[2*i+1], xy[2*i+2], xy[2*i+3], a);
+    if (g_outline && fl == 0)          // line() ignores fillp, so only seal solid (unfogged) fills
+        for (int i = 0; i < n; i++) {
+            int j = (i + 1) % n;
+            line(xy[2*i], xy[2*i+1], xy[2*j], xy[2*j+1], a);
+        }
+    fillp_reset();
+    ntri++;
+}
+
+// ── camera ─────────────────────────────────────────────────────────────────────
+static void to_cam(float wx, float wy, float h, float *ox, float *oy, float *oz) {
+    float dx = wx - px, dy = wy - py, dz = h - camh;
+    float x = dx * crx + dy * cry;
+    float z = dx * cfx + dy * cfy;
+    float y = dz * cpc - z * cps;                 // pitch
+    *oz = dz * cps + z * cpc;
+    *ox = x * crc - y * crs;                      // roll
+    *oy = x * crs + y * crc;
+}
+// project a camera-space polygon (near-clipped) and fill it
+#define PMAX 12
+static void fill_cam(float *X, float *Y, float *Z, int n, int band, float lum) {
+    float PX[PMAX], PY[PMAX], PZ[PMAX]; int m = 0;
+    int anyIn = 0;
+    for (int i = 0; i < n; i++) if (Z[i] >= NEAR) anyIn = 1;
+    if (!anyIn) return;
+    float zs = 0;
+    for (int i = 0; i < n && m < PMAX - 1; i++) {          // Sutherland–Hodgman, z = NEAR
+        int j = (i + 1) % n;
+        int inI = Z[i] >= NEAR, inJ = Z[j] >= NEAR;
+        if (inI) { PX[m] = X[i]; PY[m] = Y[i]; PZ[m] = Z[i]; m++; }
+        if (inI != inJ) {
+            float u = (NEAR - Z[i]) / (Z[j] - Z[i]);
+            PX[m] = X[i] + (X[j] - X[i]) * u; PY[m] = Y[i] + (Y[j] - Y[i]) * u; PZ[m] = NEAR; m++;
+        }
+    }
+    if (m < 3) return;
+    // side reject AFTER the near clip (a point behind the camera has no meaningful side)
+    float k = 160.0f / FOCAL;
+    int allL = 1, allR = 1;
+    for (int i = 0; i < m; i++) {
+        if (!(PX[i] >  PZ[i] * k + 0.5f)) allR = 0;
+        if (!(PX[i] < -PZ[i] * k - 0.5f)) allL = 0;
+    }
+    if (allL || allR) return;
+    int xy[PMAX * 2];
+    for (int i = 0; i < m; i++) {
+        xy[2*i]   = (int)floorf(clamp(160.0f + PX[i] * FOCAL / PZ[i], -4000, 4000) + 0.5f);
+        xy[2*i+1] = (int)floorf(clamp(HZ0    - PY[i] * FOCAL / PZ[i], -4000, 4000) + 0.5f);
+        zs += PZ[i];
+    }
+    fill_shaded(xy, m, band, lum, (zs / m - FOG0) / (FOG1 - FOG0));
+}
+
+// lighting of one ring triangle (vertex ids) → lum, plus its up-ness for the cliff rule
+static float tri_lum(int r, int a, int b, int c, float *nzo) {
+    int n1 = RN[r] + 1; float s = RS[r];
+    float ax = (a % n1) * s, ay = (a / n1) * s, bx = (b % n1) * s, by = (b / n1) * s;
+    float cx = (c % n1) * s, cy = (c / n1) * s;
+    float e1x = bx - ax, e1y = by - ay, e1z = vh[r][b] - vh[r][a];
+    float e2x = cx - ax, e2y = cy - ay, e2z = vh[r][c] - vh[r][a];
+    float nx = e1y * e2z - e1z * e2y, ny = e1z * e2x - e1x * e2z, nz = e1x * e2y - e1y * e2x;
+    if (nz < 0) { nx = -nx; ny = -ny; nz = -nz; }
+    float nl = fsqrt(nx*nx + ny*ny + nz*nz); if (nl <= 0) nl = 1;
+    nx /= nl; ny /= nl; nz /= nl;
+    if (nzo) *nzo = nz;
+    float d = nx * SUNX + ny * SUNY + nz * SUNZ;
+    return 0.08f + 0.95f * (d > 0 ? d : 0);
+}
+
+static void draw_tri(int r, int a, int b, int c) {
+    float nz, lum = tri_lum(r, a, b, c, &nz);
+    int n1 = RN[r] + 1; float s = RS[r];
+    float t = (vt[r][a] + vt[r][b] + vt[r][c]) / 3.0f;
+    float wx = rx0[r] + ((a % n1) + (b % n1) + (c % n1)) * s / 3.0f;
+    float wy = ry0[r] + ((a / n1) + (b / n1) + (c / n1)) * s / 3.0f;
+    int band = band_at(t, wx, wy);
+    if (band != B_WATER && nz < 0.72f) band = B_ROCK;      // cliffs and gorge walls
+    if (band == B_WATER) lum = 0.55f;
+    float X[3] = { vcx[r][a], vcx[r][b], vcx[r][c] };
+    float Y[3] = { vcy[r][a], vcy[r][b], vcy[r][c] };
+    float Z[3] = { vcz[r][a], vcz[r][b], vcz[r][c] };
+    fill_cam(X, Y, Z, 3, band, lum);
+}
+
+// ── rings ──────────────────────────────────────────────────────────────────────
+static float snapf(float v, float s) { return floorf(v / s) * s; }
+
+static void build_ring(int r) {
+    int n = RN[r], n1 = n + 1;
+    float s = RS[r];
+    float align = r + 1 < NRING ? RS[r + 1] : s;
+    rx0[r] = snapf(px, align) - (float)(n / 2) * s;
+    ry0[r] = snapf(py, align) - (float)(n / 2) * s;
+    int step = r + 1 < NRING ? (int)(RS[r + 1] / s) : 1;
+    for (int j = 0; j <= n; j++)
+        for (int i = 0; i <= n; i++) {
+            int id = j * n1 + i;
+            float wx = rx0[r] + i * s, wy = ry0[r] + j * s, t;
+            int onx = (j == 0 || j == n), ony = (i == 0 || i == n);
+            if (step > 1 && onx && i % step) {              // border: lerp the coarse edge
+                int i0 = i - i % step;
+                float xa = rx0[r] + i0 * s, xb = xa + step * s, u = (float)(i % step) / step;
+                float t0 = raw_at(xa, wy), t1 = raw_at(xb, wy);
+                float h0 = hgt_xy(xa, wy, t0), h1 = hgt_xy(xb, wy, t1);
+                t = t0 + (t1 - t0) * u; vh[r][id] = h0 + (h1 - h0) * u;
+            } else if (step > 1 && ony && j % step) {
+                int j0 = j - j % step;
+                float ya = ry0[r] + j0 * s, yb = ya + step * s, u = (float)(j % step) / step;
+                float t0 = raw_at(wx, ya), t1 = raw_at(wx, yb);
+                float h0 = hgt_xy(wx, ya, t0), h1 = hgt_xy(wx, yb, t1);
+                t = t0 + (t1 - t0) * u; vh[r][id] = h0 + (h1 - h0) * u;
+            } else {
+                t = raw_at(wx, wy); vh[r][id] = hgt_xy(wx, wy, t);
+            }
+            vt[r][id] = t;
+            to_cam(wx, wy, vh[r][id], &vcx[r][id], &vcy[r][id], &vcz[r][id]);
+        }
+}
+static int in_finer(int r, float wx, float wy, float s) {   // cell fully inside ring r-1?
+    if (r == 0) return 0;
+    float fx0 = rx0[r - 1], fy0 = ry0[r - 1], fs = RN[r - 1] * RS[r - 1];
+    return wx >= fx0 && wx + s <= fx0 + fs && wy >= fy0 && wy + s <= fy0 + fs;
+}
+
+// ── road pieces: polygons in world xy, binned into the ring cells they touch ────
+#define ROAD_RINGS 2            // roads drawn in rings 0..1 (≈ 1 km); beyond is sub-pixel
+#define PC_MAX   6000
+#define BIN_MAX  20000
+#define PST_MAX  600
+enum { PK_ROAD, PK_DASH };
+typedef struct { float x[4], y[4]; unsigned char kind, band; } Piece;
+static Piece pc[PC_MAX]; static int npc;
+static int   bin_head[ROAD_RINGS][32 * 32], bin_next[BIN_MAX], bin_pc[BIN_MAX], nbin;
+typedef struct { float x, y; } Post;
+static Post  pst[PST_MAX]; static int npst;
+static int   pst_head[32 * 32], pst_next[PST_MAX];         // posts: ring 0 cells only
+
+static void bin_piece(int id) {
+    Piece *p = &pc[id];
+    float mnx = p->x[0], mxx = mnx, mny = p->y[0], mxy = mny;
+    for (int i = 1; i < 4; i++) {
+        mnx = fminf(mnx, p->x[i]); mxx = fmaxf(mxx, p->x[i]);
+        mny = fminf(mny, p->y[i]); mxy = fmaxf(mxy, p->y[i]);
+    }
+    for (int r = 0; r < ROAD_RINGS; r++) {
+        float s = RS[r]; int n = RN[r];
+        int i0 = (int)floorf((mnx - rx0[r]) / s), i1 = (int)floorf((mxx - rx0[r]) / s);
+        int j0 = (int)floorf((mny - ry0[r]) / s), j1 = (int)floorf((mxy - ry0[r]) / s);
+        if (i1 < 0 || j1 < 0 || i0 >= n || j0 >= n) continue;
+        if (i0 < 0) i0 = 0; if (j0 < 0) j0 = 0; if (i1 >= n) i1 = n - 1; if (j1 >= n) j1 = n - 1;
+        for (int j = j0; j <= j1; j++)
+            for (int i = i0; i <= i1; i++) {
+                if (in_finer(r, rx0[r] + i * s, ry0[r] + j * s, s)) continue;
+                if (nbin >= BIN_MAX) return;
+                int c = j * n + i;
+                bin_pc[nbin] = id; bin_next[nbin] = bin_head[r][c]; bin_head[r][c] = nbin++;
+            }
+    }
+}
+static void add_piece(float ax, float ay, float bx, float by, float cx, float cy,
+                      float dx, float dy, int kind, int band) {
+    if (npc >= PC_MAX) return;
+    Piece *p = &pc[npc];
+    p->x[0] = ax; p->y[0] = ay; p->x[1] = bx; p->y[1] = by;
+    p->x[2] = cx; p->y[2] = cy; p->x[3] = dx; p->y[3] = dy;
+    p->kind = (unsigned char)kind; p->band = (unsigned char)band;
+    bin_piece(npc++);
+}
+
+// Catmull-Rom point on edge e at sample-segment i, param t (clamped neighbours)
+static void edge_pt(const REdge *e, int i, float t, float *ox, float *oy) {
+    int i0 = i > 0 ? i - 1 : 0, i3 = i + 2 <= LINK_SAMPLES ? i + 2 : LINK_SAMPLES;
+    catmull(e->x[i0], e->x[i], e->x[i + 1], e->x[i3], t, ox);
+    catmull(e->y[i0], e->y[i], e->y[i + 1], e->y[i3], t, oy);
+}
+
+// the cart's OWN carriageway half-widths (m): worldnet's (12/7/5/3.5/2.5) read as runways
+// from a 1.2 m eye height. These are 1970s country roads: two narrow lanes, a single track.
+static const float HW[5] = { 7.0f, 4.5f, 3.6f, 3.0f, 2.0f };   // motorway → dirt
+#define ROAD_NEAR  1150.0f      // build road pieces within this range (ring 1 reach)
+#define DASH_NEAR  160.0f
+#define POST_NEAR  420.0f
+#define DASH_LEN   4.0f
+#define DASH_GAP   12.0f
+#define POST_GAP   50.0f
+
+static void build_roads(void) {
+    npc = 0; nbin = 0; npst = 0;
+    for (int r = 0; r < ROAD_RINGS; r++)
+        for (int c = 0; c < 32 * 32; c++) bin_head[r][c] = -1;
+    for (int c = 0; c < 32 * 32; c++) pst_head[c] = -1;
+    eg_ensure(px, py);
+    for (int e = 0; e < eg_n; e++) {
+        const REdge *ed = &eg_e[e];
+        if (ed->net != NET_ROAD) continue;
+        float hw = HW[ed->cls];
+        int band = ed->cls == CL_DIRT ? B_GRAVEL : B_ASPHALT;
+        int marked = ed->cls != CL_DIRT;
+        float S = 0;                                       // arc length at segment start
+        for (int i = 0; i < LINK_SAMPLES; i++) {
+            float ax = ed->x[i], ay = ed->y[i], bx = ed->x[i + 1], by = ed->y[i + 1];
+            float L = fsqrt((bx - ax) * (bx - ax) + (by - ay) * (by - ay));
+            float d = fsqrt(seg_d2(px, py, ax, ay, bx, by));
+            if (L < 0.01f || d > ROAD_NEAR) { S += L; continue; }
+            // sub-step: fine near, coarse far
+            float step = d < 300 ? 6.0f : d < 700 ? 16.0f : 32.0f;
+            int ns = (int)ceilf(L / step); if (ns < 1) ns = 1; if (ns > 200) ns = 200;
+            float qx[201], qy[201];
+            for (int k = 0; k <= ns; k++) edge_pt(ed, i, (float)k / ns, &qx[k], &qy[k]);
+            float plx = 0, ply = 0, prx = 0, pry = 0;
+            for (int k = 0; k <= ns; k++) {
+                int ka = k > 0 ? k - 1 : 0, kb = k < ns ? k + 1 : ns;
+                float tx = qx[kb] - qx[ka], ty = qy[kb] - qy[ka];
+                float tl = fsqrt(tx * tx + ty * ty); if (tl <= 0) tl = 1;
+                float nx = -ty / tl * hw, ny = tx / tl * hw;
+                float lx = qx[k] + nx, ly = qy[k] + ny, rx = qx[k] - nx, ry = qy[k] - ny;
+                if (k > 0) add_piece(plx, ply, lx, ly, rx, ry, prx, pry, PK_ROAD, band);
+                plx = lx; ply = ly; prx = rx; pry = ry;
+            }
+            // dashes + posts, placed by ARC LENGTH so they stay put as you drive
+            if (marked && d < DASH_NEAR) {
+                for (float s0 = ceilf(S / DASH_GAP) * DASH_GAP; s0 < S + L; s0 += DASH_GAP) {
+                    float t0 = (s0 - S) / L, t1 = fminf((s0 + DASH_LEN - S) / L, 1.0f);
+                    float x0, y0, x1, y1; edge_pt(ed, i, t0, &x0, &y0); edge_pt(ed, i, t1, &x1, &y1);
+                    float tx = x1 - x0, ty = y1 - y0, tl = fsqrt(tx * tx + ty * ty);
+                    if (tl <= 0) continue;
+                    float nx = -ty / tl * 0.12f, ny = tx / tl * 0.12f;
+                    add_piece(x0 + nx, y0 + ny, x1 + nx, y1 + ny, x1 - nx, y1 - ny, x0 - nx, y0 - ny,
+                              PK_DASH, band);
+                }
+            }
+            if (marked && d < POST_NEAR) {
+                for (float s0 = ceilf(S / POST_GAP) * POST_GAP; s0 < S + L; s0 += POST_GAP) {
+                    float t0 = (s0 - S) / L, x0, y0, x1, y1;
+                    edge_pt(ed, i, t0, &x0, &y0); edge_pt(ed, i, fminf(t0 + 0.01f, 1), &x1, &y1);
+                    float tx = x1 - x0, ty = y1 - y0, tl = fsqrt(tx * tx + ty * ty);
+                    if (tl <= 0) continue;
+                    for (int side = -1; side <= 1; side += 2) {
+                        float ox = x0 - ty / tl * (hw + 1.5f) * side, oy = y0 + tx / tl * (hw + 1.5f) * side;
+                        int ci = (int)floorf((ox - rx0[0]) / RS[0]), cj = (int)floorf((oy - ry0[0]) / RS[0]);
+                        if (ci < 0 || cj < 0 || ci >= RN[0] || cj >= RN[0] || npst >= PST_MAX) continue;
+                        int c = cj * RN[0] + ci;
+                        pst[npst].x = ox; pst[npst].y = oy;
+                        pst_next[npst] = pst_head[c]; pst_head[c] = npst++;
+                    }
+                }
+            }
+            S += L;
+        }
+    }
+}
+
+// the DRAWN ground height at a world point: ring r's triangulated surface. Every caller
+// on a shared border picks the same cell (by floor) → identical heights → no cracks.
+static float ring_h(int r, float x, float y) {
+    int n = RN[r], n1 = n + 1; float s = RS[r];
+    float fu = (x - rx0[r]) / s, fv = (y - ry0[r]) / s;
+    int i = (int)floorf(fu), j = (int)floorf(fv);
+    if (i < 0) i = 0; if (i > n - 1) i = n - 1;
+    if (j < 0) j = 0; if (j > n - 1) j = n - 1;
+    float u = fu - i, v = fv - j;
+    int v00 = j * n1 + i;
+    float h00 = vh[r][v00], h10 = vh[r][v00 + 1], h01 = vh[r][v00 + n1], h11 = vh[r][v00 + n1 + 1];
+    return u >= v ? h00 + u * (h10 - h00) + v * (h11 - h10)
+                  : h00 + v * (h01 - h00) + u * (h11 - h01);
+}
+// clip a polygon (WORLD x,y) against a half-plane a*x + b*y + c >= 0. Clipping in world
+// coords makes a border point bit-identical from both cells that share it.
+static int clip_half(float *u, float *v, int n, float a, float b, float c, float *ou, float *ov) {
+    int m = 0;
+    for (int i = 0; i < n && m < PMAX - 1; i++) {
+        int j = (i + 1) % n;
+        float di = a * u[i] + b * v[i] + c, dj = a * u[j] + b * v[j] + c;
+        if (di >= 0) { ou[m] = u[i]; ov[m] = v[i]; m++; }
+        if ((di >= 0) != (dj >= 0)) {
+            float t = di / (di - dj);
+            ou[m] = u[i] + (u[j] - u[i]) * t; ov[m] = v[i] + (v[j] - v[i]) * t; m++;
+        }
+    }
+    return m;
+}
+// draw one piece, clipped to cell (i,j) of ring r and to each of its two triangles
+static void draw_piece_in_cell(int r, int i, int j, const Piece *p, float lumA, float lumB) {
+    float s = RS[r];
+    float x0 = rx0[r] + i * s, y0 = ry0[r] + j * s, x1 = x0 + s, y1 = y0 + s;
+    float u[PMAX], v[PMAX], u2[PMAX], v2[PMAX];
+    for (int k = 0; k < 4; k++) { u[k] = p->x[k]; v[k] = p->y[k]; }
+    int n = 4;
+    n = clip_half(u, v, n,   1, 0, -x0, u2, v2); if (n < 3) return;
+    n = clip_half(u2, v2, n, -1, 0,  x1, u, v);  if (n < 3) return;
+    n = clip_half(u, v, n,   0, 1, -y0, u2, v2); if (n < 3) return;
+    n = clip_half(u2, v2, n, 0, -1,  y1, u, v);  if (n < 3) return;
+    float lift = p->kind == PK_DASH ? 0.02f : 0.0f;
+    float dc = y0 - x0;                                     // diagonal: (x - x0) - (y - y0) = 0
+    for (int side = 0; side < 2; side++) {                  // A: below the diagonal, B: above
+        float cu[PMAX], cv[PMAX];
+        int m = side == 0 ? clip_half(u, v, n, 1, -1, dc, cu, cv) : clip_half(u, v, n, -1, 1, -dc, cu, cv);
+        if (m < 3) continue;
+        float X[PMAX], Y[PMAX], Z[PMAX];
+        for (int k = 0; k < m; k++)
+            to_cam(cu[k], cv[k], ring_h(r, cu[k], cv[k]) + lift, &X[k], &Y[k], &Z[k]);
+        g_outline = 1;
+        if (p->kind == PK_DASH) fill_cam(X, Y, Z, m, B_PEAK, 0.999f);   // pale line
+        else fill_cam(X, Y, Z, m, p->band, side == 0 ? lumA : lumB);
+        g_outline = 0;
+    }
+}
+static void draw_post(const Post *q) {
+    float h = ground(q->x, q->y), bx, by, bz, tx, ty, tz;
+    to_cam(q->x, q->y, h, &bx, &by, &bz);
+    to_cam(q->x, q->y, h + 1.0f, &tx, &ty, &tz);
+    if (bz < 1.0f || tz < 1.0f) return;
+    float sx0 = 160 + bx * FOCAL / bz, sy0 = HZ0 - by * FOCAL / bz;
+    float sx1 = 160 + tx * FOCAL / tz, sy1 = HZ0 - ty * FOCAL / tz;
+    int w = (int)(0.14f * FOCAL / bz); if (w < 1) w = 1;
+    int cb = (int)(sy1 + (sy0 - sy1) * 0.2f);              // dark cap: the top fifth
+    int fog = bz > 300;
+    // posts are vertical in the world; under roll they lean on screen, so draw a thin quad
+    float lx = (float)w * 0.5f;
+    fillp(fog ? FILL_CHECKER : FILL_SOLID, HAZE);
+    trifill((int)(sx0 - lx), (int)sy0, (int)(sx0 + lx), (int)sy0, (int)(sx1 + lx), cb, CLR_LIGHT_GREY);
+    trifill((int)(sx0 - lx), (int)sy0, (int)(sx1 + lx), cb, (int)(sx1 - lx), cb, CLR_LIGHT_GREY);
+    trifill((int)(sx1 - lx), cb, (int)(sx1 + lx), cb, (int)(sx1 + lx), (int)sy1, CLR_BROWNISH_BLACK);
+    trifill((int)(sx1 - lx), cb, (int)(sx1 + lx), (int)sy1, (int)(sx1 - lx), (int)sy1, CLR_BROWNISH_BLACK);
+    fillp_reset();
+}
+
+// ── draw one cell: its triangles, then its road pieces, then its posts ──────────
+static void draw_cell(int r, int i, int j) {
+    int n1 = RN[r] + 1;
+    if (in_finer(r, rx0[r] + i * RS[r], ry0[r] + j * RS[r], RS[r])) return;
+    int v00 = j * n1 + i, v10 = v00 + 1, v01 = v00 + n1, v11 = v01 + 1;
+    float za = vcz[r][v00] + vcz[r][v10] + vcz[r][v11];
+    float zb = vcz[r][v00] + vcz[r][v11] + vcz[r][v01];
+    if (za > zb) { draw_tri(r, v00, v10, v11); draw_tri(r, v00, v11, v01); }
+    else         { draw_tri(r, v00, v11, v01); draw_tri(r, v00, v10, v11); }
+    if (r < ROAD_RINGS) {
+        int c = j * RN[r] + i;
+        if (bin_head[r][c] >= 0) {
+            float lumA = tri_lum(r, v00, v10, v11, 0), lumB = tri_lum(r, v00, v11, v01, 0);
+            for (int pass = 0; pass < 2; pass++)            // road surface, then markings
+                for (int b = bin_head[r][c]; b >= 0; b = bin_next[b])
+                    if (pc[bin_pc[b]].kind == pass) draw_piece_in_cell(r, i, j, &pc[bin_pc[b]], lumA, lumB);
+        }
+        if (r == 0)
+            for (int q = pst_head[c]; q >= 0; q = pst_next[q]) draw_post(&pst[q]);
+    }
+}
+
+static void draw_ring(int r) {
+    int n = RN[r];
+    float s = RS[r];
+    int ci = (int)floorf((px - rx0[r]) / s), cj = (int)floorf((py - ry0[r]) / s);
+    if (ci < 0) ci = 0; if (ci > n - 1) ci = n - 1;
+    if (cj < 0) cj = 0; if (cj > n - 1) cj = n - 1;
+    int far_j = cj > n - 1 - cj ? cj : n - 1 - cj;
+    int far_i = ci > n - 1 - ci ? ci : n - 1 - ci;
+    for (int dj = far_j; dj >= 0; dj--)
+        for (int sj = -1; sj <= 1; sj += 2) {
+            if (dj == 0 && sj > 0) continue;
+            int j = cj + sj * dj;
+            if (j < 0 || j >= n) continue;
+            for (int di = far_i; di >= 0; di--)
+                for (int si = -1; si <= 1; si += 2) {
+                    if (di == 0 && si > 0) continue;
+                    int i = ci + si * di;
+                    if (i < 0 || i >= n) continue;
+                    draw_cell(r, i, j);
+                }
+        }
+}
+
+// ── sky + horizon silhouette, built unrolled then turned by the camera roll ────
+static void scr_roll(float sx, float sy, int *ox, int *oy) {
+    float u = sx - 160.0f, w = HZ0 - sy;
+    *ox = (int)(160.0f + u * crc - w * crs);
+    *oy = (int)(HZ0 - (u * crs + w * crc));
+}
+static void quad_roll(float x0, float y0, float x1, float y1, int col) {   // axis rect, rolled
+    int ax, ay, bx, by, cx, cy, dx, dy;
+    scr_roll(x0, y0, &ax, &ay); scr_roll(x1, y0, &bx, &by);
+    scr_roll(x1, y1, &cx, &cy); scr_roll(x0, y1, &dx, &dy);
+    trifill(ax, ay, bx, by, cx, cy, col); trifill(ax, ay, cx, cy, dx, dy, col);
+}
+static void draw_sky(float hz) {
+    static const int SKY[4] = { CLR_DARKER_BLUE, CLR_DARKER_PURPLE, CLR_MAUVE, HAZE };
+    rectfill(0, 0, SCREEN_W, VIEW_H, HAZE);
+    float top = hz - 70, bh = 10.0f;                       // 7 bands of 10 px
+    quad_roll(-200, top - 400, 520, top, SKY[0]);
+    for (int k = 0; k < 7; k++) {
+        int a = SKY[k / 2], b = (k & 1) ? SKY[k / 2 + 1] : a;
+        if (a != b) fillp(FILL_CHECKER, b);
+        quad_roll(-200, top + k * bh, 520, top + (k + 1) * bh + 0.5f, a);
+        fillp_reset();
+    }
+    for (int x = -80; x < SCREEN_W + 80; x += 4) {         // far ridge, 4-px slabs
+        float h[2];
+        for (int e = 0; e < 2; e++) {
+            float a = (head + atanf((x + e * 4 - 160.0f) / FOCAL) * 57.29578f) * D2R;
+            float r1 = noise2(cosf(a) * 2.2f + 11.0f, sinf(a) * 2.2f + 3.0f);
+            float r2 = noise2(cosf(a) * 9.0f + 40.0f, sinf(a) * 9.0f + 7.0f);
+            h[e] = 3 + 16 * r1 * r1 + 3 * r2;
+        }
+        int ax, ay, bx, by, cx, cy, dx, dy;
+        scr_roll(x, hz - h[0], &ax, &ay); scr_roll(x + 4, hz - h[1], &bx, &by);
+        scr_roll(x + 4, hz + 1, &cx, &cy); scr_roll(x, hz + 1, &dx, &dy);
+        trifill(ax, ay, bx, by, cx, cy, CLR_INDIGO); trifill(ax, ay, cx, cy, dx, dy, CLR_INDIGO);
+    }
+}
+
+// ── the car ────────────────────────────────────────────────────────────────────
+#define WB   2.6f               // wheelbase (m)
+#define TRK  1.5f               // track (m)
+static int surf_at(float x, float y) {
+    WnHit h = wn_road_at(x, y);
+    if (h.dist <= HW[h.cls] + 0.3f) return h.cls == CL_DIRT ? B_GRAVEL : B_ASPHALT;
+    float t = raw_at(x, y);
+    return band_at(t, x, y);
+}
+// what a wheel feels: the ground + a little surface-texture bump (felt, not drawn)
+static float wheel_h(float x, float y, float rough) {
+    return ground(x, y) + rough * 0.12f * (noise2(x / 2.5f, y / 2.5f) - 0.5f);
+}
+#ifdef DE_TRACE
+// TEST-ONLY autopilot (harness builds; key P): steer at a point ~25 m ahead on the nearest
+// drawn road centre-line, one lane to the right. Lets a script prove "follow a road for km".
+static int autop;
+static float autopilot_steer(void) {
+    float fx = cosf(head * D2R), fy = sinf(head * D2R);
+    float ax = px + fx * 25, ay = py + fy * 25, best = 1e30f, bx = ax, by = ay, tx = fx, ty = fy;
+    eg_ensure(px, py);
+    for (int e = 0; e < eg_n; e++) {
+        const REdge *ed = &eg_e[e];
+        for (int i = 0; i < LINK_SAMPLES; i++) {
+            if (seg_d2(ax, ay, ed->x[i], ed->y[i], ed->x[i+1], ed->y[i+1]) > 900) continue;
+            for (int k = 0; k <= 24; k++) {
+                float qx, qy, rx, ry; edge_pt(ed, i, k / 24.0f, &qx, &qy);
+                edge_pt(ed, i, fminf(k / 24.0f + 0.02f, 1), &rx, &ry);
+                float dd = (qx - ax) * (qx - ax) + (qy - ay) * (qy - ay);
+                if (dd < best) { best = dd; bx = qx; by = qy; tx = rx - qx; ty = ry - qy; }
+            }
+        }
+    }
+    float tl = fsqrt(tx * tx + ty * ty); if (tl <= 0) return 0;
+    tx /= tl; ty /= tl;
+    if (tx * fx + ty * fy < 0) { tx = -tx; ty = -ty; }       // travel direction
+    bx += -ty * 1.8f; by += tx * 1.8f;                        // keep right
+    float want = atan2f(by - py, bx - px) / D2R, diff = want - head;
+    while (diff > 180) diff -= 360; while (diff < -180) diff += 360;
+    return clamp(diff / 8.0f, -1, 1);
+}
+#endif
+static void drive(float d) {
+    int gas = btn(0, BTN_UP), brk = btn(0, BTN_DOWN);
+    float st = (btn(0, BTN_RIGHT) ? 1.0f : 0) - (btn(0, BTN_LEFT) ? 1.0f : 0);
+#ifdef DE_TRACE
+    if (keyp('P')) autop = !autop;
+    if (autop) { st = autopilot_steer(); float v = fsqrt(vx*vx + vy*vy); gas = v < 22; brk = v > 26; }
+#endif
+    steer += (st - steer) * clamp(d * 6.0f, 0, 1);
+
+    cur_surf = surf_at(px, py);
+    const Surf *S = &SURF[cur_surf];
+    float fx = cosf(head * D2R), fy = sinf(head * D2R), lx = -fy, ly = fx;
+    float vf = vx * fx + vy * fy, vl = vx * lx + vy * ly;
+
+    // four wheels → pitch + roll + ride height
+    float hfl = wheel_h(px + fx * WB/2 - lx * TRK/2, py + fy * WB/2 - ly * TRK/2, S->rough);
+    float hfr = wheel_h(px + fx * WB/2 + lx * TRK/2, py + fy * WB/2 + ly * TRK/2, S->rough);
+    float hrl = wheel_h(px - fx * WB/2 - lx * TRK/2, py - fy * WB/2 - ly * TRK/2, S->rough);
+    float hrr = wheel_h(px - fx * WB/2 + lx * TRK/2, py - fy * WB/2 + ly * TRK/2, S->rough);
+    float grade = ((hfl + hfr) - (hrl + hrr)) / (2 * WB);
+    float bank  = ((hfl + hrl) - (hfr + hrr)) / (2 * TRK);   // + = left side high
+
+    // longitudinal: power-limited drive, brakes, gravity, surface drag + air
+    float acc = 0;
+    if (gas) acc += 7.5f * (1.0f - fabsf(vf) / 60.0f);
+    if (brk) acc -= vf > 0.5f ? 11.0f * (0.5f + 0.5f * S->grip) : 3.0f;
+    acc -= 9.8f * grade / fsqrt(1 + grade * grade);
+    acc -= vf * (0.06f * fabsf(vf) / 30.0f + S->roll);
+    vf += acc * d;
+    if (vf < -6) vf = -6;
+    if (!gas && !brk && fabsf(vf) < 0.3f) vf = 0;
+    // lateral: grip bleeds sideways velocity — low grip = the tail drifts
+    vl *= expf(-S->grip * 9.0f * d);
+
+    // steering: less lock at speed, and less bite on loose ground
+    float maxst = 32.0f / (1.0f + fabsf(vf) / 10.0f);
+    head += steer * maxst * vf / 6.0f * (0.45f + 0.55f * S->grip) * d;
+
+    vx = fx * vf + lx * vl; vy = fy * vf + ly * vl;
+    float nx = px + vx * d, ny = py + vy * d;
+    if (raw_at(nx, ny) < 0 && !wn_road_at(nx, ny).on_road) { vx = vy = 0; }   // water (bridges ok)
+    else { px = nx; py = ny; }
+
+    float spring = clamp(d * 9.0f, 0, 1);
+    pitch += (atanf(grade) - pitch) * spring;
+    roll  += (atanf(bank)  - roll)  * spring;
+    camh = (hfl + hfr + hrl + hrr) * 0.25f + EYE;
+    float spd = fsqrt(vx * vx + vy * vy);
+    dash_shake = S->rough * clamp(spd / 20.0f, 0, 1.5f) * 2.0f;
+}
+
+void init(void) {
+    float rx, ry, ra;
+    px = 40000; py = 30000;
+    if (wn_nearest_road_point(px, py, &rx, &ry, &ra)) {
+        head = ra;                                          // keep right: one lane over
+        px = rx - sinf(ra * D2R) * 1.8f; py = ry + cosf(ra * D2R) * 1.8f;
+    }
+    camh = ground(px, py) + EYE;
+}
+
+void update(void) {
+    float d = dt();
+    if (keyp('H')) dbg = !dbg;
+    if (key('-')) vscale = clamp(vscale - 300 * d, 100, 4000);
+    if (key('=')) vscale = clamp(vscale + 300 * d, 100, 4000);
+    if (key('[')) detail = clamp(detail - 40 * d, 0, 400);
+    if (key(']')) detail = clamp(detail + 40 * d, 0, 400);
+    drive(d);
+#ifdef DE_TRACE
+    watch("x", "%.0f", px); watch("y", "%.0f", py); watch("head", "%.1f", head);
+    watch("spd", "%.1f", fsqrt(vx * vx + vy * vy)); watch("camh", "%.1f", camh);
+    watch("ntri", "%d", ntri); watch("surf", "%s", SURF[cur_surf].name);
+    watch("pitch", "%.3f", pitch); watch("roll", "%.3f", roll); watch("npc", "%d", npc);
+#endif
+}
+
+static void draw_dash(void) {
+    int sy = (int)(dash_shake * (noise(now() * 23.0f) - 0.5f) * 2.0f);
+    camera(0, sy);
+    rectfill(0, VIEW_H - 2, SCREEN_W, SCREEN_H - VIEW_H + 6, CLR_BROWNISH_BLACK);
+    line(0, VIEW_H - 2, SCREEN_W, VIEW_H - 2, CLR_DARK_BROWN);
+    int cx = 70, cy = 172, r = 20;
+    circfill(cx, cy, r, CLR_DARKER_GREY);
+    circ(cx, cy, r, CLR_DARK_BROWN);
+    float kmh = fsqrt(vx * vx + vy * vy) * 3.6f;
+    float a = (135 + clamp(kmh / 180.0f, 0, 1) * 270) * D2R;
+    line(cx, cy, cx + (int)(cosf(a) * (r - 3)), cy + (int)(sinf(a) * (r - 3)), CLR_DARK_PEACH);
+    print(str("%3d", (int)kmh), cx - 12, cy + 8, CLR_MEDIUM_GREY);
+    if (dbg) {
+        float hdg = head + 90; while (hdg < 0) hdg += 360; while (hdg >= 360) hdg -= 360;
+        font(FONT_SMALL);
+        print(str("hdg %3d  alt %4dm  %s", (int)hdg, (int)(camh - EYE), SURF[cur_surf].name), 120, 146, CLR_MEDIUM_GREY);
+        print(str("hills x%d +%dm  tris %d  road %d", (int)vscale, (int)detail, ntri, npc), 120, 156, CLR_DARK_GREY);
+        print(str("pos %d,%d", (int)px, (int)py), 120, 166, CLR_DARK_GREY);
+        print("arrows drive -/= hills [/] bumps H", 120, 184, CLR_DARKER_GREY);
+        font(FONT_NORMAL);
+    }
+    camera(0, 0);
+}
+
+void draw(void) {
+    float h = head * D2R;
+    cfx = cosf(h); cfy = sinf(h);
+    crx = -sinf(h); cry = cosf(h);
+    cpc = cosf(pitch); cps = sinf(pitch);
+    crc = cosf(roll);  crs = sinf(roll);
+    float hz = HZ0 + tanf(pitch) * FOCAL;
+
+    clip(0, 0, SCREEN_W, VIEW_H);
+    draw_sky(hz);
+    ntri = 0;
+    for (int r = NRING - 1; r >= 0; r--) build_ring(r);
+    build_roads();
+    for (int r = NRING - 1; r >= 0; r--) draw_ring(r);
+    clip(0, 0, 0, 0);
+    draw_dash();
+}

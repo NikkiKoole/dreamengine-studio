@@ -1,0 +1,7 @@
+# backroads rung 1 — the filmstrip drive: gas from the spawn road, a right turn at f300,
+# a long left at f600 (a full ~180° sweep of the horizon). 900 frames, deterministic.
+down 2 UP
+down 300 RIGHT
+up 380 RIGHT
+down 600 LEFT
+up 760 LEFT

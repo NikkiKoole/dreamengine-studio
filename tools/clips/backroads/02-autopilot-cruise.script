@@ -1,0 +1,5 @@
+# backroads rung 2 — 3-minute cruise on the TEST-ONLY autopilot (key P, DE_TRACE builds only:
+# play.js / spec / ui-audit). Proves a road can be followed for km: 10800 frames, ~5.1 km,
+# every frame on asphalt. Pair with --trace and count the `surf` watch.
+down 2 P
+up 4 P

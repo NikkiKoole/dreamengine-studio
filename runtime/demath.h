@@ -277,7 +277,13 @@ static inline float de_atan2f(float y, float x) {
 
 // sqrt is IEEE-mandated correctly rounded, so it is already bit-portable — the builtin maps
 // straight to the hardware instruction and needs no libm.
+// libtcc has no builtins, so live mode calls libm's sqrt (same correctly-rounded result).
+#if defined(__TINYC__)
+#include <math.h>
+#define DE_SQRT(x) sqrt(x)
+#else
 #define DE_SQRT(x) __builtin_sqrt(x)
+#endif
 
 static inline float de_atanf(float x) {
     DE_NO_CONTRACT

@@ -10,7 +10,7 @@
   "description": {
     "summary": "Grow a 40 x 40 km island: coast, hills and mountains, water that drains and carves valleys, wind, rain and a rain shadow, cover, settlements, farms, and the roads between them.",
     "detail": "The island is a finite grid: 256 x 256 (156 m cells) while you play with the sliders, 512 or 1024 (39 m) for a final bake. Noise gives the shape: an island mask with a warped coast, layered rolling hills, and ridged mountains that only grow inside a mountain mask (slide it to zero for a low island). Then the whole map drains: a priority flood fills every pit so each cell has a downhill path to the sea, a flow count adds up how much land drains through each cell, and valleys are carved where the flow is large. Draining again gives the rivers and lakes. A prevailing wind brings rain that the mountains wring out, leaving a dry lee. Natural cover follows from height, slope, rain and water (forest, grassland, scrub, moor, rock, marsh, beach), and settlements claim the flattest, lowest, best-watered, most fertile land, spaced apart, with the biggest few becoming towns. Roads are routed across the terrain by A*, most important first, with a discount for reusing an existing road so routes merge into trunks; traffic sets the class (main road, secondary, lane), a ring road follows the coast where the land allows, an expressway joins the two biggest towns when they are far apart, scattered farmsteads add tracks and through-lanes, and forests and moors get dead-end tracks. Rivers are smooth lines and roads cross them on bridges. The panel compares the result to two real islands measured from OpenStreetMap. Design doc: docs/design/island-studio.md.",
-    "controls": "Drag the sliders. R or ROLL = new seed. V or VIEW cycles cover / terrain / slope / suitability / flow. Hover the map for height, cover, rain and suitability. Red squares are towns, white villages, dots hamlets; the arrow shows the wind. The tree line slider goes from bare hills to wooded mountains. TAB opens a full-screen zoom (drag to pan, wheel to zoom) with roads at their real widths. G or RES switches the grid between 256 (live), 512 and 1024 (a ~2.5 s bake, much finer roads). X exports the island to data/islandstudio-<seed>.json (roadview's vector format; measure with tools/road-density.js)."
+    "controls": "Drag the sliders. R or ROLL = new seed. V or VIEW cycles cover / terrain / slope / suitability / flow. Hover the map for height, cover, rain and suitability. Red squares are towns, white villages, dots hamlets; the arrow shows the wind. The tree line slider goes from bare hills to wooded mountains. TAB opens a full-screen zoom (drag to pan, wheel to zoom) with roads at their real widths. G or RES switches the grid between 256 (live), 512 and 1024 (a ~2.5 s bake, much finer roads). X exports the island (roads, cover, heights) to data/islandstudio-<seed>.json (roadview's vector format; measure with tools/road-density.js)."
   }
 }
 de:meta */
@@ -929,6 +929,7 @@ static void ex_poly(FILE *f, const char *kind, float cx, float cy, float r, int 
     }
     fprintf(f, "]}"); ex_first = 0;
 }
+static float H_bilinear(float x, float y);
 static void export_island(void) {
     char path[128];
     snprintf(path, sizeof path, "../data/islandstudio-%d.json", seed);
@@ -937,6 +938,25 @@ static void export_island(void) {
     if (!f) { snprintf(export_msg, sizeof export_msg, "export failed"); export_msg_t = 3; return; }
     fprintf(f, "{\"source\":\"islandstudio\",\"name\":\"island seed %d\",\"land_km2\":%.1f,\"bbox\":[0,0,%.0f,%.0f],\"features\":[", seed, st_land, WORLD_M, WORLD_M);
     ex_first = 1;
+    // LAND COVER as areas (first, so they lie under everything): runs of one class per row on a
+    // 128 grid (312 m), each run one rectangle. Sea and lakes = water.
+    {
+        const int R = 128; float cs = WORLD_M / R;
+        static const char *KIND[NCV] = { "water", "water", "sand", "other_area", "farm", "other_area", "green", "other_area", "other_area" };
+        static const char *SUB[NCV]  = { NULL, NULL, NULL, "natural=wetland", NULL, "natural=scrub", "natural=wood", "natural=heath", "natural=bare_rock" };
+        for (int ry = 0; ry < R; ry++) {
+            int rx = 0;
+            while (rx < R) {
+                int c = CV[(ry * N / R) * N + rx * N / R], x0 = rx;
+                while (rx < R && CV[(ry * N / R) * N + rx * N / R] == c) rx++;
+                float X0 = x0 * cs, X1 = rx * cs, Y0 = WORLD_M - ry * cs, Y1 = WORLD_M - (ry + 1) * cs;
+                fprintf(f, "%s\n{\"kind\":\"%s\"", ex_first ? "" : ",", KIND[c]);
+                if (SUB[c]) fprintf(f, ",\"sub\":\"%s\"", SUB[c]);
+                fprintf(f, ",\"pts\":[%.0f,%.0f,%.0f,%.0f,%.0f,%.0f,%.0f,%.0f,%.0f,%.0f]}", X0, Y1, X1, Y1, X1, Y0, X0, Y0, X0, Y1);
+                ex_first = 0;
+            }
+        }
+    }
     // roads, split at bridges
     for (int p = 0; p < npl; p++) {
         int s0 = pl[p].start, e0 = pl[p].start + pl[p].n - 1, cur = s0;
@@ -975,7 +995,16 @@ static void export_island(void) {
         ex_poly(f, "residential", (set[s].x + 0.5f) * CELL, (set[s].y + 0.5f) * CELL,
                 set[s].rank == ST_TOWN ? 650 : set[s].rank == ST_VILLAGE ? 260 : 120, 16);
     for (int k = 0; k < nfarm; k++) ex_poly(f, "building", (farm[k] % N + 0.5f) * CELL, (farm[k] / N + 0.5f) * CELL, 12, 4);
-    fprintf(f, "\n]}\n");
+    fprintf(f, "\n],\n");
+    // HEIGHTFIELD (osm-roads.js --convert packs it as RVB3; citydrive drapes the scene over it):
+    // G x G metres, row i = south -> north, col j = west -> east, sea clamped to 0
+    int G = N < 256 ? N : 256;
+    fprintf(f, "\"heightfield\":{\"g\":%d,\"z\":[", G);
+    for (int i = 0; i < G; i++) for (int j = 0; j < G; j++) {
+        float wx = WORLD_M * j / (G - 1), wy = WORLD_M - WORLD_M * i / (G - 1);
+        fprintf(f, "%s%.1f", (i | j) ? "," : "", fmaxf(H_bilinear(wx, wy), 0));
+    }
+    fprintf(f, "]}}\n");
     fclose(f);
     snprintf(export_msg, sizeof export_msg, "exported %s", path); export_msg_t = 4;
 }

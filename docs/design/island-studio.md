@@ -176,6 +176,14 @@ rivers as `canal`, the coastline (marching squares on H = 0) as `coast`, settlem
 areas, farms as `building`, plus `land_km2` in the header. `osm-roads.js --convert` packs it to `.rvb`
 for `roadview` and `sndi-check`.
 
+The export also carries **land cover as areas** (runs of one class per row on a 128 grid: forest →
+`green`/wood, grassland → `farm`, beach → `sand`, sea and lakes → `water`, moor/scrub/rock/marsh →
+`other_area` with their natural tag) and a **heightfield** (`"heightfield": {g, z}`, up to 256², rows
+south → north), which `--convert` packs as RVB3. So **`citydrive` drives an exported island today**:
+`DE_DATA=$(pwd)/data/islandstudio-1.rvb node tools/play.js citydrive run` (or drag the `.rvb` onto
+it), key 3 for the perspective camera, `'` to raise the eye. It spawns at the densest buildings (farms)
+and draws terrain only near the camera, so it's a quick look, not the target view.
+
 `node tools/road-density.js <file.json> [--lat L --area KM2] [--svg out.svg]` measures it exactly as the
 real islands were measured (and renders a true-scale SVG for side-by-side looks).
 

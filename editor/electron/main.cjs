@@ -1123,8 +1123,15 @@ ipcMain.handle('studio:save-map', (_event, bytes) => {
 ipcMain.handle('studio:run', async (_event, code, cfg) => {
   const dims = prepareCart(code, cfg)
 
-  // live (libtcc) backend — JIT + hot reload, no static link / no Windows build
-  if (cfg?.backend === 'live') return runLive(dims, cfg, _event.sender)
+  // live (libtcc) backend — JIT + hot reload, no static link / no Windows build.
+  // A Box2D cart needs the static libbox2d.a, which libtcc can't link, so it falls
+  // through to a native run instead of failing on the missing header.
+  if (cfg?.backend === 'live') {
+    let usesBox2d = false
+    try { usesBox2d = /box2d\/box2d\.h/.test(fs.readFileSync(CART_SRC, 'utf8')) } catch {}
+    if (!usesBox2d) return runLive(dims, cfg, _event.sender)
+    _event.sender.send('cart:log', 'Box2D cart: live mode can\'t link Box2D, running native instead\n')
+  }
   killLiveHost()   // a native run supersedes any running live host
 
   const { screenW, screenH, scale, mapW, mapH, cellW, cellH, touchDefault, keymap, studioC } = dims

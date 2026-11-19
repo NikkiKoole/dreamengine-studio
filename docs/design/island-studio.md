@@ -197,6 +197,43 @@ roads** every 5–8 km joining towns and villages directly; ours is the ring plu
 interior left to lanes and stubs. (`.rvb` lengths/areas are web-Mercator for the real islands, so
 compare sndi's shape metrics, not its km or km².)
 
+## Calibration round 1 (2026-11-20)
+
+Loop: export six seeds, run `road-density.js` + `sndi-check --json` on each, compare with the Isle of
+Man and Sado, change one thing, repeat. Changes that moved the numbers, in order:
+
+1. **Weaker merge discount** (0.3/0.4 → 0.55/0.65 on existing roads, 0.75 → 0.85 for joining one).
+   Every route had collapsed onto a trunk, so new roads merged (T) instead of crossing (X):
+   dead ends 43–63 % → 17–23 %, crossroads 0–3 % → 4–9 %, dendricity into range.
+2. **A class floor from what a link joins**: town–town = main; anything touching a village or town =
+   secondary (B/C roads, OSM tertiary+, which the real "main" figure includes); hamlet–hamlet = lane.
+   Traffic can still raise a road, never lower it.
+3. **Farm access with one way out is a track**; a farm with a second way out (45 %) turns both legs
+   into a lane (a public through road).
+4. **Field tracks**: every farm gets a dead-end track 300–650 m into its own fields.
+5. **The village network**: the same Gabriel rule over villages + towns only, so a village-to-village
+   road stays a B-road when it passes a hamlet (these mostly upgrade existing roads).
+6. **Denser farms** (~500 m), on a **fractional** jittered grid: whole-cell spacing made the slider
+   jump between ~310 m and ~470 m and density swing with it.
+7. **A silent-cap bug**: the road-line pool held 3,000 lines and dropped the rest, which ate whole
+   main roads once farms got denser ("more farms, less road"). Pools raised (16k lines, 600k points,
+   6k farms, 2k bridges) and every overflow is now counted (`st_overflow`, red warning in the panel,
+   `overflow` in the trace). It must stay 0.
+
+| | main | minor | track | dead | T | X | dendr. | circuity |
+|---|---|---|---|---|---|---|---|---|
+| Isle of Man | 0.92 | 0.83 | 1.03 | 35 % | 56 % | 5 % | 0.25 | 1.57 |
+| Sado | 0.69 | 1.91 | 1.65 | 20 % | 68 % | 12 % | 0.14 | 1.40 |
+| seed 1 (low) | 0.57 | 0.69 | 1.04 | 19 % | 72 % | 8 % | 0.17 | 1.61 |
+| seed 6 (low) | 0.75 | 0.61 | 1.01 | 20 % | 72 % | 8 % | 0.18 | 1.45 |
+| seeds 2, 4, 5 (mountain) | 0.29–0.36 | 0.12–0.21 | 0.41–0.56 | 18–23 % | 70–73 % | 4–11 % | 0.20–0.24 | 1.40–1.94 |
+
+Low islands now sit at or near the real ones on every metric; side by side they read as the same kind
+of network (a mesh of B-roads joining every village, a coast ring, lanes and tracks between). Mountain
+islands are sparser per km², which is honest (a big empty mountain lowers the average). Still off:
+T-junction share a little high, dead ends at Sado's level rather than the Isle of Man's, and the coast
+ring stair-steps where it hugs a jagged coast. Routing takes up to ~100 ms (on slider release).
+
 ## Next rungs
 
 4. **Farmland**: fields spread from villages along roads onto flat ground, replacing natural cover.

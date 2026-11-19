@@ -59,8 +59,8 @@ static float k_ero   = 0.50f;   // valley carving
 static float k_riv   = 0.45f;   // river threshold (lower = more rivers drawn)
 static float k_wind  = 0.62f;   // prevailing wind, the direction it blows FROM (0..1 = 0..360°)
 static float k_rain  = 0.50f;   // how wet the climate is overall
-static float k_vill  = 0.50f;   // settlement density (spacing 4.5 km .. 1.5 km)
-static float k_farm  = 0.70f;   // farmstead density (spacing ~1.2 km .. 450 m)
+static float k_vill  = 0.60f;   // settlement density (spacing 4.5 km .. 1.5 km)
+static float k_farm  = 0.93f;   // farmstead density (spacing ~1.2 km .. 450 m)
 static float k_tree  = 0.45f;   // tree line: 0 = bare Scottish hills (~400 m), 1 = wooded to ~1300 m
 static int   seed = 1;
 static int   view;
@@ -425,8 +425,10 @@ static float step_cost(int a, int b, int k, int mode) {
     if (river_cell(a) && river_cell(b)) m *= 6;                // don't drive along the river bed
     if (mode != RM_EXPRESS) {
         if (ER[a][k] == RC_EXPRESS) m *= 1.0f;           // access-controlled: cross it, never ride it
-        else if (ER[a][k]) m *= ER[a][k] >= RC_MAIN ? 0.3f : ER[a][k] == RC_TRACK ? 0.7f : 0.4f;   // follow a road
-        else if (TR[b] > 0) m *= 0.75f;                        // join one
+        else if (ER[a][k]) m *= ER[a][k] >= RC_MAIN ? 0.55f : ER[a][k] == RC_TRACK ? 0.8f : 0.65f;   // follow a road
+        else if (TR[b] > 0) m *= 0.85f;                        // join one
+        // (calibrated 2026-11-19: 0.3/0.4 collapsed every route onto a trunk, so roads merged into
+        //  T junctions instead of crossing: 1 % crossroads and 50 % dead ends vs the Isle of Man's 5 % / 35 %)
     }
     return len * m + extra;
 }
@@ -490,13 +492,14 @@ static float gravity(int a, int b) {
 }
 
 // road polylines (smoothed, metres)
-#define MAXPL 3000
-#define MAXPT 160000
+#define MAXPL 16000
+#define MAXPT 600000
+static int st_overflow;               // road lines dropped for lack of room: must stay 0 (it silently ate main roads once)
 typedef struct { int start, n, cls; } Poly;
 static Poly  pl[MAXPL]; static int npl;
 static float plx[MAXPT], ply[MAXPT]; static int npt;
 static float st_road[NRC];           // km of road per class
-static int   st_express, st_ringgaps;
+static int   st_express, st_ringgaps, st_link_try[3], st_link_ok[3];   // links tried/routed by floor (lane/sec/main)
 
 static int link_a[4096], link_b[4096]; static float link_w[4096];
 static int link_cmp_idx[4096];
@@ -554,10 +557,11 @@ static int smooth_path(const int *cells, int n) {
     return m;
 }
 static void emit_poly(const int *cells, int n, int cls) {
-    if (n < 2 || npl >= MAXPL) return;
+    if (n < 2) return;
+    if (npl >= MAXPL) { st_overflow++; return; }
     int m = smooth_path(cells, n);
     float *ax = sm_x, *ay = sm_y;
-    if (npt + m >= MAXPT) return;
+    if (npt + m >= MAXPT) { st_overflow++; return; }
     pl[npl].start = npt; pl[npl].n = m; pl[npl].cls = cls; npl++;
     float L = 0;
     for (int i = 0; i < m; i++) {
@@ -598,7 +602,7 @@ static void build_polys(void) {
 // fertile land on a jittered grid (~700 m), kept with probability = suitability, so the plains
 // fill up and the hills stay empty. Each one is joined to the NEAREST road by a short
 // least-cost search (Dijkstra until it touches the network): short = a farm track, long = a lane.
-#define MAXFARM 2500
+#define MAXFARM 6000
 static int farm[MAXFARM], nfarm;
 static unsigned hsh(unsigned a) { a ^= a >> 16; a *= 0x7feb352dU; a ^= a >> 15; a *= 0x846ca68bU; a ^= a >> 16; return a; }
 static int cn_away = -1;            // when >=0: only accept hits away from this cell (a 2nd way out)
@@ -635,10 +639,13 @@ static float connect_to_network(int s, int *out, int *nout, float budget) {
 }
 static void farms(void) {
     nfarm = 0;
-    int g = (int)(k_farm_sp() / CELL); if (g < 2) g = 2;
-    for (int gy = 0; gy < N; gy += g) for (int gx = 0; gx < N; gx += g) {
-        unsigned h = hsh((unsigned)(gx * 73856093) ^ (unsigned)(gy * 19349663) ^ (unsigned)(seed * 83492791));
-        int x = gx + (int)(h % (unsigned)g), y = gy + (int)((h >> 8) % (unsigned)g);
+    // a jittered grid with a FRACTIONAL spacing (in cells): whole-cell spacing made the slider jump
+    // between ~310 m and ~470 m with nothing between, and road density with it
+    float g = fmaxf(k_farm_sp() / CELL, 1.5f);
+    int ng = (int)(N / g) + 1;
+    for (int jy = 0; jy < ng; jy++) for (int jx = 0; jx < ng; jx++) {
+        unsigned h = hsh((unsigned)(jx * 73856093) ^ (unsigned)(jy * 19349663) ^ (unsigned)(seed * 83492791));
+        int x = (int)((jx + (h & 255) / 256.0f) * g), y = (int)((jy + ((h >> 8) & 255) / 256.0f) * g);
         if (x >= N || y >= N) continue;
         int i = y * N + x;
         if (H[i] <= 0 || SU[i] <= 0.05f || river_cell(i) || TR[i] > 0) continue;
@@ -647,22 +654,46 @@ static void farms(void) {
         for (int s = 0; s < nset && !near; s++) {
             float dx = set[s].x - x, dy = set[s].y - y; if (dx * dx + dy * dy < (450 / CELL) * (450 / CELL)) near = 1;
         }
-        if (near || nfarm >= MAXFARM) continue;
+        if (near) continue;
+        if (nfarm >= MAXFARM) { st_overflow++; continue; }
         farm[nfarm++] = i;
     }
     for (int f = 0; f < nfarm; f++) {
         int n;
         float cst = connect_to_network(farm[f], pbuf, &n, 4500);
         if (cst < 0) continue;
-        float len = (n - 1) * CELL;
-        mark(pbuf, n, len > 900 ? RC_LANE : RC_TRACK, 0, 0, 1);
-        // a second way out for ~40% of farms: through-lanes and loops instead of a tree of dead ends
+        mark(pbuf, n, RC_TRACK, 0, 0, 1);               // one way out: a private access track
+        // a second way out for ~45% of farms: then both legs are a public through-lane, and the
+        // tree of dead ends becomes loops
         unsigned h2 = hsh((unsigned)farm[f] * 31u + (unsigned)seed);
-        if ((h2 & 1023) < 410) {
+        if ((h2 & 1023) < 460) {
+            static int first[N * 4]; int n1 = n < N * 4 ? n : N * 4;
+            for (int q = 0; q < n1; q++) first[q] = pbuf[q];
             cn_away = pbuf[0];                           // pbuf[0] = where the first connection hit
-            if (connect_to_network(farm[f], pbuf, &n, 5500) >= 0) mark(pbuf, n, RC_LANE, 0, 0, 1);
+            if (connect_to_network(farm[f], pbuf, &n, 5500) >= 0) {
+                mark(pbuf, n, RC_LANE, 0, 0, 0);
+                mark(first, n1, RC_LANE, 0, 0, 0);       // raises the track to a lane (never lowers a road)
+            }
             cn_away = -1;
         }
+    }
+    // FIELD TRACKS: every farm also has a dead-end track out into its own fields (300-650 m
+    // toward the best nearby land not already on a road): much of real track length is this
+    for (int f = 0; f < nfarm; f++) {
+        int fx = farm[f] % N, fy = farm[f] / N, best = -1; float bs = 0;
+        for (int y = fy - 4; y <= fy + 4; y++) for (int x = fx - 4; x <= fx + 4; x++) {
+            if (x < 0 || y < 0 || x >= N || y >= N) continue;
+            int d2 = (x - fx) * (x - fx) + (y - fy) * (y - fy);
+            if (d2 < 4 || d2 > 16) continue;                 // 2..4 cells out
+            int i = y * N + x;
+            if (H[i] <= 0 || TR[i] > 0 || river_cell(i)) continue;
+            int on = 0; for (int k = 0; k < 8; k++) if (ER[i][k]) on = 1;
+            if (on) continue;
+            float sc = SU[i] + 0.15f * (float)(hsh((unsigned)i * 13u + (unsigned)seed) & 255) / 255.0f;
+            if (sc > bs) { bs = sc; best = i; }
+        }
+        int n;
+        if (best >= 0 && bs > 0.1f && astar(farm[f], best, RM_TRACK, pbuf, &n, 2000) >= 0) mark(pbuf, n, RC_TRACK, 0, 0, 1);
     }
 }
 
@@ -757,9 +788,10 @@ static void build_rivers(void) {
             if (up[nx] != 1) { if (n < N * 4) cells[n++] = nx; break; }        // a confluence ends the chain
             c = nx;
         }
-        if (n < 2 || nrv >= MAXRV) continue;
+        if (n < 2) continue;
+        if (nrv >= MAXRV) { st_overflow++; continue; }
         int m = smooth_path(cells, n);
-        if (nrpt + m >= MAXRPT) break;
+        if (nrpt + m >= MAXRPT) { st_overflow++; break; }
         rv[nrv].start = nrpt; rv[nrv].n = m; nrv++;
         for (int k = 0; k < m; k++) {
             int ci = cells[(int)((float)k / (m - 1 > 0 ? m - 1 : 1) * (n - 1) + 0.5f)];
@@ -771,7 +803,7 @@ static void build_rivers(void) {
 }
 
 // ── BRIDGES: wherever a road line crosses a river line wider than a culvert ─────────────
-#define MAXBR 800
+#define MAXBR 2000
 #define BG 64                                  // bucket grid over the world for river segments
 typedef struct { float x, y, dx, dy, len; int cls, p, i; } Bridge;   // p, i: the road poly + point index it sits on
 static Bridge br[MAXBR]; static int nbr;
@@ -806,7 +838,8 @@ static void build_bridges(void) {
                     if (w < 3.5f) continue;                    // a culvert, not a bridge
                     int dup = 0;
                     for (int k = 0; k < nbr && !dup; k++) if (fabsf(br[k].x - ix) < 25 && fabsf(br[k].y - iy) < 25) dup = 1;
-                    if (dup || nbr >= MAXBR) continue;
+                    if (dup) continue;
+                    if (nbr >= MAXBR) { st_overflow++; continue; }
                     float rdx = bx - ax, rdy = by - ay, rl = sqrtf(rdx * rdx + rdy * rdy) + 1e-6f; rdx /= rl; rdy /= rl;
                     float wdx = rvx[j] - rvx[j - 1], wdy = rvy[j] - rvy[j - 1], wl = sqrtf(wdx * wdx + wdy * wdy) + 1e-6f;
                     float sn = fabsf(rdx * wdy / wl - rdy * wdx / wl);   // |sin| of the crossing angle
@@ -920,6 +953,7 @@ static void export_island(void) {
 
 static void build_roads(void) {
     clock_t t0 = clock();
+    st_overflow = 0;
     for (int i = 0; i < N * N; i++) { TR[i] = 0; RING[i] = 0; for (int k = 0; k < 8; k++) ER[i][k] = 0; }
     int n; float maxw = 1e-6f;
     // 1. candidate links: the GABRIEL graph (two places link if no third sits in the circle
@@ -940,6 +974,27 @@ static void build_roads(void) {
             if (!ok) continue;
         }
         link_a[nl] = a; link_b[nl] = b; link_w[nl] = gravity(a, b) * (towns ? 4.0f : 1.0f);
+        if (link_w[nl] > maxw) maxw = link_w[nl];
+        nl++;
+    }
+    // the VILLAGE NETWORK: the same Gabriel rule over villages + towns only, as if the hamlets
+    // weren't there. A road between two villages stays a B-road when it passes a hamlet; without
+    // this every such road was split into two lane-class halves (main density ~0.3 vs 0.7-0.9).
+    // These routes mostly follow existing roads (cheaper) and raise them to secondary.
+    int nbase = nl;
+    for (int a = 0; a < nset; a++) for (int b = a + 1; b < nset && nl < 4096; b++) {
+        if (set[a].rank < ST_VILLAGE || set[b].rank < ST_VILLAGE) continue;
+        if (set[a].rank == ST_TOWN && set[b].rank == ST_TOWN) continue;   // already linked
+        float d = set_dist(a, b); if (d > maxd * 1.8f) continue;
+        float mx = (set[a].x + set[b].x) * 0.5f, my = (set[a].y + set[b].y) * 0.5f, r2 = (d / CELL) * (d / CELL) * 0.25f;
+        int ok = 1;
+        for (int c = 0; c < nset && ok; c++) {
+            if (c == a || c == b || set[c].rank < ST_VILLAGE) continue;
+            float dx = set[c].x - mx, dy = set[c].y - my; if (dx * dx + dy * dy < r2) ok = 0;
+        }
+        for (int q = 0; q < nbase && ok; q++) if ((link_a[q] == a && link_b[q] == b) || (link_a[q] == b && link_b[q] == a)) ok = 0;
+        if (!ok) continue;
+        link_a[nl] = a; link_b[nl] = b; link_w[nl] = gravity(a, b);
         if (link_w[nl] > maxw) maxw = link_w[nl];
         nl++;
     }
@@ -967,12 +1022,19 @@ static void build_roads(void) {
         mark(pbuf, n, RC_LANE, 0.25f, 1, 0);
     }
     // 3. links, most important first (so the rest can merge onto them)
+    for (int q = 0; q < 3; q++) st_link_try[q] = st_link_ok[q] = 0;
     for (int j = 0; j < nl; j++) {
         int i = link_cmp_idx[j], a = link_a[i], b = link_b[i];
+        int ra = set[a].rank, rb = set[b].rank;          // a floor from what it joins; traffic can raise it
+        // town-town = main; anything touching a village or town = secondary (B/C roads, OSM tertiary+,
+        // which the real islands' 'main' figure includes); only hamlet-to-hamlet is a lane
+        int floor = (ra == ST_TOWN && rb == ST_TOWN) ? RC_MAIN : (ra >= ST_VILLAGE || rb >= ST_VILLAGE) ? RC_SEC : RC_LANE;
+        st_link_try[floor - RC_LANE]++;
         float d = set_dist(a, b);
         float cst = astar(set[a].y * N + set[a].x, set[b].y * N + set[b].x, RM_LINK, pbuf, &n, d * 3.5f + 2500);
         if (cst < 0) continue;
-        mark(pbuf, n, RC_LANE, link_w[i], 0, 0);
+        st_link_ok[floor - RC_LANE]++;
+        mark(pbuf, n, floor, link_w[i], 0, 0);
     }
     // 4. classes from traffic: quantiles over road cells; the ring is at least a main road
     static float tv[N * N]; int nt = 0;
@@ -980,12 +1042,12 @@ static void build_roads(void) {
     for (int i = 1; i < nt; i++) { float v = tv[i]; int j = i - 1; while (j >= 0 && tv[j] > v) { tv[j + 1] = tv[j]; j--; } tv[j + 1] = v; }
     float t_main = nt ? tv[(int)(nt * 0.78f)] : 1, t_sec = nt ? tv[(int)(nt * 0.35f)] : 1;
     for (int c = 0; c < N * N; c++) for (int k = 0; k < 8; k++) {
-        if (ER[c][k] != RC_LANE) continue;
+        if (ER[c][k] < RC_LANE || ER[c][k] > RC_MAIN) continue;
         int nx = c % N + DX[k], ny = c / N + DY[k], o = ny * N + nx;
         float t = fminf(TR[c], TR[o]);
         int cls = t >= t_main ? RC_MAIN : t >= t_sec ? RC_SEC : RC_LANE;
         if (RING[c] && RING[o] && cls < RC_MAIN) cls = RC_MAIN;
-        ER[c][k] = (unsigned char)cls;
+        if (cls > ER[c][k]) ER[c][k] = (unsigned char)cls;
     }
     // 5. the EXPRESSWAY, if it makes sense: the two biggest towns, more than 10 km apart.
     //    Gentle grades, big bridges allowed, no merging onto old roads (a new alignment).
@@ -1122,7 +1184,7 @@ void update(void) {
     watch("seed", "%d", seed); watch("nset", "%d", nset); watch("coastal", "%d", st_coastal);
     watch("moor", "%d", (int)st_cov[CV_MOOR]); watch("forest", "%d", (int)st_cov[CV_FOREST]);
     watch("land", "%d", (int)st_land); watch("npl", "%d", npl); watch("express", "%d", st_express);
-    watch("ringgaps", "%d", st_ringgaps); watch("bridges", "%d", nbr); watch("lakes", "%d", st_lakes); { int bb = -1; for (int b = 0; b < nbr; b++) if (bb < 0 || br[b].len > br[bb].len) bb = b;
+    watch("ringgaps", "%d", st_ringgaps); watch("bridges", "%d", nbr); watch("lakes", "%d", st_lakes); watch("overflow", "%d", st_overflow); watch("links", "lane %d/%d sec %d/%d main %d/%d", st_link_ok[0], st_link_try[0], st_link_ok[1], st_link_try[1], st_link_ok[2], st_link_try[2]); { int bb = -1; for (int b = 0; b < nbr; b++) if (bb < 0 || br[b].len > br[bb].len) bb = b;
       if (bb >= 0) { watch("bigbridge_x", "%.0f", br[bb].x); watch("bigbridge_y", "%.0f", br[bb].y); watch("bigbridge_len", "%.0f", br[bb].len); } } watch("rivers", "%d", nrv);
     watch("forest_tracks", "%d", nforest); watch("upland_tracks", "%d", nupland); watch("roads_ms", "%.0f", st_roads_ms);
     for (int k = RC_TRACK; k < NRC; k++) watch(RCN[k], "%.0f", st_road[k]);
@@ -1395,6 +1457,7 @@ void draw(void) {
     y += 8;
     print("isle of man       0.92   0.83   1.03", px, y, CLR_MEDIUM_GREY); y += 8;
     print("sado              0.69   1.91   1.65", px, y, CLR_MEDIUM_GREY); y += 9;
-    print(export_msg_t > 0 ? export_msg : "R roll  V view  TAB zoom  X export", px, y, export_msg_t > 0 ? CLR_LIGHT_PEACH : CLR_DARK_GREY);
+    if (st_overflow) print(str("! %d items dropped: raise MAX* limits", st_overflow), px, y, CLR_RED);
+    else print(export_msg_t > 0 ? export_msg : "R roll  V view  TAB zoom  X export", px, y, export_msg_t > 0 ? CLR_LIGHT_PEACH : CLR_DARK_GREY);
     font(FONT_NORMAL);
 }

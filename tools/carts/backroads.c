@@ -18,13 +18,14 @@
   "description": {
     "summary": "A 1970s cockpit-view drive (work in progress): flat-shaded, dithered countryside from the endless worldnet world, roads you can follow from town to town or leave for the fields.",
     "detail": "The ground is a grid of triangles sampled from worldnet's heightmap in three rings around the car: 16 m cells close by, 64 m further out, 256 m out to the fog. There is no z-buffer and no sort: a heightfield seen from inside it can be painted back-to-front just by walking the grid rows and columns from the far edge toward the camera, outer ring first. Roads are worldnet's own spline edges, cut into pieces and clipped into the exact terrain cell (and triangle) they lie on, then drawn right after that cell, so the same order hides a road behind a hill. Centre dashes and edge posts are placed by distance along the road, so they stay put as you drive past them. Leaving the road changes everything: plough and woods drag, grass lets the tail slide, and four wheels sampling the ground tilt the view over crests and ditches. Design doc: docs/design/backroads.md.",
-    "controls": "UP gas, DOWN brake/reverse, LEFT/RIGHT steer. - / = big hills, [ / ] small hills, H toggles the debug readout, TAB opens the map (drag to pan, wheel zooms, centre button snaps back to the car)."
+    "controls": "UP gas, DOWN brake/reverse, LEFT/RIGHT steer. - / = big hills, [ / ] small hills, H toggles the debug readout, TAB opens the map (drag to pan, wheel zooms, centre button snaps back to the car). Drives an islandstudio island when one is exported (data/islandstudio-1.rvb, --data, or drop a .rvb on the window); otherwise the endless worldnet world."
   }
 }
 de:meta */
 #include "studio.h"
 #include "worldnet.h"
 #include <math.h>
+#include <stdlib.h>
 
 // BACKROADS — rung 2: roads + ground feel.
 //
@@ -89,7 +90,167 @@ static int   cur_surf;          // surface under the car
 
 static float cfx, cfy, crx, cry, cpc, cps, crc, crs;      // camera basis
 
-static float raw_at(float x, float y) { return height_at(x, y); }
+// ── ISLAND MODE: drive an islandstudio export instead of worldnet's endless world ────────
+// docs/design/island-studio.md. The island is a .rvb (roadview's packed vector format, written by
+// islandstudio X + data-tools/roadview/osm-roads.js --convert): a heightfield, land cover as area
+// runs, roads on the OSM ladder (bridge spans tagged B1), rivers, settlements, farms. Loaded from
+// --data / $DE_DATA, else ../data/islandstudio-1.rvb, or dropped on the window. No file = worldnet.
+// The file's y is north-up; here y is down (south), so every y is flipped on load.
+#include <stdio.h>
+#include <string.h>
+static int   ISL;                                 // 1 = an island is loaded
+static char  isl_name[64];
+static float isl_W = 40000, isl_H = 40000;        // extent (m)
+#define IHF_MAX 256
+static float ihf[IHF_MAX * IHF_MAX]; static int ihg;   // heights (m), row 0 = SOUTH (file order)
+#define ICG 128
+static unsigned char icv[ICG * ICG];              // cover per ~312 m cell, row 0 = NORTH (flipped)
+enum { IC_LAND, IC_WATER, IC_SAND, IC_FARM, IC_WOOD, IC_HEATH, IC_SCRUB, IC_ROCK, IC_WET };
+#define IPL_MAX 24000
+#define IPT_MAX 320000
+typedef struct { int start, n; unsigned char cls, bridge, river; } IPoly;
+static IPoly ipl[IPL_MAX]; static int nipl;
+static float ipx[IPT_MAX], ipy[IPT_MAX], ipS[IPT_MAX];   // points + arc length along their poly
+static int   ip_poly[IPT_MAX], ib_next[IPT_MAX];
+static int   nipt;
+#define IBG 160                                   // 250 m buckets of segments (keyed by end point)
+static int   ib_head[IBG * IBG];
+typedef struct { float x, y, r; int rank; } ISet; // rank: 0 hamlet, 1 village, 2 town
+#define ISET_MAX 800
+static ISet  iset[ISET_MAX]; static int niset;
+#define IFARM_MAX 8000
+static float ifx[IFARM_MAX], ify[IFARM_MAX]; static int nifarm;
+
+static float ihf_at(int i, int j) {               // i = column (west→east), j = row (south→north)
+    i = i < 0 ? 0 : i >= ihg ? ihg - 1 : i; j = j < 0 ? 0 : j >= ihg ? ihg - 1 : j;
+    return ihf[j * ihg + i];
+}
+static float cr1(float a, float b, float c, float d, float t) {
+    return 0.5f * (2 * b + (-a + c) * t + (2 * a - 5 * b + 4 * c - d) * t * t + (-a + 3 * b - 3 * c + d) * t * t * t);
+}
+static float isl_h(float x, float y) {            // bicubic: 156 m heightfield cells, 16 m drive cells
+    if (!ihg) return 0;
+    float fu = clamp(x / isl_W, 0, 1) * (ihg - 1), fv = clamp((isl_H - y) / isl_H, 0, 1) * (ihg - 1);
+    int i0 = (int)floorf(fu), j0 = (int)floorf(fv);
+    float tu = fu - i0, tv = fv - j0, r[4];
+    for (int k = 0; k < 4; k++)
+        r[k] = cr1(ihf_at(i0 - 1, j0 - 1 + k), ihf_at(i0, j0 - 1 + k), ihf_at(i0 + 1, j0 - 1 + k), ihf_at(i0 + 2, j0 - 1 + k), tu);
+    return fmaxf(cr1(r[0], r[1], r[2], r[3], tv), 0);
+}
+static int isl_cover(float x, float y) {          // cell edges jittered so the 312 m grid never shows
+    float jx = x + (noise2(x / 90.0f + 3.1f, y / 90.0f + 7.7f) - 0.5f) * 160.0f;
+    float jy = y + (noise2(x / 90.0f + 9.4f, y / 90.0f + 1.3f) - 0.5f) * 160.0f;
+    int i = (int)(jx / isl_W * ICG), j = (int)(jy / isl_H * ICG);
+    if (i < 0 || j < 0 || i >= ICG || j >= ICG) return IC_WATER;
+    return icv[j * ICG + i];
+}
+static int ib_of(float v, float ext) { int b = (int)(v / ext * IBG); return b < 0 ? 0 : b >= IBG ? IBG - 1 : b; }
+
+// nearest road (or river) segment to (x,y) within ~250 m: distance, class, bridge, point, tangent
+typedef struct { int ok, poly; float dist, qx, qy, tx, ty; } IHit;
+static IHit isl_nearest(float x, float y, int want_river, float maxd) {
+    IHit h = { 0, -1, 1e30f, 0, 0, 1, 0 };
+    int bx = ib_of(x, isl_W), by = ib_of(y, isl_H), rb = (int)(maxd / (isl_W / IBG)) + 1;
+    for (int j = by - rb; j <= by + rb; j++) for (int i = bx - rb; i <= bx + rb; i++) {
+        if (i < 0 || j < 0 || i >= IBG || j >= IBG) continue;
+        for (int k = ib_head[j * IBG + i]; k >= 0; k = ib_next[k]) {
+            const IPoly *p = &ipl[ip_poly[k]];
+            if (p->river != want_river) continue;
+            float ax = ipx[k - 1], ay = ipy[k - 1], dx = ipx[k] - ax, dy = ipy[k] - ay, l2 = dx * dx + dy * dy + 1e-6f;
+            float t = clamp(((x - ax) * dx + (y - ay) * dy) / l2, 0, 1);
+            float qx = ax + dx * t, qy = ay + dy * t, d = fsqrt((x - qx) * (x - qx) + (y - qy) * (y - qy));
+            if (d < h.dist) { float l = fsqrt(l2); h.ok = 1; h.poly = ip_poly[k]; h.dist = d; h.qx = qx; h.qy = qy; h.tx = dx / l; h.ty = dy / l; }
+        }
+    }
+    if (h.dist > maxd) h.ok = 0;
+    return h;
+}
+
+static int isl_load(const char *path) {
+    FILE *f = fopen(path, "rb"); if (!f) return 0;
+    fseek(f, 0, SEEK_END); long len = ftell(f); fseek(f, 0, SEEK_SET);
+    if (len < 32) { fclose(f); return 0; }
+    unsigned char *buf = (unsigned char *)malloc((size_t)len);
+    if (!buf || fread(buf, 1, (size_t)len, f) != (size_t)len) { fclose(f); free(buf); return 0; }
+    fclose(f);
+    unsigned char *p = buf, *end = buf + len;
+    #define RD(T, v) do { if (p + sizeof(T) > end) goto bad; memcpy(&(v), p, sizeof(T)); p += sizeof(T); } while (0)
+    if (memcmp(p, "RVB", 3) != 0) goto bad;
+    int ver = p[3] - '0'; p += 4;
+    int nfeat, nlen; RD(int, nfeat); RD(int, nlen);
+    if (nlen < 0 || p + nlen > end) goto bad;
+    { int c = nlen < 63 ? nlen : 63; memcpy(isl_name, p, (size_t)c); isl_name[c] = 0; } p += nlen;
+    float bb[4]; for (int k = 0; k < 4; k++) RD(float, bb[k]);
+    isl_W = fmaxf(bb[2], 1000); isl_H = fmaxf(bb[3], 1000);
+    nipl = nipt = niset = nifarm = 0; ihg = 0;
+    memset(icv, IC_LAND, sizeof icv);
+    for (int i = 0; i < IBG * IBG; i++) ib_head[i] = -1;
+    for (int fi = 0; fi < nfeat; fi++) {
+        int kind, sl, np; float fh = 0; char sub[48] = { 0 };
+        RD(int, kind); if (ver >= 2) RD(float, fh);
+        RD(int, sl); if (sl < 0 || p + sl > end) goto bad;
+        memcpy(sub, p, (size_t)(sl < 47 ? sl : 47)); p += sl;
+        RD(int, np); if (np < 0 || p + (long)np * 8 > end) goto bad;
+        float *pts = (float *)malloc((size_t)(np > 0 ? np : 1) * 8);
+        memcpy(pts, p, (size_t)np * 8); p += (long)np * 8;
+        for (int k = 0; k < np; k++) pts[k * 2 + 1] = isl_H - pts[k * 2 + 1];   // flip: y down
+        // kinds = osm-roads.js KIND_IX (append-only)
+        int cls = kind == 0 ? CL_MOTORWAY : kind == 1 ? CL_HIGHWAY : (kind == 17 || kind == 18) ? CL_ARTERIAL
+                : (kind == 2 || kind == 19) ? CL_STREET : kind == 3 ? CL_DIRT : -1;
+        if ((cls >= 0 || kind == 5) && np >= 2 && nipl < IPL_MAX && nipt + np < IPT_MAX) {   // road or river
+            IPoly *q = &ipl[nipl];
+            q->start = nipt; q->n = np; q->cls = (unsigned char)(cls >= 0 ? cls : CL_DIRT);
+            q->bridge = sub[0] == 'B'; q->river = kind == 5;
+            float S = 0;
+            for (int k = 0; k < np; k++) {
+                int g = nipt + k;
+                ipx[g] = pts[k * 2]; ipy[g] = pts[k * 2 + 1]; ip_poly[g] = nipl;
+                if (k) S += fsqrt((ipx[g] - ipx[g - 1]) * (ipx[g] - ipx[g - 1]) + (ipy[g] - ipy[g - 1]) * (ipy[g] - ipy[g - 1]));
+                ipS[g] = S; ib_next[g] = -1;
+                if (k) {                                   // bucket the segment (g-1, g) by its midpoint
+                    int b = ib_of((ipx[g] + ipx[g - 1]) * 0.5f, isl_W) + ib_of((ipy[g] + ipy[g - 1]) * 0.5f, isl_H) * IBG;
+                    ib_next[g] = ib_head[b]; ib_head[b] = g;
+                }
+            }
+            nipt += np; nipl++;
+        } else if (np >= 3 && (kind == 4 || kind == 7 || kind == 12 || kind == 14 || kind == 22)) {   // cover areas
+            int c = kind == 4 ? IC_WATER : kind == 7 ? IC_WOOD : kind == 12 ? IC_FARM : kind == 14 ? IC_SAND
+                  : strstr(sub, "wetland") ? IC_WET : strstr(sub, "scrub") ? IC_SCRUB
+                  : strstr(sub, "heath") ? IC_HEATH : strstr(sub, "rock") ? IC_ROCK : IC_LAND;
+            float x0 = 1e30f, x1 = -1e30f, y0 = 1e30f, y1 = -1e30f;
+            for (int k = 0; k < np; k++) { x0 = fminf(x0, pts[k*2]); x1 = fmaxf(x1, pts[k*2]); y0 = fminf(y0, pts[k*2+1]); y1 = fmaxf(y1, pts[k*2+1]); }
+            for (int j = 0; j < ICG; j++) {                // islandstudio writes axis-aligned runs: fill by cell centre
+                float cy = (j + 0.5f) * isl_H / ICG; if (cy < y0 || cy > y1) continue;
+                for (int i = 0; i < ICG; i++) { float cx = (i + 0.5f) * isl_W / ICG; if (cx >= x0 && cx <= x1) icv[j * ICG + i] = (unsigned char)c; }
+            }
+        } else if (kind == 9 && np >= 3 && niset < ISET_MAX) {                  // residential: a settlement
+            float cx = 0, cy = 0, r = 0;
+            for (int k = 0; k < np; k++) { cx += pts[k*2]; cy += pts[k*2+1]; } cx /= np; cy /= np;
+            for (int k = 0; k < np; k++) r = fmaxf(r, fsqrt((pts[k*2]-cx)*(pts[k*2]-cx) + (pts[k*2+1]-cy)*(pts[k*2+1]-cy)));
+            iset[niset].x = cx; iset[niset].y = cy; iset[niset].r = r;
+            iset[niset].rank = r > 450 ? 2 : r > 180 ? 1 : 0; niset++;
+        } else if (kind == 6 && np >= 1 && nifarm < IFARM_MAX) {                // building: a farmstead
+            float cx = 0, cy = 0; for (int k = 0; k < np; k++) { cx += pts[k*2]; cy += pts[k*2+1]; }
+            ifx[nifarm] = cx / np; ify[nifarm] = cy / np; nifarm++;
+        }
+        free(pts);
+    }
+    if (ver >= 3 && p + 4 <= end) {
+        int g; memcpy(&g, p, 4); p += 4;
+        if (g > 1 && g <= IHF_MAX && p + (long)g * g * 4 <= end) { ihg = g; memcpy(ihf, p, (size_t)g * g * 4); }
+    }
+    #undef RD
+    free(buf);
+    return ihg > 0 && nipl > 0;
+bad:
+    free(buf);
+    return 0;
+}
+
+static float raw_at(float x, float y) {
+    if (ISL) return isl_cover(x, y) == IC_WATER ? -1.0f : isl_h(x, y) / 1000.0f + 0.02f;   // >0 land, <0 water
+    return height_at(x, y);
+}
 // worldnet's terrain is MACRO truth: its smallest features are ~3 km across, flat from
 // behind a wheel. The cart adds driving-scale DETAIL (pure fn of x,y — as deterministic
 // as the spine): ~700 m swells + ~180 m bumps, faded out at the coast.
@@ -103,6 +264,12 @@ static float detail_at(float x, float y, float t) {
 // from a cockpit). Bed them RIVER_CUT metres below the land they cut through instead.
 #define RIVER_CUT 3.0f
 static float hgt_xy(float x, float y, float t) {
+    if (ISL) {                                     // the island has real relief: only a few metres of
+        float h = isl_h(x, y);                     // driving-scale bumps on top ([ ] scales them)
+        if (t > 0) h += detail * 0.08f * ((noise2(x / 180.0f + 2.1f, y / 180.0f + 77.0f) - 0.5f)
+                                        + 0.4f * (noise2(x / 45.0f + 5.3f, y / 45.0f + 9.1f) - 0.5f));
+        return h;
+    }
     if (t == -0.5f) {
         float b = wn_height_base(x, y);
         if (b > 0) return fmaxf(0, b * vscale + detail_at(x, y, b) - RIVER_CUT);
@@ -135,13 +302,26 @@ static const Ramp RAMP[NBAND] = {
 // countryside, not a map legend: elevation picks the broad band, then woods (a noise blob)
 // and a 120 m patchwork of parcels — pure functions of position, same every visit.
 static int band_at(float t, float x, float y) {
-    if (t <  0.00f) return B_WATER;
-    if (t <  0.012f) return B_SAND;
-    if (t >= 0.45f) return B_PEAK;
-    if (t >= 0.40f) return B_ROCK;
-    float w = noise2(x / 900.0f + 13.0f, y / 900.0f + 41.0f);
-    if (w > 0.66f - (t > 0.3f ? 0.12f : 0)) return B_FOREST;
-    if (t >= 0.32f) return B_HILL;
+    if (ISL) {                                     // the island's own cover; farmland gets the parcels
+        switch (isl_cover(x, y)) {
+            case IC_WATER: return B_WATER;
+            case IC_SAND:  return B_SAND;
+            case IC_WOOD:  return B_FOREST;
+            case IC_HEATH: return B_HILL;
+            case IC_SCRUB: return B_SCRUB;
+            case IC_ROCK:  return isl_h(x, y) > 900 ? B_PEAK : B_ROCK;
+            case IC_WET:   return B_PASTURE;
+            default: break;
+        }
+    } else {
+        if (t <  0.00f) return B_WATER;
+        if (t <  0.012f) return B_SAND;
+        if (t >= 0.45f) return B_PEAK;
+        if (t >= 0.40f) return B_ROCK;
+        float w = noise2(x / 900.0f + 13.0f, y / 900.0f + 41.0f);
+        if (w > 0.66f - (t > 0.3f ? 0.12f : 0)) return B_FOREST;
+        if (t >= 0.32f) return B_HILL;
+    }
     unsigned h = wn_hash2(wn_ifloor(x / 120.0f) * 7 + 3, wn_ifloor(y / 120.0f) * 13 + 1);
     int p = (int)(h % 10u);
     return p < 3 ? B_GRASS : p < 6 ? B_PASTURE : p < 8 ? B_PLOUGH : B_HAY;
@@ -368,11 +548,65 @@ static const float HW[5] = { 7.0f, 4.5f, 3.6f, 3.0f, 2.0f };   // motorway → d
 #define DASH_GAP   12.0f
 #define POST_GAP   50.0f
 
+static void add_post(float ox, float oy) {
+    int ci = (int)floorf((ox - rx0[0]) / RS[0]), cj = (int)floorf((oy - ry0[0]) / RS[0]);
+    if (ci < 0 || cj < 0 || ci >= RN[0] || cj >= RN[0] || npst >= PST_MAX) return;
+    int c = cj * RN[0] + ci;
+    pst[npst].x = ox; pst[npst].y = oy;
+    pst_next[npst] = pst_head[c]; pst_head[c] = npst++;
+}
+// island roads: the file's polylines are already smooth (~20 m points), so segments are straight;
+// each end's normal comes from its neighbours, so consecutive segments join without gaps
+static void isl_build_roads(void) {
+    int bx0 = ib_of(px - ROAD_NEAR, isl_W), bx1 = ib_of(px + ROAD_NEAR, isl_W);
+    int by0 = ib_of(py - ROAD_NEAR, isl_H), by1 = ib_of(py + ROAD_NEAR, isl_H);
+    for (int pass = 0; pass < 2; pass++)           // roads, then rivers: added last = drawn first (under)
+        for (int bj = by0; bj <= by1; bj++) for (int bi = bx0; bi <= bx1; bi++)
+            for (int b = ib_head[bj * IBG + bi]; b >= 0; b = ib_next[b]) {
+                const IPoly *p = &ipl[ip_poly[b]];
+                if (p->river != pass) continue;
+                int a = b - 1, s0 = p->start, s1 = p->start + p->n - 1;
+                float ax = ipx[a], ay = ipy[a], bx = ipx[b], by = ipy[b];
+                float S = ipS[a], L = ipS[b] - ipS[a];
+                float d = fsqrt(seg_d2(px, py, ax, ay, bx, by));
+                if (L < 0.01f || d > (pass ? 700.0f : ROAD_NEAR)) continue;
+                float hw = pass ? 3.0f : HW[p->cls];
+                int band = pass ? B_WATER : p->cls == CL_DIRT ? B_GRAVEL : B_ASPHALT;
+                int marked = !pass && p->cls != CL_DIRT;
+                int a0 = a > s0 ? a - 1 : a, b1 = b < s1 ? b + 1 : b;
+                float tax = ipx[b] - ipx[a0], tay = ipy[b] - ipy[a0], la = fsqrt(tax * tax + tay * tay) + 1e-6f;
+                float tbx = ipx[b1] - ipx[a], tby = ipy[b1] - ipy[a], lb = fsqrt(tbx * tbx + tby * tby) + 1e-6f;
+                float nax = -tay / la * hw, nay = tax / la * hw, nbx = -tby / lb * hw, nby = tbx / lb * hw;
+                float step = d < 300 ? 6.0f : d < 700 ? 16.0f : 32.0f;
+                int ns = (int)ceilf(L / step); if (ns < 1) ns = 1;
+                for (int k = 0; k < ns; k++) {
+                    float t0 = (float)k / ns, t1 = (float)(k + 1) / ns;
+                    float x0 = ax + (bx - ax) * t0, y0 = ay + (by - ay) * t0, x1 = ax + (bx - ax) * t1, y1 = ay + (by - ay) * t1;
+                    float n0x = nax + (nbx - nax) * t0, n0y = nay + (nby - nay) * t0, n1x = nax + (nbx - nax) * t1, n1y = nay + (nby - nay) * t1;
+                    add_piece(x0 + n0x, y0 + n0y, x1 + n1x, y1 + n1y, x1 - n1x, y1 - n1y, x0 - n0x, y0 - n0y, PK_ROAD, band);
+                }
+                float ux = (bx - ax) / L, uy = (by - ay) / L;
+                if (marked && d < DASH_NEAR)
+                    for (float s0d = ceilf(S / DASH_GAP) * DASH_GAP; s0d < S + L; s0d += DASH_GAP) {
+                        float t0 = s0d - S, t1 = fminf(s0d + DASH_LEN - S, L);
+                        float x0 = ax + ux * t0, y0 = ay + uy * t0, x1 = ax + ux * t1, y1 = ay + uy * t1;
+                        float nx = -uy * 0.12f, ny = ux * 0.12f;
+                        add_piece(x0 + nx, y0 + ny, x1 + nx, y1 + ny, x1 - nx, y1 - ny, x0 - nx, y0 - ny, PK_DASH, band);
+                    }
+                if (marked && !p->bridge && d < POST_NEAR)
+                    for (float s0p = ceilf(S / POST_GAP) * POST_GAP; s0p < S + L; s0p += POST_GAP) {
+                        float x0 = ax + ux * (s0p - S), y0 = ay + uy * (s0p - S);
+                        for (int side = -1; side <= 1; side += 2)
+                            add_post(x0 - uy * (hw + 1.5f) * side, y0 + ux * (hw + 1.5f) * side);
+                    }
+            }
+}
 static void build_roads(void) {
     npc = 0; nbin = 0; npst = 0;
     for (int r = 0; r < ROAD_RINGS; r++)
         for (int c = 0; c < 32 * 32; c++) bin_head[r][c] = -1;
     for (int c = 0; c < 32 * 32; c++) pst_head[c] = -1;
+    if (ISL) { isl_build_roads(); return; }
     eg_ensure(px, py);
     for (int e = 0; e < eg_n; e++) {
         const REdge *ed = &eg_e[e];
@@ -595,7 +829,18 @@ static void draw_sky(float hz) {
 // ── the car ────────────────────────────────────────────────────────────────────
 #define WB   2.6f               // wheelbase (m)
 #define TRK  1.5f               // track (m)
+static int on_road_at(float x, float y) {
+    if (ISL) { IHit r = isl_nearest(x, y, 0, 15); return r.ok && r.dist <= HW[ipl[r.poly].cls] + 0.3f; }
+    return wn_road_at(x, y).on_road;
+}
 static int surf_at(float x, float y) {
+    if (ISL) {
+        IHit r = isl_nearest(x, y, 0, 15);
+        if (r.ok && r.dist <= HW[ipl[r.poly].cls] + 0.3f) return ipl[r.poly].cls == CL_DIRT ? B_GRAVEL : B_ASPHALT;
+        IHit w = isl_nearest(x, y, 1, 10);
+        if (w.ok && w.dist < 3.0f) return B_WATER;           // a ford: a river with no bridge
+        return band_at(raw_at(x, y), x, y);
+    }
     WnHit h = wn_road_at(x, y);
     if (h.dist <= HW[h.cls] + 0.3f) return h.cls == CL_DIRT ? B_GRAVEL : B_ASPHALT;
     float t = raw_at(x, y);
@@ -617,6 +862,10 @@ static int autop;
 static float autopilot_steer(void) {
     float fx = cosf(head * D2R), fy = sinf(head * D2R);
     float ax = px + fx * 25, ay = py + fy * 25, best = 1e30f, bx = ax, by = ay, tx = fx, ty = fy;
+    if (ISL) {
+        IHit h = isl_nearest(ax, ay, 0, 60);
+        if (h.ok) { bx = h.qx; by = h.qy; tx = h.tx; ty = h.ty; }
+    } else {
     eg_ensure(px, py);
     for (int e = 0; e < eg_n; e++) {
         const REdge *ed = &eg_e[e];
@@ -629,6 +878,7 @@ static float autopilot_steer(void) {
                 if (dd < best) { best = dd; bx = qx; by = qy; tx = rx - qx; ty = ry - qy; }
             }
         }
+    }
     }
     float tl = fsqrt(tx * tx + ty * ty); if (tl <= 0) return 0;
     tx /= tl; ty /= tl;
@@ -679,7 +929,7 @@ static void drive(float d) {
 
     vx = fx * vf + lx * vl; vy = fy * vf + ly * vl;
     float nx = px + vx * d, ny = py + vy * d;
-    if (raw_at(nx, ny) < 0 && !wn_road_at(nx, ny).on_road) { vx = vy = 0; }   // water (bridges ok)
+    if (raw_at(nx, ny) < 0 && !on_road_at(nx, ny)) { vx = vy = 0; }   // water (bridges ok)
     else { px = nx; py = ny; }
 
     float spring = clamp(d * 9.0f, 0, 1);
@@ -690,18 +940,36 @@ static void drive(float d) {
     dash_shake = S->rough * clamp(spd / 20.0f, 0, 1.5f) * 2.0f;
 }
 
-void init(void) {
-    float rx, ry, ra;
-    px = 40000; py = 30000;
-    if (wn_nearest_road_point(px, py, &rx, &ry, &ra)) {
-        head = ra;                                          // keep right: one lane over
-        px = rx - sinf(ra * D2R) * 1.8f; py = ry + cosf(ra * D2R) * 1.8f;
+static void spawn(void) {
+    vx = vy = 0; steer = 0;
+    if (ISL) {                                          // on a road at the biggest town
+        int best = -1;
+        for (int s = 0; s < niset; s++) if (best < 0 || iset[s].r > iset[best].r) best = s;
+        float sx = best >= 0 ? iset[best].x : isl_W * 0.5f, sy = best >= 0 ? iset[best].y : isl_H * 0.5f;
+        IHit h = isl_nearest(sx, sy, 0, 2500);
+        if (h.ok) {
+            head = atan2f(h.ty, h.tx) / D2R;
+            px = h.qx - h.ty * 1.8f; py = h.qy + h.tx * 1.8f;   // keep right: one lane over
+        } else { px = sx; py = sy; }
+    } else {
+        float rx, ry, ra;
+        px = 40000; py = 30000;
+        if (wn_nearest_road_point(px, py, &rx, &ry, &ra)) {
+            head = ra;                                      // keep right: one lane over
+            px = rx - sinf(ra * D2R) * 1.8f; py = ry + cosf(ra * D2R) * 1.8f;
+        }
     }
     camh = ground(px, py) + EYE;
+}
+void init(void) {
+    const char *path = de_data_path();
+    ISL = isl_load(path ? path : "../data/islandstudio-1.rvb");
+    spawn();
 }
 
 void update(void) {
     float d = dt();
+    { const char *f = de_dropped_file(); if (f && isl_load(f)) { ISL = 1; spawn(); } }   // drop an island .rvb
     if (keyp('H')) dbg = !dbg;
     if (keyp(KEY_TAB)) show_map = !show_map;
     if (show_map) {
@@ -756,6 +1024,7 @@ static void draw_dash(void) {
         print(str("hdg %3d  alt %4dm  %s", (int)hdg, (int)(camh - EYE), SURF[cur_surf].name), 120, 146, CLR_MEDIUM_GREY);
         print(str("hills x%d +%dm  tris %d  road %d", (int)vscale, (int)detail, ntri, npc), 120, 156, CLR_DARK_GREY);
         print(str("pos %d,%d", (int)px, (int)py), 120, 166, CLR_DARK_GREY);
+        print(ISL ? str("island: %s", isl_name) : "world: worldnet (endless)", 120, 176, CLR_DARK_GREY);
         print("arrows drive -/= hills [/] bumps H", 120, 184, CLR_DARKER_GREY);
         font(FONT_NORMAL);
     }
@@ -789,6 +1058,29 @@ static void draw_map(void) {
             rectfill(sx, sy, st, st, map_col(ox + (sx + 1 - cx) * m, oy + (sy + 1 - cy) * m));
     // roads: casings, then centres, minor classes first so highways sit on top
     static const int RC[5] = { CLR_ORANGE, CLR_YELLOW, CLR_LIGHT_PEACH, CLR_WHITE, CLR_MAUVE };
+    if (ISL) {
+        float x0w = ox - cx * m, x1w = ox + cx * m, y0w = oy - cy * m, y1w = oy + cy * m;
+        for (int pass = 0; pass < 2; pass++)            // rivers, then roads minor → major
+            for (int cls = CL_DIRT; cls >= CL_MOTORWAY; cls--)
+                for (int q = 0; q < nipl; q++) {
+                    const IPoly *pp = &ipl[q];
+                    if (pp->river != (pass == 0) || (pass == 1 && pp->cls != cls) || (pass == 0 && cls != CL_DIRT)) continue;
+                    for (int i = pp->start + 1; i < pp->start + pp->n; i++) {
+                        float ax = ipx[i - 1], ay = ipy[i - 1], bx = ipx[i], by = ipy[i];
+                        if (fmaxf(ax, bx) < x0w || fminf(ax, bx) > x1w || fmaxf(ay, by) < y0w || fminf(ay, by) > y1w) continue;
+                        int sx0 = cx + (int)((ax - ox) / m), sy0 = cy + (int)((ay - oy) / m);
+                        int sx1 = cx + (int)((bx - ox) / m), sy1 = cy + (int)((by - oy) / m);
+                        line(sx0, sy0, sx1, sy1, pass == 0 ? CLR_TRUE_BLUE : pp->bridge ? CLR_LIGHT_GREY : RC[cls]);
+                    }
+                }
+        for (int k = 0; k < nifarm; k++) pset(cx + (int)((ifx[k] - ox) / m), cy + (int)((ify[k] - oy) / m), CLR_DARK_RED);
+        font(FONT_SMALL);
+        for (int k = 0; k < niset; k++) {
+            int sx = cx + (int)((iset[k].x - ox) / m), sy = cy + (int)((iset[k].y - oy) / m), big = iset[k].rank;
+            rectfill(sx - 1 - big, sy - 1 - big, 3 + 2 * big, 3 + 2 * big, CLR_BROWNISH_BLACK);
+            rectfill(sx - big, sy - big, 1 + 2 * big, 1 + 2 * big, big == 2 ? CLR_RED : big ? CLR_PINK : CLR_PEACH);
+        }
+    } else {
     eg_ensure(px, py);
     for (int pass = 0; pass < 2; pass++)
         for (int cls = CL_DIRT; cls >= CL_MOTORWAY; cls--)
@@ -815,6 +1107,7 @@ static void draw_map(void) {
             rectfill(sx - 1 - big, sy - 1 - big, 3 + 2 * big, 3 + 2 * big, CLR_BROWNISH_BLACK);
             rectfill(sx - big, sy - big, 1 + 2 * big, 1 + 2 * big, big ? CLR_PINK : CLR_PEACH);
         }
+    }
     // the car: an arrow along the heading
     float fx = cosf(head * D2R), fy = sinf(head * D2R);
     int ax0 = cx + (int)((px - ox) / m), ay0 = cy + (int)((py - oy) / m);   // car on the map

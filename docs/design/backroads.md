@@ -452,6 +452,30 @@ worst** (rung 1 was 3.6 / 4.3), about 2.5k `trifill` + 1.7k `line` a frame.
   Roads outside the edge cache aren't drawn, so the far corners of a wide view look emptier
   than the world is.
 
+### 2026-11-20: driving an islandstudio island
+
+The world is now a finite island grown in [`islandstudio`](island-studio.md) (the endless worldnet
+countryside was dull to explore). backroads loads the island's `.rvb` export: `--data` / `$DE_DATA`,
+else `data/islandstudio-1.rvb`, or a `.rvb` dropped on the window; with no file it falls back to
+worldnet, unchanged.
+
+- **What the island answers** (the five world questions): water or land (cover areas), height
+  (bicubic over the 256² heightfield, plus a few metres of cart bumps, `[`/`]`), surface (cover →
+  the existing bands: farmland gets the parcel patchwork, wood/heath/scrub/rock/wetland/sand map
+  1:1, rock above 900 m is scree), roads (the file's smoothed polylines, bucketed at 250 m, fed
+  through the same piece-clipping and painter's order; normals from neighbouring points so segments
+  join; dashes and posts by arc length; no posts on bridges), and spawn (on a road at the biggest
+  town).
+- **Rivers** are drawn as 6 m water strips under the roads; a river with no bridge is a ford (water
+  surface). Lakes and sea stop the car unless it's on a road.
+- **The TAB map** shows the island: roads by class, bridges, rivers, farms, settlements by rank.
+- **Proof**: the test autopilot follows island roads (3,000 frames, every frame on asphalt, max
+  camera step 0.1 m/frame).
+
+Open: bridges ride the terrain (the 156 m heightfield dips at rivers; a flat deck is next), river
+width is a constant, towns are still empty, and the far horizon is still the old noise ridge rather
+than the island's real skyline.
+
 ---
 
 ## 11. Open questions — to be answered by playing

@@ -24,6 +24,7 @@
 de:meta */
 #include "studio.h"
 #include "worldnet.h"
+#include "roadkit.h"     // curb_return: the shared at-grade junction geometry (streetlab, citydrive)
 #include <math.h>
 #include <stdlib.h>
 
@@ -493,8 +494,9 @@ static int in_finer(int r, float wx, float wy, float s) {   // cell fully inside
 
 // ── road pieces: polygons in world xy, binned into the ring cells they touch ────
 #define ROAD_RINGS 2            // roads drawn in rings 0..1 (≈ 1 km); beyond is sub-pixel
-#define PC_MAX   6000
-#define BIN_MAX  20000
+#define PC_MAX   20000
+#define BIN_MAX  60000
+static int pc_drop;              // pieces/bins dropped for lack of room this frame: must stay 0
 #define PST_MAX  600
 enum { PK_ROAD, PK_DASH };
 typedef struct { float x[4], y[4]; unsigned char kind, band; } Piece;
@@ -520,7 +522,7 @@ static void bin_piece(int id) {
         for (int j = j0; j <= j1; j++)
             for (int i = i0; i <= i1; i++) {
                 if (in_finer(r, rx0[r] + i * s, ry0[r] + j * s, s)) continue;
-                if (nbin >= BIN_MAX) return;
+                if (nbin >= BIN_MAX) { pc_drop++; return; }
                 int c = j * n + i;
                 bin_pc[nbin] = id; bin_next[nbin] = bin_head[r][c]; bin_head[r][c] = nbin++;
             }
@@ -528,7 +530,7 @@ static void bin_piece(int id) {
 }
 static void add_piece(float ax, float ay, float bx, float by, float cx, float cy,
                       float dx, float dy, int kind, int band) {
-    if (npc >= PC_MAX) return;
+    if (npc >= PC_MAX) { pc_drop++; return; }
     Piece *p = &pc[npc];
     p->x[0] = ax; p->y[0] = ay; p->x[1] = bx; p->y[1] = by;
     p->x[2] = cx; p->y[2] = cy; p->x[3] = dx; p->y[3] = dy;
@@ -576,9 +578,27 @@ static void isl_find_junctions(void) {
             J->n++;
         }
     }
-    int w = 0;                                             // keep only real junctions (3+ arms)
-    for (int k = 0; k < nijn; k++) if (ijn[k].n >= 3) ijn[w++] = ijn[k];
+    // keep junctions (3+ arms) AND 2-arm joints where the road bends (a class change splits a road
+    // into two lines mid-bend; without a patch the outside of the bend showed a wedge of field)
+    int w = 0;
+    for (int k = 0; k < nijn; k++) {
+        IJunc *J = &ijn[k];
+        if (J->n >= 3) { ijn[w++] = *J; continue; }
+        if (J->n == 2) {
+            float g = fmodf(J->brg[1] - J->brg[0] + 720.0f, 360.0f); if (g > 180) g = 360 - g;
+            if (g < 172.0f) ijn[w++] = *J;                 // a real bend (not straight on)
+        }
+    }
     nijn = w;
+    for (int k = 0; k < nijn; k++) {                       // markings + posts keep clear of the junction
+        if (ijn[k].n < 3) continue;                        // (a plain 2-arm joint keeps its markings)
+        float mh = 0; for (int a = 0; a < ijn[k].n; a++) mh = fmaxf(mh, ijn[k].hw[a]);
+        float clear = mh + 3.0f + 2.0f * mh + 2.0f;         // ≈ widest arm + its curb radius + a margin
+        for (int a = 0; a < ijn[k].n; a++) {
+            int q = ijn[k].poly[a];
+            if (ijn[k].atend[a]) ipl_j1[q] = fmaxf(ipl_j1[q], clear); else ipl_j0[q] = fmaxf(ipl_j0[q], clear);
+        }
+    }
 }
 
 #define DASH_NEAR  160.0f
@@ -594,11 +614,62 @@ static void add_post(float ox, float oy) {
     pst[npst].x = ox; pst[npst].y = oy;
     pst_next[npst] = pst_head[c]; pst_head[c] = npst++;
 }
+// JUNCTION PATCH: rounded curb corners between neighbouring arms (roadkit's curb_return, the same
+// fillet geometry streetlab and citydrive draw), plus a small hub disc, as extra road pieces. The
+// corner K is where the two FACING road edges cross; roadkit's edge_corner assumes one width, so it
+// is computed here for two (a lane meeting a main road).
+static float junc_R(float hwA, float hwB) { return 3.0f + 2.0f * fminf(hwA, hwB); }   // curb radius (m)
+static void isl_junction_pieces(const IJunc *J) {
+    int n = J->n, ord[IJ_ARM];
+    for (int i = 0; i < n; i++) ord[i] = i;
+    for (int i = 0; i < n; i++) for (int j = i + 1; j < n; j++)
+        if (J->brg[ord[j]] < J->brg[ord[i]]) { int t = ord[i]; ord[i] = ord[j]; ord[j] = t; }
+    int dirt = 1; float maxhw = 0;
+    for (int i = 0; i < n; i++) { if (J->cls[i] != CL_DIRT) dirt = 0; maxhw = fmaxf(maxhw, J->hw[i]); }
+    int band = dirt ? B_GRAVEL : B_ASPHALT;
+    // hub disc: closes the wedge where arms end at an angle
+    for (int k = 0; k < 10; k++) {
+        float a0 = k * 6.2831853f / 10, a1 = (k + 1) * 6.2831853f / 10;
+        add_piece(J->x, J->y, J->x + cosf(a0) * maxhw, J->y + sinf(a0) * maxhw,
+                  J->x + cosf(a1) * maxhw, J->y + sinf(a1) * maxhw, J->x + cosf(a1) * maxhw, J->y + sinf(a1) * maxhw, PK_ROAD, band);
+    }
+    for (int q = 0; q < n; q++) {
+        int ia = ord[q], ib = ord[(q + 1) % n];
+        float bA = J->brg[ia], bB = J->brg[ib], gap = fmodf(bB - bA + 720.0f, 360.0f);
+        if (gap <= 1.0f || gap >= 175.0f) continue;          // straight on: no corner to round
+        float ax = cosf(bA * D2R), ay = sinf(bA * D2R), bx = cosf(bB * D2R), by = sinf(bB * D2R);
+        float hA = J->hw[ia], hB = J->hw[ib];
+        // A's edge facing B: offset +90° from A; B's edge facing A: offset -90° from B
+        float pax = J->x - ay * hA, pay = J->y + ax * hA, pbx = J->x + by * hB, pby = J->y - bx * hB;
+        float det = ax * (-by) - ay * (-bx);                 // solve pa + a t = pb + b s
+        if (fabsf(det) < 1e-4f) continue;
+        float dx = pbx - pax, dy = pby - pay;
+        float t = (dx * (-by) - dy * (-bx)) / det, s = (ax * dy - ay * dx) / det;
+        if (t < 0 || s < 0) continue;
+        float kx = pax + ax * t, ky = pay + ay * t;
+        float half = gap * 0.5f * D2R;
+        float R = fminf(junc_R(hA, hB), 22.0f * tanf(half)); // acute corners: keep the fillet short
+        if (R < 0.5f) continue;
+        CurbReturn c = curb_return(kx, ky, bA, bB, R);
+        float a0 = atan2f(c.t1y - c.oy, c.t1x - c.ox), a1 = atan2f(c.t2y - c.oy, c.t2x - c.ox);
+        float d = a1 - a0; while (d > 3.14159265f) d -= 6.2831853f; while (d < -3.14159265f) d += 6.2831853f;
+        float px0 = c.t1x, py0 = c.t1y;
+        for (int k = 1; k <= 8; k++) {                       // fan from K over the arc
+            float a = a0 + d * k / 8, x1 = c.ox + cosf(a) * R, y1 = c.oy + sinf(a) * R;
+            add_piece(kx, ky, px0, py0, x1, y1, x1, y1, PK_ROAD, band);
+            px0 = x1; py0 = y1;
+        }
+    }
+}
 // island roads: the file's polylines are already smooth (~20 m points), so segments are straight;
 // each end's normal comes from its neighbours, so consecutive segments join without gaps
 static void isl_build_roads(void) {
     int bx0 = ib_of(px - ROAD_NEAR, isl_W), bx1 = ib_of(px + ROAD_NEAR, isl_W);
     int by0 = ib_of(py - ROAD_NEAR, isl_H), by1 = ib_of(py + ROAD_NEAR, isl_H);
+    for (int k = 0; k < nijn; k++) {                       // junction patches first (any order works: same band)
+        float dx = ijn[k].x - px, dy = ijn[k].y - py;
+        if (dx * dx + dy * dy < 900.0f * 900.0f) isl_junction_pieces(&ijn[k]);
+    }
     for (int pass = 0; pass < 2; pass++)           // roads, then rivers: added last = drawn first (under)
         for (int bj = by0; bj <= by1; bj++) for (int bi = bx0; bi <= bx1; bi++)
             for (int b = ib_head[bj * IBG + bi]; b >= 0; b = ib_next[b]) {
@@ -625,8 +696,10 @@ static void isl_build_roads(void) {
                     add_piece(x0 + n0x, y0 + n0y, x1 + n1x, y1 + n1y, x1 - n1x, y1 - n1y, x0 - n0x, y0 - n0y, PK_ROAD, band);
                 }
                 float ux = (bx - ax) / L, uy = (by - ay) / L;
+                float Ltot = ipS[s1], c0 = pass ? 0 : ipl_j0[ip_poly[b]], c1 = pass ? 0 : ipl_j1[ip_poly[b]];
                 if (marked && d < DASH_NEAR)
                     for (float s0d = ceilf(S / DASH_GAP) * DASH_GAP; s0d < S + L; s0d += DASH_GAP) {
+                        if (s0d - ipS[s0] < c0 || Ltot - s0d < c1 + DASH_LEN) continue;   // clear of junctions
                         float t0 = s0d - S, t1 = fminf(s0d + DASH_LEN - S, L);
                         float x0 = ax + ux * t0, y0 = ay + uy * t0, x1 = ax + ux * t1, y1 = ay + uy * t1;
                         float nx = -uy * 0.12f, ny = ux * 0.12f;
@@ -634,6 +707,7 @@ static void isl_build_roads(void) {
                     }
                 if (marked && !p->bridge && d < POST_NEAR)
                     for (float s0p = ceilf(S / POST_GAP) * POST_GAP; s0p < S + L; s0p += POST_GAP) {
+                        if (s0p - ipS[s0] < c0 + 4.0f || Ltot - s0p < c1 + 4.0f) continue;
                         float x0 = ax + ux * (s0p - S), y0 = ay + uy * (s0p - S);
                         for (int side = -1; side <= 1; side += 2)
                             add_post(x0 - uy * (hw + 1.5f) * side, y0 + ux * (hw + 1.5f) * side);
@@ -641,7 +715,7 @@ static void isl_build_roads(void) {
             }
 }
 static void build_roads(void) {
-    npc = 0; nbin = 0; npst = 0;
+    npc = 0; nbin = 0; npst = 0; pc_drop = 0;
     for (int r = 0; r < ROAD_RINGS; r++)
         for (int c = 0; c < 32 * 32; c++) bin_head[r][c] = -1;
     for (int c = 0; c < 32 * 32; c++) pst_head[c] = -1;
@@ -1011,7 +1085,8 @@ void update(void) {
     float d = dt();
     { const char *f = de_dropped_file(); if (f && isl_load(f)) { ISL = 1; isl_find_junctions(); spawn(); } }   // drop an island .rvb
     if (ISL && keyp('J') && nijn > 0) {               // dev: jump 40 m before the next junction, facing it
-        static int jcur = -1; jcur = (jcur + 1) % nijn;
+        static int jcur = -1;
+        for (int tries = 0; tries < nijn; tries++) { jcur = (jcur + 1) % nijn; if (ijn[jcur].n >= 3) break; }
         IJunc *J = &ijn[jcur]; float b = J->brg[0] * D2R;
         px = J->x + cosf(b) * 40.0f; py = J->y + sinf(b) * 40.0f; head = J->brg[0] + 180.0f;
         vx = vy = 0; camh = ground(px, py) + EYE;
@@ -1049,7 +1124,7 @@ void update(void) {
     watch("x", "%.0f", px); watch("y", "%.0f", py); watch("head", "%.1f", head);
     watch("spd", "%.1f", fsqrt(vx * vx + vy * vy)); watch("camh", "%.1f", camh);
     watch("ntri", "%d", ntri); watch("surf", "%s", SURF[cur_surf].name);
-    watch("njunc", "%d", ISL ? nijn : 0);
+    watch("njunc", "%d", ISL ? nijn : 0); watch("pc_drop", "%d", pc_drop); watch("nbin", "%d", nbin);
     watch("pitch", "%.3f", pitch); watch("roll", "%.3f", roll); watch("npc", "%d", npc);
 #endif
 }

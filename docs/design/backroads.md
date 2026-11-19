@@ -476,6 +476,28 @@ Open: bridges ride the terrain (the 156 m heightfield dips at rivers; a flat dec
 width is a constant, towns are still empty, and the far horizon is still the old noise ridge rather
 than the island's real skyline.
 
+### 2026-11-20: junctions and road cracks
+
+- **Cracks**: a nearer terrain cell's triangle could cover the pixel row just above its edge, which
+  that cell's own road fragment (rounded differently) missed: thin strips of field across the road
+  (the maker's "horizontal glitchy lines"). Road outlines now stroke a second line one pixel up.
+- **Junctions** (island mode): backroads finds every node where road ends meet. At 3+ arms, and at
+  2-arm joints where a road bends (a class change splits a road mid-bend), it adds a **junction
+  patch** of extra road pieces: rounded curb corners between neighbouring arms from `roadkit.h`'s
+  `curb_return` (the geometry streetlab and citydrive share; the corner point is computed here for
+  two different widths, which `edge_corner` doesn't do), radius `3 + 2 × narrower half-width`,
+  capped so acute corners stay short, plus a hub disc that closes the wedge on the outside of a bend.
+  Centre dashes and posts keep clear of 3+-arm junctions.
+- **Measured** with a crack detector (1-px runs of non-road colour with road above and below, below
+  the horizon) over a 900-frame autopilot drive: about 110 → 0 (the last hits are dash edges).
+  The road-piece pool was raised to 20k pieces / 60k bins and overflow is counted (`pc_drop`, 0).
+- **Dev keys**: `J` jumps 40 m before the next junction, `O` a drone camera (25 m up, tilted down).
+
+Open: two junctions very close together can leave a small grass island between their corners; a
+track running beside a road into a junction still makes a funnel (routing); crossroads at 1024 are
+rare (staggered T pairs); grade separation (the expressway crosses at grade) is roadkit's B4
+interchange grammar, unused so far.
+
 ---
 
 ## 11. Open questions — to be answered by playing

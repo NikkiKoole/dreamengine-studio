@@ -1335,7 +1335,9 @@ static int bk_wall_band(int w) {
          : w == BK_WALL_CONCRETE ? B_PEAK : B_BRICK;
 }
 static int bk_roof_band(int r) { return r == BK_RMAT_SLATE ? B_ROCK : r == BK_RMAT_THATCH ? B_PLOUGH : r == BK_RMAT_METAL ? B_ASPHALT : B_TILE; }
-static float bk_wall(const House *H) { return H->type == BK_BARN || H->type == BK_COWSHED ? 5.0f : 0.5f + 2.8f * H->st; }
+static float bk_wall(const House *H) {
+    return H->type == BK_BARN || H->type == BK_COWSHED ? 5.0f : H->type == BK_GARAGE || H->type == BK_SHED ? 2.4f : 0.5f + 2.8f * H->st;
+}
 static int bk_is_tower(const House *H) {           // the tower IS the building (lighthouse, windmill, mast...)
     const BkType *T = &BK[H->type];
     return T->roof == BK_ROOF_NONE && T->tower.h > 0 && H->hu <= T->tower.w + 2.0f;
@@ -1362,15 +1364,22 @@ static void bk_quad(const Mark *m, float s, float (*Q)[3], int band) {
 }
 // one catalog building (buildingkit.h row H->type), scaled by s about its base (landmarks grow with
 // distance; houses are s = 1). Body box, then the roof by T->roof, then the tower and its cap.
+static int bk_pick(int mask, unsigned r) {           // the (r mod popcount)-th set bit of a VARY mask
+    int n = 0; for (int b = 0; b < 8; b++) n += (mask >> b) & 1;
+    int k = (int)(r % (unsigned)n);
+    for (int b = 0; b < 8; b++) if ((mask >> b) & 1) { if (!k) return b; k--; }
+    return 0;
+}
 static void draw_bk(const House *H, float s) {
     const BkType *T = &BK[H->type];
     Mark m = { H->x, H->y, H->g, H->ang, MK_BK, 0, 0 };
     unsigned h = (unsigned)(H->x * 3.0f) * 2654435761u ^ (unsigned)(H->y * 5.0f) * 40503u;
     float a = H->hu * 0.5f, b = H->hv * 0.5f, wall = bk_wall(H);
-    int wb = bk_wall_band(T->wall), rb = bk_roof_band(T->rmat);
-    if (H->type == BK_HOUSE || H->type == BK_YES || H->type == BK_FARM) {   // vary the commonest so a street isn't one colour
-        wb = (h >> 3) % 3 == 0 ? B_PLASTER : B_BRICK; rb = (h >> 9) % 3 == 0 ? B_ROCK : B_TILE;
-    }
+    // the row's VARY masks pick this building's wall, roof material and roof shape by a hash of its position
+    int wb = bk_wall_band(T->vwall ? bk_pick(T->vwall, h >> 3) : T->wall);
+    int rb = bk_roof_band(T->vrmat ? bk_pick(T->vrmat, h >> 9) : T->rmat);
+    int roof = T->vroof ? bk_pick(T->vroof, h >> 15) : T->roof;
+    float pitch = H->type == BK_BARN ? 0.3f : 0.3f + 0.04f * (float)((h >> 19) % 4);   // ~31-41°
     float dx = H->x - px, dy = H->y - py, d2 = dx * dx + dy * dy;
     int ends = d2 < 400.0f * 400.0f ? wb : -1;        // far: skip the gable ends (a pixel or two)
     g_solid = 1;
@@ -1383,14 +1392,20 @@ static void draw_bk(const House *H, float s) {
         g_solid = 0; return;
     }
     if (!bk_is_tower(H)) {
-        int flat = T->roof == BK_ROOF_FLAT || T->roof == BK_ROOF_NONE;
+        int flat = roof == BK_ROOF_FLAT || roof == BK_ROOF_NONE;
         mk_notop = !flat;                             // a pitched roof always covers the box top
         mk_box(&m, s, -a, a, -b, b, 0, wall, wb);
         mk_notop = 0;
-        if (T->roof == BK_ROOF_GABLE)                 // eaves overhang a little; ~37° pitch (barns flatter)
-            mk_gable(&m, s, -a - 0.3f, a + 0.3f, -b - 0.4f, b + 0.4f, wall, wall + H->hv * (H->type == BK_BARN ? 0.3f : 0.38f), rb, ends);
-        else if (T->roof == BK_ROOF_HIP)
-            mk_spire(&m, s, -a - 0.3f, a + 0.3f, -b - 0.4f, b + 0.4f, wall, wall + H->hv * 0.3f, rb);
+        if (roof == BK_ROOF_GABLE)                    // eaves overhang a little
+            mk_gable(&m, s, -a - 0.3f, a + 0.3f, -b - 0.4f, b + 0.4f, wall, wall + H->hv * pitch, rb, ends);
+        else if (roof == BK_ROOF_HIP)
+            mk_spire(&m, s, -a - 0.3f, a + 0.3f, -b - 0.4f, b + 0.4f, wall, wall + H->hv * pitch * 0.8f, rb);
+        int dwell = H->type == BK_HOUSE || H->type == BK_YES || H->type == BK_FARM || H->type == BK_SEMI
+                 || H->type == BK_BUNGALOW || H->type == BK_TERRACE;
+        if (dwell && (roof == BK_ROOF_GABLE || roof == BK_ROOF_HIP) && d2 < 300.0f * 300.0f && ((h >> 23) & 3)) {   // a chimney on most
+            float cu = ((h >> 25) & 1 ? 0.55f : -0.55f) * a, top = wall + H->hv * pitch * (roof == BK_ROOF_HIP ? 0.5f : 0.75f) + 1.2f;
+            mk_box(&m, s, cu - 0.4f, cu + 0.4f, -0.4f, 0.4f, wall, top, B_BRICK);
+        }
     }
     if (T->tower.h > 0) {
         float tu = T->tower.u * H->hu, tw = T->tower.w * 0.5f, th = T->tower.h;

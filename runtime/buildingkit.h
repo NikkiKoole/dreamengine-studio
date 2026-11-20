@@ -23,6 +23,7 @@ enum {                       // APPEND ONLY
     BK_FARM, BK_BARN, BK_PUB, BK_FUEL, BK_FUEL_CANOPY, BK_SCHOOL, BK_TOWNHALL, BK_POST_OFFICE,
     BK_SUPERMARKET, BK_LIGHTHOUSE, BK_WINDMILL, BK_MAST, BK_CASTLE, BK_WATER_TOWER, BK_MONUMENT,
     BK_CHAPEL, BK_COWSHED, BK_STABLE, BK_SILO, BK_INDUSTRIAL, BK_WAREHOUSE, BK_HOTEL, BK_RUINS,
+    BK_GARAGE, BK_SHED,
     BK_N
 };
 enum { BK_ROOF_GABLE, BK_ROOF_HIP, BK_ROOF_FLAT, BK_ROOF_NONE };                  // NONE: towers, masts
@@ -47,19 +48,26 @@ typedef struct {
     BkTower tower;                     // h = 0: none
     const char *sign;                  // painted on the road-facing facade, or NULL
     unsigned char site, who, status;   // placement (islandstudio)
+    // VARY (look, backroads): bitmasks of alternatives picked per building by a hash of its position,
+    // so a street of one type isn't one colour. 0 = always the row's own wall / rmat / roof.
+    // Bits: BK_VW(BRICK) = 1 << BK_WALL_BRICK, BK_VR(TILE) = 1 << BK_RMAT_TILE, BK_VS(GABLE) = 1 << BK_ROOF_GABLE.
+    unsigned char vwall, vrmat, vroof;
 } BkType;
+#define BK_VW(x) (1 << BK_WALL_##x)
+#define BK_VR(x) (1 << BK_RMAT_##x)
+#define BK_VS(x) (1 << BK_ROOF_##x)
 
 static const BkType BK[BK_N] = {
     //  building        tag                      w0  w1  d0  d1 lv  roof          wall               rmat            lm tower {u,w,h,cap}                  sign      site                    who                 status
-    [BK_YES]         = { "yes",          NULL,                   6, 12,  6, 12, 1, 2, BK_ROOF_GABLE, BK_WALL_BRICK,     BK_RMAT_TILE,   0, { 0, 0, 0, 0 },                     NULL,     BK_SITE_NONE,           BK_WHO_NONE,        BK_STATUS_LATER },
-    [BK_HOUSE]       = { "house",        NULL,                   7, 12,  8, 13, 1, 2, BK_ROOF_GABLE, BK_WALL_BRICK,     BK_RMAT_TILE,   0, { 0, 0, 0, 0 },                     NULL,     BK_SITE_FRONTAGE,       BK_WHO_ANY,         BK_STATUS_PLACED },
-    [BK_SEMI]        = { "semidetached_house", NULL,            12, 16,  9, 11, 2, 2, BK_ROOF_HIP,   BK_WALL_BRICK,     BK_RMAT_TILE,   0, { 0, 0, 0, 0 },                     NULL,     BK_SITE_FRONTAGE,       BK_WHO_VILLAGE_UP,  BK_STATUS_LATER },
-    [BK_BUNGALOW]    = { "bungalow",     NULL,                   9, 13,  8, 11, 1, 1, BK_ROOF_HIP,   BK_WALL_WHITEWASH, BK_RMAT_TILE,   0, { 0, 0, 0, 0 },                     NULL,     BK_SITE_FRONTAGE,       BK_WHO_VILLAGE_UP,  BK_STATUS_LATER },
-    [BK_TERRACE]     = { "terrace",      NULL,                  18, 36,  9, 12, 2, 3, BK_ROOF_GABLE, BK_WALL_BRICK,     BK_RMAT_SLATE,  0, { 0, 0, 0, 0 },                     NULL,     BK_SITE_FRONTAGE,       BK_WHO_TOWN,        BK_STATUS_PLACED },
+    [BK_YES]         = { "yes",          NULL,                   6, 12,  6, 12, 1, 2, BK_ROOF_GABLE, BK_WALL_BRICK,     BK_RMAT_TILE,   0, { 0, 0, 0, 0 },                     NULL,     BK_SITE_NONE,           BK_WHO_NONE,        BK_STATUS_LATER, BK_VW(BRICK) | BK_VW(WHITEWASH) | BK_VW(STONE), BK_VR(TILE) | BK_VR(SLATE), BK_VS(GABLE) | BK_VS(HIP) },
+    [BK_HOUSE]       = { "house",        NULL,                   7, 12,  8, 13, 1, 2, BK_ROOF_GABLE, BK_WALL_BRICK,     BK_RMAT_TILE,   0, { 0, 0, 0, 0 },                     NULL,     BK_SITE_FRONTAGE,       BK_WHO_ANY,         BK_STATUS_PLACED, BK_VW(BRICK) | BK_VW(WHITEWASH) | BK_VW(STONE), BK_VR(TILE) | BK_VR(SLATE), BK_VS(GABLE) | BK_VS(HIP) },
+    [BK_SEMI]        = { "semidetached_house", NULL,            12, 16,  9, 11, 2, 2, BK_ROOF_HIP,   BK_WALL_BRICK,     BK_RMAT_TILE,   0, { 0, 0, 0, 0 },                     NULL,     BK_SITE_FRONTAGE,       BK_WHO_VILLAGE_UP,  BK_STATUS_PLACED, BK_VW(BRICK) | BK_VW(WHITEWASH), BK_VR(TILE) | BK_VR(SLATE), 0 },
+    [BK_BUNGALOW]    = { "bungalow",     NULL,                   9, 13,  8, 11, 1, 1, BK_ROOF_HIP,   BK_WALL_WHITEWASH, BK_RMAT_TILE,   0, { 0, 0, 0, 0 },                     NULL,     BK_SITE_FRONTAGE,       BK_WHO_VILLAGE_UP,  BK_STATUS_PLACED, BK_VW(BRICK) | BK_VW(WHITEWASH), BK_VR(TILE) | BK_VR(SLATE), 0 },
+    [BK_TERRACE]     = { "terrace",      NULL,                  18, 36,  9, 12, 2, 3, BK_ROOF_GABLE, BK_WALL_BRICK,     BK_RMAT_SLATE,  0, { 0, 0, 0, 0 },                     NULL,     BK_SITE_FRONTAGE,       BK_WHO_TOWN,        BK_STATUS_PLACED, 0, BK_VR(TILE) | BK_VR(SLATE), 0 },
     [BK_APARTMENTS]  = { "apartments",   NULL,                  15, 30, 12, 16, 3, 4, BK_ROOF_FLAT,  BK_WALL_CONCRETE,  BK_RMAT_METAL,  0, { 0, 0, 0, 0 },                     NULL,     BK_SITE_CENTRE,         BK_WHO_BIGGEST_TOWN, BK_STATUS_LATER },
     [BK_RETAIL]      = { "retail",       NULL,                   8, 14, 10, 14, 2, 3, BK_ROOF_GABLE, BK_WALL_BRICK,     BK_RMAT_SLATE,  0, { 0, 0, 0, 0 },                     "SHOP",   BK_SITE_HIGH_STREET,    BK_WHO_TOWN,        BK_STATUS_PLACED },
     [BK_CHURCH]      = { "church",       NULL,                  12, 12, 26, 26, 3, 3, BK_ROOF_GABLE, BK_WALL_STONE,     BK_RMAT_SLATE,  1, { -0.5f, 5, 24, BK_CAP_SPIRE },      NULL,     BK_SITE_CENTRE,         BK_WHO_VILLAGE_UP,  BK_STATUS_PLACED },
-    [BK_FARM]        = { "farm",         NULL,                   9, 13,  8, 11, 2, 2, BK_ROOF_GABLE, BK_WALL_WHITEWASH, BK_RMAT_SLATE,  0, { 0, 0, 0, 0 },                     NULL,     BK_SITE_FARMYARD,       BK_WHO_FARM,        BK_STATUS_PLACED },
+    [BK_FARM]        = { "farm",         NULL,                   9, 13,  8, 11, 2, 2, BK_ROOF_GABLE, BK_WALL_WHITEWASH, BK_RMAT_SLATE,  0, { 0, 0, 0, 0 },                     NULL,     BK_SITE_FARMYARD,       BK_WHO_FARM,        BK_STATUS_PLACED, BK_VW(BRICK) | BK_VW(WHITEWASH) | BK_VW(STONE), BK_VR(TILE) | BK_VR(SLATE) | BK_VR(THATCH), 0 },
     [BK_BARN]        = { "barn",         NULL,                  18, 32, 12, 20, 1, 1, BK_ROOF_GABLE, BK_WALL_TIMBER,    BK_RMAT_METAL,  0, { 0, 0, 0, 0 },                     NULL,     BK_SITE_FARMYARD,       BK_WHO_FARM,        BK_STATUS_PLACED },
     [BK_PUB]         = { "yes",          "amenity=pub",         10, 14, 10, 14, 2, 2, BK_ROOF_GABLE, BK_WALL_WHITEWASH, BK_RMAT_SLATE,  0, { 0, 0, 0, 0 },                     "PUB",    BK_SITE_CENTRE,         BK_WHO_VILLAGE_UP,  BK_STATUS_PLACED },
     [BK_FUEL]        = { "retail",       "amenity=fuel",        10, 12,  7,  9, 1, 1, BK_ROOF_FLAT,  BK_WALL_WHITEWASH, BK_RMAT_METAL,  0, { 0, 0, 0, 0 },                     "FUEL",   BK_SITE_EDGE_MAIN_ROAD, BK_WHO_TOWN,        BK_STATUS_PLACED },
@@ -82,6 +90,8 @@ static const BkType BK[BK_N] = {
     [BK_WAREHOUSE]   = { "warehouse",    NULL,                  30, 60, 20, 40, 1, 1, BK_ROOF_FLAT,  BK_WALL_CONCRETE,  BK_RMAT_METAL,  0, { 0, 0, 0, 0 },                     NULL,     BK_SITE_EDGE_MAIN_ROAD, BK_WHO_TOWN,        BK_STATUS_LATER },
     [BK_HOTEL]       = { "hotel",        NULL,                  20, 30, 12, 15, 3, 3, BK_ROOF_HIP,   BK_WALL_WHITEWASH, BK_RMAT_SLATE,  0, { 0, 0, 0, 0 },                     "HOTEL",  BK_SITE_HIGH_STREET,    BK_WHO_TOWN,        BK_STATUS_LATER },
     [BK_RUINS]       = { "ruins",        "historic=ruins",      20, 20, 40, 40, 1, 1, BK_ROOF_NONE,  BK_WALL_STONE,     BK_RMAT_SLATE,  1, { -0.5f, 6, 12, BK_CAP_NONE },      NULL,     BK_SITE_RIVER,          BK_WHO_ISLAND,      BK_STATUS_LATER },
+    [BK_GARAGE]      = { "garage",       NULL,                 3.5f, 6,  6,  7, 1, 1, BK_ROOF_FLAT,  BK_WALL_BRICK,     BK_RMAT_METAL,  0, { 0, 0, 0, 0 },                     NULL,     BK_SITE_FRONTAGE,       BK_WHO_ANY,         BK_STATUS_PLACED, BK_VW(BRICK) | BK_VW(WHITEWASH), 0, 0 },
+    [BK_SHED]        = { "shed",         NULL,                   3,  4,  4,  5, 1, 1, BK_ROOF_GABLE, BK_WALL_TIMBER,    BK_RMAT_METAL,  0, { 0, 0, 0, 0 },                     NULL,     BK_SITE_FRONTAGE,       BK_WHO_ANY,         BK_STATUS_PLACED, 0, BK_VR(METAL) | BK_VR(TILE), 0 },
 };
 
 // the export sub for a type: "<building>" or "<building>;<tag>". Static strings, built once.

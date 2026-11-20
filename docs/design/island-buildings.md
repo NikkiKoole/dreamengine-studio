@@ -130,7 +130,7 @@ field in metres, the legacy farm diamonds dropped). Newly placed, in backroads' 
 
 Landmarks may sit on slopes up to 45 % (houses 20 %). Seed 3 @1024: 7,793 buildings (35 pubs, 20
 fuel stations, 3 lighthouses, 5 windmills, 1 mast, 1 castle), 0 overlapping a road. Open: the
-castle and lighthouses have no access track yet.
+castle and lighthouses have no access track yet (done next round).
 
 ## Open
 
@@ -138,3 +138,19 @@ castle and lighthouses have no access track yet.
   real cities carry pubs, schools and lighthouses as well.
 - Counts and budget: seed 3 at 1024 has ~7,700 buildings today; backroads asked for "a few
   thousand". Thinning knobs belong in the table (keep-rate per rank).
+
+### Second round: variety and access roads (2026-11-20)
+
+- **Homes mix**: outside a town's core a street draws from detached houses (15 % of them big),
+  `semidetached_house` and `bungalow` (town edge ~35 / 15 / 50 %, villages 20 / 25 / 55 %,
+  hamlets bungalow 30 %). Detached homes outside the core turn up to ±4°. About 30 % get a
+  `garage` beside, another 25 % a `shed` behind. backroads varies walls, roofs and pitch per
+  building from the rows' `vwall`/`vrmat`/`vroof` bitmasks (its fields, b731abfc).
+- **Every landmark has an access road**: `landmark_sites()` now picks the sites *before* the road
+  network is final (same scoring as before), and each gets a track to the nearest road, routed like a
+  farm's (a lane up to the castle; a 60 km-cost budget for the summit mast's service road). The
+  building goes beside the track's end afterwards.
+
+Seed 3 @1024: 8,764 buildings (2,697 houses, 1,023 semis, 940 bungalows, 389 terraces, 407
+garages, 1,035 sheds, ...); every landmark 9-60 m from its road (was 40 m to 1.9 km); 0 buildings
+on a road.

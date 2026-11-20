@@ -298,6 +298,23 @@ What's left are mostly real turns at junctions (a main road turning at a T). Cal
 (crossroads 3.7–9.2 %); at 1024 crossroads are now 2 % (staggered T pairs): turning near T pairs into
 crossroads belongs in a graph pass, not in routing detours. Open.
 
+## Junction consolidation (2026-11-20)
+
+On fine grids (cells < 100 m), two junctions within three road steps and ~90 m of each other become
+one: the side roads of junction b move onto junction a (a straight cell run), b becomes a plain bend,
+and the corner cut runs again. Never moves a settlement node or the expressway, and never makes a
+fork narrower than 35°. Staggered T pairs become crossroads; slivers of field between near
+junctions go. Seed 1 @1024 (393 consolidations), against the Isle of Man:
+
+| | dead ends | T | crossroads | dendricity | circuity |
+|---|---|---|---|---|---|
+| Isle of Man | 35 % | 56 % | 5.2 % | 0.25 | 1.57 |
+| before | 29 % | 69 % | 2.1 % | 0.23 | 1.46 |
+| after | 35 % | 60 % | 4.8 % | 0.28 | 1.59 |
+
+Open: every route into a town ends at the town's centre cell, so towns are 6–8-arm stars whose
+corner fillets leave holes in backroads. That's for town streets (citygen), not more patching.
+
 ## Next rungs
 
 4. **Farmland**: fields spread from villages along roads onto flat ground, replacing natural cover.

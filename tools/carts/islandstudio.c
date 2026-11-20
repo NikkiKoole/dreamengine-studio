@@ -643,6 +643,75 @@ static void cut_corners(void) {
         if (!changed) break;
     }
 }
+// JUNCTION CONSOLIDATION (fine grids): two junctions a few metres apart on the same road (side roads
+// that met "almost opposite", or arrived a cell apart) become ONE: the side roads of junction b move
+// onto the nearby junction a, so staggered T pairs become crossroads, the sliver of field between two
+// near junctions disappears, and b becomes a plain bend. Off on coarse grids (> 100 m cells), where a
+// cell apart is a real staggered junction and calibration was done.
+static int st_consol;
+static int edeg(int c) { int d = 0; for (int k = 0; k < 8; k++) if (ER[c][k]) d++; return d; }
+static void line_cells(int a, int c, int cls) {            // 8-connected straight run of road edges a -> c
+    int x = a % N, y = a / N, tx = c % N, ty = c / N;
+    while (x != tx || y != ty) {
+        int sx = (tx > x) - (tx < x), sy = (ty > y) - (ty < y), k = -1;
+        for (int q = 0; q < 8; q++) if (DX[q] == sx && DY[q] == sy) k = q;
+        int from = y * N + x; x += sx; y += sy; int to = y * N + x;
+        if (cls > ER[from][k]) { ER[from][k] = (unsigned char)cls; ER[to][OPP[k]] = (unsigned char)cls; }
+    }
+}
+static void consolidate_junctions(void) {
+    st_consol = 0;
+    if (CELL > 100.0f) return;
+    for (int b = 0; b < N * N; b++) {
+        if (IS_SET[b] || edeg(b) < 3) continue;
+        int bx = b % N, by = b / N;
+        // a junction within three road steps of b (and ~90 m)
+        int a = -1, via = -1, k1a = -1;
+        for (int k1 = 0; k1 < 8 && a < 0; k1++) {
+            if (!ER[b][k1] || ER[b][k1] == RC_EXPRESS) continue;
+            int c1 = (by + DY[k1]) * N + bx + DX[k1];
+            if (edeg(c1) >= 3 && c1 != b) { a = c1; via = c1; k1a = k1; break; }
+            for (int k2 = 0; k2 < 8 && a < 0; k2++) {
+                if (!ER[c1][k2] || OPP[k2] == k1) continue;
+                int c2 = (c1 / N + DY[k2]) * N + c1 % N + DX[k2];
+                if (c2 == b) continue;
+                float dx = (c2 % N - bx) * CELL, dy = (c2 / N - by) * CELL;
+                if (edeg(c2) >= 3 && dx * dx + dy * dy <= 90.0f * 90.0f) { a = c2; via = c1; k1a = k1; break; }
+                if (edeg(c2) != 2) continue;
+                for (int k3 = 0; k3 < 8; k3++) {              // a third step (tiny triangles: corners ~3 cells apart)
+                    if (!ER[c2][k3] || OPP[k3] == k2) continue;
+                    int c3 = (c2 / N + DY[k3]) * N + c2 % N + DX[k3];
+                    if (c3 == b || c3 == c1 || edeg(c3) < 3) continue;
+                    float ex = (c3 % N - bx) * CELL, ey = (c3 / N - by) * CELL;
+                    if (ex * ex + ey * ey > 90.0f * 90.0f) continue;
+                    a = c3; via = c1; k1a = k1; break;
+                }
+            }
+        }
+        if (a < 0) continue;
+        int ax = a % N, ay = a / N, moved = 0;
+        for (int k = 0; k < 8; k++) {
+            if (!ER[b][k] || k == k1a) continue;              // keep the road toward a
+            int cls = ER[b][k];
+            if (cls == RC_EXPRESS) continue;
+            int c = (by + DY[k]) * N + bx + DX[k];
+            if (c == via || c == a) continue;
+            // don't create a narrow fork at a: the moved arm must leave >= 35° from a's existing arms
+            float ux = (float)(c % N - ax), uy = (float)(c / N - ay), ul = sqrtf(ux * ux + uy * uy);
+            if (ul < 0.5f) continue;
+            int ok = 1;
+            for (int q = 0; q < 8 && ok; q++) if (ER[a][q]) {
+                float c35 = (ux * DX[q] + uy * DY[q]) / (ul * sqrtf((float)(DX[q] * DX[q] + DY[q] * DY[q])));
+                if (c35 > 0.819f) ok = 0;
+            }
+            if (!ok) continue;
+            ER[b][k] = 0; ER[c][OPP[k]] = 0;                  // detach the side road from b ...
+            line_cells(a, c, cls);                            // ... and attach it to a
+            moved++;
+        }
+        if (moved) st_consol++;
+    }
+}
 static void build_polys(void) {
     static unsigned char vis[MAXN * MAXN];
     static int cells[MAXN * 4];
@@ -1190,6 +1259,8 @@ static void build_roads(void) {
     upland_tracks();
     fix_diagonal_crossings();
     cut_corners();
+    consolidate_junctions();
+    cut_corners();
     build_polys();
     build_rivers();
     build_bridges();
@@ -1293,7 +1364,7 @@ void update(void) {
     watch("seed", "%d", seed); watch("nset", "%d", nset); watch("coastal", "%d", st_coastal);
     watch("moor", "%d", (int)st_cov[CV_MOOR]); watch("forest", "%d", (int)st_cov[CV_FOREST]);
     watch("land", "%d", (int)st_land); watch("npl", "%d", npl); watch("express", "%d", st_express);
-    watch("ringgaps", "%d", st_ringgaps); watch("bridges", "%d", nbr); watch("lakes", "%d", st_lakes); watch("N", "%d", N); watch("diagx", "%d", st_diagx); watch("cuts", "%d", st_cuts); watch("rebuild_ms", "%.0f", st_rebuild_ms); watch("overflow", "%d", st_overflow); watch("links", "lane %d/%d sec %d/%d main %d/%d", st_link_ok[0], st_link_try[0], st_link_ok[1], st_link_try[1], st_link_ok[2], st_link_try[2]); { int bb = -1; for (int b = 0; b < nbr; b++) if (bb < 0 || br[b].len > br[bb].len) bb = b;
+    watch("ringgaps", "%d", st_ringgaps); watch("bridges", "%d", nbr); watch("lakes", "%d", st_lakes); watch("N", "%d", N); watch("diagx", "%d", st_diagx); watch("cuts", "%d", st_cuts); watch("consol", "%d", st_consol); watch("rebuild_ms", "%.0f", st_rebuild_ms); watch("overflow", "%d", st_overflow); watch("links", "lane %d/%d sec %d/%d main %d/%d", st_link_ok[0], st_link_try[0], st_link_ok[1], st_link_try[1], st_link_ok[2], st_link_try[2]); { int bb = -1; for (int b = 0; b < nbr; b++) if (bb < 0 || br[b].len > br[bb].len) bb = b;
       if (bb >= 0) { watch("bigbridge_x", "%.0f", br[bb].x); watch("bigbridge_y", "%.0f", br[bb].y); watch("bigbridge_len", "%.0f", br[bb].len); } } watch("rivers", "%d", nrv);
     watch("forest_tracks", "%d", nforest); watch("upland_tracks", "%d", nupland); watch("roads_ms", "%.0f", st_roads_ms);
     for (int k = RC_TRACK; k < NRC; k++) watch(RCN[k], "%.0f", st_road[k]);

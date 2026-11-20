@@ -377,3 +377,28 @@ minor +0.01–0.02, X 7–9 %). At 1024, against the stars:
 Crossroads now sit between the Isle of Man (5 %) and Sado (12 %): town-centre grids are where real
 crossroads are. Open: old field tracks from nearby hamlets still cross some towns; houses/lots
 (citygen rung 7's unfinished half) for when backroads drives into villages.
+
+## Kinks on main roads (2026-11-20)
+
+The kink count from "Smooth roads at 1024" is now a tool: `node tools/kink-check.js <file.json>
+[--lat L] [--where main]` (sharp kinks per 100 km by class; `--where` lists the spots to render).
+It reproduces the Isle of Man's main-road 7; Sado's main roads have 32 (mountain hairpins are real).
+
+Close-ups of seed 3's main-road kinks showed one cause: a **one-cell sideways jog** (39 m) in the
+middle of a road. Simplification kept any cell more than 0.6 cell (23 m) off the line, so the jog
+stayed and the spline drew it as a hook. Main roads now simplify with a 45 m floor, secondaries
+35 m (`sm_tol_min` in `emit_poly`); lanes, tracks and rivers are unchanged, and so is the 256 grid
+(0.6 cell = 94 m there already; the export is byte-identical).
+
+| sharp kinks / 100 km | main | secondary | lane | track |
+|---|---|---|---|---|
+| Isle of Man | 7 | 13 | 108 | 104 |
+| Sado | 32 | 37 | 132 | 180 |
+| seed 1 @1024 before | 30 | 22 | 31 | 31 |
+| seed 1 @1024 after | 4 | 11 | 31 | 31 |
+| seed 3 @1024 before | 26 | 27 | 34 | 33 |
+| seed 3 @1024 after | 3 | 14 | 34 | 33 |
+
+Side effects checked on seed 3: no main or secondary road over the sea, bridges 164 → 163, flyovers
+15 → 14, main-road km −2 % (straighter). Lanes and tracks are now *smoother* than the real islands
+(31–34 vs 104–180), which may be worth roughening later; not a defect for driving.

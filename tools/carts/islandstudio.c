@@ -554,6 +554,7 @@ static int is_node_l(int c, int L) {
 static int is_node(int c) { return is_node_l(c, 0) || is_node_l(c, 1); }
 #define SM_MAX 24000
 static float sm_x[SM_MAX], sm_y[SM_MAX];
+static float sm_tol_min;   // simplification tolerance floor in metres (emit_poly sets it per road class; 0 = rivers)
 // cell path → smooth curve in metres (into sm_x/sm_y); returns the point count
 static int smooth_path(const int *cells, int n) {
     // 1. Douglas-Peucker: keep only the cell-path points that matter (tolerance ~0.6 cell),
@@ -565,7 +566,7 @@ static int smooth_path(const int *cells, int n) {
     for (int i = 0; i < m0; i++) { kx[i] = (cells[i] % N + 0.5f) * CELL; ky[i] = (cells[i] / N + 0.5f) * CELL; keep[i] = 0; }
     keep[0] = keep[m0 - 1] = 1;
     { static int st[MAXN * 16]; int sp = 0; st[sp++] = 0; st[sp++] = m0 - 1;
-      float tol = CELL * 0.6f;
+      float tol = fmaxf(CELL * 0.6f, sm_tol_min);
       while (sp > 0) {
           int b = st[--sp], a = st[--sp];
           float dx = kx[b] - kx[a], dy = ky[b] - ky[a], L = sqrtf(dx * dx + dy * dy) + 1e-6f;
@@ -598,7 +599,13 @@ static int smooth_path(const int *cells, int n) {
 static void emit_poly(const int *cells, int n, int cls) {
     if (n < 2) return;
     if (npl >= MAXPL) { st_overflow++; return; }
+    // MAIN ROADS SIMPLIFY LOOSER: at 39 m cells a one-cell sideways jog (39 m) beat the 0.6-cell
+    // tolerance (23 m), so it stayed and the spline drew it as a hook (26-30 sharp kinks/100 km on
+    // main roads vs the Isle of Man's 7). Big roads are laid out in long lines; a 45 m tolerance lets
+    // them. Below ~75 m cells (the 256 grid) 0.6 cell is already larger: unchanged there.
+    sm_tol_min = cls >= RC_MAIN ? 45.0f : cls == RC_SEC ? 35.0f : 0.0f;
     int m = smooth_path(cells, n);
+    sm_tol_min = 0;
     float *ax = sm_x, *ay = sm_y;
     if (npt + m >= MAXPT) { st_overflow++; return; }
     pl[npl].start = npt; pl[npl].n = m; pl[npl].cls = cls; npl++;

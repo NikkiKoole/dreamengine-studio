@@ -236,6 +236,7 @@ tools/     repo-root CLI tools (plain node, CommonJS). Header = contract.
              road-check.js   framebuffer invariants for coverage-based roads
              sndi-check.js   street-network SNDi metric (realism number for roadgen)
              road-density.js road km/km² by class + true-scale SVG for a vector-IR .json (real OSM vs islandstudio); --selfcheck
+             kink-check.js   sharp kinks per 100 km by road class for a vector-IR .json (--where lists spots); --selfcheck
            ── audio gates & analysis (which to run: docs/guides/checks-and-oracles.md) ──
              wav-analyze.js / tune-check.js / dc-check.js / level-check.js / fx-check.js /
                              soak-check.js / web-audio-check.js   audio gates (see "Key things to know")

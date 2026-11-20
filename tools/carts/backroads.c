@@ -157,6 +157,15 @@ static GPost gp[GP_MAX]; static int ngp;
 // backroads only gives them walls and a roof. Ridge along the long side; g = the lowest corner.
 typedef struct { float x, y, g, ang, hu, hv; unsigned char st, type; signed char fs; } House;   // type = a BK_* row; fs: road side (±v)
 #define HS_MAX 40000
+// roadside (item 3): hedge / wall pieces (<= 16 m) and trees; grounded lazily (g < -1e8 = not yet)
+typedef struct { float x0, y0, x1, y1, g0, g1; unsigned char wall; } HgPiece;
+typedef struct { float x, y, g, h; } TreeP;
+#define HG_MAX 200000
+#define TR_MAX 80000
+#define HG_FAR 600.0f
+#define TR_FAR 900.0f
+static HgPiece hg[HG_MAX]; static int nhg;
+static TreeP tr[TR_MAX]; static int ntr;
 static House hs[HS_MAX]; static int nhs;
 static int hs_head[IBG * IBG], hs_next[HS_MAX];       // static 250 m buckets
 
@@ -229,7 +238,7 @@ static int isl_load(const char *path) {
     { int c = nlen < 63 ? nlen : 63; memcpy(isl_name, p, (size_t)c); isl_name[c] = 0; } p += nlen;
     float bb[4]; for (int k = 0; k < 4; k++) RD(float, bb[k]);
     isl_W = fmaxf(bb[2], 1000); isl_H = fmaxf(bb[3], 1000);
-    nipl = nipt = niset = nifarm = nhs = nga = ngp = 0; ihg = 0;
+    nipl = nipt = niset = nifarm = nhs = nga = ngp = nhg = ntr = 0; ihg = 0;
     memset(icv, IC_LAND, sizeof icv); memset(iwm, 0, sizeof iwm);
     for (int i = 0; i < IBG * IBG; i++) ib_head[i] = -1;
     fpoly = (int *)malloc((size_t)(nfeat > 0 ? nfeat : 1) * sizeof(int));   // feature index -> poly (for RZ01)
@@ -304,6 +313,19 @@ static int isl_load(const char *path) {
             for (int k = 0; k < ngp; k++) if (fabsf(gp[k].jx - pts[0]) < 1.0f && fabsf(gp[k].jy - pts[1]) < 1.0f) { pi = k; break; }
             if (pi < 0 && ngp < GP_MAX) { pi = ngp++; gp[pi].jx = pts[0]; gp[pi].jy = pts[1]; gp[pi].na = 0; }
             if (pi >= 0) { A->post = pi; gp[pi].na++; nga++; }
+        } else if (kind == 23 && np >= 2 && strstr(sub, "barrier=")) {         // hedge / wall line: 16 m pieces
+            int wall = strstr(sub, "wall") != 0;
+            for (int k = 1; k < np; k++) {
+                float ax = pts[k*2-2], ay = pts[k*2-1], bx = pts[k*2], by = pts[k*2+1];
+                int ns = (int)ceilf(fsqrt((bx-ax)*(bx-ax) + (by-ay)*(by-ay)) / 16.0f); if (ns < 1) ns = 1;
+                for (int q = 0; q < ns && nhg < HG_MAX; q++) {
+                    HgPiece *H = &hg[nhg++]; float t0 = (float)q / ns, t1 = (float)(q + 1) / ns;
+                    H->x0 = ax + (bx-ax)*t0; H->y0 = ay + (by-ay)*t0; H->x1 = ax + (bx-ax)*t1; H->y1 = ay + (by-ay)*t1;
+                    H->g0 = H->g1 = -1e9f; H->wall = (unsigned char)wall;
+                }
+            }
+        } else if (kind == 8 && np >= 1 && ntr < TR_MAX) {                      // a single tree (height in h)
+            tr[ntr].x = pts[0]; tr[ntr].y = pts[1]; tr[ntr].g = -1e9f; tr[ntr].h = fh > 0 ? fh : 12.0f; ntr++;
         } else if (kind == 9 && np >= 3 && niset < ISET_MAX) {                  // residential: a settlement
             float cx = 0, cy = 0, r = 0;
             for (int k = 0; k < np; k++) { cx += pts[k*2]; cy += pts[k*2+1]; } cx /= np; cy /= np;
@@ -1196,6 +1218,7 @@ static int g_mirror;                       // 1 while the rear-view mirror pass 
 static int g_deckpass;                     // 0: terrain + ground roads (+ far decks); 1: near decks only
 static void draw_landmarks_in(int r, int c);   // the landmarks standing in ring r's cell c (defined with them)
 static void draw_houses_in(int r, int c);
+static void draw_roadside_in(int r, int c);
 static void draw_cell(int r, int i, int j) {
     int n1 = RN[r] + 1;
     if (in_finer(r, rx0[r] + i * RS[r], ry0[r] + j * RS[r], RS[r])) return;
@@ -1228,7 +1251,7 @@ static void draw_cell(int r, int i, int j) {
         if (r == 0 && !g_deckpass)
             for (int q = pst_head[c]; q >= 0; q = pst_next[q]) draw_post(&pst[q]);
     }
-    if (!g_deckpass && ISL) { draw_houses_in(r, j * RN[r] + i); draw_landmarks_in(r, j * RN[r] + i); }
+    if (!g_deckpass && ISL) { draw_roadside_in(r, j * RN[r] + i); draw_houses_in(r, j * RN[r] + i); draw_landmarks_in(r, j * RN[r] + i); }
 }
 
 static void draw_ring(int r) {
@@ -1592,6 +1615,90 @@ static void draw_bk(const House *H, float s) {
     }
 }
 static void draw_house(const House *H) { draw_bk(H, 1.0f); }
+static int hg_head[IBG * IBG], hg_next[HG_MAX], tr_head[IBG * IBG], tr_next[TR_MAX];
+static int hgc_head[NRING][32 * 32], hgc_next[HG_MAX], nhgv, trc_head[NRING][32 * 32], trc_next[TR_MAX], ntrv;
+static int trv_idx[TR_MAX]; static float trv_d[TR_MAX];
+static int trv_cmp(const void *a, const void *b) { float d = trv_d[*(const int *)a] - trv_d[*(const int *)b]; return d < 0 ? -1 : d > 0; }
+static void roadside_build(void) {                      // buckets, after load
+    for (int i = 0; i < IBG * IBG; i++) hg_head[i] = tr_head[i] = -1;
+    for (int k = 0; k < nhg; k++) { int b = ib_of((hg[k].x0 + hg[k].x1) * 0.5f, isl_W) + ib_of((hg[k].y0 + hg[k].y1) * 0.5f, isl_H) * IBG; hg_next[k] = hg_head[b]; hg_head[b] = k; }
+    for (int k = 0; k < ntr; k++) { int b = ib_of(tr[k].x, isl_W) + ib_of(tr[k].y, isl_H) * IBG; tr_next[k] = tr_head[b]; tr_head[b] = k; }
+}
+// ── ROADSIDE (islandstudio roadmap item 3): hedges / dry-stone walls (OSM barrier=hedge|wall lines)
+// and single trees (natural=tree points, height in the feature's h), all within ~40 m of a road.
+// Hedge lines are cut into <= 16 m pieces at load; everything is bucketed (250 m) and grounded on the
+// carved ground the first time it's drawn. Per frame the near ones are binned into ring cells like
+// the houses (trees farthest-first per cell). A hedge is an upright strip; a tree a trunk + a round
+// crown drawn in screen space (lit side lighter), so 50k of them stay cheap.
+static void roadside_bin(void) {
+    for (int r = 0; r < NRING; r++) for (int c = 0; c < 32 * 32; c++) { hgc_head[r][c] = -1; trc_head[r][c] = -1; }
+    nhgv = ntrv = 0;
+    if (!nhg && !ntr) return;
+    float R = TR_FAR;
+    int b0x = ib_of(px - R, isl_W), b1x = ib_of(px + R, isl_W), b0y = ib_of(py - R, isl_H), b1y = ib_of(py + R, isl_H);
+    for (int by = b0y; by <= b1y; by++) for (int bx = b0x; bx <= b1x; bx++) {
+        int b = by * IBG + bx;
+        for (int k = hg_head[b]; k >= 0; k = hg_next[k]) {
+            float dx = (hg[k].x0 + hg[k].x1) * 0.5f - px, dy = (hg[k].y0 + hg[k].y1) * 0.5f - py;
+            if (dx * dx + dy * dy > HG_FAR * HG_FAR) continue;
+            if (hg[k].g0 < -1e8f) { hg[k].g0 = ground(hg[k].x0, hg[k].y0); hg[k].g1 = ground(hg[k].x1, hg[k].y1); }
+            float mx = (hg[k].x0 + hg[k].x1) * 0.5f, my = (hg[k].y0 + hg[k].y1) * 0.5f;
+            for (int r = 0; r < NRING; r++) {
+                int n = RN[r], i = (int)floorf((mx - rx0[r]) / RS[r]), j = (int)floorf((my - ry0[r]) / RS[r]);
+                if (i < 0 || j < 0 || i >= n || j >= n) continue;
+                int c = j * n + i; hgc_next[k] = hgc_head[r][c]; hgc_head[r][c] = k; nhgv++; break;
+            }
+        }
+        for (int k = tr_head[b]; k >= 0; k = tr_next[k]) {
+            float dx = tr[k].x - px, dy = tr[k].y - py, d2 = dx * dx + dy * dy;
+            if (d2 > TR_FAR * TR_FAR || dx * cfx + dy * cfy < -30.0f) continue;   // behind: skip (the mirror doesn't draw them)
+            if (tr[k].g < -1e8f) tr[k].g = ground(tr[k].x, tr[k].y);
+            trv_d[k] = d2; trv_idx[ntrv++] = k;
+        }
+    }
+    qsort(trv_idx, (size_t)ntrv, sizeof(int), trv_cmp);   // nearest first; prepending leaves farthest at the head
+    for (int q = 0; q < ntrv; q++) {
+        int k = trv_idx[q];
+        for (int r = 0; r < NRING; r++) {
+            int n = RN[r], i = (int)floorf((tr[k].x - rx0[r]) / RS[r]), j = (int)floorf((tr[k].y - ry0[r]) / RS[r]);
+            if (i < 0 || j < 0 || i >= n || j >= n) continue;
+            int c = j * n + i; trc_next[k] = trc_head[r][c]; trc_head[r][c] = k; break;
+        }
+    }
+}
+static void draw_hedge(const HgPiece *H) {
+    float top = H->wall ? 1.1f : 1.7f, X[4], Y[4], Z[4];
+    to_cam(H->x0, H->y0, H->g0 - 0.3f, &X[0], &Y[0], &Z[0]); to_cam(H->x1, H->y1, H->g1 - 0.3f, &X[1], &Y[1], &Z[1]);
+    to_cam(H->x1, H->y1, H->g1 + top, &X[2], &Y[2], &Z[2]);  to_cam(H->x0, H->y0, H->g0 + top, &X[3], &Y[3], &Z[3]);
+    float nx = -(H->y1 - H->y0), ny = H->x1 - H->x0, nl = fsqrt(nx * nx + ny * ny) + 1e-6f;
+    float lum = 0.3f + 0.35f * fabsf((nx * SUNX + ny * SUNY) / nl);      // either face: lit by how square it is to the sun
+    g_solid = 1;
+    fill_cam(X, Y, Z, 4, H->wall ? B_ROCK : B_FOREST, lum);
+    g_solid = 0;
+}
+static void draw_tree(const TreeP *T) {
+    float X, Y, Z, X2, Y2, Z2;
+    to_cam(T->x, T->y, T->g + T->h * 0.62f, &X, &Y, &Z);           // crown centre
+    if (Z < NEAR + 1.0f) return;
+    float sx = VX0 + X * VF / Z, sy = VHZ - Y * VF / Z, rr = T->h * 0.36f * VF / Z;
+    if (sx + rr < VRX || sx - rr > VRX + VRW) return;
+    float fog = (Z - FOG0) / (FOG1 - FOG0);
+    // crowns a step brighter than the fields (the grass ramp is blue-green / dark green), fading to haze
+    int dark = fog > 0.6f ? HAZE : CLR_DARK_GREEN, lite = fog > 0.6f ? HAZE : fog > 0.25f ? CLR_DARK_GREEN : CLR_MEDIUM_GREEN;
+    if (rr < 1.2f) { pset((int)sx, (int)sy, dark); return; }
+    to_cam(T->x, T->y, T->g - 0.2f, &X2, &Y2, &Z2);                   // trunk
+    if (Z2 > NEAR) {
+        float bx = VX0 + X2 * VF / Z2, by = VHZ - Y2 * VF / Z2, tw = fmaxf(1.0f, 0.5f * VF / Z2);
+        rectfill((int)(bx - tw * 0.5f), (int)sy, (int)ceilf(tw), (int)(by - sy) + 1, CLR_BROWNISH_BLACK);
+    }
+    circfill((int)sx, (int)sy, (int)rr, dark);
+    if (rr >= 3 && lite != dark) circfill((int)(sx - rr * 0.25f), (int)(sy - rr * 0.25f), (int)(rr * 0.6f), lite);   // the sun side
+}
+static void draw_roadside_in(int r, int c) {
+    if (g_mirror) return;
+    for (int k = hgc_head[r][c]; k >= 0; k = hgc_next[k]) draw_hedge(&hg[k]);
+    for (int k = trc_head[r][c]; k >= 0; k = trc_next[k]) draw_tree(&tr[k]);
+}
 static void draw_houses_in(int r, int c) { if (g_mirror) return; for (int k = hc_head[r][c]; k >= 0; k = hc_next[k]) draw_house(&hs[k]); }
 // per frame: put each landmark inside the drawn terrain into the FINEST ring cell that holds it
 static void bin_landmarks(void) {
@@ -1909,7 +2016,7 @@ void init(void) {
     // default island: seed 3 (it has every road type, the expressway and its flyovers included),
     // then seed 1; with neither, the endless worldnet world
     ISL = path ? isl_load(path) : (isl_load("../data/islandstudio-3.rvb") || isl_load("../data/islandstudio-1.rvb"));
-    if (ISL) { cv_reset(); cv_direct = 1; isl_find_junctions(); isl_build_decks(); isl_build_houses(); isl_build_landmarks(); isl_build_posts(); cv_direct = 0; }
+    if (ISL) { cv_reset(); cv_direct = 1; isl_find_junctions(); isl_build_decks(); isl_build_houses(); isl_build_landmarks(); isl_build_posts(); roadside_build(); cv_direct = 0; }
     spawn();
     // dev: BR_START="x,y[,heading]" starts the car exactly there (the debug readout's pos), so a spot
     // someone reports can be reproduced
@@ -1926,7 +2033,7 @@ void init(void) {
 
 void update(void) {
     float d = dt();
-    { const char *f = de_dropped_file(); if (f && isl_load(f)) { ISL = 1; cv_reset(); cv_direct = 1; isl_find_junctions(); isl_build_decks(); isl_build_houses(); isl_build_landmarks(); isl_build_posts(); cv_direct = 0; spawn(); } }   // drop an island .rvb
+    { const char *f = de_dropped_file(); if (f && isl_load(f)) { ISL = 1; cv_reset(); cv_direct = 1; isl_find_junctions(); isl_build_decks(); isl_build_houses(); isl_build_landmarks(); isl_build_posts(); roadside_build(); cv_direct = 0; spawn(); } }   // drop an island .rvb
     if (ISL && keyp('L') && nmk > 0) {               // dev: stand 300 m from the next landmark, facing it
         static int lcur = -1;
         if (lcur < 0 && getenv("BR_LMK")) lcur = atoi(getenv("BR_LMK")) - 1;   // dev: start the cycle at landmark n
@@ -1996,7 +2103,7 @@ void update(void) {
     if (ISL) { IHit r = isl_nearest(px, py, NK_BRIDGE, 60);
         watch("brd", "%.1f", r.ok ? r.dist : -1.0f); watch("deckz", "%.1f", (r.ok && ipl_br[r.poly] >= 0) ? deck_h(r.poly, r.s) : -1.0f);
         IHit a2 = isl_nearest(px, py, NK_ANYROAD, 60); watch("road_cls", "%d", a2.ok ? ipl[a2.poly].cls : -1); watch("road_br", "%d", a2.ok ? ipl[a2.poly].bridge : -1); }
-    watch("njunc", "%d", ISL ? nijn : 0); watch("nmk", "%d", nmk); watch("nhs", "%d", nhs); watch("ngp", "%d", ngp); watch("hasz", "%d", isl_hasz); watch("nga", "%d", nga); watch("nhvis", "%d", nhvis);
+    watch("njunc", "%d", ISL ? nijn : 0); watch("nmk", "%d", nmk); watch("nhs", "%d", nhs); watch("ngp", "%d", ngp); watch("nhg", "%d", nhg); watch("ntr", "%d", ntr); watch("nhgv", "%d", nhgv); watch("ntrv", "%d", ntrv); watch("hasz", "%d", isl_hasz); watch("nga", "%d", nga); watch("nhvis", "%d", nhvis);
     if (ISL && nmk > 2) watch("mk2", "%.0f,%.0f k%d", mk[2].x, mk[2].y, mk[2].kind); watch("nbridge", "%d", ISL ? nibr : 0); { int nw = 0; for (int b = 0; ISL && b < nibr; b++) nw += ibr[b].wl > -1e8f; watch("nwet", "%d", nw); } watch("pc_drop", "%d", pc_drop); watch("nbin", "%d", nbin);
     watch("gear", "%d", gear); watch("rpm", "%.2f", rpm_s);
     watch("pitch", "%.3f", pitch); watch("roll", "%.3f", roll); watch("npc", "%d", npc);
@@ -2403,7 +2510,7 @@ void draw(void) {
         }
         p->late = (unsigned char)clear;
     }
-    if (ISL) { bin_landmarks(); bin_houses(); }
+    if (ISL) { bin_landmarks(); bin_houses(); roadside_bin(); }
     for (int r = NRING - 1; r >= 0; r--) draw_ring(r);
     g_deckpass = 1;                                     // near decks over everything (still far → near)
     for (int r = ROAD_RINGS - 1; r >= 0; r--) draw_ring(r);

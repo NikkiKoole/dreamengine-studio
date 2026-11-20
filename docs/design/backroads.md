@@ -667,6 +667,18 @@ The test autopilot now follows the road it is on by arc length (its old "nearest
 25 m ahead" jumped to the next hairpin leg) and slows to 11 m/s on tracks: it climbs the mast road
 at ~10 %.
 
+### 2026-11-20: hedges, walls and trees (islandstudio roadmap item 3)
+
+The export carries them as real OSM does (no new kinds): `other_line` with sub `barrier=hedge` /
+`barrier=wall`, and `tree` points with their height in the feature's h. Seed 3: ~1,075 km of hedge,
+~306 km of wall, 56,819 trees, all within ~40 m of a road; main roads ~45 % open so A roads feel
+open and lanes enclosed. backroads cuts the lines into <= 16 m pieces (100k), buckets everything on
+250 m cells, grounds each on the carved ground the first time it is near, and bins the near ones
+into ring cells (hedges within 600 m, trees within 900 m, trees farthest-first). A hedge or wall is an
+upright 1.7 m / 1.1 m strip (forest / rock ramp); a tree is a trunk plus a round crown drawn in
+screen space, a lit circle offset toward the sun, a step brighter than the fields so it reads
+against them. Not in the mirror. ~2.9 ms work on a hedged country road.
+
 ## 11. Open questions — to be answered by playing
 
 - **How unforgiving?** Can a bust cost everything (start over), or is it always a painful,

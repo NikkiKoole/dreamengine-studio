@@ -119,6 +119,7 @@ enum { IC_LAND, IC_WATER, IC_SAND, IC_FARM, IC_WOOD, IC_HEATH, IC_SCRUB, IC_ROCK
 #define IPT_MAX 320000
 typedef struct { int start, n; unsigned char cls, bridge, river; } IPoly;
 static IPoly ipl[IPL_MAX]; static int nipl;
+static float ipl_wl[IPL_MAX];                     // per poly: the water level a bridge spans (from the export), -1e9 = none
 static float ipx[IPT_MAX], ipy[IPT_MAX], ipS[IPT_MAX];   // points + arc length along their poly
 static int   ip_poly[IPT_MAX], ib_next[IPT_MAX];
 static int   nipt;
@@ -212,6 +213,7 @@ static int isl_load(const char *path) {
             IPoly *q = &ipl[nipl];
             q->start = nipt; q->n = np; q->cls = (unsigned char)(cls >= 0 ? cls : CL_DIRT);
             q->bridge = sub[0] == 'B'; q->river = kind == 5;
+            { const char *w = strstr(sub, "water="); ipl_wl[nipl] = w ? (float)atof(w + 6) : -1e9f; }   // "B1;water=<m>": the surface it spans
             float S = 0;
             for (int k = 0; k < np; k++) {
                 int g = nipt + k;
@@ -660,7 +662,7 @@ static void isl_build_decks(void) {
     for (int q = 0; q < nipl && nibr < IBR_MAX; q++) {
         if (!ipl[q].bridge || ipl[q].river) continue;
         IBr *B = &ibr[nibr]; int a = ipl[q].start, e = a + ipl[q].n - 1;
-        B->q = q; B->L = ipS[e] - ipS[a]; B->nc = 0; B->wl = -1e9f;
+        B->q = q; B->L = ipS[e] - ipS[a]; B->nc = 0; B->wl = ipl_wl[q];
         B->g0 = ground(ipx[a], ipy[a]); B->g1 = ground(ipx[e], ipy[e]);
         for (int g = 0, k = a; g < IBR_GS; g++) {         // the ground under the span, every L/32
             float sg = B->L * g / (IBR_GS - 1);

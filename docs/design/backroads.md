@@ -647,6 +647,26 @@ shows each route's shield once per screen, on its longest visible piece. Dev: `B
 out along post n's first arm, facing it. (Gotcha hit on the way: anything drawn after the mirror
 pass must not use cfx/cfy, which the mirror leaves pointing backwards.)
 
+### 2026-11-20: graded road heights (islandstudio roadmap item 5, moved ahead of 3 and 4)
+
+islandstudio now exports a height for every road point (an optional `RZ01` block after the
+heightfield: feature index, n, z[n]; densified to <= 15 m so linear z follows the profile): grade
+limited (main 8 %, secondary 10 %, lanes/tracks 12 %, the mast road 15 %), vertical curves smoothed,
+equal at junctions, and decks included (river bridges, water spans +4 m, flyovers >= 7 m clear).
+backroads, when the block is present:
+- **decks** take their height from it (`deck_h` -> `iz_at`); the old deck profile is only the fallback;
+- **the car rides the road's own z** on a graded road (`wheel_h`);
+- **the ground is carved to meet the road** (`carve_off`): pulled to the road's z out to hw + 8 m
+  (one ring-0 cell, so the triangles a road lies on are level with it), then faded back over 1.5x
+  the height difference (4-30 m): cuttings and embankments. Necessary anyway: the export's
+  heightfield is 156 m coarse and disagrees with islandstudio's 39 m ground by metres either way.
+  Bridges and rivers never pull the ground. The offset is cached on an 8 m world grid in lazily filled
+  256 m tiles within 1.3 km (ring vertices land on samples exactly); load-time grounding of houses,
+  posts and landmarks evaluates it directly. `[` / `]` reset the cache.
+The test autopilot now follows the road it is on by arc length (its old "nearest road to a point
+25 m ahead" jumped to the next hairpin leg) and slows to 11 m/s on tracks: it climbs the mast road
+at ~10 %.
+
 ## 11. Open questions — to be answered by playing
 
 - **How unforgiving?** Can a bust cost everything (start over), or is it always a painful,

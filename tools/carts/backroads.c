@@ -125,6 +125,13 @@ typedef struct { int start, n; unsigned char cls, bridge, river; } IPoly;
 static IPoly ipl[IPL_MAX]; static int nipl;
 static float ipl_wl[IPL_MAX];                     // per poly: the water level a bridge spans (from the export), -1e9 = none
 static float ipx[IPT_MAX], ipy[IPT_MAX], ipS[IPT_MAX];   // points + arc length along their poly
+// GRADED ROAD HEIGHTS (islandstudio roadmap item 5): the export's optional "RZ01" block after the
+// heightfield gives every road point its own height (grade-limited, smoothed, equal at junctions,
+// decks included). Present = roads, decks and the car ride THAT; the ground is carved to meet it.
+static float ipz[IPT_MAX];
+static const float HW[5] = { 7.0f, 4.5f, 3.6f, 3.0f, 2.0f };   // motorway → dirt
+static unsigned char ipl_hasz[IPL_MAX];
+static int isl_hasz;
 static int   ip_poly[IPT_MAX], ib_next[IPT_MAX];
 static int   nipt;
 #define IBG 160                                   // 250 m buckets of segments (keyed by end point)
@@ -213,6 +220,7 @@ static int isl_load(const char *path) {
     if (!buf || fread(buf, 1, (size_t)len, f) != (size_t)len) { fclose(f); free(buf); return 0; }
     fclose(f);
     unsigned char *p = buf, *end = buf + len;
+    int *fpoly = NULL;
     #define RD(T, v) do { if (p + sizeof(T) > end) goto bad; memcpy(&(v), p, sizeof(T)); p += sizeof(T); } while (0)
     if (memcmp(p, "RVB", 3) != 0) goto bad;
     int ver = p[3] - '0'; p += 4;
@@ -224,6 +232,10 @@ static int isl_load(const char *path) {
     nipl = nipt = niset = nifarm = nhs = nga = ngp = 0; ihg = 0;
     memset(icv, IC_LAND, sizeof icv); memset(iwm, 0, sizeof iwm);
     for (int i = 0; i < IBG * IBG; i++) ib_head[i] = -1;
+    fpoly = (int *)malloc((size_t)(nfeat > 0 ? nfeat : 1) * sizeof(int));   // feature index -> poly (for RZ01)
+    if (!fpoly) goto bad;
+    for (int fi = 0; fi < nfeat; fi++) fpoly[fi] = -1;
+    isl_hasz = 0;
     for (int fi = 0; fi < nfeat; fi++) {
         int kind, sl, np; float fh = 0; char sub[128] = { 0 };
         RD(int, kind); if (ver >= 2) RD(float, fh);
@@ -255,6 +267,7 @@ static int isl_load(const char *path) {
                     ib_next[g] = ib_head[b]; ib_head[b] = g;
                 }
             }
+            fpoly[fi] = nipl; ipl_hasz[nipl] = 0;
             nipt += np; nipl++;
         } else if (np >= 3 && (kind == 4 || kind == 7 || kind == 12 || kind == 14 || kind == 22)) {   // cover areas
             int c = kind == 4 ? IC_WATER : kind == 7 ? IC_WOOD : kind == 12 ? IC_FARM : kind == 14 ? IC_SAND
@@ -333,12 +346,27 @@ static int isl_load(const char *path) {
     }
     if (ver >= 3 && p + 4 <= end) {
         int g; memcpy(&g, p, 4); p += 4;
-        if (g > 1 && g <= IHF_MAX && p + (long)g * g * 4 <= end) { ihg = g; memcpy(ihf, p, (size_t)g * g * 4); }
+        if (g > 1 && g <= IHF_MAX && p + (long)g * g * 4 <= end) { ihg = g; memcpy(ihf, p, (size_t)g * g * 4); p += (long)g * g * 4; }
+    }
+    if (p + 8 <= end && !memcmp(p, "RZ01", 4)) {          // per-point road heights
+        p += 4; int cnt; RD(int, cnt);
+        for (int e = 0; e < cnt; e++) {
+            int fi, n; RD(int, fi); RD(int, n);
+            if (n < 0 || p + (long)n * 4 > end) goto bad;
+            int q = fi >= 0 && fi < nfeat ? fpoly[fi] : -1;
+            if (q >= 0 && ipl[q].n == n) {
+                memcpy(&ipz[ipl[q].start], p, (size_t)n * 4);
+                ipl_hasz[q] = 1; isl_hasz = 1;
+            }
+            p += (long)n * 4;
+        }
     }
     #undef RD
+    free(fpoly);
     free(buf);
     return ihg > 0 && nipl > 0;
 bad:
+    free(fpoly);
     free(buf);
     return 0;
 }
@@ -359,11 +387,80 @@ static float detail_at(float x, float y, float t) {
 // Rivers: worldnet stamps them as a flat -0.5 (a step down to sea level, a 200 m slot canyon
 // from a cockpit). Bed them RIVER_CUT metres below the land they cut through instead.
 #define RIVER_CUT 3.0f
+// ── CARVE: with graded road heights the ground must MEET the road. The export's heightfield is 156 m
+// coarse, so near a road it disagrees with islandstudio's finer ground by metres either way: the
+// ground is pulled to the road's own z out to hw + 8 m (a ring-0 cell, so the triangles a road lies on
+// are level with it), then fades back over 1.5 x the height difference (an embankment / cutting
+// slope, 4-30 m). Bridges and rivers are skipped (a deck never pulls the ground up). The offset is
+// cached on an 8 m world grid in lazily-filled 256 m tiles near the car (ring vertices land on the
+// samples exactly); load-time callers (house / post / landmark grounding) evaluate it directly.
+#define CV_S   8.0f
+#define CV_T   32
+#define CV_NT  1024
+#define CV_R   1300.0f
+typedef struct { int ti, tj; float d[CV_T * CV_T]; unsigned char ok[CV_T * CV_T]; } CvTile;
+static CvTile *cvt;
+static int cv_direct;                                   // 1 while load-time builders run
+static void cv_reset(void) {
+    if (!cvt) cvt = (CvTile *)malloc(sizeof(CvTile) * CV_NT);
+    if (cvt) for (int k = 0; k < CV_NT; k++) cvt[k].ti = 0x7fffffff;
+}
+static float iz_at(int q, float s) {                    // a road's own height at arc length s
+    int a = ipl[q].start, b = a + ipl[q].n - 1;
+    if (s <= ipS[a]) return ipz[a];
+    if (s >= ipS[b]) return ipz[b];
+    while (b - a > 1) { int m = (a + b) / 2; if (ipS[m] <= s) a = m; else b = m; }
+    float l = ipS[b] - ipS[a];
+    return ipz[a] + (ipz[b] - ipz[a]) * (l > 0 ? (s - ipS[a]) / l : 0);
+}
+static float carve_off(float x, float y, float nat) {   // metres to add to the natural ground here
+    int bx = ib_of(x, isl_W), by = ib_of(y, isl_H);
+    float bw = 0, bz = nat, bd = 1e30f;
+    for (int j = by - 1; j <= by + 1; j++) for (int i = bx - 1; i <= bx + 1; i++) {
+        if (i < 0 || j < 0 || i >= IBG || j >= IBG) continue;
+        for (int k = ib_head[j * IBG + i]; k >= 0; k = ib_next[k]) {
+            int q = ip_poly[k]; const IPoly *P = &ipl[q];
+            if (P->river || P->bridge || !ipl_hasz[q]) continue;
+            float ax = ipx[k - 1], ay = ipy[k - 1], dx = ipx[k] - ax, dy = ipy[k] - ay, l2 = dx * dx + dy * dy + 1e-6f;
+            float t = clamp(((x - ax) * dx + (y - ay) * dy) / l2, 0, 1);
+            float ex = ax + dx * t - x, ey = ay + dy * t - y, d2 = ex * ex + ey * ey;
+            float inner = HW[P->cls] + 8.0f;
+            if (d2 > (inner + 30.0f) * (inner + 30.0f)) continue;
+            float d = fsqrt(d2), zr = ipz[k - 1] + (ipz[k] - ipz[k - 1]) * t;
+            float span = clamp(fabsf(zr - nat) * 1.5f, 4.0f, 30.0f), w = 1.0f;
+            if (d > inner) { float u = clamp((d - inner) / span, 0, 1); w = 1.0f - u * u * (3 - 2 * u); }
+            if (w <= 0) continue;
+            if (w > bw + 1e-4f || (w > bw - 1e-4f && d < bd)) { bw = w; bz = zr; bd = d; }
+        }
+    }
+    return (bz - nat) * bw;
+}
+static float cv_sample(int I, int J, float nat) {      // the cached offset at grid sample (I, J)
+    int ti = I >= 0 ? I / CV_T : (I + 1) / CV_T - 1, tj = J >= 0 ? J / CV_T : (J + 1) / CV_T - 1;
+    unsigned hsh = ((unsigned)ti * 73856093u ^ (unsigned)tj * 19349663u) % CV_NT;
+    CvTile *T = &cvt[hsh];
+    if (T->ti != ti || T->tj != tj) { T->ti = ti; T->tj = tj; memset(T->ok, 0, sizeof T->ok); }
+    int c = (J - tj * CV_T) * CV_T + (I - ti * CV_T);
+    if (!T->ok[c]) { T->d[c] = carve_off(I * CV_S, J * CV_S, nat); T->ok[c] = 1; }
+    return T->d[c];
+}
+static float hgt_nat(float x, float y, float t);
+static float carve_at(float x, float y, float nat) {
+    if (cv_direct || !cvt) return carve_off(x, y, nat);
+    float dx = x - px, dy = y - py;
+    if (dx * dx + dy * dy > CV_R * CV_R) return 0;
+    float fx = x / CV_S, fy = y / CV_S; int I = (int)floorf(fx), J = (int)floorf(fy);
+    float u = fx - I, v = fy - J;
+    if (u < 1e-4f && v < 1e-4f) return cv_sample(I, J, nat);          // a ring vertex: exactly on a sample
+    float n00 = hgt_nat(I * CV_S, J * CV_S, 1), n10 = hgt_nat((I + 1) * CV_S, J * CV_S, 1);
+    float n01 = hgt_nat(I * CV_S, (J + 1) * CV_S, 1), n11 = hgt_nat((I + 1) * CV_S, (J + 1) * CV_S, 1);
+    float a = cv_sample(I, J, n00), b = cv_sample(I + 1, J, n10), c = cv_sample(I, J + 1, n01), e = cv_sample(I + 1, J + 1, n11);
+    return (a * (1 - u) + b * u) * (1 - v) + (c * (1 - u) + e * u) * v;
+}
 static float hgt_xy(float x, float y, float t) {
-    if (ISL) {                                     // the island has real relief: only a few metres of
-        float h = isl_h(x, y);                     // driving-scale bumps on top ([ ] scales them)
-        if (t > 0) h += detail * 0.08f * ((noise2(x / 180.0f + 2.1f, y / 180.0f + 77.0f) - 0.5f)
-                                        + 0.4f * (noise2(x / 45.0f + 5.3f, y / 45.0f + 9.1f) - 0.5f));
+    if (ISL) {
+        float h = hgt_nat(x, y, t);
+        if (isl_hasz) h += carve_at(x, y, h);      // meet the graded roads
         return h;
     }
     if (t == -0.5f) {
@@ -371,6 +468,12 @@ static float hgt_xy(float x, float y, float t) {
         if (b > 0) return fmaxf(0, b * vscale + detail_at(x, y, b) - RIVER_CUT);
     }
     return t > 0 ? t * vscale + detail_at(x, y, t) : 0;
+}
+static float hgt_nat(float x, float y, float t) {     // the island's natural ground (no carving)
+    float h = isl_h(x, y);                         // real relief + a few metres of driving-scale bumps ([ ] scales them)
+    if (t > 0) h += detail * 0.08f * ((noise2(x / 180.0f + 2.1f, y / 180.0f + 77.0f) - 0.5f)
+                                    + 0.4f * (noise2(x / 45.0f + 5.3f, y / 45.0f + 9.1f) - 0.5f));
+    return h;
 }
 static float ground(float x, float y) { return hgt_xy(x, y, raw_at(x, y)); }
 
@@ -656,7 +759,6 @@ static void edge_pt(const REdge *e, int i, float t, float *ox, float *oy) {
 
 // the cart's OWN carriageway half-widths (m): worldnet's (12/7/5/3.5/2.5) read as runways
 // from a 1.2 m eye height. These are 1970s country roads: two narrow lanes, a single track.
-static const float HW[5] = { 7.0f, 4.5f, 3.6f, 3.0f, 2.0f };   // motorway → dirt
 #define ROAD_NEAR  1150.0f      // build road pieces within this range (ring 1 reach)
 // ── JUNCTIONS: where three or more road ends meet (the export splits roads at every junction, so
 // arms end exactly on the node). Each node keeps its arms: bearing out of the node, half-width,
@@ -779,6 +881,7 @@ static void isl_build_decks(void) {
     }
 }
 static float deck_h(int q, float s) {             // s = arc length along the WHOLE poly list (ipS)
+    if (ipl_hasz[q]) return iz_at(q, s);               // the export owns deck heights (RZ01); the rest is the fallback
     const IBr *B = &ibr[ipl_br[q]];
     float sr = clamp(s - ipS[ipl[q].start], 0, B->L);
     float base = B->g0 + (B->g1 - B->g0) * (B->L > 0 ? sr / B->L : 0), z = base;
@@ -1624,6 +1727,9 @@ static float wheel_h(float x, float y, float rough) {
         if (r.ok && ipl_br[r.poly] >= 0 && r.dist <= HW[ipl[r.poly].cls] + 0.6f) {
             float zd = deck_h(r.poly, r.s), here = camh - EYE;
             if (fabsf(zd - here) < fabsf(g - here) + 0.5f) g = zd;
+        } else if (isl_hasz) {                          // on a graded road: ride its own profile
+            IHit rr = isl_nearest(x, y, NK_ROAD, 12);
+            if (rr.ok && ipl_hasz[rr.poly] && rr.dist <= HW[ipl[rr.poly].cls] + 0.6f) g = iz_at(rr.poly, rr.s);
         }
     }
     if (t == -0.5f && wn_road_at(x, y).on_road) {         // bridge: ride the deck, not the river bed
@@ -1639,9 +1745,26 @@ static int autop;
 static float autopilot_steer(void) {
     float fx = cosf(head * D2R), fy = sinf(head * D2R);
     float ax = px + fx * 25, ay = py + fy * 25, best = 1e30f, bx = ax, by = ay, tx = fx, ty = fy;
-    if (ISL) {
-        IHit h = isl_nearest(ax, ay, NK_ANYROAD, 60);
-        if (h.ok) { bx = h.qx; by = h.qy; tx = h.tx; ty = h.ty; }
+    float keep = 1.8f;
+    if (ISL) {                                          // follow the road the car is ON, by arc length (a
+        IHit h0 = isl_nearest(px, py, NK_ANYROAD, 40);   // look-ahead point's nearest road jumps to the next hairpin leg)
+        if (h0.ok) {
+            int q = h0.poly, a = ipl[q].start, e = a + ipl[q].n - 1;
+            float v = fsqrt(vx * vx + vy * vy), L = clamp(v * 0.9f, 7.0f, 25.0f);
+            int fwd = h0.tx * fx + h0.ty * fy >= 0;
+            float st = h0.s + (fwd ? L : -L);
+            if (st >= ipS[a] && st <= ipS[e]) {
+                int i0 = a, i1 = e;
+                while (i1 - i0 > 1) { int m = (i0 + i1) / 2; if (ipS[m] <= st) i0 = m; else i1 = m; }
+                float l = ipS[i1] - ipS[i0], u = l > 0 ? (st - ipS[i0]) / l : 0;
+                bx = ipx[i0] + (ipx[i1] - ipx[i0]) * u; by = ipy[i0] + (ipy[i1] - ipy[i0]) * u;
+                tx = ipx[i1] - ipx[i0]; ty = ipy[i1] - ipy[i0];
+            } else {                                    // past this line's end: the nearest road there
+                IHit h = isl_nearest(px + fx * L, py + fy * L, NK_ANYROAD, 60);
+                if (h.ok) { bx = h.qx; by = h.qy; tx = h.tx; ty = h.ty; }
+            }
+            keep = fminf(1.8f, HW[ipl[q].cls] * 0.4f);
+        }
     } else {
     eg_ensure(px, py);
     for (int e = 0; e < eg_n; e++) {
@@ -1660,7 +1783,7 @@ static float autopilot_steer(void) {
     float tl = fsqrt(tx * tx + ty * ty); if (tl <= 0) return 0;
     tx /= tl; ty /= tl;
     if (tx * fx + ty * fy < 0) { tx = -tx; ty = -ty; }       // travel direction
-    bx += -ty * 1.8f; by += tx * 1.8f;                        // keep right
+    bx += -ty * keep; by += tx * keep;                        // keep right
     float want = atan2f(by - py, bx - px) / D2R, diff = want - head;
     while (diff > 180) diff -= 360; while (diff < -180) diff += 360;
     return clamp(diff / 8.0f, -1, 1);
@@ -1706,7 +1829,11 @@ static void drive(float d) {
     float st = (btn(0, BTN_RIGHT) ? 1.0f : 0) - (btn(0, BTN_LEFT) ? 1.0f : 0);
 #ifdef DE_TRACE
     if (keyp('P')) autop = !autop;
-    if (autop) { st = autopilot_steer(); float v = fsqrt(vx*vx + vy*vy); gas = v < 22; brk = v > 26; }
+    if (autop) {                                      // cruise at 22 m/s, slower on narrow tracks (hairpins)
+        st = autopilot_steer(); float v = fsqrt(vx*vx + vy*vy), lim = 22.0f;
+        if (ISL) { IHit h = isl_nearest(px, py, NK_ANYROAD, 20); if (h.ok && ipl[h.poly].cls == CL_DIRT) lim = 11.0f; }
+        gas = v < lim; brk = v > lim + 4;
+    }
 #endif
     pedal = gas ? 1.0f : 0.0f;
     // keyboard steering: turn in over ~0.4 s, return to centre a bit faster (was 0→full in ~0.17 s:
@@ -1782,7 +1909,7 @@ void init(void) {
     // default island: seed 3 (it has every road type, the expressway and its flyovers included),
     // then seed 1; with neither, the endless worldnet world
     ISL = path ? isl_load(path) : (isl_load("../data/islandstudio-3.rvb") || isl_load("../data/islandstudio-1.rvb"));
-    if (ISL) { isl_find_junctions(); isl_build_decks(); isl_build_houses(); isl_build_landmarks(); isl_build_posts(); }
+    if (ISL) { cv_reset(); cv_direct = 1; isl_find_junctions(); isl_build_decks(); isl_build_houses(); isl_build_landmarks(); isl_build_posts(); cv_direct = 0; }
     spawn();
     // dev: BR_START="x,y[,heading]" starts the car exactly there (the debug readout's pos), so a spot
     // someone reports can be reproduced
@@ -1799,7 +1926,7 @@ void init(void) {
 
 void update(void) {
     float d = dt();
-    { const char *f = de_dropped_file(); if (f && isl_load(f)) { ISL = 1; isl_find_junctions(); isl_build_decks(); isl_build_houses(); isl_build_landmarks(); isl_build_posts(); spawn(); } }   // drop an island .rvb
+    { const char *f = de_dropped_file(); if (f && isl_load(f)) { ISL = 1; cv_reset(); cv_direct = 1; isl_find_junctions(); isl_build_decks(); isl_build_houses(); isl_build_landmarks(); isl_build_posts(); cv_direct = 0; spawn(); } }   // drop an island .rvb
     if (ISL && keyp('L') && nmk > 0) {               // dev: stand 300 m from the next landmark, facing it
         static int lcur = -1;
         if (lcur < 0 && getenv("BR_LMK")) lcur = atoi(getenv("BR_LMK")) - 1;   // dev: start the cycle at landmark n
@@ -1856,6 +1983,7 @@ void update(void) {
     }
     if (key('-')) vscale = clamp(vscale - 300 * d, 100, 4000);
     if (key('=')) vscale = clamp(vscale + 300 * d, 100, 4000);
+    if (key('[') || key(']')) cv_reset();                  // the carve cache holds offsets from the natural ground
     if (key('[')) detail = clamp(detail - 40 * d, 0, 400);
     if (key(']')) detail = clamp(detail + 40 * d, 0, 400);
     drive(d);
@@ -1868,7 +1996,7 @@ void update(void) {
     if (ISL) { IHit r = isl_nearest(px, py, NK_BRIDGE, 60);
         watch("brd", "%.1f", r.ok ? r.dist : -1.0f); watch("deckz", "%.1f", (r.ok && ipl_br[r.poly] >= 0) ? deck_h(r.poly, r.s) : -1.0f);
         IHit a2 = isl_nearest(px, py, NK_ANYROAD, 60); watch("road_cls", "%d", a2.ok ? ipl[a2.poly].cls : -1); watch("road_br", "%d", a2.ok ? ipl[a2.poly].bridge : -1); }
-    watch("njunc", "%d", ISL ? nijn : 0); watch("nmk", "%d", nmk); watch("nhs", "%d", nhs); watch("ngp", "%d", ngp); watch("nga", "%d", nga); watch("nhvis", "%d", nhvis);
+    watch("njunc", "%d", ISL ? nijn : 0); watch("nmk", "%d", nmk); watch("nhs", "%d", nhs); watch("ngp", "%d", ngp); watch("hasz", "%d", isl_hasz); watch("nga", "%d", nga); watch("nhvis", "%d", nhvis);
     if (ISL && nmk > 2) watch("mk2", "%.0f,%.0f k%d", mk[2].x, mk[2].y, mk[2].kind); watch("nbridge", "%d", ISL ? nibr : 0); { int nw = 0; for (int b = 0; ISL && b < nibr; b++) nw += ibr[b].wl > -1e8f; watch("nwet", "%d", nw); } watch("pc_drop", "%d", pc_drop); watch("nbin", "%d", nbin);
     watch("gear", "%d", gear); watch("rpm", "%.2f", rpm_s);
     watch("pitch", "%.3f", pitch); watch("roll", "%.3f", roll); watch("npc", "%d", npc);

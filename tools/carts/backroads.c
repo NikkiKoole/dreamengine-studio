@@ -959,6 +959,7 @@ static void draw_post(const Post *q) {
 // over it (grass wedges across a flyover). Far decks keep the per-cell order, so a hill still hides them.
 #define DECK_NEAR 250.0f
 static int g_deckpass;                     // 0: terrain + ground roads (+ far decks); 1: near decks only
+static void draw_landmarks_in(int r, int c);   // the landmarks standing in ring r's cell c (defined with them)
 static void draw_cell(int r, int i, int j) {
     int n1 = RN[r] + 1;
     if (in_finer(r, rx0[r] + i * RS[r], ry0[r] + j * RS[r], RS[r])) return;
@@ -991,6 +992,7 @@ static void draw_cell(int r, int i, int j) {
         if (r == 0 && !g_deckpass)
             for (int q = pst_head[c]; q >= 0; q = pst_next[q]) draw_post(&pst[q]);
     }
+    if (!g_deckpass && ISL) draw_landmarks_in(r, j * RN[r] + i);
 }
 
 static void draw_ring(int r) {
@@ -1033,6 +1035,167 @@ static void quad_roll(float x0, float y0, float x1, float y1, int col) {   // ax
 // land reaches (minus the Earth's curvature) in three distance bands. Far bands are paler and bluer
 // (aerial perspective) and drawn first; nearer ridges overlap them; the near terrain covers it all.
 // Heights are exaggerated with distance (see below): physically true, far mountains were 3-6 px.
+// ── LANDMARKS: what you see from far away and steer for. Every town gets a church with a spire and a
+// water tower, every village a church, some hamlets a grain silo; each stands beside the road near the
+// settlement centre. Near (inside the drawn terrain) they're flat-shaded 3D shapes drawn in painter's
+// order with their cell, so hills hide them; past the terrain they're silhouettes in the skyline pass.
+// A true 30 m spire is ~2 px at 3 km through this windscreen, so they're SCALED WITH DISTANCE about
+// their base (x1 up close, ~x5 at 3.5 km, more beyond), like the skyline's exaggeration.
+enum { MK_CHURCH, MK_WATERTOWER, MK_SILO };
+typedef struct { float x, y, g, ang; int kind; } Mark;
+#define MK_MAX 600
+static Mark mk[MK_MAX]; static int nmk;
+static int mk_head[NRING][32 * 32], mk_next[MK_MAX];
+static const float MK_TOP[3] = { 36.0f, 28.0f, 18.0f };           // overall height (m)
+static float mk_scale(float d) {
+    return 1.0f + 4.0f * clamp((d - 500.0f) / 3000.0f, 0, 1) + 6.0f * clamp((d - 3500.0f) / 10000.0f, 0, 1);
+}
+static void isl_build_landmarks(void) {
+    nmk = 0;
+    for (int s = 0; s < niset; s++) {
+        unsigned h = (unsigned)(iset[s].x * 13.0f) * 2654435761u ^ (unsigned)(iset[s].y * 7.0f);
+        int kinds[2], nk = 0;
+        if (iset[s].rank == 2) { kinds[nk++] = MK_CHURCH; kinds[nk++] = MK_WATERTOWER; }
+        else if (iset[s].rank == 1) kinds[nk++] = MK_CHURCH;
+        else if ((h >> 7) % 3 == 0) kinds[nk++] = MK_SILO;
+        for (int q = 0; q < nk && nmk < MK_MAX; q++) {
+            // a free spot near the centre: a spiral out until no road within ~16 m
+            float bx = iset[s].x, by = iset[s].y, fx = bx, fy = by; int found = 0;
+            for (int t = 0; t < 60 && !found; t++) {
+                float a = t * 2.4f + q * 1.3f, r = 25.0f + t * 4.0f + q * 60.0f;
+                float cx = bx + cosf(a) * r, cy = by + sinf(a) * r;
+                IHit rd = isl_nearest(cx, cy, NK_ANYROAD, 40);
+                if ((!rd.ok || rd.dist > 16.0f) && raw_at(cx, cy) > 0) { fx = cx; fy = cy; found = 1; }
+            }
+            if (!found) continue;
+            IHit rd = isl_nearest(fx, fy, NK_ANYROAD, 200);              // face the road
+            Mark *m = &mk[nmk++];
+            m->x = fx; m->y = fy; m->g = ground(fx, fy); m->kind = kinds[q];
+            m->ang = rd.ok ? atan2f(rd.ty, rd.tx) : 0;
+        }
+    }
+}
+
+// one convex face in world coords; outward = away from the part's centre (pcx,pcy,pcz). Drawn only if it
+// faces the camera, lit by the same low sun as the terrain.
+static void mk_face(float (*P)[3], int n, float pcx, float pcy, float pcz, int band, float lumk) {
+    float ux = P[1][0] - P[0][0], uy = P[1][1] - P[0][1], uz = P[1][2] - P[0][2];
+    float vx = P[2][0] - P[0][0], vy = P[2][1] - P[0][1], vz = P[2][2] - P[0][2];
+    float nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx;
+    float nl = fsqrt(nx * nx + ny * ny + nz * nz) + 1e-6f; nx /= nl; ny /= nl; nz /= nl;
+    if (nx * (P[0][0] - pcx) + ny * (P[0][1] - pcy) + nz * (P[0][2] - pcz) < 0) { nx = -nx; ny = -ny; nz = -nz; }
+    if (nx * (px - P[0][0]) + ny * (py - P[0][1]) + nz * (camh - P[0][2]) <= 0) return;   // back face
+    float lum = clamp(0.35f + 0.55f * (nx * SUNX + ny * SUNY + nz * SUNZ) * lumk + 0.15f, 0.05f, 0.95f);
+    float X[8], Y[8], Z[8];
+    for (int i = 0; i < n; i++) to_cam(P[i][0], P[i][1], P[i][2], &X[i], &Y[i], &Z[i]);
+    g_outline = 0;
+    fill_cam(X, Y, Z, n, band, lum);
+}
+// a box (local u along the landmark's facing, v across; metres, z up) scaled by s about the base
+static void mk_box(const Mark *m, float s, float u0, float u1, float v0, float v1, float z0, float z1, int band) {
+    float ca = cosf(m->ang), sa = sinf(m->ang), C[4][2];
+    float uu[4] = { u0, u1, u1, u0 }, vv[4] = { v0, v0, v1, v1 };
+    for (int k = 0; k < 4; k++) { C[k][0] = m->x + (uu[k] * ca - vv[k] * sa) * s; C[k][1] = m->y + (uu[k] * sa + vv[k] * ca) * s; }
+    float zb = m->g + z0 * s, zt = m->g + z1 * s;
+    float pcx = (C[0][0] + C[2][0]) * 0.5f, pcy = (C[0][1] + C[2][1]) * 0.5f, pcz = (zb + zt) * 0.5f;
+    for (int k = 0; k < 4; k++) {
+        int k2 = (k + 1) % 4;
+        float F[4][3] = { { C[k][0], C[k][1], zb }, { C[k2][0], C[k2][1], zb }, { C[k2][0], C[k2][1], zt }, { C[k][0], C[k][1], zt } };
+        mk_face(F, 4, pcx, pcy, pcz, band, 1.0f);
+    }
+    float T[4][3] = { { C[0][0], C[0][1], zt }, { C[1][0], C[1][1], zt }, { C[2][0], C[2][1], zt }, { C[3][0], C[3][1], zt } };
+    mk_face(T, 4, pcx, pcy, pcz, band, 1.0f);
+}
+// a pyramid / spire over a rectangle, apex at height za
+static void mk_spire(const Mark *m, float s, float u0, float u1, float v0, float v1, float z0, float za, int band) {
+    float ca = cosf(m->ang), sa = sinf(m->ang), C[4][2];
+    float uu[4] = { u0, u1, u1, u0 }, vv[4] = { v0, v0, v1, v1 };
+    for (int k = 0; k < 4; k++) { C[k][0] = m->x + (uu[k] * ca - vv[k] * sa) * s; C[k][1] = m->y + (uu[k] * sa + vv[k] * ca) * s; }
+    float ax = (C[0][0] + C[2][0]) * 0.5f, ay = (C[0][1] + C[2][1]) * 0.5f, zb = m->g + z0 * s, zt = m->g + za * s;
+    for (int k = 0; k < 4; k++) {
+        int k2 = (k + 1) % 4;
+        float F[3][3] = { { C[k][0], C[k][1], zb }, { C[k2][0], C[k2][1], zb }, { ax, ay, zt } };
+        mk_face(F, 3, ax, ay, (zb + zt) * 0.5f, band, 1.0f);
+    }
+}
+// a gable roof along u over a rectangle: two slopes + two gable ends, ridge at height zr
+static void mk_gable(const Mark *m, float s, float u0, float u1, float v0, float v1, float z0, float zr, int band) {
+    float ca = cosf(m->ang), sa = sinf(m->ang);
+    #define MKP(u, v, z, o) { o[0] = m->x + ((u) * ca - (v) * sa) * s; o[1] = m->y + ((u) * sa + (v) * ca) * s; o[2] = m->g + (z) * s; }
+    float vm = (v0 + v1) * 0.5f, pcx, pcy, pcz;
+    float c[3]; MKP((u0 + u1) * 0.5f, vm, (z0 + zr) * 0.5f, c); pcx = c[0]; pcy = c[1]; pcz = c[2];
+    float S1[4][3], S2[4][3], E1[3][3], E2[3][3];
+    MKP(u0, v0, z0, S1[0]); MKP(u1, v0, z0, S1[1]); MKP(u1, vm, zr, S1[2]); MKP(u0, vm, zr, S1[3]);
+    MKP(u0, v1, z0, S2[0]); MKP(u1, v1, z0, S2[1]); MKP(u1, vm, zr, S2[2]); MKP(u0, vm, zr, S2[3]);
+    MKP(u0, v0, z0, E1[0]); MKP(u0, v1, z0, E1[1]); MKP(u0, vm, zr, E1[2]);
+    MKP(u1, v0, z0, E2[0]); MKP(u1, v1, z0, E2[1]); MKP(u1, vm, zr, E2[2]);
+    #undef MKP
+    mk_face(S1, 4, pcx, pcy, pcz, band, 1.0f); mk_face(S2, 4, pcx, pcy, pcz, band, 1.0f);
+    mk_face(E1, 3, pcx, pcy, pcz, B_HAY, 1.0f); mk_face(E2, 3, pcx, pcy, pcz, B_HAY, 1.0f);
+}
+static void draw_landmark(const Mark *m) {
+    float d = fsqrt((m->x - px) * (m->x - px) + (m->y - py) * (m->y - py)), s = mk_scale(d);
+    switch (m->kind) {
+    case MK_CHURCH: {                                     // nave + slate roof, then the tower + spire
+        int tower_near = (cosf(m->ang) * (px - m->x) + sinf(m->ang) * (py - m->y)) > 0;   // tower end toward camera?
+        if (tower_near) { mk_box(m, s, -9, 9, -4, 4, 0, 7, B_HAY); mk_gable(m, s, -9, 9, -4.5f, 4.5f, 7, 11, B_ROCK); }
+        mk_box(m, s, 9, 14, -2.5f, 2.5f, 0, 22, B_HAY);
+        mk_spire(m, s, 9, 14, -2.5f, 2.5f, 22, 36, B_ROCK);
+        if (!tower_near) { mk_box(m, s, -9, 9, -4, 4, 0, 7, B_HAY); mk_gable(m, s, -9, 9, -4.5f, 4.5f, 7, 11, B_ROCK); }
+        break; }
+    case MK_WATERTOWER:                                   // four legs, a tank, a little roof
+        for (int k = 0; k < 4; k++) {
+            float lu = (k & 1) ? 3.0f : -3.8f, lv = (k & 2) ? 3.0f : -3.8f;
+            mk_box(m, s, lu, lu + 0.8f, lv, lv + 0.8f, 0, 18, B_ROCK);
+        }
+        mk_box(m, s, -4.5f, 4.5f, -4.5f, 4.5f, 18, 25, B_PEAK);
+        mk_spire(m, s, -4.5f, 4.5f, -4.5f, 4.5f, 25, 28, B_ROCK);
+        break;
+    case MK_SILO:                                         // concrete silo + cap, a low barn beside it
+        mk_box(m, s, -10, 2, 4, 12, 0, 5, B_GRAVEL); mk_gable(m, s, -10, 2, 4, 12, 5, 8, B_ROCK);
+        mk_box(m, s, -2.5f, 2.5f, -2.5f, 2.5f, 0, 15, B_PEAK);
+        mk_spire(m, s, -2.5f, 2.5f, -2.5f, 2.5f, 15, 18, B_ROCK);
+        break;
+    }
+}
+static void draw_landmarks_in(int r, int c) { for (int k = mk_head[r][c]; k >= 0; k = mk_next[k]) draw_landmark(&mk[k]); }
+// per frame: put each landmark inside the drawn terrain into the FINEST ring cell that holds it
+static void bin_landmarks(void) {
+    for (int r = 0; r < NRING; r++) for (int c = 0; c < 32 * 32; c++) mk_head[r][c] = -1;
+    for (int k = 0; k < nmk; k++) {
+        for (int r = 0; r < NRING; r++) {
+            float s = RS[r]; int n = RN[r];
+            int i = (int)floorf((mk[k].x - rx0[r]) / s), j = (int)floorf((mk[k].y - ry0[r]) / s);
+            if (i < 0 || j < 0 || i >= n || j >= n) continue;
+            int c = j * n + i; mk_next[k] = mk_head[r][c]; mk_head[r][c] = k; break;
+        }
+    }
+}
+// far landmarks: silhouettes in the skyline pass, right after their distance band's ridge
+static void skyline_landmarks(float hz, float d0, float d1, int col) {
+    for (int k = 0; k < nmk; k++) {
+        float dx = mk[k].x - px, dy = mk[k].y - py, d = fsqrt(dx * dx + dy * dy);
+        if (d < d0 || d >= d1 || d < 2700.0f) continue;
+        float rel = atan2f(dy, dx) - head * D2R;
+        while (rel > 3.14159f) rel -= 6.28318f; while (rel < -3.14159f) rel += 6.28318f;
+        if (fabsf(rel) > 0.8f) continue;
+        float sx = 160.0f + tanf(rel) * FOCAL;
+        float ex = 1.0f + 2.0f * clamp((d - 2900.0f) / 13000.0f, 0, 1), s = mk_scale(d);
+        float eb = (mk[k].g - camh - d * d / 12742000.0f) / d * ex;          // base sits on the exaggerated land
+        float hb = eb * FOCAL, ht = hb + MK_TOP[mk[k].kind] * s / d * FOCAL;
+        float w = fmaxf(2.0f, 5.0f * s / d * FOCAL);       // at least 2 px: 1 px spikes were easy to miss
+        float tw = mk[k].kind == MK_CHURCH ? ht - (14.0f * s / d * FOCAL) : ht - (3.0f * s / d * FOCAL);   // where the roof/spire starts
+        int ax, ay, bx, by, cx, cy, ddx, ddy;
+        scr_roll(sx - w * 0.5f, hz - tw, &ax, &ay); scr_roll(sx + w * 0.5f, hz - tw, &bx, &by);
+        scr_roll(sx + w * 0.5f, hz - hb + 1, &cx, &cy); scr_roll(sx - w * 0.5f, hz - hb + 1, &ddx, &ddy);
+        trifill(ax, ay, bx, by, cx, cy, col); trifill(ax, ay, cx, cy, ddx, ddy, col);
+        int tx, ty; scr_roll(sx, hz - ht, &tx, &ty);          // the spire / cap: a triangle on top
+        float ww = mk[k].kind == MK_WATERTOWER ? w * 1.8f : w;
+        int lx, ly, rx2, ry2; scr_roll(sx - ww * 0.5f, hz - tw, &lx, &ly); scr_roll(sx + ww * 0.5f, hz - tw, &rx2, &ry2);
+        trifill(lx, ly, rx2, ry2, tx, ty, col);
+    }
+}
+
 #define SKY_COLS ((SCREEN_W + 80) / 2 + 2)
 static void island_skyline(float hz) {
     static const float D0[3] = { 2900.0f, 8000.0f, 16000.0f }, D1[3] = { 8000.0f, 16000.0f, 45000.0f };
@@ -1071,6 +1234,7 @@ static void island_skyline(float hz) {
             scr_roll(x1, hz + 1, &cx, &cy); scr_roll(x0, hz + 1, &dx, &dy);
             trifill(ax, ay, bx, by, cx, cy, COL[b]); trifill(ax, ay, cx, cy, dx, dy, COL[b]);
         }
+        skyline_landmarks(hz, D0[b], D1[b], CLR_DARKER_GREY);   // landmarks in this band, before nearer ridges
     }
 }
 static void draw_sky(float hz) {
@@ -1284,7 +1448,7 @@ void init(void) {
     // default island: seed 3 (it has every road type, the expressway and its flyovers included),
     // then seed 1; with neither, the endless worldnet world
     ISL = path ? isl_load(path) : (isl_load("../data/islandstudio-3.rvb") || isl_load("../data/islandstudio-1.rvb"));
-    if (ISL) { isl_find_junctions(); isl_build_decks(); }
+    if (ISL) { isl_find_junctions(); isl_build_decks(); isl_build_landmarks(); }
     spawn();
     // dev: BR_START="x,y[,heading]" starts the car exactly there (the debug readout's pos), so a spot
     // someone reports can be reproduced
@@ -1295,7 +1459,14 @@ void init(void) {
 
 void update(void) {
     float d = dt();
-    { const char *f = de_dropped_file(); if (f && isl_load(f)) { ISL = 1; isl_find_junctions(); isl_build_decks(); spawn(); } }   // drop an island .rvb
+    { const char *f = de_dropped_file(); if (f && isl_load(f)) { ISL = 1; isl_find_junctions(); isl_build_decks(); isl_build_landmarks(); spawn(); } }   // drop an island .rvb
+    if (ISL && keyp('L') && nmk > 0) {               // dev: stand 300 m from the next landmark, facing it
+        static int lcur = -1; lcur = (lcur + 1) % nmk;
+        float a = lcur * 2.39996f;                        // a different side each time
+        px = mk[lcur].x + cosf(a) * 300.0f; py = mk[lcur].y + sinf(a) * 300.0f;
+        head = atan2f(mk[lcur].y - py, mk[lcur].x - px) / D2R;
+        vx = vy = 0; camh = ground(px, py) + EYE;
+    }
     if (ISL && keyp('K') && nibr > 0) {               // dev: jump 60 m before the next bridge, facing it
         static int bcur = -1; bcur = (bcur + 1) % nibr;    // every bridge in turn (river bridges and flyovers)
         const IPoly *q = &ipl[ibr[bcur].q]; int a = q->start, e = a + q->n - 1;
@@ -1347,7 +1518,8 @@ void update(void) {
     if (ISL) { IHit r = isl_nearest(px, py, NK_BRIDGE, 60);
         watch("brd", "%.1f", r.ok ? r.dist : -1.0f); watch("deckz", "%.1f", (r.ok && ipl_br[r.poly] >= 0) ? deck_h(r.poly, r.s) : -1.0f);
         IHit a2 = isl_nearest(px, py, NK_ANYROAD, 60); watch("road_cls", "%d", a2.ok ? ipl[a2.poly].cls : -1); watch("road_br", "%d", a2.ok ? ipl[a2.poly].bridge : -1); }
-    watch("njunc", "%d", ISL ? nijn : 0); watch("nbridge", "%d", ISL ? nibr : 0); watch("pc_drop", "%d", pc_drop); watch("nbin", "%d", nbin);
+    watch("njunc", "%d", ISL ? nijn : 0); watch("nmk", "%d", nmk);
+    if (ISL && nmk > 2) watch("mk2", "%.0f,%.0f k%d", mk[2].x, mk[2].y, mk[2].kind); watch("nbridge", "%d", ISL ? nibr : 0); watch("pc_drop", "%d", pc_drop); watch("nbin", "%d", nbin);
     watch("gear", "%d", gear); watch("rpm", "%.2f", rpm_s);
     watch("pitch", "%.3f", pitch); watch("roll", "%.3f", roll); watch("npc", "%d", npc);
 #endif
@@ -1550,6 +1722,7 @@ void draw(void) {
     ntri = 0;
     for (int r = NRING - 1; r >= 0; r--) build_ring(r);
     build_roads();
+    if (ISL) bin_landmarks();
     for (int r = NRING - 1; r >= 0; r--) draw_ring(r);
     g_deckpass = 1;                                     // near decks over everything (still far → near)
     for (int r = ROAD_RINGS - 1; r >= 0; r--) draw_ring(r);

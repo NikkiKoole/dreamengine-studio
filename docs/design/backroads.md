@@ -550,6 +550,18 @@ at 90 km/h, was ~38); and **decks within 250 m are drawn in a final pass after a
 above the ground, so its picture spilled over nearer cells whose terrain painted over it. Far decks keep
 the per-cell order so hills still hide them.
 
+### 2026-11-20: landmarks (rung 4 begins)
+
+Every town gets a church (nave, slate gable roof, tower, spire: 36 m) and a water tower (legs, tank,
+cap: 28 m), every village a church, about a third of hamlets a grain silo with a low barn (18 m). Each
+stands on a free spot (no road within 16 m) spiralling out from the settlement centre, facing the
+nearest road. Near (inside the drawn terrain) they are flat-shaded 3D faces (back-face culled, lit by the
+terrain's sun, parts ordered far to near), drawn with the FINEST ring cell that holds them, so hills hide
+them. Past the terrain they are silhouettes in the skyline pass, drawn right after their distance band's
+ridge so nearer ridges cover them. A true 30 m spire is ~2 px at 3 km, so landmarks are **scaled with
+distance about their base**: ×1 within 500 m, ×5 at 3.5 km, up to ×11 by 13.5 km; far silhouettes are at
+least 2 px wide. Seed 3: 59 landmarks. Dev key `L` stands you 300 m from the next one.
+
 ---
 
 ## 11. Open questions — to be answered by playing

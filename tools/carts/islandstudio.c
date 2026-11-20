@@ -10,7 +10,7 @@
   "description": {
     "summary": "Grow a 40 x 40 km island: coast, hills and mountains, water that drains and carves valleys, wind, rain and a rain shadow, cover, settlements, farms, and the roads between them.",
     "detail": "The island is a finite grid: 256 x 256 (156 m cells) while you play with the sliders, 512 or 1024 (39 m) for a final bake. Noise gives the shape: an island mask with a warped coast, layered rolling hills, and ridged mountains that only grow inside a mountain mask (slide it to zero for a low island). Then the whole map drains: a priority flood fills every pit so each cell has a downhill path to the sea, a flow count adds up how much land drains through each cell, and valleys are carved where the flow is large. Draining again gives the rivers and lakes. A prevailing wind brings rain that the mountains wring out, leaving a dry lee. Natural cover follows from height, slope, rain and water (forest, grassland, scrub, moor, rock, marsh, beach), and settlements claim the flattest, lowest, best-watered, most fertile land, spaced apart, with the biggest few becoming towns. Roads are routed across the terrain by A*, most important first, with a discount for reusing an existing road so routes merge into trunks; traffic sets the class (main road, secondary, lane), a ring road follows the coast where the land allows, an expressway joins the two biggest towns when they are far apart, scattered farmsteads add tracks and through-lanes, and forests and moors get dead-end tracks. Rivers are smooth lines and roads cross them on bridges. The panel compares the result to two real islands measured from OpenStreetMap. Design doc: docs/design/island-studio.md.",
-    "controls": "Drag the sliders. R or ROLL = new seed. V or VIEW cycles cover / terrain / slope / suitability / flow. Hover the map for height, cover, rain and suitability. Red squares are towns, white villages, dots hamlets; the arrow shows the wind. The tree line slider goes from bare hills to wooded mountains. TAB opens a full-screen zoom (drag to pan, wheel to zoom) with roads at their real widths. G or RES switches the grid between 256 (live), 512 and 1024 (a ~2.5 s bake, much finer roads). X exports the island (roads, cover, heights) to data/islandstudio-<seed>.json (roadview's vector format; measure with tools/road-density.js)."
+    "controls": "Drag the sliders. R or ROLL = new seed. V or VIEW cycles cover / terrain / slope / suitability / flow. Hover the map for height, cover, rain and suitability. Red squares are towns, white villages, dots hamlets; the arrow shows the wind. The tree line slider goes from bare hills to wooded mountains. TAB opens a full-screen zoom (drag to pan, wheel to zoom) with roads at their real widths. G or RES switches the grid between 256 (live), 512 and 1024 (a ~2.5 s bake, much finer roads). X exports the island (roads, cover, heights) to data/islandstudio-<seed>.json (roadview's vector format; measure with tools/road-density.js) plus the packed .rvb that backroads drives."
   }
 }
 de:meta */
@@ -41,6 +41,7 @@ de:meta */
 #include <stdlib.h>
 #include <time.h>
 #include <stdio.h>
+#include <string.h>
 
 #define MAXN     1024                        // arrays are sized for the finest bake
 static int N = 256;                          // grid cells per side: 256 live, 512 / 1024 to bake
@@ -1162,40 +1163,53 @@ static void upland_tracks(void) {
     }
 }
 
-// ── EXPORT (X): the island as roadview's vector-features JSON (the shared road model:
+// ── EXPORT (X): the island as roadview's vector features (the shared road model:
 // data-tools/roadview/osm-roads.js's IR). Roads map onto the OSM ladder the real islands were
 // measured with; bridge spans are split out with sub "B1"; rivers = canal, coastline = coast,
 // settlements = residential areas, farms = buildings. Local metres, origin SW, Y north-up.
-// Pack for roadview: node data-tools/roadview/osm-roads.js --convert data/islandstudio-<seed>.json
+// Writes BOTH data/islandstudio-<seed>.json (readable IR, road-density.js) and the packed
+// data/islandstudio-<seed>.rvb backroads/roadview/citydrive load, byte-identical to what
+// `osm-roads.js --convert` makes from that JSON (no manual convert step). Features are recorded
+// once (coords rounded exactly as the JSON prints them), then serialized twice.
 static const char *EXPORT_KIND[NRC] = { "", "track", "road", "secondary", "arterial", "highway" };
 static char export_msg[160]; static float export_msg_t;
-static void ex_pts(FILE *f, const float *xs, const float *ys, int a, int b) {
-    for (int i = a; i <= b; i++) fprintf(f, "%s%.1f,%.1f", i > a ? "," : "", xs[i], WORLD_M - ys[i]);
+// kind name -> .rvb index: MUST match KIND_IX in osm-roads.js (= the K_* enum in roadview.c)
+static int ex_kind_ix(const char *k) {
+    static const char *NM[] = { "highway", "arterial", "road", "track", "water", "canal", "building",
+        "green", "tree", "residential", "commercial", "industrial", "farm", "parking", "sand", "rail", "coast",
+        "secondary", "tertiary", "service", "cycleway", "footway", "other_area", "other_line" };
+    for (int i = 0; i < (int)(sizeof NM / sizeof NM[0]); i++) if (!strcmp(NM[i], k)) return i;
+    return 2;   // road (osm-roads.js's fallback)
 }
-static int ex_first;
-static void ex_line(FILE *f, const char *kind, const char *sub, const float *xs, const float *ys, int a, int b) {
+typedef struct { const char *kind, *sub; int start, n; } ExFeat;
+static ExFeat *exf; static int exn, excap;
+static double *expt; static int exnp, expcap;   // x,y pairs
+static double ex_r(float v, int dec) { char b[32]; snprintf(b, sizeof b, dec ? "%.1f" : "%.0f", v); return strtod(b, NULL); }
+static void ex_begin(const char *kind, const char *sub) {
+    if (exn == excap) { excap = excap ? excap * 2 : 4096; exf = realloc(exf, excap * sizeof *exf); }
+    exf[exn++] = (ExFeat){ kind, sub, exnp, 0 };
+}
+static void ex_pt(double x, double y) {
+    if (exnp + 2 > expcap) { expcap = expcap ? expcap * 2 : 1 << 16; expt = realloc(expt, expcap * sizeof *expt); }
+    expt[exnp++] = x; expt[exnp++] = y; exf[exn - 1].n++;
+}
+static void ex_line(const char *kind, const char *sub, const float *xs, const float *ys, int a, int b) {
     if (b <= a) return;
-    fprintf(f, "%s\n{\"kind\":\"%s\"%s%s%s,\"pts\":[", ex_first ? "" : ",", kind,
-            sub ? ",\"sub\":\"" : "", sub ? sub : "", sub ? "\"" : "");
-    ex_pts(f, xs, ys, a, b); fprintf(f, "]}"); ex_first = 0;
+    ex_begin(kind, sub);
+    for (int i = a; i <= b; i++) ex_pt(ex_r(xs[i], 1), ex_r(WORLD_M - ys[i], 1));
 }
-static void ex_poly(FILE *f, const char *kind, float cx, float cy, float r, int n) {
-    fprintf(f, "%s\n{\"kind\":\"%s\",\"pts\":[", ex_first ? "" : ",", kind);
+static void ex_poly(const char *kind, float cx, float cy, float r, int n) {
+    ex_begin(kind, NULL);
     for (int k = 0; k <= n; k++) {
         float a = k * 6.2831853f / n;
-        fprintf(f, "%s%.1f,%.1f", k ? "," : "", cx + cosf(a) * r, WORLD_M - (cy + sinf(a) * r));
+        ex_pt(ex_r(cx + cosf(a) * r, 1), ex_r(WORLD_M - (cy + sinf(a) * r), 1));
     }
-    fprintf(f, "]}"); ex_first = 0;
 }
+static void ex_w32(FILE *f, int v) { unsigned char b[4] = { v & 255, (v >> 8) & 255, (v >> 16) & 255, (v >> 24) & 255 }; fwrite(b, 1, 4, f); }
+static void ex_wf(FILE *f, double d) { float v = (float)d; unsigned u; memcpy(&u, &v, 4); ex_w32(f, (int)u); }
 static float H_bilinear(float x, float y);
 static void export_island(void) {
-    char path[128];
-    snprintf(path, sizeof path, "../data/islandstudio-%d.json", seed);
-    FILE *f = fopen(path, "w");
-    if (!f) { snprintf(path, sizeof path, "islandstudio-%d.json", seed); f = fopen(path, "w"); }
-    if (!f) { snprintf(export_msg, sizeof export_msg, "export failed"); export_msg_t = 3; return; }
-    fprintf(f, "{\"source\":\"islandstudio\",\"name\":\"island seed %d\",\"land_km2\":%.1f,\"bbox\":[0,0,%.0f,%.0f],\"features\":[", seed, st_land, WORLD_M, WORLD_M);
-    ex_first = 1;
+    exn = 0; exnp = 0;
     // LAND COVER as areas (first, so they lie under everything): runs of one class per row on a
     // 128 grid (312 m), each run one rectangle. Sea and lakes = water.
     {
@@ -1208,10 +1222,9 @@ static void export_island(void) {
                 int c = CV[(ry * N / R) * N + rx * N / R], x0 = rx;
                 while (rx < R && CV[(ry * N / R) * N + rx * N / R] == c) rx++;
                 float X0 = x0 * cs, X1 = rx * cs, Y0 = WORLD_M - ry * cs, Y1 = WORLD_M - (ry + 1) * cs;
-                fprintf(f, "%s\n{\"kind\":\"%s\"", ex_first ? "" : ",", KIND[c]);
-                if (SUB[c]) fprintf(f, ",\"sub\":\"%s\"", SUB[c]);
-                fprintf(f, ",\"pts\":[%.0f,%.0f,%.0f,%.0f,%.0f,%.0f,%.0f,%.0f,%.0f,%.0f]}", X0, Y1, X1, Y1, X1, Y0, X0, Y0, X0, Y1);
-                ex_first = 0;
+                float rx5[5] = { X0, X1, X1, X0, X0 }, ry5[5] = { Y1, Y1, Y0, Y0, Y1 };
+                ex_begin(KIND[c], SUB[c]);
+                for (int k = 0; k < 5; k++) ex_pt(ex_r(rx5[k], 0), ex_r(ry5[k], 0));
             }
         }
     }
@@ -1228,13 +1241,13 @@ static void export_island(void) {
             while (k0 > cur && hypotf(plx[k0] - q->x, ply[k0] - q->y) < q->len * 0.5f) k0--;
             while (k1 < e0 && hypotf(plx[k1] - q->x, ply[k1] - q->y) < q->len * 0.5f) k1++;
             if (k0 < cur) continue;
-            ex_line(f, EXPORT_KIND[pl[p].cls], NULL, plx, ply, cur, k0);
-            ex_line(f, EXPORT_KIND[pl[p].cls], "B1", plx, ply, k0, k1);
+            ex_line(EXPORT_KIND[pl[p].cls], NULL, plx, ply, cur, k0);
+            ex_line(EXPORT_KIND[pl[p].cls], "B1", plx, ply, k0, k1);
             cur = k1;
         }
-        ex_line(f, EXPORT_KIND[pl[p].cls], NULL, plx, ply, cur, e0);
+        ex_line(EXPORT_KIND[pl[p].cls], NULL, plx, ply, cur, e0);
     }
-    for (int r = 0; r < nrv; r++) ex_line(f, "canal", NULL, rvx, rvy, rv[r].start, rv[r].start + rv[r].n - 1);
+    for (int r = 0; r < nrv; r++) ex_line("canal", NULL, rvx, rvy, rv[r].start, rv[r].start + rv[r].n - 1);
     // coastline: marching squares on H = 0, one short segment per crossing cell
     for (int y = 0; y + 1 < N; y++) for (int x = 0; x + 1 < N; x++) {
         float v[4] = { H[y * N + x], H[y * N + x + 1], H[(y + 1) * N + x + 1], H[(y + 1) * N + x] };
@@ -1246,25 +1259,61 @@ static void export_island(void) {
             px[np] = (x + 0.5f + cx[e] + (cx[(e + 1) & 3] - cx[e]) * t) * CELL;
             py[np] = (y + 0.5f + cy[e] + (cy[(e + 1) & 3] - cy[e]) * t) * CELL; np++;
         }
-        if (np >= 2) ex_line(f, "coast", NULL, px, py, 0, 1);
-        if (np == 4) ex_line(f, "coast", NULL, px, py, 2, 3);
+        if (np >= 2) ex_line("coast", NULL, px, py, 0, 1);
+        if (np == 4) ex_line("coast", NULL, px, py, 2, 3);
     }
     for (int s = 0; s < nset; s++)
-        ex_poly(f, "residential", (set[s].x + 0.5f) * CELL, (set[s].y + 0.5f) * CELL,
+        ex_poly("residential", (set[s].x + 0.5f) * CELL, (set[s].y + 0.5f) * CELL,
                 set[s].rank == ST_TOWN ? 650 : set[s].rank == ST_VILLAGE ? 260 : 120, 16);
-    for (int k = 0; k < nfarm; k++) ex_poly(f, "building", (farm[k] % N + 0.5f) * CELL, (farm[k] / N + 0.5f) * CELL, 12, 4);
-    fprintf(f, "\n],\n");
-    // HEIGHTFIELD (osm-roads.js --convert packs it as RVB3; citydrive drapes the scene over it):
-    // G x G metres, row i = south -> north, col j = west -> east, sea clamped to 0
+    for (int k = 0; k < nfarm; k++) ex_poly("building", (farm[k] % N + 0.5f) * CELL, (farm[k] / N + 0.5f) * CELL, 12, 4);
+    // HEIGHTFIELD (RVB3; backroads/citydrive drape the scene over it): G x G metres,
+    // row i = south -> north, col j = west -> east, sea clamped to 0
     int G = N < 256 ? N : 256;
-    fprintf(f, "\"heightfield\":{\"g\":%d,\"z\":[", G);
+    double *hz = malloc((size_t)G * G * sizeof *hz);
+    if (!hz) { snprintf(export_msg, sizeof export_msg, "export failed (memory)"); export_msg_t = 3; return; }
     for (int i = 0; i < G; i++) for (int j = 0; j < G; j++) {
         float wx = WORLD_M * j / (G - 1), wy = WORLD_M - WORLD_M * i / (G - 1);
-        fprintf(f, "%s%.1f", (i | j) ? "," : "", fmaxf(H_bilinear(wx, wy), 0));
+        hz[i * G + j] = ex_r(fmaxf(H_bilinear(wx, wy), 0), 1);
     }
+    char name[48]; snprintf(name, sizeof name, "island seed %d", seed);
+    // 1. JSON (the readable IR)
+    char path[128];
+    snprintf(path, sizeof path, "../data/islandstudio-%d.json", seed);
+    FILE *f = fopen(path, "w");
+    if (!f) { snprintf(path, sizeof path, "islandstudio-%d.json", seed); f = fopen(path, "w"); }
+    if (!f) { free(hz); snprintf(export_msg, sizeof export_msg, "export failed"); export_msg_t = 3; return; }
+    fprintf(f, "{\"source\":\"islandstudio\",\"name\":\"%s\",\"land_km2\":%.1f,\"bbox\":[0,0,%.0f,%.0f],\"features\":[", name, st_land, WORLD_M, WORLD_M);
+    for (int q = 0; q < exn; q++) {
+        ExFeat *e = &exf[q];
+        fprintf(f, "%s\n{\"kind\":\"%s\"", q ? "," : "", e->kind);
+        if (e->sub) fprintf(f, ",\"sub\":\"%s\"", e->sub);
+        fprintf(f, ",\"pts\":[");
+        for (int k = 0; k < e->n * 2; k++) fprintf(f, "%s%.1f", k ? "," : "", expt[e->start + k]);
+        fprintf(f, "]}");
+    }
+    fprintf(f, "\n],\n\"heightfield\":{\"g\":%d,\"z\":[", G);
+    for (int k = 0; k < G * G; k++) fprintf(f, "%s%.1f", k ? "," : "", hz[k]);
     fprintf(f, "]}}\n");
     fclose(f);
-    snprintf(export_msg, sizeof export_msg, "exported %s", path); export_msg_t = 4;
+    // 2. RVB3 (osm-roads.js writeBin layout, all LE): "RVB3" | nfeat | namelen | name | bbox[4] |
+    //    per feature: kind | float h | sublen | sub | npts | pts[npts*2] | G | float grid[G*G]
+    char rpath[128]; snprintf(rpath, sizeof rpath, "%.*s.rvb", (int)strlen(path) - 5, path);
+    FILE *r = fopen(rpath, "wb");
+    if (r) {
+        fwrite("RVB3", 1, 4, r); ex_w32(r, exn); ex_w32(r, (int)strlen(name)); fwrite(name, 1, strlen(name), r);
+        ex_wf(r, 0); ex_wf(r, 0); ex_wf(r, WORLD_M); ex_wf(r, WORLD_M);
+        for (int q = 0; q < exn; q++) {
+            ExFeat *e = &exf[q]; int sl = e->sub ? (int)strlen(e->sub) : 0;
+            ex_w32(r, ex_kind_ix(e->kind)); ex_wf(r, 0); ex_w32(r, sl); if (sl) fwrite(e->sub, 1, sl, r);
+            ex_w32(r, e->n);
+            for (int k = 0; k < e->n * 2; k++) ex_wf(r, expt[e->start + k]);
+        }
+        ex_w32(r, G); for (int k = 0; k < G * G; k++) ex_wf(r, hz[k]);
+        fclose(r);
+        snprintf(export_msg, sizeof export_msg, "exported %s (+ .rvb)", path);
+    } else snprintf(export_msg, sizeof export_msg, "exported %s (.rvb failed)", path);
+    free(hz);
+    export_msg_t = 4;
 }
 
 static void build_roads(void) {

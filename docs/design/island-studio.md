@@ -173,13 +173,15 @@ real junction shapes via `roadkit.h`; town street networks (citygen); export to 
 `data-tools/roadview/osm-roads.js` writes for real OSM): roads on the OSM ladder (expressway →
 highway, main → arterial, secondary, lane → road, track), bridge spans split out with `sub: "B1"`,
 rivers as `canal`, the coastline (marching squares on H = 0) as `coast`, settlements as `residential`
-areas, farms as `building`, plus `land_km2` in the header. `osm-roads.js --convert` packs it to `.rvb`
-for `roadview` and `sndi-check`.
+areas, farms as `building`, plus `land_km2` in the header. It writes the packed
+`data/islandstudio-<seed>.rvb` next to it in the same step (what `backroads`, `roadview`, `citydrive`
+and `sndi-check` load), byte-identical to `osm-roads.js --convert` of that JSON, so there is no manual
+convert any more. (To re-check the parity: `--convert` the JSON to a scratch path and `cmp` it.)
 
 The export also carries **land cover as areas** (runs of one class per row on a 128 grid: forest →
 `green`/wood, grassland → `farm`, beach → `sand`, sea and lakes → `water`, moor/scrub/rock/marsh →
 `other_area` with their natural tag) and a **heightfield** (`"heightfield": {g, z}`, up to 256², rows
-south → north), which `--convert` packs as RVB3. So **`citydrive` drives an exported island today**:
+south → north), packed as RVB3 in the `.rvb`. So **`citydrive` drives an exported island today**:
 `DE_DATA=$(pwd)/data/islandstudio-1.rvb node tools/play.js citydrive run` (or drag the `.rvb` onto
 it), key 3 for the perspective camera, `'` to raise the eye. It spawns at the densest buildings (farms)
 and draws terrain only near the camera, so it's a quick look, not the target view.

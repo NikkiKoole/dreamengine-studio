@@ -18,7 +18,7 @@
   "description": {
     "summary": "A 1970s cockpit-view drive (work in progress): flat-shaded, dithered countryside from the endless worldnet world, roads you can follow from town to town or leave for the fields.",
     "detail": "The ground is a grid of triangles sampled from worldnet's heightmap in three rings around the car: 16 m cells close by, 64 m further out, 256 m out to the fog. There is no z-buffer and no sort: a heightfield seen from inside it can be painted back-to-front just by walking the grid rows and columns from the far edge toward the camera, outer ring first. Roads are worldnet's own spline edges, cut into pieces and clipped into the exact terrain cell (and triangle) they lie on, then drawn right after that cell, so the same order hides a road behind a hill. Centre dashes and edge posts are placed by distance along the road, so they stay put as you drive past them. Leaving the road changes everything: plough and woods drag, grass lets the tail slide, and four wheels sampling the ground tilt the view over crests and ditches. Design doc: docs/design/backroads.md.",
-    "controls": "UP gas, DOWN brake/reverse, LEFT/RIGHT steer. - / = big hills, [ / ] small hills, H toggles the debug readout, TAB opens the map (drag to pan, wheel zooms, centre button snaps back to the car). Drives an islandstudio island when one is exported (data/islandstudio-1.rvb, --data, or drop a .rvb on the window); otherwise the endless worldnet world."
+    "controls": "UP gas, DOWN brake/reverse, LEFT/RIGHT steer. - / = big hills, [ / ] small hills, H toggles the debug readout, TAB opens the map (drag to pan, wheel zooms, centre button snaps back to the car). Drives an islandstudio island when one is exported (data/islandstudio-3.rvb or -1, --data, or drop a .rvb on the window); otherwise the endless worldnet world."
   }
 }
 de:meta */
@@ -96,7 +96,7 @@ static float cfx, cfy, crx, cry, cpc, cps, crc, crs;      // camera basis
 // docs/design/island-studio.md. The island is a .rvb (roadview's packed vector format, written by
 // islandstudio X + data-tools/roadview/osm-roads.js --convert): a heightfield, land cover as area
 // runs, roads on the OSM ladder (bridge spans tagged B1), rivers, settlements, farms. Loaded from
-// --data / $DE_DATA, else ../data/islandstudio-1.rvb, or dropped on the window. No file = worldnet.
+// --data / $DE_DATA, else ../data/islandstudio-3.rvb (then -1), or dropped on the window. No file = worldnet.
 // The file's y is north-up; here y is down (south), so every y is flipped on load.
 #include <stdio.h>
 #include <string.h>
@@ -1232,7 +1232,9 @@ static void spawn(void) {
 }
 void init(void) {
     const char *path = de_data_path();
-    ISL = isl_load(path ? path : "../data/islandstudio-1.rvb");
+    // default island: seed 3 (it has every road type, the expressway and its flyovers included),
+    // then seed 1; with neither, the endless worldnet world
+    ISL = path ? isl_load(path) : (isl_load("../data/islandstudio-3.rvb") || isl_load("../data/islandstudio-1.rvb"));
     if (ISL) { isl_find_junctions(); isl_build_decks(); }
     spawn();
 }

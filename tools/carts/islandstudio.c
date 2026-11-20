@@ -536,12 +536,18 @@ static int link_cmp(const void *x, const void *y) {
 }
 static int fcmp_up(const void *a, const void *b) { float x = *(const float *)a, y = *(const float *)b; return x < y ? -1 : x > y; }
 static unsigned char IS_SET[MAXN * MAXN];   // a settlement sits on this cell (is_node ran nset per cell: slow at 1024)
-static int is_node(int c) {
+// GRADE SEPARATION: the expressway is its own LAYER. Where it crosses another road the two run
+// through each other (no junction): node-ness is counted per layer, and the expressway gets a bridge
+// span over the crossing (build_flyovers). It still meets the network at grade where it ENDS.
+static int layer_of(int cls) { return cls == RC_EXPRESS; }
+static int is_node_l(int c, int L) {
     int deg = 0, cl[2] = { 0, 0 };
-    for (int k = 0; k < 8; k++) if (ER[c][k]) { if (deg < 2) cl[deg] = ER[c][k]; deg++; }
+    for (int k = 0; k < 8; k++) if (ER[c][k] && layer_of(ER[c][k]) == L) { if (deg < 2) cl[deg] = ER[c][k]; deg++; }
+    if (deg == 0) return 0;
     if (deg != 2 || cl[0] != cl[1]) return 1;
     return IS_SET[c];
 }
+static int is_node(int c) { return is_node_l(c, 0) || is_node_l(c, 1); }
 #define SM_MAX 24000
 static float sm_x[SM_MAX], sm_y[SM_MAX];
 // cell path → smooth curve in metres (into sm_x/sm_y); returns the point count
@@ -720,18 +726,19 @@ static void build_polys(void) {
     for (int i = 0; i < N * N; i++) vis[i] = 0;
     for (int pass = 0; pass < 2; pass++)                       // pass 0 from nodes, pass 1 leftover loops
         for (int c0 = 0; c0 < N * N; c0++) {
-            if (pass == 0 && !is_node(c0)) continue;
             for (int k0 = 0; k0 < 8; k0++) {
                 if (!ER[c0][k0] || (vis[c0] >> k0 & 1)) continue;
+                int L = layer_of(ER[c0][k0]);
+                if (pass == 0 && !is_node_l(c0, L)) continue;
                 int cls = ER[c0][k0], n = 0, cur = c0, k = k0;
                 cells[n++] = cur;
                 for (;;) {
                     int nx = cur % N + DX[k], ny = cur / N + DY[k], nxt = ny * N + nx;
                     vis[cur] |= 1 << k; vis[nxt] |= 1 << OPP[k];
                     cur = nxt; if (n < MAXN * 4) cells[n++] = cur;
-                    if (cur == c0 || is_node(cur)) break;
+                    if (cur == c0 || is_node_l(cur, L)) break;
                     int nk = -1;
-                    for (int j = 0; j < 8; j++) if (ER[cur][j] && !(vis[cur] >> j & 1)) { nk = j; break; }
+                    for (int j = 0; j < 8; j++) if (ER[cur][j] && layer_of(ER[cur][j]) == L && !(vis[cur] >> j & 1)) { nk = j; break; }
                     if (nk < 0) break;
                     k = nk;
                 }
@@ -991,6 +998,37 @@ static void build_bridges(void) {
                 }
             }
         }
+}
+
+// FLYOVERS: every cell where the expressway and another road share a cell (and it isn't a town the
+// expressway ends in) is a crossing: the expressway gets a 260 m bridge span centred on it, which the
+// export tags like a river bridge and backroads raises over the road underneath.
+static int st_flyovers;
+static void build_flyovers(void) {
+    st_flyovers = 0;
+    for (int c = 0; c < N * N; c++) {
+        if (IS_SET[c]) continue;
+        int e = 0, o = 0;
+        for (int k = 0; k < 8; k++) if (ER[c][k]) { if (ER[c][k] == RC_EXPRESS) e++; else o++; }
+        if (!e || !o) continue;
+        float cx = (c % N + 0.5f) * CELL, cy = (c / N + 0.5f) * CELL;
+        int bp = -1, bi = -1; float bd = 1e30f;                       // nearest expressway point
+        for (int p = 0; p < npl; p++) {
+            if (pl[p].cls != RC_EXPRESS) continue;
+            for (int i = pl[p].start + 1; i < pl[p].start + pl[p].n; i++) {
+                float d = (plx[i] - cx) * (plx[i] - cx) + (ply[i] - cy) * (ply[i] - cy);
+                if (d < bd) { bd = d; bp = p; bi = i; }
+            }
+        }
+        if (bp < 0 || bd > CELL * CELL * 4) continue;
+        int dup = 0;
+        for (int k = 0; k < nbr && !dup; k++) if (br[k].p == bp && fabsf(br[k].x - plx[bi]) < 100 && fabsf(br[k].y - ply[bi]) < 100) dup = 1;
+        if (dup || nbr >= MAXBR) continue;
+        float dx = plx[bi] - plx[bi - 1], dy = ply[bi] - ply[bi - 1], l = sqrtf(dx * dx + dy * dy) + 1e-6f;
+        br[nbr].x = plx[bi]; br[nbr].y = ply[bi]; br[nbr].dx = dx / l; br[nbr].dy = dy / l;
+        br[nbr].len = 260.0f; br[nbr].cls = RC_EXPRESS; br[nbr].p = bp; br[nbr].i = bi; nbr++;
+        st_flyovers++;
+    }
 }
 
 // ── FORESTRY + UPLAND TRACKS: forests are worked, uplands are grazed. Points on a jittered grid
@@ -1264,6 +1302,7 @@ static void build_roads(void) {
     build_polys();
     build_rivers();
     build_bridges();
+    build_flyovers();
     roads_dirty = 0;
     st_roads_ms = (clock() - t0) * 1000.0f / CLOCKS_PER_SEC;
 }
@@ -1364,7 +1403,7 @@ void update(void) {
     watch("seed", "%d", seed); watch("nset", "%d", nset); watch("coastal", "%d", st_coastal);
     watch("moor", "%d", (int)st_cov[CV_MOOR]); watch("forest", "%d", (int)st_cov[CV_FOREST]);
     watch("land", "%d", (int)st_land); watch("npl", "%d", npl); watch("express", "%d", st_express);
-    watch("ringgaps", "%d", st_ringgaps); watch("bridges", "%d", nbr); watch("lakes", "%d", st_lakes); watch("N", "%d", N); watch("diagx", "%d", st_diagx); watch("cuts", "%d", st_cuts); watch("consol", "%d", st_consol); watch("rebuild_ms", "%.0f", st_rebuild_ms); watch("overflow", "%d", st_overflow); watch("links", "lane %d/%d sec %d/%d main %d/%d", st_link_ok[0], st_link_try[0], st_link_ok[1], st_link_try[1], st_link_ok[2], st_link_try[2]); { int bb = -1; for (int b = 0; b < nbr; b++) if (bb < 0 || br[b].len > br[bb].len) bb = b;
+    watch("ringgaps", "%d", st_ringgaps); watch("bridges", "%d", nbr); watch("lakes", "%d", st_lakes); watch("N", "%d", N); watch("diagx", "%d", st_diagx); watch("cuts", "%d", st_cuts); watch("consol", "%d", st_consol); watch("flyovers", "%d", st_flyovers); watch("rebuild_ms", "%.0f", st_rebuild_ms); watch("overflow", "%d", st_overflow); watch("links", "lane %d/%d sec %d/%d main %d/%d", st_link_ok[0], st_link_try[0], st_link_ok[1], st_link_try[1], st_link_ok[2], st_link_try[2]); { int bb = -1; for (int b = 0; b < nbr; b++) if (bb < 0 || br[b].len > br[bb].len) bb = b;
       if (bb >= 0) { watch("bigbridge_x", "%.0f", br[bb].x); watch("bigbridge_y", "%.0f", br[bb].y); watch("bigbridge_len", "%.0f", br[bb].len); } } watch("rivers", "%d", nrv);
     watch("forest_tracks", "%d", nforest); watch("upland_tracks", "%d", nupland); watch("roads_ms", "%.0f", st_roads_ms);
     for (int k = RC_TRACK; k < NRC; k++) watch(RCN[k], "%.0f", st_road[k]);

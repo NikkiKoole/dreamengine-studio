@@ -149,19 +149,21 @@ static int isl_cover(float x, float y) {          // cell edges jittered so the 
 static int ib_of(float v, float ext) { int b = (int)(v / ext * IBG); return b < 0 ? 0 : b >= IBG ? IBG - 1 : b; }
 
 // nearest road (or river) segment to (x,y) within ~250 m: distance, class, bridge, point, tangent
-typedef struct { int ok, poly; float dist, qx, qy, tx, ty; } IHit;
-static IHit isl_nearest(float x, float y, int want_river, float maxd) {
-    IHit h = { 0, -1, 1e30f, 0, 0, 1, 0 };
+enum { NK_ROAD, NK_RIVER, NK_BRIDGE, NK_ANYROAD };    // what isl_nearest looks for
+typedef struct { int ok, poly; float dist, qx, qy, tx, ty, s; } IHit;   // s = arc length along the poly
+static IHit isl_nearest(float x, float y, int want, float maxd) {
+    IHit h = { 0, -1, 1e30f, 0, 0, 1, 0, 0 };
     int bx = ib_of(x, isl_W), by = ib_of(y, isl_H), rb = (int)(maxd / (isl_W / IBG)) + 1;
     for (int j = by - rb; j <= by + rb; j++) for (int i = bx - rb; i <= bx + rb; i++) {
         if (i < 0 || j < 0 || i >= IBG || j >= IBG) continue;
         for (int k = ib_head[j * IBG + i]; k >= 0; k = ib_next[k]) {
             const IPoly *p = &ipl[ip_poly[k]];
-            if (p->river != want_river) continue;
+            int kind = p->river ? NK_RIVER : p->bridge ? NK_BRIDGE : NK_ROAD;
+            if (want == NK_ANYROAD ? kind == NK_RIVER : kind != want) continue;
             float ax = ipx[k - 1], ay = ipy[k - 1], dx = ipx[k] - ax, dy = ipy[k] - ay, l2 = dx * dx + dy * dy + 1e-6f;
             float t = clamp(((x - ax) * dx + (y - ay) * dy) / l2, 0, 1);
             float qx = ax + dx * t, qy = ay + dy * t, d = fsqrt((x - qx) * (x - qx) + (y - qy) * (y - qy));
-            if (d < h.dist) { float l = fsqrt(l2); h.ok = 1; h.poly = ip_poly[k]; h.dist = d; h.qx = qx; h.qy = qy; h.tx = dx / l; h.ty = dy / l; }
+            if (d < h.dist) { float l = fsqrt(l2); h.ok = 1; h.poly = ip_poly[k]; h.dist = d; h.qx = qx; h.qy = qy; h.tx = dx / l; h.ty = dy / l; h.s = ipS[k - 1] + t * l; }
         }
     }
     if (h.dist > maxd) h.ok = 0;
@@ -498,8 +500,8 @@ static int in_finer(int r, float wx, float wy, float s) {   // cell fully inside
 #define BIN_MAX  60000
 static int pc_drop;              // pieces/bins dropped for lack of room this frame: must stay 0
 #define PST_MAX  600
-enum { PK_ROAD, PK_DASH };
-typedef struct { float x[4], y[4]; unsigned char kind, band; } Piece;
+enum { PK_ROAD, PK_DASH, PK_RAIL, PK_FASCIA };   // RAIL / FASCIA: vertical strips along a deck's sides
+typedef struct { float x[4], y[4]; unsigned char kind, band, deck; float z0, z1, ax, ay, bx, by; } Piece;   // deck: heights z0..z1 along axis a→b
 static Piece pc[PC_MAX]; static int npc;
 static int   bin_head[ROAD_RINGS][32 * 32], bin_next[BIN_MAX], bin_pc[BIN_MAX], nbin;
 typedef struct { float x, y; } Post;
@@ -534,7 +536,7 @@ static void add_piece(float ax, float ay, float bx, float by, float cx, float cy
     Piece *p = &pc[npc];
     p->x[0] = ax; p->y[0] = ay; p->x[1] = bx; p->y[1] = by;
     p->x[2] = cx; p->y[2] = cy; p->x[3] = dx; p->y[3] = dy;
-    p->kind = (unsigned char)kind; p->band = (unsigned char)band;
+    p->kind = (unsigned char)kind; p->band = (unsigned char)band; p->deck = 0;
     bin_piece(npc++);
 }
 
@@ -614,6 +616,61 @@ static void add_post(float ox, float oy) {
     pst[npst].x = ox; pst[npst].y = oy;
     pst_next[npst] = pst_head[c]; pst_head[c] = npst++;
 }
+// ── BRIDGE DECKS: every bridge span (the export's B1: rivers, and the expressway's flyovers) gets a
+// deck profile instead of following the ground: level between the ground at its two ends, and where
+// it passes OVER another road it rises to 6.5 m clearance on 6 % ramps. Pieces of a bridge carry
+// these heights; the car rides the deck when it's nearer the deck than the ground beneath.
+#define IBR_MAX 2000
+typedef struct { int q; float g0, g1, L; int nc; float sc[4], gc[4]; } IBr;
+static IBr ibr[IBR_MAX]; static int nibr;
+static short ipl_br[IPL_MAX];                     // per poly: its deck index, -1 = not a bridge
+static int seg_cross(float ax, float ay, float bx, float by, float cx, float cy, float dx, float dy, float *t) {
+    float rx = bx - ax, ry = by - ay, sx = dx - cx, sy = dy - cy, den = rx * sy - ry * sx;
+    if (fabsf(den) < 1e-6f) return 0;
+    float u = ((cx - ax) * ry - (cy - ay) * rx) / den; *t = ((cx - ax) * sy - (cy - ay) * sx) / den;
+    // strictly INSIDE both segments: a road that merely touches the deck at an end (the road the
+    // bridge connects to) is not passing underneath (counting it lifted whole decks 6.5 m off the ground)
+    return *t > 0.02f && *t < 0.98f && u > 0.02f && u < 0.98f;
+}
+static void isl_build_decks(void) {
+    nibr = 0;
+    for (int q = 0; q < nipl; q++) ipl_br[q] = -1;
+    for (int q = 0; q < nipl && nibr < IBR_MAX; q++) {
+        if (!ipl[q].bridge || ipl[q].river) continue;
+        IBr *B = &ibr[nibr]; int a = ipl[q].start, e = a + ipl[q].n - 1;
+        B->q = q; B->L = ipS[e] - ipS[a]; B->nc = 0;
+        B->g0 = ground(ipx[a], ipy[a]); B->g1 = ground(ipx[e], ipy[e]);
+        for (int k = a + 1; k <= e; k++) {                // roads passing underneath
+            int bx = ib_of((ipx[k] + ipx[k - 1]) * 0.5f, isl_W), by = ib_of((ipy[k] + ipy[k - 1]) * 0.5f, isl_H);
+            for (int j = by - 1; j <= by + 1; j++) for (int i = bx - 1; i <= bx + 1; i++) {
+                if (i < 0 || j < 0 || i >= IBG || j >= IBG) continue;
+                for (int g = ib_head[j * IBG + i]; g >= 0; g = ib_next[g]) {
+                    const IPoly *o = &ipl[ip_poly[g]];
+                    if (o->river || o->bridge || ip_poly[g] == q) continue;
+                    float t;
+                    if (!seg_cross(ipx[k - 1], ipy[k - 1], ipx[k], ipy[k], ipx[g - 1], ipy[g - 1], ipx[g], ipy[g], &t)) continue;
+                    float sc = ipS[k - 1] - ipS[a] + t * (ipS[k] - ipS[k - 1]);
+                    int dup = 0; for (int c = 0; c < B->nc; c++) if (fabsf(B->sc[c] - sc) < 20) dup = 1;
+                    if (dup || B->nc >= 4) continue;
+                    B->sc[B->nc] = sc;
+                    B->gc[B->nc] = ground(ipx[k - 1] + (ipx[k] - ipx[k - 1]) * t, ipy[k - 1] + (ipy[k] - ipy[k - 1]) * t);
+                    B->nc++;
+                }
+            }
+        }
+        ipl_br[q] = (short)nibr++;
+    }
+}
+static float deck_h(int q, float s) {             // s = arc length along the WHOLE poly list (ipS)
+    const IBr *B = &ibr[ipl_br[q]];
+    float sr = clamp(s - ipS[ipl[q].start], 0, B->L);
+    float base = B->g0 + (B->g1 - B->g0) * (B->L > 0 ? sr / B->L : 0), z = base;
+    for (int c = 0; c < B->nc; c++) z = fmaxf(z, B->gc[c] + 6.5f - 0.06f * fabsf(sr - B->sc[c]));
+    // the deck MUST meet the ground at both ends: taper the lift to 0 over the last 40 m (a crossing on
+    // higher ground than the span's ends left a 3.7 m step the wheels refused, so cars drove through)
+    float taper = clamp(fminf(sr, B->L - sr) / 40.0f, 0, 1);
+    return base + (z - base) * taper * taper * (3 - 2 * taper);
+}
 // JUNCTION PATCH: rounded curb corners between neighbouring arms (roadkit's curb_return, the same
 // fillet geometry streetlab and citydrive draw), plus a small hub disc, as extra road pieces. The
 // corner K is where the two FACING road edges cross; roadkit's edge_corner assumes one width, so it
@@ -689,11 +746,25 @@ static void isl_build_roads(void) {
                 float nax = -tay / la * hw, nay = tax / la * hw, nbx = -tby / lb * hw, nby = tbx / lb * hw;
                 float step = d < 300 ? 6.0f : d < 700 ? 16.0f : 32.0f;
                 int ns = (int)ceilf(L / step); if (ns < 1) ns = 1;
+                int dq = (!pass && p->bridge && ipl_br[ip_poly[b]] >= 0) ? ip_poly[b] : -1;   // a deck?
                 for (int k = 0; k < ns; k++) {
                     float t0 = (float)k / ns, t1 = (float)(k + 1) / ns;
                     float x0 = ax + (bx - ax) * t0, y0 = ay + (by - ay) * t0, x1 = ax + (bx - ax) * t1, y1 = ay + (by - ay) * t1;
                     float n0x = nax + (nbx - nax) * t0, n0y = nay + (nby - nay) * t0, n1x = nax + (nbx - nax) * t1, n1y = nay + (nby - nay) * t1;
+                    int before = npc;
                     add_piece(x0 + n0x, y0 + n0y, x1 + n1x, y1 + n1y, x1 - n1x, y1 - n1y, x0 - n0x, y0 - n0y, PK_ROAD, band);
+                    if (dq >= 0 && npc > before) {
+                        Piece *pp = &pc[npc - 1];
+                        float z0 = deck_h(dq, S + L * t0), z1 = deck_h(dq, S + L * t1);
+                        pp->deck = 1; pp->z0 = z0; pp->z1 = z1; pp->ax = x0; pp->ay = y0; pp->bx = x1; pp->by = y1;
+                        for (int side = -1; side <= 1; side += 2)  // parapet + slab edge on both sides
+                            for (int kind = PK_RAIL; kind <= PK_FASCIA; kind++) {
+                                float o = side * (1.0f + 0.25f / hw);
+                                int b2 = npc;
+                                add_piece(x0 + n0x * o, y0 + n0y * o, x1 + n1x * o, y1 + n1y * o, x1 + n1x * o, y1 + n1y * o, x0 + n0x * o, y0 + n0y * o, kind, band);
+                                if (npc > b2) { Piece *sp = &pc[npc - 1]; sp->deck = 1; sp->z0 = z0; sp->z1 = z1; }
+                            }
+                    }
                 }
                 float ux = (bx - ax) / L, uy = (by - ay) / L;
                 float Ltot = ipS[s1], c0 = pass ? 0 : ipl_j0[ip_poly[b]], c1 = pass ? 0 : ipl_j1[ip_poly[b]];
@@ -703,7 +774,13 @@ static void isl_build_roads(void) {
                         float t0 = s0d - S, t1 = fminf(s0d + DASH_LEN - S, L);
                         float x0 = ax + ux * t0, y0 = ay + uy * t0, x1 = ax + ux * t1, y1 = ay + uy * t1;
                         float nx = -uy * 0.12f, ny = ux * 0.12f;
+                        int before = npc;
                         add_piece(x0 + nx, y0 + ny, x1 + nx, y1 + ny, x1 - nx, y1 - ny, x0 - nx, y0 - ny, PK_DASH, band);
+                        if (dq >= 0 && npc > before) {
+                            Piece *pp = &pc[npc - 1];
+                            pp->deck = 1; pp->z0 = deck_h(dq, s0d); pp->z1 = deck_h(dq, s0d + (t1 - t0));
+                            pp->ax = x0; pp->ay = y0; pp->bx = x1; pp->by = y1;
+                        }
                     }
                 if (marked && !p->bridge && d < POST_NEAR)
                     for (float s0p = ceilf(S / POST_GAP) * POST_GAP; s0p < S + L; s0p += POST_GAP) {
@@ -829,12 +906,31 @@ static void draw_piece_in_cell(int r, int i, int j, const Piece *p, float lumA, 
         if (m < 3) continue;
         float X[PMAX], Y[PMAX], Z[PMAX];
         for (int k = 0; k < m; k++)
-            to_cam(cu[k], cv[k], ring_h(r, cu[k], cv[k]) + lift, &X[k], &Y[k], &Z[k]);
+        {
+            float z;
+            if (p->deck) {                                   // on a bridge deck: its own height along the axis
+                float dx = p->bx - p->ax, dy = p->by - p->ay, l2 = dx * dx + dy * dy + 1e-6f;
+                float t = clamp(((cu[k] - p->ax) * dx + (cv[k] - p->ay) * dy) / l2, 0, 1);
+                z = p->z0 + (p->z1 - p->z0) * t;
+            } else z = ring_h(r, cu[k], cv[k]);
+            to_cam(cu[k], cv[k], z + lift, &X[k], &Y[k], &Z[k]);
+        }
         g_outline = 1;
         if (p->kind == PK_DASH) fill_cam(X, Y, Z, m, B_PEAK, 0.999f);   // pale line
         else fill_cam(X, Y, Z, m, p->band, side == 0 ? lumA : lumB);
         g_outline = 0;
     }
+}
+static void draw_side(const Piece *p) {           // a vertical strip along a deck edge
+    float lo0, hi0, lo1, hi1;
+    if (p->kind == PK_RAIL) { lo0 = p->z0; hi0 = p->z0 + 0.7f; lo1 = p->z1; hi1 = p->z1 + 0.7f; }
+    else                    { lo0 = p->z0 - 1.3f; hi0 = p->z0; lo1 = p->z1 - 1.3f; hi1 = p->z1; }
+    float X[4], Y[4], Z[4];
+    to_cam(p->x[0], p->y[0], lo0, &X[0], &Y[0], &Z[0]); to_cam(p->x[1], p->y[1], lo1, &X[1], &Y[1], &Z[1]);
+    to_cam(p->x[1], p->y[1], hi1, &X[2], &Y[2], &Z[2]); to_cam(p->x[0], p->y[0], hi0, &X[3], &Y[3], &Z[3]);
+    g_outline = 1;
+    fill_cam(X, Y, Z, 4, B_ROCK, p->kind == PK_RAIL ? 0.9f : 0.15f);    // parapet: medium grey (asphalt is dark grey, white glared); slab edge dark
+    g_outline = 0;
 }
 static void draw_post(const Post *q) {
     float h = ground(q->x, q->y), bx, by, bz, tx, ty, tz;
@@ -869,9 +965,16 @@ static void draw_cell(int r, int i, int j) {
         int c = j * RN[r] + i;
         if (bin_head[r][c] >= 0) {
             float lumA = tri_lum(r, v00, v10, v11, 0), lumB = tri_lum(r, v00, v11, v01, 0);
-            for (int pass = 0; pass < 2; pass++)            // road surface, then markings
-                for (int b = bin_head[r][c]; b >= 0; b = bin_next[b])
-                    if (pc[bin_pc[b]].kind == pass) draw_piece_in_cell(r, i, j, &pc[bin_pc[b]], lumA, lumB);
+            // ground road, ground markings, the deck's slab edge (below the deck, so the deck covers it
+            // from above), the deck, its markings, then the parapets on top
+            for (int pass = 0; pass < 6; pass++)
+                for (int b = bin_head[r][c]; b >= 0; b = bin_next[b]) {
+                    const Piece *p = &pc[bin_pc[b]];
+                    int key = p->kind == PK_ROAD ? (p->deck ? 3 : 0) : p->kind == PK_DASH ? (p->deck ? 4 : 1)
+                            : p->kind == PK_FASCIA ? 2 : 5;
+                    if (key != pass) continue;
+                    if (key == 2 || key == 5) draw_side(p); else draw_piece_in_cell(r, i, j, p, lumA, lumB);
+                }
         }
         if (r == 0)
             for (int q = pst_head[c]; q >= 0; q = pst_next[q]) draw_post(&pst[q]);
@@ -989,14 +1092,14 @@ static void draw_sky(float hz) {
 #define WB   2.6f               // wheelbase (m)
 #define TRK  1.5f               // track (m)
 static int on_road_at(float x, float y) {
-    if (ISL) { IHit r = isl_nearest(x, y, 0, 15); return r.ok && r.dist <= HW[ipl[r.poly].cls] + 0.3f; }
+    if (ISL) { IHit r = isl_nearest(x, y, NK_ANYROAD, 15); return r.ok && r.dist <= HW[ipl[r.poly].cls] + 0.3f; }
     return wn_road_at(x, y).on_road;
 }
 static int surf_at(float x, float y) {
     if (ISL) {
-        IHit r = isl_nearest(x, y, 0, 15);
+        IHit r = isl_nearest(x, y, NK_ANYROAD, 15);
         if (r.ok && r.dist <= HW[ipl[r.poly].cls] + 0.3f) return ipl[r.poly].cls == CL_DIRT ? B_GRAVEL : B_ASPHALT;
-        IHit w = isl_nearest(x, y, 1, 10);
+        IHit w = isl_nearest(x, y, NK_RIVER, 10);
         if (w.ok && w.dist < 3.0f) return B_WATER;           // a ford: a river with no bridge
         return band_at(raw_at(x, y), x, y);
     }
@@ -1008,6 +1111,13 @@ static int surf_at(float x, float y) {
 // what a wheel feels: the ground + a little surface-texture bump (felt, not drawn)
 static float wheel_h(float x, float y, float rough) {
     float t = raw_at(x, y), g = hgt_xy(x, y, t);
+    if (ISL) {                                          // on a deck? ride it if the car is nearer it than the ground
+        IHit r = isl_nearest(x, y, NK_BRIDGE, 12);
+        if (r.ok && ipl_br[r.poly] >= 0 && r.dist <= HW[ipl[r.poly].cls] + 0.6f) {
+            float zd = deck_h(r.poly, r.s), here = camh - EYE;
+            if (fabsf(zd - here) < fabsf(g - here) + 0.5f) g = zd;
+        }
+    }
     if (t == -0.5f && wn_road_at(x, y).on_road) {         // bridge: ride the deck, not the river bed
         float b = wn_height_base(x, y);
         if (b > 0) g = b * vscale + detail_at(x, y, b);
@@ -1022,7 +1132,7 @@ static float autopilot_steer(void) {
     float fx = cosf(head * D2R), fy = sinf(head * D2R);
     float ax = px + fx * 25, ay = py + fy * 25, best = 1e30f, bx = ax, by = ay, tx = fx, ty = fy;
     if (ISL) {
-        IHit h = isl_nearest(ax, ay, 0, 60);
+        IHit h = isl_nearest(ax, ay, NK_ANYROAD, 60);
         if (h.ok) { bx = h.qx; by = h.qy; tx = h.tx; ty = h.ty; }
     } else {
     eg_ensure(px, py);
@@ -1105,7 +1215,7 @@ static void spawn(void) {
         int best = -1;
         for (int s = 0; s < niset; s++) if (best < 0 || iset[s].r > iset[best].r) best = s;
         float sx = best >= 0 ? iset[best].x : isl_W * 0.5f, sy = best >= 0 ? iset[best].y : isl_H * 0.5f;
-        IHit h = isl_nearest(sx, sy, 0, 2500);
+        IHit h = isl_nearest(sx, sy, NK_ROAD, 2500);
         if (h.ok) {
             head = atan2f(h.ty, h.tx) / D2R;
             px = h.qx - h.ty * 1.8f; py = h.qy + h.tx * 1.8f;   // keep right: one lane over
@@ -1123,13 +1233,20 @@ static void spawn(void) {
 void init(void) {
     const char *path = de_data_path();
     ISL = isl_load(path ? path : "../data/islandstudio-1.rvb");
-    if (ISL) isl_find_junctions();
+    if (ISL) { isl_find_junctions(); isl_build_decks(); }
     spawn();
 }
 
 void update(void) {
     float d = dt();
-    { const char *f = de_dropped_file(); if (f && isl_load(f)) { ISL = 1; isl_find_junctions(); spawn(); } }   // drop an island .rvb
+    { const char *f = de_dropped_file(); if (f && isl_load(f)) { ISL = 1; isl_find_junctions(); isl_build_decks(); spawn(); } }   // drop an island .rvb
+    if (ISL && keyp('K') && nibr > 0) {               // dev: jump 60 m before the next bridge, facing it
+        static int bcur = -1; bcur = (bcur + 1) % nibr;    // every bridge in turn (river bridges and flyovers)
+        const IPoly *q = &ipl[ibr[bcur].q]; int a = q->start, e = a + q->n - 1;
+        float dx = ipx[e] - ipx[a], dy = ipy[e] - ipy[a], l = fsqrt(dx * dx + dy * dy) + 1e-6f;
+        px = ipx[a] - dx / l * 60.0f; py = ipy[a] - dy / l * 60.0f; head = atan2f(dy, dx) / D2R;
+        vx = vy = 0; camh = ground(px, py) + EYE;
+    }
     if (ISL && keyp('J') && nijn > 0) {               // dev: jump 40 m before the next junction, facing it
         static int jcur = -1;
         for (int tries = 0; tries < nijn; tries++) { jcur = (jcur + 1) % nijn; if (ijn[jcur].n >= 3) break; }
@@ -1170,7 +1287,10 @@ void update(void) {
     watch("x", "%.0f", px); watch("y", "%.0f", py); watch("head", "%.1f", head);
     watch("spd", "%.1f", fsqrt(vx * vx + vy * vy)); watch("camh", "%.1f", camh);
     watch("ntri", "%d", ntri); watch("surf", "%s", SURF[cur_surf].name);
-    watch("njunc", "%d", ISL ? nijn : 0); watch("pc_drop", "%d", pc_drop); watch("nbin", "%d", nbin);
+    if (ISL) { IHit r = isl_nearest(px, py, NK_BRIDGE, 60);
+        watch("brd", "%.1f", r.ok ? r.dist : -1.0f); watch("deckz", "%.1f", (r.ok && ipl_br[r.poly] >= 0) ? deck_h(r.poly, r.s) : -1.0f);
+        IHit a2 = isl_nearest(px, py, NK_ANYROAD, 60); watch("road_cls", "%d", a2.ok ? ipl[a2.poly].cls : -1); watch("road_br", "%d", a2.ok ? ipl[a2.poly].bridge : -1); }
+    watch("njunc", "%d", ISL ? nijn : 0); watch("nbridge", "%d", ISL ? nibr : 0); watch("pc_drop", "%d", pc_drop); watch("nbin", "%d", nbin);
     watch("pitch", "%.3f", pitch); watch("roll", "%.3f", roll); watch("npc", "%d", npc);
 #endif
 }

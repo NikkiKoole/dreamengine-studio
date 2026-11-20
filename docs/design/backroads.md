@@ -509,6 +509,22 @@ so heights are **exaggerated with distance**, ×1 at the haze edge rising to ×3
 Drive style. First palette (purples/mauves) vanished into the dusk sky; the bands must contrast with
 it. Worldnet mode keeps the noise ridge.
 
+### 2026-11-20: bridge decks and flyovers
+
+Every bridge span in the island (`B1`: river bridges and the expressway's flyovers) is a **deck** with
+its own heights instead of draping on the ground: level between the ground at its two ends, rising to
+6.5 m clearance on 6 % ramps where it passes over another road (found by intersecting the span with
+the roads beneath, strictly inside both segments), and the lift tapered to 0 over the last 40 m so
+the deck always meets the ground at its ends. Deck pieces carry z along their axis; draw order per
+cell: ground road, ground markings, slab edge, deck, deck markings, parapets. Parapets (0.7 m,
+medium grey: asphalt is dark grey and white glared) and a dark 1.3 m slab edge run along both sides.
+The wheels ride the deck when the car is nearer the deck than the ground, so driving under a flyover
+stays under it. Dev key `K` jumps 60 m before the next bridge.
+
+Gotchas found on the way: a crossing test that counted the road a bridge *connects to* lifted whole
+decks 6.5 m into the air; a crossing on higher ground than the span ends left a 3.7 m step at the
+deck's start, which the wheels refused, so cars drove *through* the bridge at ground level.
+
 ---
 
 ## 11. Open questions — to be answered by playing

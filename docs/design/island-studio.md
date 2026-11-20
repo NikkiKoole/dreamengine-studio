@@ -315,6 +315,14 @@ junctions go. Seed 1 @1024 (393 consolidations), against the Isle of Man:
 Open: every route into a town ends at the town's centre cell, so towns are 6–8-arm stars whose
 corner fillets leave holes in backroads. That's for town streets (citygen), not more patching.
 
+## Grade separation (2026-11-20)
+
+The expressway is its own **layer** in the road graph: node-ness is counted per layer, so where it
+crosses another road the two run through each other with no junction. Every such crossing (except a
+town the expressway ends in) gets a **260 m bridge span** on the expressway (`build_flyovers`),
+exported with the river bridges' `B1` tag. Seed 3 @1024: 24 flyovers. backroads raises them (see
+`backroads.md`). The expressway still meets the network at grade where it ends; interchanges are next.
+
 ## Next rungs
 
 4. **Farmland**: fields spread from villages along roads onto flat ground, replacing natural cover.

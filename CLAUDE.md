@@ -160,6 +160,7 @@ runtime/   studio.h (public API), studio.c (Raylib impl + main()), sound.h (audi
              ampcab.h    guitar amp/cab voicing table (presets of existing effects); design/effects-bus-architecture.md §E
              outboard.h  master-bus analog chain (EQ→IRON→COMP→PLATE) as one table; outboard_apply owns insert order. design/analog-outboard-chain.md
              pmbreed.h   cart-land face of patch-match (pm_mutate/pm_apply_slot)
+             carengine.h car-engine SOUND voice (firing-rate body + rasp/intake/burble, 7 kinds); enginelab = bench, backroads
            ── games / world / physics ──
              cards.h     playing-card rendering
              endcard.h   shared WIN/LOSE end screen; never hand-roll fade+box

@@ -526,6 +526,24 @@ Gotchas found on the way: a crossing test that counted the road a bridge *connec
 decks 6.5 m into the air; a crossing on higher ground than the span ends left a 3.7 m step at the
 deck's start, which the wheels refused, so cars drove *through* the bridge at ground level.
 
+### 2026-11-20: rung 3 begins: the engine and the dash
+
+- **Engine sound**: `enginelab`'s voice (the maker: "we have an engine sound cart already") extracted
+  into `runtime/carengine.h` now that backroads is its second consumer; enginelab renders a
+  byte-identical WAV after the move. backroads drives it with a **4-speed automatic** (top of each gear
+  ~40 / 70 / 105 / 150 km/h; rpm = road speed / gear top; upshift near the top under throttle with a
+  0.22 s throttle lift, downshift when revs sag; clutch slip below walking pace in first, so the gas
+  revs the engine before it pulls) and a `CE_GAS` engine. Plus **tyre/road noise**: a held noise voice,
+  louder with speed, a hiss on asphalt, a deeper rumble on rough ground.
+- **The dash**: dark vinyl with a grained wood strip, a gauge pod (speedometer, rev counter with a red
+  zone, a fuel gauge with no fuel model yet, the gear), and a big steering wheel centred below the
+  screen whose rim arcs in front of the pod; rim, spokes and the hands at ten-to-two turn with the
+  steering. The debug readout (`H`) is now an overlay at the top of the view (pos, heading, altitude,
+  surface, gear).
+- Checked: click-check's largest step in a drive is 0.6 % of peak (enginelab's own pops reach 34 %).
+
+Still to do in rung 3: the maker's ear on the engine (kind, levels), and whether cruising is fun.
+
 ---
 
 ## 11. Open questions — to be answered by playing

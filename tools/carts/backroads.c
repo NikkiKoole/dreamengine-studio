@@ -18,13 +18,14 @@
   "description": {
     "summary": "A 1970s cockpit-view drive (work in progress): flat-shaded, dithered countryside from the endless worldnet world, roads you can follow from town to town or leave for the fields.",
     "detail": "The ground is a grid of triangles sampled from worldnet's heightmap in three rings around the car: 16 m cells close by, 64 m further out, 256 m out to the fog. There is no z-buffer and no sort: a heightfield seen from inside it can be painted back-to-front just by walking the grid rows and columns from the far edge toward the camera, outer ring first. Roads are worldnet's own spline edges, cut into pieces and clipped into the exact terrain cell (and triangle) they lie on, then drawn right after that cell, so the same order hides a road behind a hill. Centre dashes and edge posts are placed by distance along the road, so they stay put as you drive past them. Leaving the road changes everything: plough and woods drag, grass lets the tail slide, and four wheels sampling the ground tilt the view over crests and ditches. Design doc: docs/design/backroads.md.",
-    "controls": "UP gas, DOWN brake/reverse, LEFT/RIGHT steer. - / = big hills, [ / ] small hills, H toggles the debug readout, TAB opens the map (drag to pan, wheel zooms, centre button snaps back to the car). Drives an islandstudio island when one is exported (data/islandstudio-3.rvb or -1, --data, or drop a .rvb on the window); otherwise the endless worldnet world."
+    "controls": "UP gas, DOWN brake/reverse, LEFT/RIGHT steer (a 4-speed automatic shifts for you). - / = big hills, [ / ] small hills, H toggles the debug readout, TAB opens the map (drag to pan, wheel zooms, centre button snaps back to the car). Drives an islandstudio island when one is exported (data/islandstudio-3.rvb or -1, --data, or drop a .rvb on the window); otherwise the endless worldnet world."
   }
 }
 de:meta */
 #include "studio.h"
 #include "worldnet.h"
 #include "roadkit.h"     // curb_return: the shared at-grade junction geometry (streetlab, citydrive)
+#include "carengine.h"   // the engine voice (enginelab's, extracted): firing-rate body, rasp, intake, burble
 #include <math.h>
 #include <stdlib.h>
 
@@ -1158,6 +1159,39 @@ static float autopilot_steer(void) {
     return clamp(diff / 8.0f, -1, 1);
 }
 #endif
+// ── SOUND: the engine (carengine.h) driven by a 4-speed automatic, plus tyre/road noise ─────
+// The gearbox: rpm = road speed / this gear's top speed, so revs climb through each gear and drop on
+// every upshift (which also lifts the throttle for a beat: you hear the change, and at high revs the
+// overrun crackle). At walking pace the clutch slips, so the gas revs the engine before it pulls.
+static float pedal;                              // gas pedal 0/1 (set in drive)
+static CarEngine eng;
+static int   gear = 1, snd_ready, v_road = -1;
+static float rpm_s, thr_s, shift_t;
+static const float GEAR_TOP[5] = { 0, 11.0f, 19.5f, 29.0f, 42.0f };   // m/s at redline: ~40 / 70 / 105 / 150 km/h
+#define SLOT_ROAD 9
+static void sound_update(float d) {
+    if (!snd_ready) {
+        carengine_init(&eng, 5); eng.kind = CE_GAS;     // a tired 1970s sedan; the garage will change this
+        instrument(SLOT_ROAD, INSTR_NOISE, 20, 0, 7, 200);
+        instrument_filter(SLOT_ROAD, FILTER_LOW, 700, 2);
+        v_road = note_on(50, SLOT_ROAD, 0);
+        snd_ready = 1;
+    }
+    float spd = fsqrt(vx * vx + vy * vy), gr = spd / GEAR_TOP[gear];
+    if (shift_t > 0) shift_t -= d;
+    if (gr > 0.88f && gear < 4 && pedal > 0) { gear++; shift_t = 0.22f; }
+    else if (gr < 0.30f && gear > 1)        { gear--; }
+    gr = spd / GEAR_TOP[gear];
+    float target = 0.10f + 0.90f * clamp(gr, 0, 1);
+    if (gear == 1 && spd < 4.0f) target = fmaxf(target, 0.10f + pedal * 0.45f);   // clutch slip
+    rpm_s += (target - rpm_s) * clamp(d * 8.0f, 0, 1);
+    thr_s += ((shift_t > 0 ? 0 : pedal) - thr_s) * 0.2f;
+    carengine_update(&eng, rpm_s, thr_s, 1);
+    // tyre/road noise: louder with speed, a hiss on asphalt, a deeper rumble on rough ground
+    float rough = SURF[cur_surf].rough;
+    note_vol(v_road, (int)clamp(spd / 30.0f * (2.5f + rough * 3.0f), 0, 6));
+    note_cutoff(v_road, (int)(1800 - rough * 1300 + spd * 10));
+}
 static void drive(float d) {
     int gas = btn(0, BTN_UP), brk = btn(0, BTN_DOWN);
     float st = (btn(0, BTN_RIGHT) ? 1.0f : 0) - (btn(0, BTN_LEFT) ? 1.0f : 0);
@@ -1165,6 +1199,7 @@ static void drive(float d) {
     if (keyp('P')) autop = !autop;
     if (autop) { st = autopilot_steer(); float v = fsqrt(vx*vx + vy*vy); gas = v < 22; brk = v > 26; }
 #endif
+    pedal = gas ? 1.0f : 0.0f;
     steer += (st - steer) * clamp(d * 6.0f, 0, 1);
 
     cur_surf = surf_at(px, py);
@@ -1290,6 +1325,7 @@ void update(void) {
     if (key('[')) detail = clamp(detail - 40 * d, 0, 400);
     if (key(']')) detail = clamp(detail + 40 * d, 0, 400);
     drive(d);
+    sound_update(d);
 #ifdef DE_TRACE
     watch("x", "%.0f", px); watch("y", "%.0f", py); watch("head", "%.1f", head);
     watch("spd", "%.1f", fsqrt(vx * vx + vy * vy)); watch("camh", "%.1f", camh);
@@ -1298,33 +1334,82 @@ void update(void) {
         watch("brd", "%.1f", r.ok ? r.dist : -1.0f); watch("deckz", "%.1f", (r.ok && ipl_br[r.poly] >= 0) ? deck_h(r.poly, r.s) : -1.0f);
         IHit a2 = isl_nearest(px, py, NK_ANYROAD, 60); watch("road_cls", "%d", a2.ok ? ipl[a2.poly].cls : -1); watch("road_br", "%d", a2.ok ? ipl[a2.poly].bridge : -1); }
     watch("njunc", "%d", ISL ? nijn : 0); watch("nbridge", "%d", ISL ? nibr : 0); watch("pc_drop", "%d", pc_drop); watch("nbin", "%d", nbin);
+    watch("gear", "%d", gear); watch("rpm", "%.2f", rpm_s);
     watch("pitch", "%.3f", pitch); watch("roll", "%.3f", roll); watch("npc", "%d", npc);
 #endif
 }
 
+// ── THE DASH: 1970s vinyl + a wood strip, a gauge pod (speedo, rev counter with a red zone, fuel,
+// the gear), and the steering wheel in front, turning with the steering, hands at ten-to-two.
+// Shakes with the road (dash_shake). The debug readout (H) is an overlay at the top of the view.
+static void gauge(int cx, int cy, int r, float t, int ticks, float red_from, const char *label, int big) {
+    circfill(cx, cy, r + 1, CLR_BROWNISH_BLACK);
+    circfill(cx, cy, r, CLR_DARKER_GREY);
+    circ(cx, cy, r, CLR_DARK_BROWN);
+    for (int i = 0; i <= ticks; i++) {                    // ticks across a 270° sweep (7 o'clock → 5)
+        float u = (float)i / ticks, a = (135 + u * 270) * D2R;
+        int c = u >= red_from ? CLR_RED : CLR_MEDIUM_GREY, in = (i % 2 == 0 && big) ? 5 : 3;
+        line(cx + (int)(cosf(a) * (r - in)), cy + (int)(sinf(a) * (r - in)),
+             cx + (int)(cosf(a) * (r - 1)), cy + (int)(sinf(a) * (r - 1)), c);
+    }
+    float a = (135 + clamp(t, 0, 1) * 270) * D2R;
+    line(cx, cy, cx + (int)(cosf(a) * (r - 3)), cy + (int)(sinf(a) * (r - 3)), CLR_DARK_PEACH);
+    circfill(cx, cy, 1, CLR_MEDIUM_GREY);
+    font(FONT_TINY);
+    print(label, cx - text_width(label) / 2, cy + r / 2, CLR_DARK_GREY);
+    font(FONT_NORMAL);
+}
 static void draw_dash(void) {
     int sy = (int)(dash_shake * (noise(now() * 23.0f) - 0.5f) * 2.0f);
     camera(0, sy);
-    rectfill(0, VIEW_H - 2, SCREEN_W, SCREEN_H - VIEW_H + 6, CLR_BROWNISH_BLACK);
-    line(0, VIEW_H - 2, SCREEN_W, VIEW_H - 2, CLR_DARK_BROWN);
-    int cx = 70, cy = 172, r = 20;
-    circfill(cx, cy, r, CLR_DARKER_GREY);
-    circ(cx, cy, r, CLR_DARK_BROWN);
+    int top = VIEW_H - 2;
+    rectfill(0, top, SCREEN_W, SCREEN_H - top + 6, CLR_BROWNISH_BLACK);              // vinyl
+    rectfill(0, top, SCREEN_W, 3, CLR_DARK_BROWN);                                    // the dash top edge
+    for (int x = 0; x < SCREEN_W; x += 2)                                             // wood strip, grained
+        line(x, top + 44, x, top + 49, ((x * 7 + (x / 13) * 5) % 9 < 3) ? CLR_DARK_BROWN : CLR_BROWN);
+    // gauge pod behind the wheel
+    rectfill(92, top + 4, 136, 40, CLR_BROWNISH_BLACK);
+    rect(92, top + 4, 136, 40, CLR_DARK_BROWN);
     float kmh = fsqrt(vx * vx + vy * vy) * 3.6f;
-    float a = (135 + clamp(kmh / 180.0f, 0, 1) * 270) * D2R;
-    line(cx, cy, cx + (int)(cosf(a) * (r - 3)), cy + (int)(sinf(a) * (r - 3)), CLR_DARK_PEACH);
-    print(str("%3d", (int)kmh), cx - 12, cy + 8, CLR_MEDIUM_GREY);
-    if (dbg) {
-        float hdg = head + 90; while (hdg < 0) hdg += 360; while (hdg >= 360) hdg -= 360;
-        font(FONT_SMALL);
-        print(str("hdg %3d  alt %4dm  %s", (int)hdg, (int)(camh - EYE), SURF[cur_surf].name), 120, 146, CLR_MEDIUM_GREY);
-        print(str("hills x%d +%dm  tris %d  road %d", (int)vscale, (int)detail, ntri, npc), 120, 156, CLR_DARK_GREY);
-        print(str("pos %d,%d", (int)px, (int)py), 120, 166, CLR_DARK_GREY);
-        print(ISL ? str("island: %s", isl_name) : "world: worldnet (endless)", 120, 176, CLR_DARK_GREY);
-        print("arrows drive -/= hills [/] bumps H", 120, 184, CLR_DARKER_GREY);
-        font(FONT_NORMAL);
+    gauge(122, top + 24, 18, kmh / 180.0f, 9, 2.0f, "km/h", 1);
+    gauge(198, top + 24, 18, rpm_s, 8, 0.82f, "x1000", 1);
+    gauge(160, top + 16, 9, 0.75f, 4, 2.0f, "", 0);                                  // fuel (no fuel model yet)
+    font(FONT_TINY);
+    print("E", 150, top + 20, CLR_DARK_GREY); print("F", 167, top + 20, CLR_DARK_GREY);
+    font(FONT_NORMAL);
+    print(str("%3d", (int)kmh), 110, top + 32, CLR_MEDIUM_GREY);
+    rectfill(221, top + 6, 11, 10, CLR_DARKER_GREY);                                  // gear indicator
+    print(str("%d", gear), 223, top + 7, CLR_LIGHT_PEACH);
+    // the steering wheel: a big rim centred below the screen, arcing across the dash in front of the
+    // pod; spokes + hands at ten-to-two turn with the steering
+    {
+        int wx = 160, wy = top + 114, wr = 104;
+        float rot = steer * 70.0f * D2R;
+        for (int k = 0; k < 6; k++) circ(wx, wy, wr - k, k == 1 ? CLR_DARK_GREY : k < 5 ? CLR_DARKER_GREY : CLR_BROWNISH_BLACK);
+        for (int sp = 0; sp < 2; sp++) {                                              // two side spokes
+            float a = (sp ? 0.25f : 3.14159f - 0.25f) + rot;
+            for (int w = -2; w <= 2; w++)
+                line(wx, wy + w, wx + (int)(cosf(a) * (wr - 5)), wy + w + (int)(sinf(a) * (wr - 5)), CLR_DARKER_GREY);
+        }
+        for (int hnd = 0; hnd < 2; hnd++) {                                          // hands at ten-to-two
+            float a = (hnd ? -0.62f : -2.52f) + rot;                                  // ~55° either side of top
+            int hx = wx + (int)(cosf(a) * (wr - 2)), hy = wy + (int)(sinf(a) * (wr - 2));
+            int fx = hx + (hnd ? 16 : -16), fy = SCREEN_H + 6;                        // forearm down to the frame edge
+            for (int w = -3; w <= 3; w++) line(hx + w, hy + 4, fx + w, fy, CLR_DARK_BROWN);   // jacket sleeve
+            circfill(hx, hy, 7, CLR_DARK_PEACH);
+            circfill(hx - (hnd ? 1 : -1), hy - 2, 5, CLR_PEACH);
+            line(hx - 5, hy - 1, hx + 5, hy - 1, CLR_DARK_PEACH);                     // knuckles over the rim
+        }
     }
     camera(0, 0);
+    if (dbg) {                                            // debug readout: an overlay at the top of the view
+        float hdg = head + 90; while (hdg < 0) hdg += 360; while (hdg >= 360) hdg -= 360;
+        font(FONT_SMALL);
+        rectfill(0, 0, SCREEN_W, 21, CLR_BROWNISH_BLACK);
+        print(str("pos %d,%d  hdg %3d  alt %dm  %s  gear %d", (int)px, (int)py, (int)hdg, (int)(camh - EYE), SURF[cur_surf].name, gear), 3, 2, CLR_MEDIUM_GREY);
+        print(str("%s  tris %d  road %d   H hide  TAB map  J/K jump  O drone", ISL ? isl_name : "worldnet", ntri, npc), 3, 11, CLR_DARK_GREY);
+        font(FONT_NORMAL);
+    }
 }
 
 // ── TAB map: north-up, car at the centre. Terrain sampled per 2 px block (fixed cost, only

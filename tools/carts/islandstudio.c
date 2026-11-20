@@ -10,7 +10,7 @@
   "description": {
     "summary": "Grow a 40 x 40 km island: coast, hills and mountains, water that drains and carves valleys, wind, rain and a rain shadow, cover, settlements, farms, and the roads between them.",
     "detail": "The island is a finite grid: 256 x 256 (156 m cells) while you play with the sliders, 512 or 1024 (39 m) for a final bake. Noise gives the shape: an island mask with a warped coast, layered rolling hills, and ridged mountains that only grow inside a mountain mask (slide it to zero for a low island). Then the whole map drains: a priority flood fills every pit so each cell has a downhill path to the sea, a flow count adds up how much land drains through each cell, and valleys are carved where the flow is large. Draining again gives the rivers and lakes. A prevailing wind brings rain that the mountains wring out, leaving a dry lee. Natural cover follows from height, slope, rain and water (forest, grassland, scrub, moor, rock, marsh, beach), and settlements claim the flattest, lowest, best-watered, most fertile land, spaced apart, with the biggest few becoming towns. Roads are routed across the terrain by A*, most important first, with a discount for reusing an existing road so routes merge into trunks; traffic sets the class (main road, secondary, lane), a ring road follows the coast where the land allows, an expressway joins the two biggest towns when they are far apart, scattered farmsteads add tracks and through-lanes, and forests and moors get dead-end tracks. Rivers are smooth lines and roads cross them on bridges. The panel compares the result to two real islands measured from OpenStreetMap. Design doc: docs/design/island-studio.md.",
-    "controls": "Drag the sliders. R or ROLL = new seed. V or VIEW cycles cover / terrain / slope / suitability / flow. Hover the map for height, cover, rain and suitability. Red squares are towns (named), white villages, dots hamlets; hover one for its name. Every island and place gets a name from a Norse, Gaelic or English flavour picked by the seed. The arrow shows the wind. The tree line slider goes from bare hills to wooded mountains. Town size sets how far towns and villages grow their street grids (only the roads re-route). Bridging sets how readily roads bridge open water (lakes, sea inlets): 0 never, 1 crossings up to 2 km. TAB opens a full-screen zoom (drag to pan, wheel to zoom) with roads at their real widths. G or RES switches the grid between 256 (live), 512 and 1024 (a ~2.5 s bake, much finer roads). X exports the island (roads, cover, heights) to data/islandstudio-<seed>.json (roadview's vector format; measure with tools/road-density.js) plus the packed .rvb that backroads drives."
+    "controls": "Drag the sliders. R or ROLL = new seed. V or VIEW cycles cover / terrain / slope / suitability / flow. Hover the map for height, cover, rain and suitability. Red squares are towns (named), white villages, dots hamlets; hover one for its name. Every island and place gets a name from a Norse, Gaelic or English flavour picked by the seed. The arrow shows the wind. The tree line slider goes from bare hills to wooded mountains. Town size sets how far towns and villages grow their street grids (only the roads re-route). Bridging sets how readily roads bridge open water (lakes, sea inlets): 0 never, 1 crossings up to 2 km. TAB opens a full-screen zoom (drag to pan, wheel to zoom) with roads at their real widths and, close in, every building. G or RES switches the grid between 256 (live), 512 and 1024 (a ~2.5 s bake, much finer roads). X exports the island (roads, cover, heights) to data/islandstudio-<seed>.json (roadview's vector format; measure with tools/road-density.js) plus the packed .rvb that backroads drives."
   }
 }
 de:meta */
@@ -1481,6 +1481,174 @@ static void upland_tracks(void) {
     }
 }
 
+// ── HOUSES: islandstudio decides WHERE buildings go, backroads how they look. Exported as kind
+// "building" with sub "h=<storeys>;t=<type>" (house | terrace | shop | church | farm | barn), one
+// closed rectangle each. Along every lane / secondary / main road inside a settlement's built-up
+// radius, both sides, front to the road, set back 4-8 m: terraces + shops in a town's core, detached
+// houses further out and in villages, a sparse few in hamlets; one church per town and village near
+// the centre; a farmhouse + one or two barns at every farm. Never on a road (every corner keeps
+// clear of every road's edge), in water, on steep ground, or on another building.
+enum { HT_HOUSE, HT_TERRACE, HT_SHOP, HT_CHURCH, HT_FARM, HT_BARN, NHT };
+static const char *HTN[NHT] = { "house", "terrace", "shop", "church", "farm", "barn" };
+#define MAXHOUSE 24000
+typedef struct { float x, y, ux, uy, w, d; unsigned char h, t; } House;   // centre, frontage dir, frontage w, depth d
+static House hs[MAXHOUSE]; static int nhs, st_htype[NHT];
+#define RSG 625                                   // road-segment buckets (64 m) for clearance tests
+static int rs_head[RSG * RSG], rs_next[MAXPT]; static unsigned char rs_cls[MAXPT];
+static int hs_head[RSG * RSG], hs_next[MAXHOUSE];
+static short own[MAXN * MAXN];                    // settlement owning a cell (built-up radius), -1 none
+static float hs_rand(unsigned *st) { *st = hsh(*st + 0x9e3779b9u); return (*st & 0xFFFFFF) / (float)0x1000000; }
+static void hs_corners(const House *q, float *cx, float *cy) {
+    float vx = -q->uy, vy = q->ux;                // depth direction
+    float a[4][2] = { { -1, -1 }, { 1, -1 }, { 1, 1 }, { -1, 1 } };
+    for (int k = 0; k < 4; k++) { cx[k] = q->x + q->ux * a[k][0] * q->w * 0.5f + vx * a[k][1] * q->d * 0.5f;
+                                  cy[k] = q->y + q->uy * a[k][0] * q->w * 0.5f + vy * a[k][1] * q->d * 0.5f; }
+}
+static float road_clear(float x, float y) {      // distance from (x,y) to the nearest road EDGE (m)
+    int bx = (int)(x / 64.0f), by = (int)(y / 64.0f); float best = 1e9f;
+    for (int gy = by - 1; gy <= by + 1; gy++) for (int gx = bx - 1; gx <= bx + 1; gx++) {
+        if (gx < 0 || gy < 0 || gx >= RSG || gy >= RSG) continue;
+        for (int i = rs_head[gy * RSG + gx]; i >= 0; i = rs_next[i]) {
+            float ax = plx[i - 1], ay = ply[i - 1], dx = plx[i] - ax, dy = ply[i] - ay, L2 = dx * dx + dy * dy;
+            float t = L2 > 1e-6f ? ((x - ax) * dx + (y - ay) * dy) / L2 : 0; t = t < 0 ? 0 : t > 1 ? 1 : t;
+            float ex = ax + t * dx - x, ey = ay + t * dy - y;
+            float d = sqrtf(ex * ex + ey * ey) - RHW[rs_cls[i]];
+            if (d < best) best = d;
+        }
+    }
+    return best;
+}
+static int buildable(float x, float y) {
+    if (x < 0 || y < 0 || x >= WORLD_M || y >= WORLD_M) return 0;
+    int c = (int)(y / CELL) * N + (int)(x / CELL);
+    return is_dry(c) && H_bilinear(x, y) > 0.5f && !river_cell(c) && slope_at(c % N, c / N) < 0.2f;
+}
+static int try_house(House q) {
+    if (nhs >= MAXHOUSE) { st_overflow++; return 0; }
+    float cx[4], cy[4]; hs_corners(&q, cx, cy);
+    if (!buildable(q.x, q.y) || road_clear(q.x, q.y) < 2.0f) return 0;
+    for (int k = 0; k < 4; k++) if (!buildable(cx[k], cy[k]) || road_clear(cx[k], cy[k]) < 1.5f) return 0;
+    for (int k = 0; k < 4; k++) {                 // edge midpoints too (a long terrace can straddle a lane)
+        float mx = (cx[k] + cx[(k + 1) & 3]) * 0.5f, my = (cy[k] + cy[(k + 1) & 3]) * 0.5f;
+        if (road_clear(mx, my) < 1.5f) return 0;
+    }
+    float r = 0.5f * sqrtf(q.w * q.w + q.d * q.d);   // vs other buildings: circles, a little generous
+    int bx = (int)(q.x / 64.0f), by = (int)(q.y / 64.0f);
+    for (int gy = by - 1; gy <= by + 1; gy++) for (int gx = bx - 1; gx <= bx + 1; gx++) {
+        if (gx < 0 || gy < 0 || gx >= RSG || gy >= RSG) continue;
+        for (int j = hs_head[gy * RSG + gx]; j >= 0; j = hs_next[j]) {
+            float r2 = 0.5f * sqrtf(hs[j].w * hs[j].w + hs[j].d * hs[j].d);
+            float dx = hs[j].x - q.x, dy = hs[j].y - q.y;
+            if (dx * dx + dy * dy < (r + r2) * 0.85f * (r + r2) * 0.85f) return 0;
+        }
+    }
+    hs[nhs] = q; hs_next[nhs] = hs_head[by * RSG + bx]; hs_head[by * RSG + bx] = nhs; nhs++;
+    st_htype[q.t]++;
+    return 1;
+}
+static void build_houses(void) {
+    nhs = 0; for (int k = 0; k < NHT; k++) st_htype[k] = 0;
+    for (int i = 0; i < RSG * RSG; i++) { rs_head[i] = -1; hs_head[i] = -1; }
+    for (int p = 0; p < npl; p++) for (int i = pl[p].start + 1; i < pl[p].start + pl[p].n; i++) {
+        rs_cls[i] = (unsigned char)pl[p].cls;
+        int bx = (int)((plx[i] + plx[i - 1]) * 0.5f / 64.0f), by = (int)((ply[i] + ply[i - 1]) * 0.5f / 64.0f);
+        if (bx < 0 || by < 0 || bx >= RSG || by >= RSG) continue;
+        rs_next[i] = rs_head[by * RSG + bx]; rs_head[by * RSG + bx] = i;
+    }
+    for (int i = 0; i < N * N; i++) own[i] = -1;
+    for (int s = 0; s < nset; s++) {
+        int r = (int)(set_r[s] / CELL) + 1;
+        for (int y = set[s].y - r; y <= set[s].y + r; y++) for (int x = set[s].x - r; x <= set[s].x + r; x++) {
+            if (x < 0 || y < 0 || x >= N || y >= N) continue;
+            if (hypotf((float)(x - set[s].x), (float)(y - set[s].y)) * CELL <= set_r[s]) own[y * N + x] = (short)s;
+        }
+    }
+    // 1. a CHURCH per town and village: the first spot that fits along a road near the centre
+    for (int s = 0; s < nset; s++) {
+        if (set[s].rank == ST_HAMLET) continue;
+        float sx = (set[s].x + 0.5f) * CELL, sy = (set[s].y + 0.5f) * CELL;
+        static int ci[4096]; static float cd[4096]; int nc = 0;           // road points within 220 m, nearest first
+        int bx = (int)(sx / 64.0f), by = (int)(sy / 64.0f);
+        for (int gy = by - 4; gy <= by + 4; gy++) for (int gx = bx - 4; gx <= bx + 4; gx++) {
+            if (gx < 0 || gy < 0 || gx >= RSG || gy >= RSG) continue;
+            for (int i = rs_head[gy * RSG + gx]; i >= 0 && nc < 4096; i = rs_next[i]) {
+                if (rs_cls[i] < RC_LANE || rs_cls[i] == RC_EXPRESS) continue;
+                float d = hypotf(plx[i] - sx, ply[i] - sy); if (d > 220) continue;
+                ci[nc] = i; cd[nc] = d; nc++;
+            }
+        }
+        for (int a = 1; a < nc; a++) for (int b = a; b > 0 && cd[b] < cd[b - 1]; b--) {
+            float t = cd[b]; cd[b] = cd[b - 1]; cd[b - 1] = t; int u = ci[b]; ci[b] = ci[b - 1]; ci[b - 1] = u; }
+        int done = 0;
+        for (int k = 0; k < nc && !done; k++) {
+            int i = ci[k];
+            float dx = plx[i] - plx[i - 1], dy = ply[i] - ply[i - 1], l = sqrtf(dx * dx + dy * dy) + 1e-6f;
+            for (int sd = -1; sd <= 1 && !done; sd += 2) {
+                House q = { 0 }; q.ux = dx / l; q.uy = dy / l; q.w = 12; q.d = 26;
+                float off = RHW[rs_cls[i]] + 8 + q.d * 0.5f;
+                q.x = plx[i] - q.uy * off * sd; q.y = ply[i] + q.ux * off * sd; q.h = 2; q.t = HT_CHURCH;
+                done = try_house(q);
+            }
+        }
+    }
+    // 2. houses along the roads inside each settlement
+    for (int p = 0; p < npl; p++) {
+        int cls = pl[p].cls; if (cls < RC_LANE || cls == RC_EXPRESS) continue;
+        int s0 = pl[p].start, n = pl[p].n;
+        static float cum[SM_MAX * 4]; if (n > SM_MAX * 4) continue;
+        cum[0] = 0; for (int i = 1; i < n; i++) cum[i] = cum[i - 1] + hypotf(plx[s0 + i] - plx[s0 + i - 1], ply[s0 + i] - ply[s0 + i - 1]);
+        float L = cum[n - 1];
+        for (int sd = -1; sd <= 1; sd += 2) {
+            unsigned st = hsh((unsigned)p * 7919u + (unsigned)(sd + 2) * 104729u + (unsigned)seed);
+            float s = 12.0f + hs_rand(&st) * 8.0f; int i = 0;          // clear of the junction at each end
+            while (s < L - 12.0f) {
+                while (i < n - 2 && cum[i + 1] < s) i++;
+                float t = (s - cum[i]) / fmaxf(cum[i + 1] - cum[i], 1e-3f);
+                float px = plx[s0 + i] + (plx[s0 + i + 1] - plx[s0 + i]) * t, py = ply[s0 + i] + (ply[s0 + i + 1] - ply[s0 + i]) * t;
+                float ux = plx[s0 + i + 1] - plx[s0 + i], uy = ply[s0 + i + 1] - ply[s0 + i], ul = sqrtf(ux * ux + uy * uy) + 1e-6f; ux /= ul; uy /= ul;
+                int c = (int)(py / CELL) * N + (int)(px / CELL);
+                int so = (c >= 0 && c < N * N) ? own[c] : -1;
+                if (so < 0) { s += 15.0f; continue; }
+                int rank = set[so].rank;
+                float dc = hypotf(px - (set[so].x + 0.5f) * CELL, py - (set[so].y + 0.5f) * CELL) / fmaxf(set_r[so], 1);
+                int core = rank == ST_TOWN && dc < 0.5f;
+                float keep = rank == ST_TOWN ? (core ? 0.95f : 0.8f) : rank == ST_VILLAGE ? 0.7f : 0.45f;
+                House q = { 0 }; q.ux = ux; q.uy = uy;
+                if (core && hs_rand(&st) < 0.55f) { q.t = HT_TERRACE; q.w = 18 + hs_rand(&st) * 18; q.d = 9 + hs_rand(&st) * 3; q.h = 2 + (hs_rand(&st) < 0.4f); }
+                else if (core && cls >= RC_SEC && hs_rand(&st) < 0.5f) { q.t = HT_SHOP; q.w = 8 + hs_rand(&st) * 6; q.d = 10 + hs_rand(&st) * 4; q.h = 2 + (hs_rand(&st) < 0.5f); }
+                else { q.t = HT_HOUSE; q.w = 7 + hs_rand(&st) * 5; q.d = 8 + hs_rand(&st) * 5;
+                       q.h = rank == ST_TOWN ? 2 + (core && hs_rand(&st) < 0.3f) : 1 + (hs_rand(&st) < (rank == ST_VILLAGE ? 0.6f : 0.4f)); }
+                float gap = q.t == HT_TERRACE ? 3 + hs_rand(&st) * 4
+                          : rank == ST_TOWN ? (core ? 2 + hs_rand(&st) * 4 : 5 + hs_rand(&st) * 8)
+                          : rank == ST_VILLAGE ? 6 + hs_rand(&st) * 14 : 14 + hs_rand(&st) * 30;
+                float off = RHW[cls] + (core ? 3 + hs_rand(&st) * 2 : 4 + hs_rand(&st) * 4) + q.d * 0.5f;
+                q.x = px - uy * off * sd + ux * q.w * 0.5f; q.y = py + ux * off * sd + uy * q.w * 0.5f;
+                if (hs_rand(&st) < keep && try_house(q)) s += q.w + gap;
+                else s += 4.0f + (hs_rand(&st) < keep ? 0 : gap);
+            }
+        }
+    }
+    // 3. FARMS: a farmhouse on the farm, one or two barns 22-40 m off it
+    for (int f = 0; f < nfarm; f++) {
+        unsigned st = hsh((unsigned)farm[f] * 2654435761u ^ (unsigned)seed);
+        float fx = (farm[f] % N + 0.5f) * CELL, fy = (farm[f] / N + 0.5f) * CELL, a = hs_rand(&st) * 6.2831853f;
+        House q = { 0 }; q.ux = cosf(a); q.uy = sinf(a); q.w = 9 + hs_rand(&st) * 4; q.d = 8 + hs_rand(&st) * 3; q.h = 2; q.t = HT_FARM;
+        int ok = 0;
+        for (int k = 0; k < 6 && !ok; k++) { q.x = fx + (hs_rand(&st) - 0.5f) * 40; q.y = fy + (hs_rand(&st) - 0.5f) * 40; ok = try_house(q); }
+        if (!ok) continue;
+        int nb = 1 + (hs_rand(&st) < 0.5f);
+        for (int b = 0; b < nb; b++) {
+            House g = { 0 }; float ga = a + (hs_rand(&st) < 0.5f ? 0 : 1.5707963f);
+            g.ux = cosf(ga); g.uy = sinf(ga); g.w = 18 + hs_rand(&st) * 14; g.d = 12 + hs_rand(&st) * 8; g.h = 1; g.t = HT_BARN;
+            for (int k = 0; k < 6; k++) {
+                float ba = hs_rand(&st) * 6.2831853f, bd = 22 + hs_rand(&st) * 18;
+                g.x = q.x + cosf(ba) * bd; g.y = q.y + sinf(ba) * bd;
+                if (try_house(g)) break;
+            }
+        }
+    }
+}
+
 // ── EXPORT (X): the island as roadview's vector features (the shared road model:
 // data-tools/roadview/osm-roads.js's IR). Roads map onto the OSM ladder the real islands were
 // measured with; bridge spans are split out with sub "B1"; rivers = canal, coastline = coast,
@@ -1615,6 +1783,15 @@ static void export_island(void) {
         ex_poly("residential", set_sub[s], (set[s].x + 0.5f) * CELL, (set[s].y + 0.5f) * CELL,
                 set[s].rank == ST_TOWN ? fmaxf(set_r[s] + 50.0f, 460.0f)
                 : set[s].rank == ST_VILLAGE ? clamp(set_r[s] + 30.0f, 190.0f, 440.0f) : 120.0f, 16);
+    {   // HOUSES: "h=<storeys>;t=<type>" footprints (a building with no sub stays the legacy farm marker)
+        static char hsub[4][NHT][20];
+        for (int h = 1; h <= 3; h++) for (int t = 0; t < NHT; t++) snprintf(hsub[h][t], sizeof hsub[h][t], "h=%d;t=%s", h, HTN[t]);
+        for (int k = 0; k < nhs; k++) {
+            float cx[4], cy[4]; hs_corners(&hs[k], cx, cy);
+            ex_begin("building", hsub[hs[k].h][hs[k].t]);
+            for (int q = 0; q <= 4; q++) ex_pt(ex_r(cx[q & 3], 1), ex_r(WORLD_M - cy[q & 3], 1));
+        }
+    }
     for (int k = 0; k < nfarm; k++) ex_poly("building", NULL, (farm[k] % N + 0.5f) * CELL, (farm[k] / N + 0.5f) * CELL, 12, 4);
     // HEIGHTFIELD (RVB3; backroads/citydrive drape the scene over it): G x G metres,
     // row i = south -> north, col j = west -> east, sea clamped to 0
@@ -1814,6 +1991,7 @@ static void build_roads(void) {
     build_water_bridges();
     build_flyovers();
     build_interchanges();
+    build_houses();
     roads_dirty = 0;
     st_roads_ms = (clock() - t0) * 1000.0f / CLOCKS_PER_SEC;
 }
@@ -1934,7 +2112,7 @@ void update(void) {
     watch("seed", "%d", seed); watch("nset", "%d", nset); watch("coastal", "%d", st_coastal);
     watch("moor", "%d", (int)st_cov[CV_MOOR]); watch("forest", "%d", (int)st_cov[CV_FOREST]);
     watch("land", "%d", (int)st_land); watch("npl", "%d", npl); watch("express", "%d", st_express);
-    watch("ringgaps", "%d", st_ringgaps); watch("bridges", "%d", nbr); watch("lakes", "%d", st_lakes); watch("N", "%d", N); watch("diagx", "%d", st_diagx); watch("cuts", "%d", st_cuts); watch("consol", "%d", st_consol); watch("streets", "%d", st_streets); watch("waterbr", "%d", st_waterbr); watch("waterbr_max", "%.0f", st_waterbr_max); watch("flyovers", "%d", st_flyovers); watch("interchanges", "%d", st_interchanges); watch("rebuild_ms", "%.0f", st_rebuild_ms); watch("overflow", "%d", st_overflow); watch("links", "lane %d/%d sec %d/%d main %d/%d", st_link_ok[0], st_link_try[0], st_link_ok[1], st_link_try[1], st_link_ok[2], st_link_try[2]); { int bb = -1; for (int b = 0; b < nbr; b++) if (bb < 0 || br[b].len > br[bb].len) bb = b;
+    watch("ringgaps", "%d", st_ringgaps); watch("bridges", "%d", nbr); watch("lakes", "%d", st_lakes); watch("N", "%d", N); watch("diagx", "%d", st_diagx); watch("cuts", "%d", st_cuts); watch("consol", "%d", st_consol); watch("streets", "%d", st_streets); watch("houses", "%d", nhs); watch("h_house", "%d", st_htype[0]); watch("h_terrace", "%d", st_htype[1]); watch("h_shop", "%d", st_htype[2]); watch("h_church", "%d", st_htype[3]); watch("h_farm", "%d", st_htype[4]); watch("h_barn", "%d", st_htype[5]); watch("waterbr", "%d", st_waterbr); watch("waterbr_max", "%.0f", st_waterbr_max); watch("flyovers", "%d", st_flyovers); watch("interchanges", "%d", st_interchanges); watch("rebuild_ms", "%.0f", st_rebuild_ms); watch("overflow", "%d", st_overflow); watch("links", "lane %d/%d sec %d/%d main %d/%d", st_link_ok[0], st_link_try[0], st_link_ok[1], st_link_try[1], st_link_ok[2], st_link_try[2]); { int bb = -1; for (int b = 0; b < nbr; b++) if (bb < 0 || br[b].len > br[bb].len) bb = b;
       if (bb >= 0) { watch("bigbridge_x", "%.0f", br[bb].x); watch("bigbridge_y", "%.0f", br[bb].y); watch("bigbridge_len", "%.0f", br[bb].len); } } watch("rivers", "%d", nrv);
     watch("forest_tracks", "%d", nforest); watch("upland_tracks", "%d", nupland); watch("roads_ms", "%.0f", st_roads_ms);
     for (int k = RC_TRACK; k < NRC; k++) watch(RCN[k], "%.0f", st_road[k]);
@@ -2077,6 +2255,15 @@ static void zoom_draw(void) {
             float o = (hw + 1.6f) * sd;
             line(zsx(ax + nx * o), zsy(ay + ny * o), zsx(bx + nx * o), zsy(by + ny * o), CLR_WHITE);
         }
+    }
+    // houses (the exported footprints)
+    if (zm < 6.0f) for (int k = 0; k < nhs; k++) {
+        const House *q = &hs[k];
+        if (q->x < x0w || q->x > x1w || q->y < y0w || q->y > y1w) continue;
+        float cx[4], cy[4]; hs_corners(q, cx, cy);
+        static const int HCOL[NHT] = { CLR_LIGHT_PEACH, CLR_PEACH, CLR_PINK, CLR_WHITE, CLR_LIGHT_PEACH, CLR_BROWN };
+        trifill(zsx(cx[0]), zsy(cy[0]), zsx(cx[1]), zsy(cy[1]), zsx(cx[2]), zsy(cy[2]), HCOL[q->t]);
+        trifill(zsx(cx[0]), zsy(cy[0]), zsx(cx[2]), zsy(cy[2]), zsx(cx[3]), zsy(cy[3]), HCOL[q->t]);
     }
     // farmsteads: a house and a barn
     for (int f = 0; f < nfarm; f++) {

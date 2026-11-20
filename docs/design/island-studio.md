@@ -481,3 +481,27 @@ lake **bed**. Three export changes (same format, more detail):
 
 Backroads paints cover on its own 128 grid, so to *show* the finer water it needs a finer water
 lookup on its side.
+
+## Houses (2026-11-20)
+
+Split agreed with the maker: islandstudio decides **where** buildings go, backroads how they look.
+`build_houses()` runs after the roads are final:
+
+- **Along every lane / secondary / main road inside a settlement's built-up radius**, both sides,
+  front to the road, set back 4-8 m (3-5 m in a town core), clear of the junction at each end of
+  the line. Town core (< half the radius): terrace rows (18-36 m, 2-3 storeys) and shops on
+  secondary/main roads; elsewhere detached houses (7-12 x 8-13 m), 2 storeys in towns, 1-2 in
+  villages and hamlets. Gaps and keep-rates thin out from town core to hamlet.
+- **A church** per town and village: the nearest spot along a road to the centre that fits 12 x 26 m.
+- **Farms**: a farmhouse at each farm plus one or two barns (18-32 x 12-20 m) 22-40 m off it.
+- Never on a road: every corner, edge midpoint and the centre keep 1.5-2 m clear of every road's
+  edge (a 64 m bucket index over the road segments). Never in water, on a river cell, on slopes
+  over 20 %, or on another building (circle test).
+
+**Export**: kind `building`, sub `"h=<storeys>;t=<house|terrace|shop|church|farm|barn>"`, closed
+4-corner ring. The old unlabelled farm diamonds stay (a building with no sub = legacy farm marker).
+Zoom view (TAB) draws every footprint when close in.
+
+Seed 3 @1024: 7,735 buildings (5,180 houses, 371 terraces, 32 shops, 39 churches = every town and
+village, 873 farmhouses, 1,240 barns); 4,546 at 256. Checked against the export: 0 footprints
+overlap any road. +~20 ms routing at 256. File 1.54 → 2.05 MB at 1024.

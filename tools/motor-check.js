@@ -17,6 +17,8 @@
 //            a synth's habit, would move it an octave).
 //   LOAD     a harder pull is brighter (the blowdown spike sharpens).
 //   KNOCK    MODE_MOTOR_KNOCK lifts the 1-3 kHz band of an idle by 8 dB or more (the diesel clatter).
+//   STEAM    the loco layout beats 4 times per wheel turn, and fades to its hiss when it stands still.
+//   ELECTRIC a 1990s-era inverter's carrier sits on its scale step; a modern one is >25 dB under it.
 //   LEVEL    every layout, idle (stock) to redline (straight pipe), stays audible and under 0 dBFS.
 'use strict'
 const fs = require('fs'), path = require('path'), os = require('os'), { execFileSync } = require('child_process')
@@ -114,6 +116,29 @@ const LNAME = ['single', 'V-twin', 'inline-3', 'inline-4', 'flat-4', 'inline-5',
   const d0 = render('LAYOUT=3,RPM=750,LOAD=0.15f,EXH=0.3f,KNOCK=0.0f', 'k0'), d1 = render('LAYOUT=3,RPM=750,LOAD=0.15f,EXH=0.3f,KNOCK=0.75f', 'k1')
   const r0 = band(d0) - tot(d0), r1 = band(d1) - tot(d1)
   check('knock   a diesel clatters at 1-3 kHz', r1 - r0 >= 8, `${r0.toFixed(1)} → ${r1.toFixed(1)} dB of total`, '+8 dB')
+}
+// STEAM: a loco beats 4 times per wheel turn (120 wheel-rpm → 8 beats/s), and a standing one does not chuff
+{
+  const envHz = w => {                     // the strongest rate in the 10 ms loudness envelope, 2..30 Hz
+    const S = seg(w), hop = Math.round(S.sr / 100), e = []
+    for (let i = 0; i + hop <= S.s.length; i += hop) { let a = 0; for (let j = i; j < i + hop; j++) a += S.s[j] * S.s[j]; e.push(Math.sqrt(a / hop)) }
+    const m = e.reduce((a, b) => a + b, 0) / e.length, E = { sr: 100, s: e.map(v => v - m) }
+    let best = 0, at = 0; for (let f = 2; f <= 30; f += 0.25) { const p = goertzel(E, f); if (p > best) { best = p; at = f } }
+    return at
+  }
+  const r = envHz(render('LAYOUT=12,RPM=120,LOAD=0.6f,EXH=0.5f', 'st'))
+  check('steam   4 beats per wheel turn (120 rpm = 8/s)', Math.abs(r - 8) < 0.6, r.toFixed(2) + ' beats/s', '8 ± 0.6')
+  const moving = level(render('LAYOUT=12,RPM=120,LOAD=0.6f,EXH=0.5f', 'st2')), stood = level(render('LAYOUT=12,RPM=2,LOAD=0.6f,EXH=0.5f', 'st0'))
+  check('steam   a standing loco only hisses', moving.rms - stood.rms > 15, `moving ${moving.rms.toFixed(1)} · standing ${stood.rms.toFixed(1)} rms`, '>= 15 dB quieter')
+}
+// ELECTRIC: a 1990s inverter SINGS (300 motor-rpm = step 1 of the scale, G4 392 Hz); a modern EV's carrier is inaudible
+{
+  const at = (w, f) => db(goertzel(seg(w), f))
+  const tr = render('LAYOUT=13,RPM=300,LOAD=0.8f,EXH=1.0f', 'tr'), ev = render('LAYOUT=13,RPM=300,LOAD=0.8f,EXH=0.0f', 'ev')
+  const S = seg(tr); let best = -1e9, fpk = 0
+  for (let f = 150; f < 3000; f += 1) { const p = db(goertzel(S, f)); if (p > best) { best = p; fpk = f } }
+  check('electric a train inverter sings a scale note', Math.abs(fpk - 392) < 6, fpk + ' Hz', 'G4 392 Hz')
+  check('electric a modern EV: no audible carrier', at(tr, 392) - at(ev, 392) > 25, (at(tr, 392) - at(ev, 392)).toFixed(1) + ' dB under the train', '> 25 dB')
 }
 // LEVEL, every layout
 for (let L = 0; L < NCYL.length; L++) {

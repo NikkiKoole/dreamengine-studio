@@ -38,8 +38,17 @@ and augmented environments") and Farnell's *Designing Sound*:
   loudest at idle. It radiates from the engine, so it is added after the muffler. Set by `MODE_MOTOR_KNOCK`
   (0 = petrol); it also sharpens the firing pulse.
 
-Macros: harmonics = LAYOUT (12 detents by cylinder count, k/11: single, V-twin, inline-3, inline-4, flat-4,
-inline-5, inline-6, V6, flat-6, crossplane V8, flatplane V8, V12), timbre = EXHAUST (stock to straight pipe),
+- **Steam (layout 12):** a locomotive's two double-acting cylinders, so 4 exhaust beats per WHEEL turn (the
+  note = the driving wheels' turns per second; a crawl is 0.2 Hz). Each beat is a steam BLAST up the chimney
+  (noise, fast attack, decay long under load = full cut-off), plus a thump down the stack, the blower's hiss
+  and a rod clank. Fixed per-beat offsets repeating each turn give the loco's limp. Standing still, only hiss.
+- **Electric (layout 13):** no beats. Motor whine at 6x and 12x the electrical frequency (4 pole pairs), gear
+  whine at the 23-tooth mesh, and the INVERTER carrier, with timbre as the ERA: 0 = a modern EV (a 10 kHz
+  carrier), 1 = a 1990s train whose asynchronous carrier steps up F major over the first ~1500 motor rpm (the
+  singing Siemens trains), then locks to 9x, 5x, 3x the motor and steps down. Not measured against a recording.
+
+Macros: harmonics = LAYOUT (14 detents, k/13; the 12 combustion layouts by cylinder count: single, V-twin, inline-3, inline-4, flat-4,
+inline-5, inline-6, V6, flat-6, crossplane V8, flatplane V8, V12; then steam, electric), timbre = EXHAUST (stock to straight pipe; electric: the era),
 morph = LOAD (live). Aux, 0.5 = the layout's own: PIPE, ROUGH, INTAKE, MECH; and KNOCK (0 = petrol).
 Each layout's fixed imbalances are seeded by its ORIGINAL index (MOT_SEED), so growing the table never
 re-rolls an engine that was already measured.
@@ -63,15 +72,16 @@ inline-6 recording's 317 Hz band is a pipe mode meeting a firing harmonic at tha
 
 ## The gate and the bench
 
-- `node tools/motor-check.js` (19 checks, ~2 min): rumble on an inline-6 and a V8 within the measured
+- `node tools/motor-check.js` (23 checks, ~2.5 min): rumble on an inline-6 and a V8 within the measured
   ranges; the NEGATIVE CONTROL (ROUGH 0 must be an even machine, < -45 dB) and the two 20 dB apart; the
   V8 hump stays within a third of an octave as the revs double; load brightens; every layout audible at
-  idle and under 0 dBFS at a straight-pipe redline; KNOCK lifts an idle's 1-3 kHz band by 8 dB or more. Renders `tools/carts/motorprobe.c`.
+  idle and under 0 dBFS at a straight-pipe redline; KNOCK lifts an idle's 1-3 kHz band by 8 dB or more; the loco beats 4 per wheel turn and only hisses standing; the train's carrier sits on its scale note and a modern EV's is inaudible. Renders `tools/carts/motorprobe.c`.
 - `enginelab`: the dyno. N flips a combustion kind back to the old synth layers for the A/B.
 - `carengine.h`, 16 kinds. Petrol: gas = inline-6 stock (backroads' 1970s sedan), hatch = revvy inline-4,
   triple = inline-3, warble = inline-5 + turbo, V6, flat6, boxer = flat-4, muscle = crossplane V8, race =
   flatplane V8 straight pipe + turbo, vtwin = 45-degree twin. Diesel (knock): diesel = inline-4, truck = big
-  turbo-diesel six, tractor = a big single. Electric, steam and nuclear have no cylinders and stay on the layers.
+  turbo-diesel six, tractor = a big single. Steam = the loco layout, electric = a modern EV, train = the
+  singing inverter. Nuclear (fantasy) stays on the old synth layers.
 
 ## Open
 

@@ -6994,9 +6994,20 @@ static inline float sound_scrape_sample(Voice *v, float pitch_mul) {
 // EXHAUST (0 stock muffler → 1 straight pipe), morph = LOAD (0 coasting · 1 full throttle; live, ride it
 // with note_morph). Aux: MODE_MOTOR_PIPE / _ROUGH / _INTAKE / _MECH (0.5 = the layout's own) and
 // MODE_MOTOR_KNOCK (0 = a petrol engine). HOLDS while sustained. Each layout is one fixed engine.
+// Two more detents are not combustion at all:
+//   · STEAM (a locomotive): two double-acting cylinders, so FOUR exhaust beats per wheel turn, a quarter turn
+//     apart, the front and back ends never set quite alike (the loco's limp). Each beat is a BLAST of steam up
+//     the chimney (noise, fast attack, a decay that is long when the LOAD is heavy: full cut-off when starting,
+//     short sharp chuffs once notched up), plus a thump down the stack; under it the blower's hiss and a rod
+//     clank per beat. The note = the DRIVING WHEELS' turns per second (a crawl is 0.2 Hz). EXHAUST = chimney.
+//   · ELECTRIC: no beats. Motor WHINE at the torque-ripple harmonics (6× and 12× the electrical frequency,
+//     4 pole pairs), GEAR whine at the mesh rate (23 teeth), and the INVERTER's carrier. EXHAUST = the era:
+//     0 a modern EV (a 10 kHz carrier nobody hears), 1 a 1990s train inverter, whose carrier STEPS up a major
+//     scale as it pulls away (the famous singing Siemens trains), then locks to 9×, 5×, 3× the motor and
+//     steps DOWN as it speeds up. LOAD = torque: louder pulling (or regenerating), quiet coasting.
 #define MOT_C 520.0f                       // speed of sound in hot exhaust gas, m/s
 #define MOT_W 0.30f                        // a pulse's length: ~216 of the 720 cycle degrees
-#define MOT_LAYOUTS 12
+#define MOT_LAYOUTS 14
 typedef struct {
     int   n;                               // cylinders
     float off[SOUND_MOTOR_CYL];            // firing angle, degrees of the 720 cycle, in FIRING ORDER
@@ -7006,6 +7017,7 @@ typedef struct {
     float bank_g[2];                       // each pipe's level at the listener (0 = no second pipe)
     float rough, bias, spread;             // cycle-to-cycle variation · fixed per-cylinder strength imbalance · fixed
                                            //   per-cylinder arrival spread (ms): no two headers are the same length
+    int   mode;                            // 0 combustion · 1 steam (blasts, not firings) · 2 electric (no beats)
 } MotLayout;
 static const MotLayout MOT_LAYOUT[MOT_LAYOUTS] = {
     { 1, {0}, {0}, {0}, {1.30f, 1.30f}, {1.0f, 0.0f}, 0.50f, 0.00f, 0.0f },                                    // single (a thumper)
@@ -7020,6 +7032,9 @@ static const MotLayout MOT_LAYOUT[MOT_LAYOUTS] = {
     { 8, {0,90,180,270,360,450,540,630}, {0,1,1,0,1,0,0,1}, {0}, {0.62f, 0.70f}, {1.0f, 0.45f}, 0.45f, 0.30f, 1.5f },  // V8 crossplane, 1-8-4-3-6-5-7-2
     { 8, {0,90,180,270,360,450,540,630}, {0,1,0,1,0,1,0,1}, {0}, {0.55f, 0.57f}, {1.0f, 0.70f}, 0.22f, 0.15f, 0.8f },  // V8 flatplane
     { 12, {0,60,120,180,240,300,360,420,480,540,600,660}, {0,1,0,1,0,1,0,1,0,1,0,1}, {0}, {0.50f, 0.52f}, {1.0f, 0.75f}, 0.15f, 0.12f, 0.6f },  // V12
+    // STEAM: 4 beats per wheel turn = 8 per 720-degree cycle; the fixed offsets (ms) repeat per turn: the LIMP
+    { 8, {0,90,180,270,360,450,540,630}, {0}, {0,7,2,-5,0,7,2,-5}, {0.60f, 0.60f}, {1.0f, 0.0f}, 0.35f, 0.15f, 0.3f, 1 },  // steam locomotive
+    { 1, {0}, {0}, {0}, {1.0f, 1.0f}, {1.0f, 0.0f}, 0.0f, 0.0f, 0.0f, 2 },                                              // electric
 };
 static inline float mot_rand(Voice *v) { v->mot_rnd = v->mot_rnd * 1664525u + 1013904223u; return (float)(v->mot_rnd >> 8) * (1.0f / 16777216.0f); }
 static inline float mot_gauss(Voice *v) { return (mot_rand(v) + mot_rand(v) + mot_rand(v) - 1.5f) * 2.0f; }   // ~N(0, 1), bounded ±3
@@ -7046,7 +7061,7 @@ static void sound_motor_start(Voice *v) {
     // one fixed engine per layout. The seed is the layout's FIRST index (the table grew from 7 rows to 12):
     // seeding by the new index re-rolled every engine's imbalances and noise, and the measured inline-6 / V8
     // were someone else's
-    static const uint32_t MOT_SEED[MOT_LAYOUTS] = { 1, 8, 9, 2, 3, 10, 4, 11, 12, 5, 6, 7 };
+    static const uint32_t MOT_SEED[MOT_LAYOUTS] = { 1, 8, 9, 2, 3, 10, 4, 11, 12, 5, 6, 7, 13, 14 };
     v->mot_rnd = 0x4D4F5452u ^ (MOT_SEED[L] * 2654435761u);
     v->mot_ph = 0.0f;
     for (int i = 0; i < SOUND_MOTOR_CYL; i++) {
@@ -7078,22 +7093,62 @@ static void sound_motor_start(Voice *v) {
     v->mot_kn = 0.0f;
     sound_biquad_set(&v->mot_kbq, 1400.0f, 2.2f, 1.0f);                 // the block's ring: broad, ~650 Hz-3 kHz (the CC0 diesels are bright right through the mids; the VW's clatter peaks 1.6-2 kHz)
     v->mot_norm  = 5.0f / sqrtf((float)m->n);                          // measured: puts an idle near a SAW at the same vol
+    v->mot_ep[0] = v->mot_ep[1] = v->mot_ep[2] = 0.0f; v->mot_cf = 0.0f;
+    if (m->mode == 1) sound_biquad_set(&v->mot_ibq, 1100.0f, 2.6f, 1.0f);    // STEAM: the chimney's broad band (not an airbox)
     v->mot_on = true;
+}
+// ELECTRIC: whine + gear + inverter carrier. f = the motor's turns per second; returns before the cylinders
+static inline float mot_electric(Voice *v, float f, float load, float era) {
+    float fe = f * 4.0f;                                                 // electrical Hz: 4 pole pairs
+    // the INVERTER carrier: a 1990s train steps up a major scale from F4 while the motor is slow (asynchronous,
+    // stepped by speed), then locks to 9x / 5x / 3x the electrical frequency, stepping DOWN as it speeds up
+    static const float MOT_DOREMI[8] = { 0, 2, 4, 5, 7, 9, 11, 12 };   // (not SCALE: that is a -D flag)
+    float cf;
+    // 8 scale steps over the first ~1500 motor rpm: the pull-away
+    if (fe < 100.0f) { int st = (int)(fe / 12.5f); if (st > 7) st = 7; cf = 349.23f * de_powf(2.0f, MOT_DOREMI[st] / 12.0f); }
+    else if (fe * 9.0f < 1500.0f) cf = fe * 9.0f;
+    else if (fe * 5.0f < 1500.0f) cf = fe * 5.0f;
+    else if (fe * 3.0f < 2000.0f) cf = fe * 3.0f;
+    else cf = fe;
+    cf = cf + (10000.0f - cf) * (1.0f - era);                            // a modern EV: the carrier is up at 10 kHz
+    v->mot_cf += 0.02f * (cf - v->mot_cf);                               // ~1 ms: a step, not a click
+    const float isr = 1.0f / (float)SOUND_SAMPLE_RATE;
+    v->mot_ep[0] += fe * isr;           v->mot_ep[0] -= floorf(v->mot_ep[0]);
+    v->mot_ep[1] += f * 23.0f * isr;    v->mot_ep[1] -= floorf(v->mot_ep[1]);   // gear mesh: 23-tooth pinion
+    v->mot_ep[2] += v->mot_cf * isr;    v->mot_ep[2] -= floorf(v->mot_ep[2]);
+    float mov = f / 3.0f; if (mov > 1.0f) mov = 1.0f;                    // standing still: nothing turns, nothing sings
+    float tq = 0.15f + 0.85f * load;                                     // torque: the whine and the carrier both ride it
+    float pe = SOUND_TWO_PI * v->mot_ep[0];
+    float whine = 0.30f * de_sinf(6.0f * pe) + 0.12f * de_sinf(12.0f * pe);
+    float gear  = 0.10f * de_sinf(SOUND_TWO_PI * v->mot_ep[1]);
+    float car   = de_sinf(SOUND_TWO_PI * v->mot_ep[2]) * (0.75f + 0.25f * de_sinf(2.0f * pe));   // + its sidebands at +-2fe
+    float nz = 2.0f * mot_rand(v) - 1.0f;
+    float air = 0.03f * sound_biquad_run(&v->mot_mbq, nz) * mov;        // bearings + air, high and faint
+    return mov * (tq * whine + (0.4f + 0.6f * load) * gear + era * 0.9f * tq * car) + air;
 }
 static inline float sound_motor_sample(Voice *v, float pitch_mul) {
     if (!v->mot_on) return 0.0f;
     const MotLayout *m = &MOT_LAYOUT[v->mot_lay];
-    float frev = v->freq * pitch_mul;                                    // crank turns per second
-    if (frev < 2.0f) frev = 2.0f; if (frev > 250.0f) frev = 250.0f;
+    float frev = v->freq * pitch_mul;                                    // crank (or wheel, or rotor) turns per second
+    float flo = m->mode == 0 ? 2.0f : 0.05f, fhi = m->mode == 2 ? 300.0f : 250.0f;   // a loco crawls; an EV motor spins to 18000 rpm
+    if (frev < flo) frev = flo; if (frev > fhi) frev = fhi;
     float fcyc = 0.5f * frev;
     float load = clamp01(v->mor), ex = clamp01(v->timb);
+    if (m->mode == 2) {                                                   // ELECTRIC: no cylinders at all
+        float o = mot_electric(v, frev, load, ex) * v->mot_norm * 0.5f;
+        v->mot_env += 0.00015f * (o * o - v->mot_env);
+        return o;
+    }
     if (ex - v->mot_ex > 0.005f || v->mot_ex - ex > 0.005f) mot_exhaust(v, ex);
     v->mot_ph += fcyc / (float)SOUND_SAMPLE_RATE;
     if (v->mot_ph >= 1.0f) v->mot_ph -= 1.0f;
     float pk = 0.22f - 0.13f * load;                                     // where the pulse peaks: a hard pull snaps it open
     float a0 = 0.30f + 0.70f * load;
     float tsp = (2.6f - 1.4f * load) * (1.0f - 0.65f * v->mot_knock) * 0.001f;   // the spike's rise: a hard pull (or a diesel) is sharper
-    float in[2] = { 0.0f, 0.0f }, air = 0.0f;
+    float in[2] = { 0.0f, 0.0f }, air = 0.0f, blast = 0.0f;
+    const int steam = m->mode == 1;
+    float tau = 0.015f + 0.10f * load;                                   // STEAM: a blast's decay: long when working hard
+    if (steam) { float mv = (frev - 0.05f) * 4.0f; a0 *= mv < 0.0f ? 0.0f : mv > 1.0f ? 1.0f : mv; }   // a standing loco only hisses
     for (int i = 0; i < m->n; i++) {
         float u = v->mot_ph - m->off[i] * (1.0f / 720.0f) - (m->hdr_ms[i] + m->spread * v->mot_tofs[i] * v->mot_rough * 2.0f) * 0.001f * fcyc;
         u -= floorf(u);
@@ -7105,8 +7160,12 @@ static inline float sound_motor_sample(Voice *v, float pitch_mul) {
             if (v->mot_knock > 0.0f)                                     // diesel KNOCK (no draw for petrol: keeps its noise stream)
                 v->mot_kn += v->mot_knock * v->mot_amp[i] * (1.3f - 0.8f * load) * (0.7f + 0.6f * mot_rand(v));
         }
-        if (v->mot_pu[i] < 0.5f && u >= 0.5f) v->mot_me += 0.7f;         // the intake valve's
+        if (!steam && v->mot_pu[i] < 0.5f && u >= 0.5f) v->mot_me += 0.7f;   // the intake valve's
         v->mot_pu[i] = u;
+        if (steam) {                                                     // the BLAST up the chimney: steam noise
+            float t = (u - v->mot_jit[i]) / fcyc;
+            if (t > 0.0f) blast += v->mot_amp[i] * (1.0f - de_expf(-t * 250.0f)) * de_expf(-t / tau);
+        }
         float x = (u - v->mot_jit[i]) * (1.0f / MOT_W);
         if (x > 0.0f && x < 1.0f) {
             // the pulse = the BLOWDOWN spike (gas dynamics: a few ms whatever the revs, so an idle still
@@ -7117,7 +7176,7 @@ static inline float sound_motor_sample(Voice *v, float pitch_mul) {
             in[m->bank[i]] += v->mot_amp[i] * (qs * de_expf(1.0f - qs) + 0.35f * q * de_expf(1.0f - q)) * r * r;
         }
         float xi = (u - 0.5f) * 3.0f;                                    // the intake stroke: valve open for 1/3 cycle
-        if (xi > 0.0f && xi < 1.0f) air += de_sinf(3.14159265f * xi);
+        if (!steam && xi > 0.0f && xi < 1.0f) air += de_sinf(3.14159265f * xi);
     }
     // EXHAUST: each bank's pipe, a waveguide round trip with wall loss and an inverting open end
     // The listener hears the wave that has TRAVELLED the pipe (lossy, delayed), never the raw pulse: taking
@@ -7139,7 +7198,11 @@ static inline float sound_motor_sample(Voice *v, float pitch_mul) {
     float out = sound_biquad_run(&v->mot_muf, 0.97f * d + 0.03f * v->mot_hy) * (0.75f + 0.25f * ex);
     // INTAKE roar and the valve TICKS
     float nz = 2.0f * mot_rand(v) - 1.0f;
-    out += v->mot_in * 0.05f * (0.2f + 0.8f * load) * sound_biquad_run(&v->mot_ibq, nz * air);
+    if (steam) {
+        out = 0.5f * out + 1.6f * sound_biquad_run(&v->mot_ibq, nz * blast);    // the blast, straight up the chimney
+        v->mot_me += 0.01f;                                              // the blower's hiss, always
+    } else
+        out += v->mot_in * 0.05f * (0.2f + 0.8f * load) * sound_biquad_run(&v->mot_ibq, nz * air);
     out += v->mot_mech * 0.012f * sound_biquad_run(&v->mot_mbq, nz * v->mot_me);
     v->mot_me *= 0.96f;                                                  // ~0.5 ms tick
     if (v->mot_kn > 1e-5f) {                                             // KNOCK: from the block, so after the muffler

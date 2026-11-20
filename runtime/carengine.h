@@ -12,12 +12,12 @@
 //   DRIVE   saturation that climbs with load (the snarl)
 //   LOPE    a slow Perlin wobble on the idle so it loiters
 //   BURBLE  lift off the gas at high revs → overrun crackle
-// Sixteen kinds (CE_ELECTRIC … CE_TRUCK), each one recipe.
+// Seventeen kinds (CE_ELECTRIC … CE_TRAIN), each one recipe.
 //
-// THE COMBUSTION KINDS (gas, diesel, race, tractor, muscle, boxer) now run INSTR_MOTOR, the engine voice
+// EVERY KIND BUT NUCLEAR now runs INSTR_MOTOR (steam = a locomotive's beats, electric = whine + inverter), the engine voice
 // built from cylinders + exhaust pipes (sound.h): real firing orders, every firing a little different
 // (the rumble), pipe resonances that stay put while the revs sweep through them. The layers above are
-// then the LEGACY voice, kept for electric / steam / nuclear (no cylinders) and for an A/B: set
+// then the LEGACY voice, kept for nuclear (a fantasy hum) and for an A/B: set
 // ce.legacy = 1 to hear any combustion kind on the old synth recipe. Over the motor only TURBO, BURBLE,
 // LOPE and INTAKE (its air roar) still apply.
 //
@@ -38,19 +38,20 @@
 #include <math.h>
 
 enum { CE_ELECTRIC, CE_GAS, CE_DIESEL, CE_STEAM, CE_RACE, CE_NUCLEAR, CE_TRACTOR, CE_MUSCLE, CE_BOXER,
-       CE_HATCH, CE_TRIPLE, CE_WARBLE, CE_V6, CE_FLAT6, CE_VTWIN, CE_TRUCK, CE_KINDS };
+       CE_HATCH, CE_TRIPLE, CE_WARBLE, CE_V6, CE_FLAT6, CE_VTWIN, CE_TRUCK, CE_TRAIN, CE_KINDS };
 static const char *CE_NAME[CE_KINDS] = {
     "ELECTRIC", "GAS", "DIESEL", "STEAM", "RACE", "NUCLEAR", "TRACTOR", "MUSCLE", "BOXER",
-    "HATCH", "TRIPLE", "WARBLE", "V6", "FLAT6", "VTWIN", "TRUCK" };
+    "HATCH", "TRIPLE", "WARBLE", "V6", "FLAT6", "VTWIN", "TRUCK", "TRAIN" };
 // INSTR_MOTOR's LAYOUT detents (harmonics = layout / 11), by cylinder count
 enum { CE_MOT_SINGLE, CE_MOT_VTWIN, CE_MOT_I3, CE_MOT_I4, CE_MOT_FLAT4, CE_MOT_I5, CE_MOT_I6, CE_MOT_V6,
-       CE_MOT_FLAT6, CE_MOT_V8X, CE_MOT_V8F, CE_MOT_V12, CE_MOT_LAYOUTS };
-static const int CE_MOT_CYL[CE_MOT_LAYOUTS] = { 1, 2, 3, 4, 4, 5, 6, 6, 6, 8, 8, 12 };
+       CE_MOT_FLAT6, CE_MOT_V8X, CE_MOT_V8F, CE_MOT_V12, CE_MOT_STEAM, CE_MOT_ELECTRIC, CE_MOT_LAYOUTS };
+// beats per 2 turns (a steam loco: 4 per wheel turn = 8; electric: none, 0)
+static const int CE_MOT_CYL[CE_MOT_LAYOUTS] = { 1, 2, 3, 4, 4, 5, 6, 6, 6, 8, 8, 12, 8, 0 };
 static const char *CE_FEEL[CE_KINDS] = {
-    "rising whine, no chug",
+    "modern EV: whine + gears",
     "inline-6, stock muffler",
     "rough inline-4, clatter",
-    "slow chuff puffs",
+    "loco: 4 chuffs a turn",
     "flatplane V8, open pipe",
     "steady sci-fi hum",
     "big single, potato",
@@ -62,7 +63,8 @@ static const char *CE_FEEL[CE_KINDS] = {
     "60deg V6 growl",
     "flat-6, howls up top",
     "45deg V-twin, potato",
-    "big turbo-diesel six" };
+    "big turbo-diesel six",
+    "singing 90s train inverter" };
 
 enum { CE_L_FIRING, CE_L_RASP, CE_L_INTAKE, CE_L_DRIVE, CE_L_LOPE, CE_L_BURBLE, CE_L_TURBO, CE_L_COUNT };
 static const char *CE_L_NAME[CE_L_COUNT] = {
@@ -87,6 +89,7 @@ typedef struct {
     float rpmIdle, rpmRed;           // the real rpm range rev 0..1 spans
     float exhaust, pipe, rough, intake, mech;   // INSTR_MOTOR timbre + aux (0.5 = the layout's own)
     float knock;                     // diesel knock (MODE_MOTOR_KNOCK), 0 = petrol
+    int   standstill;                // 1 = rev 0..idle means STOPPED (a loco, an EV), the range starts above idle
 } CERecipe;
 
 static CERecipe carengine_recipe(int k) {
@@ -97,7 +100,7 @@ static CERecipe carengine_recipe(int k) {
     e.driveMode = DRIVE_ASYM; e.raspOn = 0; e.raspOct = 12; e.raspDuty = 0.18f;
     e.intakeMode = 0; e.burbleOn = 0; e.lopeAmt = 0.5f; e.detune = 0;
     e.motorLayout = -1; e.rpmIdle = 800; e.rpmRed = 6000;
-    e.exhaust = 0.3f; e.pipe = 0.5f; e.rough = 0.5f; e.intake = 0.5f; e.mech = 0.5f; e.knock = 0.0f;
+    e.exhaust = 0.3f; e.pipe = 0.5f; e.rough = 0.5f; e.intake = 0.5f; e.mech = 0.5f; e.knock = 0.0f; e.standstill = 0;
     switch (k) {
     case CE_ELECTRIC:                                   // no combustion → no chug, no idle, no grit: a clean rising whine
         e.bodyWave = INSTR_SINE; e.bodyOct = 12;        // pure tone — TRI/detune was buzzy & "labored"
@@ -106,6 +109,8 @@ static CERecipe carengine_recipe(int k) {
         e.volIdle = 0;                                  // SILENT at rest (an EV makes no noise stopped); whines up with speed
         e.tremDepth = 0; e.driveBase = 0; e.driveSpan = 0;
         e.intakeMode = 5; e.lopeAmt = 0; e.detune = 0;  // a clean octave-up overtone whine, no beating
+        e.motorLayout = CE_MOT_ELECTRIC; e.rpmIdle = 0; e.rpmRed = 14000; e.standstill = 1;   // a modern EV
+        e.exhaust = 0.12f; e.burbleOn = 0;
         break;
     case CE_DIESEL:                                     // low, hard, clattery, lumpy at idle
         e.chugIdle = 11; e.chugRed = 58;
@@ -122,6 +127,8 @@ static CERecipe carengine_recipe(int k) {
         e.cutBase = 220; e.cutSpan = 360; e.res = 7;
         e.tremDepth = 1.0f; e.driveBase = 0; e.driveSpan = 0;   // full gate = distinct puffs
         e.intakeMode = 0; e.lopeAmt = 0.35f;
+        e.motorLayout = CE_MOT_STEAM; e.rpmIdle = 0; e.rpmRed = 320; e.standstill = 1;   // a locomotive's driving wheels
+        e.exhaust = 0.5f; e.rough = 0.6f; e.mech = 0.6f; e.lopeAmt = 0;
         break;
     case CE_RACE:                                       // wide, bright, screaming + turbo
         e.chugIdle = 26; e.chugRed = 150;
@@ -187,6 +194,7 @@ static CERecipe carengine_recipe(int k) {
     case CE_TRUCK:  e = carengine_recipe(CE_DIESEL); e.motorLayout = CE_MOT_I6; e.rpmIdle = 550; e.rpmRed = 2600;
                     e.exhaust = 0.35f; e.pipe = 0.8f; e.rough = 0.5f; e.knock = 0.6f; e.mech = 0.6f;
                     e.intakeMode = 2; e.burbleOn = 0; break;                                        // + a turbo whistle
+    case CE_TRAIN:  e = carengine_recipe(CE_ELECTRIC); e.rpmRed = 4500; e.exhaust = 1.0f; break;   // 1990s inverter: it SINGS
     }
     return e;
 }
@@ -222,6 +230,7 @@ static int carengine_is_motor(const CarEngine *ce, CERecipe e) { return e.motorL
 static float carengine_rpm(const CarEngine *ce, float r) {
     CERecipe e = carengine_recipe(ce->kind);
     if (e.motorLayout < 0) return 800.0f + r * 7200.0f;
+    if (e.standstill) r = (r - 0.12f) / 0.88f;                         // rev up to idle = standing still
     return e.rpmIdle + (e.rpmRed - e.rpmIdle) * (r < 0 ? 0 : r > 1 ? 1 : r);
 }
 
@@ -317,7 +326,7 @@ static void carengine_update(CarEngine *ce, float rpm, float throttle, int audib
             float w = (noise(now() * 1.3f) - 0.5f) * 2.0f;
             rr *= 1.0f + w * e.lopeAmt * 0.05f * (1.0f - throttle) * (1.0f - r);
         }
-        note_pitch(ce->vBody, carengine_hz_to_midi(rr / 60.0f));
+        note_pitch(ce->vBody, carengine_hz_to_midi((rr > 1.0f ? rr : 1.0f) / 60.0f));
         // LOAD: how hard the cylinders fire. Idle still pulls a little; lifting at speed is the overrun
         note_morph(ce->vBody, 0.12f + 0.88f * clamp(throttle, 0, 1));
         if (ce->vIntake >= 0) {                                          // TURBO whistle spools with revs + boost

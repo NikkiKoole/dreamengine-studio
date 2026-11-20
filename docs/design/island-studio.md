@@ -613,3 +613,26 @@ Seed 3 @1024, `grade-check --profile` (grade along z, 50 m): main max 10 %, seco
 stretches over 12 % (max 17 %, lines forced by their junctions), lanes 0.18 % (max 14 %), tracks
 0.61 % (max 16 %); nothing over 20 % (on the ground: up to 31 %). The mast road: max 15 % (ground
 under it 29 %). Junction ends that disagree: 0. File 2.06 → 2.44 MB.
+
+## Roadside hedges, walls and trees (2026-11-20, roadmap item 3)
+
+`build_roadside()` (fine grids) walks every road but the expressway and slip roads at 10 m and looks
+3.5 m beyond the road edge on each side. **Farmland** gets a hedgerow, the **uplands** (moor, or
+farmland above ~220 m) a dry-stone wall. Gaps: field gates on lanes; long open stretches on main
+roads (~45 % of farmland open) and some on secondaries, so A roads feel open and lanes enclosed
+(backroads' ask); none in a settlement's built-up area, near buildings or within 15 m of a junction.
+Short field boundaries run off at right angles every ~120-250 m, to the 40 m band edge. **Trees**:
+every ~25-70 m in hedgerows (8-16 m tall) and a thinned band where a road runs by woodland, out to
+~40 m (10-20 m), within the ~60k budget with none dropped. Hedge lines are simplified (Douglas-Peucker,
+1 m).
+
+**Format**: exactly what real OSM gives, so no new kinds: hedges and walls are `other_line` with sub
+`barrier=hedge` / `barrier=wall`; trees are single-point `tree` features with their height in the
+feature's height field; no z (backroads sits them on its carved ground).
+
+Bug on the way: both sides of a road and the field boundaries appended to one shared point list while
+their hedges were open, so points interleaved into sawtooth hedges and one ran straight for a
+kilometre. Each open hedge now has its own buffer.
+
+Seed 3 @1024: ~1,900 km of hedge, ~520 km of wall, 56,819 trees; 0 roadside points within 1.4 m of a
+road edge; road sides lined: lanes 50 %, secondary 60 %, main 38 %. File 2.44 → 5.4 MB.

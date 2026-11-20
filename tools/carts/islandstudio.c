@@ -2080,6 +2080,142 @@ static void build_road_z(void) {
     }
 }
 
+// ── ROADSIDE (roadmap item 3): hedges, walls and trees within ~40 m of roads, so speed and distance read
+// between towns. Exported as real OSM writes them: hedges / walls as kind "other_line" with sub
+// "barrier=hedge" / "barrier=wall", trees as single-point kind "tree"; no z (backroads grounds them).
+// Hedgerows run ~3.5 m beyond the road edge wherever the land is farmland (dry-stone walls in the
+// uplands: moor, or farmland above ~220 m), with gaps at junction ends, field gates and buildings; short
+// field boundaries run off at right angles; trees stand along hedgerows and in a band where a road runs
+// by woodland. Never within 1.5 m of any road edge, in water, in a settlement's built-up area, or on a
+// building.
+#define MAXHGPT 400000
+#define MAXHG   60000
+#define MAXTREE 60000
+static float hgx[MAXHGPT], hgy[MAXHGPT]; static int nhgpt;
+static int hg_start[MAXHG], hg_n[MAXHG]; static unsigned char hg_wall[MAXHG]; static int nhg;
+static float trx[MAXTREE], try_[MAXTREE], trh[MAXTREE]; static int ntree, st_tree_dropped;
+static int near_building(float x, float y, float r) {
+    int bx = (int)(x / 64.0f), by = (int)(y / 64.0f);
+    for (int gy = by - 1; gy <= by + 1; gy++) for (int gx = bx - 1; gx <= bx + 1; gx++) {
+        if (gx < 0 || gy < 0 || gx >= RSG || gy >= RSG) continue;
+        for (int j = hs_head[gy * RSG + gx]; j >= 0; j = hs_next[j]) {
+            float rr = 0.5f * sqrtf(hs[j].w * hs[j].w + hs[j].d * hs[j].d) + r;
+            if ((hs[j].x - x) * (hs[j].x - x) + (hs[j].y - y) * (hs[j].y - y) < rr * rr) return 1;
+        }
+    }
+    return 0;
+}
+// what goes at a roadside spot: 0 nothing, 1 hedge, 2 wall
+static int rs_kind(float x, float y) {
+    if (x < 0 || y < 0 || x >= WORLD_M || y >= WORLD_M) return 0;
+    int c = (int)(y / CELL) * N + (int)(x / CELL);
+    if (!is_dry(c) || river_cell(c) || own[c] >= 0) return 0;
+    int cv = CV[c];
+    if (cv == CV_MOOR || (cv == CV_GRASS && H[c] > 220.0f)) return 2;
+    if (cv == CV_GRASS) return 1;
+    return 0;
+}
+static int rs_ok(float x, float y) { return road_clear(x, y) >= 1.5f && !near_building(x, y, 4.0f); }
+static void add_tree(float x, float y, float h) {       // h: height (m), exported in the feature's height field
+    if (ntree >= MAXTREE) { st_tree_dropped++; return; }
+    trx[ntree] = x; try_[ntree] = y; trh[ntree] = h; ntree++;
+}
+// an open hedge per side collects its points in its own buffer (both sides and the field boundaries
+// used to append to one shared list while open, so their points interleaved: sawtooth hedges)
+#define HG_RUN 4096
+static float run_x[2][HG_RUN], run_y[2][HG_RUN]; static int run_n[2], run_type[2];
+static void hg_emit(const float *xs, const float *ys, int n, int type) {
+    if (n < 3) return;                                    // shorter than ~20 m: drop
+    if (nhg >= MAXHG || nhgpt + n > MAXHGPT) { st_overflow++; return; }
+    hg_start[nhg] = nhgpt; hg_n[nhg] = n; hg_wall[nhg] = type == 2; nhg++;
+    for (int i = 0; i < n; i++) { hgx[nhgpt] = xs[i]; hgy[nhgpt] = ys[i]; nhgpt++; }
+}
+static void hg_close(int sd) { hg_emit(run_x[sd], run_y[sd], run_n[sd], run_type[sd]); run_n[sd] = 0; }
+static void hg_point(int sd, int type, float x, float y) {
+    if (run_n[sd] && run_type[sd] != type) hg_close(sd);
+    if (run_n[sd] >= HG_RUN) hg_close(sd);
+    run_type[sd] = type; run_x[sd][run_n[sd]] = x; run_y[sd][run_n[sd]] = y; run_n[sd]++;
+}
+static void build_roadside(void) {
+    nhgpt = nhg = ntree = st_tree_dropped = 0;
+    if (CELL > 100.0f) return;                            // fine grids only (the 256 grid is for shaping)
+    for (int p = 0; p < npl; p++) {
+        int cls = pl[p].cls; if (cls < RC_TRACK || cls == RC_EXPRESS || pl_ramp[p]) continue;
+        int s0 = pl[p].start, n = pl[p].n; if (n < 2) continue;
+        float L = 0; for (int i = s0 + 1; i < s0 + n; i++) L += hypotf(plx[i] - plx[i - 1], ply[i] - ply[i - 1]);
+        if (L < 40) continue;
+        unsigned st = hsh((unsigned)p * 2246822519u ^ (unsigned)seed * 3266489917u);
+        run_n[0] = run_n[1] = 0;
+        float next_perp[2] = { 60 + hs_rand(&st) * 150, 60 + hs_rand(&st) * 150 }, next_tree[2] = { hs_rand(&st) * 40, hs_rand(&st) * 40 };
+        float gate[2] = { 0, 0 };
+        int i = s0; float acc = 0;
+        for (float s = 15.0f; s < L - 15.0f; s += 10.0f) {
+            while (i < s0 + n - 2 && acc + hypotf(plx[i + 1] - plx[i], ply[i + 1] - ply[i]) < s) { acc += hypotf(plx[i + 1] - plx[i], ply[i + 1] - ply[i]); i++; }
+            float sl = hypotf(plx[i + 1] - plx[i], ply[i + 1] - ply[i]) + 1e-6f, t = (s - acc) / sl;
+            float px = plx[i] + (plx[i + 1] - plx[i]) * t, py = ply[i] + (ply[i + 1] - ply[i]) * t;
+            float ux = (plx[i + 1] - plx[i]) / sl, uy = (ply[i + 1] - ply[i]) / sl, vx = -uy, vy = ux;
+            for (int k = 0; k < 2; k++) {
+                float sd = k ? 1.0f : -1.0f, d = RHW[cls] + 3.5f;
+                float qx = px + vx * d * sd, qy = py + vy * d * sd;
+                int kind = rs_kind(qx, qy);
+                // gaps: field gates on lanes; on main roads long open stretches (~45 % of farmland open) and on secondary
+                // roads some (~15 %), so the A roads feel open and the lanes enclosed (backroads' ask)
+                if (gate[k] > 0) { gate[k] -= 10; kind = 0; }
+                else if (cls >= RC_MAIN && hs_rand(&st) < 0.09f) { gate[k] = 50 + hs_rand(&st) * 60; kind = 0; }
+                else if (cls == RC_SEC && hs_rand(&st) < 0.03f) { gate[k] = 30 + hs_rand(&st) * 30; kind = 0; }
+                else if (hs_rand(&st) < 0.035f) { gate[k] = 10; kind = 0; }
+                if (kind && !rs_ok(qx, qy)) kind = 0;
+                if (!kind) { hg_close(k); }
+                else {
+                    hg_point(k, kind, qx, qy);
+                    if (s >= next_perp[k]) {                                         // a field boundary off at right angles
+                        next_perp[k] = s + 120 + hs_rand(&st) * 130;
+                        float bx[8], by[8]; int bn = 0;
+                        for (float e = 0; e <= 32.0f; e += 8.0f) {
+                            float ex = qx + vx * e * sd, ey = qy + vy * e * sd;
+                            if (rs_kind(ex, ey) != kind || !rs_ok(ex, ey)) break;
+                            bx[bn] = ex; by[bn] = ey; bn++;
+                        }
+                        hg_emit(bx, by, bn, kind);
+                    }
+                    if (kind == 1 && s >= next_tree[k]) { add_tree(qx, qy, 8 + hs_rand(&st) * 8); next_tree[k] = s + 25 + hs_rand(&st) * 45; }   // hedgerow trees
+                }
+                // WOODLAND beside the road: a band of trees out to ~40 m (every other step, jittered)
+                if (((int)(s / 10.0f) & 1) == 0)
+                    for (float o = RHW[cls] + 6.0f; o <= 40.0f; o += 11.0f) {
+                        float wx = px + vx * o * sd + ux * (hs_rand(&st) - 0.5f) * 8, wy = py + vy * o * sd + uy * (hs_rand(&st) - 0.5f) * 8;
+                        if (wx < 0 || wy < 0 || wx >= WORLD_M || wy >= WORLD_M) continue;
+                        int c = (int)(wy / CELL) * N + (int)(wx / CELL);
+                        if (CV[c] != CV_FOREST || !is_dry(c) || river_cell(c) || own[c] >= 0) continue;
+                        if (hs_rand(&st) > 0.38f) continue;          // thinned so an island stays inside the ~60k budget (none dropped)
+                        if (road_clear(wx, wy) < 2.5f || near_building(wx, wy, 3.0f)) continue;
+                        add_tree(wx, wy, 10 + hs_rand(&st) * 10);
+                    }
+            }
+        }
+        hg_close(0); hg_close(1);
+    }
+    // simplify hedge / wall lines (Douglas-Peucker, 1 m): along a straight road a hedge needs only its ends
+    static unsigned char keep[MAXHGPT]; static int stk[4096];
+    int w = 0;
+    for (int h = 0; h < nhg; h++) {
+        int a0 = hg_start[h], n = hg_n[h];
+        for (int i = 0; i < n; i++) keep[a0 + i] = 0;
+        keep[a0] = keep[a0 + n - 1] = 1;
+        int sp = 0; stk[sp++] = a0; stk[sp++] = a0 + n - 1;
+        while (sp > 0) {
+            int b = stk[--sp], a = stk[--sp];
+            float dx = hgx[b] - hgx[a], dy = hgy[b] - hgy[a], L = sqrtf(dx * dx + dy * dy) + 1e-6f, wd = 1.0f; int worst = -1;
+            for (int i = a + 1; i < b; i++) { float d = fabsf((hgx[i] - hgx[a]) * dy - (hgy[i] - hgy[a]) * dx) / L; if (d > wd) { wd = d; worst = i; } }
+            if (worst >= 0 && sp + 4 < 4096) { keep[worst] = 1; stk[sp++] = a; stk[sp++] = worst; stk[sp++] = worst; stk[sp++] = b; }
+        }
+        int s1 = w;
+        for (int i = 0; i < n; i++) if (keep[a0 + i]) { hgx[w] = hgx[a0 + i]; hgy[w] = hgy[a0 + i]; w++; }
+        hg_start[h] = s1; hg_n[h] = w - s1;
+    }
+    nhgpt = w;
+}
+
 // ── ROUTE NUMBERS + SIGNPOSTS (roadmap item 1, for backroads' way-finding) ───────────────────────
 // A ROAD GRAPH over the final lines (lanes and up; tracks left out): nodes = line ends, which meet
 // exactly at junctions. ROUTES: at every node, same-class lines are paired straight-on (turn < 60°,
@@ -2492,6 +2628,9 @@ static void export_island(void) {
         ex_line_z(EXPORT_KIND[pl[p].cls], rs, plx, ply, plz, cur, e0);
     }
     for (int r = 0; r < nrv; r++) ex_line("canal", NULL, rvx, rvy, rv[r].start, rv[r].start + rv[r].n - 1);
+    // ROADSIDE: hedges / walls as OSM barrier ways, trees as OSM tree nodes (see build_roadside)
+    for (int h = 0; h < nhg; h++) ex_line("other_line", hg_wall[h] ? "barrier=wall" : "barrier=hedge", hgx, hgy, hg_start[h], hg_start[h] + hg_n[h] - 1);
+    for (int t = 0; t < ntree; t++) { ex_begin("tree", NULL); exf[exn - 1].h = (float)ex_r(trh[t], 1); ex_pt(ex_r(trx[t], 1), ex_r(WORLD_M - try_[t], 1)); }
     // SIGNPOSTS: one "guidepost" line per arm, junction -> 20 m along the arm (see build_routes_signs)
     for (int g = 0; g < ngp; g++) {
         float xs[2] = { gp[g].x0, gp[g].x1 }, ys[2] = { gp[g].y0, gp[g].y1 };
@@ -2740,6 +2879,7 @@ static void build_roads(void) {
     build_houses();
     build_routes_signs();
     build_road_z();
+    build_roadside();
 #ifdef DE_TRACE
     if (getenv("GRADE_DEBUG")) {                         // road grade over 50 m on the FINE terrain (routing's view)
         int n = 0, o12 = 0; float mx = 0, mxx = 0, mxy = 0;
@@ -2875,7 +3015,7 @@ void init(void) { rebuild(); build_roads(); }
 
 void update(void) {
 #ifdef DE_TRACE
-    watch("seed", "%d", seed); watch("overflow", "%d", st_overflow);   // first: the trace keeps 40 values watch("nset", "%d", nset); watch("coastal", "%d", st_coastal);
+    watch("seed", "%d", seed); watch("overflow", "%d", st_overflow); watch("roadside", "hedges %d trees %d dropped %d", nhg, ntree, st_tree_dropped);   // first: the trace keeps 40 values watch("nset", "%d", nset); watch("coastal", "%d", st_coastal);
     watch("moor", "%d", (int)st_cov[CV_MOOR]); watch("forest", "%d", (int)st_cov[CV_FOREST]);
     watch("land", "%d", (int)st_land); watch("npl", "%d", npl); watch("express", "%d", st_express);
     watch("ringgaps", "%d", st_ringgaps); watch("bridges", "%d", nbr); watch("lakes", "%d", st_lakes); watch("N", "%d", N); watch("diagx", "%d", st_diagx); watch("cuts", "%d", st_cuts); watch("consol", "%d", st_consol); watch("streets", "%d", st_streets); watch("switchbacks", "%d", st_switchbacks); watch("rz", "cut %.0f fill %.0f maxg %.3f over %d", st_rz_cut, st_rz_fill, st_rz_maxg, st_rz_over); watch("routes", "M %d A %d B %d", st_routes[0], st_routes[1], st_routes[2]); watch("guideposts", "%d", st_guideposts); watch("lm_roads", "%d", st_lm_roads); watch("houses", "%d", nhs); for (int t = 0; t < BK_N; t++) if (st_htype[t]) watch(str("b_%s%s%s", BK[t].building, BK[t].tag ? "_" : "", BK[t].tag ? strchr(BK[t].tag, '=') + 1 : ""), "%d", st_htype[t]); watch("waterbr", "%d", st_waterbr); watch("waterbr_max", "%.0f", st_waterbr_max); watch("flyovers", "%d", st_flyovers); watch("interchanges", "%d", st_interchanges); watch("rebuild_ms", "%.0f", st_rebuild_ms); watch("overflow", "%d", st_overflow); watch("links", "lane %d/%d sec %d/%d main %d/%d", st_link_ok[0], st_link_try[0], st_link_ok[1], st_link_try[1], st_link_ok[2], st_link_try[2]); { int bb = -1; for (int b = 0; b < nbr; b++) if (bb < 0 || br[b].len > br[bb].len) bb = b;

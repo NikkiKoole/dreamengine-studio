@@ -498,6 +498,17 @@ track running beside a road into a junction still makes a funnel (routing); cros
 rare (staggered T pairs); grade separation (the expressway crosses at grade) is roadkit's B4
 interchange grammar, unused so far.
 
+### 2026-11-20: the island's real skyline
+
+The horizon (island mode) is now the island itself, not a noise ridge: per 2-px screen column a ray
+is marched from the haze edge (~2.9 km) to the far coast (≤ 45 km), keeping the highest elevation
+angle of the land (minus the Earth's curvature, d²/2R) in three bands: 3–8 km land teal, 8–16 km
+grey, beyond lavender, drawn far to near in the sky pass (rotated with roll), so near terrain still
+covers it. Physically true heights were tiny (a 600 m hill 20 km off is 3–6 px through a 77° view),
+so heights are **exaggerated with distance**, ×1 at the haze edge rising to ×3 beyond 16 km, Test
+Drive style. First palette (purples/mauves) vanished into the dusk sky; the bands must contrast with
+it. Worldnet mode keeps the noise ridge.
+
 ---
 
 ## 11. Open questions — to be answered by playing

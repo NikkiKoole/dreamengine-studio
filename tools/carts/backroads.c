@@ -913,6 +913,51 @@ static void quad_roll(float x0, float y0, float x1, float y1, int col) {   // ax
     scr_roll(x1, y1, &cx, &cy); scr_roll(x0, y1, &dx, &dy);
     trifill(ax, ay, bx, by, cx, cy, col); trifill(ax, ay, cx, cy, dx, dy, col);
 }
+// THE ISLAND'S REAL SKYLINE (island mode): per screen column, march a ray across the island from
+// where the drawn terrain fades (~2.9 km) to the far coast, keeping the highest elevation angle the
+// land reaches (minus the Earth's curvature) in three distance bands. Far bands are paler and bluer
+// (aerial perspective) and drawn first; nearer ridges overlap them; the near terrain covers it all.
+// Heights are exaggerated with distance (see below): physically true, far mountains were 3-6 px.
+#define SKY_COLS ((SCREEN_W + 80) / 2 + 2)
+static void island_skyline(float hz) {
+    static const float D0[3] = { 2900.0f, 8000.0f, 16000.0f }, D1[3] = { 8000.0f, 16000.0f, 45000.0f };
+    static const int   COL[3] = { CLR_BLUE_GREEN, CLR_DARK_GREY, CLR_INDIGO };   // near → far: land teal, grey, lavender (must contrast with the dusk sky)
+    static float ang[3][SKY_COLS];
+    int nc = 0;
+    for (int x = -40; x < SCREEN_W + 40 && nc < SKY_COLS; x += 2, nc++) {
+        float a = head * D2R + atanf((x - 160.0f) / FOCAL), ca = cosf(a), sa = sinf(a);
+        for (int b = 0; b < 3; b++) ang[b][nc] = -1e9f;
+        int b = 0;
+        for (float d = D0[0]; d < D1[2]; d *= 1.045f) {
+            while (b < 2 && d >= D1[b]) b++;
+            float sx = px + ca * d, sy = py + sa * d;
+            if (sx < 0 || sy < 0 || sx > isl_W || sy > isl_H) break;    // off the island: open sea
+            float h = isl_h(sx, sy); if (h <= 0.5f) continue;
+            float e = (h - camh - d * d / 12742000.0f) / d;              // the Earth's curvature
+            // exaggerated with distance, Test Drive style: true at the haze edge (so it meets the drawn
+            // terrain), ~x3 beyond 16 km, so a 600 m mountain 20 km off reads as a landmark, not 5 px
+            e *= 1.0f + 2.0f * clamp((d - 2900.0f) / 13000.0f, 0, 1);
+            if (e > ang[b][nc]) ang[b][nc] = e;
+        }
+    }
+#ifdef DE_TRACE
+    { float m[3] = { -9, -9, -9 }; for (int b = 0; b < 3; b++) for (int c = 0; c < nc; c++) if (ang[b][c] > m[b]) m[b] = ang[b][c];
+      watch("sky_px", "%.0f %.0f %.0f", m[0] * FOCAL, m[1] * FOCAL, m[2] * FOCAL); watch("hz", "%.0f", hz); }
+#endif
+    for (int b = 2; b >= 0; b--) {                        // far first
+        for (int c = 0; c + 1 < nc; c++) {
+            float e0 = ang[b][c], e1 = ang[b][c + 1];
+            if (e0 < -1e8f && e1 < -1e8f) continue;
+            float h0 = e0 < -1e8f ? 0 : e0 * FOCAL, h1 = e1 < -1e8f ? 0 : e1 * FOCAL;
+            if (h0 < -2 && h1 < -2) continue;              // below the horizon: hidden by haze anyway
+            float x0 = -40 + c * 2.0f, x1 = x0 + 2.0f;
+            int ax, ay, bx, by, cx, cy, dx, dy;
+            scr_roll(x0, hz - h0, &ax, &ay); scr_roll(x1, hz - h1, &bx, &by);
+            scr_roll(x1, hz + 1, &cx, &cy); scr_roll(x0, hz + 1, &dx, &dy);
+            trifill(ax, ay, bx, by, cx, cy, COL[b]); trifill(ax, ay, cx, cy, dx, dy, COL[b]);
+        }
+    }
+}
 static void draw_sky(float hz) {
     static const int SKY[4] = { CLR_DARKER_BLUE, CLR_DARKER_PURPLE, CLR_MAUVE, HAZE };
     rectfill(0, 0, SCREEN_W, VIEW_H, HAZE);
@@ -924,6 +969,7 @@ static void draw_sky(float hz) {
         quad_roll(-200, top + k * bh, 520, top + (k + 1) * bh + 0.5f, a);
         fillp_reset();
     }
+    if (ISL) { island_skyline(hz); return; }
     for (int x = -80; x < SCREEN_W + 80; x += 4) {         // far ridge, 4-px slabs
         float h[2];
         for (int e = 0; e < 2; e++) {

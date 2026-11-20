@@ -5158,7 +5158,7 @@
   },
   {
     "title": "motor voice probe",
-    "description": "Holds one INSTR_MOTOR engine at a fixed rpm and load, chosen at build time: DE_DEFINES=LAYOUT=3,RPM=1400,LOAD=0.3,EXH=0.3 (plus ROUGH=, PIPE=, SWEEP=1 for a slow rev from idle to 6000 rpm and back). Render it with `node tools/play.js motorprobe script /dev/null --headless --frames 300 --wav out.wav`.",
+    "description": "Holds one INSTR_MOTOR engine at a fixed rpm and load, chosen at build time: DE_DEFINES=LAYOUT=6,RPM=1400,LOAD=0.3,EXH=0.3 (LAYOUT 0..11 by cylinder count, 6 = inline-6; plus ROUGH=, PIPE=, KNOCK=, SWEEP=1 for a slow rev from idle to 6000 rpm and back). Render it with `node tools/play.js motorprobe script /dev/null --headless --frames 300 --wav out.wav`.",
     "file": "motorprobe.cart.png",
     "created": "2026-11-20",
     "kind": [

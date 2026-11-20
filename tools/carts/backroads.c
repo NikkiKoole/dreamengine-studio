@@ -26,6 +26,7 @@ de:meta */
 #include "worldnet.h"
 #include "roadkit.h"     // curb_return: the shared at-grade junction geometry (streetlab, citydrive)
 #include "carengine.h"   // the engine voice (enginelab's, extracted): firing-rate body, rasp, intake, burble
+#include "buildingkit.h" // the shared building catalog: islandstudio places from it, backroads draws from it
 #include <math.h>
 #include <stdlib.h>
 
@@ -136,8 +137,7 @@ static float ifx[IFARM_MAX], ify[IFARM_MAX]; static int nifarm;
 // HOUSES: the export's "building" footprints (OSM-shaped, docs/design/island-buildings.md: sub = the
 // building=* value, height in the feature's h; untyped = a plain house; "farm" also dots the map). islandstudio decides where they stand;
 // backroads only gives them walls and a roof. Ridge along the long side; g = the lowest corner.
-enum { HT_HOUSE, HT_TERRACE, HT_FARM, HT_BARN, HT_SHOP, HT_CHURCH };
-typedef struct { float x, y, g, ang, hu, hv; unsigned char st, type; } House;
+typedef struct { float x, y, g, ang, hu, hv; unsigned char st, type; signed char fs; } House;   // type = a BK_* row; fs: road side (±v)
 #define HS_MAX 40000
 static House hs[HS_MAX]; static int nhs;
 static int hs_head[IBG * IBG], hs_next[HS_MAX];       // static 250 m buckets
@@ -275,15 +275,12 @@ static int isl_load(const char *path) {
             // OSM-shaped (docs/design/island-buildings.md): sub = the building=* value ("" = yes), an
             // optional ";key=value" after it, height in the feature's h (m). The first house export's
             // "h=<storeys>;t=<type>" is still read. A farmhouse also marks a farmstead on the map.
-            char ty[24] = { 0 }; const char *t = strstr(sub, "t=");
-            t = t ? t + 2 : sub;
-            for (int c = 0; c < 23 && t[c] && t[c] != ';'; c++) ty[c] = t[c];
+            int type;
+            const char *t = strstr(sub, "t=");
+            if (t) { char ty[24] = { 0 }; for (int c = 0; c < 23 && t[2 + c] && t[2 + c] != ';'; c++) ty[c] = t[2 + c]; type = bk_from_sub(ty); }
+            else type = bk_from_sub(sub);
             const char *hh = strstr(sub, "h="); int st = fh > 0 ? (int)(fh / 3.0f + 0.5f) : hh ? atoi(hh + 2) : 1;
-            int type = !strcmp(ty, "terrace") ? HT_TERRACE : !strcmp(ty, "farm") ? HT_FARM
-                     : !strcmp(ty, "barn") || !strcmp(ty, "cowshed") || !strcmp(ty, "stable") ? HT_BARN
-                     : !strcmp(ty, "shop") || !strcmp(ty, "retail") ? HT_SHOP
-                     : !strcmp(ty, "church") || !strcmp(ty, "chapel") ? HT_CHURCH : HT_HOUSE;
-            if (type == HT_FARM && nifarm < IFARM_MAX) {
+            if (type == BK_FARM && nifarm < IFARM_MAX) {
                 float cx = 0, cy = 0; for (int c = 0; c < 4; c++) { cx += pts[c*2]; cy += pts[c*2+1]; }
                 ifx[nifarm] = cx / 4; ify[nifarm] = cy / 4; nifarm++;
             }
@@ -293,7 +290,7 @@ static int isl_load(const char *path) {
                 H->x = (pts[0] + pts[4]) * 0.5f; H->y = (pts[1] + pts[5]) * 0.5f;
                 H->hu = fsqrt(ex * ex + ey * ey); H->hv = fsqrt(fx * fx + fy * fy); H->ang = atan2f(ey, ex);
                 if (H->hv > H->hu) { float tt = H->hu; H->hu = H->hv; H->hv = tt; H->ang = atan2f(fy, fx); }
-                H->st = (unsigned char)(st < 1 ? 1 : st > 6 ? 6 : st); H->type = (unsigned char)type; H->g = 0;
+                H->st = (unsigned char)(st < 1 ? 1 : st > 6 ? 6 : st); H->type = (unsigned char)type; H->g = 0; H->fs = 1;
             }
         } else if (kind == 6 && np >= 1 && nifarm < IFARM_MAX) {                // a point building: a farmstead
             float cx = 0, cy = 0; for (int k = 0; k < np; k++) { cx += pts[k*2]; cy += pts[k*2+1]; }
@@ -1145,7 +1142,8 @@ static void quad_roll(float x0, float y0, float x1, float y1, int col) {   // ax
 // A true 30 m spire is ~2 px at 3 km through this windscreen, so they're SCALED WITH DISTANCE about
 // their base (x1 up close, ~x5 at 3.5 km, more beyond), like the skyline's exaggeration.
 enum { MK_CHURCH, MK_WATERTOWER, MK_SILO };
-typedef struct { float x, y, g, ang; int kind; } Mark;
+enum { MK_BK = 3 };                                // a catalog landmark building (hs[hi]): lighthouse, windmill, mast, castle...
+typedef struct { float x, y, g, ang; int kind, hi; float top; } Mark;
 #define MK_MAX 600
 static Mark mk[MK_MAX]; static int nmk;
 static int mk_head[NRING][32 * 32], mk_next[MK_MAX];
@@ -1153,6 +1151,7 @@ static const float MK_TOP[3] = { 36.0f, 28.0f, 18.0f };           // overall hei
 static float mk_scale(float d) {
     return 1.0f + 4.0f * clamp((d - 500.0f) / 3000.0f, 0, 1) + 6.0f * clamp((d - 3500.0f) / 10000.0f, 0, 1);
 }
+static float bk_top(const House *H);
 static void isl_build_landmarks(void) {
     nmk = 0;
     for (int s = 0; s < niset; s++) {
@@ -1164,13 +1163,14 @@ static void isl_build_landmarks(void) {
         for (int q = 0; q < nk && nmk < MK_MAX; q++) {
             if (kinds[q] == MK_CHURCH) {                  // islandstudio placed one? stand the landmark on ITS footprint
                 int best = -1; float bd = (iset[s].r + 300.0f) * (iset[s].r + 300.0f);
-                for (int k = 0; k < nhs; k++) if (hs[k].type == HT_CHURCH) {
+                for (int k = 0; k < nhs; k++) if (hs[k].type == BK_CHURCH) {
                     float dx = hs[k].x - iset[s].x, dy = hs[k].y - iset[s].y;
                     if (dx * dx + dy * dy < bd) { bd = dx * dx + dy * dy; best = k; }
                 }
                 if (best >= 0) {
                     Mark *m = &mk[nmk++];
                     m->x = hs[best].x; m->y = hs[best].y; m->g = hs[best].g; m->ang = hs[best].ang; m->kind = MK_CHURCH;
+                    m->hi = best; m->top = MK_TOP[MK_CHURCH];
                     continue;
                 }
             }
@@ -1185,9 +1185,14 @@ static void isl_build_landmarks(void) {
             if (!found) continue;
             IHit rd = isl_nearest(fx, fy, NK_ANYROAD, 200);              // face the road
             Mark *m = &mk[nmk++];
-            m->x = fx; m->y = fy; m->g = ground(fx, fy); m->kind = kinds[q];
+            m->x = fx; m->y = fy; m->g = ground(fx, fy); m->kind = kinds[q]; m->hi = -1; m->top = MK_TOP[kinds[q]];
             m->ang = rd.ok ? atan2f(rd.ty, rd.tx) : 0;
         }
+    }
+    for (int k = 0; k < nhs && nmk < MK_MAX; k++) {      // the export's other landmark buildings
+        if (!BK[hs[k].type].landmark || hs[k].type == BK_CHURCH) continue;
+        Mark *m = &mk[nmk++];
+        m->x = hs[k].x; m->y = hs[k].y; m->g = hs[k].g; m->ang = hs[k].ang; m->kind = MK_BK; m->hi = k; m->top = bk_top(&hs[k]);
     }
 }
 
@@ -1251,6 +1256,7 @@ static void mk_gable(const Mark *m, float s, float u0, float u1, float v0, float
     if (endband < 0) return;                            // far house: the gable ends are a pixel or two
     mk_face(E1, 3, pcx, pcy, pcz, endband, 1.0f); mk_face(E2, 3, pcx, pcy, pcz, endband, 1.0f);
 }
+static void draw_bk(const House *H, float s);
 static void draw_landmark(const Mark *m) {
     float d = fsqrt((m->x - px) * (m->x - px) + (m->y - py) * (m->y - py)), s = mk_scale(d);
     switch (m->kind) {
@@ -1269,6 +1275,7 @@ static void draw_landmark(const Mark *m) {
         mk_box(m, s, -4.5f, 4.5f, -4.5f, 4.5f, 18, 25, B_PEAK);
         mk_spire(m, s, -4.5f, 4.5f, -4.5f, 4.5f, 25, 28, B_ROCK);
         break;
+    case MK_BK: draw_bk(&hs[m->hi], s); break;
     case MK_SILO:                                         // concrete silo + cap, a low barn beside it
         mk_box(m, s, -10, 2, 4, 12, 0, 5, B_GRAVEL); mk_gable(m, s, -10, 2, 4, 12, 5, 8, B_ROCK, B_HAY);
         mk_box(m, s, -2.5f, 2.5f, -2.5f, 2.5f, 0, 15, B_PEAK);
@@ -1292,6 +1299,8 @@ static void isl_build_houses(void) {
             g = fminf(g, ground(H->x + u * ca - v * sa, H->y + u * sa + v * ca));
         }
         H->g = g;
+        IHit rd = isl_nearest(H->x, H->y, NK_ANYROAD, 120);   // which long wall faces the road (signs, sails)
+        H->fs = (signed char)(!rd.ok || (rd.qx - H->x) * -sa + (rd.qy - H->y) * ca >= 0 ? 1 : -1);
         int b = ib_of(H->x, isl_W) + ib_of(H->y, isl_H) * IBG;
         hs_next[k] = hs_head[b]; hs_head[b] = k;
     }
@@ -1306,7 +1315,7 @@ static void bin_houses(void) {
     for (int by = b0y; by <= b1y; by++) for (int bx = b0x; bx <= b1x; bx++)
         for (int k = hs_head[by * IBG + bx]; k >= 0; k = hs_next[k]) {
             float dx = hs[k].x - px, dy = hs[k].y - py, d2 = dx * dx + dy * dy;
-            if (d2 > HS_FAR * HS_FAR || hs[k].type == HT_CHURCH) continue;   // churches are landmarks
+            if (d2 > HS_FAR * HS_FAR || BK[hs[k].type].landmark) continue;   // landmarks draw with the landmarks
             if (hs[k].hu * hs[k].hu * (FOCAL / 4.0f) * (FOCAL / 4.0f) < d2) continue;   // under ~4 px wide: skip
             hv_d[k] = d2; hv_idx[nhvis++] = k;
         }
@@ -1320,26 +1329,118 @@ static void bin_houses(void) {
         }
     }
 }
-static void draw_house(const House *H) {
-    Mark m = { H->x, H->y, H->g, H->ang, 0 };
-    unsigned h = (unsigned)(H->x * 3.0f) * 2654435761u ^ (unsigned)(H->y * 5.0f) * 40503u;
-    float a = H->hu * 0.5f, b = H->hv * 0.5f;
-    float wall = 0.5f + 2.8f * H->st, ridge = H->hv * 0.38f;          // a ~37° roof pitch
-    int wb = (h >> 3) % 3 == 0 ? B_PLASTER : B_BRICK, rb = (h >> 9) % 3 == 0 ? B_ROCK : B_TILE;
-    switch (H->type) {
-    case HT_BARN:    wb = B_TIMBER; rb = (h >> 9) & 1 ? B_ROCK : B_TIMBER; wall = 4.5f; ridge = H->hv * 0.3f; break;
-    case HT_FARM:    wb = (h >> 3) & 1 ? B_PLASTER : B_BRICK; break;
-    case HT_TERRACE: wb = B_BRICK; rb = (h >> 9) & 1 ? B_ROCK : B_TILE; ridge = H->hv * 0.3f; break;
-    case HT_SHOP:    wb = B_PLASTER; rb = B_ROCK; ridge = H->hv * 0.15f; break;
-    default: break;
-    }
-    float dx = H->x - px, dy = H->y - py;
-    mk_notop = 1; g_solid = 1;
-    mk_box(&m, 1.0f, -a, a, -b, b, 0, wall, wb);
-    mk_notop = 0;
-    mk_gable(&m, 1.0f, -a - 0.3f, a + 0.3f, -b - 0.4f, b + 0.4f, wall, wall + ridge, rb, dx * dx + dy * dy < 400.0f * 400.0f ? wb : -1);
-    g_solid = 0;   // eaves overhang a little
+// catalog look (buildingkit.h's wall / rmat) -> shading ramps
+static int bk_wall_band(int w) {
+    return w == BK_WALL_WHITEWASH ? B_PLASTER : w == BK_WALL_TIMBER ? B_TIMBER : w == BK_WALL_STONE ? B_HAY
+         : w == BK_WALL_CONCRETE ? B_PEAK : B_BRICK;
 }
+static int bk_roof_band(int r) { return r == BK_RMAT_SLATE ? B_ROCK : r == BK_RMAT_THATCH ? B_PLOUGH : r == BK_RMAT_METAL ? B_ASPHALT : B_TILE; }
+static float bk_wall(const House *H) { return H->type == BK_BARN || H->type == BK_COWSHED ? 5.0f : 0.5f + 2.8f * H->st; }
+static int bk_is_tower(const House *H) {           // the tower IS the building (lighthouse, windmill, mast...)
+    const BkType *T = &BK[H->type];
+    return T->roof == BK_ROOF_NONE && T->tower.h > 0 && H->hu <= T->tower.w + 2.0f;
+}
+static float bk_top(const House *H) {               // overall height (m): the skyline silhouette's
+    const BkType *T = &BK[H->type];
+    float top = bk_wall(H) + (T->roof == BK_ROOF_GABLE || T->roof == BK_ROOF_HIP ? H->hv * 0.35f : 0);
+    if (T->tower.h > 0) {
+        float c = T->tower.cap == BK_CAP_SPIRE ? T->tower.w * 2.5f : T->tower.cap == BK_CAP_LAMP ? 4.5f
+                : T->tower.cap == BK_CAP_SAILS ? 9.0f : T->tower.cap == BK_CAP_DOME ? T->tower.w * 0.5f : 1.5f;
+        top = fmaxf(top, T->tower.h + c);
+    }
+    return top;
+}
+// a flat quad in the building's frame (u along, v across, z up), drawn from both sides: windmill sails
+static void bk_quad(const Mark *m, float s, float (*Q)[3], int band) {
+    float ca = cosf(m->ang), sa = sinf(m->ang), P[4][3], cx = 0, cy = 0, cz = 0;
+    for (int k = 0; k < 4; k++) {
+        P[k][0] = m->x + (Q[k][0] * ca - Q[k][1] * sa) * s; P[k][1] = m->y + (Q[k][0] * sa + Q[k][1] * ca) * s; P[k][2] = m->g + Q[k][2] * s;
+        cx += P[k][0] * 0.25f; cy += P[k][1] * 0.25f; cz += P[k][2] * 0.25f;
+    }
+    float nx = -sa, ny = ca;                          // the quad lies in the u-z plane: a centre on either side
+    for (int side = -1; side <= 1; side += 2) mk_face(P, 4, cx + nx * side, cy + ny * side, cz, band, 1.0f);
+}
+// one catalog building (buildingkit.h row H->type), scaled by s about its base (landmarks grow with
+// distance; houses are s = 1). Body box, then the roof by T->roof, then the tower and its cap.
+static void draw_bk(const House *H, float s) {
+    const BkType *T = &BK[H->type];
+    Mark m = { H->x, H->y, H->g, H->ang, MK_BK, 0, 0 };
+    unsigned h = (unsigned)(H->x * 3.0f) * 2654435761u ^ (unsigned)(H->y * 5.0f) * 40503u;
+    float a = H->hu * 0.5f, b = H->hv * 0.5f, wall = bk_wall(H);
+    int wb = bk_wall_band(T->wall), rb = bk_roof_band(T->rmat);
+    if (H->type == BK_HOUSE || H->type == BK_YES || H->type == BK_FARM) {   // vary the commonest so a street isn't one colour
+        wb = (h >> 3) % 3 == 0 ? B_PLASTER : B_BRICK; rb = (h >> 9) % 3 == 0 ? B_ROCK : B_TILE;
+    }
+    float dx = H->x - px, dy = H->y - py, d2 = dx * dx + dy * dy;
+    int ends = d2 < 400.0f * 400.0f ? wb : -1;        // far: skip the gable ends (a pixel or two)
+    g_solid = 1;
+    if (H->type == BK_FUEL_CANOPY) {                  // a flat roof on four posts
+        for (int k = 0; k < 4; k++) {
+            float pu = (k & 1 ? 0.7f : -0.7f) * a, pv = (k & 2 ? 0.6f : -0.6f) * b;
+            mk_box(&m, s, pu - 0.25f, pu + 0.25f, pv - 0.25f, pv + 0.25f, 0, 4.4f, B_PEAK);
+        }
+        mk_box(&m, s, -a, a, -b, b, 4.4f, 5.2f, B_PLASTER);
+        g_solid = 0; return;
+    }
+    if (!bk_is_tower(H)) {
+        int flat = T->roof == BK_ROOF_FLAT || T->roof == BK_ROOF_NONE;
+        mk_notop = !flat;                             // a pitched roof always covers the box top
+        mk_box(&m, s, -a, a, -b, b, 0, wall, wb);
+        mk_notop = 0;
+        if (T->roof == BK_ROOF_GABLE)                 // eaves overhang a little; ~37° pitch (barns flatter)
+            mk_gable(&m, s, -a - 0.3f, a + 0.3f, -b - 0.4f, b + 0.4f, wall, wall + H->hv * (H->type == BK_BARN ? 0.3f : 0.38f), rb, ends);
+        else if (T->roof == BK_ROOF_HIP)
+            mk_spire(&m, s, -a - 0.3f, a + 0.3f, -b - 0.4f, b + 0.4f, wall, wall + H->hv * 0.3f, rb);
+    }
+    if (T->tower.h > 0) {
+        float tu = T->tower.u * H->hu, tw = T->tower.w * 0.5f, th = T->tower.h;
+        if (tu - tw < -a) tu = -a + tw;
+        if (tu + tw > a && a > tw) tu = a - tw;       // keep it on the footprint
+        if (bk_is_tower(H)) tu = 0;
+        mk_box(&m, s, tu - tw, tu + tw, -tw, tw, 0, th, wb);
+        switch (T->tower.cap) {
+        case BK_CAP_SPIRE: mk_spire(&m, s, tu - tw, tu + tw, -tw, tw, th, th + tw * 5.0f, rb); break;
+        case BK_CAP_DOME:  mk_spire(&m, s, tu - tw, tu + tw, -tw, tw, th, th + tw, rb); break;
+        case BK_CAP_LAMP:                             // lantern room + red cap
+            mk_box(&m, s, tu - tw * 0.6f, tu + tw * 0.6f, -tw * 0.6f, tw * 0.6f, th, th + 2.5f, B_HAY);
+            mk_spire(&m, s, tu - tw * 0.7f, tu + tw * 0.7f, -tw * 0.7f, tw * 0.7f, th + 2.5f, th + 4.5f, B_TILE);
+            break;
+        case BK_CAP_BATTLEMENT:
+            for (int k = 0; k < 4; k++) {
+                float cu = tu + (k & 1 ? tw - 1.2f : -tw), cv = (k & 2 ? tw - 1.2f : -tw);
+                mk_box(&m, s, cu, cu + 1.2f, cv, cv + 1.2f, th, th + 1.8f, wb);
+            }
+            break;
+        case BK_CAP_SAILS: {                          // a cap, then four sails turning on the road-facing side
+            mk_spire(&m, s, tu - tw, tu + tw, -tw, tw, th, th + 2.5f, rb);
+            float hz = th - 1.0f, hv = H->fs * (tw + 0.6f), sp = now() * 0.9f + (float)(h & 7);
+            for (int k = 0; k < 4; k++) {
+                float an = sp + k * 1.5708f, cu = cosf(an), cz = sinf(an), pu = -cz * 0.9f, pz = cu * 0.9f;
+                float Q[4][3] = { { tu + cu * 1.5f + pu, hv, hz + cz * 1.5f + pz }, { tu + cu * 9.0f + pu, hv, hz + cz * 9.0f + pz },
+                                  { tu + cu * 9.0f - pu, hv, hz + cz * 9.0f - pz }, { tu + cu * 1.5f - pu, hv, hz + cz * 1.5f - pz } };
+                bk_quad(&m, s, Q, B_PLASTER);
+            }
+            break; }
+        default: break;
+        }
+    }
+    g_solid = 0;
+    if (T->sign && s <= 1.01f && d2 < 90.0f * 90.0f) {   // the catalog's sign, painted on the road-facing wall, up close
+        float ca = cosf(H->ang), sa = sinf(H->ang), nx = -sa * H->fs, ny = ca * H->fs;
+        float wx = H->x + nx * (b + 0.1f), wy = H->y + ny * (b + 0.1f);
+        if (nx * (px - wx) + ny * (py - wy) > 0) {     // that wall faces us
+            float X, Y, Z; to_cam(wx, wy, H->g + fminf(wall - 0.8f, 3.6f), &X, &Y, &Z);
+            if (Z > NEAR) {
+                int sx = (int)(VX0 + X * VF / Z), sy = (int)(VHZ - Y * VF / Z);
+                font(FONT_TINY); int tw = text_width(T->sign);
+                rectfill(sx - tw / 2 - 2, sy - 4, tw + 4, 9, CLR_BROWNISH_BLACK);
+                print(T->sign, sx - tw / 2, sy - 2, H->type == BK_FUEL ? CLR_YELLOW : CLR_LIGHT_PEACH);
+                font(FONT_NORMAL);
+            }
+        }
+    }
+}
+static void draw_house(const House *H) { draw_bk(H, 1.0f); }
 static void draw_houses_in(int r, int c) { if (g_mirror) return; for (int k = hc_head[r][c]; k >= 0; k = hc_next[k]) draw_house(&hs[k]); }
 // per frame: put each landmark inside the drawn terrain into the FINEST ring cell that holds it
 static void bin_landmarks(void) {
@@ -1364,8 +1465,8 @@ static void skyline_landmarks(float hz, float d0, float d1, int col) {
         float sx = VX0 + tanf(rel) * VF * (crx * -cfy + cry * cfx < 0 ? -1.0f : 1.0f);
         float ex = 1.0f + 2.0f * clamp((d - 2900.0f) / 13000.0f, 0, 1), s = mk_scale(d);
         float eb = (mk[k].g - camh - d * d / 12742000.0f) / d * ex;          // base sits on the exaggerated land
-        float hb = eb * VF, ht = hb + MK_TOP[mk[k].kind] * s / d * VF;
-        float w = fmaxf(2.0f, 5.0f * s / d * VF);          // at least 2 px: 1 px spikes were easy to miss
+        float hb = eb * VF, ht = hb + mk[k].top * s / d * VF;
+        float w = fmaxf(2.0f, (mk[k].kind == MK_BK ? fminf(hs[mk[k].hi].hu, 12.0f) : 5.0f) * s / d * VF);          // at least 2 px: 1 px spikes were easy to miss
         float tw = mk[k].kind == MK_CHURCH ? ht - (14.0f * s / d * VF) : ht - (3.0f * s / d * VF);   // where the roof/spire starts
         int ax, ay, bx, by, cx, cy, ddx, ddy;
         scr_roll(sx - w * 0.5f, hz - tw, &ax, &ay); scr_roll(sx + w * 0.5f, hz - tw, &bx, &by);
@@ -1645,9 +1746,15 @@ void update(void) {
     float d = dt();
     { const char *f = de_dropped_file(); if (f && isl_load(f)) { ISL = 1; isl_find_junctions(); isl_build_decks(); isl_build_houses(); isl_build_landmarks(); spawn(); } }   // drop an island .rvb
     if (ISL && keyp('L') && nmk > 0) {               // dev: stand 300 m from the next landmark, facing it
-        static int lcur = -1; lcur = (lcur + 1) % nmk;
-        float a = lcur * 2.39996f;                        // a different side each time
-        px = mk[lcur].x + cosf(a) * 300.0f; py = mk[lcur].y + sinf(a) * 300.0f;
+        static int lcur = -1;
+        if (lcur < 0 && getenv("BR_LMK")) lcur = atoi(getenv("BR_LMK")) - 1;   // dev: start the cycle at landmark n
+        lcur = (lcur + 1) % nmk;
+        float ld = getenv("BR_LDIST") ? (float)atof(getenv("BR_LDIST")) : 300.0f, a = 0, best = -1e9f;
+        for (int k = 0; k < 8; k++) {                     // the highest of 8 viewpoints: hilltop landmarks hide behind their hill
+            float ak = k * 0.785398f + lcur * 0.3f, g = ground(mk[lcur].x + cosf(ak) * ld, mk[lcur].y + sinf(ak) * ld);
+            if (g > best) { best = g; a = ak; }
+        }
+        px = mk[lcur].x + cosf(a) * ld; py = mk[lcur].y + sinf(a) * ld;
         head = atan2f(mk[lcur].y - py, mk[lcur].x - px) / D2R;
         vx = vy = 0; camh = ground(px, py) + EYE;
     }

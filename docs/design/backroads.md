@@ -623,6 +623,16 @@ Not in the mirror (too small to read). Cost in Brekthorpe's centre: ~350 polygon
 (solid shades, one polyfill per face); the town streets that came with the same export cost far more
 (~3,100 road pieces in view, 8 ms vs 3.6 ms work) and are the next optimisation.
 
+Same day, second round: the look now comes from the shared catalog `runtime/buildingkit.h`
+(islandstudio's commit b7958854; both carts include it). A sub maps to a row with `bk_from_sub`, and
+the row's fields drive the drawing: roof GABLE / HIP / FLAT / NONE, wall and roof material (each a
+shading ramp), an optional tower with a cap (SPIRE, DOME, LAMP, BATTLEMENT, SAILS: the windmill's
+turn), and a sign painted on the road-facing wall within 90 m ("PUB", "FUEL"). Rows flagged
+`landmark` (lighthouse, windmill, mast, castle) join the landmark list, so they grow with distance and
+stand on the skyline like the churches. Fuel canopies are a slab on four posts. Dev: `BR_LMK=<n>`
+starts the `L` cycle at landmark n, `BR_LDIST` sets the stand-off, and `L` now picks the highest of 8
+viewpoints (hilltop landmarks hid behind their own hill).
+
 ## 11. Open questions — to be answered by playing
 
 - **How unforgiving?** Can a bust cost everything (start over), or is it always a painful,

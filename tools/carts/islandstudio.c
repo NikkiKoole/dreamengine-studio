@@ -325,6 +325,35 @@ static int su_cmp(const void *a, const void *b) {
     float ka = su_sort_key[*(const int *)a], kb = su_sort_key[*(const int *)b];
     return ka < kb ? 1 : ka > kb ? -1 : 0;
 }
+// RESOLUTION-STABLE PLACES: settlements are always chosen on the 256 grid (the one the sliders are
+// tuned on); a 512 / 1024 bake first runs a quick 256 pass (~70 ms) for the plan (place, rank, size),
+// then snaps each place to the most suitable buildable cell within ~300 m on its own grid. Placing
+// per cell at each grid made seed 3 have 87 places at 256 and 95 at 1024, only 42 of them within
+// 400 m of each other and different towns: what you previewed wasn't what you exported.
+static int river_cell(int i);
+static int   plan_mode, nplan;
+static float plan_x[MAXSET], plan_y[MAXSET], plan_size[MAXSET]; static int plan_rank[MAXSET], set_plan[MAXSET];
+static void place_from_plan(void) {
+    static unsigned char taken[MAXN * MAXN];
+    for (int i = 0; i < N * N; i++) taken[i] = 0;
+    nset = 0;
+    int r = (int)(300.0f / CELL + 0.5f);
+    for (int p = 0; p < nplan; p++) {
+        int cx = (int)(plan_x[p] / CELL), cy = (int)(plan_y[p] / CELL), best = -1; float bs = -1e9f;
+        for (int y = cy - r; y <= cy + r; y++) for (int x = cx - r; x <= cx + r; x++) {
+            if (x < 0 || y < 0 || x >= N || y >= N) continue;
+            int i = y * N + x; if (taken[i]) continue;
+            float d = hypotf((float)(x - cx), (float)(y - cy)) / (r + 1);
+            float sc = SU[i] > 0 ? SU[i] - 0.25f * d                       // suitable land, near the plan
+                     : (H[i] > 0 && !river_cell(i) && !is_lake(i)) ? -1.0f - d : -1e9f;   // else any dry land
+            if (sc > bs) { bs = sc; best = i; }
+        }
+        if (best < 0) continue;
+        taken[best] = 1;
+        set[nset].x = best % N; set[nset].y = best / N; set[nset].rank = plan_rank[p]; set[nset].size = plan_size[p];
+        set_plan[nset] = p; nset++;
+    }
+}
 static void settle(void) {
     static float raw[MAXN * MAXN];
     for (int y = 0; y < N; y++) for (int x = 0; x < N; x++) {
@@ -350,6 +379,7 @@ static void settle(void) {
     }
     float mx = 1e-6f; for (int i = 0; i < N * N; i++) mx = fmaxf(mx, SU[i]);
     for (int i = 0; i < N * N; i++) SU[i] /= mx;            // relative: the island's best spot = 1
+    if (plan_mode) { place_from_plan(); return; }
     // greedy placement: best cells first, each keeps a spacing
     static int cand[MAXN * MAXN]; int nc = 0;
     for (int i = 0; i < N * N; i++) if (SU[i] > 0.08f) cand[nc++] = i;
@@ -1719,8 +1749,7 @@ static void recolour(void) {
 }
 
 static float st_rebuild_ms;
-static void rebuild(void) {
-    clock_t t0 = clock();
+static void terrain_pass(void) {
     for (int y = 0; y < N; y++) for (int x = 0; x < N; x++)
         H[y * N + x] = height_at((x + 0.5f) * CELL, (y + 0.5f) * CELL);
     drain();
@@ -1745,8 +1774,27 @@ static void rebuild(void) {
     for (int k = 0; k < NCV; k++) st_cov[k] = 0;
     for (int i = 0; i < N * N; i++) if (H[i] > 0) st_cov[CV[i]] += 1;
     for (int k = 0; k < NCV; k++) st_cov[k] = land ? 100.0f * st_cov[k] / land : 0;
-    settle();
-    name_places();
+}
+static void rebuild(void) {
+    clock_t t0 = clock();
+    if (N != 256) {                                   // the plan: places chosen on the 256 grid
+        int keep = N; N = 256;
+        terrain_pass(); plan_mode = 0; settle(); name_places();   // names too: the same at every grid
+        nplan = nset;
+        for (int k = 0; k < nset; k++) {
+            plan_x[k] = (set[k].x + 0.5f) * CELL; plan_y[k] = (set[k].y + 0.5f) * CELL;
+            plan_rank[k] = set[k].rank; plan_size[k] = set[k].size;
+        }
+        N = keep;
+    }
+    terrain_pass();
+    plan_mode = N != 256; settle();
+    if (plan_mode) {                                  // carry the plan's names (island_name is still set)
+        static char pn[MAXSET][24], ps[MAXSET][48];
+        for (int k = 0; k < nplan; k++) { memcpy(pn[k], set_name[k], 24); memcpy(ps[k], set_sub[k], 48); }
+        for (int k = 0; k < nset; k++) { memcpy(set_name[k], pn[set_plan[k]], 24); memcpy(set_sub[k], ps[set_plan[k]], 48); }
+    } else name_places();
+    plan_mode = 0;
     st_rank[0] = st_rank[1] = st_rank[2] = 0; st_coastal = 0;
     for (int k = 0; k < nset; k++) if (DS[set[k].y * N + set[k].x] < 1000) st_coastal++;
     st_coastal = nset ? 100 * st_coastal / nset : 0;

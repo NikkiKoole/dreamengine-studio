@@ -414,11 +414,28 @@ Names are unique on an island and never the island's own name. The island's name
 seed alone; a place's from the seed + its location on a 2 km grid, so it keeps its name at every
 grid size **where the place itself is the same**. Found while checking that: settlement placement
 differs a lot between grids (seed 3: 87 places at 256, 95 at 1024, only 42 within 400 m of each
-other, different towns), so what you preview at 256 isn't what exports at 1024. Open: make
-`settle()` resolution-stable (score and place on a fixed-metre grid, not per cell).
+other, different towns), so what you preview at 256 isn't what exports at 1024. Fixed next (below).
 
 Shown on the overview (town labels, any place's name on hover), in the zoom view, and in the header.
 **Export:** each residential area carries `sub: "place=<town|village|hamlet>;name=<Name>"` (fits
 backroads' 47-char sub buffer) plus a JSON `"name"`, and the document name is `"<Island> (seed N)"`.
 The `.rvb` has no name field, so `sub` is the carrier; old readers ignore it, and rank-by-radius
 still holds. Backroads reads it for village signs.
+
+## The same places at every grid (2026-11-20)
+
+Settlements are now always **chosen on the 256 grid**, the one the sliders are tuned on. A 512 / 1024
+bake first runs a quick 256 terrain pass (+50 ms on a 1.8 s bake) for the plan: places, ranks, sizes
+and names. It then snaps each place to the most suitable buildable cell within ~300 m on its own grid
+(`place_from_plan`; falls back to any dry land). Before, `settle()` ran per cell at each grid and the
+greedy placement cascaded differently.
+
+| | places 256 / 1024 | within 400 m | same name + rank | shift mean / max |
+|---|---|---|---|---|
+| seed 3 before | 87 / 95 | 42 | (names keyed on index) | |
+| seed 1 after | 69 / 69 | 69 | 69 | 40 / 138 m |
+| seed 3 after | 87 / 87 | 87 | 87 | 45 / 299 m |
+
+1024 road shape unchanged against the Isle of Man (`sndi-check --samples 300`: seed 1 dead 32 %,
+X 10.9 %, circuity 1.52; seed 3 34 %, 11.3 %, 1.49). Seed 1's minor density goes 0.80 → 0.74: the
+1024 grid used to invent ~10 extra places the 256 plan doesn't have.

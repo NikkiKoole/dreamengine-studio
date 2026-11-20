@@ -540,13 +540,18 @@ nodes are line ends, which meet exactly at junctions.
   `B1[;water=..];ref=A3`, B first).
 - **Signposts**: one `guidepost` feature per **arm**, a 20 m line from the junction along it, sub
   `ref=A3;to=Holbeck:4.2,Selness:11.0`. That's the next village-or-town and the next town that way,
-  in km along the road, found by a Dijkstra that may not pass back through the junction (one entry
-  when they're the same place; no `ref=` on a lane arm). A sign never names a place whose built-up
+  in km along the road (one entry when they're the same place; no `ref=` on a lane arm). Found by
+  **walking the route**: out along the arm, keeping to the same route number at each node, else
+  straight on onto the biggest class; the first place whose built-up area the walk enters, then the
+  next town. A place named on several arms of one post stays only on the arm where it's nearest;
+  an arm left empty is dropped. (The first version used a shortest-path search, and on a looped
+  network every arm converged on the same place: 32 of 130 posts said the same on every arm, found
+  by backroads.) A sign never names a place whose built-up
   radius you're standing in. Posts go where a secondary-or-bigger road meets **and** the post tells
   you something: two different routes meet, or a lane leads somewhere no numbered road from there
   names. A first version put a post at every farm lane off an A road (659 posts, strings of them
   40 m apart). **Town exits** get a single outward arm where a secondary-or-bigger road leaves a
-  town's radius. Seed 3: 145 posts, 411 arms, longest sub 42 chars.
+  town's radius. Seed 3: 100 posts, 227 arms (0 posts repeating a name across arms), longest sub 42 chars.
 - New kind `guidepost` = 29 in `osm-roads.js` `KIND_IX` (and `K_GUIDEPOST` in roadview.c and
   citydrive.c, loaded, not drawn). Place names never contain `:` `,` `;`; `sign_name()` strips them
   anyway.

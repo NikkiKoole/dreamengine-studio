@@ -1907,44 +1907,6 @@ static void pl_dir(int p, int end, float dist, float *dx, float *dy, float *px, 
     float ex = plx[i] - plx[i0], ey = ply[i] - ply[i0], l = sqrtf(ex * ex + ey * ey) + 1e-6f;
     *dx = ex / l; *dy = ey / l; if (px) { *px = plx[i]; *py = ply[i]; }
 }
-// Dijkstra over the graph from node s (starting distance d0), never through node `block`: the
-// nearest village-or-town and the nearest town reached. Distances in metres.
-static float rg_dist[RG_MAXN]; static int rg_stamp[RG_MAXN], rg_gen, rg_hp[RG_MAXN * 4], rg_hn;
-static float rg_hk[RG_MAXN * 4];
-static void rg_push(int v, float k) {
-    if (rg_hn >= RG_MAXN * 4) return;
-    int i = rg_hn++; while (i > 0) { int p = (i - 1) / 2; if (rg_hk[p] <= k) break; rg_hp[i] = rg_hp[p]; rg_hk[i] = rg_hk[p]; i = p; }
-    rg_hp[i] = v; rg_hk[i] = k;
-}
-static int rg_pop(float *k) {
-    int v = rg_hp[0]; *k = rg_hk[0]; int last = rg_hp[--rg_hn]; float lk = rg_hk[rg_hn], i = 0;
-    int ii = 0;
-    for (;;) { int c = 2 * ii + 1; if (c >= rg_hn) break; if (c + 1 < rg_hn && rg_hk[c + 1] < rg_hk[c]) c++; if (rg_hk[c] >= lk) break; rg_hp[ii] = rg_hp[c]; rg_hk[ii] = rg_hk[c]; ii = c; }
-    (void)i; rg_hp[ii] = last; rg_hk[ii] = lk; return v;
-}
-static float rg_here_x, rg_here_y;   // the sign's own position: never point to the place you're standing in
-static void rg_find(int s, float d0, int block, int self_set, int *vill, float *dv, int *town, float *dt) {
-    *vill = *town = -1; *dv = *dt = 0;
-    rg_gen++; rg_hn = 0; rg_dist[s] = d0; rg_stamp[s] = rg_gen; rg_push(s, d0);
-    while (rg_hn > 0) {
-        float d; int v = rg_pop(&d);
-        if (d > rg_dist[v] || d > 40000.0f) { if (d > 40000.0f) break; continue; }
-        int so = rg_set[v];
-        if (so >= 0 && so != self_set && set[so].rank >= ST_VILLAGE
-            && hypotf((set[so].x + 0.5f) * CELL - rg_here_x, (set[so].y + 0.5f) * CELL - rg_here_y) > set_r[so] + 50.0f) {
-            if (*vill < 0) { *vill = so; *dv = d; }
-            if (set[so].rank == ST_TOWN) { *town = so; *dt = d; break; }
-        }
-        for (int e = rg_head[v]; e >= 0; ) {
-            int p = e >> 1, w = (e & 1) ? pl_a[p] : pl_b[p], nx = (e & 1) ? pl_next_b[p] : pl_next_a[p];
-            if (w != block) {
-                float nd = d + pl_len[p];
-                if (rg_stamp[w] != rg_gen || nd < rg_dist[w]) { rg_stamp[w] = rg_gen; rg_dist[w] = nd; rg_push(w, nd); }
-            }
-            e = nx;
-        }
-    }
-}
 // place names in signs: never the separators
 static void sign_name(char *out, int n, const char *name) {
     int k = 0; for (const char *c = name; *c && k < n - 1; c++) if (*c != ':' && *c != ',' && *c != ';') out[k++] = *c;
@@ -1953,22 +1915,81 @@ static void sign_name(char *out, int n, const char *name) {
 #define MAXGP 12000
 typedef struct { float x0, y0, x1, y1; char sub[96]; } Guidepost;
 static Guidepost gp[MAXGP]; static int ngp;
-static int arm_v, arm_t;   // the last arm's destinations (village-or-town, town), for the "does this post matter" rule
-static int add_arm(float x0, float y0, float dx, float dy, const char *ref, int s, float d0, int block, int self_set) {
-    arm_v = arm_t = -1;
-    if (ngp >= MAXGP) { st_overflow++; return 0; }
-    int v, t; float dv, dt;
-    rg_here_x = x0; rg_here_y = y0;
-    rg_find(s, d0, block, self_set, &v, &dv, &t, &dt);
-    Guidepost *g = &gp[ngp];
-    g->x0 = x0; g->y0 = y0; g->x1 = x0 + dx * 20.0f; g->y1 = y0 + dy * 20.0f;
-    int k = *ref ? snprintf(g->sub, sizeof g->sub, "ref=%s;to=", ref) : snprintf(g->sub, sizeof g->sub, "to=");
-    char nm[24];
-    if (v >= 0) { sign_name(nm, sizeof nm, set_name[v]); k += snprintf(g->sub + k, sizeof g->sub - k, "%s:%.1f", nm, dv / 1000.0f); }
-    if (t >= 0 && t != v) { sign_name(nm, sizeof nm, set_name[t]); k += snprintf(g->sub + k, sizeof g->sub - k, "%s%s:%.1f", v >= 0 ? "," : "", nm, dt / 1000.0f); }
-    if (v < 0 && t < 0) return 0;                     // leads nowhere named: no sign arm
-    arm_v = v; arm_t = t;
-    ngp++; return 1;
+// DESTINATIONS FOLLOW THE ROUTE (a shortest-path search made every arm of a looped junction converge
+// on the same nearest place: 32 posts said the same on every arm). From the junction, walk out along
+// the arm and keep to the same road at every node: the same route number, else straight on onto the
+// biggest class. The first place whose built-up area the walk enters is the first destination, the
+// next town on the same walk the second; km along the walk. Never the place the sign stands in.
+static int walk_arm(int from, int p, float d0, int here, int *v1, float *d1, int *t1, float *dt1) {
+    *v1 = *t1 = -1; *d1 = *dt1 = 0;
+    int cur = (pl_a[p] == from) ? pl_b[p] : pl_a[p], prev = p; float d = d0;
+    static int seen_stamp[RG_MAXN], gen; gen++;
+    seen_stamp[from] = gen;
+    for (int steps = 0; steps < 4000 && d < 40000.0f; steps++) {
+        if (seen_stamp[cur] == gen) break;               // looped back
+        seen_stamp[cur] = gen;
+        int c = (int)(rg_y[cur] / CELL) * N + (int)(rg_x[cur] / CELL);
+        int so = (c >= 0 && c < N * N) ? own[c] : -1;
+        if (so < 0) so = rg_set[cur];
+        if (so >= 0 && so != here && set[so].rank >= ST_VILLAGE) {
+            if (*v1 < 0) { *v1 = so; *d1 = d; }
+            if (set[so].rank == ST_TOWN && so != *v1) { *t1 = so; *dt1 = d; break; }
+            if (set[so].rank == ST_TOWN && *t1 < 0 && so == *v1) { /* first is a town: look on for another */ }
+        }
+        // which way on: same ref first, else the biggest class, straightest
+        float ix, iy; pl_dir(prev, pl_b[prev] == cur, 30, &ix, &iy, 0, 0);   // pointing back along where we came from
+        int best = -1; float bs = -1e9f;
+        for (int e = rg_head[cur]; e >= 0; e = (e & 1) ? pl_next_b[e >> 1] : pl_next_a[e >> 1]) {
+            int q = e >> 1; if (q == prev) continue;
+            float ox, oy; pl_dir(q, e & 1, 30, &ox, &oy, 0, 0);
+            float straight = -(ox * ix + oy * iy);          // 1 = straight on
+            float sc = straight + pl[q].cls * 0.6f;
+            if (pl_ref[prev][0] && !strcmp(pl_ref[q], pl_ref[prev])) sc += 10.0f;
+            if (straight < -0.3f) sc -= 5.0f;               // never a hairpin back
+            if (sc > bs) { bs = sc; best = q; }
+        }
+        if (best < 0) break;                              // dead end
+        d += pl_len[best];
+        cur = (pl_a[best] == cur) ? pl_b[best] : pl_a[best]; prev = best;
+    }
+    return *v1 >= 0;
+}
+typedef struct { float x0, y0, dx, dy; char ref[8]; int v, t; float dv, dt; } Arm;
+static Arm arms[16]; static int narms;
+static void arm_add(float x0, float y0, float dx, float dy, const char *ref, int from, int p, float d0, int here) {
+    if (narms >= 16) return;
+    Arm *a = &arms[narms];
+    if (!walk_arm(from, p, d0, here, &a->v, &a->dv, &a->t, &a->dt)) return;
+    a->x0 = x0; a->y0 = y0; a->dx = dx; a->dy = dy; memcpy(a->ref, ref, 8); narms++;
+}
+// one place named on several arms stays only on the arm where it's nearest; empty arms go
+static void arms_dedup(void) {
+    for (int i = 0; i < narms; i++) for (int j = 0; j < narms; j++) {
+        if (i == j) continue;
+        int *pi[2] = { &arms[i].v, &arms[i].t }; float *di[2] = { &arms[i].dv, &arms[i].dt };
+        int *pj[2] = { &arms[j].v, &arms[j].t }; float *dj[2] = { &arms[j].dv, &arms[j].dt };
+        for (int a = 0; a < 2; a++) for (int b = 0; b < 2; b++)
+            if (*pi[a] >= 0 && *pi[a] == *pj[b] && (*di[a] > *dj[b] || (*di[a] == *dj[b] && i > j))) *pi[a] = -1;
+    }
+    int k = 0;
+    for (int i = 0; i < narms; i++) {
+        Arm *a = &arms[i];
+        if (a->v < 0 && a->t >= 0) { a->v = a->t; a->dv = a->dt; a->t = -1; }
+        if (a->t == a->v) a->t = -1;
+        if (a->v >= 0) arms[k++] = *a;
+    }
+    narms = k;
+}
+static void arms_commit(void) {
+    for (int i = 0; i < narms; i++) {
+        if (ngp >= MAXGP) { st_overflow++; return; }
+        Arm *a = &arms[i]; Guidepost *g = &gp[ngp++];
+        g->x0 = a->x0; g->y0 = a->y0; g->x1 = a->x0 + a->dx * 20.0f; g->y1 = a->y0 + a->dy * 20.0f;
+        int k = a->ref[0] ? snprintf(g->sub, sizeof g->sub, "ref=%s;to=", a->ref) : snprintf(g->sub, sizeof g->sub, "to=");
+        char nm[24];
+        sign_name(nm, sizeof nm, set_name[a->v]); k += snprintf(g->sub + k, sizeof g->sub - k, "%s:%.1f", nm, a->dv / 1000.0f);
+        if (a->t >= 0) { sign_name(nm, sizeof nm, set_name[a->t]); snprintf(g->sub + k, sizeof g->sub - k, ",%s:%.1f", nm, a->dt / 1000.0f); }
+    }
 }
 static void build_routes_signs(void) {
     rg_nn = 0; ngp = 0; st_routes[0] = st_routes[1] = st_routes[2] = 0;
@@ -2069,24 +2090,22 @@ static void build_routes_signs(void) {
             int c = pl[e >> 1].cls; if (c >= RC_SEC) big = 1; if (c == RC_EXPRESS) expr = 1;
         }
         if (!big || expr) continue;
-        // a post only where it tells you something: two different routes meet, or a lane leads
-        // somewhere no numbered road from here names (else every farm lane off an A road got one)
-        int g0 = ngp, nref = 0, lane_new = 0; char refs[8][8]; int ndest = 0, dests[16], lane_dest[8], nlane = 0;
+        // a post only where it tells you something: two different routes meet, or (after the
+        // de-duplication) an unnumbered arm still names somewhere of its own
+        int here = rg_set[v]; { int c = (int)(rg_y[v] / CELL) * N + (int)(rg_x[v] / CELL); if (c >= 0 && c < N * N && own[c] >= 0) here = own[c]; }
+        narms = 0;
         for (int e = rg_head[v]; e >= 0; e = (e & 1) ? pl_next_b[e >> 1] : pl_next_a[e >> 1]) {
-            int p = e >> 1, far = (e & 1) ? pl_a[p] : pl_b[p];
-            float dx, dy; pl_dir(p, e & 1, 20, &dx, &dy, 0, 0);
-            if (!add_arm(rg_x[v], rg_y[v], dx, dy, pl_ref[p], far, pl_len[p], v, rg_set[v])) continue;
-            if (pl_ref[p][0]) {
-                int seen = 0; for (int k = 0; k < nref; k++) if (!strcmp(refs[k], pl_ref[p])) seen = 1;
-                if (!seen && nref < 8) strcpy(refs[nref++], pl_ref[p]);
-                if (ndest < 15) { dests[ndest++] = arm_v; dests[ndest++] = arm_t; }
-            } else if (nlane < 8) lane_dest[nlane++] = arm_v;
+            int p = e >> 1; float dx, dy; pl_dir(p, e & 1, 20, &dx, &dy, 0, 0);
+            arm_add(rg_x[v], rg_y[v], dx, dy, pl_ref[p], v, p, pl_len[p], here);
         }
-        for (int k = 0; k < nlane; k++) {
-            int named = 0; for (int j = 0; j < ndest; j++) if (dests[j] == lane_dest[k]) named = 1;
-            if (!named) lane_new = 1;
+        arms_dedup();
+        int nref = 0, lane = 0; char refs[16][8];
+        for (int i = 0; i < narms; i++) {
+            if (!arms[i].ref[0]) { lane = 1; continue; }
+            int seen = 0; for (int k = 0; k < nref; k++) if (!strcmp(refs[k], arms[i].ref)) seen = 1;
+            if (!seen) strcpy(refs[nref++], arms[i].ref);
         }
-        if (nref < 2 && !lane_new) ngp = g0;              // drop this post
+        if (narms >= 2 && (nref >= 2 || lane)) arms_commit();
     }
     // TOWN EXITS: where a secondary-or-bigger road leaves a town's built-up radius, one arm outward
     for (int s = 0; s < nset; s++) {
@@ -2102,9 +2121,11 @@ static void build_routes_signs(void) {
                 int outward_forward = db >= R;            // leaving the town in the line's direction?
                 float dx = plx[i] - plx[i - 1], dy = ply[i] - ply[i - 1], l = seg + 1e-6f; dx /= l; dy /= l;
                 if (!outward_forward) { dx = -dx; dy = -dy; }
-                int far = outward_forward ? pl_b[p] : pl_a[p], near = outward_forward ? pl_a[p] : pl_b[p];
+                int near = outward_forward ? pl_a[p] : pl_b[p];
                 float rest = outward_forward ? pl_len[p] - acc : acc - seg;
-                add_arm(plx[i], ply[i], dx, dy, pl_ref[p], far, rest, near, s);
+                narms = 0;
+                arm_add(plx[i], ply[i], dx, dy, pl_ref[p], near, p, rest, s);
+                arms_commit();
             }
         }
     }

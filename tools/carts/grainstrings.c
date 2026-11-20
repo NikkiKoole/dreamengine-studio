@@ -139,7 +139,9 @@ static void relayout(void) {
 }
 static Box string_box(int c) {
     float gap = 3.0f, w = (z_str.w - gap * (NCOL + 1)) / NCOL;
-    return box(z_str.x + gap + c * (w + gap), z_str.y + 2, w, z_str.h - 4);
+    // the bottom 10 px are a DEAD BAND above the knobs: a knob click that missed by a pixel used to land on a
+    // string, and touching a string stops the self-play, so the whole chord vanished (a session recording, 2026-11-20)
+    return box(z_str.x + gap + c * (w + gap), z_str.y + 2, w, z_str.h - 12);
 }
 static int string_at(int x, int y, float *p) {
     for (int c = 0; c < NCOL; c++) {
@@ -152,11 +154,19 @@ static float y_pos(int c, int y) { Box b = string_box(c); return pos_of(1.0f - (
 
 // ── the self-play: once the sound is ready, hold a slow-moving frozen chord until someone touches it ──
 static bool demo = true;
+static int  idle_frames;       // frames with no string held: the self-play comes back after DEMO_IDLE
+#define DEMO_IDLE 300          // 5 s
 static int  demo_frames, demo_h[3] = { -1, -1, -1 };
 static const signed char DCH[4][3] = { { 2, 4, 6 }, { 1, 3, 5 }, { 0, 4, 7 }, { 2, 5, 6 } };
 static void demo_stop_notes(void) { for (int i = 0; i < 3; i++) if (demo_h[i] >= 0) { note_off(demo_h[i]); demo_h[i] = -1; } }
 static void run_demo(void) {
-    if (!demo || src != SRC_READY) return;
+    if (src != SRC_READY) return;
+    if (!demo) {                                     // nobody is playing: after a while, play itself again
+        bool held = false; for (int c = 0; c < NCOL; c++) held |= col_h[c] >= 0;
+        idle_frames = held ? 0 : idle_frames + 1;
+        if (idle_frames < DEMO_IDLE) return;
+        demo = true; demo_frames = 0;
+    }
     int f = demo_frames++, k = (f / 150) % 4;
     if (f % 150 == 0) {
         demo_stop_notes();
@@ -169,7 +179,7 @@ static void run_demo(void) {
     for (int i = 0; i < 3; i++) if (demo_h[i] >= 0 && f % 6 == 0)      // drift up the sound, slowly
         note_harmonics(demo_h[i], pos_of(0.15f + 0.2f * i + (f % 150) * 0.002f));
 }
-static void stop_demo(void) { if (demo) { demo = false; demo_stop_notes(); } }
+static void stop_demo(void) { idle_frames = 0; if (demo) { demo = false; demo_stop_notes(); } }
 
 static const char KEYS[NCOL] = { 'A', 'S', 'D', 'F', 'G', 'H', 'J', 'K' };
 

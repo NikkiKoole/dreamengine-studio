@@ -505,3 +505,23 @@ Zoom view (TAB) draws every footprint when close in.
 Seed 3 @1024: 7,735 buildings (5,180 houses, 371 terraces, 32 shops, 39 churches = every town and
 village, 873 farmhouses, 1,240 barns); 4,546 at 256. Checked against the export: 0 footprints
 overlap any road. +~20 ms routing at 256. File 1.54 → 2.05 MB at 1024.
+
+## Roadmap for backroads (agreed 2026-11-20)
+
+Agreed by the maker with the backroads agent. One item at a time: islandstudio proposes the format,
+exports, backroads integrates and reports back, then the next.
+
+1. **Route numbers + signposts.** Every main road gets an A number, every secondary a B number
+   (lanes unnumbered). Signposts at junctions where a secondary or bigger road meets, and at town
+   exits: per arm its bearing, its number, and the next village and next town that way with the km
+   along the road.
+2. **Hairpins + a gradient cap.** About 12 % for lanes and tracks, 15 % for summit service roads,
+   with switchbacks where the slope is steeper (the mast road reaches 25 % today). Format unchanged.
+3. **Roadside objects.** Hedges and walls as lines along field edges (`barrier=hedge|wall`) and
+   single trees as points (`natural=tree`), only within ~40 m of a road; up to ~60k trees. New kinds
+   are appended to `osm-roads.js` `KIND_IX`.
+4. **What places produce and need.** Tags on settlements and farms (fish, grain, dairy, timber,
+   fuel…) from the land use islandstudio already decides. A goods vocabulary is drafted first for the
+   maker and backroads to agree (see backroads.md §11).
+5. **Graded road heights.** A height per road point with limited grade, cuttings and embankments.
+   A format version bump, agreed when we get there.

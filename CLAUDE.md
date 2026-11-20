@@ -167,6 +167,7 @@ runtime/   studio.h (public API), studio.c (Raylib impl + main()), sound.h (audi
              worldnet.h  infinite deterministic world spine (terrain + lattice + wn_road_at); roadnet2/sloop
              roadkit.h   at-grade junction geometry (curb_return, RkField); streetlab = spec-locked source
              citygen.h   calibrated procedural city grammar (SNDi-matched to Rotterdam); citygrow/sloop
+             buildingkit.h shared building catalog in OSM vocabulary (islandstudio places, backroads draws); append-only ids. design/island-buildings.md
              physics.h   tiny Verlet toolkit (ropes/cloth/ragdolls); not a rigid-body engine
              boxrig.h    sprite region → Box2D polygon + texture; needs build-box2d.sh. design/box2d-integration.md
              json.h      EXPERIMENTAL runtime JSON reader (jsmn) for --data files; design/external-data-carts.md

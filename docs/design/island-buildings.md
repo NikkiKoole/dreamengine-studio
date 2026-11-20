@@ -1,4 +1,4 @@
-STATUS: PROPOSED (2026-11-20) · islandstudio places buildings, backroads draws them
+STATUS: BUILDING (2026-11-20) · islandstudio places buildings, backroads draws them; catalog = runtime/buildingkit.h
 
 # Island buildings: an OSM-shaped catalog
 
@@ -103,14 +103,34 @@ status (**now** = placed today, **next** = this round, **later** = a row only).
 | `yes;man_made=watermill` | 10 × 12 | 0-2 | a river at a village | later |
 | quarry, dam, pier | areas / lines, not buildings | — | rock, lake outlets, harbours | later |
 
-## Where the table lives
+## Where the table lives (agreed with backroads, built 2026-11-20)
 
-As **data both carts read**: a shared cart-land header (working name `runtime/buildingkit.h`), with
-one row per type: OSM tags, footprint and height ranges, a "who gets it" rule, and a siting enum
-(`FRONTAGE, HIGH_STREET, CENTRE, EDGE_MAIN_ROAD, COAST, HARBOUR, HILLTOP, HEADLAND, SUMMIT, MOOR,
-RIVER, FARMYARD`). islandstudio places from it; backroads styles from the same rows (colour, roof
-shape, a sign). Adding a building type means adding one row. To be agreed with backroads before
-it's written.
+**`runtime/buildingkit.h`**: `BK[]`, one row per type, ids **append-only** (like `KIND_IX`). Each row
+has the OSM tags; footprint and storey ranges; the look backroads asked for (roof shape
+GABLE/HIP/FLAT/NONE, wall BRICK/WHITEWASH/TIMBER/STONE/CONCRETE, roof TILE/SLATE/THATCH/METAL, a
+LANDMARK flag for skyline silhouettes, a tower spec `{u, w, h, cap}` with cap SPIRE/BATTLEMENT/
+SAILS/LAMP/DOME, a facade sign); and islandstudio's placement (siting enum, who gets one, placed
+yet). `bk_sub(t)` gives the export `sub`; `bk_from_sub(sub)` maps any building sub, generated or
+real OSM, back to a row. Draw code stays in backroads, placement code in islandstudio.
+
+### First round placed (2026-11-20)
+
+The export switched to the OSM-identical form (sub = `building=` value + optional tag, the height
+field in metres, the legacy farm diamonds dropped). Newly placed, in backroads' driving order:
+
+- **Fuel** (`retail;amenity=fuel` kiosk + `roof;amenity=fuel` canopy): every town on a secondary or
+  main road near its edge, plus one per ~12 km of main road in open country. The canopy sits by the
+  road and the kiosk behind a 7 m forecourt.
+- **Lighthouses**: shore cells scored by how much sea surrounds them on three rings (a headland),
+  1-3 per island, 8 km apart.
+- **Windmills**: farmland hilltops at least 15 m above their 700 m ring, 2-5 per island, 5 km apart.
+- **Mast**: the highest peak. **Castle**: the best hill above the biggest town (within 3 km, at
+  least 40 m higher).
+- **Pubs**: every town near its centre, ~80 % of villages.
+
+Landmarks may sit on slopes up to 45 % (houses 20 %). Seed 3 @1024: 7,793 buildings (35 pubs, 20
+fuel stations, 3 lighthouses, 5 windmills, 1 mast, 1 castle), 0 overlapping a road. Open: the
+castle and lighthouses have no access track yet.
 
 ## Open
 

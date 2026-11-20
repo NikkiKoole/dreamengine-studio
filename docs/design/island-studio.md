@@ -320,8 +320,16 @@ corner fillets leave holes in backroads. That's for town streets (citygen), not 
 The expressway is its own **layer** in the road graph: node-ness is counted per layer, so where it
 crosses another road the two run through each other with no junction. Every such crossing (except a
 town the expressway ends in) gets a **260 m bridge span** on the expressway (`build_flyovers`),
-exported with the river bridges' `B1` tag. Seed 3 @1024: 24 flyovers. backroads raises them (see
-`backroads.md`). The expressway still meets the network at grade where it ends; interchanges are next.
+exported with the river bridges' `B1` tag; the crossing road must pass THROUGH (≥ 2 arms: a dead end
+touching the expressway isn't a crossing). backroads raises them (see `backroads.md`).
+
+**Interchanges (diamonds)** at flyovers over a public road (lane or better), ≥ 3 km apart and ≥ 1.5 km
+from the expressway's ends: four slip roads, drive-on-the-right, each `roadkit.h`'s `scurve_spline`
+(roadlab's biarc) from the expressway's edge ~320 m before/after the bridge to the crossing road ~110 m
+out. The ramp ends are snapped onto the crossing road and the road is **split** there, so backroads finds
+a real junction; an interchange is skipped unless the road is there on both sides (a dead-end crossing
+made ramps that met only each other). Seed 3 @1024 (a 9 km expressway): 17 flyovers, 1 diamond. The
+expressway still meets the network at grade where it ends (in towns).
 
 ## Next rungs
 

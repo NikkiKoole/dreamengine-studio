@@ -36,6 +36,7 @@ de:meta */
 // World: 1 cell = CELL metres; heights in metres.
 #include "studio.h"
 #include "ui.h"
+#include "roadkit.h"   // ramp splines (scurve_spline): the shared interchange grammar from roadlab
 #include <math.h>
 #include <stdlib.h>
 #include <time.h>
@@ -1010,7 +1011,7 @@ static void build_flyovers(void) {
         if (IS_SET[c]) continue;
         int e = 0, o = 0;
         for (int k = 0; k < 8; k++) if (ER[c][k]) { if (ER[c][k] == RC_EXPRESS) e++; else o++; }
-        if (!e || !o) continue;
+        if (!e || o < 2) continue;                       // the road must pass THROUGH (a dead end touching the expressway isn't a crossing)
         float cx = (c % N + 0.5f) * CELL, cy = (c / N + 0.5f) * CELL;
         int bp = -1, bi = -1; float bd = 1e30f;                       // nearest expressway point
         for (int p = 0; p < npl; p++) {
@@ -1028,6 +1029,111 @@ static void build_flyovers(void) {
         br[nbr].x = plx[bi]; br[nbr].y = ply[bi]; br[nbr].dx = dx / l; br[nbr].dy = dy / l;
         br[nbr].len = 260.0f; br[nbr].cls = RC_EXPRESS; br[nbr].p = bp; br[nbr].i = bi; nbr++;
         st_flyovers++;
+    }
+}
+
+// ── INTERCHANGES: a DIAMOND at selected flyovers (the crossing road a public road: lane or better, ≥ 3 km apart
+// along the expressway, ≥ 1.5 km from its ends). Four slip roads, drive-on-the-right: per direction an
+// exit ~320 m before the bridge and an entrance after it, on that direction's right, each an S-curve
+// (roadkit's scurve_spline, roadlab's flyover biarc) from the expressway's edge to the crossing road
+// ~110 m out, where it meets it at grade. The expressway is up on its deck there; the ramps stay down.
+static int st_interchanges;
+static int ex_nearest(int cls_express, float x, float y, int *op, int *oi) {   // nearest poly point of a class set
+    float bd = 1e30f; *op = -1; *oi = -1;
+    for (int p = 0; p < npl; p++) {
+        if ((pl[p].cls == RC_EXPRESS) != cls_express) continue;
+        if (!cls_express && pl[p].cls < RC_LANE) continue;  // the crossing road: a public road (lane or better), not a track
+        for (int i = pl[p].start + 1; i < pl[p].start + pl[p].n; i++) {
+            float d = (plx[i] - x) * (plx[i] - x) + (ply[i] - y) * (ply[i] - y);
+            if (d < bd) { bd = d; *op = p; *oi = i; }
+        }
+    }
+    return bd < 60.0f * 60.0f;
+}
+// snap a ramp end onto the crossing road and SPLIT that road there, so the ramps and the road share a
+// point: backroads then finds a real junction (curb corners) instead of two overlapping strips
+static int snap_find(float x, float y, int *op, int *oi) {   // nearest crossing-road vertex within 40 m
+    int bp = -1, bi = -1; float bd = 40.0f * 40.0f;
+    for (int p = 0; p < npl; p++) {
+        if (pl[p].cls == RC_EXPRESS || pl[p].cls < RC_LANE) continue;
+        for (int i = pl[p].start; i < pl[p].start + pl[p].n; i++) {
+            float d = (plx[i] - x) * (plx[i] - x) + (ply[i] - y) * (ply[i] - y);
+            if (d < bd) { bd = d; bp = p; bi = i; }
+        }
+    }
+    *op = bp; *oi = bi; return bp >= 0;
+}
+static void snap_split(float *x, float *y) {
+    int bp = -1, bi = -1; float bd = 40.0f * 40.0f;
+    for (int p = 0; p < npl; p++) {
+        if (pl[p].cls == RC_EXPRESS || pl[p].cls < RC_LANE) continue;
+        for (int i = pl[p].start; i < pl[p].start + pl[p].n; i++) {
+            float d = (plx[i] - *x) * (plx[i] - *x) + (ply[i] - *y) * (ply[i] - *y);
+            if (d < bd) { bd = d; bp = p; bi = i; }
+        }
+    }
+    if (bp < 0) return;
+    *x = plx[bi]; *y = ply[bi];
+    int a = pl[bp].start, e = a + pl[bp].n - 1;
+    if (bi <= a || bi >= e || npl >= MAXPL) return;          // already an end: nothing to split
+    pl[npl].start = bi; pl[npl].n = e - bi + 1; pl[npl].cls = pl[bp].cls;   // the tail, sharing point bi
+    pl[bp].n = bi - a + 1;
+    for (int k = 0; k < nbr; k++) if (br[k].p == bp && br[k].i > bi) br[k].p = npl;   // bridges on the tail
+    npl++;
+}
+static void add_ramp(Port a, Port b) {
+    static float xs[256], ys[256];
+    int n = scurve_spline(a, b, xs, ys);
+    if (n < 2 || npl >= MAXPL || npt + n >= MAXPT) { st_overflow++; return; }
+    pl[npl].start = npt; pl[npl].n = n; pl[npl].cls = RC_SEC; npl++;
+    float L = 0;
+    for (int i = 0; i < n; i++) { plx[npt + i] = xs[i]; ply[npt + i] = ys[i]; if (i) L += hypotf(xs[i] - xs[i-1], ys[i] - ys[i-1]); }
+    npt += n; st_road[RC_SEC] += L / 1000.0f;
+}
+static void build_interchanges(void) {
+    st_interchanges = 0;
+    static float icx[64], icy[64]; int nic = 0;
+    float ex0x = 0, ex0y = 0, ex1x = 0, ex1y = 0; int have_ends = 0;   // the expressway's two ends
+    for (int p = 0; p < npl; p++) if (pl[p].cls == RC_EXPRESS) {
+        int a = pl[p].start, e = a + pl[p].n - 1;
+        if (!have_ends) { ex0x = plx[a]; ex0y = ply[a]; ex1x = plx[e]; ex1y = ply[e]; have_ends = 1; }
+        else {                                                // keep the two points farthest apart
+            float cand[2][2] = { { plx[a], ply[a] }, { plx[e], ply[e] } };
+            for (int c = 0; c < 2; c++) {
+                float d0 = hypotf(cand[c][0] - ex1x, cand[c][1] - ex1y), dc = hypotf(ex0x - ex1x, ex0y - ex1y);
+                float d1 = hypotf(cand[c][0] - ex0x, cand[c][1] - ex0y);
+                if (d0 > dc && d0 >= d1) { ex0x = cand[c][0]; ex0y = cand[c][1]; }
+                else if (d1 > dc) { ex1x = cand[c][0]; ex1y = cand[c][1]; }
+            }
+        }
+    }
+    for (int b = 0; b < nbr && nic < 64; b++) {
+        if (br[b].cls != RC_EXPRESS) continue;
+        float X = br[b].x, Y = br[b].y;
+        if (hypotf(X - ex0x, Y - ex0y) < 1500 || hypotf(X - ex1x, Y - ex1y) < 1500) continue;
+        int far = 1; for (int k = 0; k < nic; k++) if (hypotf(icx[k] - X, icy[k] - Y) < 3000) far = 0;
+        if (!far) continue;
+        int cp, ci;                                           // the crossing road: secondary or main
+        if (!ex_nearest(0, X, Y, &cp, &ci)) continue;
+        int c0 = ci > pl[cp].start ? ci - 1 : ci, c1 = ci + 1 < pl[cp].start + pl[cp].n ? ci + 1 : ci;
+        float cx = plx[c1] - plx[c0], cy = ply[c1] - ply[c0], cl = hypotf(cx, cy); if (cl < 1) continue;
+        cx /= cl; cy /= cl;
+        float ex = br[b].dx, ey = br[b].dy;                   // expressway direction
+        if (fabsf(ex * cx + ey * cy) > 0.8f) continue;        // too shallow a crossing for a diamond
+        float rx = -ey, ry = ex;                              // right of +e (y down: rotate +90°)
+        if (cx * rx + cy * ry < 0) { cx = -cx; cy = -cy; }    // c now points to the right side of +e
+        float E = atan2f(ey, ex) * RK_R2D, Ld = 320.0f, Wc = 110.0f, off = RHW[RC_EXPRESS];
+        // +e: exit before (right), entrance after (right); -e: exit "before" in its own sense = after (left), entrance before (left)
+        Port a, q;
+        float Rx = X + cx * Wc, Ry = Y + cy * Wc, Lx = X - cx * Wc, Ly = Y - cy * Wc;   // where ramps meet the road
+        int sp1, si1, sp2, si2;                               // the road must be there on BOTH sides
+        if (!snap_find(Rx, Ry, &sp1, &si1) || !snap_find(Lx, Ly, &sp2, &si2)) continue;
+        snap_split(&Rx, &Ry); snap_split(&Lx, &Ly);
+        a = (Port){ X - ex * Ld + rx * off, Y - ey * Ld + ry * off, E, 0 };  q = (Port){ Rx, Ry, E, 0 };                                add_ramp(a, q);
+        a = (Port){ Rx, Ry, E, 0 };                                         q = (Port){ X + ex * Ld + rx * off, Y + ey * Ld + ry * off, E, 0 }; add_ramp(a, q);
+        a = (Port){ X + ex * Ld - rx * off, Y + ey * Ld - ry * off, E + 180, 0 }; q = (Port){ Lx, Ly, E + 180, 0 };                      add_ramp(a, q);
+        a = (Port){ Lx, Ly, E + 180, 0 };                                   q = (Port){ X - ex * Ld - rx * off, Y - ey * Ld - ry * off, E + 180, 0 }; add_ramp(a, q);
+        icx[nic] = X; icy[nic] = Y; nic++; st_interchanges++;
     }
 }
 
@@ -1303,6 +1409,7 @@ static void build_roads(void) {
     build_rivers();
     build_bridges();
     build_flyovers();
+    build_interchanges();
     roads_dirty = 0;
     st_roads_ms = (clock() - t0) * 1000.0f / CLOCKS_PER_SEC;
 }
@@ -1403,7 +1510,7 @@ void update(void) {
     watch("seed", "%d", seed); watch("nset", "%d", nset); watch("coastal", "%d", st_coastal);
     watch("moor", "%d", (int)st_cov[CV_MOOR]); watch("forest", "%d", (int)st_cov[CV_FOREST]);
     watch("land", "%d", (int)st_land); watch("npl", "%d", npl); watch("express", "%d", st_express);
-    watch("ringgaps", "%d", st_ringgaps); watch("bridges", "%d", nbr); watch("lakes", "%d", st_lakes); watch("N", "%d", N); watch("diagx", "%d", st_diagx); watch("cuts", "%d", st_cuts); watch("consol", "%d", st_consol); watch("flyovers", "%d", st_flyovers); watch("rebuild_ms", "%.0f", st_rebuild_ms); watch("overflow", "%d", st_overflow); watch("links", "lane %d/%d sec %d/%d main %d/%d", st_link_ok[0], st_link_try[0], st_link_ok[1], st_link_try[1], st_link_ok[2], st_link_try[2]); { int bb = -1; for (int b = 0; b < nbr; b++) if (bb < 0 || br[b].len > br[bb].len) bb = b;
+    watch("ringgaps", "%d", st_ringgaps); watch("bridges", "%d", nbr); watch("lakes", "%d", st_lakes); watch("N", "%d", N); watch("diagx", "%d", st_diagx); watch("cuts", "%d", st_cuts); watch("consol", "%d", st_consol); watch("flyovers", "%d", st_flyovers); watch("interchanges", "%d", st_interchanges); watch("rebuild_ms", "%.0f", st_rebuild_ms); watch("overflow", "%d", st_overflow); watch("links", "lane %d/%d sec %d/%d main %d/%d", st_link_ok[0], st_link_try[0], st_link_ok[1], st_link_try[1], st_link_ok[2], st_link_try[2]); { int bb = -1; for (int b = 0; b < nbr; b++) if (bb < 0 || br[b].len > br[bb].len) bb = b;
       if (bb >= 0) { watch("bigbridge_x", "%.0f", br[bb].x); watch("bigbridge_y", "%.0f", br[bb].y); watch("bigbridge_len", "%.0f", br[bb].len); } } watch("rivers", "%d", nrv);
     watch("forest_tracks", "%d", nforest); watch("upland_tracks", "%d", nupland); watch("roads_ms", "%.0f", st_roads_ms);
     for (int k = RC_TRACK; k < NRC; k++) watch(RCN[k], "%.0f", st_road[k]);

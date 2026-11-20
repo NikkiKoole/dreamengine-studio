@@ -519,7 +519,8 @@ the deck always meets the ground at its ends. Deck pieces carry z along their ax
 cell: ground road, ground markings, slab edge, deck, deck markings, parapets. Parapets (0.7 m,
 medium grey: asphalt is dark grey and white glared) and a dark 1.3 m slab edge run along both sides.
 The wheels ride the deck when the car is nearer the deck than the ground, so driving under a flyover
-stays under it. Dev key `K` jumps 60 m before the next bridge.
+stays under it. Dev key `K` jumps 60 m before the next bridge; `BR_START="x,y[,heading]"` starts the car
+at an exact spot (the readout's `pos`), to reproduce a reported place.
 
 Gotchas found on the way: a crossing test that counted the road a bridge *connects to* lifted whole
 decks 6.5 m into the air; a crossing on higher ground than the span ends left a 3.7 m step at the

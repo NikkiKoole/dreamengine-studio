@@ -1237,6 +1237,11 @@ void init(void) {
     ISL = path ? isl_load(path) : (isl_load("../data/islandstudio-3.rvb") || isl_load("../data/islandstudio-1.rvb"));
     if (ISL) { isl_find_junctions(); isl_build_decks(); }
     spawn();
+    // dev: BR_START="x,y[,heading]" starts the car exactly there (the debug readout's pos), so a spot
+    // someone reports can be reproduced
+    { const char *st = getenv("BR_START"); float sx, sy, sh;
+      if (st) { int n = sscanf(st, "%f,%f,%f", &sx, &sy, &sh);
+                if (n >= 2) { px = sx; py = sy; if (n >= 3) head = sh - 90.0f; vx = vy = 0; camh = ground(px, py) + EYE; } } }
 }
 
 void update(void) {

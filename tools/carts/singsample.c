@@ -55,6 +55,7 @@ static int tick = 0, grabbed = 0, src_h = -1;
 static int song_t = -1, song_i = 0;
 static int big_h = -1, small_h = -1;      // what each one is singing (for the mouths)
 static int big_on = 0, small_on = 0;      // frames left with the mouth open
+static int key_h[2] = {-1, -1};           // Z / X notes: their OWN handles, so the song can't steal or orphan them
 #define PEAK_COLS 96
 static float peaks_lo[PEAK_COLS], peaks_hi[PEAK_COLS];
 static int peaks_n = 0;                   // sample_peaks returns the take's LENGTH (0 = empty), not a column count
@@ -149,12 +150,16 @@ void update(void) {
             song_i++; song_t = 0;
         }
     }
-    if (keyp('Z')) sing(0, 57);
-    if (keyr('Z') && big_h >= 0)   { note_off(big_h); big_h = -1; }
-    if (keyp('X')) sing(1, 69);
-    if (keyr('X') && small_h >= 0) { note_off(small_h); small_h = -1; }
+    static const int KEYS[2] = {'Z', 'X'}, KEY_NOTE[2] = {57, 69};
+    for (int w = 0; w < 2; w++) {
+        if (keyp(KEYS[w])) {
+            if (key_h[w] >= 0) note_off(key_h[w]);
+            key_h[w] = note_on(KEY_NOTE[w], w ? SMALL : BIG, 6);
+        }
+        if (!key(KEYS[w]) && key_h[w] >= 0) { note_off(key_h[w]); key_h[w] = -1; }   // level, not edge: a release can't be missed
+    }
 #endif
-    big_on = big_h >= 0; small_on = small_h >= 0;
+    big_on = big_h >= 0 || key_h[0] >= 0; small_on = small_h >= 0 || key_h[1] >= 0;
 
 #ifdef DE_TRACE
     watch("tick", "%d", tick);

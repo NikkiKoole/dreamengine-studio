@@ -6704,7 +6704,11 @@ static inline float sound_sing_sample(Voice *v, float pitch_mul) {
     }
     const int *ep = a->ep; const float *epf = a->epf;
     bool held = !v->sg_once && v->step_samples < v->step_len_samples;   // ONE-SHOT never rocks
-    bool rocking = held && v->sg_hold >= 0 && (v->sg_t >= (double)v->sg_hold || v->sg_dir < 0.0f);
+    // HELD: the whole rocked window counts, both strokes and the first approach. (It used to be "at the top or
+    // moving back", so every FORWARD stroke replayed the take raw: on a real take the window sits on the
+    // vowel's fade, 8 dB in 60 ms, and that fade replayed as a ~7 Hz loudness wobble.)
+    double hbot = (double)v->sg_hold - SG_HOLD_S * (float)SOUND_SAMPLE_RATE; if (hbot < lo) hbot = lo;
+    bool rocking = held && v->sg_hold >= 0 && (v->sg_t >= hbot || v->sg_dir < 0.0f);
 
     // 1. the NEXT grain: computed one grain ahead so it can start half a window before its centre
     if (!v->sg_pend && v->sg_t < hi) {
@@ -6733,6 +6737,14 @@ static inline float sound_sing_sample(Voice *v, float pitch_mul) {
             if (oL > cap) oL = cap; if (oR > cap) oR = cap;
             g = sqrtf(size * T * epf[kk] / (float)SOUND_SAMPLE_RATE);   // sqrt(size · Tout / Tsrc)
             if (g > 4.0f) g = 4.0f;
+            if (rocking && a->epa && a->epa[kk] > 1e-6f) {
+                // ...and every pulse in it is levelled to the window's FIRST pulse (where the playhead entered,
+                // so going in is seamless): the fade can't replay, and the held level is the vowel's, not its tail's
+                int kb = kk; while (kb > 0 && (double)ep[kb - 1] >= hbot) kb--;
+                while (kb < kk && epf[kb] <= 0.0f) kb++;
+                float lv = a->epa[kb] / a->epa[kk]; if (lv < 0.25f) lv = 0.25f; if (lv > 4.0f) lv = 4.0f;
+                g *= lv;
+            }
         } else {                                                // UNVOICED: the source's own spacing, re-coloured
             oL = (float)L; oR = (float)R; T = (float)R; g = 1.0f;
         }
@@ -6782,7 +6794,7 @@ static inline float sound_sing_sample(Voice *v, float pitch_mul) {
         int i0 = (int)sp; if (i0 < 0) i0 = 0; if (i0 > s->len - 1) i0 = s->len - 1;
         float src = s->data[i0];
         const float A = 1.0f / (0.04f * (float)SOUND_SAMPLE_RATE);
-        v->sg_es += A * (src * src - v->sg_es);
+        if (!rocking) v->sg_es += A * (src * src - v->sg_es);   // HELD: the target freezes at the vowel's level, so the follower flattens the rock instead of replaying it
         v->sg_eo += A * (out * out - v->sg_eo);
         float gl = v->sg_eo > 1e-9f ? sqrtf((v->sg_es + 1e-12f) / v->sg_eo) : 1.0f;
         if (gl < 0.5f) gl = 0.5f; if (gl > 2.0f) gl = 2.0f;
@@ -6791,8 +6803,7 @@ static inline float sound_sing_sample(Voice *v, float pitch_mul) {
     // 5. the clock and the playhead
     v->sg_clock -= 1.0f;
     if (rocking) {
-        double top = (double)v->sg_hold, bot = top - SG_HOLD_S * (float)SOUND_SAMPLE_RATE;
-        if (bot < lo) bot = lo;
+        double top = (double)v->sg_hold, bot = hbot;
         v->sg_t += (double)(v->sg_dir * speed);
         if (v->sg_t >= top) { v->sg_t = top; v->sg_dir = -1.0f; }
         else if (v->sg_t <= bot) { v->sg_t = bot; v->sg_dir = 1.0f; }

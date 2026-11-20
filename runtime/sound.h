@@ -6962,6 +6962,180 @@ static inline float sound_scrape_sample(Voice *v, float pitch_mul) {
     return y * v->scr_gain;
 }
 
+// ── INSTR_MOTOR: a combustion engine from its CYLINDERS and its EXHAUST ──────────────────────────────────
+// An engine is not a note. Each cylinder fires once per CYCLE (two crank turns), at its own crank angle in
+// the FIRING ORDER, and every firing dumps one pressure PULSE into the exhaust. So this runs the cylinders:
+//   · CRANK: the note's frequency is the crank's rotation rate (rpm / 60): 800 rpm idle = 13.3 Hz, 6000 =
+//     100 Hz. A cart rides it with note_pitch (carengine.h does), so a glide is the revs climbing.
+//   · CYLINDERS: each fires at its layout angle; its pulse (the exhaust blowdown) lasts ~216 of the 720
+//     cycle degrees, so it gets SHORTER as the revs climb (brighter, as a real engine does), and the LOAD
+//     snaps it open harder. No two firings are alike: each cylinder has a fixed imbalance and every firing a
+//     little random strength and timing (ROUGH). That variation repeats once per CYCLE, so it puts energy
+//     at the cycle's harmonics BETWEEN the firing harmonics: the rumble. A perfectly even pulse train has
+//     none and reads as a buzzer, which is what an LFO-on-a-saw engine (carengine.h's first voice) was.
+//     MEASURED on CC0 recordings (tools/refs/engines-cc0.txt): an inline-6 at ~1400 rpm has its firing
+//     harmonics on top with the in-between cycle harmonics 14-25 dB down; a lumpy V8 idle has nearly EVERY
+//     cycle harmonic within a few dB of the firing ones.
+//   · BANKS: a V engine's cylinders feed two pipes. A crossplane V8 fires each bank UNEVENLY (90-180-270-180
+//     degrees), the American burble; summed into one pipe it would be an even 90 and the burble would vanish,
+//     so each bank runs its own pipe and the far one is quieter (you hear one side more).
+//   · EXHAUST: each bank's pipe is a waveguide (a delay of its round trip, a wall-loss low-pass in the loop,
+//     an inverting open end), so its resonances sit at odd multiples of c/4L and STAY THERE while the revs
+//     move: the firing harmonics sweep THROUGH them. That fixed hump is what a car sounds like (the V8 idle
+//     reference: a 200-250 Hz hump at two different idle speeds). Then the MUFFLER (a low-pass, stock →
+//     straight pipe) and the tailpipe's RADIATION (it radiates the change in flow, so the pulses' DC drops).
+//   · INTAKE: a little air roar while each intake valve is open, with the load. MECH: a valve tick per
+//     valve event, high and quiet (an old straight-six's tappets).
+// Macros: harmonics = LAYOUT (7 detents: single · inline-4 · flat-4 · inline-6 · crossplane V8 · flatplane
+// V8 · V12), timbre = EXHAUST (0 stock muffler → 1 straight pipe), morph = LOAD (0 coasting · 1 full
+// throttle; live, ride it with note_morph). Aux: MODE_MOTOR_PIPE / _ROUGH / _INTAKE / _MECH, 0.5 = the
+// layout's own. HOLDS while sustained. Each layout is one fixed engine (its imbalances seeded per layout).
+#define MOT_C 520.0f                       // speed of sound in hot exhaust gas, m/s
+#define MOT_W 0.30f                        // a pulse's length: ~216 of the 720 cycle degrees
+#define MOT_LAYOUTS 7
+typedef struct {
+    int   n;                               // cylinders
+    float off[SOUND_MOTOR_CYL];            // firing angle, degrees of the 720 cycle, in FIRING ORDER
+    unsigned char bank[SOUND_MOTOR_CYL];   // which pipe it feeds (0 / 1)
+    float hdr_ms[SOUND_MOTOR_CYL];         // extra header length, as arrival delay (an unequal-length boxer)
+    float pipe_m[2];                       // each bank's pipe length (m): sets the fixed resonances
+    float bank_g[2];                       // each pipe's level at the listener (0 = no second pipe)
+    float rough, bias, spread;             // cycle-to-cycle variation · fixed per-cylinder strength imbalance · fixed
+                                           //   per-cylinder arrival spread (ms): no two headers are the same length
+} MotLayout;
+static const MotLayout MOT_LAYOUT[MOT_LAYOUTS] = {
+    { 1, {0}, {0}, {0}, {1.30f, 1.30f}, {1.0f, 0.0f}, 0.50f, 0.00f, 0.0f },                                    // single (a thumper)
+    { 4, {0,180,360,540}, {0}, {0}, {0.90f, 0.90f}, {1.0f, 0.0f}, 0.22f, 0.15f, 0.8f },                        // inline-4
+    { 4, {0,180,360,540}, {0}, {0,1.8f,0,1.8f}, {0.85f, 0.85f}, {1.0f, 0.0f}, 0.32f, 0.18f, 0.8f },            // flat-4, unequal headers
+    { 6, {0,120,240,360,480,600}, {0}, {0}, {1.10f, 1.10f}, {1.0f, 0.0f}, 0.20f, 0.15f, 0.8f },                // inline-6
+    { 8, {0,90,180,270,360,450,540,630}, {0,1,1,0,1,0,0,1}, {0}, {0.62f, 0.70f}, {1.0f, 0.45f}, 0.45f, 0.30f, 1.5f },  // V8 crossplane, 1-8-4-3-6-5-7-2
+    { 8, {0,90,180,270,360,450,540,630}, {0,1,0,1,0,1,0,1}, {0}, {0.55f, 0.57f}, {1.0f, 0.70f}, 0.22f, 0.15f, 0.8f },  // V8 flatplane
+    { 12, {0,60,120,180,240,300,360,420,480,540,600,660}, {0,1,0,1,0,1,0,1,0,1,0,1}, {0}, {0.50f, 0.52f}, {1.0f, 0.75f}, 0.15f, 0.12f, 0.6f },  // V12
+};
+static inline float mot_rand(Voice *v) { v->mot_rnd = v->mot_rnd * 1664525u + 1013904223u; return (float)(v->mot_rnd >> 8) * (1.0f / 16777216.0f); }
+static inline float mot_gauss(Voice *v) { return (mot_rand(v) + mot_rand(v) + mot_rand(v) - 1.5f) * 2.0f; }   // ~N(0, 1), bounded ±3
+// an RBJ low-pass WITHOUT a state reset, so a ridden EXHAUST retunes the muffler instead of clicking it
+static void mot_lowpass(SoundBiquad *bq, float fc, float q) {
+    if (fc > 0.45f * (float)SOUND_SAMPLE_RATE) fc = 0.45f * (float)SOUND_SAMPLE_RATE;
+    float w0 = SOUND_TWO_PI * fc / (float)SOUND_SAMPLE_RATE, sn = de_sinf(w0), cs = de_cosf(w0);
+    float alpha = sn / (2.0f * q), a0 = 1.0f + alpha;
+    bq->b0 = (1.0f - cs) * 0.5f / a0; bq->b1 = (1.0f - cs) / a0; bq->b2 = bq->b0;
+    bq->a1 = (-2.0f * cs) / a0; bq->a2 = (1.0f - alpha) / a0;
+}
+static void mot_exhaust(Voice *v, float ex) {   // the EXHAUST macro: pipe reflection, wall loss, muffler
+    v->mot_ex = ex;
+    // the open end reflects most of the pulse back: the pipe RINGS from one firing to the next (a real V8 idle
+    // is a continuous ~200 Hz ring, not clicks; at 0.3 this rang ~5 ms and the engine was isolated ticks)
+    v->mot_fb = -(0.80f + 0.12f * ex);
+    v->mot_loss = 1.0f - de_expf(-SOUND_TWO_PI * (250.0f * de_powf(24.0f, ex)) / (float)SOUND_SAMPLE_RATE);
+    mot_lowpass(&v->mot_muf, 200.0f * de_powf(30.0f, ex), 0.75f);       // stock 200 Hz → straight 6 kHz
+}
+static void sound_motor_start(Voice *v) {
+    int L = (int)(clamp01(v->harm) * (float)(MOT_LAYOUTS - 1) + 0.5f);
+    const MotLayout *m = &MOT_LAYOUT[L];
+    v->mot_lay = L;
+    v->mot_rnd = 0x4D4F5452u ^ ((uint32_t)(L + 1) * 2654435761u);      // one fixed engine per layout
+    v->mot_ph = 0.0f;
+    for (int i = 0; i < SOUND_MOTOR_CYL; i++) {
+        v->mot_bias[i] = 2.0f * mot_rand(v) - 1.0f;
+        v->mot_tofs[i] = 2.0f * mot_rand(v) - 1.0f;                     // scaled by the layout's spread per sample (it is in ms)
+        v->mot_amp[i] = 0.0f; v->mot_jit[i] = 0.0f;
+        float u = -m->off[i] / 720.0f; u -= floorf(u);
+        v->mot_pu[i] = u;                                                // no spurious firing on sample 0
+    }
+    float ps = de_powf(2.0f, (clamp01(v->eng_p[MODE_MOTOR_PIPE]) - 0.5f) * 2.0f);   // 0.5x .. 2x the layout's pipe
+    for (int b = 0; b < 2; b++) {
+        int D = (int)(2.0f * m->pipe_m[b] * ps / MOT_C * (float)SOUND_SAMPLE_RATE + 0.5f);
+        if (D < 8) D = 8; if (D > 510) D = 510;
+        v->mot_D[b] = D; v->mot_w[b] = 0; v->mot_lp[b] = 0.0f;
+    }
+    memset(v->ks_buf, 0, sizeof(v->ks_buf));
+    v->mot_x1 = v->mot_hx = v->mot_hy = 0.0f; v->mot_me = 0.0f; v->mot_env = 0.0f;
+    v->mot_muf.z1 = v->mot_muf.z2 = 0.0f;
+    mot_exhaust(v, clamp01(v->timb));
+    sound_biquad_set(&v->mot_ibq, 700.0f, 1.4f, 1.0f);                  // the airbox: a broad band around 700 Hz
+    { float w0 = SOUND_TWO_PI * 3000.0f / (float)SOUND_SAMPLE_RATE, sn = de_sinf(w0), cs = de_cosf(w0);   // tick high-pass
+      float al = sn / (2.0f * 0.7f), a0 = 1.0f + al; SoundBiquad *bq = &v->mot_mbq;
+      bq->b0 = (1.0f + cs) * 0.5f / a0; bq->b1 = -(1.0f + cs) / a0; bq->b2 = bq->b0;
+      bq->a1 = (-2.0f * cs) / a0; bq->a2 = (1.0f - al) / a0; bq->z1 = bq->z2 = 0.0f; }
+    v->mot_rough = m->rough * 2.0f * clamp01(v->eng_p[MODE_MOTOR_ROUGH]);
+    v->mot_in    = 2.0f * clamp01(v->eng_p[MODE_MOTOR_INTAKE]);
+    v->mot_mech  = 2.0f * clamp01(v->eng_p[MODE_MOTOR_MECH]);
+    v->mot_norm  = 5.0f / sqrtf((float)m->n);                          // measured: puts an idle near a SAW at the same vol
+    v->mot_on = true;
+}
+static inline float sound_motor_sample(Voice *v, float pitch_mul) {
+    if (!v->mot_on) return 0.0f;
+    const MotLayout *m = &MOT_LAYOUT[v->mot_lay];
+    float frev = v->freq * pitch_mul;                                    // crank turns per second
+    if (frev < 2.0f) frev = 2.0f; if (frev > 250.0f) frev = 250.0f;
+    float fcyc = 0.5f * frev;
+    float load = clamp01(v->mor), ex = clamp01(v->timb);
+    if (ex - v->mot_ex > 0.005f || v->mot_ex - ex > 0.005f) mot_exhaust(v, ex);
+    v->mot_ph += fcyc / (float)SOUND_SAMPLE_RATE;
+    if (v->mot_ph >= 1.0f) v->mot_ph -= 1.0f;
+    float pk = 0.22f - 0.13f * load;                                     // where the pulse peaks: a hard pull snaps it open
+    float a0 = 0.30f + 0.70f * load;
+    float tsp = (2.6f - 1.4f * load) * 0.001f;                           // the spike's rise: a hard pull is sharper
+    float in[2] = { 0.0f, 0.0f }, air = 0.0f;
+    for (int i = 0; i < m->n; i++) {
+        float u = v->mot_ph - m->off[i] * (1.0f / 720.0f) - (m->hdr_ms[i] + m->spread * v->mot_tofs[i] * v->mot_rough * 2.0f) * 0.001f * fcyc;
+        u -= floorf(u);
+        if (u < v->mot_pu[i]) {                                          // it FIRED: latch this firing
+            float g = 1.0f + m->bias * v->mot_bias[i] * (v->mot_rough / (m->rough > 0.0f ? m->rough : 1.0f)) + 0.25f * v->mot_rough * mot_gauss(v);
+            v->mot_amp[i] = a0 * (g > 0.05f ? g : 0.05f);
+            v->mot_jit[i] = 0.006f * v->mot_rough * mot_gauss(v);       // a few crank degrees of slip
+            v->mot_me += 1.0f;                                           // the exhaust valve's tick
+        }
+        if (v->mot_pu[i] < 0.5f && u >= 0.5f) v->mot_me += 0.7f;         // the intake valve's
+        v->mot_pu[i] = u;
+        float x = (u - v->mot_jit[i]) * (1.0f / MOT_W);
+        if (x > 0.0f && x < 1.0f) {
+            // the pulse = the BLOWDOWN spike (gas dynamics: a few ms whatever the revs, so an idle still
+            // cracks) + the displacement TAIL (crank angle: it shortens as the revs climb). A pulse that was
+            // only the crank-angle shape was 40 ms of smooth hump at idle: all fundamental, no 200 Hz bark.
+            float t = x * MOT_W / fcyc;                                   // seconds since the valve opened
+            float qs = t / tsp, q = x / pk, r = 1.0f - x;
+            in[m->bank[i]] += v->mot_amp[i] * (qs * de_expf(1.0f - qs) + 0.35f * q * de_expf(1.0f - q)) * r * r;
+        }
+        float xi = (u - 0.5f) * 3.0f;                                    // the intake stroke: valve open for 1/3 cycle
+        if (xi > 0.0f && xi < 1.0f) air += de_sinf(3.14159265f * xi);
+    }
+    // EXHAUST: each bank's pipe, a waveguide round trip with wall loss and an inverting open end
+    // The listener hears the wave that has TRAVELLED the pipe (lossy, delayed), never the raw pulse: taking
+    // the pipe's input as the output left each firing a bare click 6 dB over the ring it starts (crest 17.5 dB
+    // where the V8 idle reference is 11). TURBULENCE: the gas rushing out is noisy in proportion to its flow.
+    float y = 0.0f, nzf = 2.0f * mot_rand(v) - 1.0f;
+    for (int b = 0; b < 2; b++) {
+        if (m->bank_g[b] <= 0.0f) continue;
+        float *buf = v->ks_buf + b * 512;
+        int r = v->mot_w[b] - v->mot_D[b]; if (r < 0) r += 512;
+        v->mot_lp[b] += v->mot_loss * (buf[r] - v->mot_lp[b]);
+        float p = in[b] * (1.0f + 0.6f * nzf) + v->mot_fb * v->mot_lp[b];
+        buf[v->mot_w[b]] = p; if (++v->mot_w[b] >= 512) v->mot_w[b] = 0;
+        y += m->bank_g[b] * v->mot_lp[b];
+    }
+    // RADIATION: the change in flow (a first difference, unity at ~200 Hz) plus the flow itself, DC-blocked
+    float d = (y - v->mot_x1) * ((float)SOUND_SAMPLE_RATE / (SOUND_TWO_PI * 200.0f)); v->mot_x1 = y;
+    v->mot_hy = 0.995f * (v->mot_hy + y - v->mot_hx); v->mot_hx = y;
+    float out = sound_biquad_run(&v->mot_muf, 0.97f * d + 0.03f * v->mot_hy) * (0.75f + 0.25f * ex);
+    // INTAKE roar and the valve TICKS
+    float nz = 2.0f * mot_rand(v) - 1.0f;
+    out += v->mot_in * 0.05f * (0.2f + 0.8f * load) * sound_biquad_run(&v->mot_ibq, nz * air);
+    out += v->mot_mech * 0.012f * sound_biquad_run(&v->mot_mbq, nz * v->mot_me);
+    v->mot_me *= 0.96f;                                                  // ~0.5 ms tick
+    out *= v->mot_norm;
+    // LEVEL: idle → cruise stays as it is (~+12 dB), above a cruise's level it is compressed 2:1 by a ~150 ms
+    // ear, then a soft ceiling. Measured uncompressed, a straight pipe at redline was +24 dB over a stock
+    // idle (honest: a real one is), more range than a game mix can hold without the idle vanishing.
+    v->mot_env += 0.00015f * (out * out - v->mot_env);
+    float rms = sqrtf(v->mot_env);
+    if (rms > 0.3f) out *= sqrtf(0.3f / rms);
+    float ax = out < 0.0f ? -out : out;
+    if (ax > 1.5f) { float c = 1.5f + 1.0f * de_tanhf((ax - 1.5f) * 1.0f); out = out < 0.0f ? -c : c; }
+    return out;
+}
+
 static inline float sound_engine_sample(Voice *v, float pitch_mul) {
     switch (v->wave) {                                       // dense engine ids → jump table (was 13 sequential compares)
         case INSTR_MALLET:   return sound_mallet_sample(v, pitch_mul);
@@ -6987,6 +7161,7 @@ static inline float sound_engine_sample(Voice *v, float pitch_mul) {
         case INSTR_GRAIN:    return sound_grain_sample(v, pitch_mul);
         case INSTR_SING:     return sound_sing_sample(v, pitch_mul);
         case INSTR_SCRAPE:   return sound_scrape_sample(v, pitch_mul);
+        case INSTR_MOTOR:    return sound_motor_sample(v, pitch_mul);
     }
     // fall-through: the modal Karplus-Strong string — any engine id not handled above.
     int alloc = v->ks_len;
@@ -7900,6 +8075,7 @@ static void sound_setup_note_ex(Voice *v, int midi, int slot, int vol, int gate_
     v->gr_on = false;
     v->sg_on = false;
     v->scr_on = false;
+    v->mot_on = false;
     v->fm_mph = v->fm_fb = v->fm_tph = 0.0f;   // FM needs no excitation, just deterministic phases
     if      (v->wave == INSTR_PLUCK)  sound_pluck_start(v);    // excite the string
     else if (v->wave == INSTR_MALLET) sound_mallet_start(v);   // strike the bar
@@ -7930,6 +8106,7 @@ static void sound_setup_note_ex(Voice *v, int midi, int slot, int vol, int gate_
     else if (v->wave == INSTR_GRAIN)  sound_grain_start(v);    // both chains at POSITION, chain 1 half a grain behind, snapshot scatter/detune/reverse
     else if (v->wave == INSTR_SING)   sound_sing_start(v);     // playhead to the chop start, find the held vowel, ask for an analysis if none
     else if (v->wave == INSTR_SCRAPE) sound_scrape_start(v);   // seed the hit from the note, voice the body, first tooth now
+    else if (v->wave == INSTR_MOTOR)  sound_motor_start(v);    // the cylinders at their angles, the pipes empty
     else if (v->wave == INSTR_FM4)    sound_fm4_start(v);      // reset 4 phases + feedback average
     // TRIGGER POLICY (§L4). The engine hooks above have just ARMED this voice's onset transient; if the
     // slot declares itself single-triggering and another key on it is already down, take it back off.

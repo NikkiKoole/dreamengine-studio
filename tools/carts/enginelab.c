@@ -14,7 +14,7 @@
     "sonification"
   ],
   "lineage": "A dyno workbench grown from sloop.c's single-voice engine sound; novel in breaking every synthesis layer (firing-rate tremolo, rasp, intake, drive, lope, burble) onto a live toggle for A/B auditioning.",
-  "description": "A car-engine sound DYNO and synthesis workbench (the next-gen voice for sloop). An engine isn't a note - it's a FIRING RATE: ~15 Hz of distinct thuds at idle climbing to ~150 Hz of buzzing tone at redline, and that sweep is the whole illusion. One master number (chug_hz) drives every layer so they stay harmonically locked: a saw BODY pinging a resonant lowpass (each edge = one combustion puff), a FIRING tremolo at the chug rate that speeds up with the revs (sloop's is stuck at 9 Hz - the #1 thing that reads as 'synth' not 'engine'), a throttle-led exhaust RASP, an INTAKE/turbo-whistle bed, DRIVE saturation that snarls under load, an idle LOPE wobble, and an overrun BURBLE crackle when you lift. Seven engine kinds (electric whine, gas, diesel clatter, steam chuff, screaming race + turbo, nuclear hum, potato-potato tractor), each a distinct recipe. Hold UP/Z/SPACE to rev, LEFT/RIGHT switch kinds, 1-7 toggle each layer live to hear what it adds, I ignition, L free-rev vs under-load, M auto-rev demo."
+  "description": "A car-engine sound DYNO. Combustion engines now run INSTR_MOTOR, a voice built from the engine itself: each cylinder fires at its real crank angle in the firing order (inline-6, crossplane V8 burble, flat-4 off-beat, a big single), every firing a little different so the engine rumbles instead of buzzing, into exhaust pipes whose resonances stay put while the revs sweep through them. Nine kinds: gas (a 1970s straight-six), diesel, race (flatplane V8 on a straight pipe + turbo), tractor, muscle (crossplane V8), boxer (flat-4), and the synth-only electric whine, steam chuff and nuclear hum. N flips any combustion kind back to the OLD synth layers (a saw through a resonant filter with a tremolo at the firing rate) so you can hear what changed. Hold UP/Z/SPACE to rev, LEFT/RIGHT switch kinds, 1-7 toggle layers (over the cylinder voice only turbo, burble, lope and intake apply), I ignition, L free-rev vs under-load, M auto-rev demo."
 }
 de:meta */
 #include "studio.h"
@@ -61,6 +61,7 @@ de:meta */
 //   1..7                  toggle a synthesis layer  I       ignition on/off
 //   L                     LOAD: free-rev ↔ under-load (slower to wind up)
 //   M                     auto-rev demo (self-blips the throttle)
+//   N                     A/B: the cylinder voice (INSTR_MOTOR) vs the old synth layers
 // ============================================================================
 
 // ── the engine voice itself lives in runtime/carengine.h (extracted when backroads became its
@@ -97,6 +98,7 @@ static void update_revs(void) {
     }
     if (keyp('L')) loaded  = !loaded;
     if (keyp('M')) autorev = !autorev;
+    if (keyp('N')) ce.legacy = !ce.legacy;                    // A/B: the cylinder voice vs the old synth layers
     for (int i = 0; i < L_COUNT; i++)
         if (keyp('1' + i)) ce.layer_on[i] = !ce.layer_on[i];
 
@@ -129,7 +131,12 @@ void update(void) {
     // firing-pulse scope: accumulate at chug_hz, flag a blip each cycle
     scope_hit = 0;
     if (engine_on) {
-        float chug = lerp(carengine_recipe(ce.kind).chugIdle, carengine_recipe(ce.kind).chugRed, clamp(rpm, 0, 1));
+        CERecipe er = carengine_recipe(ce.kind);
+        float chug = lerp(er.chugIdle, er.chugRed, clamp(rpm, 0, 1));
+        if (carengine_is_motor(&ce, er)) {                    // the motor's real firing rate: rpm/60 × cylinders/2
+            static const int NCYL[7] = { 1, 4, 4, 6, 8, 8, 12 };
+            chug = carengine_rpm(&ce, rpm) / 60.0f * NCYL[er.motorLayout] * 0.5f;
+        }
         scope_phase += chug * dt();
         if (scope_phase >= 1.0f) { scope_phase -= 1.0f; scope_hit = 1; }
     }
@@ -165,7 +172,7 @@ static void draw_tach(void) {
     circfill(TACH_CX, TACH_CY, 4, CLR_WHITE);
     // rpm digits
     char buf[16];
-    int shown = (int)(rpm * 8000 + 50);
+    int shown = ((int)(carengine_rpm(&ce, rpm) + 50) / 100) * 100;
     snprintf(buf, sizeof buf, "%d", shown);
     print(buf, TACH_CX - 14, TACH_CY + 24, needcol);
     print("rpm", TACH_CX - 10, TACH_CY + 34, CLR_DARK_GREY);
@@ -185,8 +192,15 @@ static void draw_panel(void) {
     // engine kind
     print("ENGINE", X, 14, CLR_DARK_GREY);
     print(EK_NAME[ce.kind], X, 24, CLR_WHITE);
+    font(FONT_SMALL);
     print(EK_FEEL[ce.kind], X, 34, CLR_LIGHT_GREY);
-    print("\x11 \x10 switch", X, 44, CLR_DARK_GREY);
+    {
+        int motor = carengine_is_motor(&ce, carengine_recipe(ce.kind));
+        int has   = carengine_recipe(ce.kind).motorLayout >= 0;
+        print(motor ? "voice: CYLINDERS" : has ? "voice: OLD SYNTH" : "voice: synth", X, 42, motor ? CLR_GREEN : CLR_ORANGE);
+        print(has ? "<> kind   N a/b" : "<> kind", X, 50, CLR_DARK_GREY);
+    }
+    font(FONT_NORMAL);
 
     // ignition + load + autorev state
     print(engine_on ? "IGN: ON" : "IGN: OFF", X, 60, engine_on ? CLR_GREEN : CLR_RED);
@@ -207,7 +221,10 @@ static void draw_panel(void) {
         int yy = ly + 11 + i * 9;
         char b[24];
         snprintf(b, sizeof b, "%d %s", i + 1, L_NAME[i]);
-        print(b, X, yy, ce.layer_on[i] ? CLR_WHITE : CLR_DARK_GREY);
+        // over the cylinder voice only these layers still do anything
+        int live = !carengine_is_motor(&ce, carengine_recipe(ce.kind)) ||
+                   i == CE_L_TURBO || i == CE_L_BURBLE || i == CE_L_LOPE || i == CE_L_INTAKE;
+        print(b, X, yy, ce.layer_on[i] && live ? CLR_WHITE : CLR_DARK_GREY);
         print(ce.layer_on[i] ? "on" : "off", X + 70, yy, ce.layer_on[i] ? CLR_GREEN : CLR_DARK_GREY);
     }
 }

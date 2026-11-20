@@ -8,6 +8,7 @@ source page, refusing anything that is not CC0).
 | set | what | used by |
 |---|---|---|
 | `drums-cc0.txt` | acoustic kit one-shots (lennartgreen "Vintage Hip Hop"), cymbals and hats (pjcohen, minorr, Ev3nIfItKillsME), four rides + a bell to choose from by ear, a cross-stick | drumhand (its synth voicing; the first six are also its RECORDED cymbal kit, key K) |
+| `engines-cc0.txt` | car engines: V8 idles, revs and an open-header V8, a classic-car idle, an inline-6, a drive-by | INSTR_MOTOR (`tools/motor-check.js` targets; design/car-engine-sound.md) |
 
 ## Rule: pick the reference by EAR, then match it by numbers
 

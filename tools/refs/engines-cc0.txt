@@ -1,0 +1,12 @@
+# CC0 car-engine recordings from freesound.org: what INSTR_MOTOR (the cylinder + exhaust engine voice) is
+# measured against (firing orders, half-order rumble, fixed exhaust resonances, load tilt).
+# One per line: <freesound id> <local name> CC0 by <user> <hq preview url>. fetch-refs.js re-checks each license.
+437997 v8_idle CC0 by craigsmith https://cdn.freesound.org/previews/437/437997_2524442-hq.mp3
+127980 v8_bigblock_rev CC0 by Henaway https://cdn.freesound.org/previews/127/127980_2335231-hq.mp3
+127981 v8_bigblock_rev2 CC0 by Henaway https://cdn.freesound.org/previews/127/127981_2335231-hq.mp3
+432508 v8_openheader CC0 by holderall https://cdn.freesound.org/previews/432/432508_2758260-hq.mp3
+651534 v8_rev CC0 by overmedium https://cdn.freesound.org/previews/651/651534_2396512-hq.mp3
+213977 v8_hotrod_pass CC0 by Ears68 https://cdn.freesound.org/previews/213/213977_2214631-hq.mp3
+348430 classic_idle CC0 by jackthemurray https://cdn.freesound.org/previews/348/348430_5618682-hq.mp3
+466715 i6_inline_six CC0 by dudebrobrodude https://cdn.freesound.org/previews/466/466715_9835095-hq.mp3
+269771 car_idle CC0 by seth-m https://cdn.freesound.org/previews/269/269771_3366749-hq.mp3

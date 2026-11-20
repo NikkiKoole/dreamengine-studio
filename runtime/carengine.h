@@ -12,7 +12,14 @@
 //   DRIVE   saturation that climbs with load (the snarl)
 //   LOPE    a slow Perlin wobble on the idle so it loiters
 //   BURBLE  lift off the gas at high revs → overrun crackle
-// Seven kinds (CE_ELECTRIC … CE_TRACTOR), each one recipe.
+// Nine kinds (CE_ELECTRIC … CE_BOXER), each one recipe.
+//
+// THE COMBUSTION KINDS (gas, diesel, race, tractor, muscle, boxer) now run INSTR_MOTOR, the engine voice
+// built from cylinders + exhaust pipes (sound.h): real firing orders, every firing a little different
+// (the rumble), pipe resonances that stay put while the revs sweep through them. The layers above are
+// then the LEGACY voice, kept for electric / steam / nuclear (no cylinders) and for an A/B: set
+// ce.legacy = 1 to hear any combustion kind on the old synth recipe. Over the motor only TURBO, BURBLE,
+// LOPE and INTAKE (its air roar) still apply.
 //
 // CONTRACT
 //   CarEngine ce; carengine_init(&ce, first_slot);   // uses instrument slots first_slot .. +3
@@ -20,6 +27,8 @@
 //   every frame: carengine_update(&ce, rpm 0..1, throttle 0..1, audible);   audible 0 = silent
 //   ce.layer_on[CE_L_*] toggles a layer (all on after init).
 //   ce.level = 0..1 scales the whole voice (instrument_level on its 4 slots; 1 = untouched, the default).
+//   ce.legacy = 1 plays a combustion kind on the old synth layers instead of INSTR_MOTOR (an A/B).
+//   carengine_rpm(&ce, rpm01) = the real rpm a 0..1 rev value means for the current kind (for a tach).
 // Uses held voices (note_on/note_pitch/note_vol/note_cutoff/note_drive/note_lfo every frame:
 // note_* are built to be ridden live) and hit() for the burble pops (consumes the cart RNG via
 // chance()/rnd_between(), in the same order enginelab always did). Include AFTER studio.h.
@@ -28,17 +37,19 @@
 #include "studio.h"
 #include <math.h>
 
-enum { CE_ELECTRIC, CE_GAS, CE_DIESEL, CE_STEAM, CE_RACE, CE_NUCLEAR, CE_TRACTOR, CE_KINDS };
+enum { CE_ELECTRIC, CE_GAS, CE_DIESEL, CE_STEAM, CE_RACE, CE_NUCLEAR, CE_TRACTOR, CE_MUSCLE, CE_BOXER, CE_KINDS };
 static const char *CE_NAME[CE_KINDS] = {
-    "ELECTRIC", "GAS", "DIESEL", "STEAM", "RACE", "NUCLEAR", "TRACTOR" };
+    "ELECTRIC", "GAS", "DIESEL", "STEAM", "RACE", "NUCLEAR", "TRACTOR", "MUSCLE", "BOXER" };
 static const char *CE_FEEL[CE_KINDS] = {
-    "pure rising whine, no chug",
-    "revvy mid, throttle rasp",
-    "low clatter, lumpy lope",
+    "rising whine, no chug",
+    "inline-6, stock muffler",
+    "rough inline-4, clatter",
     "slow chuff puffs",
-    "screaming wail + turbo",
+    "flatplane V8, open pipe",
     "steady sci-fi hum",
-    "potato-potato grunt" };
+    "big single, potato",
+    "crossplane V8 burble",
+    "flat-4, unequal headers" };
 
 enum { CE_L_FIRING, CE_L_RASP, CE_L_INTAKE, CE_L_DRIVE, CE_L_LOPE, CE_L_BURBLE, CE_L_TURBO, CE_L_COUNT };
 static const char *CE_L_NAME[CE_L_COUNT] = {
@@ -58,6 +69,10 @@ typedef struct {
     int   burbleOn;                  // overrun crackle on lift
     float lopeAmt;                   // idle-lope wobble strength
     float detune;                    // body slot detune (shimmer/beating); 0 = none
+    // INSTR_MOTOR (motorLayout >= 0): the cylinder + exhaust voice instead of the layers above
+    int   motorLayout;               // 0 single · 1 I4 · 2 flat-4 · 3 I6 · 4 V8 cross · 5 V8 flat · 6 V12; -1 = layers only
+    float rpmIdle, rpmRed;           // the real rpm range rev 0..1 spans
+    float exhaust, pipe, rough, intake, mech;   // INSTR_MOTOR timbre + aux (0.5 = the layout's own)
 } CERecipe;
 
 static CERecipe carengine_recipe(int k) {
@@ -67,6 +82,8 @@ static CERecipe carengine_recipe(int k) {
     e.res = 6; e.volIdle = 3; e.tremDepth = 0.5f; e.driveBase = 0.1f; e.driveSpan = 0.4f;
     e.driveMode = DRIVE_ASYM; e.raspOn = 0; e.raspOct = 12; e.raspDuty = 0.18f;
     e.intakeMode = 0; e.burbleOn = 0; e.lopeAmt = 0.5f; e.detune = 0;
+    e.motorLayout = -1; e.rpmIdle = 800; e.rpmRed = 6000;
+    e.exhaust = 0.3f; e.pipe = 0.5f; e.rough = 0.5f; e.intake = 0.5f; e.mech = 0.5f;
     switch (k) {
     case CE_ELECTRIC:                                   // no combustion → no chug, no idle, no grit: a clean rising whine
         e.bodyWave = INSTR_SINE; e.bodyOct = 12;        // pure tone — TRI/detune was buzzy & "labored"
@@ -82,6 +99,8 @@ static CERecipe carengine_recipe(int k) {
         e.tremDepth = 0.85f; e.driveBase = 0.4f; e.driveSpan = 0.3f; e.driveMode = DRIVE_HARD;
         e.raspOn = 1; e.raspOct = 7; e.raspDuty = 0.12f;
         e.intakeMode = 4; e.lopeAmt = 0.85f;
+        e.motorLayout = 1; e.rpmIdle = 650; e.rpmRed = 3800;           // a working diesel: rough, ticking
+        e.exhaust = 0.30f; e.rough = 0.85f; e.mech = 1.0f; e.intake = 0.3f;
         break;
     case CE_STEAM:                                      // slow chuff — gated noise puffs
         e.bodyWave = INSTR_NOISE; e.bodyFilt = FILTER_BAND;
@@ -96,6 +115,8 @@ static CERecipe carengine_recipe(int k) {
         e.tremDepth = 0.42f; e.driveBase = 0.3f; e.driveSpan = 0.5f; e.driveMode = DRIVE_ASYM;
         e.raspOn = 1; e.raspOct = 12; e.raspDuty = 0.16f;
         e.intakeMode = 2; e.burbleOn = 1; e.lopeAmt = 0.2f;     // anti-lag crackle
+        e.motorLayout = 5; e.rpmIdle = 1100; e.rpmRed = 9000;          // a flatplane V8 on a straight pipe
+        e.exhaust = 0.95f; e.pipe = 0.4f; e.rough = 0.4f;
         break;
     case CE_NUCLEAR:                                    // steady mid hum, faint shimmer, no lope
         e.bodyWave = INSTR_TRI;
@@ -110,6 +131,22 @@ static CERecipe carengine_recipe(int k) {
         e.tremDepth = 1.0f; e.driveBase = 0.5f; e.driveSpan = 0.25f; e.driveMode = DRIVE_HARD;
         e.raspOn = 1; e.raspOct = 7; e.raspDuty = 0.1f;
         e.intakeMode = 4; e.lopeAmt = 1.0f;
+        e.motorLayout = 0; e.rpmIdle = 450; e.rpmRed = 2200;           // one big slow cylinder
+        e.exhaust = 0.45f; e.rough = 0.7f; e.mech = 0.7f;
+        break;
+    case CE_MUSCLE:                                     // crossplane V8: the lumpy burble, a rumble on the gas
+        e.chugIdle = 14; e.chugRed = 100; e.cutBase = 220; e.cutSpan = 1200; e.res = 7;
+        e.tremDepth = 0.7f; e.driveBase = 0.25f; e.driveSpan = 0.5f; e.driveMode = DRIVE_ASYM;
+        e.raspOn = 1; e.raspOct = 12; e.raspDuty = 0.2f; e.intakeMode = 1; e.burbleOn = 1; e.lopeAmt = 0.7f;
+        e.motorLayout = 4; e.rpmIdle = 700; e.rpmRed = 6000;
+        e.exhaust = 0.55f; e.rough = 0.7f;
+        break;
+    case CE_BOXER:                                      // flat-4 with unequal headers: the off-beat thrum
+        e.chugIdle = 18; e.chugRed = 110; e.cutBase = 260; e.cutSpan = 1300; e.res = 6;
+        e.tremDepth = 0.6f; e.driveBase = 0.15f; e.driveSpan = 0.4f;
+        e.raspOn = 1; e.raspOct = 12; e.raspDuty = 0.2f; e.intakeMode = 1; e.lopeAmt = 0.5f;
+        e.motorLayout = 2; e.rpmIdle = 850; e.rpmRed = 5500;
+        e.exhaust = 0.4f; e.rough = 0.6f; e.mech = 0.7f;
         break;
     case CE_GAS: default:                               // the revvy everyday mid
         e.chugIdle = 19; e.chugRed = 116;
@@ -117,6 +154,8 @@ static CERecipe carengine_recipe(int k) {
         e.tremDepth = 0.55f; e.driveBase = 0.12f; e.driveSpan = 0.45f; e.driveMode = DRIVE_ASYM;
         e.raspOn = 1; e.raspOct = 12; e.raspDuty = 0.18f;
         e.intakeMode = 1; e.burbleOn = 1; e.lopeAmt = 0.5f;
+        e.motorLayout = 3; e.rpmIdle = 750; e.rpmRed = 5500;           // a 1970s straight-six on its stock muffler
+        e.exhaust = 0.25f; e.rough = 0.5f; e.mech = 0.6f;
         break;
     }
     return e;
@@ -127,6 +166,8 @@ typedef struct {
     int   slot_body, slot_rasp, slot_intake, slot_pop;
     int   vBody, vRasp, vIntake;             // held voices (-1 = none)
     int   builtKind;                         // which kind the held voices are configured for
+    int   legacy, builtLegacy;               // 1 = the old synth layers even for a combustion kind (A/B)
+    int   builtIntake;                       // the INTAKE layer state the motor was built with (it is set-and-hold there)
     float prev_thr, burble_t, pop_t;         // overrun-crackle state
     int   last_chug_hz;                      // gate note_lfo pushes to when the rate moved
     unsigned char layer_on[CE_L_COUNT];
@@ -144,6 +185,14 @@ static void carengine_init(CarEngine *ce, int first_slot) {
     ce->prev_thr = 0; ce->burble_t = 0; ce->pop_t = 0; ce->last_chug_hz = -1;
     for (int i = 0; i < CE_L_COUNT; i++) ce->layer_on[i] = 1;
     ce->level = 1.0f; ce->applied_level = 1.0f;
+    ce->legacy = 0; ce->builtLegacy = 0;
+}
+static int carengine_is_motor(const CarEngine *ce, CERecipe e) { return e.motorLayout >= 0 && !ce->legacy; }
+// the real rpm a 0..1 rev value means for the current kind (legacy kinds: a nominal 800..8000)
+static float carengine_rpm(const CarEngine *ce, float r) {
+    CERecipe e = carengine_recipe(ce->kind);
+    if (e.motorLayout < 0) return 800.0f + r * 7200.0f;
+    return e.rpmIdle + (e.rpmRed - e.rpmIdle) * (r < 0 ? 0 : r > 1 ? 1 : r);
 }
 
 // release the held voices (the next audible update rebuilds them)
@@ -155,6 +204,29 @@ static void carengine_kill(CarEngine *ce) {
 }
 
 static void carengine_build(CarEngine *ce, CERecipe e) {
+    ce->builtLegacy = ce->legacy; ce->builtIntake = ce->layer_on[CE_L_INTAKE];
+    if (carengine_is_motor(ce, e)) {
+        // the cylinders + exhaust voice: set-and-hold here, then only rpm (pitch) + load (morph) are ridden
+        instrument(ce->slot_body, INSTR_MOTOR, 40, 0, 7, 260);
+        instrument_harmonics(ce->slot_body, e.motorLayout / 6.0f);
+        instrument_timbre(ce->slot_body, e.exhaust);
+        instrument_morph(ce->slot_body, 0.2f);
+        instrument_mode(ce->slot_body, MODE_MOTOR_PIPE, e.pipe);
+        instrument_mode(ce->slot_body, MODE_MOTOR_ROUGH, e.rough);
+        instrument_mode(ce->slot_body, MODE_MOTOR_INTAKE, ce->layer_on[CE_L_INTAKE] ? e.intake : 0.0f);
+        instrument_mode(ce->slot_body, MODE_MOTOR_MECH, e.mech);
+        instrument_tune(ce->slot_body, 0);
+        instrument(ce->slot_intake, INSTR_SINE, 20, 0, 7, 220);          // the turbo whistle, if the kind has one
+        instrument_filter(ce->slot_intake, FILTER_BAND, 2400, 6);
+        instrument(ce->slot_pop, INSTR_NOISE, 0, 30, 0, 40);
+        ce->vBody   = note_on(40, ce->slot_body, 6);  note_glide(ce->vBody, 70);
+        ce->vRasp   = -1;
+        ce->vIntake = e.intakeMode == 2 ? note_on(84, ce->slot_intake, 0) : -1;
+        if (ce->vIntake >= 0) note_glide(ce->vIntake, 40);
+        ce->last_chug_hz = -1;
+        ce->builtKind = ce->kind;
+        return;
+    }
     // BODY — the core firing voice
     instrument(ce->slot_body, e.bodyWave, 30, 0, 7, 220);
     instrument_filter(ce->slot_body, e.bodyFilt, e.cutBase, e.res);
@@ -177,11 +249,28 @@ static void carengine_build(CarEngine *ce, CERecipe e) {
     ce->builtKind = ce->kind;
 }
 
+// BURBLE: overrun crackle: lift off the gas at high revs → pops for a beat.
+static void carengine_burble(CarEngine *ce, CERecipe e, float r, float throttle) {
+    float thr_drop = ce->prev_thr - throttle;
+    if (e.burbleOn && ce->layer_on[CE_L_BURBLE] && thr_drop > 0.05f && r > 0.45f)
+        ce->burble_t = 0.55f;
+    if (ce->burble_t > 0) {
+        ce->burble_t -= dt();
+        ce->pop_t    -= dt();
+        if (ce->pop_t <= 0 && chance(60)) {
+            hit(36 + rnd_between(0, 14), ce->slot_pop, 2, 35);    // a dry crack
+            ce->pop_t = 0.04f + 0.05f * (rnd_between(0, 100) / 100.0f);
+        }
+    }
+    ce->prev_thr = throttle;
+}
+
 // the whole engine voice, driven live every frame
 static void carengine_update(CarEngine *ce, float rpm, float throttle, int audible) {
     if (!audible) { carengine_kill(ce); return; }
     CERecipe e = carengine_recipe(ce->kind);
-    if (ce->builtKind != ce->kind) { carengine_kill(ce); carengine_build(ce, e); ce->applied_level = 1.0f; }
+    if (ce->builtKind != ce->kind || ce->builtLegacy != ce->legacy ||
+        (carengine_is_motor(ce, e) && ce->builtIntake != ce->layer_on[CE_L_INTAKE])) { carengine_kill(ce); carengine_build(ce, e); ce->applied_level = 1.0f; }
     if (ce->level != ce->applied_level) {           // only touched when someone asks for a level
         instrument_level(ce->slot_body, ce->level); instrument_level(ce->slot_rasp, ce->level);
         instrument_level(ce->slot_intake, ce->level); instrument_level(ce->slot_pop, ce->level);
@@ -189,6 +278,26 @@ static void carengine_update(CarEngine *ce, float rpm, float throttle, int audib
     }
 
     float r = clamp(rpm, 0, 1);
+
+    if (carengine_is_motor(ce, e)) {
+        // REVS: the note IS the crank speed (rpm / 60 Hz). LOPE wanders the idle when off the gas.
+        float rr = carengine_rpm(ce, r);
+        if (ce->layer_on[CE_L_LOPE] && e.lopeAmt > 0) {
+            float w = (noise(now() * 1.3f) - 0.5f) * 2.0f;
+            rr *= 1.0f + w * e.lopeAmt * 0.05f * (1.0f - throttle) * (1.0f - r);
+        }
+        note_pitch(ce->vBody, carengine_hz_to_midi(rr / 60.0f));
+        // LOAD: how hard the cylinders fire. Idle still pulls a little; lifting at speed is the overrun
+        note_morph(ce->vBody, 0.12f + 0.88f * clamp(throttle, 0, 1));
+        if (ce->vIntake >= 0) {                                          // TURBO whistle spools with revs + boost
+            int on = ce->layer_on[CE_L_TURBO];
+            note_pitch (ce->vIntake, 84 + r * 26);
+            note_vol   (ce->vIntake, on ? (int)(r * r * 3.0f + throttle * 1.0f) : 0);
+            note_cutoff(ce->vIntake, 8000);
+        }
+        carengine_burble(ce, e, r, throttle);
+        return;
+    }
 
     // master firing frequency — everything hangs off this one number.
     float chug = lerp(e.chugIdle, e.chugRed, r);
@@ -263,18 +372,6 @@ static void carengine_update(CarEngine *ce, float rpm, float throttle, int audib
         }
     } else note_vol(ce->vIntake, 0);
 
-    // BURBLE — overrun crackle: lift off the gas at high revs → pops for a beat.
-    float thr_drop = ce->prev_thr - throttle;
-    if (e.burbleOn && ce->layer_on[CE_L_BURBLE] && thr_drop > 0.05f && r > 0.45f)
-        ce->burble_t = 0.55f;
-    if (ce->burble_t > 0) {
-        ce->burble_t -= dt();
-        ce->pop_t    -= dt();
-        if (ce->pop_t <= 0 && chance(60)) {
-            hit(36 + rnd_between(0, 14), ce->slot_pop, 2, 35);    // a dry crack
-            ce->pop_t = 0.04f + 0.05f * (rnd_between(0, 100) / 100.0f);
-        }
-    }
-    ce->prev_thr = throttle;
+    carengine_burble(ce, e, r, throttle);
 }
 #endif

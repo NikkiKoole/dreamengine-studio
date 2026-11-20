@@ -160,7 +160,7 @@ runtime/   studio.h (public API), studio.c (Raylib impl + main()), sound.h (audi
              ampcab.h    guitar amp/cab voicing table (presets of existing effects); design/effects-bus-architecture.md §E
              outboard.h  master-bus analog chain (EQ→IRON→COMP→PLATE) as one table; outboard_apply owns insert order. design/analog-outboard-chain.md
              pmbreed.h   cart-land face of patch-match (pm_mutate/pm_apply_slot)
-             carengine.h car-engine SOUND voice (firing-rate body + rasp/intake/burble, 7 kinds); enginelab = bench, backroads
+             carengine.h car-engine SOUND from rpm+throttle: INSTR_MOTOR cylinders+exhaust for combustion kinds; enginelab = bench. design/car-engine-sound.md
            ── games / world / physics ──
              cards.h     playing-card rendering
              endcard.h   shared WIN/LOSE end screen; never hand-roll fade+box
@@ -259,6 +259,7 @@ tools/     repo-root CLI tools (plain node, CommonJS). Header = contract.
              psola-check.js  PSOLA artifact oracle (splice/periodicity/doubling); --selfcheck
              grain-check.js  INSTR_GRAIN gate
              scrape-check.js INSTR_SCRAPE gate (guiro/quijada vs samples)
+             motor-check.js  INSTR_MOTOR gate (rumble, ROUGH=0 control, fixed pipe resonance, levels)
              oneshot-compare.js tune a one-shot against a real recording; --selfcheck
              fetch-refs.js   rebuild gitignored CC0 reference audio from tools/refs/<set>.txt
            ── MIDI / host / threading / multiplayer gates ──

@@ -29,6 +29,7 @@
 #define SOUND_SFX_SLOTS    32
 #define SOUND_INSTR_SLOTS  128  // 0-4 = the raw waves; 5-127 cart-defined (rich patch carts like modrack want banks per wave + many macro engines; Playtime's drum jam wants an 808 + a 909 beside a full band). ~430 B/slot (Instrument 344 + the lanes + the sing mirrors): 128 slots = ~55 KB. Was 48 until 2026-11-04
 #define SOUND_KS_MAX       1024   // Karplus-Strong delay line cap (~4KB/voice) — bottoms out around 43Hz / MIDI 29
+#define SOUND_MOTOR_CYL    12     // INSTR_MOTOR: most cylinders a layout can have (a V12)
 #define SOUND_MODAL_MAX    12     // INSTR_MODAL resonator budget (4 is the floor; MODE_MODAL_MODES spends this)
 #define SOUND_MT_MODES     512    // INSTR_MODAL + instrument_modes(): MEASURED modes per table (a ride: 50 = a cymbal, 400 = as rich as the recording, by ear)
 #define SOUND_MT_NOISE     32     // ... + instrument_modes_noise(): decaying noise bands per table (a ride: 13 half-octave washes + its ticks)
@@ -535,6 +536,25 @@ typedef struct {
     unsigned int scr_age;               // samples since note-on
     uint32_t scr_rnd;                   // per-voice LCG, seeded from the note at note-on (each note = one fixed hit)
     bool   scr_on;
+    // MOTOR (INSTR_MOTOR): a combustion engine from its cylinders + exhaust. The two banks' pipes REUSE
+    // ks_buf (bank 0 = [0,512), bank 1 = [512,1024)): MOTOR is its own wave id, never on the Karplus path.
+    float  mot_ph;                      // the engine CYCLE phase (one cycle = two crank turns), 0..1
+    float  mot_pu[SOUND_MOTOR_CYL];     // each cylinder's phase last sample (a wrap = it fired)
+    float  mot_amp[SOUND_MOTOR_CYL];    //   this firing's strength (latched when it fires)
+    float  mot_jit[SOUND_MOTOR_CYL];    //   this firing's timing slip, in cycles
+    float  mot_bias[SOUND_MOTOR_CYL];   //   its fixed imbalance -1..1 (no two cylinders are alike)
+    float  mot_tofs[SOUND_MOTOR_CYL];   //   its fixed arrival offset, in cycles (its own header length)
+    float  mot_lp[2];                   // per bank: the pipe loop's wall-loss low-pass
+    int    mot_D[2], mot_w[2];          //   pipe round trip (samples) + write index into its half of ks_buf
+    float  mot_fb, mot_loss, mot_ex;    // open-end reflection, loss coefficient, the EXHAUST they were set for
+    float  mot_x1, mot_hx, mot_hy;      // radiation: last pipe output + the DC-block high-pass state
+    SoundBiquad mot_muf, mot_ibq, mot_mbq;   // muffler low-pass · intake airbox band · valve-tick high-pass
+    float  mot_me;                      // valve-tick energy (decays)
+    float  mot_env;                     // the output's mean square (~150 ms): the level control's ear
+    float  mot_rough, mot_in, mot_mech, mot_norm;   // cycle variation · intake level · mechanical level · output trim
+    uint32_t mot_rnd;                   // per-voice LCG (seeded per layout: the same engine every time)
+    int    mot_lay;                     // which layout (MOT_LAYOUT row)
+    bool   mot_on;
     // ANALOG voice card (instrument_analog), set at note-on; an_amt 0 = every factor 1.0 and skipped
     float  an_amt, an_tune, an_cut, an_lvl, an_drift_mul, an_ph;
     // NoteOpts step 1: per-note damping (multiplier per sample, 1 = off) and a latched sample chop

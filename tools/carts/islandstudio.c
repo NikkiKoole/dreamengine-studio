@@ -768,7 +768,7 @@ static unsigned hsh(unsigned a) { a ^= a >> 16; a *= 0x7feb352dU; a ^= a >> 15; 
 // ── PLACE NAMES: every settlement gets a name, and the island one too. Each island picks a naming
 // flavour from its seed (Norse-ish, Gaelic-ish or English-ish; a quarter of places borrow the next
 // one, as real islands layer languages), and the ending follows the place: a harbour on the coast,
-// a ford on a river, a dale in the hills. Deterministic per seed; unique on the island. The names
+// a ford on a river, a dale in the hills. Keyed on seed + location (a 2 km grid), so a place keeps its name across grid sizes where the place itself does; unique on the island, never the island's own name. The names
 // travel in the export as the residential area's sub ("place=village;name=Holmby") + JSON "name".
 static char set_name[MAXSET][24], set_sub[MAXSET][48], island_name[24];
 static const char *NM_FIRST[3][16] = {
@@ -791,23 +791,23 @@ static void make_name(char *out, int n, unsigned h, int style, int where) {
 }
 static void name_places(void) {
     int style = (int)(hsh((unsigned)seed * 7919u + 3u) % 3u);
+    // the island's name first, from the seed alone (so it's the same at every grid size); it ends like a coast
+    make_name(island_name, sizeof island_name, hsh((unsigned)seed * 31337u + 11u), style, 1);
     for (int s = 0; s < nset; s++) {
         int i = set[s].y * N + set[s].x;
         int where = DS[i] < 900 ? 1 : DW[i] < 350 ? 2 : H[i] > 140 ? 3 : 0;
         for (int tries = 0; tries < 40; tries++) {
-            unsigned h = hsh((unsigned)s * 2654435761u ^ (unsigned)seed * 40503u ^ (unsigned)tries * 97u);
+            // keyed on WHERE the place is (a 2 km grid), not its index: 1024 places a few more
+            // settlements than 256, so index-keyed names changed between preview and export
+            int qx = (int)((set[s].x + 0.5f) * CELL / 2000.0f), qy = (int)((set[s].y + 0.5f) * CELL / 2000.0f);
+            unsigned h = hsh((unsigned)qx * 73856093u ^ (unsigned)qy * 19349663u ^ (unsigned)seed * 40503u ^ (unsigned)tries * 2654435761u);
             int st = ((h >> 12) & 3) == 0 ? (style + 1) % 3 : style;      // a quarter borrow the next flavour
             make_name(set_name[s], sizeof set_name[s], h, st, tries > 20 ? 0 : where);
-            int dup = 0; for (int o = 0; o < s && !dup; o++) if (!strcmp(set_name[o], set_name[s])) dup = 1;
+            int dup = !strcmp(set_name[s], island_name); for (int o = 0; o < s && !dup; o++) if (!strcmp(set_name[o], set_name[s])) dup = 1;
             if (!dup) break;
         }
         static const char *PL[3] = { "hamlet", "village", "town" };
         snprintf(set_sub[s], sizeof set_sub[s], "place=%s;name=%s", PL[set[s].rank], set_name[s]);
-    }
-    for (int tries = 0; tries < 40; tries++) {                // an island name ends like a coast, and is no place's name
-        make_name(island_name, sizeof island_name, hsh((unsigned)seed * 31337u + 11u + (unsigned)tries * 7u), style, 1);
-        int dup = 0; for (int o = 0; o < nset && !dup; o++) if (!strcmp(set_name[o], island_name)) dup = 1;
-        if (!dup) break;
     }
 }
 static int cn_away = -1;            // when >=0: only accept hits away from this cell (a 2nd way out)

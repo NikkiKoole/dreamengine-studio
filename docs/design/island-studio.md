@@ -410,8 +410,12 @@ island picks a flavour from its seed: Norse-ish (Thorbeck, Askvik, Kirkscar), Ga
 Tullaport, Dunfin) or English-ish (Ashford, Bradley); a quarter of places borrow the next flavour,
 the way real islands layer languages. The ending follows the place: coast (-wick, -ness, -haven,
 -port), river (-ford, -beck, -bridge), hills (-dale, -fell, -down), else plain (-by, -ton, -more).
-Names are unique on an island and the island's name is never one of its places'. Deterministic per
-seed (they don't depend on the roads or the grid size).
+Names are unique on an island and never the island's own name. The island's name comes from the
+seed alone; a place's from the seed + its location on a 2 km grid, so it keeps its name at every
+grid size **where the place itself is the same**. Found while checking that: settlement placement
+differs a lot between grids (seed 3: 87 places at 256, 95 at 1024, only 42 within 400 m of each
+other, different towns), so what you preview at 256 isn't what exports at 1024. Open: make
+`settle()` resolution-stable (score and place on a fixed-metre grid, not per cell).
 
 Shown on the overview (town labels, any place's name on hover), in the zoom view, and in the header.
 **Export:** each residential area carries `sub: "place=<town|village|hamlet>;name=<Name>"` (fits

@@ -348,7 +348,12 @@ through the same smoothing, corner cut, junction consolidation, polyline splitti
 every other road. `citygen.h` itself isn't included: it reads `worldnet.h`'s terrain, not this
 island's, and its building/lot layer was never finished anyway (worldgen-plan rung 7).
 
-- A lattice of ~130 m blocks (towns: 600 m disc, villages: 230 m), turned to follow the biggest road
+- A lattice of ~130 m blocks out to a **built-up radius** set by the **town size** slider (biggest
+  town 300 m .. 1.5 km, default 600 m; other places scale with sqrt(their size), 0.7–1.0 of that;
+  villages 0.38 of a town). The slider only re-routes roads. Farms keep 150 m clear of it, and the
+  export's residential circle uses it, clamped so backroads' rank thresholds hold (town > 450 m,
+  village 190–440 m). At 0.8 seed 3's biggest town reaches ~1.3 km: minor 0.70, X 18 %.
+- The lattice is turned to follow the biggest road
   into the centre (walked ~250 m out), with a ragged edge and more jitter outside the core.
 - Lattice nodes near an existing road **snap onto it**, so the routes in become the main streets;
   streets never touch water, a river cell, the expressway or slopes over 12 %.

@@ -10,7 +10,7 @@
   "description": {
     "summary": "Grow a 40 x 40 km island: coast, hills and mountains, water that drains and carves valleys, wind, rain and a rain shadow, cover, settlements, farms, and the roads between them.",
     "detail": "The island is a finite grid: 256 x 256 (156 m cells) while you play with the sliders, 512 or 1024 (39 m) for a final bake. Noise gives the shape: an island mask with a warped coast, layered rolling hills, and ridged mountains that only grow inside a mountain mask (slide it to zero for a low island). Then the whole map drains: a priority flood fills every pit so each cell has a downhill path to the sea, a flow count adds up how much land drains through each cell, and valleys are carved where the flow is large. Draining again gives the rivers and lakes. A prevailing wind brings rain that the mountains wring out, leaving a dry lee. Natural cover follows from height, slope, rain and water (forest, grassland, scrub, moor, rock, marsh, beach), and settlements claim the flattest, lowest, best-watered, most fertile land, spaced apart, with the biggest few becoming towns. Roads are routed across the terrain by A*, most important first, with a discount for reusing an existing road so routes merge into trunks; traffic sets the class (main road, secondary, lane), a ring road follows the coast where the land allows, an expressway joins the two biggest towns when they are far apart, scattered farmsteads add tracks and through-lanes, and forests and moors get dead-end tracks. Rivers are smooth lines and roads cross them on bridges. The panel compares the result to two real islands measured from OpenStreetMap. Design doc: docs/design/island-studio.md.",
-    "controls": "Drag the sliders. R or ROLL = new seed. V or VIEW cycles cover / terrain / slope / suitability / flow. Hover the map for height, cover, rain and suitability. Red squares are towns, white villages, dots hamlets; the arrow shows the wind. The tree line slider goes from bare hills to wooded mountains. TAB opens a full-screen zoom (drag to pan, wheel to zoom) with roads at their real widths. G or RES switches the grid between 256 (live), 512 and 1024 (a ~2.5 s bake, much finer roads). X exports the island (roads, cover, heights) to data/islandstudio-<seed>.json (roadview's vector format; measure with tools/road-density.js) plus the packed .rvb that backroads drives."
+    "controls": "Drag the sliders. R or ROLL = new seed. V or VIEW cycles cover / terrain / slope / suitability / flow. Hover the map for height, cover, rain and suitability. Red squares are towns, white villages, dots hamlets; the arrow shows the wind. The tree line slider goes from bare hills to wooded mountains. Town size sets how far towns and villages grow their street grids (only the roads re-route). TAB opens a full-screen zoom (drag to pan, wheel to zoom) with roads at their real widths. G or RES switches the grid between 256 (live), 512 and 1024 (a ~2.5 s bake, much finer roads). X exports the island (roads, cover, heights) to data/islandstudio-<seed>.json (roadview's vector format; measure with tools/road-density.js) plus the packed .rvb that backroads drives."
   }
 }
 de:meta */
@@ -67,6 +67,7 @@ static float k_wind  = 0.62f;   // prevailing wind, the direction it blows FROM 
 static float k_rain  = 0.50f;   // how wet the climate is overall
 static float k_vill  = 0.60f;   // settlement density (spacing 4.5 km .. 1.5 km)
 static float k_farm  = 0.93f;   // farmstead density (spacing ~1.2 km .. 450 m)
+static float k_town  = 0.25f;   // how far towns grow: town street radius 300 m .. 1.5 km (villages ~0.38 of it)
 static float k_tree  = 0.45f;   // tree line: 0 = bare Scottish hills (~400 m), 1 = wooded to ~1300 m
 static int   seed = 1;
 static int   view;
@@ -82,6 +83,7 @@ enum { ST_HAMLET, ST_VILLAGE, ST_TOWN };
 #define MAXSET 400
 typedef struct { int x, y, rank; float size; } Settle;
 static Settle set[MAXSET];
+static float  set_r[MAXSET];   // built-up radius per settlement (m), from the town-size slider: streets, farms keep out, export
 static int    nset;
 
 // ── grids ──────────────────────────────────────────────────────────────────────
@@ -803,7 +805,8 @@ static void farms(void) {
         if ((float)((h >> 16) & 1023) / 1023.0f > SU[i] * 2.6f) continue;   // keep with p ∝ suitability
         int near = 0;
         for (int s = 0; s < nset && !near; s++) {
-            float dx = set[s].x - x, dy = set[s].y - y; if (dx * dx + dy * dy < (450 / CELL) * (450 / CELL)) near = 1;
+            float dx = set[s].x - x, dy = set[s].y - y, rr = fmaxf(450.0f, set_r[s] + 150.0f) / CELL;
+            if (dx * dx + dy * dy < rr * rr) near = 1;
         }
         if (near) continue;
         if (nfarm >= MAXFARM) { st_overflow++; continue; }
@@ -857,8 +860,18 @@ static void farms(void) {
 // the town's main streets); a spanning tree for connectivity plus a fraction of loops (more in the
 // core, fewer at the edge: a grid centre, cul-de-sacs outside). citygen.h itself isn't included:
 // it reads worldnet.h's terrain, not this island's.
-#define TS_LG 15
+#define TS_LG 25
 static int st_streets;                      // street segments laid (trace)
+// the town-size slider sets the biggest town's radius; other places scale with sqrt(their size), so a
+// market town spreads further than a small one. Villages ~0.38 of a town (230 m at the default).
+static void settle_radii(void) {
+    float R = 300.0f + k_town * 1200.0f, mx = 1e-6f;
+    for (int s = 0; s < nset; s++) if (set[s].size > mx) mx = set[s].size;
+    for (int s = 0; s < nset; s++) {
+        float f = 0.7f + 0.3f * sqrtf(set[s].size / mx);
+        set_r[s] = set[s].rank == ST_TOWN ? R * f : set[s].rank == ST_VILLAGE ? R * 0.38f * f : 120.0f;
+    }
+}
 static int ts_find(int *uf, int x) { while (uf[x] != x) x = uf[x] = uf[uf[x]]; return x; }
 static int ts_road(int c) { for (int k = 0; k < 8; k++) if (ER[c][k] && ER[c][k] != RC_EXPRESS) return 1; return 0; }
 static int ts_land(int c) {
@@ -891,7 +904,7 @@ static void town_streets(void) {
     static int path[MAXN * 2];
     for (int s = 0; s < nset; s++) {
         if (set[s].rank == ST_HAMLET) continue;
-        float R = set[s].rank == ST_TOWN ? 600.0f : 230.0f;
+        float R = set_r[s];
         float step = fmaxf(130.0f, CELL);
         int c0 = set[s].y * N + set[s].x;
         float cx = (set[s].x + 0.5f) * CELL, cy = (set[s].y + 0.5f) * CELL;
@@ -1398,7 +1411,8 @@ static void export_island(void) {
     }
     for (int s = 0; s < nset; s++)
         ex_poly("residential", (set[s].x + 0.5f) * CELL, (set[s].y + 0.5f) * CELL,
-                set[s].rank == ST_TOWN ? 650 : set[s].rank == ST_VILLAGE ? 260 : 120, 16);
+                set[s].rank == ST_TOWN ? fmaxf(set_r[s] + 50.0f, 460.0f)
+                : set[s].rank == ST_VILLAGE ? clamp(set_r[s] + 30.0f, 190.0f, 440.0f) : 120.0f, 16);
     for (int k = 0; k < nfarm; k++) ex_poly("building", (farm[k] % N + 0.5f) * CELL, (farm[k] / N + 0.5f) * CELL, 12, 4);
     // HEIGHTFIELD (RVB3; backroads/citydrive drape the scene over it): G x G metres,
     // row i = south -> north, col j = west -> east, sea clamped to 0
@@ -1582,6 +1596,7 @@ static void build_roads(void) {
                 mark(pbuf, n, RC_TRACK, 0, 0, 1);
         }
     }
+    settle_radii();
     town_streets();
     farms();
     upland_tracks();
@@ -1943,13 +1958,13 @@ void draw(void) {
 
     int px = PANEL_X, w = 196;
     ui_begin();
-    static const char *L[13] = { "island size", "coast warp", "hills", "mountains",
+    static const char *L[14] = { "island size", "coast warp", "hills", "mountains",
                                  "mountain area", "rugged", "valley carving", "rivers shown",
-                                 "wind from", "rainfall", "settlements", "tree line", "farmsteads" };
-    float *P[13] = { &k_size, &k_coast, &k_hills, &k_mtn, &k_mreg, &k_rug, &k_ero, &k_riv,
-                     &k_wind, &k_rain, &k_vill, &k_tree, &k_farm };
-    for (int k = 0; k < 13; k++)
-        if (ui_slider(P[k], px, 20 + k * 12, w, L[k])) dirty = 1;
+                                 "wind from", "rainfall", "settlements", "tree line", "farmsteads", "town size" };
+    float *P[14] = { &k_size, &k_coast, &k_hills, &k_mtn, &k_mreg, &k_rug, &k_ero, &k_riv,
+                     &k_wind, &k_rain, &k_vill, &k_tree, &k_farm, &k_town };
+    for (int k = 0; k < 14; k++)
+        if (ui_slider(P[k], px, 20 + k * 11, w, L[k])) { if (P[k] == &k_town) roads_dirty = 1; else dirty = 1; }
     if (ui_button(px, 178, 60, 12, "ROLL")) { seed++; dirty = 1; }
     if (ui_button(px + 66, 178, 60, 12, "VIEW")) { view = (view + 1) % NVIEW; recolour(); }
     if (ui_button(px + 132, 178, 64, 12, str("RES %d", N))) { N = N == 256 ? 512 : N == 512 ? 1024 : 256; dirty = 1; }

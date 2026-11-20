@@ -10,3 +10,6 @@
 348430 classic_idle CC0 by jackthemurray https://cdn.freesound.org/previews/348/348430_5618682-hq.mp3
 466715 i6_inline_six CC0 by dudebrobrodude https://cdn.freesound.org/previews/466/466715_9835095-hq.mp3
 269771 car_idle CC0 by seth-m https://cdn.freesound.org/previews/269/269771_3366749-hq.mp3
+565597 diesel_idle2 CC0 by C-V https://cdn.freesound.org/previews/565/565597_8956746-hq.mp3
+565598 diesel_idle1 CC0 by C-V https://cdn.freesound.org/previews/565/565598_8956746-hq.mp3
+448217 vw_diesel CC0 by Evilmikie https://cdn.freesound.org/previews/448/448217_8690770-hq.mp3

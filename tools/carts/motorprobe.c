@@ -11,7 +11,7 @@
     "sonification"
   ],
   "lineage": "Measurement probe for INSTR_MOTOR (the cylinder + exhaust engine voice). Rendered headless and read back against CC0 engine recordings (tools/refs/engines-cc0.txt); not played by hand.",
-  "description": "Holds one INSTR_MOTOR engine at a fixed rpm and load, chosen at build time: DE_DEFINES=LAYOUT=3,RPM=1400,LOAD=0.3,EXH=0.3 (plus ROUGH=, PIPE=, SWEEP=1 for a slow rev from idle to 6000 rpm and back). Render it with `node tools/play.js motorprobe script /dev/null --headless --frames 300 --wav out.wav`."
+  "description": "Holds one INSTR_MOTOR engine at a fixed rpm and load, chosen at build time: DE_DEFINES=LAYOUT=6,RPM=1400,LOAD=0.3,EXH=0.3 (LAYOUT 0..11 by cylinder count, 6 = inline-6; plus ROUGH=, PIPE=, KNOCK=, SWEEP=1 for a slow rev from idle to 6000 rpm and back). Render it with `node tools/play.js motorprobe script /dev/null --headless --frames 300 --wav out.wav`."
 }
 de:meta */
 // motorprobe: one held INSTR_MOTOR, configured by -D flags, for measurement.
@@ -19,7 +19,7 @@ de:meta */
 #include <math.h>
 
 #ifndef LAYOUT
-#define LAYOUT 3
+#define LAYOUT 6
 #endif
 #ifndef RPM
 #define RPM 1400
@@ -39,6 +39,9 @@ de:meta */
 #ifndef MECH
 #define MECH 0.5f
 #endif
+#ifndef KNOCK
+#define KNOCK 0.0f
+#endif
 #ifndef PIPE
 #define PIPE 0.5f
 #endif
@@ -52,13 +55,14 @@ void init(void) {
 #else
     instrument(1, INSTR_MOTOR, 20, 0, 7, 200);
 #endif
-    instrument_harmonics(1, LAYOUT / 6.0f);
+    instrument_harmonics(1, LAYOUT / 11.0f);
     instrument_timbre(1, EXH);
     instrument_morph(1, LOAD);
     instrument_mode(1, MODE_MOTOR_ROUGH, ROUGH);
     instrument_mode(1, MODE_MOTOR_PIPE, PIPE);
     instrument_mode(1, MODE_MOTOR_INTAKE, INTAKE);
     instrument_mode(1, MODE_MOTOR_MECH, MECH);
+    instrument_mode(1, MODE_MOTOR_KNOCK, KNOCK);
 }
 
 void update(void) {

@@ -12,7 +12,7 @@
 //   DRIVE   saturation that climbs with load (the snarl)
 //   LOPE    a slow Perlin wobble on the idle so it loiters
 //   BURBLE  lift off the gas at high revs → overrun crackle
-// Nine kinds (CE_ELECTRIC … CE_BOXER), each one recipe.
+// Sixteen kinds (CE_ELECTRIC … CE_TRUCK), each one recipe.
 //
 // THE COMBUSTION KINDS (gas, diesel, race, tractor, muscle, boxer) now run INSTR_MOTOR, the engine voice
 // built from cylinders + exhaust pipes (sound.h): real firing orders, every firing a little different
@@ -37,9 +37,15 @@
 #include "studio.h"
 #include <math.h>
 
-enum { CE_ELECTRIC, CE_GAS, CE_DIESEL, CE_STEAM, CE_RACE, CE_NUCLEAR, CE_TRACTOR, CE_MUSCLE, CE_BOXER, CE_KINDS };
+enum { CE_ELECTRIC, CE_GAS, CE_DIESEL, CE_STEAM, CE_RACE, CE_NUCLEAR, CE_TRACTOR, CE_MUSCLE, CE_BOXER,
+       CE_HATCH, CE_TRIPLE, CE_WARBLE, CE_V6, CE_FLAT6, CE_VTWIN, CE_TRUCK, CE_KINDS };
 static const char *CE_NAME[CE_KINDS] = {
-    "ELECTRIC", "GAS", "DIESEL", "STEAM", "RACE", "NUCLEAR", "TRACTOR", "MUSCLE", "BOXER" };
+    "ELECTRIC", "GAS", "DIESEL", "STEAM", "RACE", "NUCLEAR", "TRACTOR", "MUSCLE", "BOXER",
+    "HATCH", "TRIPLE", "WARBLE", "V6", "FLAT6", "VTWIN", "TRUCK" };
+// INSTR_MOTOR's LAYOUT detents (harmonics = layout / 11), by cylinder count
+enum { CE_MOT_SINGLE, CE_MOT_VTWIN, CE_MOT_I3, CE_MOT_I4, CE_MOT_FLAT4, CE_MOT_I5, CE_MOT_I6, CE_MOT_V6,
+       CE_MOT_FLAT6, CE_MOT_V8X, CE_MOT_V8F, CE_MOT_V12, CE_MOT_LAYOUTS };
+static const int CE_MOT_CYL[CE_MOT_LAYOUTS] = { 1, 2, 3, 4, 4, 5, 6, 6, 6, 8, 8, 12 };
 static const char *CE_FEEL[CE_KINDS] = {
     "rising whine, no chug",
     "inline-6, stock muffler",
@@ -49,7 +55,14 @@ static const char *CE_FEEL[CE_KINDS] = {
     "steady sci-fi hum",
     "big single, potato",
     "crossplane V8 burble",
-    "flat-4, unequal headers" };
+    "flat-4, unequal headers",
+    "revvy inline-4 hatchback",
+    "thrummy inline-3",
+    "inline-5 warble",
+    "60deg V6 growl",
+    "flat-6, howls up top",
+    "45deg V-twin, potato",
+    "big turbo-diesel six" };
 
 enum { CE_L_FIRING, CE_L_RASP, CE_L_INTAKE, CE_L_DRIVE, CE_L_LOPE, CE_L_BURBLE, CE_L_TURBO, CE_L_COUNT };
 static const char *CE_L_NAME[CE_L_COUNT] = {
@@ -70,9 +83,10 @@ typedef struct {
     float lopeAmt;                   // idle-lope wobble strength
     float detune;                    // body slot detune (shimmer/beating); 0 = none
     // INSTR_MOTOR (motorLayout >= 0): the cylinder + exhaust voice instead of the layers above
-    int   motorLayout;               // 0 single · 1 I4 · 2 flat-4 · 3 I6 · 4 V8 cross · 5 V8 flat · 6 V12; -1 = layers only
+    int   motorLayout;               // CE_MOT_* (INSTR_MOTOR's layout); -1 = layers only
     float rpmIdle, rpmRed;           // the real rpm range rev 0..1 spans
     float exhaust, pipe, rough, intake, mech;   // INSTR_MOTOR timbre + aux (0.5 = the layout's own)
+    float knock;                     // diesel knock (MODE_MOTOR_KNOCK), 0 = petrol
 } CERecipe;
 
 static CERecipe carengine_recipe(int k) {
@@ -83,7 +97,7 @@ static CERecipe carengine_recipe(int k) {
     e.driveMode = DRIVE_ASYM; e.raspOn = 0; e.raspOct = 12; e.raspDuty = 0.18f;
     e.intakeMode = 0; e.burbleOn = 0; e.lopeAmt = 0.5f; e.detune = 0;
     e.motorLayout = -1; e.rpmIdle = 800; e.rpmRed = 6000;
-    e.exhaust = 0.3f; e.pipe = 0.5f; e.rough = 0.5f; e.intake = 0.5f; e.mech = 0.5f;
+    e.exhaust = 0.3f; e.pipe = 0.5f; e.rough = 0.5f; e.intake = 0.5f; e.mech = 0.5f; e.knock = 0.0f;
     switch (k) {
     case CE_ELECTRIC:                                   // no combustion → no chug, no idle, no grit: a clean rising whine
         e.bodyWave = INSTR_SINE; e.bodyOct = 12;        // pure tone — TRI/detune was buzzy & "labored"
@@ -99,8 +113,8 @@ static CERecipe carengine_recipe(int k) {
         e.tremDepth = 0.85f; e.driveBase = 0.4f; e.driveSpan = 0.3f; e.driveMode = DRIVE_HARD;
         e.raspOn = 1; e.raspOct = 7; e.raspDuty = 0.12f;
         e.intakeMode = 4; e.lopeAmt = 0.85f;
-        e.motorLayout = 1; e.rpmIdle = 650; e.rpmRed = 3800;           // a working diesel: rough, ticking
-        e.exhaust = 0.30f; e.rough = 0.85f; e.mech = 1.0f; e.intake = 0.3f;
+        e.motorLayout = CE_MOT_I4; e.rpmIdle = 650; e.rpmRed = 4200;   // a working diesel: rough, knocking
+        e.exhaust = 0.30f; e.rough = 0.7f; e.mech = 0.7f; e.intake = 0.3f; e.knock = 0.75f;
         break;
     case CE_STEAM:                                      // slow chuff — gated noise puffs
         e.bodyWave = INSTR_NOISE; e.bodyFilt = FILTER_BAND;
@@ -115,7 +129,7 @@ static CERecipe carengine_recipe(int k) {
         e.tremDepth = 0.42f; e.driveBase = 0.3f; e.driveSpan = 0.5f; e.driveMode = DRIVE_ASYM;
         e.raspOn = 1; e.raspOct = 12; e.raspDuty = 0.16f;
         e.intakeMode = 2; e.burbleOn = 1; e.lopeAmt = 0.2f;     // anti-lag crackle
-        e.motorLayout = 5; e.rpmIdle = 1100; e.rpmRed = 9000;          // a flatplane V8 on a straight pipe
+        e.motorLayout = CE_MOT_V8F; e.rpmIdle = 1100; e.rpmRed = 9000;          // a flatplane V8 on a straight pipe
         e.exhaust = 0.95f; e.pipe = 0.4f; e.rough = 0.4f;
         break;
     case CE_NUCLEAR:                                    // steady mid hum, faint shimmer, no lope
@@ -131,21 +145,21 @@ static CERecipe carengine_recipe(int k) {
         e.tremDepth = 1.0f; e.driveBase = 0.5f; e.driveSpan = 0.25f; e.driveMode = DRIVE_HARD;
         e.raspOn = 1; e.raspOct = 7; e.raspDuty = 0.1f;
         e.intakeMode = 4; e.lopeAmt = 1.0f;
-        e.motorLayout = 0; e.rpmIdle = 450; e.rpmRed = 2200;           // one big slow cylinder
-        e.exhaust = 0.45f; e.rough = 0.7f; e.mech = 0.7f;
+        e.motorLayout = CE_MOT_SINGLE; e.rpmIdle = 450; e.rpmRed = 2200;   // one big slow diesel cylinder
+        e.exhaust = 0.45f; e.rough = 0.7f; e.mech = 0.7f; e.knock = 0.6f;
         break;
     case CE_MUSCLE:                                     // crossplane V8: the lumpy burble, a rumble on the gas
         e.chugIdle = 14; e.chugRed = 100; e.cutBase = 220; e.cutSpan = 1200; e.res = 7;
         e.tremDepth = 0.7f; e.driveBase = 0.25f; e.driveSpan = 0.5f; e.driveMode = DRIVE_ASYM;
         e.raspOn = 1; e.raspOct = 12; e.raspDuty = 0.2f; e.intakeMode = 1; e.burbleOn = 1; e.lopeAmt = 0.7f;
-        e.motorLayout = 4; e.rpmIdle = 700; e.rpmRed = 6000;
+        e.motorLayout = CE_MOT_V8X; e.rpmIdle = 700; e.rpmRed = 6000;
         e.exhaust = 0.55f; e.rough = 0.7f;
         break;
     case CE_BOXER:                                      // flat-4 with unequal headers: the off-beat thrum
         e.chugIdle = 18; e.chugRed = 110; e.cutBase = 260; e.cutSpan = 1300; e.res = 6;
         e.tremDepth = 0.6f; e.driveBase = 0.15f; e.driveSpan = 0.4f;
         e.raspOn = 1; e.raspOct = 12; e.raspDuty = 0.2f; e.intakeMode = 1; e.lopeAmt = 0.5f;
-        e.motorLayout = 2; e.rpmIdle = 850; e.rpmRed = 5500;
+        e.motorLayout = CE_MOT_FLAT4; e.rpmIdle = 850; e.rpmRed = 5500;
         e.exhaust = 0.4f; e.rough = 0.6f; e.mech = 0.7f;
         break;
     case CE_GAS: default:                               // the revvy everyday mid
@@ -154,9 +168,25 @@ static CERecipe carengine_recipe(int k) {
         e.tremDepth = 0.55f; e.driveBase = 0.12f; e.driveSpan = 0.45f; e.driveMode = DRIVE_ASYM;
         e.raspOn = 1; e.raspOct = 12; e.raspDuty = 0.18f;
         e.intakeMode = 1; e.burbleOn = 1; e.lopeAmt = 0.5f;
-        e.motorLayout = 3; e.rpmIdle = 750; e.rpmRed = 5500;           // a 1970s straight-six on its stock muffler
+        e.motorLayout = CE_MOT_I6; e.rpmIdle = 750; e.rpmRed = 5500;   // a 1970s straight-six on its stock muffler
         e.exhaust = 0.25f; e.rough = 0.5f; e.mech = 0.6f;
         break;
+    // the newer kinds start from GAS's synth layers (for the legacy A/B) and differ in the motor
+    case CE_HATCH:  e = carengine_recipe(CE_GAS); e.motorLayout = CE_MOT_I4;    e.rpmIdle = 850; e.rpmRed = 7000;
+                    e.exhaust = 0.35f; e.pipe = 0.4f; e.rough = 0.4f; e.intake = 0.7f; break;
+    case CE_TRIPLE: e = carengine_recipe(CE_GAS); e.motorLayout = CE_MOT_I3;    e.rpmIdle = 800; e.rpmRed = 6500;
+                    e.exhaust = 0.35f; e.rough = 0.5f; e.intake = 0.6f; break;
+    case CE_WARBLE: e = carengine_recipe(CE_GAS); e.motorLayout = CE_MOT_I5;    e.rpmIdle = 800; e.rpmRed = 7000;
+                    e.exhaust = 0.6f; e.rough = 0.5f; e.intake = 0.7f; e.intakeMode = 2; break;   // + a turbo
+    case CE_V6:     e = carengine_recipe(CE_GAS); e.motorLayout = CE_MOT_V6;    e.rpmIdle = 700; e.rpmRed = 6500;
+                    e.exhaust = 0.45f; e.rough = 0.5f; break;
+    case CE_FLAT6:  e = carengine_recipe(CE_GAS); e.motorLayout = CE_MOT_FLAT6; e.rpmIdle = 900; e.rpmRed = 8000;
+                    e.exhaust = 0.7f; e.pipe = 0.35f; e.rough = 0.4f; e.intake = 0.8f; break;
+    case CE_VTWIN:  e = carengine_recipe(CE_GAS); e.motorLayout = CE_MOT_VTWIN; e.rpmIdle = 900; e.rpmRed = 5500;
+                    e.exhaust = 0.7f; e.rough = 0.7f; e.mech = 0.8f; e.lopeAmt = 0.8f; break;
+    case CE_TRUCK:  e = carengine_recipe(CE_DIESEL); e.motorLayout = CE_MOT_I6; e.rpmIdle = 550; e.rpmRed = 2600;
+                    e.exhaust = 0.35f; e.pipe = 0.8f; e.rough = 0.5f; e.knock = 0.6f; e.mech = 0.6f;
+                    e.intakeMode = 2; e.burbleOn = 0; break;                                        // + a turbo whistle
     }
     return e;
 }
@@ -208,13 +238,14 @@ static void carengine_build(CarEngine *ce, CERecipe e) {
     if (carengine_is_motor(ce, e)) {
         // the cylinders + exhaust voice: set-and-hold here, then only rpm (pitch) + load (morph) are ridden
         instrument(ce->slot_body, INSTR_MOTOR, 40, 0, 7, 260);
-        instrument_harmonics(ce->slot_body, e.motorLayout / 6.0f);
+        instrument_harmonics(ce->slot_body, e.motorLayout / (float)(CE_MOT_LAYOUTS - 1));
         instrument_timbre(ce->slot_body, e.exhaust);
         instrument_morph(ce->slot_body, 0.2f);
         instrument_mode(ce->slot_body, MODE_MOTOR_PIPE, e.pipe);
         instrument_mode(ce->slot_body, MODE_MOTOR_ROUGH, e.rough);
         instrument_mode(ce->slot_body, MODE_MOTOR_INTAKE, ce->layer_on[CE_L_INTAKE] ? e.intake : 0.0f);
         instrument_mode(ce->slot_body, MODE_MOTOR_MECH, e.mech);
+        instrument_mode(ce->slot_body, MODE_MOTOR_KNOCK, e.knock);
         instrument_tune(ce->slot_body, 0);
         instrument(ce->slot_intake, INSTR_SINE, 20, 0, 7, 220);          // the turbo whistle, if the kind has one
         instrument_filter(ce->slot_intake, FILTER_BAND, 2400, 6);

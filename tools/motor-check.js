@@ -16,6 +16,7 @@
 //   FIXED    the exhaust's resonance hump stays put while the revs double (a filter that tracked the pitch,
 //            a synth's habit, would move it an octave).
 //   LOAD     a harder pull is brighter (the blowdown spike sharpens).
+//   KNOCK    MODE_MOTOR_KNOCK lifts the 1-3 kHz band of an idle by 8 dB or more (the diesel clatter).
 //   LEVEL    every layout, idle (stock) to redline (straight pipe), stays audible and under 0 dBFS.
 'use strict'
 const fs = require('fs'), path = require('path'), os = require('os'), { execFileSync } = require('child_process')
@@ -79,34 +80,43 @@ function level({ sr, x }) {
 
 const rows = []
 const check = (name, ok, got, want) => rows.push({ name, ok, got, want })
-const NCYL = [1, 4, 4, 6, 8, 8, 12]
-const LNAME = ['single', 'inline-4', 'flat-4', 'inline-6', 'V8 cross', 'V8 flat', 'V12']
+const NCYL = [1, 2, 3, 4, 4, 5, 6, 6, 6, 8, 8, 12]
+const LNAME = ['single', 'V-twin', 'inline-3', 'inline-4', 'flat-4', 'inline-5', 'inline-6', 'V6', 'flat-6', 'V8 cross', 'V8 flat', 'V12']
 
 // RUMBLE + CONTROL
 {
-  const i6 = rumble(render('LAYOUT=3,RPM=1418,LOAD=0.25f,EXH=0.2f', 'i6'), 1418, 6)
+  const i6 = rumble(render('LAYOUT=6,RPM=1418,LOAD=0.25f,EXH=0.2f', 'i6'), 1418, 6)
   check('rumble  inline-6 @1418 (ref 14-25 dB under)', i6 > -32 && i6 < -10, i6.toFixed(1) + ' dB', '-32 .. -10')
-  const v8 = rumble(render('LAYOUT=4,RPM=800,LOAD=0.2f,EXH=0.4f', 'v8'), 800, 8)
+  const v8 = rumble(render('LAYOUT=9,RPM=800,LOAD=0.2f,EXH=0.4f', 'v8'), 800, 8)
   check('rumble  crossplane V8 idle (ref: a few dB)', v8 > -22, v8.toFixed(1) + ' dB', '> -22')
-  const even = rumble(render('LAYOUT=3,RPM=1418,LOAD=0.25f,EXH=0.2f,ROUGH=0.0f', 'i6even'), 1418, 6)
+  const even = rumble(render('LAYOUT=6,RPM=1418,LOAD=0.25f,EXH=0.2f,ROUGH=0.0f', 'i6even'), 1418, 6)
   check('CONTROL inline-6 ROUGH=0 is an even machine', even < -45, even.toFixed(1) + ' dB', '< -45')
   check('CONTROL the rumble is the ROUGH (≥ 20 dB apart)', i6 - even >= 20, (i6 - even).toFixed(1) + ' dB', '>= 20')
 }
 // FIXED resonance
 {
-  const a = hump(render('LAYOUT=4,RPM=1500,LOAD=0.5f,EXH=0.4f,ROUGH=0.0f', 'h1'), 1500, 8)
-  const b = hump(render('LAYOUT=4,RPM=3000,LOAD=0.5f,EXH=0.4f,ROUGH=0.0f', 'h2'), 3000, 8)
+  const a = hump(render('LAYOUT=9,RPM=1500,LOAD=0.5f,EXH=0.4f,ROUGH=0.0f', 'h1'), 1500, 8)
+  const b = hump(render('LAYOUT=9,RPM=3000,LOAD=0.5f,EXH=0.4f,ROUGH=0.0f', 'h2'), 3000, 8)
   const oct = Math.abs(Math.log2(b / a))
   check('fixed   V8 hump stays put as revs double', oct < 0.35, `${a.toFixed(0)} → ${b.toFixed(0)} Hz`, '< 0.35 oct apart')
 }
 // LOAD brightens
 {
-  const lo = centroid(render('LAYOUT=3,RPM=3000,LOAD=0.1f,EXH=0.5f', 'l0'), 3000, 6)
-  const hi = centroid(render('LAYOUT=3,RPM=3000,LOAD=1.0f,EXH=0.5f', 'l1'), 3000, 6)
+  const lo = centroid(render('LAYOUT=6,RPM=3000,LOAD=0.1f,EXH=0.5f', 'l0'), 3000, 6)
+  const hi = centroid(render('LAYOUT=6,RPM=3000,LOAD=1.0f,EXH=0.5f', 'l1'), 3000, 6)
   check('load    a hard pull is brighter', hi > lo * 1.1, `${lo.toFixed(0)} → ${hi.toFixed(0)} Hz`, '+10%')
 }
+// KNOCK: a diesel's block clatter lifts the 1-3 kHz band (the CC0 diesels sit 5-17 dB under their peak there;
+// a petrol idle ~20); KNOCK 0 must leave it alone
+{
+  const band = w => { const S = seg(w); let p = 0; for (let f = 1000; f <= 3000; f += 25) p += goertzel(S, f); return db(p) }
+  const tot = w => { const S = seg(w); let p = 0; for (let f = 50; f <= 6000; f += 25) p += goertzel(S, f); return db(p) }
+  const d0 = render('LAYOUT=3,RPM=750,LOAD=0.15f,EXH=0.3f,KNOCK=0.0f', 'k0'), d1 = render('LAYOUT=3,RPM=750,LOAD=0.15f,EXH=0.3f,KNOCK=0.75f', 'k1')
+  const r0 = band(d0) - tot(d0), r1 = band(d1) - tot(d1)
+  check('knock   a diesel clatters at 1-3 kHz', r1 - r0 >= 8, `${r0.toFixed(1)} → ${r1.toFixed(1)} dB of total`, '+8 dB')
+}
 // LEVEL, every layout
-for (let L = 0; L < 7; L++) {
+for (let L = 0; L < NCYL.length; L++) {
   const idle = level(render(`LAYOUT=${L},RPM=800,LOAD=0.2f,EXH=0.3f`, 'i' + L))
   const red = level(render(`LAYOUT=${L},RPM=6500,LOAD=1.0f,EXH=1.0f`, 'r' + L))
   check(`level   ${LNAME[L].padEnd(8)} idle..redline`, !idle.nan && !red.nan && idle.rms > -42 && red.pk < -1,

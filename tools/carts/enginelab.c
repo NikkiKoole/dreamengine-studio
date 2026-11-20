@@ -14,7 +14,7 @@
     "sonification"
   ],
   "lineage": "A dyno workbench grown from sloop.c's single-voice engine sound; novel in breaking every synthesis layer (firing-rate tremolo, rasp, intake, drive, lope, burble) onto a live toggle for A/B auditioning.",
-  "description": "A car-engine sound DYNO. Combustion engines now run INSTR_MOTOR, a voice built from the engine itself: each cylinder fires at its real crank angle in the firing order (inline-6, crossplane V8 burble, flat-4 off-beat, a big single), every firing a little different so the engine rumbles instead of buzzing, into exhaust pipes whose resonances stay put while the revs sweep through them. Nine kinds: gas (a 1970s straight-six), diesel, race (flatplane V8 on a straight pipe + turbo), tractor, muscle (crossplane V8), boxer (flat-4), and the synth-only electric whine, steam chuff and nuclear hum. N flips any combustion kind back to the OLD synth layers (a saw through a resonant filter with a tremolo at the firing rate) so you can hear what changed. Hold UP/Z/SPACE to rev, LEFT/RIGHT switch kinds, 1-7 toggle layers (over the cylinder voice only turbo, burble, lope and intake apply), I ignition, L free-rev vs under-load, M auto-rev demo."
+  "description": "A car-engine sound DYNO. Combustion engines now run INSTR_MOTOR, a voice built from the engine itself: each cylinder fires at its real crank angle in the firing order (inline-6, crossplane V8 burble, flat-4 off-beat, a big single), every firing a little different so the engine rumbles instead of buzzing, into exhaust pipes whose resonances stay put while the revs sweep through them. Sixteen kinds. Petrol: gas (a 1970s straight-six), hatch (revvy inline-4), triple (inline-3), warble (inline-5 + turbo), V6, flat6, boxer (flat-4), muscle (crossplane V8), race (flatplane V8 on a straight pipe + turbo), vtwin (a 45-degree motorcycle twin). Diesel, with the block's KNOCK clattering through the muffler: diesel (inline-4), truck (big turbo-diesel six), tractor (one big cylinder). And the synth-only electric whine, steam chuff and nuclear hum. N flips any combustion kind back to the OLD synth layers (a saw through a resonant filter with a tremolo at the firing rate) so you can hear what changed. Hold UP/Z/SPACE to rev, LEFT/RIGHT switch kinds, 1-7 toggle layers (over the cylinder voice only turbo, burble, lope and intake apply), I ignition, L free-rev vs under-load, M auto-rev demo."
 }
 de:meta */
 #include "studio.h"
@@ -134,8 +134,7 @@ void update(void) {
         CERecipe er = carengine_recipe(ce.kind);
         float chug = lerp(er.chugIdle, er.chugRed, clamp(rpm, 0, 1));
         if (carengine_is_motor(&ce, er)) {                    // the motor's real firing rate: rpm/60 × cylinders/2
-            static const int NCYL[7] = { 1, 4, 4, 6, 8, 8, 12 };
-            chug = carengine_rpm(&ce, rpm) / 60.0f * NCYL[er.motorLayout] * 0.5f;
+            chug = carengine_rpm(&ce, rpm) / 60.0f * CE_MOT_CYL[er.motorLayout] * 0.5f;
         }
         scope_phase += chug * dt();
         if (scope_phase >= 1.0f) { scope_phase -= 1.0f; scope_hit = 1; }

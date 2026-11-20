@@ -550,6 +550,8 @@ typedef struct {
     float  mot_x1, mot_hx, mot_hy;      // radiation: last pipe output + the DC-block high-pass state
     SoundBiquad mot_muf, mot_ibq, mot_mbq;   // muffler low-pass · intake airbox band · valve-tick high-pass
     float  mot_me;                      // valve-tick energy (decays)
+    float  mot_kn, mot_knock;           // diesel KNOCK: this firing's ring energy (decays) + the amount (MODE_MOTOR_KNOCK)
+    SoundBiquad mot_kbq;                // the knock's band: the block ringing, ~2 kHz
     float  mot_env;                     // the output's mean square (~150 ms): the level control's ear
     float  mot_rough, mot_in, mot_mech, mot_norm;   // cycle variation · intake level · mechanical level · output trim
     uint32_t mot_rnd;                   // per-voice LCG (seeded per layout: the same engine every time)

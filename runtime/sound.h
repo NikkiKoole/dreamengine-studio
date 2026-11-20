@@ -6986,13 +6986,17 @@ static inline float sound_scrape_sample(Voice *v, float pitch_mul) {
 //     straight pipe) and the tailpipe's RADIATION (it radiates the change in flow, so the pulses' DC drops).
 //   · INTAKE: a little air roar while each intake valve is open, with the load. MECH: a valve tick per
 //     valve event, high and quiet (an old straight-six's tappets).
-// Macros: harmonics = LAYOUT (7 detents: single · inline-4 · flat-4 · inline-6 · crossplane V8 · flatplane
-// V8 · V12), timbre = EXHAUST (0 stock muffler → 1 straight pipe), morph = LOAD (0 coasting · 1 full
-// throttle; live, ride it with note_morph). Aux: MODE_MOTOR_PIPE / _ROUGH / _INTAKE / _MECH, 0.5 = the
-// layout's own. HOLDS while sustained. Each layout is one fixed engine (its imbalances seeded per layout).
+//   · KNOCK (diesel): compression ignition burns all at once, and the BLOCK rings with it: a broad ~0.65-3 kHz
+//     clatter on every firing, loudest at idle and light load. It radiates from the engine, not the pipe, so
+//     it is added AFTER the muffler (a muffled diesel still clatters). It also sharpens the exhaust pulse.
+// Macros: harmonics = LAYOUT (12 detents, by cylinder count: single · V-twin · inline-3 · inline-4 · flat-4 ·
+// inline-5 · inline-6 · V6 · flat-6 · crossplane V8 · flatplane V8 · V12; detent k = k / 11), timbre =
+// EXHAUST (0 stock muffler → 1 straight pipe), morph = LOAD (0 coasting · 1 full throttle; live, ride it
+// with note_morph). Aux: MODE_MOTOR_PIPE / _ROUGH / _INTAKE / _MECH (0.5 = the layout's own) and
+// MODE_MOTOR_KNOCK (0 = a petrol engine). HOLDS while sustained. Each layout is one fixed engine.
 #define MOT_C 520.0f                       // speed of sound in hot exhaust gas, m/s
 #define MOT_W 0.30f                        // a pulse's length: ~216 of the 720 cycle degrees
-#define MOT_LAYOUTS 7
+#define MOT_LAYOUTS 12
 typedef struct {
     int   n;                               // cylinders
     float off[SOUND_MOTOR_CYL];            // firing angle, degrees of the 720 cycle, in FIRING ORDER
@@ -7005,9 +7009,14 @@ typedef struct {
 } MotLayout;
 static const MotLayout MOT_LAYOUT[MOT_LAYOUTS] = {
     { 1, {0}, {0}, {0}, {1.30f, 1.30f}, {1.0f, 0.0f}, 0.50f, 0.00f, 0.0f },                                    // single (a thumper)
+    { 2, {0,315}, {0,1}, {0}, {1.00f, 1.06f}, {1.0f, 0.80f}, 0.50f, 0.20f, 1.0f },                             // 45° V-twin: 315 then 405 degrees, potato-potato
+    { 3, {0,240,480}, {0}, {0}, {0.90f, 0.90f}, {1.0f, 0.0f}, 0.30f, 0.15f, 0.8f },                            // inline-3: odd, thrummy
     { 4, {0,180,360,540}, {0}, {0}, {0.90f, 0.90f}, {1.0f, 0.0f}, 0.22f, 0.15f, 0.8f },                        // inline-4
     { 4, {0,180,360,540}, {0}, {0,1.8f,0,1.8f}, {0.85f, 0.85f}, {1.0f, 0.0f}, 0.32f, 0.18f, 0.8f },            // flat-4, unequal headers
+    { 5, {0,144,288,432,576}, {0}, {0}, {1.00f, 1.00f}, {1.0f, 0.0f}, 0.25f, 0.18f, 1.0f },                    // inline-5: the warble (144 degrees)
     { 6, {0,120,240,360,480,600}, {0}, {0}, {1.10f, 1.10f}, {1.0f, 0.0f}, 0.20f, 0.15f, 0.8f },                // inline-6
+    { 6, {0,120,240,360,480,600}, {0,1,0,1,0,1}, {0}, {0.75f, 0.80f}, {1.0f, 0.60f}, 0.25f, 0.15f, 0.8f },     // 60° V6: each bank a growly triple
+    { 6, {0,120,240,360,480,600}, {0,1,0,1,0,1}, {0}, {0.70f, 0.72f}, {1.0f, 0.80f}, 0.20f, 0.12f, 0.7f },     // flat-6
     { 8, {0,90,180,270,360,450,540,630}, {0,1,1,0,1,0,0,1}, {0}, {0.62f, 0.70f}, {1.0f, 0.45f}, 0.45f, 0.30f, 1.5f },  // V8 crossplane, 1-8-4-3-6-5-7-2
     { 8, {0,90,180,270,360,450,540,630}, {0,1,0,1,0,1,0,1}, {0}, {0.55f, 0.57f}, {1.0f, 0.70f}, 0.22f, 0.15f, 0.8f },  // V8 flatplane
     { 12, {0,60,120,180,240,300,360,420,480,540,600,660}, {0,1,0,1,0,1,0,1,0,1,0,1}, {0}, {0.50f, 0.52f}, {1.0f, 0.75f}, 0.15f, 0.12f, 0.6f },  // V12
@@ -7034,7 +7043,11 @@ static void sound_motor_start(Voice *v) {
     int L = (int)(clamp01(v->harm) * (float)(MOT_LAYOUTS - 1) + 0.5f);
     const MotLayout *m = &MOT_LAYOUT[L];
     v->mot_lay = L;
-    v->mot_rnd = 0x4D4F5452u ^ ((uint32_t)(L + 1) * 2654435761u);      // one fixed engine per layout
+    // one fixed engine per layout. The seed is the layout's FIRST index (the table grew from 7 rows to 12):
+    // seeding by the new index re-rolled every engine's imbalances and noise, and the measured inline-6 / V8
+    // were someone else's
+    static const uint32_t MOT_SEED[MOT_LAYOUTS] = { 1, 8, 9, 2, 3, 10, 4, 11, 12, 5, 6, 7 };
+    v->mot_rnd = 0x4D4F5452u ^ (MOT_SEED[L] * 2654435761u);
     v->mot_ph = 0.0f;
     for (int i = 0; i < SOUND_MOTOR_CYL; i++) {
         v->mot_bias[i] = 2.0f * mot_rand(v) - 1.0f;
@@ -7061,6 +7074,9 @@ static void sound_motor_start(Voice *v) {
     v->mot_rough = m->rough * 2.0f * clamp01(v->eng_p[MODE_MOTOR_ROUGH]);
     v->mot_in    = 2.0f * clamp01(v->eng_p[MODE_MOTOR_INTAKE]);
     v->mot_mech  = 2.0f * clamp01(v->eng_p[MODE_MOTOR_MECH]);
+    v->mot_knock = clamp01(v->eng_p[MODE_MOTOR_KNOCK]);
+    v->mot_kn = 0.0f;
+    sound_biquad_set(&v->mot_kbq, 1400.0f, 2.2f, 1.0f);                 // the block's ring: broad, ~650 Hz-3 kHz (the CC0 diesels are bright right through the mids; the VW's clatter peaks 1.6-2 kHz)
     v->mot_norm  = 5.0f / sqrtf((float)m->n);                          // measured: puts an idle near a SAW at the same vol
     v->mot_on = true;
 }
@@ -7076,7 +7092,7 @@ static inline float sound_motor_sample(Voice *v, float pitch_mul) {
     if (v->mot_ph >= 1.0f) v->mot_ph -= 1.0f;
     float pk = 0.22f - 0.13f * load;                                     // where the pulse peaks: a hard pull snaps it open
     float a0 = 0.30f + 0.70f * load;
-    float tsp = (2.6f - 1.4f * load) * 0.001f;                           // the spike's rise: a hard pull is sharper
+    float tsp = (2.6f - 1.4f * load) * (1.0f - 0.65f * v->mot_knock) * 0.001f;   // the spike's rise: a hard pull (or a diesel) is sharper
     float in[2] = { 0.0f, 0.0f }, air = 0.0f;
     for (int i = 0; i < m->n; i++) {
         float u = v->mot_ph - m->off[i] * (1.0f / 720.0f) - (m->hdr_ms[i] + m->spread * v->mot_tofs[i] * v->mot_rough * 2.0f) * 0.001f * fcyc;
@@ -7086,6 +7102,8 @@ static inline float sound_motor_sample(Voice *v, float pitch_mul) {
             v->mot_amp[i] = a0 * (g > 0.05f ? g : 0.05f);
             v->mot_jit[i] = 0.006f * v->mot_rough * mot_gauss(v);       // a few crank degrees of slip
             v->mot_me += 1.0f;                                           // the exhaust valve's tick
+            if (v->mot_knock > 0.0f)                                     // diesel KNOCK (no draw for petrol: keeps its noise stream)
+                v->mot_kn += v->mot_knock * v->mot_amp[i] * (1.3f - 0.8f * load) * (0.7f + 0.6f * mot_rand(v));
         }
         if (v->mot_pu[i] < 0.5f && u >= 0.5f) v->mot_me += 0.7f;         // the intake valve's
         v->mot_pu[i] = u;
@@ -7124,6 +7142,10 @@ static inline float sound_motor_sample(Voice *v, float pitch_mul) {
     out += v->mot_in * 0.05f * (0.2f + 0.8f * load) * sound_biquad_run(&v->mot_ibq, nz * air);
     out += v->mot_mech * 0.012f * sound_biquad_run(&v->mot_mbq, nz * v->mot_me);
     v->mot_me *= 0.96f;                                                  // ~0.5 ms tick
+    if (v->mot_kn > 1e-5f) {                                             // KNOCK: from the block, so after the muffler
+        out += 3.0f * sound_biquad_run(&v->mot_kbq, nz * v->mot_kn);
+        v->mot_kn *= 0.9815f;                                            // ~1.2 ms ring
+    }
     out *= v->mot_norm;
     // LEVEL: idle → cruise stays as it is (~+12 dB), above a cruise's level it is compressed 2:1 by a ~150 ms
     // ear, then a soft ceiling. Measured uncompressed, a straight pipe at redline was +24 dB over a stock

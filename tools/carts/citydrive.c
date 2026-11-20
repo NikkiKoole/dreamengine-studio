@@ -71,7 +71,9 @@ enum { K_HIGHWAY, K_ARTERIAL, K_ROAD, K_TRACK, K_WATER, K_CANAL, K_BUILDING, K_G
        K_RESIDENTIAL, K_COMMERCIAL, K_INDUSTRIAL, K_FARM, K_PARKING, K_SAND, K_RAIL, K_COAST,
        K_SECONDARY, K_TERTIARY, K_SERVICE, K_CYCLEWAY, K_FOOTWAY, K_OTHER_AREA, K_OTHER_LINE,
        // node-level control POINTS (APPEND ONLY — indices 24+; match osm-roads.js KIND_IX + roadview.c)
-       K_CROSSING, K_GIVEWAY, K_STOP, K_SIGNALS, K_CALMING, K_N };
+       K_CROSSING, K_GIVEWAY, K_STOP, K_SIGNALS, K_CALMING,
+       K_GUIDEPOST,   // 29: a signpost arm (islandstudio); loaded, not drawn here
+       K_N };
 
 // road line classes drawn as flat ground ribbons: colour + real half-width (m).
 typedef struct { int col; float hw_m; } Road;
@@ -342,7 +344,7 @@ static void load_json(char *js, long len){
           [K_FARM]="farm",[K_PARKING]="parking",[K_SAND]="sand",[K_RAIL]="rail",[K_COAST]="coast",
           [K_SECONDARY]="secondary",[K_TERTIARY]="tertiary",[K_SERVICE]="service",
           [K_CYCLEWAY]="cycleway",[K_FOOTWAY]="footway",[K_OTHER_AREA]="other_area",[K_OTHER_LINE]="other_line",
-          [K_CROSSING]="crossing",[K_GIVEWAY]="give_way",[K_STOP]="stop",[K_SIGNALS]="traffic_signals",[K_CALMING]="calming" };
+          [K_CROSSING]="crossing",[K_GIVEWAY]="give_way",[K_STOP]="stop",[K_SIGNALS]="traffic_signals",[K_CALMING]="calming",[K_GUIDEPOST]="guidepost" };
         for (int k=0;k<K_N;k++) if (NAMES[k] && !strcmp(kb,NAMES[k])){ kind=k; break; }
       }
       float fh = (hi>=0) ? (float)json_num(js,&tok[hi]) : 0;

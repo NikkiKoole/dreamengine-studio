@@ -581,6 +581,7 @@ static float gravity(int a, int b) {
 static int st_overflow;               // road lines dropped for lack of room: must stay 0 (it silently ate main roads once)
 typedef struct { int start, n, cls; } Poly;
 static Poly  pl[MAXPL]; static int npl;
+static unsigned char pl_ramp[MAXPL];   // an interchange slip road (unnumbered)
 static float plx[MAXPT], ply[MAXPT]; static int npt;
 static float st_road[NRC];           // km of road per class
 static int   st_express, st_ringgaps, st_link_try[3], st_link_ok[3];   // links tried/routed by floor (lane/sec/main)
@@ -661,7 +662,7 @@ static void emit_poly(const int *cells, int n, int cls) {
     sm_tol_min = 0;
     float *ax = sm_x, *ay = sm_y;
     if (npt + m >= MAXPT) { st_overflow++; return; }
-    pl[npl].start = npt; pl[npl].n = m; pl[npl].cls = cls; npl++;
+    pl[npl].start = npt; pl[npl].n = m; pl[npl].cls = cls; pl_ramp[npl] = 0; npl++;
     float L = 0;
     for (int i = 0; i < m; i++) {
         plx[npt + i] = ax[i]; ply[npt + i] = ay[i];
@@ -1396,7 +1397,7 @@ static void snap_split(float *x, float *y) {
     *x = plx[bi]; *y = ply[bi];
     int a = pl[bp].start, e = a + pl[bp].n - 1;
     if (bi <= a || bi >= e || npl >= MAXPL) return;          // already an end: nothing to split
-    pl[npl].start = bi; pl[npl].n = e - bi + 1; pl[npl].cls = pl[bp].cls;   // the tail, sharing point bi
+    pl[npl].start = bi; pl[npl].n = e - bi + 1; pl[npl].cls = pl[bp].cls; pl_ramp[npl] = pl_ramp[bp];   // the tail, sharing point bi
     pl[bp].n = bi - a + 1;
     for (int k = 0; k < nbr; k++) if (br[k].p == bp && br[k].i > bi) br[k].p = npl;   // bridges on the tail
     npl++;
@@ -1405,7 +1406,7 @@ static void add_ramp(Port a, Port b) {
     static float xs[256], ys[256];
     int n = scurve_spline(a, b, xs, ys);
     if (n < 2 || npl >= MAXPL || npt + n >= MAXPT) { st_overflow++; return; }
-    pl[npl].start = npt; pl[npl].n = n; pl[npl].cls = RC_SEC; npl++;
+    pl[npl].start = npt; pl[npl].n = n; pl[npl].cls = RC_SEC; pl_ramp[npl] = 1; npl++;
     float L = 0;
     for (int i = 0; i < n; i++) { plx[npt + i] = xs[i]; ply[npt + i] = ys[i]; if (i) L += hypotf(xs[i] - xs[i-1], ys[i] - ys[i-1]); }
     npt += n; st_road[RC_SEC] += L / 1000.0f;
@@ -1866,6 +1867,250 @@ static void build_houses(void) {
     }
 }
 
+// ── ROUTE NUMBERS + SIGNPOSTS (roadmap item 1, for backroads' way-finding) ───────────────────────
+// A ROAD GRAPH over the final lines (lanes and up; tracks left out): nodes = line ends, which meet
+// exactly at junctions. ROUTES: at every node, same-class lines are paired straight-on (turn < 60°,
+// straightest first) and chained; each chain is one route, numbered longest first: main = A, secondary
+// = B, the expressway M1; lanes and slip roads unnumbered. Export: road sub token "ref=A3".
+// SIGNPOSTS (kind "guidepost", one 20 m line per ARM from the junction along it): every junction a
+// secondary-or-bigger road meets, plus town exits. Each arm carries "ref=A3;to=Holbeck:4.2,Selness:11.0":
+// the next village and the next town that way (one entry if they're the same), km along the road.
+#define RG_MAXN 32768
+static int rg_nn, rg_head[RG_MAXN], rg_deg[RG_MAXN];
+static float rg_x[RG_MAXN], rg_y[RG_MAXN];
+static int pl_a[MAXPL], pl_b[MAXPL], pl_next_a[MAXPL], pl_next_b[MAXPL];   // end nodes + adjacency links
+static float pl_len[MAXPL];
+static unsigned char pl_in[MAXPL];                                         // in the graph
+static char pl_ref[MAXPL][8];                                              // "A3", "" = unnumbered
+static int rg_set[RG_MAXN];                                                // settlement at a node, -1
+static int st_routes[3], st_guideposts;
+#define RG_H 65536
+static int rg_hash[RG_H];
+static int rg_node(float x, float y) {
+    int qx = (int)lroundf(x * 2), qy = (int)lroundf(y * 2);
+    unsigned h = hsh((unsigned)qx * 73856093u ^ (unsigned)qy * 19349663u) & (RG_H - 1);
+    for (;;) {
+        int i = rg_hash[h];
+        if (i < 0) break;
+        if ((int)lroundf(rg_x[i] * 2) == qx && (int)lroundf(rg_y[i] * 2) == qy) return i;
+        h = (h + 1) & (RG_H - 1);
+    }
+    if (rg_nn >= RG_MAXN) { st_overflow++; return -1; }
+    rg_x[rg_nn] = x; rg_y[rg_nn] = y; rg_head[rg_nn] = -1; rg_deg[rg_nn] = 0; rg_set[rg_nn] = -1;
+    rg_hash[h] = rg_nn; return rg_nn++;
+}
+// unit direction leaving node `end` (0 = start of the line, 1 = its end) along line p, `dist` metres in
+static void pl_dir(int p, int end, float dist, float *dx, float *dy, float *px, float *py) {
+    int s0 = pl[p].start, n = pl[p].n, i0 = end ? s0 + n - 1 : s0, st = end ? -1 : 1;
+    float acc = 0; int i = i0;
+    while (i + st >= s0 && i + st < s0 + n && acc < dist) { acc += hypotf(plx[i + st] - plx[i], ply[i + st] - ply[i]); i += st; }
+    float ex = plx[i] - plx[i0], ey = ply[i] - ply[i0], l = sqrtf(ex * ex + ey * ey) + 1e-6f;
+    *dx = ex / l; *dy = ey / l; if (px) { *px = plx[i]; *py = ply[i]; }
+}
+// Dijkstra over the graph from node s (starting distance d0), never through node `block`: the
+// nearest village-or-town and the nearest town reached. Distances in metres.
+static float rg_dist[RG_MAXN]; static int rg_stamp[RG_MAXN], rg_gen, rg_hp[RG_MAXN * 4], rg_hn;
+static float rg_hk[RG_MAXN * 4];
+static void rg_push(int v, float k) {
+    if (rg_hn >= RG_MAXN * 4) return;
+    int i = rg_hn++; while (i > 0) { int p = (i - 1) / 2; if (rg_hk[p] <= k) break; rg_hp[i] = rg_hp[p]; rg_hk[i] = rg_hk[p]; i = p; }
+    rg_hp[i] = v; rg_hk[i] = k;
+}
+static int rg_pop(float *k) {
+    int v = rg_hp[0]; *k = rg_hk[0]; int last = rg_hp[--rg_hn]; float lk = rg_hk[rg_hn], i = 0;
+    int ii = 0;
+    for (;;) { int c = 2 * ii + 1; if (c >= rg_hn) break; if (c + 1 < rg_hn && rg_hk[c + 1] < rg_hk[c]) c++; if (rg_hk[c] >= lk) break; rg_hp[ii] = rg_hp[c]; rg_hk[ii] = rg_hk[c]; ii = c; }
+    (void)i; rg_hp[ii] = last; rg_hk[ii] = lk; return v;
+}
+static float rg_here_x, rg_here_y;   // the sign's own position: never point to the place you're standing in
+static void rg_find(int s, float d0, int block, int self_set, int *vill, float *dv, int *town, float *dt) {
+    *vill = *town = -1; *dv = *dt = 0;
+    rg_gen++; rg_hn = 0; rg_dist[s] = d0; rg_stamp[s] = rg_gen; rg_push(s, d0);
+    while (rg_hn > 0) {
+        float d; int v = rg_pop(&d);
+        if (d > rg_dist[v] || d > 40000.0f) { if (d > 40000.0f) break; continue; }
+        int so = rg_set[v];
+        if (so >= 0 && so != self_set && set[so].rank >= ST_VILLAGE
+            && hypotf((set[so].x + 0.5f) * CELL - rg_here_x, (set[so].y + 0.5f) * CELL - rg_here_y) > set_r[so] + 50.0f) {
+            if (*vill < 0) { *vill = so; *dv = d; }
+            if (set[so].rank == ST_TOWN) { *town = so; *dt = d; break; }
+        }
+        for (int e = rg_head[v]; e >= 0; ) {
+            int p = e >> 1, w = (e & 1) ? pl_a[p] : pl_b[p], nx = (e & 1) ? pl_next_b[p] : pl_next_a[p];
+            if (w != block) {
+                float nd = d + pl_len[p];
+                if (rg_stamp[w] != rg_gen || nd < rg_dist[w]) { rg_stamp[w] = rg_gen; rg_dist[w] = nd; rg_push(w, nd); }
+            }
+            e = nx;
+        }
+    }
+}
+// place names in signs: never the separators
+static void sign_name(char *out, int n, const char *name) {
+    int k = 0; for (const char *c = name; *c && k < n - 1; c++) if (*c != ':' && *c != ',' && *c != ';') out[k++] = *c;
+    out[k] = 0;
+}
+#define MAXGP 12000
+typedef struct { float x0, y0, x1, y1; char sub[96]; } Guidepost;
+static Guidepost gp[MAXGP]; static int ngp;
+static int arm_v, arm_t;   // the last arm's destinations (village-or-town, town), for the "does this post matter" rule
+static int add_arm(float x0, float y0, float dx, float dy, const char *ref, int s, float d0, int block, int self_set) {
+    arm_v = arm_t = -1;
+    if (ngp >= MAXGP) { st_overflow++; return 0; }
+    int v, t; float dv, dt;
+    rg_here_x = x0; rg_here_y = y0;
+    rg_find(s, d0, block, self_set, &v, &dv, &t, &dt);
+    Guidepost *g = &gp[ngp];
+    g->x0 = x0; g->y0 = y0; g->x1 = x0 + dx * 20.0f; g->y1 = y0 + dy * 20.0f;
+    int k = *ref ? snprintf(g->sub, sizeof g->sub, "ref=%s;to=", ref) : snprintf(g->sub, sizeof g->sub, "to=");
+    char nm[24];
+    if (v >= 0) { sign_name(nm, sizeof nm, set_name[v]); k += snprintf(g->sub + k, sizeof g->sub - k, "%s:%.1f", nm, dv / 1000.0f); }
+    if (t >= 0 && t != v) { sign_name(nm, sizeof nm, set_name[t]); k += snprintf(g->sub + k, sizeof g->sub - k, "%s%s:%.1f", v >= 0 ? "," : "", nm, dt / 1000.0f); }
+    if (v < 0 && t < 0) return 0;                     // leads nowhere named: no sign arm
+    arm_v = v; arm_t = t;
+    ngp++; return 1;
+}
+static void build_routes_signs(void) {
+    rg_nn = 0; ngp = 0; st_routes[0] = st_routes[1] = st_routes[2] = 0;
+    for (int i = 0; i < RG_H; i++) rg_hash[i] = -1;
+    for (int p = 0; p < npl; p++) {
+        pl_in[p] = pl[p].cls >= RC_LANE; pl_ref[p][0] = 0;
+        if (!pl_in[p]) continue;
+        int s0 = pl[p].start, e0 = s0 + pl[p].n - 1;
+        pl_a[p] = rg_node(plx[s0], ply[s0]); pl_b[p] = rg_node(plx[e0], ply[e0]);
+        if (pl_a[p] < 0 || pl_b[p] < 0 || pl_a[p] == pl_b[p]) { pl_in[p] = 0; continue; }
+        float L = 0; for (int i = s0 + 1; i <= e0; i++) L += hypotf(plx[i] - plx[i - 1], ply[i] - ply[i - 1]);
+        pl_len[p] = L;
+        // adjacency: edge id e = p*2 + side (side 0: leaving from a, 1: leaving from b)
+        pl_next_a[p] = rg_head[pl_a[p]]; rg_head[pl_a[p]] = p * 2;     rg_deg[pl_a[p]]++;
+        pl_next_b[p] = rg_head[pl_b[p]]; rg_head[pl_b[p]] = p * 2 + 1; rg_deg[pl_b[p]]++;
+    }
+    for (int s = 0; s < nset; s++) {
+        int v = rg_node((set[s].x + 0.5f) * CELL, (set[s].y + 0.5f) * CELL);
+        if (v >= 0 && rg_head[v] >= 0) rg_set[v] = s;   // only if a road reaches the centre
+    }
+    // ROUTES: union lines paired straight-on at each node, per class
+    static int uf[MAXPL]; static float clen[MAXPL]; static int order[MAXPL];
+    for (int p = 0; p < npl; p++) uf[p] = p;
+    #define UF(x) ({ int _r = (x); while (uf[_r] != _r) _r = uf[_r] = uf[uf[_r]]; _r; })
+    for (int v = 0; v < rg_nn; v++) {
+        int es[16], ne = 0;
+        for (int e = rg_head[v]; e >= 0 && ne < 16; e = (e & 1) ? pl_next_b[e >> 1] : pl_next_a[e >> 1]) {
+            int p = e >> 1; if (pl[p].cls >= RC_SEC && !pl_ramp[p]) es[ne++] = e;
+        }
+        static unsigned char used[16]; for (int i = 0; i < ne; i++) used[i] = 0;
+        for (int round = 0; round < 8; round++) {          // straightest same-class pair first
+            int bi = -1, bj = -1; float bd = -0.2f;         // straight on = a turn under ~78°
+            for (int i = 0; i < ne; i++) for (int j = i + 1; j < ne; j++) {
+                if (used[i] || used[j] || pl[es[i] >> 1].cls != pl[es[j] >> 1].cls) continue;
+                float ax, ay, bx, by; pl_dir(es[i] >> 1, es[i] & 1, 40, &ax, &ay, 0, 0); pl_dir(es[j] >> 1, es[j] & 1, 40, &bx, &by, 0, 0);
+                float dd = ax * bx + ay * by;            // -1 = straight on
+                if (dd < bd) { bd = dd; bi = i; bj = j; }
+            }
+            if (bi < 0) break;
+            used[bi] = used[bj] = 1;
+            int ra = UF(es[bi] >> 1), rb = UF(es[bj] >> 1); if (ra != rb) uf[ra] = rb;
+        }
+    }
+    for (int p = 0; p < npl; p++) clen[p] = 0;
+    for (int p = 0; p < npl; p++) if (pl_in[p] && pl[p].cls >= RC_SEC && !pl_ramp[p]) clen[UF(p)] += pl_len[p];
+    // fragments (< 2 km: a bend through a town centre, a class flip for a few hundred metres) join
+    // the longest same-class route they touch, so an island has a dozen A roads, not a hundred
+    for (int pass = 0; pass < 3; pass++)
+        for (int p = 0; p < npl; p++) {
+            if (!pl_in[p] || pl[p].cls < RC_SEC || pl_ramp[p]) continue;
+            int r = UF(p); if (clen[r] >= 2000.0f) continue;
+            int best = -1; float bl = 0;
+            for (int side = 0; side < 2; side++) {
+                int v = side ? pl_b[p] : pl_a[p];
+                for (int e = rg_head[v]; e >= 0; e = (e & 1) ? pl_next_b[e >> 1] : pl_next_a[e >> 1]) {
+                    int q = e >> 1; if (pl[q].cls != pl[p].cls || pl_ramp[q]) continue;
+                    int rq = UF(q); if (rq != r && clen[rq] > bl) { bl = clen[rq]; best = rq; }
+                }
+            }
+            if (best >= 0) { uf[r] = best; clen[best] += clen[r]; clen[r] = 0; }
+        }
+    int nr = 0; for (int p = 0; p < npl; p++) if (clen[p] >= 2000.0f) order[nr++] = p;   // only real routes get a number
+    hs_sort_key = clen; qsort(order, nr, sizeof(int), hs_cmp);    // longest first
+    static int num[MAXPL]; static float plen_route[MAXPL];
+    for (int p = 0; p < npl; p++) num[p] = 0;
+    int cnt[NRC] = { 0 };
+    for (int k = 0; k < nr; k++) { int r = order[k], c = pl[r].cls; num[r] = ++cnt[c]; }
+    for (int p = 0; p < npl; p++) {
+        plen_route[p] = 0;
+        if (!pl_in[p] || pl[p].cls < RC_SEC || pl_ramp[p]) continue;
+        int r = UF(p), c = pl[p].cls;
+        if (!num[r]) continue;
+        plen_route[p] = clen[r];
+        if (c == RC_EXPRESS) snprintf(pl_ref[p], sizeof pl_ref[p], "M%d", num[r]);
+        else snprintf(pl_ref[p], sizeof pl_ref[p], "%c%d", c == RC_MAIN ? 'A' : 'B', num[r]);
+    }
+    // short unnumbered pieces of a numbered class carry on the number of the longest route they touch
+    for (int pass = 0; pass < 4; pass++)
+        for (int p = 0; p < npl; p++) {
+            if (!pl_in[p] || pl[p].cls < RC_SEC || pl_ramp[p] || pl_ref[p][0]) continue;
+            int best = -1; float bl = 0;
+            for (int side = 0; side < 2; side++) {
+                int v = side ? pl_b[p] : pl_a[p];
+                for (int e = rg_head[v]; e >= 0; e = (e & 1) ? pl_next_b[e >> 1] : pl_next_a[e >> 1]) {
+                    int q = e >> 1; if (q == p || !pl_ref[q][0] || pl_ref[q][0] == 'M') continue;
+                    if (plen_route[q] > bl) { bl = plen_route[q]; best = q; }
+                }
+            }
+            if (best >= 0) { memcpy(pl_ref[p], pl_ref[best], sizeof pl_ref[p]); plen_route[p] = plen_route[best]; }
+        }
+    st_routes[0] = cnt[RC_EXPRESS]; st_routes[1] = cnt[RC_MAIN]; st_routes[2] = cnt[RC_SEC];
+    #undef UF
+    // SIGNPOSTS at junctions a secondary-or-bigger road meets (not on the expressway itself)
+    for (int v = 0; v < rg_nn; v++) {
+        if (rg_deg[v] < 3) continue;
+        int big = 0, expr = 0;
+        for (int e = rg_head[v]; e >= 0; e = (e & 1) ? pl_next_b[e >> 1] : pl_next_a[e >> 1]) {
+            int c = pl[e >> 1].cls; if (c >= RC_SEC) big = 1; if (c == RC_EXPRESS) expr = 1;
+        }
+        if (!big || expr) continue;
+        // a post only where it tells you something: two different routes meet, or a lane leads
+        // somewhere no numbered road from here names (else every farm lane off an A road got one)
+        int g0 = ngp, nref = 0, lane_new = 0; char refs[8][8]; int ndest = 0, dests[16], lane_dest[8], nlane = 0;
+        for (int e = rg_head[v]; e >= 0; e = (e & 1) ? pl_next_b[e >> 1] : pl_next_a[e >> 1]) {
+            int p = e >> 1, far = (e & 1) ? pl_a[p] : pl_b[p];
+            float dx, dy; pl_dir(p, e & 1, 20, &dx, &dy, 0, 0);
+            if (!add_arm(rg_x[v], rg_y[v], dx, dy, pl_ref[p], far, pl_len[p], v, rg_set[v])) continue;
+            if (pl_ref[p][0]) {
+                int seen = 0; for (int k = 0; k < nref; k++) if (!strcmp(refs[k], pl_ref[p])) seen = 1;
+                if (!seen && nref < 8) strcpy(refs[nref++], pl_ref[p]);
+                if (ndest < 15) { dests[ndest++] = arm_v; dests[ndest++] = arm_t; }
+            } else if (nlane < 8) lane_dest[nlane++] = arm_v;
+        }
+        for (int k = 0; k < nlane; k++) {
+            int named = 0; for (int j = 0; j < ndest; j++) if (dests[j] == lane_dest[k]) named = 1;
+            if (!named) lane_new = 1;
+        }
+        if (nref < 2 && !lane_new) ngp = g0;              // drop this post
+    }
+    // TOWN EXITS: where a secondary-or-bigger road leaves a town's built-up radius, one arm outward
+    for (int s = 0; s < nset; s++) {
+        if (set[s].rank != ST_TOWN) continue;
+        float cx = (set[s].x + 0.5f) * CELL, cy = (set[s].y + 0.5f) * CELL, R = set_r[s];
+        for (int p = 0; p < npl; p++) {
+            if (!pl_in[p] || pl[p].cls < RC_SEC || pl[p].cls == RC_EXPRESS || pl_ramp[p]) continue;
+            int s0 = pl[p].start, n = pl[p].n; float acc = 0;
+            for (int i = s0 + 1; i < s0 + n; i++) {
+                float da = hypotf(plx[i - 1] - cx, ply[i - 1] - cy), db = hypotf(plx[i] - cx, ply[i] - cy);
+                float seg = hypotf(plx[i] - plx[i - 1], ply[i] - ply[i - 1]); acc += seg;
+                if ((da < R) == (db < R)) continue;
+                int outward_forward = db >= R;            // leaving the town in the line's direction?
+                float dx = plx[i] - plx[i - 1], dy = ply[i] - ply[i - 1], l = seg + 1e-6f; dx /= l; dy /= l;
+                if (!outward_forward) { dx = -dx; dy = -dy; }
+                int far = outward_forward ? pl_b[p] : pl_a[p], near = outward_forward ? pl_a[p] : pl_b[p];
+                float rest = outward_forward ? pl_len[p] - acc : acc - seg;
+                add_arm(plx[i], ply[i], dx, dy, pl_ref[p], far, rest, near, s);
+            }
+        }
+    }
+    st_guideposts = ngp;
+}
+
 // ── EXPORT (X): the island as roadview's vector features (the shared road model:
 // data-tools/roadview/osm-roads.js's IR). Roads map onto the OSM ladder the real islands were
 // measured with; bridge spans are split out with sub "B1"; rivers = canal, coastline = coast,
@@ -1880,7 +2125,8 @@ static char export_msg[160]; static float export_msg_t;
 static int ex_kind_ix(const char *k) {
     static const char *NM[] = { "highway", "arterial", "road", "track", "water", "canal", "building",
         "green", "tree", "residential", "commercial", "industrial", "farm", "parking", "sand", "rail", "coast",
-        "secondary", "tertiary", "service", "cycleway", "footway", "other_area", "other_line" };
+        "secondary", "tertiary", "service", "cycleway", "footway", "other_area", "other_line",
+        "crossing", "give_way", "stop", "traffic_signals", "calming", "guidepost" };
     for (int i = 0; i < (int)(sizeof NM / sizeof NM[0]); i++) if (!strcmp(NM[i], k)) return i;
     return 2;   // road (osm-roads.js's fallback)
 }
@@ -1967,21 +2213,32 @@ static void export_island(void) {
         static int bi[64]; int nb = 0;
         for (int b = 0; b < nbr && nb < 64; b++) if (br[b].p == p) bi[nb++] = b;
         for (int a = 0; a < nb; a++) for (int c = a + 1; c < nb; c++) if (br[bi[c]].i < br[bi[a]].i) { int t = bi[a]; bi[a] = bi[c]; bi[c] = t; }
+        // the route number rides on every piece: "ref=A3", and on a bridge "B1[;water=..];ref=A3"
+        static char rsub[MAXPL][16];
+        const char *rs = NULL;
+        if (pl_ref[p][0]) { snprintf(rsub[p], sizeof rsub[p], "ref=%s", pl_ref[p]); rs = rsub[p]; }
         for (int a = 0; a < nb; a++) {
             Bridge *q = &br[bi[a]];
             int k0 = q->i - 1, k1 = q->i;                         // widen to cover the deck length
             while (k0 > cur && hypotf(plx[k0] - q->x, ply[k0] - q->y) < q->len * 0.5f) k0--;
             while (k1 < e0 && hypotf(plx[k1] - q->x, ply[k1] - q->y) < q->len * 0.5f) k1++;
             if (k0 < cur) continue;
-            ex_line(EXPORT_KIND[pl[p].cls], NULL, plx, ply, cur, k0);
-            static char bsub[MAXBR][24];                      // water spans say what they cross: "B1;water=<level m>"
-            if (q->wl >= 0) snprintf(bsub[bi[a]], sizeof bsub[0], "B1;water=%.1f", q->wl);
-            ex_line(EXPORT_KIND[pl[p].cls], q->wl >= 0 ? bsub[bi[a]] : "B1", plx, ply, k0, k1);
+            ex_line(EXPORT_KIND[pl[p].cls], rs, plx, ply, cur, k0);
+            static char bsub[MAXBR][40];                      // water spans say what they cross: "B1;water=<level m>"
+            int bl = snprintf(bsub[bi[a]], sizeof bsub[0], "B1");
+            if (q->wl >= 0) bl += snprintf(bsub[bi[a]] + bl, sizeof bsub[0] - bl, ";water=%.1f", q->wl);
+            if (rs) snprintf(bsub[bi[a]] + bl, sizeof bsub[0] - bl, ";%s", rs);
+            ex_line(EXPORT_KIND[pl[p].cls], bsub[bi[a]], plx, ply, k0, k1);
             cur = k1;
         }
-        ex_line(EXPORT_KIND[pl[p].cls], NULL, plx, ply, cur, e0);
+        ex_line(EXPORT_KIND[pl[p].cls], rs, plx, ply, cur, e0);
     }
     for (int r = 0; r < nrv; r++) ex_line("canal", NULL, rvx, rvy, rv[r].start, rv[r].start + rv[r].n - 1);
+    // SIGNPOSTS: one "guidepost" line per arm, junction -> 20 m along the arm (see build_routes_signs)
+    for (int g = 0; g < ngp; g++) {
+        float xs[2] = { gp[g].x0, gp[g].x1 }, ys[2] = { gp[g].y0, gp[g].y1 };
+        ex_line("guidepost", gp[g].sub, xs, ys, 0, 1);
+    }
     // coastline: marching squares on H = 0, one short segment per crossing cell
     for (int y = 0; y + 1 < N; y++) for (int x = 0; x + 1 < N; x++) {
         float v[4] = { H[y * N + x], H[y * N + x + 1], H[(y + 1) * N + x + 1], H[(y + 1) * N + x] };
@@ -2211,6 +2468,7 @@ static void build_roads(void) {
     build_flyovers();
     build_interchanges();
     build_houses();
+    build_routes_signs();
     roads_dirty = 0;
     st_roads_ms = (clock() - t0) * 1000.0f / CLOCKS_PER_SEC;
 }
@@ -2331,7 +2589,7 @@ void update(void) {
     watch("seed", "%d", seed); watch("nset", "%d", nset); watch("coastal", "%d", st_coastal);
     watch("moor", "%d", (int)st_cov[CV_MOOR]); watch("forest", "%d", (int)st_cov[CV_FOREST]);
     watch("land", "%d", (int)st_land); watch("npl", "%d", npl); watch("express", "%d", st_express);
-    watch("ringgaps", "%d", st_ringgaps); watch("bridges", "%d", nbr); watch("lakes", "%d", st_lakes); watch("N", "%d", N); watch("diagx", "%d", st_diagx); watch("cuts", "%d", st_cuts); watch("consol", "%d", st_consol); watch("streets", "%d", st_streets); watch("lm_roads", "%d", st_lm_roads); watch("houses", "%d", nhs); for (int t = 0; t < BK_N; t++) if (st_htype[t]) watch(str("b_%s%s%s", BK[t].building, BK[t].tag ? "_" : "", BK[t].tag ? strchr(BK[t].tag, '=') + 1 : ""), "%d", st_htype[t]); watch("waterbr", "%d", st_waterbr); watch("waterbr_max", "%.0f", st_waterbr_max); watch("flyovers", "%d", st_flyovers); watch("interchanges", "%d", st_interchanges); watch("rebuild_ms", "%.0f", st_rebuild_ms); watch("overflow", "%d", st_overflow); watch("links", "lane %d/%d sec %d/%d main %d/%d", st_link_ok[0], st_link_try[0], st_link_ok[1], st_link_try[1], st_link_ok[2], st_link_try[2]); { int bb = -1; for (int b = 0; b < nbr; b++) if (bb < 0 || br[b].len > br[bb].len) bb = b;
+    watch("ringgaps", "%d", st_ringgaps); watch("bridges", "%d", nbr); watch("lakes", "%d", st_lakes); watch("N", "%d", N); watch("diagx", "%d", st_diagx); watch("cuts", "%d", st_cuts); watch("consol", "%d", st_consol); watch("streets", "%d", st_streets); watch("routes", "M %d A %d B %d", st_routes[0], st_routes[1], st_routes[2]); watch("guideposts", "%d", st_guideposts); watch("lm_roads", "%d", st_lm_roads); watch("houses", "%d", nhs); for (int t = 0; t < BK_N; t++) if (st_htype[t]) watch(str("b_%s%s%s", BK[t].building, BK[t].tag ? "_" : "", BK[t].tag ? strchr(BK[t].tag, '=') + 1 : ""), "%d", st_htype[t]); watch("waterbr", "%d", st_waterbr); watch("waterbr_max", "%.0f", st_waterbr_max); watch("flyovers", "%d", st_flyovers); watch("interchanges", "%d", st_interchanges); watch("rebuild_ms", "%.0f", st_rebuild_ms); watch("overflow", "%d", st_overflow); watch("links", "lane %d/%d sec %d/%d main %d/%d", st_link_ok[0], st_link_try[0], st_link_ok[1], st_link_try[1], st_link_ok[2], st_link_try[2]); { int bb = -1; for (int b = 0; b < nbr; b++) if (bb < 0 || br[b].len > br[bb].len) bb = b;
       if (bb >= 0) { watch("bigbridge_x", "%.0f", br[bb].x); watch("bigbridge_y", "%.0f", br[bb].y); watch("bigbridge_len", "%.0f", br[bb].len); } } watch("rivers", "%d", nrv);
     watch("forest_tracks", "%d", nforest); watch("upland_tracks", "%d", nupland); watch("roads_ms", "%.0f", st_roads_ms);
     for (int k = RC_TRACK; k < NRC; k++) watch(RCN[k], "%.0f", st_road[k]);

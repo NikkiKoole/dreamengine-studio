@@ -65,7 +65,9 @@ enum { K_HIGHWAY, K_ARTERIAL, K_ROAD, K_TRACK, K_WATER, K_CANAL, K_BUILDING, K_G
        K_SECONDARY, K_TERTIARY, K_SERVICE, K_CYCLEWAY, K_FOOTWAY, K_OTHER_AREA, K_OTHER_LINE,
        // node-level control POINTS (APPEND ONLY — indices 24+; match osm-roads.js KIND_IX + citydrive.c).
        // roadview loads them (like trees) but doesn't draw them yet — they're not in its draw list.
-       K_CROSSING, K_GIVEWAY, K_STOP, K_SIGNALS, K_CALMING, K_N };
+       K_CROSSING, K_GIVEWAY, K_STOP, K_SIGNALS, K_CALMING,
+       K_GUIDEPOST,   // 29: a signpost arm (islandstudio); loaded, not drawn here
+       K_N };
 
 // per-class style: colour, casing/outline colour, and real-world half-width in metres.
 // Area fills (hw_m unused): WATER/BUILDING/GREEN/SAND + the zoning blocks RESIDENTIAL/

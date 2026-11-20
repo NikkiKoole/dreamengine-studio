@@ -525,3 +525,28 @@ exports, backroads integrates and reports back, then the next.
    maker and backroads to agree (see backroads.md §11).
 5. **Graded road heights.** A height per road point with limited grade, cuttings and embankments.
    A format version bump, agreed when we get there.
+
+## Route numbers and signposts (2026-11-20, roadmap item 1)
+
+`build_routes_signs()` runs on the final roads. A **road graph** over lanes and up (tracks left out):
+nodes are line ends, which meet exactly at junctions.
+
+- **Route numbers**: at each node, same-class lines pair up straight-on (turn under ~78°,
+  straightest first) and chain into routes. Fragments under 2 km join the longest same-class route
+  they touch. Routes of 2 km or more are numbered longest first: main = A, secondary = B, the
+  expressway M1. Short leftover pieces carry the number of the longest numbered road they touch.
+  Lanes and interchange slip roads are unnumbered. Seed 3 @1024: M1, A1-A35, B1-B36 (A1 32.6 km);
+  for scale, the Isle of Man runs A1-A41. Export: road sub token `ref=A3` (bridges
+  `B1[;water=..];ref=A3`, B first).
+- **Signposts**: one `guidepost` feature per **arm**, a 20 m line from the junction along it, sub
+  `ref=A3;to=Holbeck:4.2,Selness:11.0`. That's the next village-or-town and the next town that way,
+  in km along the road, found by a Dijkstra that may not pass back through the junction (one entry
+  when they're the same place; no `ref=` on a lane arm). A sign never names a place whose built-up
+  radius you're standing in. Posts go where a secondary-or-bigger road meets **and** the post tells
+  you something: two different routes meet, or a lane leads somewhere no numbered road from there
+  names. A first version put a post at every farm lane off an A road (659 posts, strings of them
+  40 m apart). **Town exits** get a single outward arm where a secondary-or-bigger road leaves a
+  town's radius. Seed 3: 145 posts, 411 arms, longest sub 42 chars.
+- New kind `guidepost` = 29 in `osm-roads.js` `KIND_IX` (and `K_GUIDEPOST` in roadview.c and
+  citydrive.c, loaded, not drawn). Place names never contain `:` `,` `;`; `sign_name()` strips them
+  anyway.

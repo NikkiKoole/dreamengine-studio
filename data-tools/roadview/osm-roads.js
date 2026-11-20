@@ -66,7 +66,10 @@ const KIND_IX = { highway: 0, arterial: 1, road: 2, track: 3, water: 4, canal: 5
                   secondary: 17, tertiary: 18, service: 19, cycleway: 20, footway: 21,
                   other_area: 22, other_line: 23,
                   // node-level control POINTS (like tree) — the at-junction reality we used to only infer.
-                  crossing: 24, give_way: 25, stop: 26, traffic_signals: 27, calming: 28 };
+                  crossing: 24, give_way: 25, stop: 26, traffic_signals: 27, calming: 28,
+                  // a signpost ARM (islandstudio: a 20 m line from the junction along the arm; sub
+                  // "ref=A3;to=Name:km,Name:km"); real OSM has information=guidepost nodes
+                  guidepost: 29 };
 // kinds stored as a single point (a node, not a way): tree + the node-level control features.
 const POINT_KINDS = new Set(['tree', 'crossing', 'give_way', 'stop', 'traffic_signals', 'calming']);
 // line-road kinds that can be a bridge/tunnel (carried in `sub` as "B<layer>"/"T<layer>" — see below).

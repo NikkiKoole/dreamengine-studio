@@ -542,7 +542,13 @@ deck's start, which the wheels refused, so cars drove *through* the bridge at gr
   surface, gear).
 - Checked: click-check's largest step in a drive is 0.6 % of peak (enginelab's own pops reach 34 %).
 
-Still to do in rung 3: the maker's ear on the engine (kind, levels), and whether cruising is fun.
+First drive (maker): "kinda fun, the steering is a bit erratic but not bad, the sound of the motor is a bit
+much", plus grass drawn over a flyover. Fixes: the engine at `level` 0.45 (a new `CarEngine.level`, applied
+with `instrument_level` only when ≠ 1, so enginelab stays byte-identical; −7 dB RMS); keyboard steering turns
+in over ~0.4 s (was ~0.17 s) and returns a bit faster, with less lock at speed (`30 / (1 + v/7)` °, ~27°/s
+at 90 km/h, was ~38); and **decks within 250 m are drawn in a final pass after all terrain**: a deck is
+above the ground, so its picture spilled over nearer cells whose terrain painted over it. Far decks keep
+the per-cell order so hills still hide them.
 
 ---
 

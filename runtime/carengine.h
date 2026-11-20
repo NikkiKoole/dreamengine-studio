@@ -19,6 +19,7 @@
 //   ce.kind = CE_GAS;                                 // switch any time (voices rebuild)
 //   every frame: carengine_update(&ce, rpm 0..1, throttle 0..1, audible);   audible 0 = silent
 //   ce.layer_on[CE_L_*] toggles a layer (all on after init).
+//   ce.level = 0..1 scales the whole voice (instrument_level on its 4 slots; 1 = untouched, the default).
 // Uses held voices (note_on/note_pitch/note_vol/note_cutoff/note_drive/note_lfo every frame:
 // note_* are built to be ridden live) and hit() for the burble pops (consumes the cart RNG via
 // chance()/rnd_between(), in the same order enginelab always did). Include AFTER studio.h.
@@ -129,6 +130,7 @@ typedef struct {
     float prev_thr, burble_t, pop_t;         // overrun-crackle state
     int   last_chug_hz;                      // gate note_lfo pushes to when the rate moved
     unsigned char layer_on[CE_L_COUNT];
+    float level, applied_level;              // master level (1 = unity, never applied → byte-identical)
 } CarEngine;
 
 static float carengine_hz_to_midi(float hz) { return 69.0f + 12.0f * log2f(hz / 440.0f); }
@@ -141,6 +143,7 @@ static void carengine_init(CarEngine *ce, int first_slot) {
     ce->builtKind = -1;
     ce->prev_thr = 0; ce->burble_t = 0; ce->pop_t = 0; ce->last_chug_hz = -1;
     for (int i = 0; i < CE_L_COUNT; i++) ce->layer_on[i] = 1;
+    ce->level = 1.0f; ce->applied_level = 1.0f;
 }
 
 // release the held voices (the next audible update rebuilds them)
@@ -178,7 +181,12 @@ static void carengine_build(CarEngine *ce, CERecipe e) {
 static void carengine_update(CarEngine *ce, float rpm, float throttle, int audible) {
     if (!audible) { carengine_kill(ce); return; }
     CERecipe e = carengine_recipe(ce->kind);
-    if (ce->builtKind != ce->kind) { carengine_kill(ce); carengine_build(ce, e); }
+    if (ce->builtKind != ce->kind) { carengine_kill(ce); carengine_build(ce, e); ce->applied_level = 1.0f; }
+    if (ce->level != ce->applied_level) {           // only touched when someone asks for a level
+        instrument_level(ce->slot_body, ce->level); instrument_level(ce->slot_rasp, ce->level);
+        instrument_level(ce->slot_intake, ce->level); instrument_level(ce->slot_pop, ce->level);
+        ce->applied_level = ce->level;
+    }
 
     float r = clamp(rpm, 0, 1);
 

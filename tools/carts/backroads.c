@@ -954,14 +954,24 @@ static void draw_post(const Post *q) {
 }
 
 // ── draw one cell: its triangles, then its road pieces, then its posts ──────────
+// DECKS NEAR THE CAMERA are drawn in a final pass, after all terrain: a deck is ABOVE the ground,
+// so its picture spills over nearer cells whose terrain (drawn later in painter's order) painted
+// over it (grass wedges across a flyover). Far decks keep the per-cell order, so a hill still hides them.
+#define DECK_NEAR 250.0f
+static int g_deckpass;                     // 0: terrain + ground roads (+ far decks); 1: near decks only
 static void draw_cell(int r, int i, int j) {
     int n1 = RN[r] + 1;
     if (in_finer(r, rx0[r] + i * RS[r], ry0[r] + j * RS[r], RS[r])) return;
     int v00 = j * n1 + i, v10 = v00 + 1, v01 = v00 + n1, v11 = v01 + 1;
+    float ccx = rx0[r] + (i + 0.5f) * RS[r] - px, ccy = ry0[r] + (j + 0.5f) * RS[r] - py;
+    int near = ccx * ccx + ccy * ccy < DECK_NEAR * DECK_NEAR;
+    if (g_deckpass && (!near || r >= ROAD_RINGS)) return;
     float za = vcz[r][v00] + vcz[r][v10] + vcz[r][v11];
     float zb = vcz[r][v00] + vcz[r][v11] + vcz[r][v01];
-    if (za > zb) { draw_tri(r, v00, v10, v11); draw_tri(r, v00, v11, v01); }
-    else         { draw_tri(r, v00, v11, v01); draw_tri(r, v00, v10, v11); }
+    if (!g_deckpass) {
+        if (za > zb) { draw_tri(r, v00, v10, v11); draw_tri(r, v00, v11, v01); }
+        else         { draw_tri(r, v00, v11, v01); draw_tri(r, v00, v10, v11); }
+    }
     if (r < ROAD_RINGS) {
         int c = j * RN[r] + i;
         if (bin_head[r][c] >= 0) {
@@ -974,10 +984,11 @@ static void draw_cell(int r, int i, int j) {
                     int key = p->kind == PK_ROAD ? (p->deck ? 3 : 0) : p->kind == PK_DASH ? (p->deck ? 4 : 1)
                             : p->kind == PK_FASCIA ? 2 : 5;
                     if (key != pass) continue;
+                    if (near && (key >= 2) != (g_deckpass == 1)) continue;   // near decks: only in the deck pass
                     if (key == 2 || key == 5) draw_side(p); else draw_piece_in_cell(r, i, j, p, lumA, lumB);
                 }
         }
-        if (r == 0)
+        if (r == 0 && !g_deckpass)
             for (int q = pst_head[c]; q >= 0; q = pst_next[q]) draw_post(&pst[q]);
     }
 }
@@ -1172,6 +1183,7 @@ static const float GEAR_TOP[5] = { 0, 11.0f, 19.5f, 29.0f, 42.0f };   // m/s at 
 static void sound_update(float d) {
     if (!snd_ready) {
         carengine_init(&eng, 5); eng.kind = CE_GAS;     // a tired 1970s sedan; the garage will change this
+        eng.level = 0.45f;                              // the maker: "the sound of the motor is a bit much"
         instrument(SLOT_ROAD, INSTR_NOISE, 20, 0, 7, 200);
         instrument_filter(SLOT_ROAD, FILTER_LOW, 700, 2);
         v_road = note_on(50, SLOT_ROAD, 0);
@@ -1200,7 +1212,9 @@ static void drive(float d) {
     if (autop) { st = autopilot_steer(); float v = fsqrt(vx*vx + vy*vy); gas = v < 22; brk = v > 26; }
 #endif
     pedal = gas ? 1.0f : 0.0f;
-    steer += (st - steer) * clamp(d * 6.0f, 0, 1);
+    // keyboard steering: turn in over ~0.4 s, return to centre a bit faster (was 0→full in ~0.17 s:
+    // the maker found it erratic)
+    steer += (st - steer) * clamp(d * (fabsf(st) > fabsf(steer) ? 2.6f : 4.5f), 0, 1);
 
     cur_surf = surf_at(px, py);
     const Surf *S = &SURF[cur_surf];
@@ -1228,7 +1242,7 @@ static void drive(float d) {
     vl *= expf(-S->grip * 9.0f * d);
 
     // steering: less lock at speed, and less bite on loose ground
-    float maxst = 32.0f / (1.0f + fabsf(vf) / 10.0f);
+    float maxst = 30.0f / (1.0f + fabsf(vf) / 7.0f);         // less lock at speed (~27°/s at 90 km/h, was ~38)
     head += steer * maxst * vf / 6.0f * (0.45f + 0.55f * S->grip) * d;
 
     vx = fx * vf + lx * vl; vy = fy * vf + ly * vl;
@@ -1537,6 +1551,9 @@ void draw(void) {
     for (int r = NRING - 1; r >= 0; r--) build_ring(r);
     build_roads();
     for (int r = NRING - 1; r >= 0; r--) draw_ring(r);
+    g_deckpass = 1;                                     // near decks over everything (still far → near)
+    for (int r = ROAD_RINGS - 1; r >= 0; r--) draw_ring(r);
+    g_deckpass = 0;
     clip(0, 0, 0, 0);
     camh = save_camh; pitch = save_pitch; px = save_px; py = save_py;
     draw_dash();

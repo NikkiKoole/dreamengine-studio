@@ -465,3 +465,19 @@ Sweep at 256 over seeds 1/3/6/9/10 (water bridges, longest): 0 → none; 0.35 �
 to before); 0.7 → seed 3 one of 308 m; 1.0 → seed 3 four (≤ 308 m, lake crossings to a village),
 seed 9 three. At 1024 the default finds one 80 m inlet crossing on seed 3 that the 156 m grid can't
 see. Sweeps use `DE_DEFINES=K_BRIDGE0=<v>f` (also `K_TOWN0`) instead of copying the cart.
+
+### Water under the bridges (2026-11-20)
+
+Backroads drove a 417 m lake bridge (seed 3, bridging 1.0) over a green valley 20 m down: the
+export's only water there was one 312 m cover block beside the deck, and the heightfield held the
+lake **bed**. Three export changes (same format, more detail):
+
+- **Water on a 512 grid (78 m)**: sea and lakes go out as their own `water` areas after the coarse
+  land cover. A 128-grid block whose sample point is water now takes the block's most common land
+  class (a whole-water block is left out). +4 % file size at 1024.
+- **Lakes at their surface level** in the heightfield (`F`, the fill level), not their bed.
+- **Water spans say what they cross**: `sub: "B1;water=<level m>"` (0 = sea; this lake: 404.4).
+  Backroads reads it to stand the deck 4 m above the water; anything starting with `B` is a bridge.
+
+Backroads paints cover on its own 128 grid, so to *show* the finer water it needs a finer water
+lookup on its side.

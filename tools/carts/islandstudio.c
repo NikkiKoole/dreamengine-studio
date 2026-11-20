@@ -1231,7 +1231,7 @@ static void build_rivers(void) {
 // ── BRIDGES: wherever a road line crosses a river line wider than a culvert ─────────────
 #define MAXBR 2000
 #define BG 64                                  // bucket grid over the world for river segments
-typedef struct { float x, y, dx, dy, len; int cls, p, i; } Bridge;   // p, i: the road poly + point index it sits on
+typedef struct { float x, y, dx, dy, len; int cls, p, i; float wl; } Bridge;   // wl: water level under a water span (m), -1 = not over open water   // p, i: the road poly + point index it sits on
 static Bridge br[MAXBR]; static int nbr;
 static int seg_x(float ax, float ay, float bx, float by, float cx, float cy, float dx, float dy, float *ix, float *iy) {
     float rx = bx - ax, ry = by - ay, sx = dx - cx, sy = dy - cy, den = rx * sy - ry * sx;
@@ -1270,7 +1270,7 @@ static void build_bridges(void) {
                     float wdx = rvx[j] - rvx[j - 1], wdy = rvy[j] - rvy[j - 1], wl = sqrtf(wdx * wdx + wdy * wdy) + 1e-6f;
                     float sn = fabsf(rdx * wdy / wl - rdy * wdx / wl);   // |sin| of the crossing angle
                     br[nbr].x = ix; br[nbr].y = iy; br[nbr].dx = rdx; br[nbr].dy = rdy;
-                    br[nbr].len = fminf(w / fmaxf(sn, 0.35f) + 10.0f, 160.0f); br[nbr].cls = pl[p].cls; br[nbr].p = p; br[nbr].i = i; nbr++;
+                    br[nbr].len = fminf(w / fmaxf(sn, 0.35f) + 10.0f, 160.0f); br[nbr].cls = pl[p].cls; br[nbr].p = p; br[nbr].i = i; br[nbr].wl = -1; nbr++;
                 }
             }
         }
@@ -1310,7 +1310,9 @@ static void build_water_bridges(void) {
                 if (nbr >= MAXBR) { st_overflow++; break; }
                 float dx = plx[mid] - plx[mid - 1], dy = ply[mid] - ply[mid - 1], l = sqrtf(dx * dx + dy * dy) + 1e-6f;
                 br[nbr].x = plx[mid]; br[nbr].y = ply[mid]; br[nbr].dx = dx / l; br[nbr].dy = dy / l;
-                br[nbr].len = L + 40.0f; br[nbr].cls = pl[p].cls; br[nbr].p = p; br[nbr].i = mid; nbr++;
+                br[nbr].len = L + 40.0f; br[nbr].cls = pl[p].cls; br[nbr].p = p; br[nbr].i = mid;
+                { int c = (int)(ply[mid] / CELL) * N + (int)(plx[mid] / CELL); br[nbr].wl = (c >= 0 && c < N * N && is_lake(c)) ? F[c] : 0.0f; }
+                nbr++;
                 st_waterbr++; if (L > st_waterbr_max) st_waterbr_max = L;
             }
             i = j;
@@ -1344,7 +1346,7 @@ static void build_flyovers(void) {
         if (dup || nbr >= MAXBR) continue;
         float dx = plx[bi] - plx[bi - 1], dy = ply[bi] - ply[bi - 1], l = sqrtf(dx * dx + dy * dy) + 1e-6f;
         br[nbr].x = plx[bi]; br[nbr].y = ply[bi]; br[nbr].dx = dx / l; br[nbr].dy = dy / l;
-        br[nbr].len = 260.0f; br[nbr].cls = RC_EXPRESS; br[nbr].p = bp; br[nbr].i = bi; nbr++;
+        br[nbr].len = 260.0f; br[nbr].cls = RC_EXPRESS; br[nbr].p = bp; br[nbr].i = bi; br[nbr].wl = -1; nbr++;
         st_flyovers++;
     }
 }
@@ -1527,20 +1529,49 @@ static float H_bilinear(float x, float y);
 static void export_island(void) {
     exn = 0; exnp = 0;
     // LAND COVER as areas (first, so they lie under everything): runs of one class per row on a
-    // 128 grid (312 m), each run one rectangle. Sea and lakes = water.
+    // 128 grid (312 m), each run one rectangle. A block whose sample point is water takes the block's
+    // most common LAND class instead (a whole-water block is left out): water goes out separately,
+    // finer, below, so a 312 m sample can't put a lake beside the bridge that crosses it.
     {
         const int R = 128; float cs = WORLD_M / R;
         static const char *KIND[NCV] = { "water", "water", "sand", "other_area", "farm", "other_area", "green", "other_area", "other_area" };
         static const char *SUB[NCV]  = { NULL, NULL, NULL, "natural=wetland", NULL, "natural=scrub", "natural=wood", "natural=heath", "natural=bare_rock" };
+        static unsigned char blk[128 * 128];
+        int B = N / R;                                        // cells per block side (2 / 4 / 8)
+        for (int by = 0; by < R; by++) for (int bx = 0; bx < R; bx++) {
+            int c = CV[(by * B) * N + bx * B];
+            if (c == CV_SEA || c == CV_LAKE) {
+                int cnt[NCV] = { 0 }, best = -1;
+                for (int y = by * B; y < (by + 1) * B; y++) for (int x = bx * B; x < (bx + 1) * B; x++) cnt[CV[y * N + x]]++;
+                for (int k = CV_BEACH; k < NCV; k++) if (cnt[k] && (best < 0 || cnt[k] > cnt[best])) best = k;
+                c = best < 0 ? 255 : best;
+            }
+            blk[by * R + bx] = (unsigned char)c;
+        }
         for (int ry = 0; ry < R; ry++) {
             int rx = 0;
             while (rx < R) {
-                int c = CV[(ry * N / R) * N + rx * N / R], x0 = rx;
-                while (rx < R && CV[(ry * N / R) * N + rx * N / R] == c) rx++;
+                int c = blk[ry * R + rx], x0 = rx;
+                while (rx < R && blk[ry * R + rx] == c) rx++;
+                if (c == 255) continue;
                 float X0 = x0 * cs, X1 = rx * cs, Y0 = WORLD_M - ry * cs, Y1 = WORLD_M - (ry + 1) * cs;
                 float rx5[5] = { X0, X1, X1, X0, X0 }, ry5[5] = { Y1, Y1, Y0, Y0, Y1 };
                 ex_begin(KIND[c], SUB[c]);
                 for (int k = 0; k < 5; k++) ex_pt(ex_r(rx5[k], 0), ex_r(ry5[k], 0));
+            }
+        }
+        // WATER (sea + lakes) on a finer grid: 512 (78 m), or the island's own grid if coarser
+        const int RW = N < 512 ? N : 512; float ws = WORLD_M / RW; int S = N / RW;
+        for (int ry = 0; ry < RW; ry++) {
+            int rx = 0;
+            while (rx < RW) {
+                int c = CV[(ry * S) * N + rx * S], wet = c == CV_SEA || c == CV_LAKE, x0 = rx;
+                while (rx < RW) { int c2 = CV[(ry * S) * N + rx * S]; if ((c2 == CV_SEA || c2 == CV_LAKE) != wet) break; rx++; }
+                if (!wet) continue;
+                float X0 = x0 * ws, X1 = rx * ws, Y0 = WORLD_M - ry * ws, Y1 = WORLD_M - (ry + 1) * ws;
+                float rx5[5] = { X0, X1, X1, X0, X0 }, ry5[5] = { Y1, Y1, Y0, Y0, Y1 };
+                ex_begin("water", NULL);
+                for (int k = 0; k < 5; k++) ex_pt(ex_r(rx5[k], 1), ex_r(ry5[k], 1));
             }
         }
     }
@@ -1558,7 +1589,9 @@ static void export_island(void) {
             while (k1 < e0 && hypotf(plx[k1] - q->x, ply[k1] - q->y) < q->len * 0.5f) k1++;
             if (k0 < cur) continue;
             ex_line(EXPORT_KIND[pl[p].cls], NULL, plx, ply, cur, k0);
-            ex_line(EXPORT_KIND[pl[p].cls], "B1", plx, ply, k0, k1);
+            static char bsub[MAXBR][24];                      // water spans say what they cross: "B1;water=<level m>"
+            if (q->wl >= 0) snprintf(bsub[bi[a]], sizeof bsub[0], "B1;water=%.1f", q->wl);
+            ex_line(EXPORT_KIND[pl[p].cls], q->wl >= 0 ? bsub[bi[a]] : "B1", plx, ply, k0, k1);
             cur = k1;
         }
         ex_line(EXPORT_KIND[pl[p].cls], NULL, plx, ply, cur, e0);
@@ -1590,7 +1623,8 @@ static void export_island(void) {
     if (!hz) { snprintf(export_msg, sizeof export_msg, "export failed (memory)"); export_msg_t = 3; return; }
     for (int i = 0; i < G; i++) for (int j = 0; j < G; j++) {
         float wx = WORLD_M * j / (G - 1), wy = WORLD_M - WORLD_M * i / (G - 1);
-        hz[i * G + j] = ex_r(fmaxf(H_bilinear(wx, wy), 0), 1);
+        int cc = (int)(fminf(wy, WORLD_M - 1) / CELL) * N + (int)(fminf(wx, WORLD_M - 1) / CELL);
+        hz[i * G + j] = ex_r(is_lake(cc) ? F[cc] : fmaxf(H_bilinear(wx, wy), 0), 1);   // a lake is its flat surface, not its bed
     }
     char name[48]; snprintf(name, sizeof name, "%s (seed %d)", island_name, seed);
     // 1. JSON (the readable IR)

@@ -49,6 +49,8 @@ de:meta */
 // ── view ───────────────────────────────────────────────────────────────────────
 #define VIEW_H   134            // 3D viewport height; the dash covers the rest
 #define HZ0      56             // horizon row at zero pitch
+#define MIR_W    96             // rear-view mirror glass, centred at the top of the screen
+#define MIR_H    26
 #define FOCAL    200.0f         // pixels; ~77° horizontal field of view at 320 wide
 #define NEAR     0.35f          // near plane (m)
 #define EYE      1.2f           // eye height above the ground (m)
@@ -1606,7 +1608,7 @@ static void draw_sign(void) {
     const ISet *S = &iset[sign_place];
     static const char *RNAME[3] = { "hamlet", "village", "town" };
     int w = text_width(S->name) + 16; if (w < 70) w = 70;
-    int x = 160 - w / 2, y = (dbg ? 24 : 4) + 26 + 8;    // just below the rear-view mirror
+    int x = 160 - w / 2, y = 4 + MIR_H + 8;    // just below the rear-view mirror
     rectfill(x - 1, y - 1, w + 2, 24, CLR_BROWNISH_BLACK);                 // a 1970s place-name sign:
     rectfill(x, y, w, 22, CLR_WHITE);                                       // white plate, black border, black letters
     rect(x + 2, y + 2, w - 4, 18, CLR_BROWNISH_BLACK);
@@ -1657,14 +1659,6 @@ static void draw_dash(void) {
         }
     }
     camera(0, 0);
-    if (dbg) {                                            // debug readout: an overlay at the top of the view
-        float hdg = head + 90; while (hdg < 0) hdg += 360; while (hdg >= 360) hdg -= 360;
-        font(FONT_SMALL);
-        rectfill(0, 0, SCREEN_W, 21, CLR_BROWNISH_BLACK);
-        print(str("pos %d,%d  hdg %3d  alt %dm  %s  gear %d", (int)px, (int)py, (int)hdg, (int)(camh - EYE), SURF[cur_surf].name, gear), 3, 2, CLR_MEDIUM_GREY);
-        print(str("%s  tris %d  road %d   H hide  TAB map  J/K jump  O drone", ISL ? isl_name : "worldnet", ntri, npc), 3, 11, CLR_DARK_GREY);
-        font(FONT_NORMAL);
-    }
 }
 
 // ── TAB map: north-up, car at the centre. Terrain sampled per 2 px block (fixed cost, only
@@ -1777,10 +1771,23 @@ static void draw_map(void) {
 // ── THE REAR-VIEW MIRROR: the same renderer again, looking BACKWARDS and flipped left-to-right (a
 // mirror), wide-angle, into a small framed strip at the top of the windscreen. Only the near rings
 // (~1 km) are re-projected (heights and road pieces are reused); beyond is haze, sky and skyline.
-#define MIR_W 96
-#define MIR_H 26
+// debug top bar (H toggles): three rows of readout either side of a gap where the mirror sits
+static void draw_topbar(void) {
+    if (!dbg) return;
+    float hdg = head + 90; while (hdg < 0) hdg += 360; while (hdg >= 360) hdg -= 360;
+    int rx = 160 + MIR_W / 2 + 6;                        // right column starts past the mirror housing
+    font(FONT_SMALL);
+    rectfill(0, 0, SCREEN_W, MIR_H + 8, CLR_BROWNISH_BLACK);
+    print(str("pos %d,%d", (int)px, (int)py), 3, 3, CLR_MEDIUM_GREY);
+    print(str("hdg %3d  alt %dm", (int)hdg, (int)(camh - EYE)), 3, 12, CLR_MEDIUM_GREY);
+    print(str("%s  gear %d", SURF[cur_surf].name, gear), 3, 21, CLR_MEDIUM_GREY);
+    print(str("%s", ISL ? isl_name : "worldnet"), rx, 3, CLR_MEDIUM_GREY);
+    print(str("tris %d  road %d", ntri, npc), rx, 12, CLR_DARK_GREY);
+    print("H hide TAB map J/K O", rx, 21, CLR_DARK_GREY);
+    font(FONT_NORMAL);
+}
 static void draw_mirror(void) {
-    int mx = 160 - MIR_W / 2, my = dbg ? 24 : 4;
+    int mx = 160 - MIR_W / 2, my = 4;                   // centred in the top bar when it is shown
     float h = head * D2R;
     cfx = -cosf(h); cfy = -sinf(h);                     // looking back...
     crx = -sinf(h); cry = cosf(h);                      // ...with the right vector NOT flipped = a mirror image
@@ -1801,7 +1808,7 @@ static void draw_mirror(void) {
     line(160, my - 3, 160, my - 8, CLR_DARKER_GREY);    // the stalk
 }
 void draw(void) {
-    if (show_map) { draw_map(); draw_dash(); return; }
+    if (show_map) { draw_map(); draw_dash(); draw_topbar(); return; }
     float save_camh = camh, save_pitch = pitch, save_px = px, save_py = py;
     if (drone) {                                        // lift + pull back + look down; restored below
         camh += 25.0f; pitch = -0.6f;
@@ -1841,6 +1848,7 @@ void draw(void) {
     for (int r = ROAD_RINGS - 1; r >= 0; r--) draw_ring(r);
     g_deckpass = 0;
     clip(0, 0, 0, 0);
+    draw_topbar();
     if (!drone) draw_mirror();
     camh = save_camh; pitch = save_pitch; px = save_px; py = save_py;
     draw_sign();

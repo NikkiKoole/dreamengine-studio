@@ -402,3 +402,19 @@ stayed and the spline drew it as a hook. Main roads now simplify with a 45 m flo
 Side effects checked on seed 3: no main or secondary road over the sea, bridges 164 → 163, flyovers
 15 → 14, main-road km −2 % (straighter). Lanes and tracks are now *smoother* than the real islands
 (31–34 vs 104–180), which may be worth roughening later; not a defect for driving.
+
+## Place names (2026-11-20)
+
+Every settlement and the island itself get a name (`name_places()`, run after `settle()`). Each
+island picks a flavour from its seed: Norse-ish (Thorbeck, Askvik, Kirkscar), Gaelic-ish (Lismore,
+Tullaport, Dunfin) or English-ish (Ashford, Bradley); a quarter of places borrow the next flavour,
+the way real islands layer languages. The ending follows the place: coast (-wick, -ness, -haven,
+-port), river (-ford, -beck, -bridge), hills (-dale, -fell, -down), else plain (-by, -ton, -more).
+Names are unique on an island and the island's name is never one of its places'. Deterministic per
+seed (they don't depend on the roads or the grid size).
+
+Shown on the overview (town labels, any place's name on hover), in the zoom view, and in the header.
+**Export:** each residential area carries `sub: "place=<town|village|hamlet>;name=<Name>"` (fits
+backroads' 47-char sub buffer) plus a JSON `"name"`, and the document name is `"<Island> (seed N)"`.
+The `.rvb` has no name field, so `sub` is the carrier; old readers ignore it, and rank-by-radius
+still holds. Backroads reads it for village signs.

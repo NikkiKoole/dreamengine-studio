@@ -10,7 +10,7 @@
   "description": {
     "summary": "Grow a 40 x 40 km island: coast, hills and mountains, water that drains and carves valleys, wind, rain and a rain shadow, cover, settlements, farms, and the roads between them.",
     "detail": "The island is a finite grid: 256 x 256 (156 m cells) while you play with the sliders, 512 or 1024 (39 m) for a final bake. Noise gives the shape: an island mask with a warped coast, layered rolling hills, and ridged mountains that only grow inside a mountain mask (slide it to zero for a low island). Then the whole map drains: a priority flood fills every pit so each cell has a downhill path to the sea, a flow count adds up how much land drains through each cell, and valleys are carved where the flow is large. Draining again gives the rivers and lakes. A prevailing wind brings rain that the mountains wring out, leaving a dry lee. Natural cover follows from height, slope, rain and water (forest, grassland, scrub, moor, rock, marsh, beach), and settlements claim the flattest, lowest, best-watered, most fertile land, spaced apart, with the biggest few becoming towns. Roads are routed across the terrain by A*, most important first, with a discount for reusing an existing road so routes merge into trunks; traffic sets the class (main road, secondary, lane), a ring road follows the coast where the land allows, an expressway joins the two biggest towns when they are far apart, scattered farmsteads add tracks and through-lanes, and forests and moors get dead-end tracks. Rivers are smooth lines and roads cross them on bridges. The panel compares the result to two real islands measured from OpenStreetMap. Design doc: docs/design/island-studio.md.",
-    "controls": "Drag the sliders. R or ROLL = new seed. V or VIEW cycles cover / terrain / slope / suitability / flow. Hover the map for height, cover, rain and suitability. Red squares are towns, white villages, dots hamlets; the arrow shows the wind. The tree line slider goes from bare hills to wooded mountains. Town size sets how far towns and villages grow their street grids (only the roads re-route). TAB opens a full-screen zoom (drag to pan, wheel to zoom) with roads at their real widths. G or RES switches the grid between 256 (live), 512 and 1024 (a ~2.5 s bake, much finer roads). X exports the island (roads, cover, heights) to data/islandstudio-<seed>.json (roadview's vector format; measure with tools/road-density.js) plus the packed .rvb that backroads drives."
+    "controls": "Drag the sliders. R or ROLL = new seed. V or VIEW cycles cover / terrain / slope / suitability / flow. Hover the map for height, cover, rain and suitability. Red squares are towns (named), white villages, dots hamlets; hover one for its name. Every island and place gets a name from a Norse, Gaelic or English flavour picked by the seed. The arrow shows the wind. The tree line slider goes from bare hills to wooded mountains. Town size sets how far towns and villages grow their street grids (only the roads re-route). TAB opens a full-screen zoom (drag to pan, wheel to zoom) with roads at their real widths. G or RES switches the grid between 256 (live), 512 and 1024 (a ~2.5 s bake, much finer roads). X exports the island (roads, cover, heights) to data/islandstudio-<seed>.json (roadview's vector format; measure with tools/road-density.js) plus the packed .rvb that backroads drives."
   }
 }
 de:meta */
@@ -765,6 +765,51 @@ static void build_polys(void) {
 #define MAXFARM 6000
 static int farm[MAXFARM], nfarm;
 static unsigned hsh(unsigned a) { a ^= a >> 16; a *= 0x7feb352dU; a ^= a >> 15; a *= 0x846ca68bU; a ^= a >> 16; return a; }
+// ── PLACE NAMES: every settlement gets a name, and the island one too. Each island picks a naming
+// flavour from its seed (Norse-ish, Gaelic-ish or English-ish; a quarter of places borrow the next
+// one, as real islands layer languages), and the ending follows the place: a harbour on the coast,
+// a ford on a river, a dale in the hills. Deterministic per seed; unique on the island. The names
+// travel in the export as the residential area's sub ("place=village;name=Holmby") + JSON "name".
+static char set_name[MAXSET][24], set_sub[MAXSET][48], island_name[24];
+static const char *NM_FIRST[3][16] = {
+    { "Kirk", "Thor", "Grim", "Ulf", "Ask", "Hol", "Sel", "Brek", "Rams", "Gun", "Lax", "Skel", "Hav", "Orm", "Swin", "Ey" },
+    { "Bally", "Kil", "Lis", "Tulla", "Drum", "Clon", "Rath", "Carn", "Bal", "Kin", "Ard", "Dun", "Glen", "Ros", "Aber", "Inver" },
+    { "Ash", "Brad", "Stan", "Wil", "Ald", "Hather", "Mel", "Thorn", "Cal", "Wood", "Brom", "Chal", "Pen", "Elm", "Hart", "Wick" } };
+// endings: [style][where: 0 plain, 1 coast, 2 river, 3 hill][6]
+static const char *NM_END[3][4][6] = {
+    { { "by", "thorpe", "stead", "toft", "garth", "by" }, { "wick", "ness", "vik", "sey", "haven", "wick" },
+      { "beck", "ford", "os", "beck", "ford", "by" }, { "dale", "fell", "haugh", "thwaite", "dale", "scar" } },
+    { { "more", "beg", "lagh", "dara", "kee", "fin" }, { "ross", "port", "carrig", "mara", "inish", "ross" },
+      { "ath", "aun", "glas", "ford", "linn", "ath" }, { "dow", "knock", "ard", "slieve", "dun", "beg" } },
+    { { "ton", "ham", "bury", "ley", "worth", "field" }, { "mouth", "haven", "port", "sea", "cliff", "mouth" },
+      { "ford", "bridge", "bourne", "brook", "ford", "wade" }, { "down", "hill", "combe", "ridge", "edge", "low" } } };
+static void make_name(char *out, int n, unsigned h, int style, int where) {
+    const char *a = NM_FIRST[style][h & 15], *b = NM_END[style][where][(h >> 4) % 6];
+    // no doubled joins like "Hol"+"low" -> keep, but "Kirk"+"kee" style letter clashes read badly: skip a repeat
+    int la = (int)strlen(a);
+    if (la && a[la - 1] == b[0]) snprintf(out, n, "%s%s", a, b + 1); else snprintf(out, n, "%s%s", a, b);
+}
+static void name_places(void) {
+    int style = (int)(hsh((unsigned)seed * 7919u + 3u) % 3u);
+    for (int s = 0; s < nset; s++) {
+        int i = set[s].y * N + set[s].x;
+        int where = DS[i] < 900 ? 1 : DW[i] < 350 ? 2 : H[i] > 140 ? 3 : 0;
+        for (int tries = 0; tries < 40; tries++) {
+            unsigned h = hsh((unsigned)s * 2654435761u ^ (unsigned)seed * 40503u ^ (unsigned)tries * 97u);
+            int st = ((h >> 12) & 3) == 0 ? (style + 1) % 3 : style;      // a quarter borrow the next flavour
+            make_name(set_name[s], sizeof set_name[s], h, st, tries > 20 ? 0 : where);
+            int dup = 0; for (int o = 0; o < s && !dup; o++) if (!strcmp(set_name[o], set_name[s])) dup = 1;
+            if (!dup) break;
+        }
+        static const char *PL[3] = { "hamlet", "village", "town" };
+        snprintf(set_sub[s], sizeof set_sub[s], "place=%s;name=%s", PL[set[s].rank], set_name[s]);
+    }
+    for (int tries = 0; tries < 40; tries++) {                // an island name ends like a coast, and is no place's name
+        make_name(island_name, sizeof island_name, hsh((unsigned)seed * 31337u + 11u + (unsigned)tries * 7u), style, 1);
+        int dup = 0; for (int o = 0; o < nset && !dup; o++) if (!strcmp(set_name[o], island_name)) dup = 1;
+        if (!dup) break;
+    }
+}
 static int cn_away = -1;            // when >=0: only accept hits away from this cell (a 2nd way out)
 static float connect_to_network(int s, int *out, int *nout, float budget) {
     agen++; hp_n = 0;
@@ -1352,8 +1397,8 @@ static void ex_line(const char *kind, const char *sub, const float *xs, const fl
     ex_begin(kind, sub);
     for (int i = a; i <= b; i++) ex_pt(ex_r(xs[i], 1), ex_r(WORLD_M - ys[i], 1));
 }
-static void ex_poly(const char *kind, float cx, float cy, float r, int n) {
-    ex_begin(kind, NULL);
+static void ex_poly(const char *kind, const char *sub, float cx, float cy, float r, int n) {
+    ex_begin(kind, sub);
     for (int k = 0; k <= n; k++) {
         float a = k * 6.2831853f / n;
         ex_pt(ex_r(cx + cosf(a) * r, 1), ex_r(WORLD_M - (cy + sinf(a) * r), 1));
@@ -1417,10 +1462,10 @@ static void export_island(void) {
         if (np == 4) ex_line("coast", NULL, px, py, 2, 3);
     }
     for (int s = 0; s < nset; s++)
-        ex_poly("residential", (set[s].x + 0.5f) * CELL, (set[s].y + 0.5f) * CELL,
+        ex_poly("residential", set_sub[s], (set[s].x + 0.5f) * CELL, (set[s].y + 0.5f) * CELL,
                 set[s].rank == ST_TOWN ? fmaxf(set_r[s] + 50.0f, 460.0f)
                 : set[s].rank == ST_VILLAGE ? clamp(set_r[s] + 30.0f, 190.0f, 440.0f) : 120.0f, 16);
-    for (int k = 0; k < nfarm; k++) ex_poly("building", (farm[k] % N + 0.5f) * CELL, (farm[k] / N + 0.5f) * CELL, 12, 4);
+    for (int k = 0; k < nfarm; k++) ex_poly("building", NULL, (farm[k] % N + 0.5f) * CELL, (farm[k] / N + 0.5f) * CELL, 12, 4);
     // HEIGHTFIELD (RVB3; backroads/citydrive drape the scene over it): G x G metres,
     // row i = south -> north, col j = west -> east, sea clamped to 0
     int G = N < 256 ? N : 256;
@@ -1430,7 +1475,7 @@ static void export_island(void) {
         float wx = WORLD_M * j / (G - 1), wy = WORLD_M - WORLD_M * i / (G - 1);
         hz[i * G + j] = ex_r(fmaxf(H_bilinear(wx, wy), 0), 1);
     }
-    char name[48]; snprintf(name, sizeof name, "island seed %d", seed);
+    char name[48]; snprintf(name, sizeof name, "%s (seed %d)", island_name, seed);
     // 1. JSON (the readable IR)
     char path[128];
     snprintf(path, sizeof path, "../data/islandstudio-%d.json", seed);
@@ -1442,6 +1487,7 @@ static void export_island(void) {
         ExFeat *e = &exf[q];
         fprintf(f, "%s\n{\"kind\":\"%s\"", q ? "," : "", e->kind);
         if (e->sub) fprintf(f, ",\"sub\":\"%s\"", e->sub);
+        if (e->sub && !strncmp(e->sub, "place=", 6)) fprintf(f, ",\"name\":\"%s\"", strstr(e->sub, "name=") + 5);
         fprintf(f, ",\"pts\":[");
         for (int k = 0; k < e->n * 2; k++) fprintf(f, "%s%.1f", k ? "," : "", expt[e->start + k]);
         fprintf(f, "]}");
@@ -1700,6 +1746,7 @@ static void rebuild(void) {
     for (int i = 0; i < N * N; i++) if (H[i] > 0) st_cov[CV[i]] += 1;
     for (int k = 0; k < NCV; k++) st_cov[k] = land ? 100.0f * st_cov[k] / land : 0;
     settle();
+    name_places();
     st_rank[0] = st_rank[1] = st_rank[2] = 0; st_coastal = 0;
     for (int k = 0; k < nset; k++) if (DS[set[k].y * N + set[k].x] < 1000) st_coastal++;
     st_coastal = nset ? 100 * st_coastal / nset : 0;
@@ -1875,9 +1922,8 @@ static void zoom_draw(void) {
         float x = (set[s].x + 0.5f) * CELL, y = (set[s].y + 0.5f) * CELL;
         int sx = zsx(x), sy = zsy(y);
         if (sx < -60 || sy < -60 || sx > ZW + 60 || sy > ZH + 60) continue;
-        float rm = set[s].rank == ST_TOWN ? 650 : set[s].rank == ST_VILLAGE ? 260 : 120;
-        circ(sx, sy, (int)(rm / zm), set[s].rank == ST_TOWN ? CLR_RED : CLR_WHITE);
-        print(RN[set[s].rank], sx + 4, sy - 3, CLR_WHITE);
+        circ(sx, sy, (int)(set_r[s] / zm), set[s].rank == ST_TOWN ? CLR_RED : CLR_WHITE);
+        print(str("%s %s", set_name[s], RN[set[s].rank]), sx + 4, sy - 3, CLR_WHITE);
     }
     // legend + scale
     rectfill(0, 0, ZW, 11, CLR_BROWNISH_BLACK);
@@ -1929,6 +1975,16 @@ static void draw_map(void) {
                 else if (r == ST_VILLAGE){ rectfill(sx - 2, sy - 2, 5, 5, CLR_BROWNISH_BLACK); rectfill(sx - 1, sy - 1, 3, 3, CLR_WHITE); }
                 else                     { rectfill(sx - 1, sy - 1, 3, 3, CLR_BROWNISH_BLACK); pset(sx, sy, CLR_LIGHT_PEACH); }
             }
+    if (view != V_FLOW) {                                       // town names (villages show on hover)
+        font(FONT_TINY);
+        for (int k = 0; k < nset; k++) if (set[k].rank == ST_TOWN) {
+            int sx = MAP_X + set[k].x * MAP_PX / N, sy = MAP_Y + set[k].y * MAP_PX / N;
+            int tw = (int)strlen(set_name[k]) * 4, tx = sx + 5 + tw > MAP_X + MAP_PX ? sx - 5 - tw : sx + 5;
+            rectfill(tx - 1, sy - 3, tw + 1, 7, CLR_BROWNISH_BLACK);
+            print(set_name[k], tx, sy - 2, CLR_WHITE);
+        }
+        font(FONT_SMALL);
+    }
     // wind: an arrow in the top-right corner, blowing FROM k_wind
     {
         float a = k_wind * 6.2831853f; int cx = MAP_X + MAP_PX - 16, cy = MAP_Y + 16;
@@ -1951,7 +2007,7 @@ void draw(void) {
     cls(CLR_BROWNISH_BLACK);
     print("ISLAND STUDIO", MAP_X, 6, CLR_LIGHT_PEACH);
     font(FONT_SMALL);
-    print(str("40 x 40 km   seed %d   %dx%d (%.0f m)   %s", seed, N, N, CELL, VIEWS[view]), MAP_X + 112, 8, CLR_MEDIUM_GREY);
+    print(str("%s   seed %d   %dx%d (%.0f m)   %s", island_name, seed, N, N, CELL, VIEWS[view]), MAP_X + 112, 8, CLR_MEDIUM_GREY);
     draw_map();
 
     int mx = mouse_x() - MAP_X, my = mouse_y() - MAP_Y;
@@ -1961,6 +2017,15 @@ void draw(void) {
                   H[i] <= 0 ? "depth" : "height", (int)fabsf(H[i]), CVN[CV[i]],
                   (int)(M[i] * 100), (int)(SU[i] * 100)),
               MAP_X, MAP_Y + MAP_PX + 6, CLR_LIGHT_GREY);
+        int best = -1; float bd = 7 * 7;                        // the place under the mouse, by name
+        for (int k = 0; k < nset; k++) {
+            float dx = set[k].x * MAP_PX / (float)N - mx, dy = set[k].y * MAP_PX / (float)N - my;
+            if (dx * dx + dy * dy < bd) { bd = dx * dx + dy * dy; best = k; }
+        }
+        if (best >= 0) {
+            static const char *RK[3] = { "hamlet", "village", "town" };
+            print(str("%s (%s)", set_name[best], RK[set[best].rank]), MAP_X + 2, MAP_Y + 2, CLR_WHITE);
+        }
     }
 
     int px = PANEL_X, w = 196;

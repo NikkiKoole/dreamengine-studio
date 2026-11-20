@@ -450,6 +450,7 @@ static unsigned char JN[MAXN * MAXN];   // road edges meeting at a cell (>= 3 = 
 static int river_cell(int i) { return H[i] > 0 && A[i] >= RIVER_CELLS * 0.5f; }
 
 static int no_water;                              // set while re-routing a route whose bridge was too long
+static float grade_cap = 0.11f;                   // steepest a road should get (see step_cost)
 static float max_span(void) { return 150.0f + k_bridge * 1850.0f; }   // longest bridge the slider allows (m)
 static float step_cost(int a, int b, int k, int mode) {
     float len = k < 4 ? CELL : CELL * 1.41421f;
@@ -467,7 +468,12 @@ static float step_cost(int a, int b, int k, int mode) {
     float g = fabsf(H[b] - H[a]) / len;                        // grade ALONG the step: contours are cheap
     float m = mode == RM_EXPRESS
         ? 1 + (g / 0.035f) * (g / 0.035f) * 5 + (g > 0.07f ? (g - 0.07f) * 400 : 0)
-        : 1 + (g / 0.07f) * (g / 0.07f) * 2.5f + (g > 0.14f ? (g - 0.14f) * 150 : 0);
+        : 1 + (g / 0.07f) * (g / 0.07f) * 2.5f + (g > 0.14f ? (g - 0.14f) * 150 : 0)
+          // GRADE CAP (roadmap item 2): every percent above the cap costs steeply more, so across a
+          // steep slope a zigzag (a switchback) beats a straight climb. Bounded, so a place that can
+          // only be reached steeply still gets its road. 11 % (target 12 %, measured on the exported
+          // heightfield); summit service roads 14 % (target 15 %).
+          + (g > grade_cap ? fminf(((g - grade_cap) / 0.01f) * ((g - grade_cap) / 0.01f) * 3.0f, 600.0f) : 0);
     int c = CV[b];
     m *= c == CV_MARSH ? 3.0f : c == CV_ROCK ? 2.5f : c == CV_BEACH ? 2.0f
        : c == CV_FOREST ? 1.2f : c == CV_MOOR ? 1.15f : 1.0f;
@@ -608,6 +614,7 @@ static int is_node_l(int c, int L) {
 static int is_node(int c) { return is_node_l(c, 0) || is_node_l(c, 1); }
 #define SM_MAX 24000
 static float sm_x[SM_MAX], sm_y[SM_MAX];
+static int sm_grade;       // roads (not rivers): keep zigzags a steep chord would cut (smooth_path)
 static float sm_tol_min;   // simplification tolerance floor in metres (emit_poly sets it per road class; 0 = rivers)
 // cell path → smooth curve in metres (into sm_x/sm_y); returns the point count
 static int smooth_path(const int *cells, int n) {
@@ -625,6 +632,11 @@ static int smooth_path(const int *cells, int n) {
           int b = st[--sp], a = st[--sp];
           float dx = kx[b] - kx[a], dy = ky[b] - ky[a], L = sqrtf(dx * dx + dy * dy) + 1e-6f;
           int worst = -1; float wd = tol;
+          // KEEP SWITCHBACKS: a road zigzags up a steep slope within a cell or two, under the
+          // tolerance, and simplifying it away sent the road straight down the fall line (49 % on
+          // seed 3). If the straight chord would be steeper than the grade cap, keep its biggest
+          // bend whatever the tolerance.
+          if (sm_grade && b > a + 1 && fabsf(H[cells[b]] - H[cells[a]]) / L > grade_cap + 0.01f) wd = CELL * 0.33f;   // a real bend, not the staircase
           for (int i = a + 1; i < b; i++) {
               float d = fabsf((kx[i] - kx[a]) * dy - (ky[i] - ky[a]) * dx) / L;
               if (d > wd) { wd = d; worst = i; }
@@ -650,6 +662,80 @@ static int smooth_path(const int *cells, int n) {
     ax[m] = qx[q - 1]; ay[m] = qy[q - 1]; m++;
     return m;
 }
+// SWITCHBACKS (roadmap item 2): a grid router can't make a shallow traverse of a steep slope (on a
+// 36 % slope even a 45° step is 25 %), and simplification straightens what zigzag it finds. So after
+// smoothing, every stretch steeper than the cap is REPLACED by a zigzag laid across it: legs of
+// ~150-200 m swinging +-h either side of the line, as many as it takes to bring the grade to ~10 %,
+// through a Catmull-Rom so the turns are rounded hairpins. Ends of the stretch stay put; a zigzag
+// whose corner would land in water or off the island is skipped (the stretch stays steep).
+static float H_bilinear(float x, float y);
+static int st_switchbacks, st_sb_skip_wet, st_sb_skip_short;
+static int sb_dry(float x, float y) {
+    if (x < 0 || y < 0 || x >= WORLD_M || y >= WORLD_M) return 0;
+    int c = (int)(y / CELL) * N + (int)(x / CELL);
+    return is_dry(c) && H_bilinear(x, y) > 1.0f;
+}
+static int switchbacks(int m, int cls) {
+    if (cls == RC_EXPRESS || m < 3 || CELL > 100.0f) return m;     // the 256 grid is calibrated as is
+    static float ox[SM_MAX], oy[SM_MAX], cum[SM_MAX], z[SM_MAX], cx[64], cy[64];
+    for (int i = 0; i < m; i++) { z[i] = H_bilinear(sm_x[i], sm_y[i]); cum[i] = i ? cum[i - 1] + hypotf(sm_x[i] - sm_x[i - 1], sm_y[i] - sm_y[i - 1]) : 0; }
+    float target = grade_cap - 0.01f;
+    int o = 0, i = 0;
+    while (i < m) {
+        // find a steep run starting here: grade over the next ~50 m above the cap
+        int j = i; while (j < m - 1 && cum[j] - cum[i] < 50.0f) j++;
+        float g = (cum[j] > cum[i]) ? fabsf(z[j] - z[i]) / (cum[j] - cum[i]) : 0;
+        if (g <= grade_cap + 0.015f || j == i) { if (o < SM_MAX) { ox[o] = sm_x[i]; oy[o] = sm_y[i]; o++; } i++; continue; }
+        // extend while the next 50 m stays steep in the same direction
+        int k = j; float dir = z[j] > z[i] ? 1 : -1;
+        while (k < m - 1) {
+            int k2 = k; while (k2 < m - 1 && cum[k2] - cum[k] < 50.0f) k2++;
+            if (k2 == k || (z[k2] - z[k]) * dir / fmaxf(cum[k2] - cum[k], 1) <= grade_cap) break;
+            k = k2;
+        }
+        float dz = fabsf(z[k] - z[i]), L = hypotf(sm_x[k] - sm_x[i], sm_y[k] - sm_y[i]), need = dz / target;
+        if (L < 40.0f || need <= cum[k] - cum[i]) { st_sb_skip_short++; if (o < SM_MAX) { ox[o] = sm_x[i]; oy[o] = sm_y[i]; o++; } i++; continue; }
+        int legs = (int)ceilf(need / 180.0f); if (legs < 2) legs = 2; if (legs > 30) legs = 30;
+        float leg = need / legs, along = L / legs, h = 0.5f * sqrtf(fmaxf(leg * leg - along * along, 0));
+        if (h < 15.0f) h = 15.0f;
+        float ux = (sm_x[k] - sm_x[i]) / L, uy = (sm_y[k] - sm_y[i]) / L, vx = -uy, vy = ux;
+        int nc = 0, ok = 1;
+        cx[nc] = sm_x[i]; cy[nc] = sm_y[i]; nc++;
+        for (int q = 0; q < legs && nc < 63; q++) {
+            // each corner where the land is at the height an even climb calls for: search across the
+            // slope (0.2h .. 2h out on this leg's side) so the legs climb evenly on any shape of hill
+            float t = (q + 0.5f) / legs, sd = (q & 1) ? -1.0f : 1.0f, zt = z[i] + (z[k] - z[i]) * t;
+            float bx = sm_x[i] + ux * L * t, by = sm_y[i] + uy * L * t, best = 1e9f, bs = h;
+            for (float so = 0.2f * h; so <= 2.0f * h; so += 5.0f) {
+                float px = bx + vx * so * sd, py = by + vy * so * sd;
+                if (!sb_dry(px, py)) continue;
+                float e = fabsf(H_bilinear(px, py) - zt) + 0.02f * fabsf(so - h);
+                if (e < best) { best = e; bs = so; }
+            }
+            cx[nc] = bx + vx * bs * sd; cy[nc] = by + vy * bs * sd;
+            if (!sb_dry(cx[nc], cy[nc])) ok = 0;
+            nc++;
+        }
+        cx[nc] = sm_x[k]; cy[nc] = sm_y[k]; nc++;
+        if (!ok) { st_sb_skip_wet++; for (int q = i; q < k && o < SM_MAX; q++) { ox[o] = sm_x[q]; oy[o] = sm_y[q]; o++; } i = k; continue; }
+        for (int q = 0; q + 1 < nc; q++) {               // Catmull-Rom through the corners: rounded hairpins
+            float p0x = cx[q > 0 ? q - 1 : q], p0y = cy[q > 0 ? q - 1 : q], p1x = cx[q], p1y = cy[q], p2x = cx[q + 1], p2y = cy[q + 1];
+            float p3x = cx[q + 2 < nc ? q + 2 : q + 1], p3y = cy[q + 2 < nc ? q + 2 : q + 1];
+            int steps = (int)(hypotf(p2x - p1x, p2y - p1y) / 15.0f) + 1;
+            for (int s = 0; s < steps && o < SM_MAX; s++) {
+                float t = s / (float)steps, t2 = t * t, t3 = t2 * t;
+                ox[o] = 0.5f * (2 * p1x + (-p0x + p2x) * t + (2 * p0x - 5 * p1x + 4 * p2x - p3x) * t2 + (-p0x + 3 * p1x - 3 * p2x + p3x) * t3);
+                oy[o] = 0.5f * (2 * p1y + (-p0y + p2y) * t + (2 * p0y - 5 * p1y + 4 * p2y - p3y) * t2 + (-p0y + 3 * p1y - 3 * p2y + p3y) * t3);
+                o++;
+            }
+        }
+        st_switchbacks += legs - 1;
+        i = k;                                            // continue from the run's end (point k is emitted next)
+    }
+    if (o >= SM_MAX) return m;                            // no room: keep the original
+    for (int q = 0; q < o; q++) { sm_x[q] = ox[q]; sm_y[q] = oy[q]; }
+    return o;
+}
 static void emit_poly(const int *cells, int n, int cls) {
     if (n < 2) return;
     if (npl >= MAXPL) { st_overflow++; return; }
@@ -658,8 +744,10 @@ static void emit_poly(const int *cells, int n, int cls) {
     // main roads vs the Isle of Man's 7). Big roads are laid out in long lines; a 45 m tolerance lets
     // them. Below ~75 m cells (the 256 grid) 0.6 cell is already larger: unchanged there.
     sm_tol_min = cls >= RC_MAIN ? 45.0f : cls == RC_SEC ? 35.0f : 0.0f;
+    sm_grade = 1;
     int m = smooth_path(cells, n);
-    sm_tol_min = 0;
+    sm_tol_min = 0; sm_grade = 0;
+    m = switchbacks(m, cls);
     float *ax = sm_x, *ay = sm_y;
     if (npt + m >= MAXPT) { st_overflow++; return; }
     pl[npl].start = npt; pl[npl].n = m; pl[npl].cls = cls; pl_ramp[npl] = 0; npl++;
@@ -1682,7 +1770,10 @@ static void landmark_sites(void) {
     st_lm_roads = 0;
     for (int t = 0; t < BK_N; t++) for (int k = 0; k < lm_n[t]; k++) {
         int n; cn_away = -1;
-        if (connect_to_network(lm_site[t][k], pbuf, &n, t == BK_MAST ? 60000 : 9000) >= 0) {   // a summit mast has a long service road
+        grade_cap = t == BK_MAST ? 0.14f : 0.11f;
+        int ok = connect_to_network(lm_site[t][k], pbuf, &n, t == BK_MAST ? 120000 : 12000);   // a summit mast has a long service road
+        grade_cap = 0.11f;
+        if (ok >= 0) {
             mark(pbuf, n, t == BK_CASTLE ? RC_LANE : RC_TRACK, 0, 0, 1); st_lm_roads++;
         }
     }
@@ -1969,7 +2060,12 @@ static void arms_dedup(void) {
         int *pi[2] = { &arms[i].v, &arms[i].t }; float *di[2] = { &arms[i].dv, &arms[i].dt };
         int *pj[2] = { &arms[j].v, &arms[j].t }; float *dj[2] = { &arms[j].dv, &arms[j].dt };
         for (int a = 0; a < 2; a++) for (int b = 0; b < 2; b++)
-            if (*pi[a] >= 0 && *pi[a] == *pj[b] && (*di[a] > *dj[b] || (*di[a] == *dj[b] && i > j))) *pi[a] = -1;
+            if (*pi[a] >= 0 && *pi[a] == *pj[b] && (*di[a] > *dj[b] || (*di[a] == *dj[b] && i > j))) {
+                // a TOWN may stay on a second arm when that way is within 1.3x of the nearest: a real
+                // alternative route (backroads' rule); a village stays only on its nearest arm
+                if (set[*pi[a]].rank == ST_TOWN && *di[a] <= *dj[b] * 1.3f) continue;
+                *pi[a] = -1;
+            }
     }
     int k = 0;
     for (int i = 0; i < narms; i++) {
@@ -1978,6 +2074,16 @@ static void arms_dedup(void) {
         if (a->t == a->v) a->t = -1;
         if (a->v >= 0) arms[k++] = *a;
     }
+    narms = k;
+    // the town exception may never make two arms read the same: then the farther arm loses the town
+    for (int i = 0; i < narms; i++) for (int j = 0; j < narms; j++) {
+        if (i == j || arms[i].v < 0 || arms[j].v < 0) continue;
+        if (arms[i].v == arms[j].v && arms[i].t == arms[j].t && (arms[i].dv > arms[j].dv || (arms[i].dv == arms[j].dv && i > j))) {
+            if (arms[i].t >= 0) { arms[i].v = arms[i].t; arms[i].dv = arms[i].dt; arms[i].t = -1; if (arms[i].v == arms[j].v && arms[j].t < 0) arms[i].v = -1; }
+            else arms[i].v = -1;
+        }
+    }
+    k = 0; for (int i = 0; i < narms; i++) if (arms[i].v >= 0) arms[k++] = arms[i];
     narms = k;
 }
 static void arms_commit(void) {
@@ -2290,7 +2396,7 @@ static void export_island(void) {
     }
     // HEIGHTFIELD (RVB3; backroads/citydrive drape the scene over it): G x G metres,
     // row i = south -> north, col j = west -> east, sea clamped to 0
-    int G = N < 256 ? N : 256;
+    int G = N < 256 ? N : 256;   // backroads reads up to 256 (IHF_MAX); 512 was tried for switchbacks: modest gain, +40 % file
     double *hz = malloc((size_t)G * G * sizeof *hz);
     if (!hz) { snprintf(export_msg, sizeof export_msg, "export failed (memory)"); export_msg_t = 3; return; }
     for (int i = 0; i < G; i++) for (int j = 0; j < G; j++) {
@@ -2343,7 +2449,7 @@ static void export_island(void) {
 
 static void build_roads(void) {
     clock_t t0 = clock();
-    st_overflow = 0;
+    st_overflow = 0; st_switchbacks = 0; st_sb_skip_wet = 0; st_sb_skip_short = 0;
     for (int i = 0; i < N * N; i++) { TR[i] = 0; RING[i] = 0; IS_SET[i] = 0; JN[i] = 0; for (int k = 0; k < 8; k++) ER[i][k] = 0; }
     for (int s = 0; s < nset; s++) IS_SET[set[s].y * N + set[s].x] = 1;
     int n; float maxw = 1e-6f;
@@ -2490,6 +2596,24 @@ static void build_roads(void) {
     build_interchanges();
     build_houses();
     build_routes_signs();
+#ifdef DE_TRACE
+    if (getenv("GRADE_DEBUG")) {                         // road grade over 50 m on the FINE terrain (routing's view)
+        int n = 0, o12 = 0; float mx = 0, mxx = 0, mxy = 0;
+        for (int p = 0; p < npl; p++) {
+            if (pl[p].cls < RC_TRACK) continue;
+            int s0 = pl[p].start; float acc = 0, lx = plx[s0], ly = ply[s0], lz = H_bilinear(plx[s0], ply[s0]);
+            for (int i = s0 + 1; i < s0 + pl[p].n; i++) {
+                acc += hypotf(plx[i] - plx[i - 1], ply[i] - ply[i - 1]);
+                if (acc < 50) continue;
+                if (water_at(plx[i], ply[i]) || water_at(lx, ly)) { acc = 0; lx = plx[i]; ly = ply[i]; lz = H_bilinear(lx, ly); continue; }
+                float z = H_bilinear(plx[i], ply[i]), g = fabsf(z - lz) / acc;
+                n++; if (g > 0.12f) o12++; if (g > mx) { mx = g; mxx = plx[i]; mxy = WORLD_M - ply[i]; }
+                acc = 0; lx = plx[i]; ly = ply[i]; lz = z;
+            }
+        }
+        fprintf(stderr, "FINE grade: %d stretches, >12%% %.2f%%, max %.0f%% at %.0f,%.0f  switchback legs %d skipped wet %d short %d\n", n, 100.0f * o12 / (n ? n : 1), mx * 100, mxx, mxy, st_switchbacks, st_sb_skip_wet, st_sb_skip_short);
+    }
+#endif
     roads_dirty = 0;
     st_roads_ms = (clock() - t0) * 1000.0f / CLOCKS_PER_SEC;
 }
@@ -2610,7 +2734,7 @@ void update(void) {
     watch("seed", "%d", seed); watch("nset", "%d", nset); watch("coastal", "%d", st_coastal);
     watch("moor", "%d", (int)st_cov[CV_MOOR]); watch("forest", "%d", (int)st_cov[CV_FOREST]);
     watch("land", "%d", (int)st_land); watch("npl", "%d", npl); watch("express", "%d", st_express);
-    watch("ringgaps", "%d", st_ringgaps); watch("bridges", "%d", nbr); watch("lakes", "%d", st_lakes); watch("N", "%d", N); watch("diagx", "%d", st_diagx); watch("cuts", "%d", st_cuts); watch("consol", "%d", st_consol); watch("streets", "%d", st_streets); watch("routes", "M %d A %d B %d", st_routes[0], st_routes[1], st_routes[2]); watch("guideposts", "%d", st_guideposts); watch("lm_roads", "%d", st_lm_roads); watch("houses", "%d", nhs); for (int t = 0; t < BK_N; t++) if (st_htype[t]) watch(str("b_%s%s%s", BK[t].building, BK[t].tag ? "_" : "", BK[t].tag ? strchr(BK[t].tag, '=') + 1 : ""), "%d", st_htype[t]); watch("waterbr", "%d", st_waterbr); watch("waterbr_max", "%.0f", st_waterbr_max); watch("flyovers", "%d", st_flyovers); watch("interchanges", "%d", st_interchanges); watch("rebuild_ms", "%.0f", st_rebuild_ms); watch("overflow", "%d", st_overflow); watch("links", "lane %d/%d sec %d/%d main %d/%d", st_link_ok[0], st_link_try[0], st_link_ok[1], st_link_try[1], st_link_ok[2], st_link_try[2]); { int bb = -1; for (int b = 0; b < nbr; b++) if (bb < 0 || br[b].len > br[bb].len) bb = b;
+    watch("ringgaps", "%d", st_ringgaps); watch("bridges", "%d", nbr); watch("lakes", "%d", st_lakes); watch("N", "%d", N); watch("diagx", "%d", st_diagx); watch("cuts", "%d", st_cuts); watch("consol", "%d", st_consol); watch("streets", "%d", st_streets); watch("switchbacks", "%d", st_switchbacks); watch("routes", "M %d A %d B %d", st_routes[0], st_routes[1], st_routes[2]); watch("guideposts", "%d", st_guideposts); watch("lm_roads", "%d", st_lm_roads); watch("houses", "%d", nhs); for (int t = 0; t < BK_N; t++) if (st_htype[t]) watch(str("b_%s%s%s", BK[t].building, BK[t].tag ? "_" : "", BK[t].tag ? strchr(BK[t].tag, '=') + 1 : ""), "%d", st_htype[t]); watch("waterbr", "%d", st_waterbr); watch("waterbr_max", "%.0f", st_waterbr_max); watch("flyovers", "%d", st_flyovers); watch("interchanges", "%d", st_interchanges); watch("rebuild_ms", "%.0f", st_rebuild_ms); watch("overflow", "%d", st_overflow); watch("links", "lane %d/%d sec %d/%d main %d/%d", st_link_ok[0], st_link_try[0], st_link_ok[1], st_link_try[1], st_link_ok[2], st_link_try[2]); { int bb = -1; for (int b = 0; b < nbr; b++) if (bb < 0 || br[b].len > br[bb].len) bb = b;
       if (bb >= 0) { watch("bigbridge_x", "%.0f", br[bb].x); watch("bigbridge_y", "%.0f", br[bb].y); watch("bigbridge_len", "%.0f", br[bb].len); } } watch("rivers", "%d", nrv);
     watch("forest_tracks", "%d", nforest); watch("upland_tracks", "%d", nupland); watch("roads_ms", "%.0f", st_roads_ms);
     for (int k = RC_TRACK; k < NRC; k++) watch(RCN[k], "%.0f", st_road[k]);

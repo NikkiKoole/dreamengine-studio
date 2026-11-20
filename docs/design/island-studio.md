@@ -555,3 +555,31 @@ nodes are line ends, which meet exactly at junctions.
 - New kind `guidepost` = 29 in `osm-roads.js` `KIND_IX` (and `K_GUIDEPOST` in roadview.c and
   citydrive.c, loaded, not drawn). Place names never contain `:` `,` `;`; `sign_name()` strips them
   anyway.
+
+## Hairpins and a gradient cap (2026-11-20, roadmap item 2)
+
+Measured with the new `tools/grade-check.js` (grade over 50 m stretches on the export's heightfield,
+bridges skipped) and, on islandstudio's own fine terrain, a `GRADE_DEBUG=1` trace line. Three causes
+of steep roads, in order of discovery:
+
+1. **The routing penalty grew too gently** past ~14 %. `step_cost` now adds a steep, bounded
+   penalty for every percent above `grade_cap` (11 %, target 12 %; 14 % for the summit mast's
+   service road). Bounded, so a place only reachable steeply keeps its road. Alone it barely moved
+   the numbers.
+2. **A grid can't traverse a steep slope gently**: on a 36 % slope even a 45° step is 25 %, and
+   simplification straightened what zigzag the router found. Simplification now keeps a bend
+   (≥ a third of a cell) whenever the straight chord would beat the cap. And **`switchbacks()`**
+   replaces any stretch still steeper than the cap with a zigzag laid across it: legs of ~180 m,
+   each corner placed where the land is at the height an even climb calls for, rounded through a
+   Catmull-Rom into hairpins; skipped if a corner lands in water. Fine grids only (the 256 grid's
+   calibration holds: densities within 0.02, junction shares unchanged).
+3. **The exported heightfield is 156 m per cell**, so hairpin legs ~80 m apart blur together and
+   level legs read as climbing. A 512 field (78 m) was tried: the mast road improved 24 → 21 % of
+   stretches over 12 %, but backroads reads at most 256 (`IHF_MAX`) and the file grew 40 %, so it
+   stays 256. **Roadmap item 5 (a height per road point) is the real fix**: backroads would then
+   ride the road's own profile.
+
+Seed 3 @1024, export heightfield, share of 50 m stretches over 12 % (max): main 0.21 → 0.23 % (20 →
+21 %), secondary 1.54 → 0.81 % (33 → 26 %), lane 0.66 → 0.53 % (28 → 23 %), track 1.24 → 1.06 %
+(32 → 31 %). The mast service road: 31 → 24 % of stretches over 12 %. 139 hairpin legs. Kinks per
+100 km rise a little (main 6 → 8, track 33 → 42): hairpins are real kinks.

@@ -639,11 +639,11 @@ static void add_post(float ox, float oy) {
 }
 // ── BRIDGE DECKS: every bridge span (the export's B1: rivers, and the expressway's flyovers) gets a
 // deck profile instead of following the ground: level between the ground at its two ends, and where
-// it passes OVER another road it rises to 6.5 m clearance on 6 % ramps. Pieces of a bridge carry
+// it passes OVER another road it rises to 6.5 m clearance on 6 % ramps (over lake/sea water: 4 m). Pieces of a bridge carry
 // these heights; the car rides the deck when it's nearer the deck than the ground beneath.
 #define IBR_MAX 2000
 #define IBR_GS 33
-typedef struct { int q; float g0, g1, L; int nc; float sc[4], gc[4]; float gs[IBR_GS]; } IBr;   // gs: the ground along the span
+typedef struct { int q; float g0, g1, L; int nc; float sc[4], gc[4]; float gs[IBR_GS]; float wl; } IBr;   // gs: the ground along the span; wl: water under it (-1e9 = none)
 static IBr ibr[IBR_MAX]; static int nibr;
 static short ipl_br[IPL_MAX];                     // per poly: its deck index, -1 = not a bridge
 static int seg_cross(float ax, float ay, float bx, float by, float cx, float cy, float dx, float dy, float *t) {
@@ -660,14 +660,16 @@ static void isl_build_decks(void) {
     for (int q = 0; q < nipl && nibr < IBR_MAX; q++) {
         if (!ipl[q].bridge || ipl[q].river) continue;
         IBr *B = &ibr[nibr]; int a = ipl[q].start, e = a + ipl[q].n - 1;
-        B->q = q; B->L = ipS[e] - ipS[a]; B->nc = 0;
+        B->q = q; B->L = ipS[e] - ipS[a]; B->nc = 0; B->wl = -1e9f;
         B->g0 = ground(ipx[a], ipy[a]); B->g1 = ground(ipx[e], ipy[e]);
         for (int g = 0, k = a; g < IBR_GS; g++) {         // the ground under the span, every L/32
             float sg = B->L * g / (IBR_GS - 1);
             while (k < e && ipS[k + 1] - ipS[a] < sg) k++;
             float sl = ipS[k + 1 <= e ? k + 1 : e] - ipS[k], t = sl > 0 ? (sg - (ipS[k] - ipS[a])) / sl : 0;
             int k2 = k + 1 <= e ? k + 1 : e;
-            B->gs[g] = ground(ipx[k] + (ipx[k2] - ipx[k]) * t, ipy[k] + (ipy[k2] - ipy[k]) * t);
+            float gx = ipx[k] + (ipx[k2] - ipx[k]) * t, gy = ipy[k] + (ipy[k2] - ipy[k]) * t;
+            B->gs[g] = ground(gx, gy);
+            if (g > 0 && g < IBR_GS - 1 && isl_cover(gx, gy) == IC_WATER) B->wl = fmaxf(B->wl, B->gs[g]);
         }
         for (int k = a + 1; k <= e; k++) {                // roads passing underneath
             int bx = ib_of((ipx[k] + ipx[k - 1]) * 0.5f, isl_W), by = ib_of((ipy[k] + ipy[k - 1]) * 0.5f, isl_H);
@@ -695,6 +697,9 @@ static float deck_h(int q, float s) {             // s = arc length along the WH
     float sr = clamp(s - ipS[ipl[q].start], 0, B->L);
     float base = B->g0 + (B->g1 - B->g0) * (B->L > 0 ? sr / B->L : 0), z = base;
     for (int c = 0; c < B->nc; c++) z = fmaxf(z, B->gc[c] + 6.5f - 0.06f * fabsf(sr - B->sc[c]));
+    // over a lake or sea inlet (islandstudio's "bridging"): stand 4 m clear of the water, or the
+    // deck lies flush on it at shore height and reads as a road painted on the water
+    z = fmaxf(z, B->wl + 4.0f);
     // the deck MUST meet the ground at both ends: taper the lift to 0 over the last 40 m (a crossing on
     // higher ground than the span's ends left a 3.7 m step the wheels refused, so cars drove through)
     float taper = clamp(fminf(sr, B->L - sr) / 40.0f, 0, 1);
@@ -1565,7 +1570,7 @@ void update(void) {
         watch("brd", "%.1f", r.ok ? r.dist : -1.0f); watch("deckz", "%.1f", (r.ok && ipl_br[r.poly] >= 0) ? deck_h(r.poly, r.s) : -1.0f);
         IHit a2 = isl_nearest(px, py, NK_ANYROAD, 60); watch("road_cls", "%d", a2.ok ? ipl[a2.poly].cls : -1); watch("road_br", "%d", a2.ok ? ipl[a2.poly].bridge : -1); }
     watch("njunc", "%d", ISL ? nijn : 0); watch("nmk", "%d", nmk);
-    if (ISL && nmk > 2) watch("mk2", "%.0f,%.0f k%d", mk[2].x, mk[2].y, mk[2].kind); watch("nbridge", "%d", ISL ? nibr : 0); watch("pc_drop", "%d", pc_drop); watch("nbin", "%d", nbin);
+    if (ISL && nmk > 2) watch("mk2", "%.0f,%.0f k%d", mk[2].x, mk[2].y, mk[2].kind); watch("nbridge", "%d", ISL ? nibr : 0); { int nw = 0; for (int b = 0; ISL && b < nibr; b++) nw += ibr[b].wl > -1e8f; watch("nwet", "%d", nw); } watch("pc_drop", "%d", pc_drop); watch("nbin", "%d", nbin);
     watch("gear", "%d", gear); watch("rpm", "%.2f", rpm_s);
     watch("pitch", "%.3f", pitch); watch("roll", "%.3f", roll); watch("npc", "%d", npc);
 #endif

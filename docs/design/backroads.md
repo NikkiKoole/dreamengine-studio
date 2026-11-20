@@ -593,6 +593,15 @@ mirror shows haze, sky and the island's skyline. The village sign moved below it
 
 ---
 
+### 2026-11-20: bridges over lakes and sea inlets
+
+islandstudio's "bridging" slider (its commit ba99cbf9) lets roads cross lakes and inlets on ordinary
+B1 spans, up to about 2 km long. The deck code coped (no drop-outs, the car stays on it), but the
+deck sat level between its two shores at shore height, 0.4 m: a road lying on the water, with no
+parapets since those need 1 m of lift. Now each span samples the cover under it, and over water the
+deck stands at least 4 m clear of the water surface, with the same 40 m end tapers as a flyover. The
+mirror pass and the debug readout became a three-row top bar with the mirror in its middle gap.
+
 ## 11. Open questions — to be answered by playing
 
 - **How unforgiving?** Can a bust cost everything (start over), or is it always a painful,

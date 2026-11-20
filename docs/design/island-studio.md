@@ -634,5 +634,5 @@ Bug on the way: both sides of a road and the field boundaries appended to one sh
 their hedges were open, so points interleaved into sawtooth hedges and one ran straight for a
 kilometre. Each open hedge now has its own buffer.
 
-Seed 3 @1024: ~1,900 km of hedge, ~520 km of wall, 56,819 trees; 0 roadside points within 1.4 m of a
+Seed 3 @1024: ~1,075 km of hedge, ~306 km of wall (16,222 lines), 56,819 trees; 0 roadside points within 1.4 m of a
 road edge; road sides lined: lanes 50 %, secondary 60 %, main 38 %. File 2.44 → 5.4 MB.

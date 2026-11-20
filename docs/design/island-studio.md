@@ -316,6 +316,7 @@ junctions go. Seed 1 @1024 (393 consolidations), against the Isle of Man:
 
 Open: every route into a town ends at the town's centre cell, so towns are 6–8-arm stars whose
 corner fillets leave holes in backroads. That's for town streets (citygen), not more patching.
+(Done: see "Town streets" below.)
 
 ## Grade separation (2026-11-20)
 
@@ -337,3 +338,37 @@ expressway still meets the network at grade where it ends (in towns).
 
 4. **Farmland**: fields spread from villages along roads onto flat ground, replacing natural cover.
 5. **Bake + hand to backroads**: export the grid (heights, rivers, roads, villages) and drive it.
+
+## Town streets (2026-11-20)
+
+Towns and villages used to be stars: every route ended at one centre cell. `town_streets()` now
+gives each a street grid, using `citygen.h`'s district-fill method (rung 4: a rotated lattice, a
+spanning tree for connectivity plus a fraction of loops) re-done **on the road grid**, so streets go
+through the same smoothing, corner cut, junction consolidation, polyline splitting and export as
+every other road. `citygen.h` itself isn't included: it reads `worldnet.h`'s terrain, not this
+island's, and its building/lot layer was never finished anyway (worldgen-plan rung 7).
+
+- A lattice of ~130 m blocks (towns: 600 m disc, villages: 230 m), turned to follow the biggest road
+  into the centre (walked ~250 m out), with a ragged edge and more jitter outside the core.
+- Lattice nodes near an existing road **snap onto it**, so the routes in become the main streets;
+  streets never touch water, a river cell, the expressway or slopes over 12 %.
+- Loops: 85 % in the core (closed blocks, crossroads allowed), 40 % outside (Ts, cul-de-sacs).
+- Street cells are rasterized with Bresenham: the first version walked diagonal-then-straight, an L
+  that the smoother turned into an S-wiggle (towns looked like spaghetti).
+- Pieces cut off by water join the town by a short route, or stay out.
+- Exported as `road` (lane class), so backroads' contract is unchanged.
+
+At 256 (156 m cells, one street per cell) it barely shows and calibration holds (seeds 1/3/6:
+minor +0.01–0.02, X 7–9 %). At 1024, against the stars:
+
+| | minor | dead | T | X | circuity |
+|---|---|---|---|---|---|
+| Isle of Man | 0.83 | 35 % | 56 % | 5.2 % | 1.57 |
+| seed 1 before | 0.74 | 35 % | 60 % | 4.8 % | 1.59 |
+| seed 1 after | 0.81 | 34 % | 56 % | 9.8 % | 1.46 |
+| seed 3 before | 0.46 | 35 % | 60 % | 5.1 % | 1.62 |
+| seed 3 after | 0.52 | 34 % | 55 % | 11.2 % | 1.45 |
+
+Crossroads now sit between the Isle of Man (5 %) and Sado (12 %): town-centre grids are where real
+crossroads are. Open: old field tracks from nearby hamlets still cross some towns; houses/lots
+(citygen rung 7's unfinished half) for when backroads drives into villages.

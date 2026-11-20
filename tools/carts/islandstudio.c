@@ -849,6 +849,140 @@ static void farms(void) {
     }
 }
 
+// ── TOWN STREETS: towns and villages get a street grid instead of being a star of routes that all
+// end at one centre cell. citygen.h's method (rung 4, calibrated to real cities), re-done on the
+// road GRID so streets go through the same smoothing, junction consolidation, splitting and export
+// as every other road: a rotated lattice (~130 m blocks) aligned to the main road in, clipped to a
+// ragged disc on buildable land; nodes near an existing road snap onto it (the routes in become
+// the town's main streets); a spanning tree for connectivity plus a fraction of loops (more in the
+// core, fewer at the edge: a grid centre, cul-de-sacs outside). citygen.h itself isn't included:
+// it reads worldnet.h's terrain, not this island's.
+#define TS_LG 15
+static int st_streets;                      // street segments laid (trace)
+static int ts_find(int *uf, int x) { while (uf[x] != x) x = uf[x] = uf[uf[x]]; return x; }
+static int ts_road(int c) { for (int k = 0; k < 8; k++) if (ER[c][k] && ER[c][k] != RC_EXPRESS) return 1; return 0; }
+static int ts_land(int c) {
+    if (H[c] <= 0 || is_lake(c) || river_cell(c)) return 0;
+    for (int k = 0; k < 8; k++) if (ER[c][k] == RC_EXPRESS) return 0;   // no street onto the expressway
+    return 1;
+}
+// the straight cell run a -> b (as line_cells walks it) into out; 0 if it leaves buildable land or is too steep
+static int ts_path(int a, int b, int *out, int *n) {
+    // Bresenham, 8-connected: the cells hug the true line, so the smoother draws a straight street
+    // (walking diagonal-first then straight made an L the smoother turned into an S-wiggle)
+    int x = a % N, y = a / N, tx = b % N, ty = b / N; *n = 0;
+    int dx = abs(tx - x), dy = -abs(ty - y), sx = tx > x ? 1 : -1, sy = ty > y ? 1 : -1, err = dx + dy;
+    out[(*n)++] = a;
+    while (x != tx || y != ty) {
+        int e2 = 2 * err;
+        if (e2 >= dy) { err += dy; x += sx; }
+        if (e2 <= dx) { err += dx; y += sy; }
+        int c = y * N + x; if (!ts_land(c)) return 0;
+        out[(*n)++] = c;
+    }
+    float len = hypotf((float)(a % N - b % N), (float)(a / N - b / N)) * CELL;
+    return fabsf(H[a] - H[b]) / fmaxf(len, 1) < 0.12f;
+}
+static void town_streets(void) {
+    st_streets = 0;
+    static int lg[TS_LG][TS_LG], uf[TS_LG * TS_LG], deg[TS_LG * TS_LG], onr[TS_LG * TS_LG], cellof[TS_LG * TS_LG];
+    static float rad[TS_LG * TS_LG];
+    static int ea[2 * TS_LG * TS_LG], eb[2 * TS_LG * TS_LG]; static float ew[2 * TS_LG * TS_LG];
+    static int path[MAXN * 2];
+    for (int s = 0; s < nset; s++) {
+        if (set[s].rank == ST_HAMLET) continue;
+        float R = set[s].rank == ST_TOWN ? 600.0f : 230.0f;
+        float step = fmaxf(130.0f, CELL);
+        int c0 = set[s].y * N + set[s].x;
+        float cx = (set[s].x + 0.5f) * CELL, cy = (set[s].y + 0.5f) * CELL;
+        unsigned hs = hsh((unsigned)s * 2654435761u ^ (unsigned)seed * 97u);
+        // orientation: along the biggest road into the centre (walked ~250 m out), else hashed
+        float ang = (hs & 1023) / 1023.0f * 3.14159f; int best = 0;
+        for (int k = 0; k < 8; k++) if (ER[c0][k] > best && ER[c0][k] != RC_EXPRESS) {
+            best = ER[c0][k]; int cur = c0, kk = k, steps = (int)(250.0f / CELL) + 1;
+            for (int q = 0; q < steps; q++) {
+                int nx = cur % N + DX[kk], ny = cur / N + DY[kk]; cur = ny * N + nx;
+                int nk = -1; for (int j = 0; j < 8; j++) if (ER[cur][j] && j != OPP[kk]) { nk = j; break; }
+                if (nk < 0) break; kk = nk;
+            }
+            ang = atan2f((float)(cur / N - set[s].y), (float)(cur % N - set[s].x));
+        }
+        float ca = cosf(ang), sa = sinf(ang);
+        int half = (int)(R / step) + 1; if (2 * half + 1 > TS_LG) half = (TS_LG - 1) / 2;
+        int n = 0;
+        for (int r = -half; r <= half; r++) for (int c = -half; c <= half; c++) {
+            int *slot = &lg[r + half][c + half]; *slot = -1;
+            unsigned h = hsh(hs ^ (unsigned)((r + 31) * 131 + (c + 31)));
+            float d = hypotf((float)r, (float)c) * step;
+            float jit = d < R * 0.45f ? 0.08f : 0.30f;            // a regular core, a looser edge
+            float lx = c * step + ((h & 255) / 255.0f - 0.5f) * step * jit;
+            float ly = r * step + (((h >> 8) & 255) / 255.0f - 0.5f) * step * jit;
+            float px = cx + lx * ca - ly * sa, py = cy + lx * sa + ly * ca;
+            float rr = hypotf(px - cx, py - cy);
+            if (rr > R * (0.8f + 0.35f * ((h >> 16) & 255) / 255.0f)) continue;   // ragged edge
+            int gx = (int)(px / CELL), gy = (int)(py / CELL);
+            if (gx < 1 || gy < 1 || gx >= N - 1 || gy >= N - 1) continue;
+            int cell = (r == 0 && c == 0) ? c0 : gy * N + gx, on = r == 0 && c == 0;
+            if (!on) {                                            // snap onto a road nearby: it becomes a street
+                int sr = (int)(fmaxf(CELL, step * 0.3f) / CELL + 0.5f); float bd = 1e9f;
+                for (int yy = gy - sr; yy <= gy + sr; yy++) for (int xx = gx - sr; xx <= gx + sr; xx++) {
+                    int q = yy * N + xx; if (!ts_road(q)) continue;
+                    float dd = (float)((xx - gx) * (xx - gx) + (yy - gy) * (yy - gy));
+                    if (dd < bd) { bd = dd; cell = q; on = 1; }
+                }
+                if (!on && (!ts_land(cell) || slope_at(cell % N, cell / N) > 0.15f)) continue;
+            }
+            int dup = 0; for (int q = 0; q < n; q++) if (cellof[q] == cell) dup = 1;
+            if (dup) continue;
+            *slot = n; cellof[n] = cell; onr[n] = on; rad[n] = rr; uf[n] = n; deg[n] = 0; n++;
+        }
+        if (n < 2) continue;
+        int root = -1;                                            // everything on a road is already connected
+        for (int q = 0; q < n; q++) if (onr[q]) { if (root < 0) root = q; else uf[ts_find(uf, q)] = ts_find(uf, root); }
+        int ne = 0;
+        for (int r = 0; r < 2 * half + 1; r++) for (int c = 0; c < 2 * half + 1; c++) {
+            int a = lg[r][c]; if (a < 0) continue;
+            int nb[2] = { c + 1 < 2 * half + 1 ? lg[r][c + 1] : -1, r + 1 < 2 * half + 1 ? lg[r + 1][c] : -1 };
+            for (int e = 0; e < 2; e++) if (nb[e] >= 0) {
+                ea[ne] = a; eb[ne] = nb[e];
+                ew[ne] = (hsh(hs ^ (unsigned)(a * 977 + nb[e] * 31 + e)) & 65535) / 65535.0f; ne++;
+            }
+        }
+        for (int i = 1; i < ne; i++) for (int j = i; j > 0 && ew[j] < ew[j - 1]; j--) {
+            float tw = ew[j]; ew[j] = ew[j - 1]; ew[j - 1] = tw;
+            int t = ea[j]; ea[j] = ea[j - 1]; ea[j - 1] = t; t = eb[j]; eb[j] = eb[j - 1]; eb[j - 1] = t;
+        }
+        for (int i = 0; i < ne; i++) {
+            int a = ea[i], b = eb[i], np;
+            if (onr[a] && onr[b]) {                               // both on roads: skip if that road already joins them
+                if (!ts_path(cellof[a], cellof[b], path, &np)) continue;
+                int all = 1; for (int q = 0; q < np && all; q++) if (!ts_road(path[q])) all = 0;
+                if (all) continue;
+            }
+            int ra = ts_find(uf, a), rb = ts_find(uf, b);
+            float d = (rad[a] + rad[b]) * 0.5f;
+            float loopf = d < R * 0.5f ? 0.85f : 0.4f;           // closed blocks in the core, cul-de-sacs outside          // grid core, tree-like edge
+            int cap = d < R * 0.5f ? 4 : 3;                      // crossroads in the core, Ts outside
+            int tree = ra != rb;
+            if (!tree && !((hsh(hs ^ (unsigned)(i * 7919)) & 1023) / 1023.0f < loopf && deg[a] < cap && deg[b] < cap)) continue;
+            if (!ts_path(cellof[a], cellof[b], path, &np)) continue;
+            mark(path, np, RC_LANE, 0, 0, 0);
+            deg[a]++; deg[b]++; st_streets++;
+            if (tree) uf[ra] = rb;
+        }
+        // pieces cut off by water or slope: join each to the town by the cheapest route, if short
+        int rr0 = root >= 0 ? ts_find(uf, root) : -1;
+        for (int q = 0; q < n; q++) {
+            int rq = ts_find(uf, q); if (rq == rr0 || rq != q) continue;
+            int bestq = -1; float bd = 1e9f;
+            for (int p = 0; p < n; p++) if (ts_find(uf, p) == rq && rad[p] < bd) { bd = rad[p]; bestq = p; }
+            int np2;
+            if (astar(cellof[bestq], c0, RM_LINK, pbuf, &np2, step * 4) >= 0) mark(pbuf, np2, RC_LANE, 0, 0, 0);
+            uf[rq] = rr0 >= 0 ? rr0 : rq;
+        }
+    }
+}
+
 // ── 5 (v2): carve valleys from the SMOOTHED river lines, not per cell. Per-cell carving left a
 // staircase along every diagonal river (an 8-direction chain touches only at corners, so its
 // neighbours stayed high): sawtooth walls, rock teeth, diagonal bands in the hillshade. Now each
@@ -1448,6 +1582,7 @@ static void build_roads(void) {
                 mark(pbuf, n, RC_TRACK, 0, 0, 1);
         }
     }
+    town_streets();
     farms();
     upland_tracks();
     fix_diagonal_crossings();
@@ -1559,7 +1694,7 @@ void update(void) {
     watch("seed", "%d", seed); watch("nset", "%d", nset); watch("coastal", "%d", st_coastal);
     watch("moor", "%d", (int)st_cov[CV_MOOR]); watch("forest", "%d", (int)st_cov[CV_FOREST]);
     watch("land", "%d", (int)st_land); watch("npl", "%d", npl); watch("express", "%d", st_express);
-    watch("ringgaps", "%d", st_ringgaps); watch("bridges", "%d", nbr); watch("lakes", "%d", st_lakes); watch("N", "%d", N); watch("diagx", "%d", st_diagx); watch("cuts", "%d", st_cuts); watch("consol", "%d", st_consol); watch("flyovers", "%d", st_flyovers); watch("interchanges", "%d", st_interchanges); watch("rebuild_ms", "%.0f", st_rebuild_ms); watch("overflow", "%d", st_overflow); watch("links", "lane %d/%d sec %d/%d main %d/%d", st_link_ok[0], st_link_try[0], st_link_ok[1], st_link_try[1], st_link_ok[2], st_link_try[2]); { int bb = -1; for (int b = 0; b < nbr; b++) if (bb < 0 || br[b].len > br[bb].len) bb = b;
+    watch("ringgaps", "%d", st_ringgaps); watch("bridges", "%d", nbr); watch("lakes", "%d", st_lakes); watch("N", "%d", N); watch("diagx", "%d", st_diagx); watch("cuts", "%d", st_cuts); watch("consol", "%d", st_consol); watch("streets", "%d", st_streets); watch("flyovers", "%d", st_flyovers); watch("interchanges", "%d", st_interchanges); watch("rebuild_ms", "%.0f", st_rebuild_ms); watch("overflow", "%d", st_overflow); watch("links", "lane %d/%d sec %d/%d main %d/%d", st_link_ok[0], st_link_try[0], st_link_ok[1], st_link_try[1], st_link_ok[2], st_link_try[2]); { int bb = -1; for (int b = 0; b < nbr; b++) if (bb < 0 || br[b].len > br[bb].len) bb = b;
       if (bb >= 0) { watch("bigbridge_x", "%.0f", br[bb].x); watch("bigbridge_y", "%.0f", br[bb].y); watch("bigbridge_len", "%.0f", br[bb].len); } } watch("rivers", "%d", nrv);
     watch("forest_tracks", "%d", nforest); watch("upland_tracks", "%d", nupland); watch("roads_ms", "%.0f", st_roads_ms);
     for (int k = RC_TRACK; k < NRC; k++) watch(RCN[k], "%.0f", st_road[k]);

@@ -633,6 +633,20 @@ stand on the skyline like the churches. Fuel canopies are a slab on four posts. 
 starts the `L` cycle at landmark n, `BR_LDIST` sets the stand-off, and `L` now picks the highest of 8
 viewpoints (hilltop landmarks hid behind their own hill).
 
+### 2026-11-20: route numbers and signposts (islandstudio roadmap item 1)
+
+islandstudio now exports route numbers (`ref=A3` on road subs; M1, A1-A35, B1-B36 on seed 3) and
+fingerposts (kind `guidepost`, one 2-point line per arm, sub `ref=A3;to=Holbeck:4.2,Selness:11.0`).
+backroads groups the arms by junction into posts, stands each post in the widest gap between its arms
+(stepping out until clear of every road), and draws it near as a white post with one finger per
+arm. The words go on a SIGN BOARD on screen (a real finger is unreadable at 320 px from a moving
+car): the nearest post within 140 m and ~40° of straight ahead, one row per arm you could take
+(not the one behind you), left to right, each with an arrow turned to where that arm goes from your
+heading, its route shield (M blue, A green / yellow, B white) and the places with km. The Tab map
+shows each route's shield once per screen, on its longest visible piece. Dev: `BR_GP=<n>` starts 70 m
+out along post n's first arm, facing it. (Gotcha hit on the way: anything drawn after the mirror
+pass must not use cfx/cfy, which the mirror leaves pointing backwards.)
+
 ## 11. Open questions — to be answered by playing
 
 - **How unforgiving?** Can a bust cost everything (start over), or is it always a painful,

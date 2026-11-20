@@ -134,6 +134,17 @@ typedef struct { float x, y, r; int rank; char name[40]; } ISet; // rank: 0 haml
 static ISet  iset[ISET_MAX]; static int niset;
 #define IFARM_MAX 8000
 static float ifx[IFARM_MAX], ify[IFARM_MAX]; static int nifarm;
+// ROUTE NUMBERS + SIGNPOSTS (islandstudio roadmap item 1): a road's sub may carry "ref=A3" (M / A / B
+// routes; lanes none). A "guidepost" feature is ONE ARM of a fingerpost: a 2-point line from the
+// junction 20 m along the arm, sub "ref=A3;to=Holbeck:4.2,Selness:11.0" (next place, next town, km).
+// Arms sharing a first point are one post.
+static char ipl_ref[IPL_MAX][6];
+typedef struct { float ang; char ref[6]; char to[2][24]; float km[2]; int nto, post; } GArm;
+typedef struct { float x, y, jx, jy, g; int a0, na; } GPost;   // (x,y): where the post stands; (jx,jy): the junction
+#define GA_MAX 3000
+#define GP_MAX 1200
+static GArm ga[GA_MAX]; static int nga;
+static GPost gp[GP_MAX]; static int ngp;
 // HOUSES: the export's "building" footprints (OSM-shaped, docs/design/island-buildings.md: sub = the
 // building=* value, height in the feature's h; untyped = a plain house; "farm" also dots the map). islandstudio decides where they stand;
 // backroads only gives them walls and a roof. Ridge along the long side; g = the lowest corner.
@@ -210,14 +221,14 @@ static int isl_load(const char *path) {
     { int c = nlen < 63 ? nlen : 63; memcpy(isl_name, p, (size_t)c); isl_name[c] = 0; } p += nlen;
     float bb[4]; for (int k = 0; k < 4; k++) RD(float, bb[k]);
     isl_W = fmaxf(bb[2], 1000); isl_H = fmaxf(bb[3], 1000);
-    nipl = nipt = niset = nifarm = nhs = 0; ihg = 0;
+    nipl = nipt = niset = nifarm = nhs = nga = ngp = 0; ihg = 0;
     memset(icv, IC_LAND, sizeof icv); memset(iwm, 0, sizeof iwm);
     for (int i = 0; i < IBG * IBG; i++) ib_head[i] = -1;
     for (int fi = 0; fi < nfeat; fi++) {
-        int kind, sl, np; float fh = 0; char sub[48] = { 0 };
+        int kind, sl, np; float fh = 0; char sub[128] = { 0 };
         RD(int, kind); if (ver >= 2) RD(float, fh);
         RD(int, sl); if (sl < 0 || p + sl > end) goto bad;
-        memcpy(sub, p, (size_t)(sl < 47 ? sl : 47)); p += sl;
+        memcpy(sub, p, (size_t)(sl < 127 ? sl : 127)); p += sl;
         RD(int, np); if (np < 0 || p + (long)np * 8 > end) goto bad;
         float *pts = (float *)malloc((size_t)(np > 0 ? np : 1) * 8);
         memcpy(pts, p, (size_t)np * 8); p += (long)np * 8;
@@ -230,6 +241,9 @@ static int isl_load(const char *path) {
             q->start = nipt; q->n = np; q->cls = (unsigned char)(cls >= 0 ? cls : CL_DIRT);
             q->bridge = sub[0] == 'B'; q->river = kind == 5;
             { const char *w = strstr(sub, "water="); ipl_wl[nipl] = w ? (float)atof(w + 6) : -1e9f; }   // "B1;water=<m>": the surface it spans
+            { const char *rf = strstr(sub, "ref="); int c = 0;                                          // route number
+              if (rf) for (rf += 4; c < 5 && rf[c] && rf[c] != ';'; c++) ipl_ref[nipl][c] = rf[c];
+              ipl_ref[nipl][c] = 0; }
             float S = 0;
             for (int k = 0; k < np; k++) {
                 int g = nipt + k;
@@ -258,6 +272,25 @@ static int isl_load(const char *path) {
                 float cy = (j + 0.5f) * isl_H / ICG; if (cy < y0 || cy > y1) continue;
                 for (int i = 0; i < ICG; i++) { float cx = (i + 0.5f) * isl_W / ICG; if (cx >= x0 && cx <= x1) icv[j * ICG + i] = (unsigned char)c; }
             }
+        } else if (kind == 29 && np >= 2 && nga < GA_MAX) {                    // guidepost: one arm of a fingerpost
+            GArm *A = &ga[nga]; memset(A, 0, sizeof *A);
+            A->ang = atan2f(pts[3] - pts[1], pts[2] - pts[0]);
+            const char *rf = strstr(sub, "ref=");
+            if (rf) { int c = 0; for (rf += 4; c < 5 && rf[c] && rf[c] != ';'; c++) A->ref[c] = rf[c]; }
+            const char *to = strstr(sub, "to=");
+            if (to) {
+                to += 3;
+                while (*to && A->nto < 2) {                    // "Name:km,Name:km"
+                    int c = 0; while (*to && *to != ':' && *to != ',' && *to != ';') { if (c < 23) A->to[A->nto][c++] = *to; to++; }
+                    if (*to == ':') { A->km[A->nto] = (float)atof(to + 1); while (*to && *to != ',' && *to != ';') to++; }
+                    A->nto++;
+                    if (*to == ',') to++; else break;
+                }
+            }
+            int pi = -1;                                       // the post: arms sharing the junction point
+            for (int k = 0; k < ngp; k++) if (fabsf(gp[k].jx - pts[0]) < 1.0f && fabsf(gp[k].jy - pts[1]) < 1.0f) { pi = k; break; }
+            if (pi < 0 && ngp < GP_MAX) { pi = ngp++; gp[pi].jx = pts[0]; gp[pi].jy = pts[1]; gp[pi].na = 0; }
+            if (pi >= 0) { A->post = pi; gp[pi].na++; nga++; }
         } else if (kind == 9 && np >= 3 && niset < ISET_MAX) {                  // residential: a settlement
             float cx = 0, cy = 0, r = 0;
             for (int k = 0; k < np; k++) { cx += pts[k*2]; cy += pts[k*2+1]; } cx /= np; cy /= np;
@@ -1743,23 +1776,30 @@ static void spawn(void) {
     }
     camh = ground(px, py) + EYE;
 }
+static void isl_build_posts(void);
 void init(void) {
     const char *path = de_data_path();
     // default island: seed 3 (it has every road type, the expressway and its flyovers included),
     // then seed 1; with neither, the endless worldnet world
     ISL = path ? isl_load(path) : (isl_load("../data/islandstudio-3.rvb") || isl_load("../data/islandstudio-1.rvb"));
-    if (ISL) { isl_find_junctions(); isl_build_decks(); isl_build_houses(); isl_build_landmarks(); }
+    if (ISL) { isl_find_junctions(); isl_build_decks(); isl_build_houses(); isl_build_landmarks(); isl_build_posts(); }
     spawn();
     // dev: BR_START="x,y[,heading]" starts the car exactly there (the debug readout's pos), so a spot
     // someone reports can be reproduced
     { const char *st = getenv("BR_START"); float sx, sy, sh;
       if (st) { int n = sscanf(st, "%f,%f,%f", &sx, &sy, &sh);
                 if (n >= 2) { px = sx; py = sy; if (n >= 3) head = sh - 90.0f; vx = vy = 0; camh = ground(px, py) + EYE; } } }
+    // dev: BR_GP=n stands 70 m out along fingerpost n's first arm, facing the junction
+    { const char *g = getenv("BR_GP"); int k = g ? atoi(g) : -1;
+      if (ISL && k >= 0 && k < ngp) { const GArm *A = &ga[gp[k].a0];
+          IHit rd = isl_nearest(gp[k].jx + cosf(A->ang) * 70.0f, gp[k].jy + sinf(A->ang) * 70.0f, NK_ANYROAD, 40);
+          px = rd.ok ? rd.qx : gp[k].jx + cosf(A->ang) * 70.0f; py = rd.ok ? rd.qy : gp[k].jy + sinf(A->ang) * 70.0f;
+          head = atan2f(gp[k].jy - py, gp[k].jx - px) / D2R; vx = vy = 0; camh = ground(px, py) + EYE; } }
 }
 
 void update(void) {
     float d = dt();
-    { const char *f = de_dropped_file(); if (f && isl_load(f)) { ISL = 1; isl_find_junctions(); isl_build_decks(); isl_build_houses(); isl_build_landmarks(); spawn(); } }   // drop an island .rvb
+    { const char *f = de_dropped_file(); if (f && isl_load(f)) { ISL = 1; isl_find_junctions(); isl_build_decks(); isl_build_houses(); isl_build_landmarks(); isl_build_posts(); spawn(); } }   // drop an island .rvb
     if (ISL && keyp('L') && nmk > 0) {               // dev: stand 300 m from the next landmark, facing it
         static int lcur = -1;
         if (lcur < 0 && getenv("BR_LMK")) lcur = atoi(getenv("BR_LMK")) - 1;   // dev: start the cycle at landmark n
@@ -1828,7 +1868,7 @@ void update(void) {
     if (ISL) { IHit r = isl_nearest(px, py, NK_BRIDGE, 60);
         watch("brd", "%.1f", r.ok ? r.dist : -1.0f); watch("deckz", "%.1f", (r.ok && ipl_br[r.poly] >= 0) ? deck_h(r.poly, r.s) : -1.0f);
         IHit a2 = isl_nearest(px, py, NK_ANYROAD, 60); watch("road_cls", "%d", a2.ok ? ipl[a2.poly].cls : -1); watch("road_br", "%d", a2.ok ? ipl[a2.poly].bridge : -1); }
-    watch("njunc", "%d", ISL ? nijn : 0); watch("nmk", "%d", nmk); watch("nhs", "%d", nhs); watch("nhvis", "%d", nhvis);
+    watch("njunc", "%d", ISL ? nijn : 0); watch("nmk", "%d", nmk); watch("nhs", "%d", nhs); watch("ngp", "%d", ngp); watch("nga", "%d", nga); watch("nhvis", "%d", nhvis);
     if (ISL && nmk > 2) watch("mk2", "%.0f,%.0f k%d", mk[2].x, mk[2].y, mk[2].kind); watch("nbridge", "%d", ISL ? nibr : 0); { int nw = 0; for (int b = 0; ISL && b < nibr; b++) nw += ibr[b].wl > -1e8f; watch("nwet", "%d", nw); } watch("pc_drop", "%d", pc_drop); watch("nbin", "%d", nbin);
     watch("gear", "%d", gear); watch("rpm", "%.2f", rpm_s);
     watch("pitch", "%.3f", pitch); watch("roll", "%.3f", roll); watch("npc", "%d", npc);
@@ -1866,6 +1906,116 @@ static void update_place(float d) {
     }
     if (in != cur_place) { if (in >= 0 && iset[in].name[0]) { sign_place = in; sign_t = 3.5f; } cur_place = in; }
     if (sign_t > 0) sign_t -= d;
+}
+// ── FINGERPOSTS (see GArm/GPost): built once after load. Arms are grouped per post (sorted by post),
+// and the post stands beside the junction in the widest gap between its arms, clear of every road.
+// Near ones are 3D (a white post, one finger per arm); the words are on a sign board on screen as
+// you approach (draw_post_board), since a 30 cm finger is unreadable from a moving car at 320 px.
+static int ga_cmp(const void *a, const void *b) {
+    const GArm *A = a, *B = b;
+    return A->post != B->post ? A->post - B->post : (A->ang < B->ang ? -1 : A->ang > B->ang);
+}
+static void isl_build_posts(void) {
+    qsort(ga, (size_t)nga, sizeof(GArm), ga_cmp);
+    for (int k = 0; k < ngp; k++) gp[k].na = 0;
+    for (int a = nga - 1; a >= 0; a--) { gp[ga[a].post].a0 = a; gp[ga[a].post].na++; }
+    for (int k = 0; k < ngp; k++) {
+        GPost *P = &gp[k];
+        float best = -1, mid = 0;                         // widest gap between arms (sorted by angle)
+        for (int i = 0; i < P->na; i++) {
+            float a0 = ga[P->a0 + i].ang, a1 = i + 1 < P->na ? ga[P->a0 + i + 1].ang : ga[P->a0].ang + 6.28318f;
+            if (a1 - a0 > best) { best = a1 - a0; mid = (a0 + a1) * 0.5f; }
+        }
+        if (P->na == 1) mid = ga[P->a0].ang + 1.5708f;     // a town exit: beside the road, on its right
+        P->x = P->jx; P->y = P->jy;
+        for (float off = 6.0f; off <= 18.0f; off += 2.0f) {   // step out until clear of every road
+            float x = P->jx + cosf(mid) * off, y = P->jy + sinf(mid) * off;
+            P->x = x; P->y = y;
+            IHit rd = isl_nearest(x, y, NK_ANYROAD, 30);
+            if (!rd.ok || rd.dist > HW[ipl[rd.poly].cls] + 1.5f) break;
+        }
+        P->g = ground(P->x, P->y);
+    }
+}
+static void draw_gposts(void) {                         // 3D posts within 150 m (drawn last: tiny, and they stand in the open)
+    if (g_mirror) return;
+    for (int k = 0; k < ngp; k++) {
+        const GPost *P = &gp[k];
+        float dx = P->x - px, dy = P->y - py;
+        if (dx * dx + dy * dy > 150.0f * 150.0f || dx * cfx + dy * cfy < 2.0f) continue;   // near, and ahead
+        Mark m = { P->x, P->y, P->g, 0, MK_BK, 0, 0 };
+        g_solid = 1;
+        mk_box(&m, 1.0f, -0.08f, 0.08f, -0.08f, 0.08f, 0, 2.9f, B_PLASTER);
+        for (int i = 0; i < P->na && i < 4; i++) {
+            m.ang = ga[P->a0 + i].ang;
+            float z = 2.65f - 0.3f * i;
+            mk_box(&m, 1.0f, 0.08f, 1.3f, -0.03f, 0.03f, z - 0.22f, z, B_PLASTER);
+        }
+        g_solid = 0;
+    }
+}
+// a route-number shield, UK style: M blue, A green with yellow text, B white with black text
+static int ref_shield(const char *ref, int x, int y) {
+    int w = text_width(ref) + 4, bg = ref[0] == 'M' ? CLR_TRUE_BLUE : ref[0] == 'A' ? CLR_DARK_GREEN : CLR_WHITE;
+    int fg = ref[0] == 'M' ? CLR_WHITE : ref[0] == 'A' ? CLR_YELLOW : CLR_BROWNISH_BLACK;
+    rectfill(x, y, w, 8, bg); rect(x, y, w, 8, CLR_BROWNISH_BLACK);
+    print(ref, x + 2, y + 1, fg);
+    return w;
+}
+// the sign board: the nearest post ahead within 140 m, one row per arm you could take (not the one
+// behind), left to right, each with an arrow turned to where that arm goes from YOUR heading
+static void draw_post_board(void) {
+    if (!ISL || drone) return;
+    int best = -1; float bd = 140.0f * 140.0f, hfx = cosf(head * D2R), hfy = sinf(head * D2R);   // the CAR's heading (the mirror pass leaves cfx/cfy reversed)
+    for (int k = 0; k < ngp; k++) {
+        float dx = gp[k].jx - px, dy = gp[k].jy - py, d2 = dx * dx + dy * dy;
+        if (d2 > bd || d2 < 4.0f) continue;
+        float d = fsqrt(d2);
+        if ((dx * hfx + dy * hfy) / d < 0.75f) continue;   // within ~40° of straight ahead
+        bd = d2; best = k;
+    }
+    if (best < 0) return;
+    const GPost *P = &gp[best];
+    int rows[8], nr = 0; float rel[8];
+    float h = head * D2R;
+    for (int i = 0; i < P->na && nr < 8; i++) {
+        float r = ga[P->a0 + i].ang - h;
+        while (r > 3.14159f) r -= 6.28318f; while (r < -3.14159f) r += 6.28318f;
+        if (fabsf(r) > 2.4f || !ga[P->a0 + i].nto) continue;   // the way you came
+        int j = nr++; while (j > 0 && rel[j - 1] > r) { rel[j] = rel[j - 1]; rows[j] = rows[j - 1]; j--; }
+        rel[j] = r; rows[j] = P->a0 + i;
+    }
+    if (!nr) return;
+    font(FONT_SMALL);
+    char txt[8][64]; int w = 0;
+    for (int i = 0; i < nr; i++) {
+        const GArm *A = &ga[rows[i]];
+        txt[i][0] = 0;
+        for (int t = 0; t < A->nto; t++) {
+            char one[40]; snprintf(one, sizeof one, A->km[t] < 10 ? "%s %.1f" : "%s %.0f", A->to[t], A->km[t]);
+            if (t) strcat(txt[i], "  "); strcat(txt[i], one);
+        }
+        int rw = 12 + (A->ref[0] ? text_width(A->ref) + 7 : 0) + text_width(txt[i]);
+        if (rw > w) w = rw;
+    }
+    int bw = w + 8, bh = nr * 10 + 4, x = 160 - bw / 2, y = 4 + MIR_H + 8 + (sign_t > 0 ? 28 : 0);
+    rectfill(x - 1, y - 1, bw + 2, bh + 2, CLR_BROWNISH_BLACK);
+    rectfill(x, y, bw, bh, CLR_WHITE);
+    for (int i = 0; i < nr; i++) {
+        const GArm *A = &ga[rows[i]];
+        int ry = y + 3 + i * 10, ax = x + 8, ay = ry + 3;
+        float c = cosf(rel[i]), sn = sinf(rel[i]);           // arrow: up = straight on, turned by rel (clockwise = right)
+        #define AR(u, v, ox, oy) ox = ax + (int)roundf((u) * c - (v) * sn), oy = ay + (int)roundf((u) * sn + (v) * c)
+        int x0, y0, x1, y1, x2, y2, x3, y3;
+        AR(0, -4, x0, y0); AR(-3, 0, x1, y1); AR(3, 0, x2, y2); AR(0, 3, x3, y3);
+        #undef AR
+        trifill(x0, y0, x1, y1, x2, y2, CLR_BROWNISH_BLACK);
+        line((x1 + x2) / 2, (y1 + y2) / 2, x3, y3, CLR_BROWNISH_BLACK);
+        int tx = x + 16;
+        if (A->ref[0]) tx += ref_shield(A->ref, tx, ry - 1) + 3;
+        print(txt[i], tx, ry, CLR_BROWNISH_BLACK);
+    }
+    font(FONT_NORMAL);
 }
 static void draw_sign(void) {
     if (sign_t <= 0 || sign_place < 0) return;
@@ -1968,6 +2118,25 @@ static void draw_map(void) {
                     }
                 }
         for (int k = 0; k < nifarm; k++) pset(cx + (int)((ifx[k] - ox) / m), cy + (int)((ify[k] - oy) / m), CLR_DARK_RED);
+        {   // route-number shields: each route once per screen, on its longest piece whose middle is in view
+            static const char *rr[160]; static int rq[160]; static float rl[160]; int nr = 0;
+            font(FONT_SMALL);
+            for (int q = 0; q < nipl; q++) {
+                if (!ipl_ref[q][0]) continue;
+                const IPoly *pp = &ipl[q];
+                int mi = pp->start + pp->n / 2;
+                int sx = cx + (int)((ipx[mi] - ox) / m), sy = cy + (int)((ipy[mi] - oy) / m);
+                if (sx < 4 || sy < 4 || sx > SCREEN_W - 20 || sy > VIEW_H - 12) continue;
+                float L = ipS[pp->start + pp->n - 1] - ipS[pp->start];
+                int k = 0; while (k < nr && strcmp(rr[k], ipl_ref[q])) k++;
+                if (k == nr) { if (nr >= 160) continue; rr[nr] = ipl_ref[q]; rl[nr] = -1; nr++; }
+                if (L > rl[k]) { rl[k] = L; rq[k] = mi; }
+            }
+            for (int k = 0; k < nr; k++) {
+                int sx = cx + (int)((ipx[rq[k]] - ox) / m), sy = cy + (int)((ipy[rq[k]] - oy) / m);
+                ref_shield(rr[k], sx - text_width(rr[k]) / 2 - 2, sy - 4);
+            }
+        }
         font(FONT_SMALL);
         for (int k = 0; k < niset; k++) {
             int sx = cx + (int)((iset[k].x - ox) / m), sy = cy + (int)((iset[k].y - oy) / m), big = iset[k].rank;
@@ -2111,10 +2280,12 @@ void draw(void) {
     g_deckpass = 1;                                     // near decks over everything (still far → near)
     for (int r = ROAD_RINGS - 1; r >= 0; r--) draw_ring(r);
     g_deckpass = 0;
+    if (ISL) draw_gposts();
     clip(0, 0, 0, 0);
     draw_topbar();
     if (!drone) draw_mirror();
     camh = save_camh; pitch = save_pitch; px = save_px; py = save_py;
     draw_sign();
+    draw_post_board();
     draw_dash();
 }

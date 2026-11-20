@@ -118,7 +118,7 @@ static int   ip_poly[IPT_MAX], ib_next[IPT_MAX];
 static int   nipt;
 #define IBG 160                                   // 250 m buckets of segments (keyed by end point)
 static int   ib_head[IBG * IBG];
-typedef struct { float x, y, r; int rank; } ISet; // rank: 0 hamlet, 1 village, 2 town
+typedef struct { float x, y, r; int rank; char name[40]; } ISet; // rank: 0 hamlet, 1 village, 2 town; name from the export
 #define ISET_MAX 800
 static ISet  iset[ISET_MAX]; static int niset;
 #define IFARM_MAX 8000
@@ -233,7 +233,14 @@ static int isl_load(const char *path) {
             for (int k = 0; k < np; k++) { cx += pts[k*2]; cy += pts[k*2+1]; } cx /= np; cy /= np;
             for (int k = 0; k < np; k++) r = fmaxf(r, fsqrt((pts[k*2]-cx)*(pts[k*2]-cx) + (pts[k*2+1]-cy)*(pts[k*2+1]-cy)));
             iset[niset].x = cx; iset[niset].y = cy; iset[niset].r = r;
-            iset[niset].rank = r > 450 ? 2 : r > 180 ? 1 : 0; niset++;
+            iset[niset].rank = r > 450 ? 2 : r > 180 ? 1 : 0;                   // fallback: rank by radius
+            if (strstr(sub, "place=town")) iset[niset].rank = 2;                // islandstudio: "place=<rank>;name=<Name>"
+            else if (strstr(sub, "place=village")) iset[niset].rank = 1;
+            else if (strstr(sub, "place=hamlet")) iset[niset].rank = 0;
+            iset[niset].name[0] = 0;
+            { const char *nm = strstr(sub, "name="); if (nm) { nm += 5; int k = 0;
+                while (nm[k] && nm[k] != ';' && k < 39) { iset[niset].name[k] = nm[k]; k++; } iset[niset].name[k] = 0; } }
+            niset++;
         } else if (kind == 6 && np >= 1 && nifarm < IFARM_MAX) {                // building: a farmstead
             float cx = 0, cy = 0; for (int k = 0; k < np; k++) { cx += pts[k*2]; cy += pts[k*2+1]; }
             ifx[nifarm] = cx / np; ify[nifarm] = cy / np; nifarm++;
@@ -1368,6 +1375,7 @@ static void sound_update(float d) {
     note_vol(v_road, (int)clamp(spd / 30.0f * (2.5f + rough * 3.0f), 0, 6));
     note_cutoff(v_road, (int)(1800 - rough * 1300 + spd * 10));
 }
+static void update_place(float d);   // the village sign (defined with the dash)
 static void drive(float d) {
     int gas = btn(0, BTN_UP), brk = btn(0, BTN_DOWN);
     float st = (btn(0, BTN_RIGHT) ? 1.0f : 0) - (btn(0, BTN_LEFT) ? 1.0f : 0);
@@ -1511,6 +1519,7 @@ void update(void) {
     if (key(']')) detail = clamp(detail + 40 * d, 0, 400);
     drive(d);
     sound_update(d);
+    if (ISL) update_place(d);
 #ifdef DE_TRACE
     watch("x", "%.0f", px); watch("y", "%.0f", py); watch("head", "%.1f", head);
     watch("spd", "%.1f", fsqrt(vx * vx + vy * vy)); watch("camh", "%.1f", camh);
@@ -1544,6 +1553,31 @@ static void gauge(int cx, int cy, int r, float t, int ticks, float red_from, con
     font(FONT_TINY);
     print(label, cx - text_width(label) / 2, cy + r / 2, CLR_DARK_GREY);
     font(FONT_NORMAL);
+}
+// ── THE VILLAGE SIGN: driving into a place shows its name on a road sign for a few seconds ───────
+static int   sign_place = -1, cur_place = -1;
+static float sign_t;
+static void update_place(float d) {
+    int in = -1; float best = 1e30f;
+    for (int s = 0; s < niset; s++) {
+        float dx = iset[s].x - px, dy = iset[s].y - py, d2 = dx * dx + dy * dy, rr = iset[s].r + 60.0f;
+        if (d2 < rr * rr && d2 < best) { best = d2; in = s; }
+    }
+    if (in != cur_place) { if (in >= 0 && iset[in].name[0]) { sign_place = in; sign_t = 3.5f; } cur_place = in; }
+    if (sign_t > 0) sign_t -= d;
+}
+static void draw_sign(void) {
+    if (sign_t <= 0 || sign_place < 0) return;
+    const ISet *S = &iset[sign_place];
+    static const char *RNAME[3] = { "hamlet", "village", "town" };
+    int w = text_width(S->name) + 16; if (w < 70) w = 70;
+    int x = 160 - w / 2, y = 26;
+    rectfill(x - 1, y - 1, w + 2, 24, CLR_BROWNISH_BLACK);                 // a 1970s place-name sign:
+    rectfill(x, y, w, 22, CLR_WHITE);                                       // white plate, black border, black letters
+    rect(x + 2, y + 2, w - 4, 18, CLR_BROWNISH_BLACK);
+    print(S->name, 160 - text_width(S->name) / 2, y + 5, CLR_BROWNISH_BLACK);
+    font(FONT_TINY); print(RNAME[S->rank], 160 - text_width(RNAME[S->rank]) / 2, y + 14, CLR_DARK_GREY); font(FONT_NORMAL);
+    line(160, y + 23, 160, y + 30, CLR_DARK_GREY);                          // the post
 }
 static void draw_dash(void) {
     int sy = (int)(dash_shake * (noise(now() * 23.0f) - 0.5f) * 2.0f);
@@ -1646,6 +1680,8 @@ static void draw_map(void) {
             int sx = cx + (int)((iset[k].x - ox) / m), sy = cy + (int)((iset[k].y - oy) / m), big = iset[k].rank;
             rectfill(sx - 1 - big, sy - 1 - big, 3 + 2 * big, 3 + 2 * big, CLR_BROWNISH_BLACK);
             rectfill(sx - big, sy - big, 1 + 2 * big, 1 + 2 * big, big == 2 ? CLR_RED : big ? CLR_PINK : CLR_PEACH);
+            if (big && iset[k].name[0] && (big == 2 || m < 40))   // towns always, villages when zoomed in
+                print(iset[k].name, sx + 4, sy - 3, big == 2 ? CLR_WHITE : CLR_LIGHT_PEACH);
         }
     } else {
     eg_ensure(px, py);
@@ -1729,5 +1765,6 @@ void draw(void) {
     g_deckpass = 0;
     clip(0, 0, 0, 0);
     camh = save_camh; pitch = save_pitch; px = save_px; py = save_py;
+    draw_sign();
     draw_dash();
 }

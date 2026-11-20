@@ -562,6 +562,11 @@ ridge so nearer ridges cover them. A true 30 m spire is ~2 px at 3 km, so landma
 distance about their base**: ×1 within 500 m, ×5 at 3.5 km, up to ×11 by 13.5 km; far silhouettes are at
 least 2 px wide. Seed 3: 59 landmarks. Dev key `L` stands you 300 m from the next one.
 
+**Place names** (islandstudio exports `sub: "place=<rank>;name=<Name>"` on each residential area, and
+the island's own name as the document name, e.g. "Selwick (seed 3)"): backroads reads the name and the
+rank (radius as fallback), shows a white 1970s place-name sign for 3.5 s when you drive into a place
+(within its radius + 60 m), and labels towns (and villages when zoomed in) on the Tab map.
+
 ---
 
 ## 11. Open questions — to be answered by playing

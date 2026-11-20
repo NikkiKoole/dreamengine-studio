@@ -10,7 +10,7 @@
   "description": {
     "summary": "Grow a 40 x 40 km island: coast, hills and mountains, water that drains and carves valleys, wind, rain and a rain shadow, cover, settlements, farms, and the roads between them.",
     "detail": "The island is a finite grid: 256 x 256 (156 m cells) while you play with the sliders, 512 or 1024 (39 m) for a final bake. Noise gives the shape: an island mask with a warped coast, layered rolling hills, and ridged mountains that only grow inside a mountain mask (slide it to zero for a low island). Then the whole map drains: a priority flood fills every pit so each cell has a downhill path to the sea, a flow count adds up how much land drains through each cell, and valleys are carved where the flow is large. Draining again gives the rivers and lakes. A prevailing wind brings rain that the mountains wring out, leaving a dry lee. Natural cover follows from height, slope, rain and water (forest, grassland, scrub, moor, rock, marsh, beach), and settlements claim the flattest, lowest, best-watered, most fertile land, spaced apart, with the biggest few becoming towns. Roads are routed across the terrain by A*, most important first, with a discount for reusing an existing road so routes merge into trunks; traffic sets the class (main road, secondary, lane), a ring road follows the coast where the land allows, an expressway joins the two biggest towns when they are far apart, scattered farmsteads add tracks and through-lanes, and forests and moors get dead-end tracks. Rivers are smooth lines and roads cross them on bridges. The panel compares the result to two real islands measured from OpenStreetMap. Design doc: docs/design/island-studio.md.",
-    "controls": "Drag the sliders. R or ROLL = new seed. V or VIEW cycles cover / terrain / slope / suitability / flow. Hover the map for height, cover, rain and suitability. Red squares are towns (named), white villages, dots hamlets; hover one for its name. Every island and place gets a name from a Norse, Gaelic or English flavour picked by the seed. The arrow shows the wind. The tree line slider goes from bare hills to wooded mountains. Town size sets how far towns and villages grow their street grids (only the roads re-route). TAB opens a full-screen zoom (drag to pan, wheel to zoom) with roads at their real widths. G or RES switches the grid between 256 (live), 512 and 1024 (a ~2.5 s bake, much finer roads). X exports the island (roads, cover, heights) to data/islandstudio-<seed>.json (roadview's vector format; measure with tools/road-density.js) plus the packed .rvb that backroads drives."
+    "controls": "Drag the sliders. R or ROLL = new seed. V or VIEW cycles cover / terrain / slope / suitability / flow. Hover the map for height, cover, rain and suitability. Red squares are towns (named), white villages, dots hamlets; hover one for its name. Every island and place gets a name from a Norse, Gaelic or English flavour picked by the seed. The arrow shows the wind. The tree line slider goes from bare hills to wooded mountains. Town size sets how far towns and villages grow their street grids (only the roads re-route). Bridging sets how readily roads bridge open water (lakes, sea inlets): 0 never, 1 crossings up to 2 km. TAB opens a full-screen zoom (drag to pan, wheel to zoom) with roads at their real widths. G or RES switches the grid between 256 (live), 512 and 1024 (a ~2.5 s bake, much finer roads). X exports the island (roads, cover, heights) to data/islandstudio-<seed>.json (roadview's vector format; measure with tools/road-density.js) plus the packed .rvb that backroads drives."
   }
 }
 de:meta */
@@ -55,6 +55,13 @@ static int N = 256;                          // grid cells per side: 256 live, 5
 #define PANEL_X  276
 
 // ── knobs (0..1 sliders) ───────────────────────────────────────────────────────
+// slider start values can be overridden at build time for sweeps: DE_DEFINES=K_BRIDGE0=1.0f node tools/play.js islandstudio ...
+#ifndef K_BRIDGE0
+#define K_BRIDGE0 0.35f
+#endif
+#ifndef K_TOWN0
+#define K_TOWN0 0.25f
+#endif
 static float k_size  = 0.55f;   // island radius
 static float k_coast = 0.50f;   // coast warp (bays, headlands)
 static float k_hills = 0.45f;   // rolling-hill height
@@ -67,7 +74,8 @@ static float k_wind  = 0.62f;   // prevailing wind, the direction it blows FROM 
 static float k_rain  = 0.50f;   // how wet the climate is overall
 static float k_vill  = 0.60f;   // settlement density (spacing 4.5 km .. 1.5 km)
 static float k_farm  = 0.93f;   // farmstead density (spacing ~1.2 km .. 450 m)
-static float k_town  = 0.25f;   // how far towns grow: town street radius 300 m .. 1.5 km (villages ~0.38 of it)
+static float k_town  = K_TOWN0;   // how far towns grow: town street radius 300 m .. 1.5 km (villages ~0.38 of it)
+static float k_bridge = K_BRIDGE0;  // appetite for bridging open water (lakes, inlets): 0 = never .. 1 = spans up to 2 km
 static float k_tree  = 0.45f;   // tree line: 0 = bare Scottish hills (~400 m), 1 = wooded to ~1300 m
 static int   seed = 1;
 static int   view;
@@ -230,6 +238,7 @@ static float river_thr(void) { return (40.0f + (1.0f - k_riv) * 900.0f) * AREA_K
 #define RIVER_CELLS (300.0f * AREA_K)  // drained cells that count as a real river (~7 km²)
 #define LAKE_DEPTH 3.0f                 // shallower filled pits are damp ground, not lakes
 static int is_lake(int i) { return H[i] > 0 && F[i] - H[i] > LAKE_DEPTH; }
+static int is_dry(int i) { return H[i] > 0 && !is_lake(i); }
 static int is_fresh(int i) { return H[i] > 0 && (A[i] >= RIVER_CELLS || is_lake(i)); }
 
 // ── 6: climate. March UPWIND from each cell; every metre the air has climbed since it left the
@@ -297,6 +306,7 @@ static void dist_from(float *D, int (*src)(int)) {
     }
 }
 static int is_sea(int i) { return H[i] <= 0; }
+static float DL[MAXN * MAXN];          // water cells: distance to dry land (m); bridges may span 2x this
 
 // ── 7: natural cover ─────────────────────────────────────────────────────────────
 static void cover(void) {
@@ -438,9 +448,21 @@ enum { RM_LINK, RM_RING, RM_EXPRESS, RM_TRACK };
 static unsigned char JN[MAXN * MAXN];   // road edges meeting at a cell (>= 3 = a junction)
 static int river_cell(int i) { return H[i] > 0 && A[i] >= RIVER_CELLS * 0.5f; }
 
+static int no_water;                              // set while re-routing a route whose bridge was too long
+static float max_span(void) { return 150.0f + k_bridge * 1850.0f; }   // longest bridge the slider allows (m)
 static float step_cost(int a, int b, int k, int mode) {
-    if (H[b] <= 0 || is_lake(b)) return -1;
     float len = k < 4 ? CELL : CELL * 1.41421f;
+    // OPEN WATER (sea inlets, lakes): bridged only as far as the bridging slider allows. A water cell
+    // more than half the longest allowed span from land is out of reach; each metre over water costs
+    // like many metres of road, so a bridge only wins against a long way round. Farm tracks never bridge.
+    if (!is_dry(b)) {
+        if (mode == RM_TRACK || mode == RM_RING || no_water || k_bridge < 0.02f) return -1;   // only links + the expressway bridge
+        float maxspan = max_span();
+        if (DL[b] > maxspan * 0.5f) return -1;
+        // dearer the further from shore: a bridge CROSSES water at its narrows; without this, full
+        // appetite made 3 km "bridges" running along a channel
+        return len * (1.2f + 30.0f * (1.0f - k_bridge) * (1.0f - k_bridge)) * (1.0f + DL[b] / 400.0f);
+    }
     float g = fabsf(H[b] - H[a]) / len;                        // grade ALONG the step: contours are cheap
     float m = mode == RM_EXPRESS
         ? 1 + (g / 0.035f) * (g / 0.035f) * 5 + (g > 0.07f ? (g - 0.07f) * 400 : 0)
@@ -464,7 +486,7 @@ static float step_cost(int a, int b, int k, int mode) {
         && river_cell(ay * N + bx) && river_cell(by * N + ax)) cross = 1;
     if (cross) {                                               // a bridge: cost grows with the river
         float span = clamp(sqrtf(fmaxf(A[b], A[ay * N + bx]) / AREA_K) / 40.0f, 0.4f, 3.0f);
-        extra = (mode == RM_EXPRESS ? 2.0f : 5.0f) * CELL * span;
+        extra = (mode == RM_EXPRESS ? 2.0f : 5.0f) * CELL * span * (1.35f - k_bridge);   // x1 at the default appetite
     }
     if (river_cell(a) && river_cell(b)) m *= 6;                // don't drive along the river bed
     if (mode != RM_EXPRESS) {
@@ -841,6 +863,29 @@ static void name_places(void) {
     }
 }
 static int cn_away = -1;            // when >=0: only accept hits away from this cell (a 2nd way out)
+// A* that keeps bridges honest: the per-cell distance-to-land gate can't stop a route running ALONG
+// the water (11 km "bridges" hugging a coast at full appetite). If the found route has a water stretch
+// longer than the slider's max span, it is routed again with no water at all.
+static float astar_b(int s, int t, int mode, int *out, int *nout, float budget) {
+    float c = astar(s, t, mode, out, nout, budget);
+    if (c < 0) return c;
+    // each water stretch must be a CROSSING: no longer than the slider's max span, and no longer than
+    // ~2.5x the water's width there (2 x its furthest point from shore). A road running ALONG a coast
+    // or a lake channel is many times longer than that (seen: 1.3 km in the shallows, an expressway
+    // hopping down a lake chain).
+    float run = 0, deep = 0; int bad = 0;
+    for (int i = 1; i <= *nout && !bad; i++) {
+        if (i == *nout || is_dry(out[i])) {
+            if (run > 0 && (run > max_span() || run > 2.5f * (2.0f * deep + CELL))) bad = 1;
+            run = 0; deep = 0; continue;
+        }
+        run += (out[i] % N != out[i - 1] % N && out[i] / N != out[i - 1] / N) ? CELL * 1.41421f : CELL;
+        if (DL[out[i]] > deep) deep = DL[out[i]];
+    }
+    if (!bad) return c;
+    no_water = 1; c = astar(s, t, mode, out, nout, budget); no_water = 0;
+    return c;
+}
 static float connect_to_network(int s, int *out, int *nout, float budget) {
     agen++; hp_n = 0;
     ag[s] = 0; astamp[s] = agen; af[s] = -1; hp_push(s, 0);
@@ -1072,7 +1117,7 @@ static void town_streets(void) {
             int bestq = -1; float bd = 1e9f;
             for (int p = 0; p < n; p++) if (ts_find(uf, p) == rq && rad[p] < bd) { bd = rad[p]; bestq = p; }
             int np2;
-            if (astar(cellof[bestq], c0, RM_LINK, pbuf, &np2, step * 4) >= 0) mark(pbuf, np2, RC_LANE, 0, 0, 0);
+            if (astar_b(cellof[bestq], c0, RM_LINK, pbuf, &np2, step * 4) >= 0) mark(pbuf, np2, RC_LANE, 0, 0, 0);
             uf[rq] = rr0 >= 0 ? rr0 : rq;
         }
     }
@@ -1229,6 +1274,48 @@ static void build_bridges(void) {
                 }
             }
         }
+}
+
+// WATER BRIDGES: where a road runs over open water (a lake or a sea inlet the bridging slider let it
+// cross), the whole run becomes one bridge span (+20 m abutments each side), tagged B1 like a river
+// bridge; any river bridge inside that run is folded into it.
+static int st_waterbr; static float st_waterbr_max;
+static float H_bilinear(float x, float y);
+// open water under a road point: a lake cell, or the SMOOTH terrain below sea level (cell lookup on
+// 156 m cells called a coast road skimming the shoreline a 240 m bridge)
+static int water_at(float x, float y) {
+    int c = (int)(y / CELL) * N + (int)(x / CELL);
+    if (c < 0 || c >= N * N) return 0;
+    return is_lake(c) || H_bilinear(x, y) < -1.0f;
+}
+static void build_water_bridges(void) {
+    st_waterbr = 0; st_waterbr_max = 0;
+    for (int p = 0; p < npl; p++) {
+        int s0 = pl[p].start, e0 = s0 + pl[p].n - 1;
+        for (int i = s0; i <= e0; i++) {
+            if (!water_at(plx[i], ply[i])) continue;
+            int j = i, routed = 0; float L = 0;
+            for (int q = i;; q++) {                           // did the ROUTE go through water here? (else a
+                int c = (int)(ply[q] / CELL) * N + (int)(plx[q] / CELL);   // smoothed line just clips a shore)
+                if (c >= 0 && c < N * N && !is_dry(c)) for (int k = 0; k < 8; k++) if (ER[c][k]) routed = 1;
+                if (q >= e0 || !water_at(plx[q + 1], ply[q + 1])) break;
+                L += hypotf(plx[q + 1] - plx[q], ply[q + 1] - ply[q]); j = q + 1;
+            }
+            if (routed && L > 30.0f) {                                  // shorter = a smoothed road clipping a cell corner of the shore
+                float half = L * 0.5f, acc = 0; int mid = i;
+                while (mid < j && acc + hypotf(plx[mid + 1] - plx[mid], ply[mid + 1] - ply[mid]) < half) { acc += hypotf(plx[mid + 1] - plx[mid], ply[mid + 1] - ply[mid]); mid++; }
+                if (mid == s0) mid++;
+                for (int b = 0; b < nbr; b++)                     // fold river bridges inside the run into it
+                    if (br[b].p == p && br[b].i >= i && br[b].i <= j + 1) { br[b] = br[--nbr]; b--; }
+                if (nbr >= MAXBR) { st_overflow++; break; }
+                float dx = plx[mid] - plx[mid - 1], dy = ply[mid] - ply[mid - 1], l = sqrtf(dx * dx + dy * dy) + 1e-6f;
+                br[nbr].x = plx[mid]; br[nbr].y = ply[mid]; br[nbr].dx = dx / l; br[nbr].dy = dy / l;
+                br[nbr].len = L + 40.0f; br[nbr].cls = pl[p].cls; br[nbr].p = p; br[nbr].i = mid; nbr++;
+                st_waterbr++; if (L > st_waterbr_max) st_waterbr_max = L;
+            }
+            i = j;
+        }
+    }
 }
 
 // FLYOVERS: every cell where the expressway and another road share a cell (and it isn't a town the
@@ -1628,7 +1715,7 @@ static void build_roads(void) {
         int floor = (ra == ST_TOWN && rb == ST_TOWN) ? RC_MAIN : (ra >= ST_VILLAGE || rb >= ST_VILLAGE) ? RC_SEC : RC_LANE;
         st_link_try[floor - RC_LANE]++;
         float d = set_dist(a, b);
-        float cst = astar(set[a].y * N + set[a].x, set[b].y * N + set[b].x, RM_LINK, pbuf, &n, d * 3.5f + 2500);
+        float cst = astar_b(set[a].y * N + set[a].x, set[b].y * N + set[b].x, RM_LINK, pbuf, &n, d * 3.5f + 2500);
         if (cst < 0) continue;
         st_link_ok[floor - RC_LANE]++;
         mark(pbuf, n, floor, link_w[i], 0, 0);
@@ -1656,7 +1743,7 @@ static void build_roads(void) {
     }
     if (t1 >= 0 && t2 >= 0 && set_dist(t1, t2) > 10000) {
         float d = set_dist(t1, t2);
-        if (astar(set[t1].y * N + set[t1].x, set[t2].y * N + set[t2].x, RM_EXPRESS, pbuf, &n, d * 3.0f) >= 0) {
+        if (astar_b(set[t1].y * N + set[t1].x, set[t2].y * N + set[t2].x, RM_EXPRESS, pbuf, &n, d * 3.0f) >= 0) {
             mark(pbuf, n, RC_EXPRESS, 0, 0, 0); st_express = 1;
         }
     }
@@ -1690,6 +1777,7 @@ static void build_roads(void) {
     build_polys();
     build_rivers();
     build_bridges();
+    build_water_bridges();
     build_flyovers();
     build_interchanges();
     roads_dirty = 0;
@@ -1770,6 +1858,7 @@ static void terrain_pass(void) {
     climate();
     dist_from(DW, is_fresh);
     dist_from(DS, is_sea);
+    dist_from(DL, is_dry);
     cover();
     for (int k = 0; k < NCV; k++) st_cov[k] = 0;
     for (int i = 0; i < N * N; i++) if (H[i] > 0) st_cov[CV[i]] += 1;
@@ -1811,7 +1900,7 @@ void update(void) {
     watch("seed", "%d", seed); watch("nset", "%d", nset); watch("coastal", "%d", st_coastal);
     watch("moor", "%d", (int)st_cov[CV_MOOR]); watch("forest", "%d", (int)st_cov[CV_FOREST]);
     watch("land", "%d", (int)st_land); watch("npl", "%d", npl); watch("express", "%d", st_express);
-    watch("ringgaps", "%d", st_ringgaps); watch("bridges", "%d", nbr); watch("lakes", "%d", st_lakes); watch("N", "%d", N); watch("diagx", "%d", st_diagx); watch("cuts", "%d", st_cuts); watch("consol", "%d", st_consol); watch("streets", "%d", st_streets); watch("flyovers", "%d", st_flyovers); watch("interchanges", "%d", st_interchanges); watch("rebuild_ms", "%.0f", st_rebuild_ms); watch("overflow", "%d", st_overflow); watch("links", "lane %d/%d sec %d/%d main %d/%d", st_link_ok[0], st_link_try[0], st_link_ok[1], st_link_try[1], st_link_ok[2], st_link_try[2]); { int bb = -1; for (int b = 0; b < nbr; b++) if (bb < 0 || br[b].len > br[bb].len) bb = b;
+    watch("ringgaps", "%d", st_ringgaps); watch("bridges", "%d", nbr); watch("lakes", "%d", st_lakes); watch("N", "%d", N); watch("diagx", "%d", st_diagx); watch("cuts", "%d", st_cuts); watch("consol", "%d", st_consol); watch("streets", "%d", st_streets); watch("waterbr", "%d", st_waterbr); watch("waterbr_max", "%.0f", st_waterbr_max); watch("flyovers", "%d", st_flyovers); watch("interchanges", "%d", st_interchanges); watch("rebuild_ms", "%.0f", st_rebuild_ms); watch("overflow", "%d", st_overflow); watch("links", "lane %d/%d sec %d/%d main %d/%d", st_link_ok[0], st_link_try[0], st_link_ok[1], st_link_try[1], st_link_ok[2], st_link_try[2]); { int bb = -1; for (int b = 0; b < nbr; b++) if (bb < 0 || br[b].len > br[bb].len) bb = b;
       if (bb >= 0) { watch("bigbridge_x", "%.0f", br[bb].x); watch("bigbridge_y", "%.0f", br[bb].y); watch("bigbridge_len", "%.0f", br[bb].len); } } watch("rivers", "%d", nrv);
     watch("forest_tracks", "%d", nforest); watch("upland_tracks", "%d", nupland); watch("roads_ms", "%.0f", st_roads_ms);
     for (int k = RC_TRACK; k < NRC; k++) watch(RCN[k], "%.0f", st_road[k]);
@@ -2078,19 +2167,19 @@ void draw(void) {
 
     int px = PANEL_X, w = 196;
     ui_begin();
-    static const char *L[14] = { "island size", "coast warp", "hills", "mountains",
+    static const char *L[15] = { "island size", "coast warp", "hills", "mountains",
                                  "mountain area", "rugged", "valley carving", "rivers shown",
-                                 "wind from", "rainfall", "settlements", "tree line", "farmsteads", "town size" };
-    float *P[14] = { &k_size, &k_coast, &k_hills, &k_mtn, &k_mreg, &k_rug, &k_ero, &k_riv,
-                     &k_wind, &k_rain, &k_vill, &k_tree, &k_farm, &k_town };
-    for (int k = 0; k < 14; k++)
-        if (ui_slider(P[k], px, 20 + k * 11, w, L[k])) { if (P[k] == &k_town) roads_dirty = 1; else dirty = 1; }
-    if (ui_button(px, 178, 60, 12, "ROLL")) { seed++; dirty = 1; }
-    if (ui_button(px + 66, 178, 60, 12, "VIEW")) { view = (view + 1) % NVIEW; recolour(); }
-    if (ui_button(px + 132, 178, 64, 12, str("RES %d", N))) { N = N == 256 ? 512 : N == 512 ? 1024 : 256; dirty = 1; }
+                                 "wind from", "rainfall", "settlements", "tree line", "farmsteads", "town size", "bridging" };
+    float *P[15] = { &k_size, &k_coast, &k_hills, &k_mtn, &k_mreg, &k_rug, &k_ero, &k_riv,
+                     &k_wind, &k_rain, &k_vill, &k_tree, &k_farm, &k_town, &k_bridge };
+    for (int k = 0; k < 15; k++)
+        if (ui_slider(P[k], px, 20 + k * 11, w, L[k])) { if (P[k] == &k_town || P[k] == &k_bridge) roads_dirty = 1; else dirty = 1; }
+    if (ui_button(px, 186, 60, 12, "ROLL")) { seed++; dirty = 1; }
+    if (ui_button(px + 66, 186, 60, 12, "VIEW")) { view = (view + 1) % NVIEW; recolour(); }
+    if (ui_button(px + 132, 186, 64, 12, str("RES %d", N))) { N = N == 256 ? 512 : N == 512 ? 1024 : 256; dirty = 1; }
     ui_end();
 
-    int y = 193;
+    int y = 201;
     print("THIS ISLAND", px, y, CLR_LIGHT_PEACH); y += 8;
     print(str("land %4d km2   peak %4d m", (int)st_land, (int)st_peak), px, y, CLR_LIGHT_GREY); y += 8;
     print(str("flat lowland %2d%%   above 300 m %2d%%", (int)st_flat, (int)st_high), px, y, CLR_LIGHT_GREY); y += 8;

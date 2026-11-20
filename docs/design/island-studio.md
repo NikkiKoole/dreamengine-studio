@@ -439,3 +439,29 @@ greedy placement cascaded differently.
 1024 road shape unchanged against the Isle of Man (`sndi-check --samples 300`: seed 1 dead 32 %,
 X 10.9 %, circuity 1.52; seed 3 34 %, 11.3 %, 1.49). Seed 1's minor density goes 0.80 → 0.74: the
 1024 grid used to invent ~10 extra places the 256 plan doesn't have.
+
+## Bridging open water (2026-11-20)
+
+Roads used to treat sea and lakes as walls: only rivers got bridges, so a town and a village either
+side of an inlet were joined the long way round or not at all (the maker's screenshot). The
+**bridging** slider (default 0.35) sets the appetite:
+
+- **Routing** (`step_cost`): a water cell costs `len × (1.2 + 30·(1−k)²) × (1 + DL/400)`, where DL
+  is its distance to dry land (a new distance field). That's dear at the default, close to road cost
+  at full, and always dearer away from shore. Water beyond half the max span from land
+  (`150 + 1850·k` m, so 0.8 km at default, 2 km at full) is unreachable. Only links between places
+  and the expressway may bridge; the coast ring and farm tracks never do. River-bridge cost scales
+  with the slider too (×1 at default).
+- **Crossings only** (`astar_b`): each water stretch on a found route must be no longer than the max
+  span **and** no longer than 2.5 × the water's width there (2 × its furthest point from shore).
+  Otherwise the route is re-routed with no water. Without this, full appetite gave 11 km "bridges"
+  running along a coast in the shallows and an expressway hopping down a lake chain.
+- **Spans** (`build_water_bridges`): a road stretch over water becomes one `B1` span (+20 m each
+  side), folding in any river bridge inside it. It counts as water only if the *route* went through
+  water cells and the smooth terrain is below −1 m (or a lake cell). Otherwise a coast road skimming
+  the shoreline, or a smoothed track clipping a lake corner, read as a 240 m bridge.
+
+Sweep at 256 over seeds 1/3/6/9/10 (water bridges, longest): 0 → none; 0.35 → none (byte-identical
+to before); 0.7 → seed 3 one of 308 m; 1.0 → seed 3 four (≤ 308 m, lake crossings to a village),
+seed 9 three. At 1024 the default finds one 80 m inlet crossing on seed 3 that the 156 m grid can't
+see. Sweeps use `DE_DEFINES=K_BRIDGE0=<v>f` (also `K_TOWN0`) instead of copying the cart.

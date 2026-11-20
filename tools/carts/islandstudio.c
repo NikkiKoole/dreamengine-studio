@@ -736,6 +736,23 @@ static int switchbacks(int m, int cls) {
     for (int q = 0; q < o; q++) { sm_x[q] = ox[q]; sm_y[q] = oy[q]; }
     return o;
 }
+// DENSIFY for the height profile (roadmap item 5): extra points on the straight segments so no two are
+// more than `maxd` apart. The plan shape is unchanged; backroads interpolates z linearly between points,
+// so a 200 m segment would have flattened its vertical curve.
+static int densify(float *xs, float *ys, int m, float maxd, int cap) {
+    static float tx[SM_MAX], ty[SM_MAX]; int o = 0;
+    for (int i = 0; i < m && o < SM_MAX - 1; i++) {
+        if (i) {
+            float dx = xs[i] - xs[i - 1], dy = ys[i] - ys[i - 1], L = sqrtf(dx * dx + dy * dy);
+            int k = (int)(L / maxd);
+            for (int q = 1; q <= k && o < SM_MAX - 1; q++) { float t = q / (float)(k + 1); tx[o] = xs[i - 1] + dx * t; ty[o] = ys[i - 1] + dy * t; o++; }
+        }
+        tx[o] = xs[i]; ty[o] = ys[i]; o++;
+    }
+    if (o > cap) return m;                               // no room: keep as is
+    for (int i = 0; i < o; i++) { xs[i] = tx[i]; ys[i] = ty[i]; }
+    return o;
+}
 static void emit_poly(const int *cells, int n, int cls) {
     if (n < 2) return;
     if (npl >= MAXPL) { st_overflow++; return; }
@@ -748,6 +765,7 @@ static void emit_poly(const int *cells, int n, int cls) {
     int m = smooth_path(cells, n);
     sm_tol_min = 0; sm_grade = 0;
     m = switchbacks(m, cls);
+    if (CELL <= 100.0f) m = densify(sm_x, sm_y, m, 15.0f, SM_MAX);
     float *ax = sm_x, *ay = sm_y;
     if (npt + m >= MAXPT) { st_overflow++; return; }
     pl[npl].start = npt; pl[npl].n = m; pl[npl].cls = cls; pl_ramp[npl] = 0; npl++;
@@ -1493,6 +1511,7 @@ static void snap_split(float *x, float *y) {
 static void add_ramp(Port a, Port b) {
     static float xs[256], ys[256];
     int n = scurve_spline(a, b, xs, ys);
+    if (CELL <= 100.0f) n = densify(xs, ys, n, 15.0f, 256);
     if (n < 2 || npl >= MAXPL || npt + n >= MAXPT) { st_overflow++; return; }
     pl[npl].start = npt; pl[npl].n = n; pl[npl].cls = RC_SEC; pl_ramp[npl] = 1; npl++;
     float L = 0;
@@ -1958,6 +1977,109 @@ static void build_houses(void) {
     }
 }
 
+// ── GRADED ROAD HEIGHTS (roadmap item 5): a height per road point, like a built road: grade-limited
+// (main / expressway 8 %, secondary 10 %, lanes and tracks 12 %), vertical curves smoothed over
+// ~60-100 m, within a cut/fill budget of the natural ground (+-6 m lanes and tracks, +-12 m main
+// roads; where grade and budget clash, grade wins). Line ends sit on the ground, so every line
+// meeting at a junction agrees. Bridges float free of the valley under them (no pull to the ground,
+// at least level with their banks); water spans at least 4 m above the water; the expressway at
+// least 7 m above a road it flies over. Computed on the fine terrain; the export heightfield stays
+// the natural ground and backroads carves / fills beside the road.
+static float plz[MAXPT];
+#define RG_MAXN_Z 32768
+static float st_rz_cut, st_rz_fill, st_rz_maxg; static int st_rz_over;
+static float rz_cap(int cls) { return cls >= RC_MAIN ? 0.08f : cls == RC_SEC ? 0.10f : 0.12f; }
+static float rz_g[SM_MAX * 4], rz_min[SM_MAX * 4], rz_tmp[SM_MAX * 4], rz_ds[SM_MAX * 4], rz_capv, rz_dev;
+static unsigned char rz_free[SM_MAX * 4];
+static int rg_node(float x, float y);
+static float rz_nodez[RG_MAXN_Z];
+// ground, deck minimums (spread into grade-limited ramps), cap and cut/fill budget for line p
+static int rz_prepare(int p) {
+    int s0 = pl[p].start, n = pl[p].n, cls = pl[p].cls;
+    if (n > SM_MAX * 4) return 0;
+    float *g = rz_g, *zmin = rz_min, *ds = rz_ds; unsigned char *freept = rz_free;
+    float cap = rz_cap(cls);
+    rz_dev = cls >= RC_MAIN ? 12.0f : 6.0f;
+    for (int i = 0; i < n; i++) {
+        g[i] = fmaxf(H_bilinear(plx[s0 + i], ply[s0 + i]), 0); zmin[i] = -1e9f; freept[i] = 0;
+        ds[i] = i ? hypotf(plx[s0 + i] - plx[s0 + i - 1], ply[s0 + i] - ply[s0 + i - 1]) : 0;
+    }
+    if (cls == RC_TRACK && lm_n[BK_MAST]) {                // the mast's service road: 15 %
+        int c = lm_site[BK_MAST][0]; float mx = (c % N + 0.5f) * CELL, my = (c / N + 0.5f) * CELL;
+        for (int i = 0; i < n; i += 8) if (hypotf(plx[s0 + i] - mx, ply[s0 + i] - my) < 3000.0f) { cap = 0.15f; break; }
+    }
+    for (int b = 0; b < nbr; b++) {                      // bridge spans (same widening as the export)
+        if (br[b].p != p) continue;
+        Bridge *q = &br[b]; int k0 = q->i - 1 - s0, k1 = q->i - s0;
+        while (k0 > 0 && hypotf(plx[s0 + k0] - q->x, ply[s0 + k0] - q->y) < q->len * 0.5f) k0--;
+        while (k1 < n - 1 && hypotf(plx[s0 + k1] - q->x, ply[s0 + k1] - q->y) < q->len * 0.5f) k1++;
+        if (k0 < 0) k0 = 0;
+        float za = g[k0], zb = g[k1];
+        for (int i = k0 + 1; i < k1; i++) {
+            float t = (float)(i - k0) / (k1 - k0), deck = za + (zb - za) * t;
+            freept[i] = 1;
+            if (q->wl >= 0) deck = fmaxf(deck, q->wl + 4.0f);                 // open water
+            if (q->cls == RC_EXPRESS && q->len == 260.0f && fabsf(t - 0.5f) < 0.2f) deck = fmaxf(deck, g[i] + 7.0f);   // flyover
+            zmin[i] = fmaxf(zmin[i], deck);
+        }
+    }
+    // a raised point needs grade-limited approaches: spread each minimum into a ramp (an embankment)
+    for (int i = 1; i < n; i++) zmin[i] = fmaxf(zmin[i], zmin[i - 1] - cap * ds[i]);
+    for (int i = n - 2; i >= 0; i--) zmin[i] = fmaxf(zmin[i], zmin[i + 1] - cap * ds[i + 1]);
+    rz_capv = cap;
+    return 1;
+}
+static void build_road_z(void) {
+    st_rz_cut = st_rz_fill = st_rz_maxg = 0; st_rz_over = 0;
+    // 1. JUNCTION HEIGHTS: the ground, or higher if any line meeting there needs it (a deck's ramp
+    //    reaching the junction): one height per node, so every line agrees
+    static int pa[MAXPL], pb[MAXPL];
+    for (int i = 0; i < RG_MAXN_Z; i++) rz_nodez[i] = -1e9f;
+    for (int p = 0; p < npl; p++) {
+        int s0 = pl[p].start, e0 = s0 + pl[p].n - 1;
+        pa[p] = rg_node(plx[s0], ply[s0]); pb[p] = rg_node(plx[e0], ply[e0]);
+        if (pa[p] < 0 || pb[p] < 0 || !rz_prepare(p)) { pa[p] = pb[p] = -1; continue; }
+        int n = pl[p].n;
+        rz_nodez[pa[p]] = fmaxf(rz_nodez[pa[p]], fmaxf(rz_g[0], rz_min[0]));
+        rz_nodez[pb[p]] = fmaxf(rz_nodez[pb[p]], fmaxf(rz_g[n - 1], rz_min[n - 1]));
+    }
+    // 2. each line between its junction heights
+    for (int p = 0; p < npl; p++) {
+        int s0 = pl[p].start, n = pl[p].n;
+        if (pa[p] < 0) { for (int i = 0; i < n; i++) plz[s0 + i] = fmaxf(H_bilinear(plx[s0 + i], ply[s0 + i]), 0); continue; }
+        rz_prepare(p);
+        float *g = rz_g, *zmin = rz_min, *ds = rz_ds, *tmp = rz_tmp, cap = rz_capv, dev = rz_dev; unsigned char *freept = rz_free;
+        float za = rz_nodez[pa[p]], zb = rz_nodez[pb[p]];
+        { float L = 0; for (int i = 1; i < n; i++) L += ds[i];      // ends further apart in height than the cap
+          float need = L > 1 ? fabsf(zb - za) / L : 0;              // allows: climb evenly at what it takes
+          if (need > cap * 0.95f) cap = need * 1.05f; }             // (else the solver made one step at an end)
+        float *z = &plz[s0];
+        for (int i = 0; i < n; i++) z[i] = fmaxf(g[i], zmin[i]);
+        for (int it = 0; it < 60; it++) {
+            for (int i = 1; i < n - 1; i++)                 // smooth (a +-2 point kernel ~ +-40 m per pass)
+                tmp[i] = (z[i - (i > 1 ? 2 : 1)] + 2 * z[i - 1] + 3 * z[i] + 2 * z[i + 1] + z[i + (i < n - 2 ? 2 : 1)]) / 9.0f;
+            for (int i = 1; i < n - 1; i++) {
+                float v = tmp[i];
+                if (!freept[i]) { v += 0.08f * (g[i] - v); v = fminf(fmaxf(v, g[i] - dev), g[i] + dev); }
+                z[i] = fmaxf(v, zmin[i]);
+            }
+            z[0] = za; z[n - 1] = zb;
+            for (int i = 1; i < n; i++) { float m = cap * ds[i]; z[i] = fmaxf(fminf(fmaxf(z[i], z[i - 1] - m), z[i - 1] + m), zmin[i]); }
+            z[n - 1] = zb;
+            for (int i = n - 2; i >= 0; i--) { float m = cap * ds[i + 1]; z[i] = fmaxf(fminf(fmaxf(z[i], z[i + 1] - m), z[i + 1] + m), zmin[i]); }
+            z[0] = za;
+        }
+        for (int i = 0; i < n; i++) {
+            if (!freept[i]) { float d = z[i] - g[i]; if (d < -st_rz_cut) st_rz_cut = -d; if (d > st_rz_fill) st_rz_fill = d; }
+            if (i) { float gr = fabsf(z[i] - z[i - 1]) / fmaxf(ds[i], 1e-3f); if (ds[i] > 5 && gr > st_rz_maxg) st_rz_maxg = gr; if (ds[i] > 5 && gr > cap + 0.005f) { st_rz_over++;
+#ifdef DE_TRACE
+                if (getenv("RZ_DEBUG")) fprintf(stderr, "rz over: poly %d cls %d n %d i %d ds %.1f z %.1f->%.1f g %.1f->%.1f min %.1f->%.1f za %.1f zb %.1f free %d%d ramp %d\n", p, pl[p].cls, n, i, ds[i], z[i-1], z[i], g[i-1], g[i], zmin[i-1], zmin[i], za, zb, freept[i-1], freept[i], pl_ramp[p]);
+#endif
+            } }
+        }
+    }
+}
+
 // ── ROUTE NUMBERS + SIGNPOSTS (roadmap item 1, for backroads' way-finding) ───────────────────────
 // A ROAD GRAPH over the final lines (lanes and up; tracks left out): nodes = line ends, which meet
 // exactly at junctions. ROUTES: at every node, same-class lines are paired straight-on (turn < 60°,
@@ -2257,13 +2379,13 @@ static int ex_kind_ix(const char *k) {
     for (int i = 0; i < (int)(sizeof NM / sizeof NM[0]); i++) if (!strcmp(NM[i], k)) return i;
     return 2;   // road (osm-roads.js's fallback)
 }
-typedef struct { const char *kind, *sub; int start, n; float h; } ExFeat;   // h: building height (m), 0 = none
+typedef struct { const char *kind, *sub; int start, n; float h; int zs; } ExFeat;   // h: building height (m), 0 = none; zs: road heights in exz (-1 none)
 static ExFeat *exf; static int exn, excap;
 static double *expt; static int exnp, expcap;   // x,y pairs
 static double ex_r(float v, int dec) { char b[32]; snprintf(b, sizeof b, dec ? "%.1f" : "%.0f", v); return strtod(b, NULL); }
 static void ex_begin(const char *kind, const char *sub) {
     if (exn == excap) { excap = excap ? excap * 2 : 4096; exf = realloc(exf, excap * sizeof *exf); }
-    exf[exn++] = (ExFeat){ kind, sub, exnp, 0, 0 };
+    exf[exn++] = (ExFeat){ kind, sub, exnp, 0, 0, -1 };
 }
 static void ex_pt(double x, double y) {
     if (exnp + 2 > expcap) { expcap = expcap ? expcap * 2 : 1 << 16; expt = realloc(expt, expcap * sizeof *expt); }
@@ -2273,6 +2395,15 @@ static void ex_line(const char *kind, const char *sub, const float *xs, const fl
     if (b <= a) return;
     ex_begin(kind, sub);
     for (int i = a; i <= b; i++) ex_pt(ex_r(xs[i], 1), ex_r(WORLD_M - ys[i], 1));
+}
+// a road line with its graded heights (roadmap item 5): JSON "z", and the .rvb's trailing RZ01 block
+static double *exz; static int exnz, exzcap;
+static void ex_line_z(const char *kind, const char *sub, const float *xs, const float *ys, const float *zs, int a, int b) {
+    if (b <= a) return;
+    ex_line(kind, sub, xs, ys, a, b);
+    if (exnz + (b - a + 1) > exzcap) { exzcap = exzcap ? exzcap * 2 : 1 << 16; while (exzcap < exnz + (b - a + 1)) exzcap *= 2; exz = realloc(exz, exzcap * sizeof *exz); }
+    exf[exn - 1].zs = exnz;
+    for (int i = a; i <= b; i++) exz[exnz++] = ex_r(zs[i], 1);
 }
 static void ex_poly(const char *kind, const char *sub, float cx, float cy, float r, int n) {
     ex_begin(kind, sub);
@@ -2285,7 +2416,7 @@ static void ex_w32(FILE *f, int v) { unsigned char b[4] = { v & 255, (v >> 8) & 
 static void ex_wf(FILE *f, double d) { float v = (float)d; unsigned u; memcpy(&u, &v, 4); ex_w32(f, (int)u); }
 static float H_bilinear(float x, float y);
 static void export_island(void) {
-    exn = 0; exnp = 0;
+    exn = 0; exnp = 0; exnz = 0;
     // LAND COVER as areas (first, so they lie under everything): runs of one class per row on a
     // 128 grid (312 m), each run one rectangle. A block whose sample point is water takes the block's
     // most common LAND class instead (a whole-water block is left out): water goes out separately,
@@ -2350,15 +2481,15 @@ static void export_island(void) {
             while (k0 > cur && hypotf(plx[k0] - q->x, ply[k0] - q->y) < q->len * 0.5f) k0--;
             while (k1 < e0 && hypotf(plx[k1] - q->x, ply[k1] - q->y) < q->len * 0.5f) k1++;
             if (k0 < cur) continue;
-            ex_line(EXPORT_KIND[pl[p].cls], rs, plx, ply, cur, k0);
+            ex_line_z(EXPORT_KIND[pl[p].cls], rs, plx, ply, plz, cur, k0);
             static char bsub[MAXBR][40];                      // water spans say what they cross: "B1;water=<level m>"
             int bl = snprintf(bsub[bi[a]], sizeof bsub[0], "B1");
             if (q->wl >= 0) bl += snprintf(bsub[bi[a]] + bl, sizeof bsub[0] - bl, ";water=%.1f", q->wl);
             if (rs) snprintf(bsub[bi[a]] + bl, sizeof bsub[0] - bl, ";%s", rs);
-            ex_line(EXPORT_KIND[pl[p].cls], bsub[bi[a]], plx, ply, k0, k1);
+            ex_line_z(EXPORT_KIND[pl[p].cls], bsub[bi[a]], plx, ply, plz, k0, k1);
             cur = k1;
         }
-        ex_line(EXPORT_KIND[pl[p].cls], rs, plx, ply, cur, e0);
+        ex_line_z(EXPORT_KIND[pl[p].cls], rs, plx, ply, plz, cur, e0);
     }
     for (int r = 0; r < nrv; r++) ex_line("canal", NULL, rvx, rvy, rv[r].start, rv[r].start + rv[r].n - 1);
     // SIGNPOSTS: one "guidepost" line per arm, junction -> 20 m along the arm (see build_routes_signs)
@@ -2420,7 +2551,9 @@ static void export_island(void) {
         if (e->sub && !strncmp(e->sub, "place=", 6)) fprintf(f, ",\"name\":\"%s\"", strstr(e->sub, "name=") + 5);
         fprintf(f, ",\"pts\":[");
         for (int k = 0; k < e->n * 2; k++) fprintf(f, "%s%.1f", k ? "," : "", expt[e->start + k]);
-        fprintf(f, "]}");
+        fprintf(f, "]");
+        if (e->zs >= 0) { fprintf(f, ",\"z\":["); for (int k = 0; k < e->n; k++) fprintf(f, "%s%.1f", k ? "," : "", exz[e->zs + k]); fprintf(f, "]"); }
+        fprintf(f, "}");
     }
     fprintf(f, "\n],\n\"heightfield\":{\"g\":%d,\"z\":[", G);
     for (int k = 0; k < G * G; k++) fprintf(f, "%s%.1f", k ? "," : "", hz[k]);
@@ -2440,6 +2573,16 @@ static void export_island(void) {
             for (int k = 0; k < e->n * 2; k++) ex_wf(r, expt[e->start + k]);
         }
         ex_w32(r, G); for (int k = 0; k < G * G; k++) ex_wf(r, hz[k]);
+        // RZ01 (optional, after the heightfield; old readers stop before it): per road feature its
+        // index in the full feature list, n, and n heights (m)
+        int nzf = 0; for (int q = 0; q < exn; q++) if (exf[q].zs >= 0) nzf++;
+        if (nzf) {
+            fwrite("RZ01", 1, 4, r); ex_w32(r, nzf);
+            for (int q = 0; q < exn; q++) if (exf[q].zs >= 0) {
+                ex_w32(r, q); ex_w32(r, exf[q].n);
+                for (int k = 0; k < exf[q].n; k++) ex_wf(r, exz[exf[q].zs + k]);
+            }
+        }
         fclose(r);
         snprintf(export_msg, sizeof export_msg, "exported %s (+ .rvb)", path);
     } else snprintf(export_msg, sizeof export_msg, "exported %s (.rvb failed)", path);
@@ -2596,6 +2739,7 @@ static void build_roads(void) {
     build_interchanges();
     build_houses();
     build_routes_signs();
+    build_road_z();
 #ifdef DE_TRACE
     if (getenv("GRADE_DEBUG")) {                         // road grade over 50 m on the FINE terrain (routing's view)
         int n = 0, o12 = 0; float mx = 0, mxx = 0, mxy = 0;
@@ -2731,10 +2875,10 @@ void init(void) { rebuild(); build_roads(); }
 
 void update(void) {
 #ifdef DE_TRACE
-    watch("seed", "%d", seed); watch("nset", "%d", nset); watch("coastal", "%d", st_coastal);
+    watch("seed", "%d", seed); watch("overflow", "%d", st_overflow);   // first: the trace keeps 40 values watch("nset", "%d", nset); watch("coastal", "%d", st_coastal);
     watch("moor", "%d", (int)st_cov[CV_MOOR]); watch("forest", "%d", (int)st_cov[CV_FOREST]);
     watch("land", "%d", (int)st_land); watch("npl", "%d", npl); watch("express", "%d", st_express);
-    watch("ringgaps", "%d", st_ringgaps); watch("bridges", "%d", nbr); watch("lakes", "%d", st_lakes); watch("N", "%d", N); watch("diagx", "%d", st_diagx); watch("cuts", "%d", st_cuts); watch("consol", "%d", st_consol); watch("streets", "%d", st_streets); watch("switchbacks", "%d", st_switchbacks); watch("routes", "M %d A %d B %d", st_routes[0], st_routes[1], st_routes[2]); watch("guideposts", "%d", st_guideposts); watch("lm_roads", "%d", st_lm_roads); watch("houses", "%d", nhs); for (int t = 0; t < BK_N; t++) if (st_htype[t]) watch(str("b_%s%s%s", BK[t].building, BK[t].tag ? "_" : "", BK[t].tag ? strchr(BK[t].tag, '=') + 1 : ""), "%d", st_htype[t]); watch("waterbr", "%d", st_waterbr); watch("waterbr_max", "%.0f", st_waterbr_max); watch("flyovers", "%d", st_flyovers); watch("interchanges", "%d", st_interchanges); watch("rebuild_ms", "%.0f", st_rebuild_ms); watch("overflow", "%d", st_overflow); watch("links", "lane %d/%d sec %d/%d main %d/%d", st_link_ok[0], st_link_try[0], st_link_ok[1], st_link_try[1], st_link_ok[2], st_link_try[2]); { int bb = -1; for (int b = 0; b < nbr; b++) if (bb < 0 || br[b].len > br[bb].len) bb = b;
+    watch("ringgaps", "%d", st_ringgaps); watch("bridges", "%d", nbr); watch("lakes", "%d", st_lakes); watch("N", "%d", N); watch("diagx", "%d", st_diagx); watch("cuts", "%d", st_cuts); watch("consol", "%d", st_consol); watch("streets", "%d", st_streets); watch("switchbacks", "%d", st_switchbacks); watch("rz", "cut %.0f fill %.0f maxg %.3f over %d", st_rz_cut, st_rz_fill, st_rz_maxg, st_rz_over); watch("routes", "M %d A %d B %d", st_routes[0], st_routes[1], st_routes[2]); watch("guideposts", "%d", st_guideposts); watch("lm_roads", "%d", st_lm_roads); watch("houses", "%d", nhs); for (int t = 0; t < BK_N; t++) if (st_htype[t]) watch(str("b_%s%s%s", BK[t].building, BK[t].tag ? "_" : "", BK[t].tag ? strchr(BK[t].tag, '=') + 1 : ""), "%d", st_htype[t]); watch("waterbr", "%d", st_waterbr); watch("waterbr_max", "%.0f", st_waterbr_max); watch("flyovers", "%d", st_flyovers); watch("interchanges", "%d", st_interchanges); watch("rebuild_ms", "%.0f", st_rebuild_ms); watch("overflow", "%d", st_overflow); watch("links", "lane %d/%d sec %d/%d main %d/%d", st_link_ok[0], st_link_try[0], st_link_ok[1], st_link_try[1], st_link_ok[2], st_link_try[2]); { int bb = -1; for (int b = 0; b < nbr; b++) if (bb < 0 || br[b].len > br[bb].len) bb = b;
       if (bb >= 0) { watch("bigbridge_x", "%.0f", br[bb].x); watch("bigbridge_y", "%.0f", br[bb].y); watch("bigbridge_len", "%.0f", br[bb].len); } } watch("rivers", "%d", nrv);
     watch("forest_tracks", "%d", nforest); watch("upland_tracks", "%d", nupland); watch("roads_ms", "%.0f", st_roads_ms);
     for (int k = RC_TRACK; k < NRC; k++) watch(RCN[k], "%.0f", st_road[k]);

@@ -313,6 +313,8 @@ const round = (v) => Math.round(v * 10) / 10;
 //   per feature: int32 kind | float32 h | int32 sublen | sub bytes | int32 npts | float32 pts[npts*2]
 // h = building height in metres (0 = unknown/non-building). RVB1 (no h) still loads in the
 // cart — the reader switches layout on the magic's version byte.
+// After an RVB3 heightfield an OPTIONAL "RZ01" block may follow: int32 count | per road feature:
+// int32 index in the full feature list | int32 n | float32 z[n] (graded road heights, islandstudio).
 function writeBin(doc, outPath) {
   const nameBuf = Buffer.from(doc.name || '', 'utf8');
   const subBufs = doc.features.map(f => Buffer.from(f.sub || '', 'utf8'));
@@ -320,6 +322,9 @@ function writeBin(doc, outPath) {
   let size = 4 + 4 + 4 + nameBuf.length + 16;
   doc.features.forEach((f, i) => { size += 4 + 4 + 4 + subBufs[i].length + 4 + f.pts.length * 4; });  // +4: float h
   if (hf) size += 4 + hf.g * hf.g * 4;                         // trailing: int32 G + float32 grid[G*G]
+  // optional RZ01 block after the heightfield: graded road heights (islandstudio); old readers stop before it
+  const zf = hf ? doc.features.map((f, i) => [i, f]).filter(([, f]) => Array.isArray(f.z) && f.z.length === f.pts.length >> 1) : [];
+  if (zf.length) { size += 8; for (const [, f] of zf) size += 8 + f.z.length * 4; }
   const buf = Buffer.alloc(size);
   let o = 0;
   o += buf.write(hf ? 'RVB3' : 'RVB2', o, 'latin1');
@@ -336,6 +341,10 @@ function writeBin(doc, outPath) {
     for (let k = 0; k < f.pts.length; k++) { buf.writeFloatLE(f.pts[k], o); o += 4; }
   });
   if (hf) { buf.writeInt32LE(hf.g, o); o += 4; for (const v of hf.z) { buf.writeFloatLE(v, o); o += 4; } }
+  if (zf.length) {
+    o += buf.write('RZ01', o, 'latin1'); buf.writeInt32LE(zf.length, o); o += 4;
+    for (const [i, f] of zf) { buf.writeInt32LE(i, o); o += 4; buf.writeInt32LE(f.z.length, o); o += 4; for (const v of f.z) { buf.writeFloatLE(v, o); o += 4; } }
+  }
   fs.writeFileSync(outPath, buf);
 }
 

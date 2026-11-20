@@ -583,3 +583,33 @@ Seed 3 @1024, export heightfield, share of 50 m stretches over 12 % (max): main 
 21 %), secondary 1.54 → 0.81 % (33 → 26 %), lane 0.66 → 0.53 % (28 → 23 %), track 1.24 → 1.06 %
 (32 → 31 %). The mast service road: 31 → 24 % of stretches over 12 %. 139 hairpin legs. Kinks per
 100 km rise a little (main 6 → 8, track 33 → 42): hairpins are real kinks.
+
+## Graded road heights (2026-11-20, roadmap item 5, moved ahead of 3 and 4 by the maker)
+
+Every road point now has a height, like a built road (`build_road_z()`), on the fine terrain:
+
+- **Grade caps**: main and expressway 8 %, secondary 10 %, lanes and tracks 12 %, the mast's service
+  road 15 %. Vertical curves smoothed over ~60-100 m. Cut/fill budget against the ground: ±6 m
+  lanes and tracks, ±12 m main roads (grade wins where they clash; max seen 23 m cut, 22 m fill).
+- **Junctions first**: each junction gets one height, the ground, or higher if a line meeting it
+  needs that (a deck's approach ramp reaching it), and every line is solved between its junction
+  heights. A line whose junctions differ by more than its cap allows climbs evenly at what it takes
+  (a short track over a bank, a slip road up to the expressway), no step. Before both fixes the
+  profile had 223 % steps at line ends.
+- **Decks**: bridges float free of the valley (no pull to the ground, at least level with their
+  banks); water spans at least 4 m above the water; the expressway at least 7 m above a road it
+  flies over. Each raised minimum is spread into grade-limited ramps (embankments).
+- **Densified**: road lines get extra points on straight segments so none are more than 15 m apart
+  (backroads interpolates z linearly); plan shape unchanged. Fine grids only.
+
+**Format** (agreed with backroads; no version bump): JSON road features carry `"z":[…]`, one per
+point; the `.rvb` stays RVB3 with an optional trailing `RZ01` block after the heightfield
+(`int32 count | per road feature: int32 index in the full feature list | int32 n | float32 z[n]`).
+Old readers stop before it (checked: current backroads and roadview load it). `osm-roads.js
+--convert` writes the same block, so parity holds. Backroads owns carving its ground toward z; the
+export heightfield stays the natural ground.
+
+Seed 3 @1024, `grade-check --profile` (grade along z, 50 m): main max 10 %, secondary 0.44 % of
+stretches over 12 % (max 17 %, lines forced by their junctions), lanes 0.18 % (max 14 %), tracks
+0.61 % (max 16 %); nothing over 20 % (on the ground: up to 31 %). The mast road: max 15 % (ground
+under it 29 %). Junction ends that disagree: 0. File 2.06 → 2.44 MB.

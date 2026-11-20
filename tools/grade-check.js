@@ -7,6 +7,8 @@
 //   node tools/grade-check.js <file.json> [--where] [--near X,Y,R]
 //     --where       list the steepest stretches (with distance to the nearest bridge piece)
 //     --near X,Y,R  only roads with a point within R m of (X,Y) (export frame), e.g. a mast service road
+//     --profile     use each road's own graded heights ("z", roadmap item 5) instead of the heightfield,
+//                   and report junction ends whose heights disagree (must be 0)
 //     --selfcheck   a synthetic ramp with known grades; exits 1 on mismatch
 //
 // DEFINITION (keep stable): resample each road line every 10 m; grade = |dz| / length over each 5-step
@@ -17,6 +19,7 @@ const fs = require('fs');
 const argv = process.argv.slice(2);
 const opt = (n, d) => { const i = argv.indexOf(n); return i >= 0 ? argv[i + 1] : d; };
 
+const PROFILE = argv.includes('--profile');
 function measure(d, near) {
   const hf = d.heightfield, G = hf.g, W = d.bbox[2];
   const z = (x, y) => {
@@ -28,20 +31,25 @@ function measure(d, near) {
   const st = {}, worst = [], BR = [];
   for (const f of d.features) if ((f.sub || '').startsWith('B')) for (let i = 0; i < f.pts.length; i += 2) BR.push([f.pts[i], f.pts[i + 1]]);
   for (const f of d.features) {
-    const g = GR[f.kind]; if (!g || (f.sub || '').startsWith('B')) continue;
+    const g = GR[f.kind]; if (!g || (!PROFILE && (f.sub || '').startsWith('B'))) continue;   // a deck is level; with --profile its z is the deck
     const p = f.pts;
     if (near) { let ok = false; for (let i = 0; i < p.length; i += 2) if (Math.hypot(p[i] - near[0], p[i + 1] - near[1]) < near[2]) ok = true; if (!ok) continue; }
-    const xs = [], ys = [];
+    const xs = [], ys = [], zs = [], useZ = PROFILE && Array.isArray(f.z);
+    if (PROFILE && !useZ) continue;
     for (let i = 2; i < p.length; i += 2) {
       const L = Math.hypot(p[i] - p[i - 2], p[i + 1] - p[i - 1]), n = Math.max(1, Math.ceil(L / 10));
-      for (let k = 0; k < n; k++) { xs.push(p[i - 2] + (p[i] - p[i - 2]) * k / n); ys.push(p[i - 1] + (p[i + 1] - p[i - 1]) * k / n); }
+      for (let k = 0; k < n; k++) {
+        xs.push(p[i - 2] + (p[i] - p[i - 2]) * k / n); ys.push(p[i - 1] + (p[i + 1] - p[i - 1]) * k / n);
+        if (useZ) zs.push(f.z[(i >> 1) - 1] + (f.z[i >> 1] - f.z[(i >> 1) - 1]) * k / n);
+      }
     }
-    xs.push(p[p.length - 2]); ys.push(p[p.length - 1]);
+    xs.push(p[p.length - 2]); ys.push(p[p.length - 1]); if (useZ) zs.push(f.z[f.z.length - 1]);
+    const Z = useZ ? (k) => zs[k] : (k) => z(xs[k], ys[k]);
     const s = st[g] = st[g] || { n: 0, o12: 0, o15: 0, o20: 0, max: 0 };
     for (let k = 5; k < xs.length; k += 5) {
       let L = 0; for (let q = k - 4; q <= k; q++) L += Math.hypot(xs[q] - xs[q - 1], ys[q] - ys[q - 1]);
       if (L < 20) continue;
-      const gr = Math.abs(z(xs[k], ys[k]) - z(xs[k - 5], ys[k - 5])) / L;
+      const gr = Math.abs(Z(k) - Z(k - 5)) / L;
       s.n++; if (gr > 0.12) s.o12++; if (gr > 0.15) s.o15++; if (gr > 0.20) s.o20++; if (gr > s.max) s.max = gr;
       if (gr > 0.18) worst.push([gr, g, Math.round(xs[k]), Math.round(ys[k])]);
     }
@@ -70,6 +78,13 @@ for (const g of ['main', 'secondary', 'lane', 'track']) {
   const s = st[g]; if (!s) continue;
   const pc = (v) => (100 * v / s.n).toFixed(2).padStart(6) + '%';
   console.log(`${g.padEnd(10)} 50 m stretches ${String(s.n).padStart(6)}   >12% ${pc(s.o12)}   >15% ${pc(s.o15)}   >20% ${pc(s.o20)}   max ${(100 * s.max).toFixed(0)}%`);
+}
+if (PROFILE) {
+  const ends = new Map(); let bad = 0;
+  for (const f of JSON.parse(fs.readFileSync(file, 'utf8')).features) if (Array.isArray(f.z))
+    for (const k of [0, f.z.length - 1]) { const key = f.pts[2 * k] + ',' + f.pts[2 * k + 1]; if (!ends.has(key)) ends.set(key, []); ends.get(key).push(f.z[k]); }
+  for (const [, v] of ends) if (Math.max(...v) - Math.min(...v) > 0.11) bad++;
+  console.log(`junction ends whose heights disagree: ${bad}`);
 }
 if (argv.includes('--where')) {
   const nb = (x, y) => { let b = 1e9; for (const [a, c] of BR) b = Math.min(b, Math.hypot(a - x, c - y)); return b; };

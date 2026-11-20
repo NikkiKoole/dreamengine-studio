@@ -567,6 +567,19 @@ the island's own name as the document name, e.g. "Selwick (seed 3)"): backroads 
 rank (radius as fallback), shows a white 1970s place-name sign for 3.5 s when you drive into a place
 (within its radius + 60 m), and labels towns (and villages when zoomed in) on the Tab map.
 
+### 2026-11-20: bridges overdrawing in the distance (maker's screenshot)
+
+Three fixes to decks:
+- **Late only with a clear line of sight.** "Decks within 250 m drawn after all terrain" also drew a deck
+  behind a hill crest over the hill. Now each deck piece is late only if the ground stays below the
+  sight line from the eye to it (9 samples); otherwise it keeps the per-cell order.
+- **Parapets and slab edges only where the deck is raised** (≥ 1 m above the ground), and the slab edge
+  is clipped at ground level. At a ramp's start the slab edge was underground yet drawn last: dark
+  "feet" and parapets starting at road level, the thing in the maker's screenshot.
+- **A deck never dips below the ground under it**: each span samples the ground every L/32 at load; a
+  straight deck between its ends used to run through a rise in the middle.
+Dev hooks: `BR_KDIST` (how far back `K` puts you, default 60 m) and `BR_KFLY` (`K` visits flyovers only).
+
 ---
 
 ## 11. Open questions — to be answered by playing

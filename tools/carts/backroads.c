@@ -509,7 +509,7 @@ static int in_finer(int r, float wx, float wy, float s) {   // cell fully inside
 static int pc_drop;              // pieces/bins dropped for lack of room this frame: must stay 0
 #define PST_MAX  600
 enum { PK_ROAD, PK_DASH, PK_RAIL, PK_FASCIA };   // RAIL / FASCIA: vertical strips along a deck's sides
-typedef struct { float x[4], y[4]; unsigned char kind, band, deck; float z0, z1, ax, ay, bx, by; } Piece;   // deck: heights z0..z1 along axis a→b
+typedef struct { float x[4], y[4]; unsigned char kind, band, deck, late; float z0, z1, ax, ay, bx, by; } Piece;   // deck: heights z0..z1 along axis a→b; late: drawn after all terrain
 static Piece pc[PC_MAX]; static int npc;
 static int   bin_head[ROAD_RINGS][32 * 32], bin_next[BIN_MAX], bin_pc[BIN_MAX], nbin;
 typedef struct { float x, y; } Post;
@@ -544,7 +544,7 @@ static void add_piece(float ax, float ay, float bx, float by, float cx, float cy
     Piece *p = &pc[npc];
     p->x[0] = ax; p->y[0] = ay; p->x[1] = bx; p->y[1] = by;
     p->x[2] = cx; p->y[2] = cy; p->x[3] = dx; p->y[3] = dy;
-    p->kind = (unsigned char)kind; p->band = (unsigned char)band; p->deck = 0;
+    p->kind = (unsigned char)kind; p->band = (unsigned char)band; p->deck = 0; p->late = 0;
     bin_piece(npc++);
 }
 
@@ -629,7 +629,8 @@ static void add_post(float ox, float oy) {
 // it passes OVER another road it rises to 6.5 m clearance on 6 % ramps. Pieces of a bridge carry
 // these heights; the car rides the deck when it's nearer the deck than the ground beneath.
 #define IBR_MAX 2000
-typedef struct { int q; float g0, g1, L; int nc; float sc[4], gc[4]; } IBr;
+#define IBR_GS 33
+typedef struct { int q; float g0, g1, L; int nc; float sc[4], gc[4]; float gs[IBR_GS]; } IBr;   // gs: the ground along the span
 static IBr ibr[IBR_MAX]; static int nibr;
 static short ipl_br[IPL_MAX];                     // per poly: its deck index, -1 = not a bridge
 static int seg_cross(float ax, float ay, float bx, float by, float cx, float cy, float dx, float dy, float *t) {
@@ -648,6 +649,13 @@ static void isl_build_decks(void) {
         IBr *B = &ibr[nibr]; int a = ipl[q].start, e = a + ipl[q].n - 1;
         B->q = q; B->L = ipS[e] - ipS[a]; B->nc = 0;
         B->g0 = ground(ipx[a], ipy[a]); B->g1 = ground(ipx[e], ipy[e]);
+        for (int g = 0, k = a; g < IBR_GS; g++) {         // the ground under the span, every L/32
+            float sg = B->L * g / (IBR_GS - 1);
+            while (k < e && ipS[k + 1] - ipS[a] < sg) k++;
+            float sl = ipS[k + 1 <= e ? k + 1 : e] - ipS[k], t = sl > 0 ? (sg - (ipS[k] - ipS[a])) / sl : 0;
+            int k2 = k + 1 <= e ? k + 1 : e;
+            B->gs[g] = ground(ipx[k] + (ipx[k2] - ipx[k]) * t, ipy[k] + (ipy[k2] - ipy[k]) * t);
+        }
         for (int k = a + 1; k <= e; k++) {                // roads passing underneath
             int bx = ib_of((ipx[k] + ipx[k - 1]) * 0.5f, isl_W), by = ib_of((ipy[k] + ipy[k - 1]) * 0.5f, isl_H);
             for (int j = by - 1; j <= by + 1; j++) for (int i = bx - 1; i <= bx + 1; i++) {
@@ -677,7 +685,11 @@ static float deck_h(int q, float s) {             // s = arc length along the WH
     // the deck MUST meet the ground at both ends: taper the lift to 0 over the last 40 m (a crossing on
     // higher ground than the span's ends left a 3.7 m step the wheels refused, so cars drove through)
     float taper = clamp(fminf(sr, B->L - sr) / 40.0f, 0, 1);
-    return base + (z - base) * taper * taper * (3 - 2 * taper);
+    z = base + (z - base) * taper * taper * (3 - 2 * taper);
+    // never below the ground under it (a straight deck between its ends ran THROUGH a rise)
+    float fg = B->L > 0 ? sr / B->L * (IBR_GS - 1) : 0; int ig = (int)fg; if (ig > IBR_GS - 2) ig = IBR_GS - 2;
+    float gnd = B->gs[ig] + (B->gs[ig + 1] - B->gs[ig]) * (fg - ig);
+    return fmaxf(z, gnd);
 }
 // JUNCTION PATCH: rounded curb corners between neighbouring arms (roadkit's curb_return, the same
 // fillet geometry streetlab and citydrive draw), plus a small hub disc, as extra road pieces. The
@@ -765,12 +777,17 @@ static void isl_build_roads(void) {
                         Piece *pp = &pc[npc - 1];
                         float z0 = deck_h(dq, S + L * t0), z1 = deck_h(dq, S + L * t1);
                         pp->deck = 1; pp->z0 = z0; pp->z1 = z1; pp->ax = x0; pp->ay = y0; pp->bx = x1; pp->by = y1;
+                        // parapets + slab edge only where the deck is actually RAISED: at a ramp's start the
+                        // deck is at ground level, and a slab edge hanging below it was underground, yet drawn
+                        // last over the road (dark "feet" + parapets starting at road level)
+                        float g0 = ground(x0, y0), g1 = ground(x1, y1);
+                        if (fmaxf(z0 - g0, z1 - g1) >= 1.0f)
                         for (int side = -1; side <= 1; side += 2)  // parapet + slab edge on both sides
                             for (int kind = PK_RAIL; kind <= PK_FASCIA; kind++) {
                                 float o = side * (1.0f + 0.25f / hw);
                                 int b2 = npc;
                                 add_piece(x0 + n0x * o, y0 + n0y * o, x1 + n1x * o, y1 + n1y * o, x1 + n1x * o, y1 + n1y * o, x0 + n0x * o, y0 + n0y * o, kind, band);
-                                if (npc > b2) { Piece *sp = &pc[npc - 1]; sp->deck = 1; sp->z0 = z0; sp->z1 = z1; }
+                                if (npc > b2) { Piece *sp = &pc[npc - 1]; sp->deck = 1; sp->z0 = z0; sp->z1 = z1; sp->ax = g0; sp->ay = g1; }   // ax/ay: the ground under it
                             }
                     }
                 }
@@ -932,7 +949,10 @@ static void draw_piece_in_cell(int r, int i, int j, const Piece *p, float lumA, 
 static void draw_side(const Piece *p) {           // a vertical strip along a deck edge
     float lo0, hi0, lo1, hi1;
     if (p->kind == PK_RAIL) { lo0 = p->z0; hi0 = p->z0 + 0.7f; lo1 = p->z1; hi1 = p->z1 + 0.7f; }
-    else                    { lo0 = p->z0 - 1.3f; hi0 = p->z0; lo1 = p->z1 - 1.3f; hi1 = p->z1; }
+    else {                                              // slab edge: down to 1.3 m below the deck, never underground
+        lo0 = fmaxf(p->z0 - 1.3f, p->ax); hi0 = p->z0; lo1 = fmaxf(p->z1 - 1.3f, p->ay); hi1 = p->z1;
+        if (hi0 - lo0 < 0.15f && hi1 - lo1 < 0.15f) return;
+    }
     float X[4], Y[4], Z[4];
     to_cam(p->x[0], p->y[0], lo0, &X[0], &Y[0], &Z[0]); to_cam(p->x[1], p->y[1], lo1, &X[1], &Y[1], &Z[1]);
     to_cam(p->x[1], p->y[1], hi1, &X[2], &Y[2], &Z[2]); to_cam(p->x[0], p->y[0], hi0, &X[3], &Y[3], &Z[3]);
@@ -972,8 +992,8 @@ static void draw_cell(int r, int i, int j) {
     if (in_finer(r, rx0[r] + i * RS[r], ry0[r] + j * RS[r], RS[r])) return;
     int v00 = j * n1 + i, v10 = v00 + 1, v01 = v00 + n1, v11 = v01 + 1;
     float ccx = rx0[r] + (i + 0.5f) * RS[r] - px, ccy = ry0[r] + (j + 0.5f) * RS[r] - py;
-    int near = ccx * ccx + ccy * ccy < DECK_NEAR * DECK_NEAR;
-    if (g_deckpass && (!near || r >= ROAD_RINGS)) return;
+    float reach = DECK_NEAR + RS[r] * 1.5f;               // a cell can hold late pieces up to a cell beyond
+    if (g_deckpass && (r >= ROAD_RINGS || ccx * ccx + ccy * ccy > reach * reach)) return;
     float za = vcz[r][v00] + vcz[r][v10] + vcz[r][v11];
     float zb = vcz[r][v00] + vcz[r][v11] + vcz[r][v01];
     if (!g_deckpass) {
@@ -992,7 +1012,7 @@ static void draw_cell(int r, int i, int j) {
                     int key = p->kind == PK_ROAD ? (p->deck ? 3 : 0) : p->kind == PK_DASH ? (p->deck ? 4 : 1)
                             : p->kind == PK_FASCIA ? 2 : 5;
                     if (key != pass) continue;
-                    if (near && (key >= 2) != (g_deckpass == 1)) continue;   // near decks: only in the deck pass
+                    if (p->late != (g_deckpass == 1)) continue;   // late deck pieces: only in the deck pass
                     if (key == 2 || key == 5) draw_side(p); else draw_piece_in_cell(r, i, j, p, lumA, lumB);
                 }
         }
@@ -1477,9 +1497,12 @@ void update(void) {
     }
     if (ISL && keyp('K') && nibr > 0) {               // dev: jump 60 m before the next bridge, facing it
         static int bcur = -1; bcur = (bcur + 1) % nibr;    // every bridge in turn (river bridges and flyovers)
+        { static int onlyfly = -1; if (onlyfly < 0) onlyfly = getenv("BR_KFLY") != 0;   // dev: flyovers only
+          if (onlyfly) for (int t = 0; t < nibr && ibr[bcur].nc == 0; t++) bcur = (bcur + 1) % nibr; }
         const IPoly *q = &ipl[ibr[bcur].q]; int a = q->start, e = a + q->n - 1;
         float dx = ipx[e] - ipx[a], dy = ipy[e] - ipy[a], l = fsqrt(dx * dx + dy * dy) + 1e-6f;
-        px = ipx[a] - dx / l * 60.0f; py = ipy[a] - dy / l * 60.0f; head = atan2f(dy, dx) / D2R;
+        static float kd = -1; if (kd < 0) { const char *e = getenv("BR_KDIST"); kd = e ? (float)atof(e) : 60.0f; }   // dev: how far back
+        px = ipx[a] - dx / l * kd; py = ipy[a] - dy / l * kd; head = atan2f(dy, dx) / D2R;
         vx = vy = 0; camh = ground(px, py) + EYE;
     }
     if (ISL && keyp('J') && nijn > 0) {               // dev: jump 40 m before the next junction, facing it
@@ -1758,6 +1781,21 @@ void draw(void) {
     ntri = 0;
     for (int r = NRING - 1; r >= 0; r--) build_ring(r);
     build_roads();
+    // which deck pieces draw LATE (after all terrain): near ones with a clear line of sight from the eye.
+    // A deck behind a hill crest must stay in the per-cell order, or it shows through the hill.
+    for (int k = 0; k < npc; k++) {
+        Piece *p = &pc[k];
+        if (!p->deck) continue;
+        float cx = (p->x[0] + p->x[1] + p->x[2] + p->x[3]) * 0.25f, cy = (p->y[0] + p->y[1] + p->y[2] + p->y[3]) * 0.25f;
+        float dx = cx - px, dy = cy - py;
+        if (dx * dx + dy * dy > DECK_NEAR * DECK_NEAR) continue;
+        float cz = (p->z0 + p->z1) * 0.5f, clear = 1;
+        for (int t = 1; t < 10 && clear; t++) {
+            float u = t / 10.0f;
+            if (ground(px + dx * u, py + dy * u) > camh + (cz - camh) * u + 0.3f) clear = 0;   // ground above the sight line
+        }
+        p->late = (unsigned char)clear;
+    }
     if (ISL) bin_landmarks();
     for (int r = NRING - 1; r >= 0; r--) draw_ring(r);
     g_deckpass = 1;                                     // near decks over everything (still far → near)

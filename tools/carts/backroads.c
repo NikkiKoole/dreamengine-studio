@@ -114,6 +114,9 @@ static float isl_W = 40000, isl_H = 40000;        // extent (m)
 static float ihf[IHF_MAX * IHF_MAX]; static int ihg;   // heights (m), row 0 = SOUTH (file order)
 #define ICG 128
 static unsigned char icv[ICG * ICG];              // cover per ~312 m cell, row 0 = NORTH (flipped)
+#define IWG 512
+static unsigned char iwm[IWG * IWG];              // water per ~78 m cell, row 0 = NORTH: the export's kind=water areas
+                                                  // (finer than the cover grid, so a small lake sits under its bridge)
 enum { IC_LAND, IC_WATER, IC_SAND, IC_FARM, IC_WOOD, IC_HEATH, IC_SCRUB, IC_ROCK, IC_WET };
 #define IPL_MAX 24000
 #define IPT_MAX 320000
@@ -152,6 +155,11 @@ static int isl_cover(float x, float y) {          // cell edges jittered so the 
     float jy = y + (noise2(x / 90.0f + 9.4f, y / 90.0f + 1.3f) - 0.5f) * 160.0f;
     int i = (int)(jx / isl_W * ICG), j = (int)(jy / isl_H * ICG);
     if (i < 0 || j < 0 || i >= ICG || j >= ICG) return IC_WATER;
+    // water first, on its own finer grid with a smaller jitter (shores wobble, bridges stay over water)
+    float wx = x + (noise2(x / 40.0f + 1.7f, y / 40.0f + 4.2f) - 0.5f) * 40.0f;
+    float wy = y + (noise2(x / 40.0f + 6.6f, y / 40.0f + 2.9f) - 0.5f) * 40.0f;
+    int wi = (int)(wx / isl_W * IWG), wj = (int)(wy / isl_H * IWG);
+    if (wi < 0 || wj < 0 || wi >= IWG || wj >= IWG || iwm[wj * IWG + wi]) return IC_WATER;
     return icv[j * ICG + i];
 }
 static int ib_of(float v, float ext) { int b = (int)(v / ext * IBG); return b < 0 ? 0 : b >= IBG ? IBG - 1 : b; }
@@ -195,7 +203,7 @@ static int isl_load(const char *path) {
     float bb[4]; for (int k = 0; k < 4; k++) RD(float, bb[k]);
     isl_W = fmaxf(bb[2], 1000); isl_H = fmaxf(bb[3], 1000);
     nipl = nipt = niset = nifarm = 0; ihg = 0;
-    memset(icv, IC_LAND, sizeof icv);
+    memset(icv, IC_LAND, sizeof icv); memset(iwm, 0, sizeof iwm);
     for (int i = 0; i < IBG * IBG; i++) ib_head[i] = -1;
     for (int fi = 0; fi < nfeat; fi++) {
         int kind, sl, np; float fh = 0; char sub[48] = { 0 };
@@ -232,6 +240,12 @@ static int isl_load(const char *path) {
                   : strstr(sub, "heath") ? IC_HEATH : strstr(sub, "rock") ? IC_ROCK : IC_LAND;
             float x0 = 1e30f, x1 = -1e30f, y0 = 1e30f, y1 = -1e30f;
             for (int k = 0; k < np; k++) { x0 = fminf(x0, pts[k*2]); x1 = fmaxf(x1, pts[k*2]); y0 = fminf(y0, pts[k*2+1]); y1 = fmaxf(y1, pts[k*2+1]); }
+            if (c == IC_WATER) {                           // water: its own 512 mask (old exports' 312 m runs fill it too)
+                int ja = (int)ceilf(y0 / isl_H * IWG - 0.5f), jb = (int)floorf(y1 / isl_H * IWG - 0.5f);   // cells whose centre is inside
+                int ia = (int)ceilf(x0 / isl_W * IWG - 0.5f), ib = (int)floorf(x1 / isl_W * IWG - 0.5f);
+                if (ja < 0) ja = 0; if (ia < 0) ia = 0; if (jb >= IWG) jb = IWG - 1; if (ib >= IWG) ib = IWG - 1;
+                for (int j = ja; j <= jb; j++) for (int i = ia; i <= ib; i++) iwm[j * IWG + i] = 1;
+            } else
             for (int j = 0; j < ICG; j++) {                // islandstudio writes axis-aligned runs: fill by cell centre
                 float cy = (j + 0.5f) * isl_H / ICG; if (cy < y0 || cy > y1) continue;
                 for (int i = 0; i < ICG; i++) { float cx = (i + 0.5f) * isl_W / ICG; if (cx >= x0 && cx <= x1) icv[j * ICG + i] = (unsigned char)c; }
@@ -671,7 +685,7 @@ static void isl_build_decks(void) {
             int k2 = k + 1 <= e ? k + 1 : e;
             float gx = ipx[k] + (ipx[k2] - ipx[k]) * t, gy = ipy[k] + (ipy[k2] - ipy[k]) * t;
             B->gs[g] = ground(gx, gy);
-            if (g > 0 && g < IBR_GS - 1 && isl_cover(gx, gy) == IC_WATER) B->wl = fmaxf(B->wl, B->gs[g]);
+            if (ipl_wl[q] < -1e8f && g > 0 && g < IBR_GS - 1 && isl_cover(gx, gy) == IC_WATER) B->wl = fmaxf(B->wl, B->gs[g]);   // untagged: guess from the cover
         }
         for (int k = a + 1; k <= e; k++) {                // roads passing underneath
             int bx = ib_of((ipx[k] + ipx[k - 1]) * 0.5f, isl_W), by = ib_of((ipy[k] + ipy[k - 1]) * 0.5f, isl_H);

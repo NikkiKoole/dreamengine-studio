@@ -602,6 +602,12 @@ parapets since those need 1 m of lift. Now each span samples the cover under it,
 deck stands at least 4 m clear of the water surface, with the same 40 m end tapers as a flyover. The
 mirror pass and the debug readout became a three-row top bar with the mirror in its middle gap.
 
+Follow-up the same day: the first long span (seed 3, bridging 1.0: 417 m across a mountain lake at
+404 m) held the car, but the export had no water under it (its cover runs were 312 m). islandstudio
+now tags water spans `B1;water=<m>` and exports water as its own 78 m areas (commit 99adf7fa).
+backroads keeps a separate 512-cell water mask for those, and a tagged span stands exactly 4 m
+over its water (untagged spans still guess the level from the cover under them).
+
 ## 11. Open questions — to be answered by playing
 
 - **How unforgiving?** Can a bust cost everything (start over), or is it always a painful,

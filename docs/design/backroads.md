@@ -608,6 +608,21 @@ now tags water spans `B1;water=<m>` and exports water as its own 78 m areas (com
 backroads keeps a separate 512-cell water mask for those, and a tagged span stands exactly 4 m
 over its water (untagged spans still guess the level from the cover under them).
 
+### 2026-11-20: houses
+
+The split agreed with the maker: islandstudio decides WHERE buildings stand and exports their
+footprints; backroads decides how they look. The vocabulary is OpenStreetMap's own (proposal:
+[island-buildings.md](island-buildings.md)), so the same code would draw real Delft. backroads reads
+kind `building` footprints (sub = the `building=*` value, height in the feature's h; the first
+`h=<storeys>;t=<type>` export too), grounds each on its lowest corner, buckets them on 250 m cells,
+and per frame depth-sorts the ones within 1.6 km into the ring cells, farthest first, like the
+landmarks. Each is a box plus a gable roof (eaves overhang, ridge on the long side), brick or
+whitewash under tile or slate; barns tarred timber, terraces brick, shops flat-ish. An exported
+church becomes the church LANDMARK on its footprint (so it keeps its spire and skyline silhouette).
+Not in the mirror (too small to read). Cost in Brekthorpe's centre: ~350 polygon fills a frame
+(solid shades, one polyfill per face); the town streets that came with the same export cost far more
+(~3,100 road pieces in view, 8 ms vs 3.6 ms work) and are the next optimisation.
+
 ## 11. Open questions — to be answered by playing
 
 - **How unforgiving?** Can a bust cost everything (start over), or is it always a painful,

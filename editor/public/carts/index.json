@@ -5157,6 +5157,19 @@
     "homage": "Neu! / Stereolab (krautrock / motorik)"
   },
   {
+    "title": "motor voice probe",
+    "description": "Holds one INSTR_MOTOR engine at a fixed rpm and load, chosen at build time: DE_DEFINES=LAYOUT=3,RPM=1400,LOAD=0.3,EXH=0.3 (plus ROUGH=, PIPE=, SWEEP=1 for a slow rev from idle to 6000 rpm and back). Render it with `node tools/play.js motorprobe script /dev/null --headless --frames 300 --wav out.wav`.",
+    "file": "motorprobe.cart.png",
+    "created": "2026-11-20",
+    "kind": [
+      "tech-demo"
+    ],
+    "teaches": [
+      "sonification"
+    ],
+    "lineage": "Measurement probe for INSTR_MOTOR (the cylinder + exhaust engine voice). Rendered headless and read back against CC0 engine recordings (tools/refs/engines-cc0.txt); not played by hand."
+  },
+  {
     "title": "mouthhand",
     "description": "A funky synth bass and a lead, each with its own MOUTH: a vowel filter that opens when a note is played harder, says 'wah' on every attack, drifts, and makes the lead's long notes talk. TAB freezes the mouth on one vowel to hear what the movement adds. Both parts are monophonic, so one formant per instrument (the engine's formant sits on the slot's effects bus: one mouth) can still shape every note. The vowel runs U, O, A, E, I. Follow: harder notes open toward A, softer ones close toward U, the way a voice and a wah pedal both behave. Wah: each attack starts closed and opens over ~0.1 s (a synth bass saying 'yow'). Drift: a slow wander so nothing sits on one frozen colour. Talk: the lead's long notes move through a little vowel line, a talk box. The vowel is smoothed and re-sent only when it moves, because the engine jumps to a new vowel with no slew of its own. Keys 1-5 switch each layer on and off. SPACE play/stop · TAB moving / frozen mouth · 1 mouth 2 follow 3 wah 4 drift 5 talk · UP/DOWN humanity · R new take",
     "file": "mouthhand.cart.png",

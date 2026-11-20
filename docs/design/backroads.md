@@ -580,6 +580,17 @@ Three fixes to decks:
   straight deck between its ends used to run through a rise in the middle.
 Dev hooks: `BR_KDIST` (how far back `K` puts you, default 60 m) and `BR_KFLY` (`K` visits flyovers only).
 
+### 2026-11-20: the rear-view mirror
+
+A real render, not the doc's "cheap fake": the projection is now parameterised by a VIEW (centre,
+horizon row, focal length, half-width, screen rectangle: `VX0`/`VHZ`/`VF`/`VHALF`/`VRX..VRH`), replacing the
+hard-coded 160 / `HZ0` / `FOCAL` in the polygon filler, posts, roll, sky, skyline and far landmarks. The
+mirror is a second pass with the camera looking backwards and the right vector NOT flipped (= a mirror
+image), pitch inverted, roll kept, focal 52 px (~85°), in a 96×26 framed strip at the top centre (below
+the debug overlay when it's on). `build_ring` was split so the mirror only re-projects rings 0–1
+(`project_ring`): heights, road pieces, late-deck flags and landmark bins are reused. Beyond ~1 km the
+mirror shows haze, sky and the island's skyline. The village sign moved below it.
+
 ---
 
 ## 11. Open questions — to be answered by playing

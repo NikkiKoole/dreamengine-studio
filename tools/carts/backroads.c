@@ -92,6 +92,10 @@ static int   ntri;              // triangles drawn this frame
 static int   cur_surf;          // surface under the car
 
 static float cfx, cfy, crx, cry, cpc, cps, crc, crs;      // camera basis
+// THE VIEW being drawn: the windscreen, or the rear-view mirror. Projection centre, horizon row at zero
+// pitch, focal length (px), half-width, and the screen rectangle it fills.
+static float VX0 = 160.0f, VHZ = HZ0, VF = FOCAL, VHALF = 160.0f;
+static int   VRX = 0, VRY = 0, VRW = SCREEN_W, VRH = VIEW_H;
 
 // ── ISLAND MODE: drive an islandstudio export instead of worldnet's endless world ────────
 // docs/design/island-studio.md. The island is a .rvb (roadview's packed vector format, written by
@@ -415,7 +419,7 @@ static void fill_cam(float *X, float *Y, float *Z, int n, int band, float lum) {
     }
     if (m < 3) return;
     // side reject AFTER the near clip (a point behind the camera has no meaningful side)
-    float k = 160.0f / FOCAL;
+    float k = VHALF / VF;
     int allL = 1, allR = 1;
     for (int i = 0; i < m; i++) {
         if (!(PX[i] >  PZ[i] * k + 0.5f)) allR = 0;
@@ -424,8 +428,8 @@ static void fill_cam(float *X, float *Y, float *Z, int n, int band, float lum) {
     if (allL || allR) return;
     int xy[PMAX * 2];
     for (int i = 0; i < m; i++) {
-        xy[2*i]   = (int)floorf(clamp(160.0f + PX[i] * FOCAL / PZ[i], -4000, 4000) + 0.5f);
-        xy[2*i+1] = (int)floorf(clamp(HZ0    - PY[i] * FOCAL / PZ[i], -4000, 4000) + 0.5f);
+        xy[2*i]   = (int)floorf(clamp(VX0 + PX[i] * VF / PZ[i], -4000, 4000) + 0.5f);
+        xy[2*i+1] = (int)floorf(clamp(VHZ - PY[i] * VF / PZ[i], -4000, 4000) + 0.5f);
         zs += PZ[i];
     }
     fill_shaded(xy, m, band, lum, (zs / m - FOG0) / (FOG1 - FOG0));
@@ -495,6 +499,13 @@ static void build_ring(int r) {
             vt[r][id] = t;
             to_cam(wx, wy, vh[r][id], &vcx[r][id], &vcy[r][id], &vcz[r][id]);
         }
+}
+static void project_ring(int r) {                 // re-project an already built ring for another view (the mirror)
+    int n = RN[r], n1 = n + 1; float s = RS[r];
+    for (int j = 0; j <= n; j++) for (int i = 0; i <= n; i++) {
+        int id = j * n1 + i;
+        to_cam(rx0[r] + i * s, ry0[r] + j * s, vh[r][id], &vcx[r][id], &vcy[r][id], &vcz[r][id]);
+    }
 }
 static int in_finer(int r, float wx, float wy, float s) {   // cell fully inside ring r-1?
     if (r == 0) return 0;
@@ -965,9 +976,9 @@ static void draw_post(const Post *q) {
     to_cam(q->x, q->y, h, &bx, &by, &bz);
     to_cam(q->x, q->y, h + 1.0f, &tx, &ty, &tz);
     if (bz < 1.0f || tz < 1.0f) return;
-    float sx0 = 160 + bx * FOCAL / bz, sy0 = HZ0 - by * FOCAL / bz;
-    float sx1 = 160 + tx * FOCAL / tz, sy1 = HZ0 - ty * FOCAL / tz;
-    int w = (int)(0.14f * FOCAL / bz); if (w < 1) w = 1;
+    float sx0 = VX0 + bx * VF / bz, sy0 = VHZ - by * VF / bz;
+    float sx1 = VX0 + tx * VF / tz, sy1 = VHZ - ty * VF / tz;
+    int w = (int)(0.14f * VF / bz); if (w < 1) w = 1;
     int cb = (int)(sy1 + (sy0 - sy1) * 0.2f);              // dark cap: the top fifth
     int fog = bz > 300;
     // posts are vertical in the world; under roll they lean on screen, so draw a thin quad
@@ -1047,9 +1058,9 @@ static void draw_ring(int r) {
 
 // ── sky + horizon silhouette, built unrolled then turned by the camera roll ────
 static void scr_roll(float sx, float sy, int *ox, int *oy) {
-    float u = sx - 160.0f, w = HZ0 - sy;
-    *ox = (int)(160.0f + u * crc - w * crs);
-    *oy = (int)(HZ0 - (u * crs + w * crc));
+    float u = sx - VX0, w = VHZ - sy;
+    *ox = (int)(VX0 + u * crc - w * crs);
+    *oy = (int)(VHZ - (u * crs + w * crc));
 }
 static void quad_roll(float x0, float y0, float x1, float y1, int col) {   // axis rect, rolled
     int ax, ay, bx, by, cx, cy, dx, dy;
@@ -1203,15 +1214,15 @@ static void skyline_landmarks(float hz, float d0, float d1, int col) {
     for (int k = 0; k < nmk; k++) {
         float dx = mk[k].x - px, dy = mk[k].y - py, d = fsqrt(dx * dx + dy * dy);
         if (d < d0 || d >= d1 || d < 2700.0f) continue;
-        float rel = atan2f(dy, dx) - head * D2R;
+        float rel = atan2f(dy, dx) - atan2f(cfy, cfx);   // relative to where the CAMERA looks (mirror: backwards)
         while (rel > 3.14159f) rel -= 6.28318f; while (rel < -3.14159f) rel += 6.28318f;
         if (fabsf(rel) > 0.8f) continue;
-        float sx = 160.0f + tanf(rel) * FOCAL;
+        float sx = VX0 + tanf(rel) * VF * (crx * -cfy + cry * cfx < 0 ? -1.0f : 1.0f);
         float ex = 1.0f + 2.0f * clamp((d - 2900.0f) / 13000.0f, 0, 1), s = mk_scale(d);
         float eb = (mk[k].g - camh - d * d / 12742000.0f) / d * ex;          // base sits on the exaggerated land
-        float hb = eb * FOCAL, ht = hb + MK_TOP[mk[k].kind] * s / d * FOCAL;
-        float w = fmaxf(2.0f, 5.0f * s / d * FOCAL);       // at least 2 px: 1 px spikes were easy to miss
-        float tw = mk[k].kind == MK_CHURCH ? ht - (14.0f * s / d * FOCAL) : ht - (3.0f * s / d * FOCAL);   // where the roof/spire starts
+        float hb = eb * VF, ht = hb + MK_TOP[mk[k].kind] * s / d * VF;
+        float w = fmaxf(2.0f, 5.0f * s / d * VF);          // at least 2 px: 1 px spikes were easy to miss
+        float tw = mk[k].kind == MK_CHURCH ? ht - (14.0f * s / d * VF) : ht - (3.0f * s / d * VF);   // where the roof/spire starts
         int ax, ay, bx, by, cx, cy, ddx, ddy;
         scr_roll(sx - w * 0.5f, hz - tw, &ax, &ay); scr_roll(sx + w * 0.5f, hz - tw, &bx, &by);
         scr_roll(sx + w * 0.5f, hz - hb + 1, &cx, &cy); scr_roll(sx - w * 0.5f, hz - hb + 1, &ddx, &ddy);
@@ -1229,8 +1240,9 @@ static void island_skyline(float hz) {
     static const int   COL[3] = { CLR_BLUE_GREEN, CLR_DARK_GREY, CLR_INDIGO };   // near → far: land teal, grey, lavender (must contrast with the dusk sky)
     static float ang[3][SKY_COLS];
     int nc = 0;
-    for (int x = -40; x < SCREEN_W + 40 && nc < SKY_COLS; x += 2, nc++) {
-        float a = head * D2R + atanf((x - 160.0f) / FOCAL), ca = cosf(a), sa = sinf(a);
+    float look = atan2f(cfy, cfx), xs0 = VX0 - VHALF - 40;
+    for (int x = (int)xs0; x < VX0 + VHALF + 40 && nc < SKY_COLS; x += 2, nc++) {
+        float a = look + atanf((x - VX0) / VF) * (crx * -cfy + cry * cfx < 0 ? -1.0f : 1.0f), ca = cosf(a), sa = sinf(a);
         for (int b = 0; b < 3; b++) ang[b][nc] = -1e9f;
         int b = 0;
         for (float d = D0[0]; d < D1[2]; d *= 1.045f) {
@@ -1253,9 +1265,9 @@ static void island_skyline(float hz) {
         for (int c = 0; c + 1 < nc; c++) {
             float e0 = ang[b][c], e1 = ang[b][c + 1];
             if (e0 < -1e8f && e1 < -1e8f) continue;
-            float h0 = e0 < -1e8f ? 0 : e0 * FOCAL, h1 = e1 < -1e8f ? 0 : e1 * FOCAL;
+            float h0 = e0 < -1e8f ? 0 : e0 * VF, h1 = e1 < -1e8f ? 0 : e1 * VF;
             if (h0 < -2 && h1 < -2) continue;              // below the horizon: hidden by haze anyway
-            float x0 = -40 + c * 2.0f, x1 = x0 + 2.0f;
+            float x0 = xs0 + c * 2.0f, x1 = x0 + 2.0f;
             int ax, ay, bx, by, cx, cy, dx, dy;
             scr_roll(x0, hz - h0, &ax, &ay); scr_roll(x1, hz - h1, &bx, &by);
             scr_roll(x1, hz + 1, &cx, &cy); scr_roll(x0, hz + 1, &dx, &dy);
@@ -1266,7 +1278,7 @@ static void island_skyline(float hz) {
 }
 static void draw_sky(float hz) {
     static const int SKY[4] = { CLR_DARKER_BLUE, CLR_DARKER_PURPLE, CLR_MAUVE, HAZE };
-    rectfill(0, 0, SCREEN_W, VIEW_H, HAZE);
+    rectfill(VRX, VRY, VRW, VRH, HAZE);
     float top = hz - 70, bh = 10.0f;                       // 7 bands of 10 px
     quad_roll(-200, top - 400, 520, top, SKY[0]);
     for (int k = 0; k < 7; k++) {
@@ -1594,7 +1606,7 @@ static void draw_sign(void) {
     const ISet *S = &iset[sign_place];
     static const char *RNAME[3] = { "hamlet", "village", "town" };
     int w = text_width(S->name) + 16; if (w < 70) w = 70;
-    int x = 160 - w / 2, y = 26;
+    int x = 160 - w / 2, y = (dbg ? 24 : 4) + 26 + 8;    // just below the rear-view mirror
     rectfill(x - 1, y - 1, w + 2, 24, CLR_BROWNISH_BLACK);                 // a 1970s place-name sign:
     rectfill(x, y, w, 22, CLR_WHITE);                                       // white plate, black border, black letters
     rect(x + 2, y + 2, w - 4, 18, CLR_BROWNISH_BLACK);
@@ -1762,6 +1774,32 @@ static void draw_map(void) {
     clip(0, 0, 0, 0);
 }
 
+// ── THE REAR-VIEW MIRROR: the same renderer again, looking BACKWARDS and flipped left-to-right (a
+// mirror), wide-angle, into a small framed strip at the top of the windscreen. Only the near rings
+// (~1 km) are re-projected (heights and road pieces are reused); beyond is haze, sky and skyline.
+#define MIR_W 96
+#define MIR_H 26
+static void draw_mirror(void) {
+    int mx = 160 - MIR_W / 2, my = dbg ? 24 : 4;
+    float h = head * D2R;
+    cfx = -cosf(h); cfy = -sinf(h);                     // looking back...
+    crx = -sinf(h); cry = cosf(h);                      // ...with the right vector NOT flipped = a mirror image
+    cpc = cosf(-pitch); cps = sinf(-pitch);              // the nose-up pitch tips the rear view down
+    crc = cosf(roll); crs = sinf(roll);
+    VX0 = 160.0f; VHZ = my + MIR_H * 0.45f; VF = 52.0f; VHALF = MIR_W * 0.5f;
+    VRX = mx; VRY = my; VRW = MIR_W; VRH = MIR_H;
+    rectfill(mx - 3, my - 3, MIR_W + 6, MIR_H + 6, CLR_BROWNISH_BLACK);   // the mirror housing
+    rect(mx - 2, my - 2, MIR_W + 4, MIR_H + 4, CLR_DARKER_GREY);
+    clip(mx, my, MIR_W, MIR_H);
+    draw_sky(VHZ + tanf(-pitch) * VF);
+    for (int r = ROAD_RINGS - 1; r >= 0; r--) project_ring(r);
+    for (int r = ROAD_RINGS - 1; r >= 0; r--) draw_ring(r);
+    g_deckpass = 1;
+    for (int r = ROAD_RINGS - 1; r >= 0; r--) draw_ring(r);
+    g_deckpass = 0;
+    clip(0, 0, 0, 0);
+    line(160, my - 3, 160, my - 8, CLR_DARKER_GREY);    // the stalk
+}
 void draw(void) {
     if (show_map) { draw_map(); draw_dash(); return; }
     float save_camh = camh, save_pitch = pitch, save_px = px, save_py = py;
@@ -1774,6 +1812,7 @@ void draw(void) {
     crx = -sinf(h); cry = cosf(h);
     cpc = cosf(pitch); cps = sinf(pitch);
     crc = cosf(roll);  crs = sinf(roll);
+    VX0 = 160.0f; VHZ = HZ0; VF = FOCAL; VHALF = 160.0f; VRX = 0; VRY = 0; VRW = SCREEN_W; VRH = VIEW_H;
     float hz = HZ0 + tanf(pitch) * FOCAL;
 
     clip(0, 0, SCREEN_W, VIEW_H);
@@ -1802,6 +1841,7 @@ void draw(void) {
     for (int r = ROAD_RINGS - 1; r >= 0; r--) draw_ring(r);
     g_deckpass = 0;
     clip(0, 0, 0, 0);
+    if (!drone) draw_mirror();
     camh = save_camh; pitch = save_pitch; px = save_px; py = save_py;
     draw_sign();
     draw_dash();
